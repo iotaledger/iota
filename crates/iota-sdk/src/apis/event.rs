@@ -8,7 +8,8 @@ use futures::{StreamExt, stream};
 use futures_core::Stream;
 use iota_json_rpc_api::{IndexerApiClient, ReadApiClient};
 use iota_json_rpc_types::{EventFilter, EventPage, IotaEvent};
-use iota_types::{base_types::TransactionDigest, event::EventID};
+use iota_sdk_types::TransactionDigest;
+use iota_types::event::EventID;
 use jsonrpsee::core::client::Subscription;
 
 use crate::{
@@ -38,7 +39,7 @@ impl EventApi {
     /// use std::str::FromStr;
     ///
     /// use futures::StreamExt;
-    /// use iota_sdk::{IotaClientBuilder, rpc_types::EventFilter, types::base_types::IotaAddress};
+    /// use iota_sdk::{IotaClientBuilder, rpc_types::EventFilter};
     ///
     /// #[tokio::main]
     /// async fn main() -> Result<(), anyhow::Error> {

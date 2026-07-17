@@ -148,7 +148,7 @@ def verify_topology(validators: list[str], block_latency_ms: int) -> None:
 
 def run() -> None:
     log_path = configure_experiment_logging("block_stress")
-    # Set fixed seed for reproducibility across different runs (e.g. Mysticeti vs Starfish)
+    # Set fixed seed for reproducibility across different runs
     random.seed(42)
     validators: list[str] = []
     collector = None

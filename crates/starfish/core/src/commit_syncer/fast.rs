@@ -4,7 +4,10 @@
 use std::{
     cmp::max,
     collections::{BTreeMap, BTreeSet},
-    sync::Arc,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
     time::Duration,
 };
 
@@ -32,12 +35,66 @@ use crate::{
     core_thread::CoreThreadDispatcher,
     dag_state::DagState,
     error::{ConsensusError, ConsensusResult},
+    header_synchronizer::HeaderSynchronizerHandle,
+    misbehavior_store::MisbehaviorStore,
     network::{NetworkClient, SerializedTransactionsV2},
     transaction_ref::{GenericTransactionRef, TransactionRef},
 };
 
 /// Timeout for fetching block headers during close-to-quorum finalization.
 const FETCH_HEADERS_TIMEOUT: Duration = Duration::from_secs(30);
+
+/// Which worker skipped a step because the fast commit syncer was active.
+/// Used as the `source` label on `syncer_paused_by_fast_sync`. All
+/// variants share a single metric; keeping them in one enum makes the
+/// label space disjoint and centrally visible.
+#[derive(Clone, Copy)]
+pub(crate) enum FastSyncPauseSource {
+    /// `RegularCommitSyncer::try_schedule_once` skipped adding new ranges
+    /// to `pending_fetches`.
+    RegularSchedule,
+    /// `RegularCommitSyncer::try_start_fetches` skipped moving ranges
+    /// from `pending_fetches` into `inflight_fetches`.
+    RegularStartFetches,
+    /// `HeaderSynchronizer` dropped a `FetchBlockHeaders` command
+    /// instead of dispatching it.
+    HeaderCommand,
+    /// `HeaderSynchronizer`'s periodic scheduler tick skipped starting
+    /// a new sync task.
+    HeaderScheduler,
+}
+
+impl FastSyncPauseSource {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::RegularSchedule => "regular_schedule",
+            Self::RegularStartFetches => "regular_start_fetches",
+            Self::HeaderCommand => "header_command",
+            Self::HeaderScheduler => "header_scheduler",
+        }
+    }
+}
+
+/// Returns true if the fast commit syncer is currently doing work and the
+/// caller should skip its gated step. Bumps the shared
+/// `syncer_paused_by_fast_sync` metric with the given source label when
+/// the gate fires. Returns false when fast sync is disabled at this
+/// deployment (`fast_sync_active` is `None`) — the call is then an
+/// unconditional pass-through with no metric mutation.
+pub(crate) fn paused_by_fast_sync(
+    fast_sync_active: Option<&Arc<AtomicBool>>,
+    metrics: &crate::metrics::NodeMetrics,
+    source: FastSyncPauseSource,
+) -> bool {
+    let paused = fast_sync_active.is_some_and(|flag| flag.load(Ordering::Relaxed));
+    if paused {
+        metrics
+            .syncer_paused_by_fast_sync
+            .with_label_values(&[source.as_str()])
+            .inc();
+    }
+    paused
+}
 
 /// Output from fast sync fetch operations containing commits, subdags, and
 /// voting headers.
@@ -89,6 +146,9 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         network_client: Arc<C>,
         block_verifier: Arc<dyn BlockVerifier>,
         dag_state: Arc<RwLock<DagState>>,
+        header_synchronizer: Arc<HeaderSynchronizerHandle>,
+        misbehavior_store: Arc<MisbehaviorStore>,
+        fast_sync_active: Arc<AtomicBool>,
     ) -> Self {
         let inner = Arc::new(Inner {
             context,
@@ -98,7 +158,10 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
             network_client,
             block_verifier,
             dag_state,
+            header_synchronizer,
+            misbehavior_store,
             sync_type: CommitSyncType::Fast,
+            fast_sync_active: Some(fast_sync_active),
         });
         let last_solid_commit_index = inner.dag_state.read().last_solid_commit_index();
         info!(
@@ -189,6 +252,9 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                                 e
                             );
                         } else {
+                            self.inner
+                                .header_synchronizer
+                                .clear_verified_headers_cache();
                             info!(
                                 "[{}] Components reinitialized, fast sync complete",
                                 self.inner.sync_type.as_str()
@@ -217,6 +283,17 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                     self.inner.sync_type.as_str()
                 );
             }
+
+            // Any of these being true means fast sync still has work; regular
+            // sync and the header synchronizer must stay paused.
+            let active = self.has_fetched_data
+                || self.close_to_quorum_mode
+                || !self.inflight_fetches.is_empty()
+                || !self.pending_fetches.is_empty()
+                || !self.fetched_ranges.is_empty();
+            if let Some(flag) = &self.inner.fast_sync_active {
+                flag.store(active, Ordering::Relaxed);
+            }
         }
     }
 
@@ -225,7 +302,8 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         let last_solid_commit_index = self.inner.dag_state.read().last_solid_commit_index();
         let highest_handled_index = self.inner.commit_consumer_monitor.highest_handled_commit();
         let highest_scheduled_index = self.highest_scheduled_index.unwrap_or(0);
-        let unhandled_commits_threshold = self.inner.unhandled_commits_threshold();
+        let unhandled_commits_threshold =
+            self.inner.context.parameters.unhandled_commits_threshold();
         let step = self
             .inner
             .sync_type
@@ -237,11 +315,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
             || self.inner.sync_type.should_schedule(
                 gap,
                 self.inner.context.parameters.commit_sync_gap_threshold,
-                self.inner
-                    .context
-                    .protocol_config
-                    .consensus_fast_commit_sync()
-                    && self.inner.context.parameters.enable_fast_commit_syncer,
+                self.inner.context.parameters.enable_fast_commit_syncer,
             );
 
         if should_schedule {
@@ -484,7 +558,6 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
             .commit_sync_fetch_once_latency
             .with_label_values(&[inner.sync_type.as_str()])
             .start_timer();
-        assert!(inner.context.protocol_config.consensus_fast_commit_sync());
 
         // 1. Fetch commits, voting headers, and transactions in the commit range from
         //    the target authority. Each transaction is serialized as
@@ -497,7 +570,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         // 2. Verify the response contains block headers that can certify the last
         //    returned commit, and the returned commits are chained by digest,
         // so earlier commits are certified as well.
-        let batch_size = inner.sync_type.commit_sync_batch_size(&inner.context) as usize;
+        let max_commits = inner.sync_type.max_commits_per_response(&inner.context);
         let (commits, voting_block_headers) = Handle::current()
             .spawn_blocking({
                 let inner = inner.clone();
@@ -507,7 +580,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                         commit_range,
                         serialized_commits,
                         serialized_proof_for_last_commit,
-                        2 * batch_size,
+                        max_commits,
                     )
                 }
             })
@@ -585,6 +658,10 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         // For fast commit sync, we use block headers refs and reputation scores from
         // the commit.
         let mut committed_subdags = Vec::new();
+        // Replayed commits share one snapshot of current store state; downstream
+        // consumers merge-max against their last-seen, so repeating absolute
+        // totals across the batch is a no-op after the first.
+        let misbehavior_counts = inner.dag_state.read().misbehavior_store().snapshot_totals();
         for commit in &commits {
             // Get block headers from the commit
             let committed_header_refs = commit.block_headers().to_vec();
@@ -607,6 +684,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                 commit.timestamp_ms(),
                 commit.reference(),
                 reputation_scores,
+                misbehavior_counts.clone(),
             ));
         }
 
@@ -635,7 +713,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         // Fetch the maximum to satisfy all requirements
         let cached_rounds = inner.context.parameters.dag_state_cached_rounds;
         let gc_depth = inner.context.protocol_config.gc_depth();
-        let leader_schedule_window = crate::leader_schedule::CONSENSUS_COMMITS_PER_SCHEDULE as u32;
+        let leader_schedule_window = inner.context.protocol_config.commits_per_schedule();
         // Get block refs from recent commits stored during fast sync
         // TODO: The commits might not yet stored, but only fetched and pending
         // processing.
@@ -716,6 +794,11 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                                 break;
                             }
                             Err(e) => {
+                                // TODO: verify_fetched_headers currently only returns
+                                // fetch-shape errors (wrong count/ref) which classify
+                                // as Untracked. When per-header faults become observable
+                                // here, record them as peer misbehavior via
+                                // `inner.misbehavior_store.record_faulty_block_header`.
                                 warn!(
                                     "[{}] Failed to verify headers from {}: {}",
                                     inner.sync_type.as_str(),
@@ -792,17 +875,95 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
 
 #[cfg(test)]
 mod tests {
-    use std::time::{Duration, Instant};
+    use std::{
+        sync::Arc,
+        time::{Duration, Instant},
+    };
 
+    use iota_metrics::monitored_mpsc::UnboundedReceiver;
     use iota_protocol_config::ProtocolConfig;
-    use prometheus::Registry;
+    use prometheus_filtered::Registry;
     use starfish_config::{Parameters, local_committee_and_keys};
     use tempfile::TempDir;
     use tokio::time::sleep;
     use tracing::info;
     use typed_store::DBMetrics;
 
-    use crate::authority_node::tests::make_authority_with_params;
+    use crate::{
+        authority_node::tests::make_authority_with_params, commit::CommittedSubDag,
+        commit_consumer::CommitConsumerMonitor,
+    };
+
+    /// Drains all ready committed subdags from the running validators (those
+    /// whose index is not in `stopped`), asserting commit indices advance
+    /// monotonically and updating both the per-validator high-water marks and
+    /// the consumer monitors.
+    fn drain_running(
+        output_receivers: &mut [UnboundedReceiver<CommittedSubDag>],
+        committed_index: &mut [u32],
+        consumer_monitors: &[Arc<CommitConsumerMonitor>],
+        stopped: &[usize],
+    ) {
+        for (index, receiver) in output_receivers.iter_mut().enumerate() {
+            if stopped.contains(&index) {
+                continue;
+            }
+            while let Ok(committed_subdag) = receiver.try_recv() {
+                let commit_index = committed_subdag.commit_ref.index;
+                assert!(
+                    commit_index > committed_index[index],
+                    "Commit index {} should be greater than previous {}",
+                    commit_index,
+                    committed_index[index]
+                );
+                committed_index[index] = commit_index;
+                consumer_monitors[index].set_highest_handled_commit(commit_index);
+            }
+        }
+    }
+
+    /// Runs the running validators (those not in `stopped`) until the highest
+    /// commit index among them reaches `target`, draining their output
+    /// meanwhile. Panics if `target` is not reached within `timeout`.
+    ///
+    /// Phases drive a target commit count rather than a fixed wall-clock
+    /// duration so the gap a restarted validator must close is deterministic
+    /// regardless of how fast the host commits: a too-small gap would fall
+    /// under the fast-sync threshold and silently downgrade to regular
+    /// sync.
+    async fn run_until_commit_index(
+        output_receivers: &mut [UnboundedReceiver<CommittedSubDag>],
+        committed_index: &mut [u32],
+        consumer_monitors: &[Arc<CommitConsumerMonitor>],
+        stopped: &[usize],
+        target: u32,
+        timeout: Duration,
+    ) {
+        let start_time = Instant::now();
+        loop {
+            drain_running(
+                output_receivers,
+                committed_index,
+                consumer_monitors,
+                stopped,
+            );
+            let highest = committed_index
+                .iter()
+                .enumerate()
+                .filter(|(i, _)| !stopped.contains(i))
+                .map(|(_, v)| *v)
+                .max()
+                .unwrap_or(0);
+            if highest >= target {
+                return;
+            }
+            assert!(
+                start_time.elapsed() < timeout,
+                "running validators only reached commit {highest}, expected {target}, within {timeout:?}"
+            );
+            sleep(Duration::from_millis(50)).await;
+        }
+    }
 
     /// Test that voting blocks stored during fast sync can be served to peers.
     /// This test verifies:
@@ -832,14 +993,23 @@ mod tests {
         // stopped.
         const NUM_AUTHORITIES: usize = 7;
         const COMMIT_GAP_THRESHOLD: u32 = 30;
-
-        // Work phases need to be long enough to create a gap larger than
-        // COMMIT_GAP_THRESHOLD (30) for fast sync to trigger.
-        let stable_work_duration = Duration::from_secs(10);
+        // Gap a restarted validator must close, in commits. Set comfortably above
+        // COMMIT_GAP_THRESHOLD so fast sync (not regular sync) is selected even with
+        // some slack between the consumer high-water mark and the quorum index.
+        const TARGET_GAP: u32 = COMMIT_GAP_THRESHOLD * 2;
+        // Safety bound on how long a work phase waits to reach its target commit
+        // count; generous so a slow host still completes rather than hangs.
+        let work_phase_timeout = Duration::from_secs(60);
 
         let (committee, keypairs) = local_committee_and_keys(0, vec![1; NUM_AUTHORITIES]);
         let mut protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
-        protocol_config.set_consensus_fast_commit_sync_for_testing(true);
+        protocol_config.set_gc_depth_for_testing(5);
+        // Shrink the leader-schedule rotation window — which also bounds the
+        // fast-sync reinitialization fetch window — well below TARGET_GAP. With the
+        // default window a recovering node refetches the whole synced gap into its
+        // regular block storage, so the fallback always answers and the voting-block
+        // store this test exercises is never actually consulted.
+        protocol_config.set_commits_per_schedule_for_testing(10);
 
         let temp_dirs: Vec<TempDir> = (0..NUM_AUTHORITIES)
             .map(|_| TempDir::new().unwrap())
@@ -857,7 +1027,10 @@ mod tests {
         for (index, _) in committee.authorities() {
             let parameters = Parameters {
                 db_path: temp_dirs[index.value()].path().to_path_buf(),
-                dag_state_cached_rounds: 5,
+                // Retain enough recent rounds to serve voting-block headers to
+                // lagging peers during catch-up; stabilizes the A/B convergence
+                // asserted below.
+                dag_state_cached_rounds: COMMIT_GAP_THRESHOLD / 2,
                 commit_sync_parallel_fetches: 2,
                 commit_sync_batch_size: 10,
                 commit_sync_gap_threshold: COMMIT_GAP_THRESHOLD,
@@ -883,78 +1056,52 @@ mod tests {
             consumer_monitors.push(monitor);
         }
 
-        // Phase 1: Let all authorities run and commit transactions
-        let start_time = Instant::now();
+        // Phase 1: Let all authorities run and build a shared committed prefix.
         let mut committed_index = [0u32; NUM_AUTHORITIES];
-        while start_time.elapsed() < stable_work_duration {
-            for (index, receiver) in output_receivers.iter_mut().enumerate() {
-                while let Ok(committed_subdag) = receiver.try_recv() {
-                    let commit_index = committed_subdag.commit_ref.index;
-                    assert!(
-                        commit_index > committed_index[index],
-                        "Commit index {} should be greater than previous {}",
-                        commit_index,
-                        committed_index[index]
-                    );
-                    committed_index[index] = commit_index;
-                    consumer_monitors[index].set_highest_handled_commit(commit_index);
-                }
-            }
-            sleep(Duration::from_millis(50)).await;
-        }
+        run_until_commit_index(
+            &mut output_receivers,
+            &mut committed_index,
+            &consumer_monitors,
+            &[],
+            TARGET_GAP,
+            work_phase_timeout,
+        )
+        .await;
 
         // Phase 2: Stop validator B first (so B misses commits created while it's down)
         let last_processed_b = consumer_monitors[validator_b_index].highest_handled_commit();
         authorities.remove(validator_b_index).stop().await;
 
-        // Phase 3: Let A and others continue committing (B misses these)
-        let start_time = Instant::now();
-        while start_time.elapsed() < stable_work_duration {
-            for (index, receiver) in output_receivers.iter_mut().enumerate() {
-                if index == validator_b_index {
-                    continue;
-                }
-                while let Ok(committed_subdag) = receiver.try_recv() {
-                    let commit_index = committed_subdag.commit_ref.index;
-                    assert!(
-                        commit_index > committed_index[index],
-                        "Commit index {} should be greater than previous {}",
-                        commit_index,
-                        committed_index[index]
-                    );
-                    committed_index[index] = commit_index;
-                    consumer_monitors[index].set_highest_handled_commit(commit_index);
-                }
-            }
-            sleep(Duration::from_millis(50)).await;
-        }
+        // Phase 3: Let A and others continue committing (B misses these), advancing
+        // far enough beyond B's stop point that B's gap clears the fast-sync
+        // threshold on restart.
+        run_until_commit_index(
+            &mut output_receivers,
+            &mut committed_index,
+            &consumer_monitors,
+            &[validator_b_index],
+            last_processed_b + TARGET_GAP,
+            work_phase_timeout,
+        )
+        .await;
 
         // Phase 4: Stop validator A
         let last_processed_a = consumer_monitors[validator_a_index].highest_handled_commit();
         authorities.remove(validator_a_index).stop().await;
 
         // Phase 5: Let the remaining validators (all except A and B) continue
-        // committing (both A and B miss these commits)
-        let start_time = Instant::now();
-        while start_time.elapsed() < stable_work_duration {
-            for (index, receiver) in output_receivers.iter_mut().enumerate() {
-                if index == validator_a_index || index == validator_b_index {
-                    continue;
-                }
-                while let Ok(committed_subdag) = receiver.try_recv() {
-                    let commit_index = committed_subdag.commit_ref.index;
-                    assert!(
-                        commit_index > committed_index[index],
-                        "Commit index {} should be greater than previous {}",
-                        commit_index,
-                        committed_index[index]
-                    );
-                    committed_index[index] = commit_index;
-                    consumer_monitors[index].set_highest_handled_commit(commit_index);
-                }
-            }
-            sleep(Duration::from_millis(50)).await;
-        }
+        // committing (both A and B miss these). This is the gap A must close on
+        // restart, so it must clear the fast-sync threshold for A to fast sync and
+        // store voting block headers.
+        run_until_commit_index(
+            &mut output_receivers,
+            &mut committed_index,
+            &consumer_monitors,
+            &[validator_a_index, validator_b_index],
+            last_processed_a + TARGET_GAP,
+            work_phase_timeout,
+        )
+        .await;
 
         // Phase 6: Restart validator A - it will fast sync and store voting blocks
         let parameters = Parameters {
@@ -987,23 +1134,13 @@ mod tests {
         // Wait for validator A to catch up via fast sync
         let start_time = Instant::now();
         let mut a_caught_up = false;
-        while start_time.elapsed() < Duration::from_secs(60) {
-            for (index, receiver) in output_receivers.iter_mut().enumerate() {
-                if index == validator_b_index {
-                    continue;
-                }
-                while let Ok(committed_subdag) = receiver.try_recv() {
-                    let commit_index = committed_subdag.commit_ref.index;
-                    assert!(
-                        commit_index > committed_index[index],
-                        "Commit index {} should be greater than previous {}",
-                        commit_index,
-                        committed_index[index]
-                    );
-                    committed_index[index] = commit_index;
-                    consumer_monitors[index].set_highest_handled_commit(commit_index);
-                }
-            }
+        while start_time.elapsed() < Duration::from_secs(90) {
+            drain_running(
+                &mut output_receivers,
+                &mut committed_index,
+                &consumer_monitors,
+                &[validator_b_index],
+            );
 
             let a_index = consumer_monitors[validator_a_index].highest_handled_commit();
             let max_other = consumer_monitors
@@ -1058,20 +1195,13 @@ mod tests {
         // Wait for validator B to catch up
         let start_time = Instant::now();
         let mut b_caught_up = false;
-        while start_time.elapsed() < Duration::from_secs(60) {
-            for (index, receiver) in output_receivers.iter_mut().enumerate() {
-                while let Ok(committed_subdag) = receiver.try_recv() {
-                    let commit_index = committed_subdag.commit_ref.index;
-                    assert!(
-                        commit_index > committed_index[index],
-                        "Commit index {} should be greater than previous {}",
-                        commit_index,
-                        committed_index[index]
-                    );
-                    committed_index[index] = commit_index;
-                    consumer_monitors[index].set_highest_handled_commit(commit_index);
-                }
-            }
+        while start_time.elapsed() < Duration::from_secs(90) {
+            drain_running(
+                &mut output_receivers,
+                &mut committed_index,
+                &consumer_monitors,
+                &[],
+            );
 
             let b_index = consumer_monitors[validator_b_index].highest_handled_commit();
             let max_other = consumer_monitors
@@ -1100,25 +1230,18 @@ mod tests {
 
         assert!(
             a_final > last_processed_a,
-            "Validator A should have progressed: before_restart={}, final={}",
-            last_processed_a,
-            a_final
+            "Validator A should have progressed: before_restart={last_processed_a}, final={a_final}"
         );
         assert!(
             b_final > last_processed_b,
-            "Validator B should have progressed: before_restart={}, final={}",
-            last_processed_b,
-            b_final
+            "Validator B should have progressed: before_restart={last_processed_b}, final={b_final}"
         );
 
         // Both should be within reasonable range of each other
         let diff = (a_final as i64 - b_final as i64).unsigned_abs() as u32;
         assert!(
             diff < 30,
-            "Validators A and B should have similar commit indices: A={}, B={}, diff={}",
-            a_final,
-            b_final,
-            diff
+            "Validators A and B should have similar commit indices: A={a_final}, B={b_final}, diff={diff}"
         );
 
         // Collect voting block headers metrics to verify voting storage was used.
@@ -1154,8 +1277,7 @@ mod tests {
         // so we should get voting hits.
         assert!(
             total_hits > 0,
-            "Expected voting block headers hits > 0, got {}",
-            total_hits
+            "Expected voting block headers hits > 0, got {total_hits}"
         );
 
         let commit_sync_fetch_commits_handler_uncertified_skipped: u64 = authorities
@@ -1172,8 +1294,7 @@ mod tests {
 
         assert!(
             commit_sync_fetch_commits_handler_uncertified_skipped > 0,
-            "Expected uncertified commits skipped > 0 for fast sync, got {}",
-            commit_sync_fetch_commits_handler_uncertified_skipped
+            "Expected uncertified commits skipped > 0 for fast sync, got {commit_sync_fetch_commits_handler_uncertified_skipped}"
         );
 
         // Stop all authorities
@@ -1221,8 +1342,7 @@ mod tests {
         let stable_work_duration = Duration::from_secs(10);
 
         let (committee, keypairs) = local_committee_and_keys(0, vec![1; NUM_AUTHORITIES]);
-        let mut protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
-        protocol_config.set_consensus_fast_commit_sync_for_testing(true);
+        let protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
 
         let temp_dirs: Vec<TempDir> = (0..NUM_AUTHORITIES)
             .map(|_| TempDir::new().unwrap())
@@ -1379,10 +1499,9 @@ mod tests {
         let has_gap = last_commit > last_solid.unwrap_or(0);
         assert!(
             has_gap,
-            "Expected pending subdags gap: last_commit={}, last_solid={:?}. \
-             DAG round={}, new_commits={}. \
-             Validator 1's new blocks should have missing transactions.",
-            last_commit, last_solid, dag_round, new_commits
+            "Expected pending subdags gap: last_commit={last_commit}, last_solid={last_solid:?}. \
+             DAG round={dag_round}, new_commits={new_commits}. \
+             Validator 1's new blocks should have missing transactions."
         );
 
         // Record where the validator is now (with pending subdags)
@@ -1422,9 +1541,7 @@ mod tests {
         let gap = max_other.saturating_sub(last_processed_with_pending);
         assert!(
             gap > COMMIT_GAP_THRESHOLD,
-            "Gap {} should be greater than threshold {}",
-            gap,
-            COMMIT_GAP_THRESHOLD
+            "Gap {gap} should be greater than threshold {COMMIT_GAP_THRESHOLD}"
         );
 
         // Phase 6: Restart test validator with full connectivity and fast commit
@@ -1487,8 +1604,7 @@ mod tests {
 
         assert!(
             caught_up,
-            "Validator {} should have caught up via fast sync",
-            test_validator_index
+            "Validator {test_validator_index} should have caught up via fast sync"
         );
 
         // Verify the validator progressed significantly after restart with pending
@@ -1496,9 +1612,7 @@ mod tests {
         let final_index = consumer_monitors[test_validator_index].highest_handled_commit();
         assert!(
             final_index > last_processed_with_pending,
-            "Validator should have progressed after restart: with_pending_subdags={}, final={}",
-            last_processed_with_pending,
-            final_index
+            "Validator should have progressed after restart: with_pending_subdags={last_processed_with_pending}, final={final_index}"
         );
 
         // Verify that fast sync was actually used by checking the fetched commits
@@ -1517,8 +1631,7 @@ mod tests {
 
         assert!(
             commit_sync_fetched_commits > 0,
-            "Expected commits fetched via fast sync > 0, got {}",
-            commit_sync_fetched_commits
+            "Expected commits fetched via fast sync > 0, got {commit_sync_fetched_commits}"
         );
 
         // Stop all authorities

@@ -4,17 +4,19 @@
 
 use std::collections::BTreeMap;
 
+use iota_sdk_types::{ObjectId, ObjectReference, TransactionKind};
 use serde::{Deserialize, Serialize};
 use tap::Pipe;
 
 use crate::{
-    base_types::ObjectRef,
-    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
+    effects::{
+        TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt, TransactionEvents,
+    },
     iota_system_state::{IotaSystemStateTrait, get_iota_system_state},
     messages_checkpoint::{CertifiedCheckpointSummary, CheckpointContents},
     object::Object,
     storage::{BackingPackageStore, EpochInfo, error::Error as StorageError},
-    transaction::{Transaction, TransactionDataAPI, TransactionKind},
+    transaction::{Transaction, TransactionDataAPI},
 };
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -34,7 +36,7 @@ impl CheckpointData {
                 latest_live_objects.insert(obj.id(), obj);
             }
             for obj_ref in tx.removed_object_refs_post_version() {
-                latest_live_objects.remove(&(obj_ref.0));
+                latest_live_objects.remove(&obj_ref.object_id);
             }
         }
         latest_live_objects.into_values().collect()
@@ -42,11 +44,11 @@ impl CheckpointData {
 
     // returns the object refs that are eventually deleted or wrapped in the current
     // checkpoint
-    pub fn eventually_removed_object_refs_post_version(&self) -> Vec<ObjectRef> {
+    pub fn eventually_removed_object_refs_post_version(&self) -> Vec<ObjectReference> {
         let mut eventually_removed_object_refs = BTreeMap::new();
         for tx in self.transactions.iter() {
             for obj_ref in tx.removed_object_refs_post_version() {
-                eventually_removed_object_refs.insert(obj_ref.0, obj_ref);
+                eventually_removed_object_refs.insert(obj_ref.object_id, obj_ref);
             }
             for obj in tx.output_objects.iter() {
                 eventually_removed_object_refs.remove(&(obj.id()));
@@ -63,7 +65,32 @@ impl CheckpointData {
             .collect()
     }
 
-    pub fn epoch_info(&self) -> Result<Option<EpochInfo>, StorageError> {
+    /// The transaction that closes this checkpoint's epoch — the `AdvanceEpoch`
+    /// / `advance_epoch_safe_mode` transaction. `None` if this isn't an
+    /// epoch-boundary checkpoint (genesis included), or its last transaction
+    /// unexpectedly isn't an end-of-epoch transaction.
+    pub fn end_of_epoch_transaction(&self) -> Option<&CheckpointTransaction> {
+        // Guard: only epoch-boundary checkpoints carry a closing tx — bail otherwise.
+        self.checkpoint_summary.end_of_epoch_data.as_ref()?;
+        // The epoch-change tx is always ordered last, after every user tx;
+        // verify rather than assume, since callers treat `None` as a hard error.
+        let transaction = self.transactions.last()?;
+        transaction
+            .transaction
+            .intent_message()
+            .value
+            .is_end_of_epoch_tx()
+            .then_some(transaction)
+    }
+
+    /// Returns the epoch boundary information for this checkpoint, paired
+    /// with the events of the transaction that produced this epoch's start
+    /// system state (`EndOfEpoch` for non-genesis checkpoints, `Genesis`
+    /// for checkpoint 0).
+    /// Returns `None` for non-epoch-boundary checkpoints.
+    pub fn epoch_info(
+        &self,
+    ) -> Result<Option<(EpochInfo, Option<TransactionEvents>)>, StorageError> {
         // If there is no end of epoch data, return None, except for checkpoint 0
         if self.checkpoint_summary.end_of_epoch_data.is_none()
             && self.checkpoint_summary.sequence_number != 0
@@ -72,12 +99,7 @@ impl CheckpointData {
         }
 
         let (start_checkpoint, transaction) = if self.checkpoint_summary.sequence_number != 0 {
-            let Some(transaction) = self.transactions.iter().find(|tx| {
-                matches!(
-                    tx.transaction.intent_message().value.kind(),
-                    TransactionKind::EndOfEpochTransaction(_)
-                )
-            }) else {
+            let Some(transaction) = self.end_of_epoch_transaction() else {
                 return Err(StorageError::custom(format!(
                     "Failed to get end of epoch transaction in checkpoint {} with EndOfEpochData",
                     self.checkpoint_summary.sequence_number,
@@ -107,16 +129,19 @@ impl CheckpointData {
                 ))
             })?;
 
-        Ok(Some(EpochInfo {
-            epoch: system_state.epoch(),
-            protocol_version: system_state.protocol_version(),
-            start_timestamp_ms: system_state.epoch_start_timestamp_ms(),
-            end_timestamp_ms: None,
-            start_checkpoint,
-            end_checkpoint: None,
-            reference_gas_price: system_state.reference_gas_price(),
-            system_state,
-        }))
+        Ok(Some((
+            EpochInfo {
+                epoch: system_state.epoch(),
+                protocol_version: system_state.protocol_version(),
+                start_timestamp_ms: system_state.epoch_start_timestamp_ms(),
+                end_timestamp_ms: None,
+                start_checkpoint,
+                end_checkpoint: None,
+                reference_gas_price: system_state.reference_gas_price(),
+                system_state,
+            },
+            transaction.events.clone(),
+        )))
     }
 }
 
@@ -145,15 +170,15 @@ impl CheckpointTransaction {
         self.effects
             .all_removed_objects()
             .into_iter() // Use id and version to lookup in input Objects
-            .map(|((id, _, _), _)| {
+            .map(|(object_ref, _)| {
                 self.input_objects
                     .iter()
-                    .find(|o| o.id() == id)
+                    .find(|o| o.id() == object_ref.object_id)
                     .expect("all removed objects should show up in input objects")
             })
     }
 
-    pub fn removed_object_refs_post_version(&self) -> impl Iterator<Item = ObjectRef> {
+    pub fn removed_object_refs_post_version(&self) -> impl Iterator<Item = ObjectReference> {
         let deleted = self.effects.deleted().into_iter();
         let wrapped = self.effects.wrapped().into_iter();
         let unwrapped_then_deleted = self.effects.unwrapped_then_deleted().into_iter();
@@ -164,14 +189,17 @@ impl CheckpointTransaction {
         self.effects
             .all_changed_objects()
             .into_iter()
-            .map(|((id, _, _), ..)| {
+            .map(|(object_ref, ..)| {
                 let object = self
                     .output_objects
                     .iter()
-                    .find(|o| o.id() == id)
+                    .find(|o| o.id() == object_ref.object_id)
                     .expect("changed objects should show up in output objects");
 
-                let old_object = self.input_objects.iter().find(|o| o.id() == id);
+                let old_object = self
+                    .input_objects
+                    .iter()
+                    .find(|o| o.id() == object_ref.object_id);
 
                 (object, old_object)
             })
@@ -183,10 +211,10 @@ impl CheckpointTransaction {
             .created()
             .into_iter()
             // Lookup Objects in output Objects as well as old versions for mutated objects
-            .map(|((id, version, _), _)| {
+            .map(|(object_ref, _)| {
                 self.output_objects
                     .iter()
-                    .find(|o| o.id() == id && o.version() == version)
+                    .find(|o| o.id() == object_ref.object_id && o.version() == object_ref.version)
                     .expect("created objects should show up in output objects")
             })
     }
@@ -195,7 +223,7 @@ impl CheckpointTransaction {
 impl BackingPackageStore for CheckpointData {
     fn get_package_object(
         &self,
-        package_id: &crate::base_types::ObjectID,
+        package_id: &ObjectId,
     ) -> crate::error::IotaResult<Option<crate::storage::PackageObject>> {
         self.transactions
             .iter()

@@ -9,7 +9,7 @@ use iota_json_rpc_types::{
     IotaTransactionBlockEffectsAPI, IotaTransactionBlockEvents, TransactionFilter,
 };
 use iota_types::{error::IotaResult, transaction::TransactionData};
-use prometheus::{
+use prometheus_filtered::{
     IntCounterVec, IntGaugeVec, Registry, register_int_counter_vec_with_registry,
     register_int_gauge_vec_with_registry,
 };

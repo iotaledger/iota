@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    collections::{BTreeMap, BTreeSet},
     net::{IpAddr, Ipv4Addr, SocketAddr},
     num::NonZeroUsize,
     path::{Path, PathBuf},
@@ -12,11 +11,11 @@ use std::{
 };
 
 use anyhow::Result;
-use consensus_config::Parameters as ConsensusParameters;
 use iota_keys::keypair_file::{read_authority_keypair_from_file, read_keypair_from_file};
+use iota_metrics::MetricGroups;
 use iota_names::config::IotaNamesConfig;
+use iota_sdk_types::Address;
 use iota_types::{
-    base_types::IotaAddress,
     committee::EpochId,
     crypto::{
         AccountKeyPair, AuthorityKeyPair, AuthorityPublicKeyBytes, IotaKeyPair, KeypairTraits,
@@ -47,6 +46,9 @@ pub const DEFAULT_VALIDATOR_GAS_PRICE: u64 = iota_types::transaction::DEFAULT_VA
 
 /// Default commission rate of 2%
 pub const DEFAULT_COMMISSION_RATE: u64 = 200;
+
+/// Default budget in MiB for the in-memory full-checkpoint-contents cache.
+pub const DEFAULT_FULL_CHECKPOINT_CONTENTS_CACHE_SIZE_MB: usize = 1024;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
@@ -205,12 +207,6 @@ pub struct NodeConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub transaction_kv_store_write_config: Option<TransactionKeyValueStoreWriteConfig>,
 
-    #[serde(default = "default_jwk_fetch_interval_seconds")]
-    pub jwk_fetch_interval_seconds: u64,
-
-    #[serde(default = "default_zklogin_oauth_providers")]
-    pub zklogin_oauth_providers: BTreeMap<Chain, BTreeSet<String>>,
-
     /// Configuration for defining thresholds and settings
     /// for managing system overload conditions in a node.
     #[serde(default = "default_authority_overload_config")]
@@ -223,20 +219,41 @@ pub struct NodeConfig {
     pub run_with_range: Option<RunWithRange>,
 
     // For killswitch use None
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        default = "default_traffic_controller_policy_config"
+    )]
     pub policy_config: Option<PolicyConfig>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub firewall_config: Option<RemoteFirewallConfig>,
 
     #[serde(default)]
-    pub execution_cache: ExecutionCacheType,
-
-    #[serde(default)]
     pub execution_cache_config: ExecutionCacheConfig,
+
+    /// Memory budget in MiB for the in-memory cache of full checkpoint
+    /// contents, which serves the checkpoint executor's bulk transaction
+    /// loads and checkpoint-contents requests from state-sync peers. When
+    /// the budget is exceeded, the oldest checkpoints are evicted first.
+    /// Set to 0 to disable the cache; consumers then fall back to
+    /// reconstructing contents from the transaction and effects stores.
+    ///
+    /// The budget is accounted in serialized (BCS) bytes; the resident
+    /// memory of a full cache is somewhat higher than the configured value
+    /// due to in-memory representation overhead.
+    #[serde(default = "default_full_checkpoint_contents_cache_size_mb")]
+    pub full_checkpoint_contents_cache_size_mb: usize,
 
     #[serde(default = "bool_true")]
     pub enable_validator_tx_finalizer: bool,
+
+    /// Enables the pre-consensus soft-locking mechanism used by the
+    /// certificate-less (pcool) transaction flow (default: enabled).
+    ///
+    /// When disabled, post-consensus validation alone resolves owned-object
+    /// conflicts. Has no effect unless the pcool flow is enabled.
+    #[serde(default = "bool_true")]
+    pub enable_soft_locking: bool,
 
     #[serde(default)]
     pub verifier_signing_config: VerifierSigningConfig,
@@ -265,6 +282,12 @@ pub struct NodeConfig {
     /// in an error.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub chain_override_for_testing: Option<Chain>,
+
+    /// Configuration for the validator client monitor that tracks
+    /// client-observed performance metrics for validators.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub validator_client_monitor_config:
+        Option<crate::validator_client_monitor_config::ValidatorClientMonitorConfig>,
 }
 
 #[derive(Clone, Debug, Default, serde::Deserialize, serde::Serialize)]
@@ -308,6 +331,14 @@ pub struct GrpcApiConfig {
     #[serde(default = "default_grpc_api_broadcast_buffer_size")]
     pub broadcast_buffer_size: u32,
 
+    /// Maximum number of concurrent subscribers to checkpoint streaming RPCs.
+    /// Once the cap is reached, additional subscribe requests are rejected
+    /// with `Unavailable` to protect the server from being overwhelmed by
+    /// unbounded streaming clients. Values below 1 are clamped to 1 at
+    /// server startup.
+    #[serde(default = "default_grpc_api_max_concurrent_stream_subscribers")]
+    pub max_concurrent_stream_subscribers: u32,
+
     /// Maximum size for Move values when rendering to JSON
     /// in bytes.
     #[serde(default = "default_grpc_api_max_json_move_value_size")]
@@ -338,6 +369,10 @@ fn default_grpc_api_broadcast_buffer_size() -> u32 {
     100
 }
 
+fn default_grpc_api_max_concurrent_stream_subscribers() -> u32 {
+    1024
+}
+
 fn default_grpc_api_max_message_size_bytes() -> u32 {
     128 * 1024 * 1024 // 128MB
 }
@@ -365,6 +400,7 @@ impl Default for GrpcApiConfig {
             tls: None,
             max_message_size_bytes: default_grpc_api_max_message_size_bytes(),
             broadcast_buffer_size: default_grpc_api_broadcast_buffer_size(),
+            max_concurrent_stream_subscribers: default_grpc_api_max_concurrent_stream_subscribers(),
             max_json_move_value_size: default_grpc_api_max_json_move_value_size(),
             max_execute_transaction_batch_size: default_grpc_api_max_execute_transaction_batch_size(
             ),
@@ -406,53 +442,6 @@ impl GrpcApiConfig {
                 Self::GRPC_MIN_CLIENT_MAX_MESSAGE_SIZE_BYTES,
                 self.max_message_size_bytes(),
             )
-    }
-}
-
-#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize)]
-#[serde(rename_all = "kebab-case")]
-pub enum ExecutionCacheType {
-    #[default]
-    WritebackCache,
-    PassthroughCache,
-}
-
-impl From<ExecutionCacheType> for u8 {
-    fn from(cache_type: ExecutionCacheType) -> Self {
-        match cache_type {
-            ExecutionCacheType::WritebackCache => 0,
-            ExecutionCacheType::PassthroughCache => 1,
-        }
-    }
-}
-
-impl From<&u8> for ExecutionCacheType {
-    fn from(cache_type: &u8) -> Self {
-        match cache_type {
-            0 => ExecutionCacheType::WritebackCache,
-            1 => ExecutionCacheType::PassthroughCache,
-            _ => unreachable!("Invalid value for ExecutionCacheType"),
-        }
-    }
-}
-
-/// Type alias for atomic representation of ExecutionCacheType for lock-free
-/// operations
-pub type ExecutionCacheTypeAtomicU8 = std::sync::atomic::AtomicU8;
-
-impl From<ExecutionCacheType> for ExecutionCacheTypeAtomicU8 {
-    fn from(cache_type: ExecutionCacheType) -> Self {
-        ExecutionCacheTypeAtomicU8::new(u8::from(cache_type))
-    }
-}
-
-impl ExecutionCacheType {
-    pub fn cache_type(self) -> Self {
-        if std::env::var("DISABLE_WRITEBACK_CACHE").is_ok() {
-            Self::PassthroughCache
-        } else {
-            self
-        }
     }
 }
 
@@ -504,6 +493,16 @@ pub struct WritebackCacheConfig {
     /// if unset.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub backpressure_threshold_for_rpc: Option<u64>, // defaults to backpressure_threshold
+
+    /// Percentage of `backpressure_threshold` at which graduated load shedding
+    /// based on writeback-cache pending transaction count begins. The
+    /// locally-calculated shedding percentage increases linearly from 0% at
+    /// `backpressure_threshold * backpressure_soft_limit_pct / 100` up to
+    /// 100% at the `backpressure_threshold` if the cache size continues to
+    /// increase. The calculated shedding percentage is broadcast to other
+    /// validators for a coordinated response. Defaults to 50.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub backpressure_soft_limit_pct: Option<u32>,
 }
 
 impl WritebackCacheConfig {
@@ -602,6 +601,15 @@ impl WritebackCacheConfig {
             .or(self.backpressure_threshold_for_rpc)
             .unwrap_or(self.backpressure_threshold())
     }
+
+    pub fn backpressure_soft_limit_pct(&self) -> u32 {
+        std::env::var("IOTA_CACHE_WRITEBACK_BACKPRESSURE_SOFT_LIMIT_PCT")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .or(self.backpressure_soft_limit_pct)
+            .unwrap_or(50)
+            .min(100)
+    }
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize)]
@@ -637,42 +645,6 @@ fn default_base_url() -> String {
 
 fn default_cache_size() -> u64 {
     100_000
-}
-
-fn default_jwk_fetch_interval_seconds() -> u64 {
-    3600
-}
-
-pub fn default_zklogin_oauth_providers() -> BTreeMap<Chain, BTreeSet<String>> {
-    let mut map = BTreeMap::new();
-
-    // providers that are available on devnet only.
-    let experimental_providers = BTreeSet::from([
-        "Google".to_string(),
-        "Facebook".to_string(),
-        "Twitch".to_string(),
-        "Kakao".to_string(),
-        "Apple".to_string(),
-        "Slack".to_string(),
-        "TestIssuer".to_string(),
-        "Microsoft".to_string(),
-        "KarrierOne".to_string(),
-        "Credenza3".to_string(),
-    ]);
-
-    // providers that are available for mainnet and testnet.
-    let providers = BTreeSet::from([
-        "Google".to_string(),
-        "Facebook".to_string(),
-        "Twitch".to_string(),
-        "Apple".to_string(),
-        "KarrierOne".to_string(),
-        "Credenza3".to_string(),
-    ]);
-    map.insert(Chain::Mainnet, providers.clone());
-    map.insert(Chain::Testnet, providers);
-    map.insert(Chain::Unknown, experimental_providers);
-    map
 }
 
 fn default_transaction_kv_store_config() -> TransactionKeyValueStoreReadConfig {
@@ -726,12 +698,12 @@ pub fn default_end_of_epoch_broadcast_channel_capacity() -> usize {
     128
 }
 
-pub fn bool_true() -> bool {
-    true
+pub fn default_full_checkpoint_contents_cache_size_mb() -> usize {
+    DEFAULT_FULL_CHECKPOINT_CONTENTS_CACHE_SIZE_MB
 }
 
-fn is_true(value: &bool) -> bool {
-    *value
+pub fn bool_true() -> bool {
+    true
 }
 
 impl Config for NodeConfig {}
@@ -804,7 +776,7 @@ impl NodeConfig {
         Ok(migration_tx_data)
     }
 
-    pub fn iota_address(&self) -> IotaAddress {
+    pub fn iota_address(&self) -> Address {
         (&self.account_key_pair.keypair().public()).into()
     }
 
@@ -831,29 +803,28 @@ impl NodeConfig {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
-pub enum ConsensusProtocol {
-    #[serde(rename = "mysticeti")]
-    Mysticeti,
-    #[serde(rename = "starfish")]
-    Starfish,
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct ConsensusConfig {
-    // Base consensus DB path for all epochs.
+    /// Base consensus DB path for all epochs.
     pub db_path: PathBuf,
 
-    // The number of epochs for which to retain the consensus DBs. Setting it to 0 will make a
-    // consensus DB getting dropped as soon as system is switched to a new epoch.
+    /// The number of epochs for which to retain the consensus DBs.
+    /// Setting it to 0 will make a consensus DB getting dropped
+    /// as soon as system is switched to a new epoch.
     pub db_retention_epochs: Option<u64>,
 
-    // Pruner will run on every epoch change but it will also check periodically on every
-    // `db_pruner_period_secs` seconds to see if there are any epoch DBs to remove.
+    /// Pruner will run on every epoch change but it will also check
+    /// periodically on every `db_pruner_period_secs` seconds to see
+    /// if there are any epoch DBs to remove.
     pub db_pruner_period_secs: Option<u64>,
 
-    /// Maximum number of pending transactions to submit to consensus, including
-    /// those in submission wait.
+    /// Hard limit on the number of pending transactions to submit to
+    /// consensus, including those in submission wait. Used as the upper
+    /// bound for graduated pre-consensus load shedding
+    /// (`graduated_load_shedding_soft_limit_pct`) in the certificate-less
+    /// (P-COOL) mode, and as the threshold for the binary
+    /// cutoff in `ConsensusAdapter::check_consensus_overload()` in both
+    /// certificate-less and certificate-based flows.
     ///
     /// Default to 20_000 inflight limit, assuming 20_000 txn tps * 1 sec
     /// consensus latency.
@@ -873,12 +844,17 @@ pub struct ConsensusConfig {
     /// estimates.
     pub submit_delay_step_override_millis: Option<u64>,
 
-    /// Parameters for Mysticeti consensus
-    pub parameters: Option<ConsensusParameters>,
-
     /// Parameters for Starfish consensus
+    #[serde(skip_serializing_if = "Option::is_none", alias = "starfish_parameters")]
+    pub parameters: Option<StarfishParameters>,
+
+    /// Percentage of `max_pending_transactions` (hard limit) defining the soft
+    /// limit at which graduated pre-consensus load shedding begins. When
+    /// in-flight transactions are at or below the soft limit, no shedding
+    /// occurs; above it, the shedding rate scales linearly from 0% to 100% at
+    /// `max_pending_transactions`. Used in the certificate-less (P-COOL) mode.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub starfish_parameters: Option<StarfishParameters>,
+    pub graduated_load_shedding_soft_limit_pct: Option<u32>,
 }
 
 impl ConsensusConfig {
@@ -886,8 +862,21 @@ impl ConsensusConfig {
         &self.db_path
     }
 
+    /// Returns the hard limit on the number of pending transactions to submit
+    /// to consensus, including those in submission wait. Defaults to 20_000
+    /// inflight limit, assuming 20_000 txn tps * 1 sec consensus latency.
     pub fn max_pending_transactions(&self) -> usize {
         self.max_pending_transactions.unwrap_or(20_000)
+    }
+
+    /// Returns the percentage of `max_pending_transactions` (hard limit)
+    /// defining the soft limit at which graduated pre-consensus load
+    /// shedding begins. Defaults to 50%. Used in the certificate-less
+    /// (P-COOL) mode.
+    pub fn graduated_load_shedding_soft_limit_pct(&self) -> u32 {
+        self.graduated_load_shedding_soft_limit_pct
+            .unwrap_or(50)
+            .min(100)
     }
 
     pub fn submit_delay_step_override(&self) -> Option<Duration> {
@@ -1042,26 +1031,12 @@ pub struct AuthorityStorePruningConfig {
     /// number of the latest epoch dbs to retain
     #[serde(default = "default_num_latest_epoch_dbs_to_retain")]
     pub num_latest_epoch_dbs_to_retain: usize,
-    /// time interval used by the pruner to determine whether there are any
-    /// epoch DBs to remove
-    #[serde(default = "default_epoch_db_pruning_period_secs")]
-    pub epoch_db_pruning_period_secs: u64,
     /// number of epochs to keep the latest version of objects for.
     /// Note that a zero value corresponds to an aggressive pruner.
     /// This mode is experimental and needs to be used with caution.
     /// Use `u64::MAX` to disable the pruner for the objects.
     #[serde(default)]
     pub num_epochs_to_retain: u64,
-    /// pruner's runtime interval used for aggressive mode
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub pruning_run_delay_seconds: Option<u64>,
-    /// maximum number of checkpoints in the pruning batch. Can be adjusted to
-    /// increase performance
-    #[serde(default = "default_max_checkpoints_in_batch")]
-    pub max_checkpoints_in_batch: usize,
-    /// maximum number of transaction in the pruning batch
-    #[serde(default = "default_max_transactions_in_batch")]
-    pub max_transactions_in_batch: usize,
     /// enables periodic background compaction for old SST files whose last
     /// modified time is older than `periodic_compaction_threshold_days`
     /// days. That ensures that all sst files eventually go through the
@@ -1075,8 +1050,6 @@ pub struct AuthorityStorePruningConfig {
     /// for
     #[serde(skip_serializing_if = "Option::is_none")]
     pub num_epochs_to_retain_for_checkpoints: Option<u64>,
-    #[serde(default = "default_smoothing", skip_serializing_if = "is_true")]
-    pub smooth: bool,
     /// Enables the compaction filter for pruning the objects table.
     /// If disabled, a range deletion approach is used instead.
     /// While it is generally safe to switch between the two modes,
@@ -1092,22 +1065,6 @@ fn default_num_latest_epoch_dbs_to_retain() -> usize {
     3
 }
 
-fn default_epoch_db_pruning_period_secs() -> u64 {
-    3600
-}
-
-fn default_max_transactions_in_batch() -> usize {
-    1000
-}
-
-fn default_max_checkpoints_in_batch() -> usize {
-    10
-}
-
-fn default_smoothing() -> bool {
-    cfg!(not(test))
-}
-
 fn default_periodic_compaction_threshold_days() -> Option<usize> {
     Some(1)
 }
@@ -1116,14 +1073,9 @@ impl Default for AuthorityStorePruningConfig {
     fn default() -> Self {
         Self {
             num_latest_epoch_dbs_to_retain: default_num_latest_epoch_dbs_to_retain(),
-            epoch_db_pruning_period_secs: default_epoch_db_pruning_period_secs(),
             num_epochs_to_retain: 0,
-            pruning_run_delay_seconds: if cfg!(msim) { Some(2) } else { None },
-            max_checkpoints_in_batch: default_max_checkpoints_in_batch(),
-            max_transactions_in_batch: default_max_transactions_in_batch(),
             periodic_compaction_threshold_days: None,
             num_epochs_to_retain_for_checkpoints: if cfg!(msim) { Some(2) } else { None },
-            smooth: true,
             enable_compaction_filter: cfg!(test) || cfg!(msim),
             num_epochs_to_retain_for_indexes: None,
         }
@@ -1160,6 +1112,8 @@ pub struct MetricsConfig {
     pub push_interval_seconds: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub push_url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub groups: Option<MetricGroups>,
 }
 
 #[derive(Default, Debug, Clone, Deserialize, Serialize)]
@@ -1193,6 +1147,13 @@ pub struct StateArchiveConfig {
     pub use_for_pruning_watermark: bool,
 }
 
+/// Configuration for the per-epoch state-snapshot publisher.
+///
+/// **Operator note (V2 snapshot publishing).** A node configured to publish
+/// V2 snapshots must have a perpetual store containing no pre-V2
+/// (`StoreObjectV1`) rows. This means a snapshot-publishing node must have
+/// either synced from genesis under V2 or been restored from a V2 snapshot.
+/// There is no on-disk backfill: a fresh sync is the only supported path.
 #[derive(Default, Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct StateSnapshotConfig {
@@ -1219,54 +1180,74 @@ pub struct TransactionKeyValueStoreWriteConfig {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct AuthorityOverloadConfig {
+    /// Maximum time a transaction can wait in the transaction manager execution
+    /// queue before it triggers an overload detection on the object it depends
+    /// on.
     #[serde(default = "default_max_txn_age_in_queue")]
     pub max_txn_age_in_queue: Duration,
 
-    // The interval of checking overload signal.
+    /// The interval of checking overload signal.
     #[serde(default = "default_overload_monitor_interval")]
     pub overload_monitor_interval: Duration,
 
-    // The execution queueing latency when entering load shedding mode.
+    /// The execution queueing latency when entering load shedding mode.
     #[serde(default = "default_execution_queue_latency_soft_limit")]
     pub execution_queue_latency_soft_limit: Duration,
 
-    // The execution queueing latency when entering aggressive load shedding mode.
+    /// The execution queueing latency when entering aggressive load shedding
+    /// mode.
     #[serde(default = "default_execution_queue_latency_hard_limit")]
     pub execution_queue_latency_hard_limit: Duration,
 
-    // The maximum percentage of transactions to shed in load shedding mode.
+    /// The maximum percentage of transactions to shed in load shedding mode.
     #[serde(default = "default_max_load_shedding_percentage")]
     pub max_load_shedding_percentage: u32,
 
-    // When in aggressive load shedding mode, the minimum percentage of
-    // transactions to shed.
+    /// When in aggressive load shedding mode, the minimum percentage of
+    /// transactions to shed.
     #[serde(default = "default_min_load_shedding_percentage_above_hard_limit")]
     pub min_load_shedding_percentage_above_hard_limit: u32,
 
-    // If transaction ready rate is below this rate, we consider the validator
-    // is well under used, and will not enter load shedding mode.
+    /// If transaction ready rate is below this rate, we consider the validator
+    /// is well under used, and will not enter load shedding mode.
     #[serde(default = "default_safe_transaction_ready_rate")]
     pub safe_transaction_ready_rate: u32,
 
-    // When set to true, transaction signing may be rejected when the validator
-    // is overloaded.
+    /// When set to true, transaction signing may be rejected when the validator
+    /// is overloaded.
     #[serde(default = "default_check_system_overload_at_signing")]
     pub check_system_overload_at_signing: bool,
 
-    // When set to true, transaction execution may be rejected when the validator
-    // is overloaded.
+    /// When set to true, transaction execution may be rejected when the
+    /// validator is overloaded.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub check_system_overload_at_execution: bool,
 
-    // Reject a transaction if transaction manager queue length is above this threshold.
-    // 100_000 = 10k TPS * 5s resident time in transaction manager (pending + executing) * 2.
+    /// Reject a transaction if transaction manager queue length is above this
+    /// threshold. 100_000 = 10k TPS * 5s resident time in transaction
+    /// manager (pending + executing) * 2.
     #[serde(default = "default_max_transaction_manager_queue_length")]
     pub max_transaction_manager_queue_length: usize,
 
-    // Reject a transaction if the number of pending transactions depending on the object
-    // is above the threshold.
+    /// Reject a transaction if the number of pending transactions depending on
+    /// the object is above the threshold.
     #[serde(default = "default_max_transaction_manager_per_object_queue_length")]
     pub max_transaction_manager_per_object_queue_length: usize,
+
+    /// Percentage of `max_transaction_manager_queue_length` at which graduated
+    /// load shedding begins in the certificate-less (P-COOL) mode. Read
+    /// via the same-named accessor, which clamps the value to <=100.
+    #[serde(default = "default_max_transaction_manager_queue_length_soft_limit_pct")]
+    pub max_transaction_manager_queue_length_soft_limit_pct: u32,
+}
+
+impl AuthorityOverloadConfig {
+    /// Returns the soft-limit percentage, clamped to <=100 to guard against
+    /// out-of-range operator-supplied values.
+    pub fn max_transaction_manager_queue_length_soft_limit_pct(&self) -> u32 {
+        self.max_transaction_manager_queue_length_soft_limit_pct
+            .min(100)
+    }
 }
 
 fn default_max_txn_age_in_queue() -> Duration {
@@ -1305,6 +1286,10 @@ fn default_max_transaction_manager_queue_length() -> usize {
     100_000
 }
 
+fn default_max_transaction_manager_queue_length_soft_limit_pct() -> u32 {
+    50
+}
+
 fn default_max_transaction_manager_per_object_queue_length() -> usize {
     20
 }
@@ -1323,6 +1308,8 @@ impl Default for AuthorityOverloadConfig {
             check_system_overload_at_signing: true,
             check_system_overload_at_execution: false,
             max_transaction_manager_queue_length: default_max_transaction_manager_queue_length(),
+            max_transaction_manager_queue_length_soft_limit_pct:
+                default_max_transaction_manager_queue_length_soft_limit_pct(),
             max_transaction_manager_per_object_queue_length:
                 default_max_transaction_manager_per_object_queue_length(),
         }
@@ -1331,6 +1318,10 @@ impl Default for AuthorityOverloadConfig {
 
 fn default_authority_overload_config() -> AuthorityOverloadConfig {
     AuthorityOverloadConfig::default()
+}
+
+fn default_traffic_controller_policy_config() -> Option<PolicyConfig> {
+    Some(PolicyConfig::default_dos_protection_policy())
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize, Eq)]
@@ -1434,7 +1425,7 @@ impl KeyPairWithPath {
         // OK to unwrap panic because authority should not start without all keypairs
         // loaded.
         cell.set(Arc::new(read_keypair_from_file(&path).unwrap_or_else(
-            |e| panic!("invalid keypair file at path {:?}: {e}", &path),
+            |e| panic!("invalid keypair file at path {path:?}: {e}"),
         )))
         .expect("failed to set keypair");
         Self {
@@ -1499,7 +1490,7 @@ impl AuthorityKeyPairWithPath {
         // loaded.
         cell.set(Arc::new(
             read_authority_keypair_from_file(&path)
-                .unwrap_or_else(|_| panic!("invalid authority keypair file at path {:?}", &path)),
+                .unwrap_or_else(|_| panic!("invalid authority keypair file at path {path:?}")),
         ))
         .expect("failed to set authority keypair");
         Self {
@@ -1516,9 +1507,8 @@ impl AuthorityKeyPairWithPath {
                     // OK to unwrap panic because authority should not start without all keypairs
                     // loaded.
                     Arc::new(
-                        read_authority_keypair_from_file(path).unwrap_or_else(|_| {
-                            panic!("invalid authority keypair file {:?}", &path)
-                        }),
+                        read_authority_keypair_from_file(path)
+                            .unwrap_or_else(|_| panic!("invalid authority keypair file {path:?}")),
                     )
                 }
             })
@@ -1564,6 +1554,16 @@ mod tests {
         const TEMPLATE: &str = include_str!("../data/fullnode-template.yaml");
 
         let _template: NodeConfig = serde_yaml::from_str(TEMPLATE).unwrap();
+    }
+
+    #[test]
+    fn enable_soft_locking_defaults_to_enabled() {
+        // The template omits `enable-soft-locking`, so this exercises the serde
+        // default and pins the documented "default: enabled" contract.
+        const TEMPLATE: &str = include_str!("../data/fullnode-template.yaml");
+
+        let config: NodeConfig = serde_yaml::from_str(TEMPLATE).unwrap();
+        assert!(config.enable_soft_locking);
     }
 
     #[test]

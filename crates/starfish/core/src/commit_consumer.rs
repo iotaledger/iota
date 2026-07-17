@@ -9,11 +9,19 @@ use tokio::sync::watch;
 
 use crate::{CommitIndex, CommittedSubDag};
 
+/// The consumer's side of the consensus output channel, passed into consensus
+/// at startup. Holds the sender that consensus emits committed sub-dags
+/// through, plus the monitor the consumer uses to report how far it has
+/// processed; the matching receiver stays with the consumer.
+///
+/// The consumer must already be draining that receiver and reporting progress
+/// when consensus starts, since commit observer recovery paces the resend of
+/// the unprocessed backlog on consumer progress.
 pub struct CommitConsumer {
     // A channel to send the committed sub dags through
     pub(crate) sender: UnboundedSender<CommittedSubDag>,
     // Index of the last commit that the consumer has processed. This is useful for
-    // crash/recovery so mysticeti can replay the commits from the next index.
+    // crash/recovery so consensus can replay the commits from the next index.
     // First commit in the replayed sequence will have index last_processed_commit_index + 1.
     // Set 0 to replay from the start (as generated commit sequence starts at index = 1).
     pub(crate) last_processed_commit_index: CommitIndex,
@@ -87,7 +95,27 @@ impl CommitConsumerMonitor {
         *commit = highest_observed_commit_at_startup;
     }
 
-    pub(crate) async fn replay_complete(&self) {
+    /// Waits until the consumer's highest handled commit is within
+    /// `threshold` commits behind `sent_index`, i.e. until
+    /// `sent_index - highest_handled_commit() < threshold`.
+    pub(crate) async fn wait_until_handled_within(
+        &self,
+        sent_index: CommitIndex,
+        threshold: CommitIndex,
+    ) {
+        let mut rx = self.highest_handled_commit.subscribe();
+        loop {
+            let highest_handled = *rx.borrow_and_update();
+            if sent_index.saturating_sub(highest_handled) < threshold {
+                return;
+            }
+            rx.changed()
+                .await
+                .expect("the watch sender lives in this monitor, so it outlives this wait");
+        }
+    }
+
+    pub async fn replay_complete(&self) {
         let highest_observed_commit_at_startup = self.highest_observed_commit_at_startup();
         let mut rx = self.highest_handled_commit.subscribe();
         loop {

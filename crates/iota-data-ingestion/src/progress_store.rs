@@ -40,7 +40,13 @@ impl DynamoDBProgressStore {
             .operation_attempt_timeout(Duration::from_secs(10))
             .connect_timeout(Duration::from_secs(3))
             .build();
+        let http_client = aws_smithy_http_client::Builder::new()
+            .tls_provider(aws_smithy_http_client::tls::Provider::Rustls(
+                aws_smithy_http_client::tls::rustls_provider::CryptoMode::Ring,
+            ))
+            .build_https();
         let aws_config = aws_config::defaults(BehaviorVersion::latest())
+            .http_client(http_client)
             .credentials_provider(credentials)
             .region(Region::new(aws_region))
             .timeout_config(timeout_config)

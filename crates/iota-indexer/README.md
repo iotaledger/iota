@@ -108,7 +108,6 @@ epochs_to_keep = 10
 
 # Per-table overrides (snake_case, must match prunable table names)
 [overrides]
-objects_history = 2
 transactions = 5
 events = 5
 tx_senders = 3
@@ -117,13 +116,10 @@ tx_senders = 3
 > [!NOTE]
 > All retention values must be greater than 0.
 
-The legacy `--epochs-to-keep` CLI argument is still supported but deprecated. If both `--pruning-config-path` and `--epochs-to-keep` are provided, the config file takes precedence.
-
 #### Default behavior
 
 - If no pruning configuration is provided, pruning is disabled.
-- `objects_history` defaults to 2 epochs retention even if not explicitly overridden, as it is primarily used for consistency queries and does not need long retention.
-- All other tables default to the `epochs_to_keep` value from the config.
+- All prunable tables default to the `epochs_to_keep` value from the config; per-table overrides replace the default.
 
 #### How pruning works
 
@@ -135,7 +131,7 @@ When pruning is enabled, the following tables are subject to pruning:
 
 | Strategy                                          | Tables                                                                           |
 | ------------------------------------------------- | -------------------------------------------------------------------------------- |
-| **Epoch partition** (drop partition)              | `objects_history`, `transactions`, `events`                                      |
+| **Epoch partition** (drop partition)              | `transactions`, `events`                                                         |
 | **By checkpoint** (DELETE)                        | `checkpoints`, `pruner_cp_watermark`                                             |
 | **By transaction** (DELETE)                       | `event_*` (7 index tables), `tx_*` (10 index tables including `tx_global_order`) |
 | **By global sequence number** (DELETE with LIMIT) | `optimistic_transactions`                                                        |
@@ -203,19 +199,15 @@ diesel database reset --database-url="postgres://postgres:postgrespw@localhost/i
 
 ### CLI Reference
 
-The IOTA Indexer is currently transitioning from the old CLI to a new one.
-While both versions are still supported, the old CLI will be deprecated in the future.
-Users are encouraged to start using the new CLI.
-
-To view help information for each version:
+To view help information:
 
 ```sh
-# Old CLI
-cargo run --bin iota-indexer -- help-deprecated
-
-# New CLI
 cargo run --bin iota-indexer -- help
 ```
+
+#### Deprecated flags
+
+`--objects-snapshot-min-checkpoint-lag` / `--objects-snapshot-sleep-duration` (and the `OBJECTS_SNAPSHOT_MIN_CHECKPOINT_LAG` env var) are deprecated and will be removed in v1.31.0. The `objects_snapshot` pipeline has been removed; these flags are now no-ops.
 
 ### Experimental Features
 

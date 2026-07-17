@@ -5,7 +5,6 @@
 use proptest::{collection, prelude::*};
 
 use super::*;
-use crate::crypto::bcs_signable_test::Foo;
 
 #[test]
 fn serde_keypair() {
@@ -41,8 +40,6 @@ fn serde_round_trip_authority_quorum_sign_info() {
     };
     let ser = serde_json::to_string(&info).unwrap();
     println!("{ser}");
-    let schema = schemars::schema_for!(AuthorityQuorumSignInfo<true>);
-    println!("{}", serde_json::to_string_pretty(&schema).unwrap());
 
     let bytes = bcs::to_bytes(&info).unwrap();
     let info2: AuthorityQuorumSignInfo<true> = bcs::from_bytes(&bytes).unwrap();
@@ -81,7 +78,7 @@ fn public_key_equality() {
 #[test]
 fn test_proof_of_possession() {
     let address =
-        IotaAddress::from_str("0x1a4623343cd42be47d67314fce0ad042f3c82685544bc91d8c11d24e74ba7357")
+        Address::from_str("0x1a4623343cd42be47d67314fce0ad042f3c82685544bc91d8c11d24e74ba7357")
             .unwrap();
     let kp: AuthorityKeyPair = get_key_pair_from_rng(&mut StdRng::from_seed([0; 32])).1;
     let pop = generate_proof_of_possession(&kp, address);
@@ -115,19 +112,10 @@ proptest! {
     }
 
     #[test]
-    fn test_from_signable_bytes(
-        bytes in collection::vec(any::<u8>(), 0..1024)
-    ){
-        let _foo = Foo::from_signable_bytes(&bytes);
-    }
-
-    #[test]
     fn test_authority_pk_bytes(
         bytes in collection::vec(any::<u8>(), 0..1024)
     ){
         let _apkb = AuthorityPublicKeyBytes::from_bytes(&bytes);
-        let _iotasig = Ed25519IotaSignature::from_bytes(&bytes);
-        let _iotasig = Secp256k1IotaSignature::from_bytes(&bytes);
         let _pk = PublicKey::try_from_bytes(SignatureScheme::BLS12381, &bytes);
         let _pk = PublicKey::try_from_bytes(SignatureScheme::ED25519, &bytes);
         let _pk = PublicKey::try_from_bytes(SignatureScheme::Secp256k1, &bytes);

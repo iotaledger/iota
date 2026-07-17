@@ -120,8 +120,8 @@ async fn main() -> Result<(), anyhow::Error> {
 
 ```rust
 use std::str::FromStr;
-use iota_sdk::types::base_types::IotaAddress;
-use iota_sdk::{ IotaClientBuilder};
+use iota_sdk_types::Address;
+use iota_sdk::IotaClientBuilder;
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
@@ -129,7 +129,7 @@ async fn main() -> Result<(), anyhow::Error> {
    let iota_testnet = IotaClientBuilder::default().build_testnet().await?;
    println!("IOTA testnet version: {}", iota_testnet.api_version());
 
-   let active_address = IotaAddress::from_str("<YOUR IOTA ADDRESS>")?; // change to your IOTA address
+   let active_address = Address::from_str("<YOUR IOTA ADDRESS>")?; // change to your IOTA address
 
    let total_balance = iota_testnet
       .coin_read_api()

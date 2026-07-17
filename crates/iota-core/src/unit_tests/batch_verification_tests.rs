@@ -8,16 +8,18 @@ use fastcrypto::traits::KeyPair;
 use futures::future::join_all;
 use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
+use iota_sdk_types::gas::GasCostSummary;
 use iota_types::{
     committee::Committee,
     crypto::{AccountKeyPair, AuthorityKeyPair, get_key_pair},
-    gas::GasCostSummary,
-    messages_checkpoint::{CheckpointContents, CheckpointSummary, SignedCheckpointSummary},
-    signature_verification::VerifiedDigestCache,
+    messages_checkpoint::{
+        CheckpointContents, CheckpointContentsExt, CheckpointSummary, CheckpointSummaryExt,
+        SignedCheckpointSummary,
+    },
     transaction::CertifiedTransaction,
 };
 use itertools::Itertools as _;
-use prometheus::Registry;
+use prometheus_filtered::Registry;
 use rand::{Rng, thread_rng};
 
 use crate::{
@@ -58,7 +60,7 @@ fn gen_ckpts(
             let name = k.public().into();
             SignedCheckpointSummary::new(
                 committee.epoch,
-                CheckpointSummary::new(
+                CheckpointSummary::new_with_protocol_config(
                     &ProtocolConfig::get_for_max_version_UNSAFE(),
                     committee.epoch,
                     // insert different data for each checkpoint so that we can swap sigs later
@@ -121,11 +123,7 @@ async fn test_batch_verify() {
         )
         .unwrap_err();
 
-        let results = batch_verify_certificates(
-            &committee,
-            &certs.iter().collect_vec(),
-            Arc::new(VerifiedDigestCache::new_empty()),
-        );
+        let results = batch_verify_certificates(&committee, &certs.iter().collect_vec());
         results[i].as_ref().unwrap_err();
         for (_, r) in results.iter().enumerate().filter(|(j, _)| *j != i) {
             r.as_ref().unwrap();
@@ -135,8 +133,6 @@ async fn test_batch_verify() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 8)]
 async fn test_async_verifier() {
-    use fastcrypto_zkp::bn254::zk_login_api::ZkLoginEnv;
-
     let (committee, key_pairs) = Committee::new_simple_test_committee();
     let committee = Arc::new(committee);
     let key_pairs = Arc::new(key_pairs);
@@ -147,11 +143,8 @@ async fn test_async_verifier() {
         committee.clone(),
         BTreeSet::new(),
         metrics,
-        ZkLoginEnv::Test,
-        true, // accept_zklogin_in_multisig
         true, // accept_passkey_in_multisig
-        Some(30),
-        true,
+        true, // additional_multisig_checks
     ));
 
     let tasks: Vec<_> = (0..32)

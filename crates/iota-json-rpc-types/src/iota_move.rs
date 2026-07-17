@@ -10,10 +10,10 @@ use std::{
 
 use colored::Colorize;
 use iota_macros::EnumVariantOrder;
+use iota_sdk_types::{Address, Identifier, ObjectId, StructTag};
 use iota_types::{
-    base_types::{IotaAddress, ObjectID},
     error::{IotaError, UserInputError},
-    iota_serde::IotaStructTag,
+    iota_sdk_types_conversions::{identifier_core_to_sdk, struct_tag_core_to_sdk},
 };
 use itertools::Itertools;
 use move_binary_format::{
@@ -23,16 +23,16 @@ use move_binary_format::{
         Module as NormalizedModule, Struct as NormalizedStruct, Type as NormalizedType,
     },
 };
-use move_core_types::{
-    annotated_value::{MoveStruct, MoveValue, MoveVariant},
-    identifier::Identifier,
-    language_storage::StructTag,
-};
+use move_core_types::annotated_value::{MoveStruct, MoveValue, MoveVariant};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use serde_with::serde_as;
 use tracing::warn;
+
+use crate::iota_primitives::{
+    Address as AddressSchema, ObjectId as ObjectIdSchema, StructTag as StructTagSchema,
+};
 
 pub type IotaMoveTypeParameterIndex = u16;
 
@@ -141,7 +141,9 @@ pub struct IotaMoveModuleId {
 #[serde(rename_all = "camelCase")]
 pub struct MoveFunctionName {
     /// The package ID to which the function belongs.
-    pub package: ObjectID,
+    #[serde_as(as = "ObjectIdSchema")]
+    #[schemars(with = "ObjectIdSchema")]
+    pub package: ObjectId,
     /// The module name to which the function belongs.
     pub module: String,
     /// The function name.
@@ -156,7 +158,7 @@ impl FromStr for MoveFunctionName {
             iota_types::parse_iota_fq_name(s).map_err(|e| UserInputError::InvalidIdentifier {
                 error: e.to_string(),
             })?;
-        let package = ObjectID::from_address(*module.address());
+        let package = ObjectId::new(module.address().into_bytes());
         Ok(Self {
             package,
             module: module.name().to_string(),
@@ -417,10 +419,18 @@ pub enum IotaMoveValue {
     // u64 and u128 are converted to String to avoid overflow
     Number(u32),
     Bool(bool),
-    Address(IotaAddress),
+    Address(
+        #[serde_as(as = "AddressSchema")]
+        #[schemars(with = "AddressSchema")]
+        Address,
+    ),
     Vector(Vec<IotaMoveValue>),
     String(String),
-    UID { id: ObjectID },
+    UID {
+        #[serde_as(as = "ObjectIdSchema")]
+        #[schemars(with = "ObjectIdSchema")]
+        id: ObjectId,
+    },
     Struct(IotaMoveStruct),
     Option(Box<Option<IotaMoveValue>>),
     Variant(IotaMoveVariant),
@@ -483,13 +493,18 @@ impl From<MoveValue> for IotaMoveValue {
             MoveValue::Struct(value) => {
                 // Best effort IOTA core type conversion
                 let MoveStruct { type_, fields } = &value;
-                if let Some(value) = try_convert_type(type_, fields) {
+                let type_ = struct_tag_core_to_sdk(type_);
+                let fields = fields
+                    .iter()
+                    .map(|(id, value)| (identifier_core_to_sdk(id), value.clone()))
+                    .collect::<Vec<_>>();
+                if let Some(value) = try_convert_type(&type_, &fields) {
                     return value;
                 }
                 IotaMoveValue::Struct(value.into())
             }
             MoveValue::Signer(value) | MoveValue::Address(value) => {
-                IotaMoveValue::Address(IotaAddress::from(ObjectID::from(value)))
+                IotaMoveValue::Address(Address::new(value.into_bytes()))
             }
             MoveValue::Variant(MoveVariant {
                 type_,
@@ -497,7 +512,7 @@ impl From<MoveValue> for IotaMoveValue {
                 tag: _,
                 fields,
             }) => IotaMoveValue::Variant(IotaMoveVariant {
-                type_,
+                type_: struct_tag_core_to_sdk(&type_),
                 variant: variant_name.to_string(),
                 fields: fields
                     .into_iter()
@@ -530,9 +545,9 @@ fn to_bytearray(value: &[MoveValue]) -> Option<Vec<u8>> {
 #[derive(Debug, Deserialize, Serialize, JsonSchema, Clone, Eq, PartialEq)]
 #[serde(rename = "MoveVariant")]
 pub struct IotaMoveVariant {
-    #[schemars(with = "String")]
     #[serde(rename = "type")]
-    #[serde_as(as = "IotaStructTag")]
+    #[schemars(with = "StructTagSchema")]
+    #[serde_as(as = "StructTagSchema")]
     pub type_: StructTag,
     pub variant: String,
     pub fields: BTreeMap<String, IotaMoveValue>,
@@ -585,9 +600,9 @@ impl Display for IotaMoveVariant {
 pub enum IotaMoveStruct {
     Runtime(Vec<IotaMoveValue>),
     WithTypes {
-        #[schemars(with = "String")]
         #[serde(rename = "type")]
-        #[serde_as(as = "IotaStructTag")]
+        #[schemars(with = "StructTagSchema")]
+        #[serde_as(as = "StructTagSchema")]
         type_: StructTag,
         fields: BTreeMap<String, IotaMoveValue>,
     },
@@ -667,10 +682,10 @@ fn try_convert_type(
     fields: &[(Identifier, MoveValue)],
 ) -> Option<IotaMoveValue> {
     let struct_name = format!(
-        "0x{}::{}::{}",
-        type_.address.short_str_lossless(),
-        type_.module,
-        type_.name
+        "{}::{}::{}",
+        type_.address().to_short_hex(),
+        type_.module(),
+        type_.name()
     );
     let mut values = fields
         .iter()
@@ -694,7 +709,7 @@ fn try_convert_type(
             let id = values.remove("id").cloned().map(IotaMoveValue::from);
             if let Some(IotaMoveValue::Address(address)) = id {
                 return Some(IotaMoveValue::UID {
-                    id: ObjectID::from(address),
+                    id: ObjectId::from(address),
                 });
             }
         }
@@ -721,7 +736,7 @@ fn try_convert_type(
 impl From<MoveStruct> for IotaMoveStruct {
     fn from(move_struct: MoveStruct) -> Self {
         IotaMoveStruct::WithTypes {
-            type_: move_struct.type_,
+            type_: struct_tag_core_to_sdk(&move_struct.type_),
             fields: move_struct
                 .fields
                 .into_iter()

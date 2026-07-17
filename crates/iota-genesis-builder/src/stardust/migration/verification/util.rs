@@ -4,19 +4,18 @@
 use std::collections::HashMap;
 
 use anyhow::{Result, anyhow, bail, ensure};
+use iota_sdk_types::{Address, ObjectId, Owner, TypeTag};
 use iota_stardust_types::block::{
-    address::Address,
+    address::Address as StardustAddress,
     output::{self as sdk_output, NativeTokens, OutputId, TokenId},
 };
 use iota_types::{
-    TypeTag,
     balance::Balance,
-    base_types::{IotaAddress, ObjectID},
     coin::Coin,
     collection_types::Bag,
     dynamic_field::Field,
     in_memory_storage::InMemoryStorage,
-    object::{Object, Owner},
+    object::Object,
     stardust::output::{Alias, Nft},
 };
 use primitive_types::U256;
@@ -79,7 +78,7 @@ pub(super) fn verify_native_tokens<NtKind: NativeTokenKind>(
     native_tokens: &NativeTokens,
     foundry_data: &HashMap<TokenId, FoundryLedgerData>,
     native_tokens_bag: impl Into<Option<Bag>>,
-    created_native_tokens: Option<&[ObjectID]>,
+    created_native_tokens: Option<&[ObjectId]>,
     storage: &InMemoryStorage,
     tokens_counter: &mut TokensAmountCounter,
 ) -> Result<()> {
@@ -201,7 +200,7 @@ pub(super) fn verify_timelock_unlock_condition(
 pub(super) fn verify_expiration_unlock_condition(
     original: Option<&sdk_output::unlock_condition::ExpirationUnlockCondition>,
     created: Option<&unlock_conditions::ExpirationUnlockCondition>,
-    address: &Address,
+    address: &StardustAddress,
 ) -> Result<()> {
     // Expiration Unlock Condition
     if let Some(expiration) = original {
@@ -279,16 +278,14 @@ pub(super) fn verify_tag_feature(
 
 pub(super) fn verify_sender_feature(
     original: Option<&sdk_output::feature::SenderFeature>,
-    created: Option<IotaAddress>,
+    created: Option<Address>,
 ) -> Result<()> {
     if let Some(sender) = original {
         let iota_sender_address = stardust_to_iota_address(sender.address())?;
         if let Some(obj_sender) = created {
             ensure!(
                 obj_sender == iota_sender_address,
-                "sender mismatch: found {}, expected {}",
-                obj_sender,
-                iota_sender_address
+                "sender mismatch: found {obj_sender}, expected {iota_sender_address}"
             );
         } else {
             bail!("missing sender on object");
@@ -301,16 +298,14 @@ pub(super) fn verify_sender_feature(
 
 pub(super) fn verify_issuer_feature(
     original: Option<&sdk_output::feature::IssuerFeature>,
-    created: Option<IotaAddress>,
+    created: Option<Address>,
 ) -> Result<()> {
     if let Some(issuer) = original {
         let iota_issuer_address = stardust_to_iota_address(issuer.address())?;
         if let Some(obj_issuer) = created {
             ensure!(
                 obj_issuer == iota_issuer_address,
-                "issuer mismatch: found {}, expected {}",
-                obj_issuer,
-                iota_issuer_address
+                "issuer mismatch: found {obj_issuer}, expected {iota_issuer_address}"
             );
         } else {
             bail!("missing issuer on object");
@@ -322,7 +317,7 @@ pub(super) fn verify_issuer_feature(
 }
 
 pub(super) fn verify_address_owner(
-    owning_address: &Address,
+    owning_address: &StardustAddress,
     obj: &Object,
     name: &str,
     address_swap_map: &AddressSwapMap,
@@ -339,9 +334,7 @@ pub(super) fn verify_address_owner(
 }
 
 pub(super) fn verify_shared_object(obj: &Object, name: &str) -> Result<()> {
-    let expected_owner = Owner::Shared {
-        initial_shared_version: Default::default(),
-    };
+    let expected_owner = Owner::Shared(Default::default());
     ensure!(
         obj.owner.is_shared(),
         "{name} shared owner mismatch: found {}, expected {}",
@@ -356,31 +349,31 @@ pub(super) fn verify_shared_object(obj: &Object, name: &str) -> Result<()> {
 // addresses.
 pub(super) fn verify_parent(
     output_id: &OutputId,
-    address: &Address,
+    address: &StardustAddress,
     storage: &InMemoryStorage,
 ) -> Result<()> {
-    let object_id = ObjectID::from(stardust_to_iota_address(address)?);
+    let object_id = ObjectId::from(stardust_to_iota_address(address)?);
     let parent = storage.get_object(&object_id);
     match address {
-        Address::Alias(address) => {
+        StardustAddress::Alias(address) => {
             if let Some(parent_obj) = parent {
-                if parent_obj.to_rust::<Alias>().is_none() {
+                if let Err(e) = parent_obj.to_rust::<Alias>() {
                     warn!(
-                        "verification failed for output id {output_id}: unexpected parent found for alias address {address}"
+                        "verification failed for output id {output_id}: unexpected parent found for alias address {address}: {e}"
                     );
                 }
             }
         }
-        Address::Nft(address) => {
+        StardustAddress::Nft(address) => {
             if let Some(parent_obj) = parent {
-                if parent_obj.to_rust::<Nft>().is_none() {
+                if let Err(e) = parent_obj.to_rust::<Nft>() {
                     warn!(
-                        "verification failed for output id {output_id}: unexpected parent found for nft address {address}"
+                        "verification failed for output id {output_id}: unexpected parent found for nft address {address}: {e}"
                     );
                 }
             }
         }
-        Address::Ed25519(address) => {
+        StardustAddress::Ed25519(address) => {
             if parent.is_some() {
                 warn!(
                     "verification failed for output id {output_id}: unexpected parent found for ed25519 address {address}"
@@ -421,7 +414,8 @@ impl NativeTokenKind for (TypeTag, Coin) {
     }
 
     fn from_object(obj: &Object) -> Result<Self> {
-        obj.coin_type_maybe()
+        obj.coin_type_opt()
+            .cloned()
             .zip(obj.as_coin_maybe())
             .ok_or_else(|| anyhow!("expected a native token coin, found {:?}", obj.type_()))
     }
@@ -437,8 +431,12 @@ impl NativeTokenKind for Field<String, Balance> {
     }
 
     fn from_object(obj: &Object) -> Result<Self> {
-        obj.to_rust::<Field<String, Balance>>()
-            .ok_or_else(|| anyhow!("expected a native token field, found {:?}", obj.type_()))
+        obj.to_rust::<Field<String, Balance>>().map_err(|e| {
+            anyhow!(
+                "expected a native token field, found {:?}: {e}",
+                obj.type_()
+            )
+        })
     }
 }
 

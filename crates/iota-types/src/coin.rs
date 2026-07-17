@@ -2,63 +2,39 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use iota_sdk_types::{Identifier, ObjectData, ObjectId, StructTag, TypeTag};
 use move_core_types::{
     annotated_value::{MoveFieldLayout, MoveStructLayout, MoveTypeLayout},
     ident_str,
-    identifier::IdentStr,
-    language_storage::{StructTag, TypeTag},
 };
-use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    IOTA_FRAMEWORK_ADDRESS,
     balance::{Balance, Supply},
-    base_types::ObjectID,
     error::{ExecutionError, ExecutionErrorKind, IotaError},
     id::UID,
-    object::{Data, Object},
+    iota_sdk_types_conversions::struct_tag_sdk_to_core,
+    object::Object,
 };
 
-pub const COIN_MODULE_NAME: &IdentStr = ident_str!("coin");
-pub const COIN_STRUCT_NAME: &IdentStr = ident_str!("Coin");
-pub const COIN_METADATA_STRUCT_NAME: &IdentStr = ident_str!("CoinMetadata");
-pub const COIN_TREASURE_CAP_NAME: &IdentStr = ident_str!("TreasuryCap");
-pub const COIN_JOIN_FUNC_NAME: &IdentStr = ident_str!("join");
+pub const COIN_JOIN_FUNC_NAME: Identifier = Identifier::from_static("join");
 
-pub const PAY_MODULE_NAME: &IdentStr = ident_str!("pay");
-pub const PAY_SPLIT_N_FUNC_NAME: &IdentStr = ident_str!("divide_and_keep");
-pub const PAY_SPLIT_VEC_FUNC_NAME: &IdentStr = ident_str!("split_vec");
+pub const PAY_SPLIT_N_FUNC_NAME: Identifier = Identifier::from_static("divide_and_keep");
+pub const PAY_SPLIT_VEC_FUNC_NAME: Identifier = Identifier::from_static("split_vec");
 
 // Rust version of the Move iota::coin::Coin type
-#[derive(Debug, Serialize, Deserialize, Clone, JsonSchema, Eq, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct Coin {
     pub id: UID,
     pub balance: Balance,
 }
 
 impl Coin {
-    pub fn new(id: ObjectID, value: u64) -> Self {
+    pub fn new(id: ObjectId, value: u64) -> Self {
         Self {
             id: UID::new(id),
             balance: Balance::new(value),
         }
-    }
-
-    pub fn type_(type_param: TypeTag) -> StructTag {
-        StructTag {
-            address: IOTA_FRAMEWORK_ADDRESS,
-            name: COIN_STRUCT_NAME.to_owned(),
-            module: COIN_MODULE_NAME.to_owned(),
-            type_params: vec![type_param],
-        }
-    }
-
-    /// Is this other StructTag representing a Coin?
-    pub fn is_coin(other: &StructTag) -> bool {
-        other.address == IOTA_FRAMEWORK_ADDRESS
-            && other.module.as_ident_str() == COIN_MODULE_NAME
-            && other.name.as_ident_str() == COIN_STRUCT_NAME
     }
 
     /// Create a coin from BCS bytes
@@ -71,10 +47,10 @@ impl Coin {
     /// The cost is 2 comparisons if not a coin, and deserialization if its a
     /// Coin.
     pub fn extract_balance_if_coin(object: &Object) -> Result<Option<u64>, bcs::Error> {
-        let Data::Move(obj) = &object.data else {
+        let ObjectData::Struct(obj) = &object.data else {
             return Ok(None);
         };
-        let Some(_) = obj.type_().coin_type_maybe() else {
+        let Some(_) = obj.struct_tag().coin_type_opt() else {
             return Ok(None);
         };
 
@@ -82,7 +58,7 @@ impl Coin {
         Ok(Some(coin.value()))
     }
 
-    pub fn id(&self) -> &ObjectID {
+    pub fn id(&self) -> &ObjectId {
         self.id.object_id()
     }
 
@@ -96,7 +72,7 @@ impl Coin {
 
     pub fn layout(type_param: TypeTag) -> MoveStructLayout {
         MoveStructLayout {
-            type_: Self::type_(type_param.clone()),
+            type_: struct_tag_sdk_to_core(&StructTag::new_coin(type_param.clone())),
             fields: vec![
                 MoveFieldLayout::new(
                     ident_str!("id").to_owned(),
@@ -126,26 +102,20 @@ impl Coin {
     // Related coin objects need to be updated in temporary_store to persist the
     // changes, including creating the coin object related to the newly created
     // coin.
-    pub fn split(&mut self, amount: u64, new_coin_id: ObjectID) -> Result<Coin, ExecutionError> {
+    pub fn split(&mut self, amount: u64, new_coin_id: ObjectId) -> Result<Coin, ExecutionError> {
         self.balance.withdraw(amount)?;
         Ok(Coin::new(new_coin_id, amount))
     }
 }
 
 // Rust version of the Move iota::coin::TreasuryCap type
-#[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq, JsonSchema)]
+#[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct TreasuryCap {
     pub id: UID,
     pub total_supply: Supply,
 }
 
 impl TreasuryCap {
-    pub fn is_treasury_type(other: &StructTag) -> bool {
-        other.address == IOTA_FRAMEWORK_ADDRESS
-            && other.module.as_ident_str() == COIN_MODULE_NAME
-            && other.name.as_ident_str() == COIN_TREASURE_CAP_NAME
-    }
-
     /// Create a TreasuryCap from BCS bytes
     pub fn from_bcs_bytes(content: &[u8]) -> Result<Self, IotaError> {
         bcs::from_bytes(content).map_err(|err| IotaError::ObjectDeserialization {
@@ -153,20 +123,11 @@ impl TreasuryCap {
         })
     }
 
-    pub fn type_(type_param: StructTag) -> StructTag {
-        StructTag {
-            address: IOTA_FRAMEWORK_ADDRESS,
-            name: COIN_TREASURE_CAP_NAME.to_owned(),
-            module: COIN_MODULE_NAME.to_owned(),
-            type_params: vec![TypeTag::Struct(Box::new(type_param))],
-        }
-    }
-
     /// Checks if the provided type is `TreasuryCap<T>`, returning the type T if
     /// so.
     pub fn is_treasury_with_coin_type(other: &StructTag) -> Option<&StructTag> {
-        if Self::is_treasury_type(other) && other.type_params.len() == 1 {
-            match other.type_params.first() {
+        if other.is_treasury_cap() {
+            match other.type_params().first() {
                 Some(TypeTag::Struct(coin_type)) => Some(coin_type),
                 _ => None,
             }
@@ -180,12 +141,12 @@ impl TryFrom<Object> for TreasuryCap {
     type Error = IotaError;
     fn try_from(object: Object) -> Result<Self, Self::Error> {
         match &object.data {
-            Data::Move(o) => {
-                if o.type_().is_treasury_cap() {
+            ObjectData::Struct(o) => {
+                if o.struct_tag().is_treasury_cap() {
                     return TreasuryCap::from_bcs_bytes(o.contents());
                 }
             }
-            Data::Package(_) => {}
+            ObjectData::Package(_) => {}
         }
 
         Err(IotaError::Type {
@@ -195,7 +156,7 @@ impl TryFrom<Object> for TreasuryCap {
 }
 
 // Rust version of the Move iota::coin::CoinMetadata type
-#[derive(Debug, Serialize, Deserialize, Clone, JsonSchema, Eq, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct CoinMetadata {
     pub id: UID,
     /// Number of decimal places the coin uses.
@@ -211,13 +172,6 @@ pub struct CoinMetadata {
 }
 
 impl CoinMetadata {
-    /// Is this other StructTag representing a CoinMetadata?
-    pub fn is_coin_metadata(other: &StructTag) -> bool {
-        other.address == IOTA_FRAMEWORK_ADDRESS
-            && other.module.as_ident_str() == COIN_MODULE_NAME
-            && other.name.as_ident_str() == COIN_METADATA_STRUCT_NAME
-    }
-
     /// Create a coin from BCS bytes
     pub fn from_bcs_bytes(content: &[u8]) -> Result<Self, IotaError> {
         bcs::from_bytes(content).map_err(|err| IotaError::ObjectDeserialization {
@@ -225,20 +179,11 @@ impl CoinMetadata {
         })
     }
 
-    pub fn type_(type_param: StructTag) -> StructTag {
-        StructTag {
-            address: IOTA_FRAMEWORK_ADDRESS,
-            name: COIN_METADATA_STRUCT_NAME.to_owned(),
-            module: COIN_MODULE_NAME.to_owned(),
-            type_params: vec![TypeTag::Struct(Box::new(type_param))],
-        }
-    }
-
     /// Checks if the provided type is `CoinMetadata<T>`, returning the type T
     /// if so.
     pub fn is_coin_metadata_with_coin_type(other: &StructTag) -> Option<&StructTag> {
-        if Self::is_coin_metadata(other) && other.type_params.len() == 1 {
-            match other.type_params.first() {
+        if other.is_coin_metadata() {
+            match other.type_params().first() {
                 Some(TypeTag::Struct(coin_type)) => Some(coin_type),
                 _ => None,
             }
@@ -259,12 +204,12 @@ impl TryFrom<&Object> for CoinMetadata {
     type Error = IotaError;
     fn try_from(object: &Object) -> Result<Self, Self::Error> {
         match &object.data {
-            Data::Move(o) => {
-                if o.type_().is_coin_metadata() {
+            ObjectData::Struct(o) => {
+                if o.struct_tag().is_coin_metadata() {
                     return CoinMetadata::from_bcs_bytes(o.contents());
                 }
             }
-            Data::Package(_) => {}
+            ObjectData::Package(_) => {}
         }
 
         Err(IotaError::Type {

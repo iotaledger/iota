@@ -4,7 +4,7 @@
 
 use std::sync::Arc;
 
-use prometheus::{IntGauge, Registry, register_int_gauge_with_registry};
+use prometheus_filtered::{IntGauge, MetricLevel, Registry, register_int_gauge_with_registry};
 
 pub struct EpochMetrics {
     /// The current epoch ID. This is updated only when the AuthorityState
@@ -129,7 +129,8 @@ impl EpochMetrics {
             current_epoch: register_int_gauge_with_registry!(
                 "current_epoch",
                 "Current epoch ID",
-                registry
+                registry;
+                MetricLevel::Warn,
             )
             .unwrap(),
             current_voting_right: register_int_gauge_with_registry!(
@@ -146,7 +147,8 @@ impl EpochMetrics {
             epoch_total_duration: register_int_gauge_with_registry!(
                 "epoch_total_duration",
                 "Total duration of the epoch",
-                registry
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             epoch_transaction_count: register_int_gauge_with_registry!(
                 "epoch_transaction_count",
@@ -156,7 +158,8 @@ impl EpochMetrics {
             epoch_total_gas_reward: register_int_gauge_with_registry!(
                 "epoch_total_gas_reward",
                 "Total amount of gas rewards (i.e. computation gas cost) in the epoch",
-                registry
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             epoch_pending_certs_processed_time_since_epoch_close_ms: register_int_gauge_with_registry!(
                 "epoch_pending_certs_processed_time_since_epoch_close_ms",
@@ -191,7 +194,8 @@ impl EpochMetrics {
             is_safe_mode: register_int_gauge_with_registry!(
                 "is_safe_mode",
                 "Whether we are running in safe mode",
-                registry,
+                registry;
+                MetricLevel::Info,
             ).unwrap(),
             checkpoint_builder_advance_epoch_is_safe_mode: register_int_gauge_with_registry!(
                 "checkpoint_builder_advance_epoch_is_safe_mode",
@@ -242,7 +246,8 @@ impl EpochMetrics {
             consensus_quarantine_queue_size: register_int_gauge_with_registry!(
                 "consensus_quarantine_queue_size",
                 "The number of consensus output items in the quarantine",
-                registry
+                registry;
+                MetricLevel::Warn,
             )
             .unwrap(),
             shared_object_assignments_size: register_int_gauge_with_registry!(

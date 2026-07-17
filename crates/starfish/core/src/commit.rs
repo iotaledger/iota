@@ -20,11 +20,13 @@ use tracing::debug;
 
 use crate::{
     block_header::{
-        BlockHeaderAPI, BlockRef, BlockTimestampMs, Round, Slot, VerifiedBlockHeader,
-        VerifiedTransactions,
+        BlockHeaderAPI, BlockRef, BlockTimestampMs, Round, SERIALIZED_BLOCK_REF_BYTES, Slot,
+        VerifiedBlockHeader, VerifiedTransactions, format_block_digests, uleb128_len,
     },
     context::Context,
+    error::{ConsensusError, ConsensusResult},
     leader_scoring::ReputationScores,
+    misbehavior_store::MisbehaviorCounts,
     storage::Store,
     transaction_ref::{GenericTransactionRef, GenericTransactionRefAPI as _, TransactionRef},
 };
@@ -41,6 +43,43 @@ pub(crate) const WAVE_LENGTH: Round = 3;
 /// The consensus protocol operates in 'waves'. Each wave is composed of a
 /// leader round, at least one voting round, and one certifying round.
 pub(crate) type WaveNumber = u32;
+
+/// Upper bound on the BCS-serialized size of a [`Commit`] for a committee of
+/// `committee_size` authorities and a GC depth of `gc_depth` rounds.
+///
+/// `CommitV3` is the largest variant. Its two variable-length vectors span the
+/// committed sub-DAG, which garbage collection bounds to `gc_depth *
+/// committee_size` blocks (at most one block per authority per uncollected
+/// round); `committed_transactions` carries at most one [`TransactionRef`] per
+/// such block, and `reputation_scores_desc` at most one entry per authority.
+///
+/// Returns [`usize::MAX`] when `gc_depth` or `committee_size` is zero (GC
+/// disabled implies no finite sub-DAG bound), matching the convention that a
+/// zero limit disables the corresponding check.
+pub(crate) fn max_commit_bytes(committee_size: usize, gc_depth: usize) -> usize {
+    if gc_depth == 0 || committee_size == 0 {
+        return usize::MAX;
+    }
+    // `TransactionRef` is round (4) + author (1) + transactions_commitment (32).
+    const SERIALIZED_TRANSACTION_REF_BYTES: usize = 37;
+    // enum tag (1) + index (4) + previous_digest (32) + timestamp_ms (8) +
+    // leader BlockRef (37) + is_optimistic (1).
+    const FIXED_COMMIT_BYTES: usize = 1 + 4 + 32 + 8 + SERIALIZED_BLOCK_REF_BYTES + 1;
+
+    let max_subdag_blocks = gc_depth.saturating_mul(committee_size);
+    let block_headers = uleb128_len(max_subdag_blocks)
+        .saturating_add(max_subdag_blocks.saturating_mul(SERIALIZED_BLOCK_REF_BYTES));
+    let committed_transactions = uleb128_len(max_subdag_blocks)
+        .saturating_add(max_subdag_blocks.saturating_mul(SERIALIZED_TRANSACTION_REF_BYTES));
+    // reputation_scores_desc: Vec<(AuthorityIndex (1), u64 (8))>.
+    let reputation_scores =
+        uleb128_len(committee_size).saturating_add(committee_size.saturating_mul(1 + 8));
+
+    FIXED_COMMIT_BYTES
+        .saturating_add(block_headers)
+        .saturating_add(committed_transactions)
+        .saturating_add(reputation_scores)
+}
 
 /// [`Commit`] summarizes [`CommittedSubDag`] for storage and network
 /// communications.
@@ -61,11 +100,12 @@ pub(crate) type WaveNumber = u32;
 pub(crate) enum Commit {
     V1(CommitV1),
     V2(CommitV2),
+    V3(CommitV3),
 }
 
 impl Commit {
-    /// Create a new commit. The variant (V1 or V2) is determined by the
-    /// consensus_fast_commit_sync protocol flag.
+    /// Create a new commit. The variant (V2 or V3) is determined by the
+    /// consensus_starfish_speed protocol flag.
     pub(crate) fn new(
         context: &Arc<Context>,
         index: CommitIndex,
@@ -75,16 +115,41 @@ impl Commit {
         blocks: Vec<BlockRef>,
         committed_transactions: Vec<GenericTransactionRef>,
         reputation_scores_desc: Vec<(AuthorityIndex, u64)>,
+        is_optimistic: bool,
     ) -> Self {
-        if context.protocol_config.consensus_fast_commit_sync() {
-            debug!("Creating CommitV2 as consensus_fast_commit_sync is enabled");
+        if context.protocol_config.consensus_starfish_speed() {
+            debug!("Creating CommitV3 as consensus_starfish_speed is enabled");
+            // consensus_starfish_speed implies consensus_fast_commit_sync (asserted in
+            // protocol config), so all committed transactions are TransactionRefs.
+            let transaction_refs: Vec<TransactionRef> = committed_transactions
+                .into_iter()
+                .map(|gen_ref| match gen_ref {
+                    GenericTransactionRef::TransactionRef(tr) => tr,
+                    GenericTransactionRef::BlockRef(_) => {
+                        panic!("Expected TransactionRef when consensus_starfish_speed is enabled")
+                    }
+                })
+                .collect();
+
+            Commit::V3(CommitV3 {
+                index,
+                previous_digest,
+                timestamp_ms,
+                leader,
+                block_headers: blocks,
+                committed_transactions: transaction_refs,
+                reputation_scores_desc,
+                is_optimistic,
+            })
+        } else {
+            debug!("Creating CommitV2");
             // Extract TransactionRefs from GenericTransactionRef
             let transaction_refs: Vec<TransactionRef> = committed_transactions
                 .into_iter()
                 .map(|gen_ref| match gen_ref {
                     GenericTransactionRef::TransactionRef(tr) => tr,
                     GenericTransactionRef::BlockRef(_) => {
-                        panic!("Expected TransactionRef when consensus_fast_commit_sync is enabled")
+                        panic!("Expected TransactionRef")
                     }
                 })
                 .collect();
@@ -97,26 +162,6 @@ impl Commit {
                 block_headers: blocks,
                 committed_transactions: transaction_refs,
                 reputation_scores_desc,
-            })
-        } else {
-            debug!("Creating CommitV1 as consensus_fast_commit_sync is disabled");
-            // Extract BlockRefs from GenericTransactionRef
-            let block_refs: Vec<BlockRef> = committed_transactions
-                .into_iter()
-                .map(|gen_ref| match gen_ref {
-                    GenericTransactionRef::BlockRef(br) => br,
-                    GenericTransactionRef::TransactionRef(_) => {
-                        panic!("Expected BlockRef when consensus_fast_commit_sync is disabled")
-                    }
-                })
-                .collect();
-            Commit::V1(CommitV1 {
-                index,
-                previous_digest,
-                timestamp_ms,
-                leader,
-                blocks,
-                committed_transactions: block_refs,
             })
         }
     }
@@ -138,6 +183,7 @@ pub(crate) trait CommitAPI {
     fn block_headers(&self) -> &[BlockRef];
     fn committed_transactions(&self) -> Vec<GenericTransactionRef>;
     fn reputation_scores(&self) -> &[(AuthorityIndex, u64)];
+    fn is_optimistic(&self) -> bool;
 }
 
 /// Specifies one consensus commit.
@@ -199,6 +245,10 @@ impl CommitAPI for CommitV1 {
     fn reputation_scores(&self) -> &[(AuthorityIndex, u64)] {
         // CommitV1 does not have reputation scores
         &[]
+    }
+
+    fn is_optimistic(&self) -> bool {
+        false
     }
 }
 
@@ -265,6 +315,82 @@ impl CommitAPI for CommitV2 {
     fn reputation_scores(&self) -> &[(AuthorityIndex, u64)] {
         &self.reputation_scores_desc
     }
+
+    fn is_optimistic(&self) -> bool {
+        false
+    }
+}
+
+/// Specifies one consensus commit.
+/// It is stored on disk, so it does not contain blocks which are stored
+/// individually.
+#[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq)]
+pub(crate) struct CommitV3 {
+    /// Index of the commit.
+    /// First commit after genesis has an index of 1, then every next commit has
+    /// an index incremented by 1.
+    index: CommitIndex,
+    /// Digest of the previous commit.
+    /// Set to CommitDigest::MIN for the first commit after genesis.
+    previous_digest: CommitDigest,
+    /// Timestamp of the commit, max of the timestamp of the leader block and
+    /// previous Commit timestamp.
+    timestamp_ms: BlockTimestampMs,
+    /// A reference to the commit leader.
+    leader: BlockRef,
+    /// Refs to committed headers, in the commit order.
+    block_headers: Vec<BlockRef>,
+    /// Refs to transactions in blocks for which quorum of acknowledgments has
+    /// been collected in this and past commits.
+    committed_transactions: Vec<TransactionRef>,
+    /// Optional scores that are provided as part of the consensus output to
+    /// IOTA that can then be used by IOTA for future transaction submission to
+    /// consensus.
+    reputation_scores_desc: Vec<(AuthorityIndex, u64)>,
+    /// True if the leader was committed via the StarfishSpeed Optimistic
+    /// metastate.
+    is_optimistic: bool,
+}
+
+impl CommitAPI for CommitV3 {
+    fn round(&self) -> Round {
+        self.leader.round
+    }
+
+    fn index(&self) -> CommitIndex {
+        self.index
+    }
+
+    fn previous_digest(&self) -> CommitDigest {
+        self.previous_digest
+    }
+
+    fn timestamp_ms(&self) -> BlockTimestampMs {
+        self.timestamp_ms
+    }
+
+    fn leader(&self) -> BlockRef {
+        self.leader
+    }
+
+    fn block_headers(&self) -> &[BlockRef] {
+        &self.block_headers
+    }
+
+    fn committed_transactions(&self) -> Vec<GenericTransactionRef> {
+        self.committed_transactions
+            .iter()
+            .map(|t| GenericTransactionRef::TransactionRef(*t))
+            .collect()
+    }
+
+    fn reputation_scores(&self) -> &[(AuthorityIndex, u64)] {
+        &self.reputation_scores_desc
+    }
+
+    fn is_optimistic(&self) -> bool {
+        self.is_optimistic
+    }
 }
 
 /// A commit is trusted when it is produced locally or certified by a quorum of
@@ -310,6 +436,7 @@ impl TrustedCommit {
             blocks,
             committed_transactions,
             vec![],
+            false,
         );
         let serialized = commit.serialize().unwrap();
         Self::new_trusted(commit, serialized)
@@ -578,6 +705,10 @@ pub struct CommittedSubDag {
     pub base: SubDagBase,
     /// All the committed blocks that are part of this sub-dag
     pub transactions: Vec<VerifiedTransactions>,
+    /// Absolute per-authority misbehavior counts (`persisted + in_memory`)
+    /// snapshotted from `MisbehaviorStore` at emission. Indexed by
+    /// `AuthorityIndex`; consumers diff for deltas.
+    pub misbehavior_counts: Vec<MisbehaviorCounts>,
 }
 
 impl CommittedSubDag {
@@ -590,6 +721,7 @@ impl CommittedSubDag {
         timestamp_ms: BlockTimestampMs,
         commit_ref: CommitRef,
         reputation_scores_desc: Vec<(AuthorityIndex, u64)>,
+        misbehavior_counts: Vec<MisbehaviorCounts>,
     ) -> Self {
         Self {
             base: SubDagBase {
@@ -601,6 +733,7 @@ impl CommittedSubDag {
                 reputation_scores_desc,
             },
             transactions,
+            misbehavior_counts,
         }
     }
 
@@ -738,32 +871,32 @@ pub(crate) fn sort_sub_dag_blocks(block_headers: &mut [VerifiedBlockHeader]) {
 }
 
 // Recovers PendingSubDAG from block store, based on Commit.
-pub fn load_pending_subdag_from_store(
+pub(crate) fn load_pending_subdag_from_store(
     store: &dyn Store,
     commit: TrustedCommit,
     reputation_scores_desc: Vec<(AuthorityIndex, u64)>,
-) -> PendingSubDag {
+) -> ConsensusResult<PendingSubDag> {
     let mut leader_block_idx = None;
-    let commit_block_headers = store
-        .read_verified_block_headers(commit.block_headers())
-        .expect("Block headers referenced in commit data should exist");
+    let commit_block_headers = store.read_verified_block_headers(commit.block_headers())?;
     let block_headers = commit_block_headers
         .into_iter()
+        .zip(commit.block_headers())
         .enumerate()
-        .map(|(idx, commit_block_opt)| {
-            let commit_block = commit_block_opt.expect(
-                "Block header referenced in commit data should exist. \
-                 This could be due to unfinished fast syncing.",
-            );
+        .map(|(idx, (commit_block, block_ref))| {
+            let commit_block = commit_block.ok_or(ConsensusError::MissingBlockHeader {
+                block_ref: *block_ref,
+            })?;
             if commit_block.reference() == commit.leader() {
                 leader_block_idx = Some(idx);
             }
-            commit_block
+            Ok(commit_block)
         })
-        .collect::<Vec<_>>();
-    let leader_block_idx = leader_block_idx.expect("Leader block must be in the sub-dag");
+        .collect::<ConsensusResult<Vec<_>>>()?;
+    let leader_block_idx = leader_block_idx.ok_or(ConsensusError::MissingBlockHeader {
+        block_ref: commit.leader(),
+    })?;
     let leader_block_ref = block_headers[leader_block_idx].reference();
-    PendingSubDag::new(
+    Ok(PendingSubDag::new(
         leader_block_ref,
         block_headers,
         commit.block_headers().to_vec(),
@@ -771,7 +904,7 @@ pub fn load_pending_subdag_from_store(
         commit.timestamp_ms(),
         commit.reference(),
         reputation_scores_desc,
-    )
+    ))
 }
 
 fn format_transaction_ref_digests(transaction_refs: &[GenericTransactionRef]) -> String {
@@ -787,29 +920,31 @@ fn format_transaction_ref_digests(transaction_refs: &[GenericTransactionRef]) ->
     result
 }
 
-fn format_block_digests(blocks: &[BlockRef]) -> String {
-    let mut result = String::new();
-    for (idx, block) in blocks.iter().enumerate() {
-        if idx > 0 {
-            result.push_str(", ");
-        }
-        result.push_str(&block.digest.to_string());
-        result.push('@');
-        result.push_str(&block.round.to_string());
-    }
-    result
-}
-
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub(crate) enum Decision {
+    /// Direct rule produced the final status.
     Direct,
+    /// Direct rule produced `Commit(Pending)`; indirect rule later examined
+    /// an anchor's path and upgraded the metastate to Optimistic/Standard.
+    Upgraded,
+    /// Direct rule left the slot Undecided; indirect rule produced the
+    /// final status.
     Indirect,
 }
 
 /// The status of a leader slot from the direct and indirect commit rules.
+///
+/// `Commit(_, Some(Optimistic), strong_voters)` carries the r+1 authorities
+/// whose strong votes attest data availability for the leader and its
+/// acknowledgments; the linearizer feeds them to the per-ref ack tracker.
+/// Empty for every other case.
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum LeaderStatus {
-    Commit(VerifiedBlockHeader),
+    Commit(
+        VerifiedBlockHeader,
+        Option<CommitMetastate>,
+        Vec<AuthorityIndex>,
+    ),
     Skip(Slot),
     Undecided(Slot),
 }
@@ -817,23 +952,35 @@ pub(crate) enum LeaderStatus {
 impl LeaderStatus {
     pub(crate) fn round(&self) -> Round {
         match self {
-            Self::Commit(block) => block.round(),
+            Self::Commit(block, _, _) => block.round(),
             Self::Skip(leader) => leader.round,
             Self::Undecided(leader) => leader.round,
         }
     }
 
-    pub(crate) fn is_decided(&self) -> bool {
+    /// Slot of the leader this status refers to.
+    pub(crate) fn slot(&self) -> Slot {
         match self {
-            Self::Commit(_) => true,
-            Self::Skip(_) => true,
+            Self::Commit(block, _, _) => block.reference().into(),
+            Self::Skip(leader) | Self::Undecided(leader) => *leader,
+        }
+    }
+
+    /// True when sequencing can proceed past this leader. `Commit(Pending)`
+    /// and `Undecided` are non-final.
+    pub(crate) fn is_final(&self) -> bool {
+        match self {
+            Self::Commit(_, Some(CommitMetastate::Pending), _) => false,
+            Self::Commit(..) | Self::Skip(_) => true,
             Self::Undecided(_) => false,
         }
     }
 
     pub(crate) fn into_decided_leader(self) -> Option<DecidedLeader> {
         match self {
-            Self::Commit(block) => Some(DecidedLeader::Commit(block)),
+            Self::Commit(block, metastate, strong_voters) => {
+                Some(DecidedLeader::Commit(block, metastate, strong_voters))
+            }
             Self::Skip(slot) => Some(DecidedLeader::Skip(slot)),
             Self::Undecided(..) => None,
         }
@@ -843,7 +990,10 @@ impl LeaderStatus {
 impl Display for LeaderStatus {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Commit(block) => write!(f, "Commit({})", block.reference()),
+            Self::Commit(block, None, _) => write!(f, "Commit({})", block.reference()),
+            Self::Commit(block, Some(metastate), _) => {
+                write!(f, "Commit({},{metastate})", block.reference())
+            }
             Self::Skip(slot) => write!(f, "Skip({slot})"),
             Self::Undecided(slot) => write!(f, "Undecided({slot})"),
         }
@@ -853,7 +1003,11 @@ impl Display for LeaderStatus {
 /// Decision of each leader slot.
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum DecidedLeader {
-    Commit(VerifiedBlockHeader),
+    Commit(
+        VerifiedBlockHeader,
+        Option<CommitMetastate>,
+        Vec<AuthorityIndex>,
+    ),
     Skip(Slot),
 }
 
@@ -861,16 +1015,24 @@ impl DecidedLeader {
     // Slot where the leader is decided.
     pub(crate) fn slot(&self) -> Slot {
         match self {
-            Self::Commit(block) => block.reference().into(),
+            Self::Commit(block, _, _) => block.reference().into(),
             Self::Skip(slot) => *slot,
         }
     }
 
-    // Converts to committed block if the decision is to commit. Returns None
-    // otherwise.
-    pub(crate) fn into_committed_block(self) -> Option<VerifiedBlockHeader> {
+    // Converts a Commit decision into the committed block, metastate, and
+    // strong-voter authority set. Returns None for Skip.
+    pub(crate) fn into_committed_block(
+        self,
+    ) -> Option<(
+        VerifiedBlockHeader,
+        Option<CommitMetastate>,
+        Vec<AuthorityIndex>,
+    )> {
         match self {
-            Self::Commit(block) => Some(block),
+            Self::Commit(block, metastate, strong_voters) => {
+                Some((block, metastate, strong_voters))
+            }
             Self::Skip(_) => None,
         }
     }
@@ -878,7 +1040,7 @@ impl DecidedLeader {
     #[cfg(test)]
     pub(crate) fn round(&self) -> Round {
         match self {
-            Self::Commit(block) => block.round(),
+            Self::Commit(block, _, _) => block.round(),
             Self::Skip(leader) => leader.round,
         }
     }
@@ -886,7 +1048,7 @@ impl DecidedLeader {
     #[cfg(test)]
     pub(crate) fn authority(&self) -> AuthorityIndex {
         match self {
-            Self::Commit(block) => block.author(),
+            Self::Commit(block, _, _) => block.author(),
             Self::Skip(leader) => leader.authority,
         }
     }
@@ -895,10 +1057,51 @@ impl DecidedLeader {
 impl Display for DecidedLeader {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Commit(block) => write!(f, "Commit({})", block.reference()),
+            Self::Commit(block, None, _) => write!(f, "Commit({})", block.reference()),
+            Self::Commit(block, Some(metastate), _) => {
+                write!(f, "Commit({},{metastate})", block.reference())
+            }
             Self::Skip(slot) => write!(f, "Skip({slot})"),
         }
     }
+}
+
+/// Refined commit state for StarfishSpeed leaders, determined at commit time
+/// from the strong-vote evidence at rounds r+1 (voting) and r+2 (certifying).
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
+pub(crate) enum CommitMetastate {
+    /// Strong-vote quorum at r+1 AND StrongQC quorum at r+2.
+    /// Sequence histDA(L) + leader acknowledgment blocks.
+    Optimistic,
+    /// Strong-blame quorum observed at r+1 (no StrongQC quorum possible).
+    /// Sequence histDA(L) only (same as base Starfish).
+    Standard,
+    /// Neither a strong-vote nor a strong-blame quorum observed.
+    /// Metastate is resolved later (by the indirect rule).
+    Pending,
+}
+
+impl Display for CommitMetastate {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Optimistic => write!(f, "optimistic"),
+            Self::Standard => write!(f, "standard"),
+            Self::Pending => write!(f, "pending"),
+        }
+    }
+}
+
+/// Test helper: pair each leader with `None` metastate and an empty
+/// strong-voter set.
+#[cfg(test)]
+pub(crate) fn with_no_metastate(
+    blocks: Vec<VerifiedBlockHeader>,
+) -> Vec<(
+    VerifiedBlockHeader,
+    Option<CommitMetastate>,
+    Vec<AuthorityIndex>,
+)> {
+    blocks.into_iter().map(|b| (b, None, Vec::new())).collect()
 }
 
 /// Per-commit properties that can be regenerated from past values, and do not
@@ -994,20 +1197,51 @@ impl Debug for CommitRange {
 mod tests {
     use std::sync::Arc;
 
+    use starfish_config::AuthorityIndex;
+
     use crate::{
         BlockHeaderAPI, BlockTimestampMs, CommitDigest, VerifiedBlockHeader,
-        block_header::{TestBlockHeader, VerifiedBlock},
-        commit::{CommitRange, TrustedCommit, WAVE_LENGTH, load_pending_subdag_from_store},
+        block_header::{BlockRef, TestBlockHeader, VerifiedBlock},
+        commit::{
+            Commit, CommitRange, CommitV3, TrustedCommit, WAVE_LENGTH,
+            load_pending_subdag_from_store, max_commit_bytes,
+        },
         context::Context,
         encoder::create_encoder,
         storage::{Store, WriteBatch, mem_store::MemStore},
-        transaction_ref::convert_block_refs_to_generic_transaction_refs,
+        transaction_ref::{TransactionRef, convert_block_refs_to_generic_transaction_refs},
     };
+
+    /// Pins the `CommitV3` wire layout that `max_commit_bytes` is derived from:
+    /// a commit whose sub-DAG vectors are filled to the GC bound
+    /// (`gc_depth * committee_size`) with one reputation score per authority
+    /// must serialize to exactly the computed bound. Also checks that a zero GC
+    /// depth or committee size disables the bound.
+    #[tokio::test]
+    async fn max_commit_bytes_bounds_maximal_commit() {
+        let n = 4usize;
+        let gc_depth = 5usize;
+        let max_subdag_blocks = gc_depth * n;
+
+        let commit = Commit::V3(CommitV3 {
+            block_headers: vec![BlockRef::MAX; max_subdag_blocks],
+            committed_transactions: vec![TransactionRef::default(); max_subdag_blocks],
+            reputation_scores_desc: vec![(AuthorityIndex::MAX, u64::MAX); n],
+            ..Default::default()
+        });
+        let serialized = bcs::to_bytes(&commit).expect("serialization should succeed");
+
+        assert_eq!(serialized.len(), max_commit_bytes(n, gc_depth));
+
+        // A zero GC depth (GC disabled) or empty committee disables the bound.
+        assert_eq!(max_commit_bytes(n, 0), usize::MAX);
+        assert_eq!(max_commit_bytes(0, gc_depth), usize::MAX);
+    }
 
     #[tokio::test]
     async fn test_new_committed_subdag_from_commit() {
         let context = Arc::new(Context::new_for_test(4).0);
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
         let mut encoder = create_encoder(&context);
 
         // Populate fully connected test blocks for round 0 ~ 3, authorities 0 ~ 3.
@@ -1046,7 +1280,6 @@ mod tests {
                 WriteBatch::default()
                     .block_headers(first_round_headers)
                     .transactions(first_round_transactions),
-                context.clone(),
             )
             .unwrap();
         blocks.append(&mut first_round_references.clone());
@@ -1069,7 +1302,6 @@ mod tests {
                         WriteBatch::default()
                             .block_headers(vec![block.verified_block_header.clone()])
                             .transactions(vec![block.verified_transactions.clone()]),
-                        context.clone(),
                     )
                     .unwrap();
                 new_ancestors.push(block.reference());
@@ -1089,12 +1321,9 @@ mod tests {
         let leader_ref = leader_block.reference();
         let commit_index = 1;
 
-        // Convert BlockRefs to GenericTransactionRefs based on protocol flag
-        let generic_committed_transactions = convert_block_refs_to_generic_transaction_refs(
-            &context,
-            store.as_ref(),
-            &first_round_references,
-        );
+        // Convert BlockRefs to GenericTransactionRefs.
+        let generic_committed_transactions =
+            convert_block_refs_to_generic_transaction_refs(store.as_ref(), &first_round_references);
 
         let commit = TrustedCommit::new_for_test(
             &context,
@@ -1106,7 +1335,8 @@ mod tests {
             generic_committed_transactions.clone(),
         );
 
-        let subdag = load_pending_subdag_from_store(store.as_ref(), commit.clone(), vec![]);
+        let subdag =
+            load_pending_subdag_from_store(store.as_ref(), commit.clone(), vec![]).unwrap();
         assert_eq!(subdag.leader, leader_ref);
         assert_eq!(subdag.timestamp_ms, leader_block.timestamp_ms());
         assert_eq!(
@@ -1131,7 +1361,7 @@ mod tests {
     #[tokio::test]
     async fn test_new_pending_subdag_from_commit() {
         let context = Arc::new(Context::new_for_test(4).0);
-        let store = Arc::new(MemStore::new(context.clone()));
+        let store = Arc::new(MemStore::new());
         // Populate fully connected test blocks for round 0 ~ 3, authorities 0 ~ 3.
         let first_wave_rounds: u32 = WAVE_LENGTH;
         let num_authorities: u8 = 4;
@@ -1148,10 +1378,7 @@ mod tests {
             .map(|block| (block.reference(), block))
             .unzip();
         store
-            .write(
-                WriteBatch::default().block_headers(first_round_headers),
-                context.clone(),
-            )
+            .write(WriteBatch::default().block_headers(first_round_headers))
             .unwrap();
         blocks.append(&mut first_round_references.clone());
 
@@ -1169,10 +1396,7 @@ mod tests {
                         .build(),
                 );
                 store
-                    .write(
-                        WriteBatch::default().block_headers(vec![block.clone()]),
-                        context.clone(),
-                    )
+                    .write(WriteBatch::default().block_headers(vec![block.clone()]))
                     .unwrap();
                 new_ancestors.push(block.reference());
                 blocks.push(block.reference());
@@ -1191,12 +1415,9 @@ mod tests {
         let leader_ref = leader_block.reference();
         let commit_index = 1;
 
-        // Convert BlockRefs to GenericTransactionRefs based on protocol flag
-        let generic_committed_transactions = convert_block_refs_to_generic_transaction_refs(
-            &context,
-            store.as_ref(),
-            &first_round_references,
-        );
+        // Convert BlockRefs to GenericTransactionRefs.
+        let generic_committed_transactions =
+            convert_block_refs_to_generic_transaction_refs(store.as_ref(), &first_round_references);
 
         let commit = TrustedCommit::new_for_test(
             &context,
@@ -1208,7 +1429,8 @@ mod tests {
             generic_committed_transactions.clone(),
         );
 
-        let pending_subdag = load_pending_subdag_from_store(store.as_ref(), commit.clone(), vec![]);
+        let pending_subdag =
+            load_pending_subdag_from_store(store.as_ref(), commit.clone(), vec![]).unwrap();
         assert_eq!(pending_subdag.leader, leader_ref);
         assert_eq!(pending_subdag.timestamp_ms, leader_block.timestamp_ms());
         assert_eq!(

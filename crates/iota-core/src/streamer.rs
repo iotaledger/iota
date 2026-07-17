@@ -7,9 +7,10 @@ use std::{collections::BTreeMap, fmt::Debug, sync::Arc};
 use futures::Stream;
 use iota_json_rpc_types::Filter;
 use iota_metrics::{metered_channel::Sender, spawn_monitored_task};
-use iota_types::{base_types::ObjectID, error::IotaError};
+use iota_sdk_types::ObjectId;
+use iota_types::error::IotaError;
 use parking_lot::RwLock;
-use prometheus::Registry;
+use prometheus_filtered::Registry;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 use tracing::{debug, warn};
@@ -137,7 +138,7 @@ where
         let (tx, rx) = mpsc::channel::<S>(EVENT_DISPATCH_BUFFER_SIZE);
         self.subscribers
             .write()
-            .insert(ObjectID::random().to_string(), (tx, filter));
+            .insert(ObjectId::random().to_string(), (tx, filter));
         ReceiverStream::new(rx)
     }
 

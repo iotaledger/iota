@@ -3,11 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use async_graphql::{connection::Connection, *};
-use iota_types::{
-    TypeTag,
-    coin::{CoinMetadata as NativeCoinMetadata, TreasuryCap},
-    gas_coin::GAS,
-};
+use iota_sdk_types::{StructTag, TypeTag};
+use iota_types::coin::{CoinMetadata as NativeCoinMetadata, TreasuryCap};
 
 use crate::{
     config::DEFAULT_PAGE_SIZE,
@@ -162,8 +159,6 @@ impl CoinMetadata {
     ///   contents of a genesis or system package upgrade transaction.
     /// - INDEXED: The object is retrieved from the off-chain index and
     ///   represents the most recent or historical state of the object.
-    /// - WRAPPED_OR_DELETED: The object is deleted or wrapped and only partial
-    ///   information can be loaded.
     pub(crate) async fn status(&self) -> ObjectStatus {
         ObjectImpl(&self.super_.super_).status().await
     }
@@ -342,8 +337,8 @@ impl CoinMetadata {
 
     /// The overall quantity of tokens that will be issued.
     async fn supply(&self, ctx: &Context<'_>) -> Result<Option<BigInt>> {
-        let mut type_params = self.super_.native.type_().type_params();
-        let Some(coin_type) = type_params.pop() else {
+        let type_params = self.super_.native.struct_tag().type_params();
+        let Some(coin_type) = type_params.last().cloned() else {
             return Ok(None);
         };
 
@@ -373,7 +368,7 @@ impl CoinMetadata {
             return Ok(None);
         };
 
-        let metadata_type = NativeCoinMetadata::type_(*coin_struct);
+        let metadata_type = StructTag::new_coin_metadata(*coin_struct);
         let Some(object) = Object::query_singleton(db, metadata_type, checkpoint_viewed_at).await?
         else {
             return Ok(None);
@@ -407,14 +402,14 @@ impl CoinMetadata {
             return Ok(None);
         };
 
-        Ok(Some(if GAS::is_gas(coin_struct.as_ref()) {
+        Ok(Some(if coin_struct.is_gas() {
             let pg_manager = ctx.data_unchecked::<PgManager>();
 
             let state = pg_manager.fetch_iota_system_state(None).await?;
 
             state.iota_total_supply()
         } else {
-            let cap_type = TreasuryCap::type_(*coin_struct);
+            let cap_type = StructTag::new_treasury_cap(*coin_struct);
 
             let db = ctx.data_unchecked();
 
@@ -423,10 +418,7 @@ impl CoinMetadata {
                 return Ok(None);
             };
 
-            let Some(native) = object.native_impl() else {
-                return Ok(None);
-            };
-
+            let native = object.native_impl();
             let treasury_cap = TreasuryCap::try_from(native.clone()).map_err(|e| {
                 Error::Internal(format!(
                     "Error while deserializing treasury cap {}: {e}",
@@ -443,7 +435,7 @@ impl TryFrom<&MoveObject> for CoinMetadata {
     type Error = CoinMetadataDowncastError;
 
     fn try_from(move_object: &MoveObject) -> Result<Self, Self::Error> {
-        if !move_object.native.type_().is_coin_metadata() {
+        if !move_object.native.struct_tag().is_coin_metadata() {
             return Err(CoinMetadataDowncastError::NotCoinMetadata);
         }
 

@@ -1,3 +1,9 @@
+is_feature_enabled
+	public(package) fun
+	0x3::protocol_config
+get_attr
+	public(package) fun
+	0x3::protocol_config
 UnverifiedValidatorOperationCap
 	public struct
 	0x3::validator_cap
@@ -454,9 +460,6 @@ request_add_stake
 request_withdraw_stake
 	public(package) fun
 	0x3::validator_set
-request_set_commission_rate
-	public(package) fun
-	0x3::validator_set
 advance_epoch
 	public(package) fun
 	0x3::validator_set
@@ -547,19 +550,31 @@ find_validator_from_table_vec
 get_validator_indices_set
 	fun
 	0x3::validator_set
-get_validator_mut
+any_validator
 	public(package) fun
 	0x3::validator_set
-get_active_or_pending_or_candidate_validator_mut
-	fun
-	0x3::validator_set
-get_validator_mut_with_verified_cap
+any_validator_mut
 	public(package) fun
 	0x3::validator_set
-get_validator_mut_with_ctx
+active_validator
 	public(package) fun
 	0x3::validator_set
-get_validator_mut_with_ctx_including_candidates
+active_validator_mut
+	public(package) fun
+	0x3::validator_set
+pending_validator
+	public(package) fun
+	0x3::validator_set
+pending_validator_mut
+	public(package) fun
+	0x3::validator_set
+candidate_validator
+	public(package) fun
+	0x3::validator_set
+candidate_validator_mut
+	public(package) fun
+	0x3::validator_set
+committee_validator
 	public(package) fun
 	0x3::validator_set
 get_validator_ref
@@ -574,15 +589,6 @@ get_active_validator_ref
 get_pending_validator_ref
 	public fun
 	0x3::validator_set
-get_active_validator_ref_inner
-	public(package) fun
-	0x3::validator_set
-get_committee_validator_ref_inner
-	public(package) fun
-	0x3::validator_set
-get_pending_validator_ref_inner
-	public(package) fun
-	0x3::validator_set
 verify_cap
 	public(package) fun
 	0x3::validator_set
@@ -590,6 +596,9 @@ process_pending_removals
 	fun
 	0x3::validator_set
 process_validator_departure
+	fun
+	0x3::validator_set
+clean_report_records_non_committee_validators
 	fun
 	0x3::validator_set
 clean_report_records_leaving_validator
@@ -608,6 +617,9 @@ calculate_total_active_stakes
 	fun
 	0x3::validator_set
 calculate_total_committee_stakes
+	fun
+	0x3::validator_set
+all_validator_indices
 	fun
 	0x3::validator_set
 validate_eligible_validators_voting_power
@@ -1090,9 +1102,6 @@ allocate_tokens
 activate_validators
 	fun
 	0x3::genesis
-DerivedObjectKey
-	public struct
-	0x2::derived_object
 secp256k1_ecrecover
 	public fun
 	0x2::ecdsa_k1
@@ -1114,12 +1123,12 @@ ecvrf_verify
 ed25519_verify
 	public fun
 	0x2::ed25519
-blake2b256
-	public fun
-	0x2::hash
-keccak256
-	public fun
-	0x2::hash
+is_feature_enabled
+	public(package) fun
+	0x2::protocol_config
+get_attr
+	public(package) fun
+	0x2::protocol_config
 hash_to_input
 	public fun
 	0x2::vdf
@@ -1429,7 +1438,115 @@ get_entry_by_idx_mut
 remove_entry_by_idx
 	public fun
 	0x2::vec_map
+Receiving
+	public struct
+	0x2::transfer
+transfer
+	public fun
+	0x2::transfer
+public_transfer
+	public fun
+	0x2::transfer
+freeze_object
+	public fun
+	0x2::transfer
+public_freeze_object
+	public fun
+	0x2::transfer
+share_object
+	public fun
+	0x2::transfer
+public_share_object
+	public fun
+	0x2::transfer
+receive
+	public fun
+	0x2::transfer
+public_receive
+	public fun
+	0x2::transfer
+receiving_object_id
+	public fun
+	0x2::transfer
+freeze_object_impl
+	public(package) fun
+	0x2::transfer
+share_object_impl
+	public(package) fun
+	0x2::transfer
+transfer_impl
+	public(package) fun
+	0x2::transfer
+receive_impl
+	fun
+	0x2::transfer
+DerivedObjectKey
+	public struct
+	0x2::derived_object
+derive_address
+	public fun
+	0x2::derived_object
+ModuleMetadata
+	public struct
+	0x2::module_metadata
+ModuleMetadataKey
+	public struct
+	0x2::module_metadata
+ViewFunctionMetadataV1FieldName
+	public struct
+	0x2::module_metadata
+borrow_view_functions_metadata_v1
+	public fun
+	0x2::module_metadata
+contains_view_functions_metadata_v1
+	public fun
+	0x2::module_metadata
+is_view_function_v1
+	public fun
+	0x2::module_metadata
+length
+	public fun
+	0x2::module_metadata
+is_empty
+	public fun
+	0x2::module_metadata
+new
+	public(package) fun
+	0x2::module_metadata
+add_view_function_metadata_v1
+	public(package) fun
+	0x2::module_metadata
+add
+	public(package) fun
+	0x2::module_metadata
+borrow_mut
+	public(package) fun
+	0x2::module_metadata
+remove
+	public(package) fun
+	0x2::module_metadata
+borrow
+	public(package) fun
+	0x2::module_metadata
+contains
+	public(package) fun
+	0x2::module_metadata
+contains_with_type
+	public(package) fun
+	0x2::module_metadata
 PackageMetadataKey
+	public struct
+	0x2::package_metadata
+PackageMetadataVersionFieldName
+	public struct
+	0x2::package_metadata
+ModuleMetadataV1FieldName
+	public struct
+	0x2::package_metadata
+ModulesMetadataFieldName
+	public struct
+	0x2::package_metadata
+ModuleName
 	public struct
 	0x2::package_metadata
 PackageMetadataV1
@@ -1450,6 +1567,45 @@ runtime_id
 package_version
 	public fun
 	0x2::package_metadata
+module_metadata
+	public fun
+	0x2::package_metadata
+module_authenticator_function_metadata_v1
+	public fun
+	0x2::package_metadata
+authenticator_function_metadata_v1
+	public fun
+	0x2::package_metadata
+try_get_authenticator_function_metadata_v1
+	public fun
+	0x2::package_metadata
+account_type
+	public fun
+	0x2::package_metadata
+function_name
+	public fun
+	0x2::package_metadata
+module_name
+	public fun
+	0x2::package_metadata
+has_package_metadata_version_field
+	public fun
+	0x2::package_metadata
+borrow_package_metadata_version_field
+	public fun
+	0x2::package_metadata
+borrow_modules_metadata
+	public fun
+	0x2::package_metadata
+create_package_metadata_v1_with_dynamic_metadata
+	fun
+	0x2::package_metadata
+build_package_metadata_v1_with_dynamic_metadata
+	fun
+	0x2::package_metadata
+create_modules_metadata
+	fun
+	0x2::package_metadata
 try_get_modules_metadata_v1
 	public fun
 	0x2::package_metadata
@@ -1460,9 +1616,6 @@ try_get_authenticator_metadata_v1
 	public fun
 	0x2::package_metadata
 authenticator_metadata_v1
-	public fun
-	0x2::package_metadata
-account_type
 	public fun
 	0x2::package_metadata
 AuthenticatorFunctionRefV1
@@ -1726,10 +1879,94 @@ sequence_number
 digest
 	public fun
 	0x2::ptb_call_arg
+Intent
+	public struct
+	0x2::intent
+new
+	public fun
+	0x2::intent
+scope
+	public fun
+	0x2::intent
+version
+	public fun
+	0x2::intent
+app_id
+	public fun
+	0x2::intent
+scope_transaction_data
+	public fun
+	0x2::intent
+scope_transaction_effects
+	public fun
+	0x2::intent
+scope_checkpoint_summary
+	public fun
+	0x2::intent
+scope_personal_message
+	public fun
+	0x2::intent
+scope_sender_signed_transaction
+	public fun
+	0x2::intent
+scope_proof_of_possession
+	public fun
+	0x2::intent
+scope_bridge_event_deprecated
+	public fun
+	0x2::intent
+scope_consensus_block
+	public fun
+	0x2::intent
+scope_discovery_peers
+	public fun
+	0x2::intent
+scope_authority_capabilities
+	public fun
+	0x2::intent
+version_v0
+	public fun
+	0x2::intent
+app_id_iota
+	public fun
+	0x2::intent
+app_id_consensus
+	public fun
+	0x2::intent
+iota_transaction
+	public fun
+	0x2::intent
+iota_personal_message
+	public fun
+	0x2::intent
+to_bytes
+	public fun
+	0x2::intent
+blake2b256
+	public fun
+	0x2::hash
+keccak256
+	public fun
+	0x2::hash
 AuthContext
 	public struct
 	0x2::auth_context
+AuthenticatorFunctionInfoV1
+	public struct
+	0x2::auth_context
 digest
+	public fun
+	0x2::auth_context
+sender_auth_digest
+	public fun
+	0x2::auth_context
+sponsor_auth_digest
+	public fun
+	0x2::auth_context
+sender_authenticator_function_info_v1
+	public fun
+	0x2::auth_context
+sponsor_authenticator_function_info_v1
 	public fun
 	0x2::auth_context
 tx_inputs
@@ -1738,7 +1975,40 @@ tx_inputs
 tx_commands
 	public fun
 	0x2::auth_context
+tx_data_bytes
+	public fun
+	0x2::auth_context
+intent_tx_data_bytes
+	public fun
+	0x2::auth_context
+signing_digest
+	public fun
+	0x2::auth_context
+package
+	public fun
+	0x2::auth_context
+module_name
+	public fun
+	0x2::auth_context
+function_name
+	public fun
+	0x2::auth_context
 native_digest
+	fun
+	0x2::auth_context
+native_sender_auth_digest
+	fun
+	0x2::auth_context
+native_sponsor_auth_digest
+	fun
+	0x2::auth_context
+native_sender_authenticator_function_info_v1
+	fun
+	0x2::auth_context
+native_sponsor_authenticator_function_info_v1
+	fun
+	0x2::auth_context
+native_tx_data_bytes
 	fun
 	0x2::auth_context
 native_tx_inputs
@@ -1747,48 +2017,6 @@ native_tx_inputs
 native_tx_commands
 	fun
 	0x2::auth_context
-Receiving
-	public struct
-	0x2::transfer
-transfer
-	public fun
-	0x2::transfer
-public_transfer
-	public fun
-	0x2::transfer
-freeze_object
-	public fun
-	0x2::transfer
-public_freeze_object
-	public fun
-	0x2::transfer
-share_object
-	public fun
-	0x2::transfer
-public_share_object
-	public fun
-	0x2::transfer
-receive
-	public fun
-	0x2::transfer
-public_receive
-	public fun
-	0x2::transfer
-receiving_object_id
-	public fun
-	0x2::transfer
-freeze_object_impl
-	public(package) fun
-	0x2::transfer
-share_object_impl
-	public(package) fun
-	0x2::transfer
-transfer_impl
-	public(package) fun
-	0x2::transfer
-receive_impl
-	fun
-	0x2::transfer
 AuthenticatorState
 	public struct
 	0x2::authenticator_state
@@ -1803,45 +2031,6 @@ JwkId
 	0x2::authenticator_state
 ActiveJwk
 	public struct
-	0x2::authenticator_state
-active_jwk_equal
-	fun
-	0x2::authenticator_state
-jwk_equal
-	fun
-	0x2::authenticator_state
-jwk_id_equal
-	fun
-	0x2::authenticator_state
-string_bytes_lt
-	fun
-	0x2::authenticator_state
-jwk_lt
-	fun
-	0x2::authenticator_state
-create
-	fun
-	0x2::authenticator_state
-load_inner_mut
-	fun
-	0x2::authenticator_state
-load_inner
-	fun
-	0x2::authenticator_state
-check_sorted
-	fun
-	0x2::authenticator_state
-update_authenticator_state
-	fun
-	0x2::authenticator_state
-deduplicate
-	fun
-	0x2::authenticator_state
-expire_jwks
-	fun
-	0x2::authenticator_state
-get_active_jwks
-	fun
 	0x2::authenticator_state
 Bag
 	public struct
@@ -3817,9 +4006,6 @@ verify_zklogin_id
 check_zklogin_id
 	public fun
 	0x2::zklogin_verified_id
-check_zklogin_id_internal
-	fun
-	0x2::zklogin_verified_id
 VerifiedIssuer
 	public struct
 	0x2::zklogin_verified_issuer
@@ -3837,9 +4023,6 @@ verify_zklogin_issuer
 	0x2::zklogin_verified_issuer
 check_zklogin_issuer
 	public fun
-	0x2::zklogin_verified_issuer
-check_zklogin_issuer_internal
-	fun
 	0x2::zklogin_verified_issuer
 to_bytes
 	public fun

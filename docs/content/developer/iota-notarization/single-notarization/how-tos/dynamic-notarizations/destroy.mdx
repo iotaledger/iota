@@ -1,0 +1,227 @@
+---
+title: Destroy Dynamic Notarization
+sidebar_label: Destroy Dynamic Notarization
+description: Destroy a Dynamic Notarization based on its lock status.
+teams:
+  - iotaledger/identity
+tags:
+  - notarization
+  - single-notarization
+  - dynamic-notarization
+  - how-to
+---
+
+## Destroy Dynamic Notarizations
+
+This guide demonstrates how to destroy Dynamic Notarizations and explains the different scenarios based on lock status. Dynamic notarizations can be destroyed under certain conditions depending on their transfer locks.
+
+### Prerequisites
+
+- A Dynamic Notarization owned by your address
+- Understanding of the notarization's lock status
+
+### Understanding Destruction Rules
+
+Dynamic notarizations follow these destruction rules:
+
+- **Unlocked**: Can be destroyed immediately
+- **Transfer-locked**: Cannot be destroyed while locked
+- **Time-locked**: Can be destroyed after lock expires
+
+:::warning
+
+Once destroyed, a notarization cannot be recovered. Ensure you really want to delete it permanently.
+
+:::
+
+### 1. Get the Notarization Client
+
+First, ensure you have a funded notarization client with ownership of the notarization.
+See [Get Funded Notarization Client](./create#1-get-funded-notarization-client) for used utility functions.
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/v0.1/examples/utils/utils.rs#L39-L50
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/util.ts#L26-L57
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 2. Create an Unlocked Dynamic Notarization
+
+First, let's create an unlocked dynamic notarization that can be destroyed immediately:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/v0.1/examples/04_destroy_notarization.rs#L14-L25
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/04_destroy_notarization.ts#L18-L25
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 3. Check Destruction Permission
+
+Before attempting to destroy a notarization, check if it's allowed:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/v0.1/examples/04_destroy_notarization.rs#L32-L37
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/04_destroy_notarization.ts#L30
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 4. Destroy the Unlocked Notarization
+
+Destroy the unlocked notarization (should succeed):
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/v0.1/examples/04_destroy_notarization.rs#L38-L44
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/04_destroy_notarization.ts#L35-L38
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+## Transfer-Locked Notarization Scenario
+
+Transfer-locked notarizations cannot be destroyed while the lock is active:
+
+### 5. Create a Transfer-Locked Notarization
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/v0.1/examples/04_destroy_notarization.rs#L55-L66
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/04_destroy_notarization.ts#L49-L59
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 6. Attempt to Destroy Transfer-Locked Notarization
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/v0.1/examples/04_destroy_notarization.rs#L75-L79
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/04_destroy_notarization.ts#L63-L71
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+## Destruction Scenarios Summary
+
+| Transfer Lock    | Can Destroy?  | Notes                                                                       |
+|------------------|---------------|-----------------------------------------------------------------------------|
+| No lock          | ✅ Yes        | Immediate destruction allowed                                               |
+| UnlockAt(future) | ❌ No         | Must wait for lock to expire                                                |
+| UnlockAt(past)   | ✅ Yes        | Can destroy after expiration                                                |
+| UntilDestroyed   | ✅ Yes        | Can not be transferred until object is destroyed but destruction is allowed |
+
+## Error Handling
+
+Destruction operations may fail due to:
+
+- **Active transfer locks**: Transfer-locked notarizations cannot be destroyed
+- **Insufficient funds**: Not enough gas to complete the transaction
+- **Ownership**: Only the current owner can destroy the notarization
+- **Network issues**: Connectivity or node problems
+
+## Best Practices
+
+1. **Check destruction status**: Always verify with `is_destroy_allowed()` before attempting
+2. **Handle errors gracefully**: Implement proper error handling for failed destruction
+3. **Consider lock expiration**: For time-locked notarizations, wait for expiration
+4. **Backup important data**: Ensure you have copies of important notarized content
+5. **Confirm Notarization is destroyed**: Check the network to confirm the notarization is destroyed
+
+## Full Example Code
+
+The complete example demonstrates various destruction scenarios:
+
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/v0.1/examples/04_destroy_notarization.rs
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/04_destroy_notarization.ts
+```
+
+</TabItem>
+</Tabs>
+
+## Running Examples Locally
+
+In order to run the examples, you will need to run an IOTA network locally.
+
+If you want to use something different, you will need to modify the API and faucet endpoints in the examples to match your setup.

@@ -1,0 +1,134 @@
+---
+title: Locking Configuration
+description: An explanation of the IOTA Audit Trails locking system — record deletion windows, write locks, and trail deletion locks.
+tags:
+ - explanation
+ - notarization
+ - audit-trails
+---
+
+# Locking Configuration
+
+IOTA Audit Trails provides a configurable locking system that governs when records can be deleted, when the trail itself can be destroyed, and when new records can be added. Locking is essential for compliance scenarios where data retention policies must be enforced on-chain.
+
+---
+
+## Overview
+
+The locking system operates on three independent dimensions:
+
+| Dimension | What It Controls | Configuration Type |
+|-----------|-----------------|-------------------|
+| **Record deletion window** | When individual records can be deleted | `LockingWindow` — time-based, count-based, or none |
+| **Trail deletion lock** | When the trail itself can be destroyed | `TimeLock` — timestamp-based or none |
+| **Write lock** | When new records can be added | `TimeLock` — timestamp-based, permanent, or none |
+
+Each dimension is configured independently and can be updated at any time by a holder of the appropriate permission. Changes to the locking configuration take effect immediately for all subsequent operations.
+
+---
+
+## Record Deletion Window
+
+The `delete_record_window` determines when individual records become eligible for deletion via the `delete_record` operation. It supports three modes:
+
+### No Restriction (`None`)
+
+Any record can be deleted at any time, subject to the caller having the `DeleteRecord` permission. This is the default and is suitable for trails where data retention is managed by application logic rather than on-chain policy.
+
+### Time-Based Window (`TimeBased`)
+
+A record is locked for a specified number of seconds after it was added. The lock expiry is calculated from the record's `added_at` timestamp plus the configured duration. Once the window expires, the record can be deleted.
+
+**Example**: With `TimeBased { seconds: 7776000 }` (90 days), a record added on January 1st becomes eligible for deletion on April 1st. This is useful for regulatory data retention requirements such as "records must be kept for at least 90 days".
+
+### Count-Based Window (`CountBased`)
+
+The most recent `count` records are locked. As new records are added to the trail, older records naturally become eligible for deletion. The lock status of a record depends on how many records exist after it in the sequence.
+
+:::info COUNT MUST BE POSITIVE
+The `count` must be **positive** (`≥ 1`). A zero-count window would protect no records — making it identical to the `None` window — so it is rejected rather than silently accepted: constructing a count-based window with `count == 0` (`window_count_based(0)`) fails client-side with an invalid-argument error and would abort on-chain with `ECountWindowMustBePositive`. To express *no* deletion lock, use the `None` window (`window_none()`) instead.
+:::
+
+**Example**: With `CountBased { count: 1000 }`, the 1000 most recent records are always locked. If the trail has 1500 records, records 0 through 499 can be deleted. When record 1500 is added, record 500 also becomes deletable. This is useful for rolling-window scenarios where the trail should always retain a minimum number of recent records.
+
+### Batch Deletion and Locking
+
+The `delete_records_batch` operation — which requires the `DeleteAllRecords` permission (distinct from `DeleteRecord`) — deletes up to a given number of records from the front (oldest end) of the trail in a single call. It **respects the record deletion window**: any record that is still locked is silently **skipped** rather than deleted (records whose tag is not permitted by the caller's capability are skipped as well). The set of locked records is evaluated **once, when the transaction begins** — the count-window threshold is computed up front and time-based locks are evaluated against the timestamp captured at the start of the call — so a record's lock status stays stable for the whole batch. The call returns the sequence numbers it actually deleted, which may be fewer than requested (or none, if every candidate from front to back is locked or tag-filtered). Deleting a batch this way yields the same final state as calling `delete_record` once for each of those sequence numbers, provided the locking configuration is not changed and no records are added in between. The separate `DeleteAllRecords` permission ensures that only explicitly authorized administrators can perform this bulk operation.
+
+---
+
+## Trail Deletion Lock
+
+The `delete_trail_lock` prevents the entire trail from being destroyed until the lock expires. This provides a guarantee that the trail — and by extension, its storage deposit — remains available for a minimum period.
+
+The trail can only be deleted when **all** of the following conditions are met:
+1. The trail contains no records (all have been individually or batch-deleted).
+2. The `delete_trail_lock` has expired or is set to `None`.
+3. The caller holds a capability with the `DeleteAuditTrail` permission.
+
+### TimeLock Variants
+
+| Variant | Behavior |
+|---------|----------|
+| `None` | No lock — the trail can be deleted as soon as it is empty. |
+| `UnlockAt(timestamp)` | Locked until the specified Unix timestamp. The trail cannot be deleted before this time, even if it is empty. |
+
+The `UntilDestroyed` variant is **not permitted** for the trail deletion lock. If it were, the trail could never be destroyed, and the storage deposit would be permanently irrecoverable. The smart contract enforces this invariant at creation time and when updating the locking configuration.
+
+---
+
+## Write Lock
+
+The `write_lock` prevents new records from being added to the trail. When active, any call to `add_record` will fail. This is useful for:
+
+- **Audit periods**: Freezing a trail during an external audit to ensure no new records are added while the audit is in progress.
+- **Compliance deadlines**: Permanently sealing a trail after a reporting period closes.
+- **Archival**: Marking a trail as read-only before beginning a cleanup or migration process.
+
+### TimeLock Variants
+
+| Variant | Behavior |
+|---------|----------|
+| `None` | No lock — records can be added at any time. |
+| `UnlockAt(timestamp)` | Locked until the specified Unix timestamp. No records can be added before this time. |
+| `UntilDestroyed` | Permanently locked — no records can ever be added again (until the trail is destroyed). |
+
+---
+
+## Updating Locking Configuration
+
+The locking configuration can be updated after trail creation, allowing policies to evolve as requirements change. Four update operations are available, each requiring a different permission:
+
+| Operation | Permission Required |
+|-----------|-------------------|
+| Update entire locking configuration | `UpdateLockingConfig` |
+| Update record deletion window only | `UpdateLockingConfigForDeleteRecord` |
+| Update trail deletion lock only | `UpdateLockingConfigForDeleteTrail` |
+| Update write lock only | `UpdateLockingConfigForWrite` |
+
+The granular permission model allows organizations to delegate specific locking responsibilities. For example, a compliance officer might have `UpdateLockingConfigForDeleteRecord` permission to adjust retention windows without being able to modify the trail deletion lock or write lock.
+
+---
+
+## Choosing a Locking Strategy
+
+### Compliance-First (Regulatory Data Retention)
+
+For trails subject to regulatory retention requirements:
+- **Record deletion window**: `TimeBased` with the required retention period (e.g., 7 years for financial records)
+- **Trail deletion lock**: `UnlockAt` set to the end of the retention period
+- **Write lock**: `None` (records continue to be added throughout the retention period)
+
+### Rolling Window (Operational Logs)
+
+For trails that should maintain a fixed-size window of recent events:
+- **Record deletion window**: `CountBased` with the desired window size
+- **Trail deletion lock**: `None` (trail can be destroyed when no longer needed)
+- **Write lock**: `None`
+
+### Archival (Sealed Records)
+
+For trails that should be permanently sealed after a specific date:
+- **Record deletion window**: `TimeBased` with a long retention period
+- **Trail deletion lock**: `UnlockAt` set to after the retention period ends
+- **Write lock**: `UnlockAt` set to the sealing date (or `UntilDestroyed` for permanent sealing)

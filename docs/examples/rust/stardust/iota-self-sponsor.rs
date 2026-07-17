@@ -15,17 +15,15 @@ use iota_sdk::{
     IotaClientBuilder,
     rpc_types::{IotaObjectDataOptions, IotaTransactionBlockResponseOptions},
     types::{
-        IOTA_FRAMEWORK_ADDRESS, STARDUST_ADDRESS,
-        base_types::ObjectID,
         crypto::SignatureScheme::ED25519,
         gas_coin::GAS,
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         quorum_driver_types::ExecuteTransactionRequestType,
-        transaction::{Argument, ObjectArg, Transaction, TransactionData},
+        transaction::{CallArg, Transaction, TransactionData},
     },
 };
-use iota_sdk_types::crypto::Intent;
-use move_core_types::ident_str;
+use iota_sdk_types::{Argument, Identifier, ObjectId, crypto::Intent};
+use iota_types::transaction::TransactionDataAPI;
 
 pub const IOTA_COIN_TYPE: u32 = 4218;
 
@@ -68,9 +66,8 @@ async fn main() -> Result<(), anyhow::Error> {
 
     // This object id was fetched manually. It refers to a Basic Output object that
     // contains some Native Tokens.
-    let basic_output_object_id = ObjectID::from_hex_literal(
-        "0xd0ed7f2c50366202585ebd52a38cde6a7a7282ef3f52db52c3ba87042bca6fba",
-    )?;
+    let basic_output_object_id =
+        ObjectId::from_hex("0xd0ed7f2c50366202585ebd52a38cde6a7a7282ef3f52db52c3ba87042bca6fba")?;
     // Get Basic Output object
     let basic_output_object = iota_client
         .read_api()
@@ -92,12 +89,12 @@ async fn main() -> Result<(), anyhow::Error> {
         // Type argument for a Basic Output holding IOTA coin
         let type_arguments = vec![GAS::type_tag()];
         // Then pass the basic output object as input
-        let arguments = vec![builder.obj(ObjectArg::ImmOrOwnedObject(basic_output_object_ref))?];
+        let arguments = vec![builder.obj(CallArg::ImmutableOrOwned(basic_output_object_ref))?];
         // Finally call the basic_output::extract_assets function
         if let Argument::Result(extracted_assets) = builder.programmable_move_call(
-            STARDUST_ADDRESS.into(),
-            ident_str!("basic_output").to_owned(),
-            ident_str!("extract_assets").to_owned(),
+            ObjectId::STARDUST,
+            Identifier::from_static("basic_output"),
+            Identifier::from_static("extract_assets"),
             type_arguments,
             arguments,
         ) {
@@ -109,9 +106,9 @@ async fn main() -> Result<(), anyhow::Error> {
             ////// Command #2: delete the empty native tokens bag
             let arguments = vec![extracted_native_tokens_bag];
             builder.programmable_move_call(
-                IOTA_FRAMEWORK_ADDRESS.into(),
-                ident_str!("bag").to_owned(),
-                ident_str!("destroy_empty").to_owned(),
+                ObjectId::FRAMEWORK,
+                Identifier::BAG_MODULE,
+                Identifier::from_static("destroy_empty"),
                 vec![],
                 arguments,
             );
@@ -121,9 +118,9 @@ async fn main() -> Result<(), anyhow::Error> {
             let type_arguments = vec![GAS::type_tag()];
             let arguments = vec![extracted_base_token];
             let new_iota_coin = builder.programmable_move_call(
-                IOTA_FRAMEWORK_ADDRESS.into(),
-                ident_str!("coin").to_owned(),
-                ident_str!("from_balance").to_owned(),
+                ObjectId::FRAMEWORK,
+                Identifier::COIN_MODULE,
+                Identifier::from_static("from_balance"),
                 type_arguments,
                 arguments,
             );

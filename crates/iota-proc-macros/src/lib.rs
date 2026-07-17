@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use proc_macro::TokenStream;
-use quote::{ToTokens, quote, quote_spanned};
+use quote::{ToTokens, format_ident, quote, quote_spanned};
 use syn::{
     Attribute, BinOp, Data, DataEnum, DeriveInput, Expr, ExprBinary, ExprMacro, Item, ItemMacro,
     Stmt, StmtMacro, Token, UnOp,
@@ -61,6 +61,12 @@ pub fn init_static_initializers(_args: TokenStream, item: TokenStream) -> TokenS
                     let mut path = PathBuf::from(env!("SIMTEST_STATIC_INIT_MOVE"));
                     let mut build_config = BuildConfig::new_for_testing();
 
+                    // Resolve the system packages (Iota framework, MoveStdlib, …) from the local
+                    // iota checkout rather than fetching them over the network. This lets the
+                    // static-init package omit an explicit `Iota` dependency; for packages that do
+                    // declare one, this injection is skipped and has no effect.
+                    build_config.config.implicit_dependencies =
+                        iota_simulator::iota_move_build::local_implicit_deps_latest();
                     build_config.config.install_dir = Some(TempDir::new().unwrap().keep());
                     let _all_module_bytes = build_config
                         .build(&path)
@@ -88,7 +94,7 @@ pub fn init_static_initializers(_args: TokenStream, item: TokenStream) -> TokenS
                     use ::iota_simulator::anemo::{Network, Request};
 
                     let make_network = |port: u16| {
-                        let registry = prometheus::Registry::new();
+                        let registry = prometheus_filtered::Registry::new();
                         let inbound_network_metrics =
                             NetworkMetrics::new("iota", "inbound", &registry);
                         let outbound_network_metrics =
@@ -589,4 +595,60 @@ pub fn enum_variant_order_derive(input: TokenStream) -> TokenStream {
     } else {
         panic!("EnumVariantOrder can only be used with enums.");
     }
+}
+
+/// Wraps an item in a module with `#[allow(deprecated)]` and re-exports it.
+///
+/// Some proc-macro derives (e.g. strum, enum_dispatch) generate code that
+/// references deprecated variants, and `#[allow(deprecated)]` on the item
+/// itself does not propagate to their output. This macro works around that
+/// limitation by placing the item inside a private module where the
+/// `deprecated` lint is suppressed, then re-exporting the type.
+///
+/// If the item itself carries `#[deprecated]`, the attribute is moved onto
+/// the `pub use` re-export so that external callers still see the
+/// deprecation warning while derive-generated code inside the module does
+/// not.
+///
+/// Place this attribute **above** all `#[derive(...)]` and proc-macro
+/// attributes on the item:
+///
+/// ```ignore
+/// #[allow_deprecated_for_derives]
+/// #[derive(Debug, EnumString, strum_macros::Display)]
+/// pub enum MyEnum {
+///     Active,
+///     #[deprecated(note = "no longer used")]
+///     Legacy,
+/// }
+/// ```
+#[proc_macro_attribute]
+pub fn allow_deprecated_for_derives(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    let mut input = parse_macro_input!(item as DeriveInput);
+    let vis = &input.vis;
+    let ident = &input.ident;
+    let mod_name = format_ident!("__allow_deprecated_{}", ident.to_string().to_lowercase());
+
+    // If the item itself is `#[deprecated]`, move that attribute onto the
+    // re-export so derive macros inside the module never see it.
+    let mut deprecated_attrs: Vec<Attribute> = Vec::new();
+    input.attrs.retain(|attr| {
+        if attr.path().is_ident("deprecated") {
+            deprecated_attrs.push(attr.clone());
+            false
+        } else {
+            true
+        }
+    });
+
+    quote! {
+        #[allow(deprecated)]
+        mod #mod_name {
+            use super::*;
+            #input
+        }
+        #(#deprecated_attrs)*
+        #vis use #mod_name::#ident;
+    }
+    .into()
 }

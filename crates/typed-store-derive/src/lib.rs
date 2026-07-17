@@ -470,7 +470,7 @@ pub fn derive_dbmap_utils_general(input: TokenStream) -> TokenStream {
             /// Returns a list of the tables name and type pairs
             pub fn describe_tables() -> std::collections::BTreeMap<String, (String, String)> {
                 vec![#(
-                    (stringify!(#active_field_names).to_owned(), (stringify!(#active_key_names).to_owned(), stringify!(#active_value_names).to_owned())),
+                    (stringify!(#active_cf_names).to_owned(), (stringify!(#active_key_names).to_owned(), stringify!(#active_value_names).to_owned())),
                 )*].into_iter().collect()
             }
 
@@ -531,7 +531,7 @@ pub fn derive_dbmap_utils_general(input: TokenStream) -> TokenStream {
                     #(
                         stringify!(#active_cf_names) => stringify!(#active_field_names),
                     )*
-                    _ => eyre::bail!("No such cf name: {}", cf_name),
+                    _ => eyre::bail!("No such cf name: {cf_name}"),
                 })
             }
 
@@ -552,7 +552,7 @@ pub fn derive_dbmap_utils_general(input: TokenStream) -> TokenStream {
                         }
                     )*
 
-                    _ => eyre::bail!("No such table name: {}", table_name),
+                    _ => eyre::bail!("No such table name: {table_name}"),
                 })
             }
 
@@ -570,13 +570,13 @@ pub fn derive_dbmap_utils_general(input: TokenStream) -> TokenStream {
                         }
                     )*
 
-                    _ => eyre::bail!("No such table name: {}", table_name),
+                    _ => eyre::bail!("No such table name: {table_name}"),
                 }
             }
 
             pub fn describe_tables() -> std::collections::BTreeMap<String, (String, String)> {
                 vec![#(
-                    (stringify!(#active_field_names).to_owned(), (stringify!(#active_key_names).to_owned(), stringify!(#active_value_names).to_owned())),
+                    (stringify!(#active_cf_names).to_owned(), (stringify!(#active_key_names).to_owned(), stringify!(#active_value_names).to_owned())),
                 )*].into_iter().collect()
             }
 

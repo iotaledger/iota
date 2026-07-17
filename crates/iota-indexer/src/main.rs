@@ -2,12 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::env;
-
-use clap::{CommandFactory, FromArgMatches, Parser};
+use clap::{CommandFactory, FromArgMatches};
 use iota_indexer::{
     backfill::runner::BackfillRunner,
-    config::{Command, IndexerConfig, deprecated::OldIndexerConfig},
+    config::{Command, IndexerConfig},
     db::{
         check_prunable_tables_valid, get_pool_connection, new_connection_pool, reset_database,
         setup_postgres::{check_db_migration_consistency, run_migrations},
@@ -33,26 +31,14 @@ async fn main() -> Result<(), IndexerError> {
         "WARNING: IOTA indexer is still experimental and we expect occasional breaking changes that require backfills."
     );
 
-    let old_conf = OldIndexerConfig::try_parse();
-
-    let opts = match old_conf {
-        Ok(old_conf) => old_conf.try_into()?,
-        Err(_) => IndexerConfig::from_arg_matches_mut(
-            &mut IndexerConfig::command().version(VERSION).get_matches(),
-        )
-        .unwrap_or_else(|e| e.exit()),
-    };
+    let opts = IndexerConfig::from_arg_matches_mut(
+        &mut IndexerConfig::command().version(VERSION).get_matches(),
+    )
+    .unwrap_or_else(|e| e.exit());
 
     let (_registry_service, registry) = start_prometheus_server(opts.metrics_address)?;
     iota_metrics::init_metrics(&registry);
     let indexer_metrics = IndexerMetrics::new(&registry);
-
-    if let Command::HelpDeprecated = opts.command {
-        OldIndexerConfig::command().print_help().map_err(|e| {
-            IndexerError::Generic(format!("failed printing deprecated CLI help: {e}"))
-        })?;
-        return Ok(());
-    }
 
     let connection_pool = new_connection_pool(
         opts.database_url
@@ -63,6 +49,9 @@ async fn main() -> Result<(), IndexerError> {
         &opts.connection_pool_config,
     )?;
     spawn_connection_pool_metric_collector(indexer_metrics.clone(), connection_pool.clone());
+
+    let cancel = CancellationToken::new();
+    spawn_shutdown_signal_listener(cancel.clone());
 
     match opts.command {
         Command::Indexer {
@@ -89,7 +78,17 @@ async fn main() -> Result<(), IndexerError> {
             if pruning_options.optimistic_pruner_batch_size.is_some() {
                 warn!(
                     "the --optimistic-pruner-batch-size argument is deprecated and no longer used. \
+                     This argument will be removed in v1.29.0. \
                      Optimistic transactions are now pruned by the unified pruner."
+                );
+            }
+
+            if snapshot_config.is_set() {
+                warn!(
+                    "the --objects-snapshot-min-checkpoint-lag / --objects-snapshot-sleep-duration arguments \
+                     (and the OBJECTS_SNAPSHOT_MIN_CHECKPOINT_LAG env var) are deprecated. \
+                     These arguments will be removed in v1.31.0. \
+                     The objects_snapshot pipeline has been removed; these flags are now no-ops."
                 );
             }
 
@@ -98,9 +97,10 @@ async fn main() -> Result<(), IndexerError> {
                 &ingestion_config,
                 store,
                 indexer_metrics,
-                snapshot_config,
                 retention_config,
-                CancellationToken::new(),
+                pruning_options.pruning_delay_ms,
+                pruning_options.pruning_batch_size,
+                cancel.clone(),
             )
             .await?;
         }
@@ -118,6 +118,7 @@ async fn main() -> Result<(), IndexerError> {
                 &registry,
                 connection_pool,
                 indexer_metrics,
+                cancel.clone(),
             )
             .await?;
         }
@@ -125,7 +126,6 @@ async fn main() -> Result<(), IndexerError> {
             let store = PgIndexerAnalyticalStore::new(connection_pool);
             return Indexer::start_analytical_worker(store, indexer_metrics.clone()).await;
         }
-        Command::HelpDeprecated => unreachable!("this case is handled earlier"),
         Command::RunBackfill {
             start,
             end,
@@ -138,4 +138,26 @@ async fn main() -> Result<(), IndexerError> {
     }
 
     Ok(())
+}
+
+fn spawn_shutdown_signal_listener(token: CancellationToken) {
+    tokio::spawn(async move {
+        #[cfg(unix)]
+        let terminate = async {
+            tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+                .expect("cannot listen to SIGTERM signal")
+                .recv()
+                .await;
+        };
+
+        #[cfg(not(unix))]
+        let terminate = std::future::pending::<()>();
+
+        tokio::select! {
+            _ = tokio::signal::ctrl_c() => tracing::info!("shutting down, CTRL+C signal received"),
+            _ = terminate => tracing::info!("shutting down, SIGTERM signal received"),
+        };
+
+        token.cancel();
+    });
 }

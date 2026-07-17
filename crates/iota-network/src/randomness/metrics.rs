@@ -4,8 +4,9 @@
 
 use std::sync::Arc;
 
-use iota_types::{committee::EpochId, crypto::RandomnessRound};
-use prometheus::{
+use iota_sdk_types::RandomnessRound;
+use iota_types::committee::EpochId;
+use prometheus_filtered::{
     Histogram, IntGauge, Registry, register_histogram_with_registry,
     register_int_gauge_with_registry,
 };
@@ -39,9 +40,12 @@ impl Metrics {
 
     pub fn record_completed_round(&self, round: RandomnessRound) {
         if let Some(inner) = &self.0 {
-            inner
-                .highest_round_generated
-                .set(inner.highest_round_generated.get().max(round.0 as i64));
+            inner.highest_round_generated.set(
+                inner
+                    .highest_round_generated
+                    .get()
+                    .max(round.value() as i64),
+            );
         }
     }
 

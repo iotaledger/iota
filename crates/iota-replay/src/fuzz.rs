@@ -3,10 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_config::node::ExpensiveSafetyCheckConfig;
-use iota_types::{
-    digests::TransactionDigest, execution_status::ExecutionFailureStatus,
-    transaction::TransactionKind,
-};
+use iota_sdk_types::{ExecutionError, TransactionDigest, TransactionKind};
 use thiserror::Error;
 use tracing::{error, info};
 
@@ -121,8 +118,7 @@ impl ReplayFuzzer {
         if let Some(Err(e)) = &sandbox_state.local_exec_status {
             let stat = e.to_execution_status().0;
             match &stat {
-                ExecutionFailureStatus::InvariantViolation
-                | ExecutionFailureStatus::VMInvariantViolation => {
+                ExecutionError::InvariantViolation | ExecutionError::VmInvariantViolation => {
                     return Err(ReplayFuzzError::InvariantViolation {
                         tx_digest: sandbox_state.transaction_info.tx_digest,
                         kind: transaction_kind.clone(),
@@ -192,7 +188,7 @@ pub enum ReplayFuzzError {
     InvariantViolation {
         tx_digest: TransactionDigest,
         kind: TransactionKind,
-        exec_status: ExecutionFailureStatus,
+        exec_status: ExecutionError,
     },
 
     #[error(

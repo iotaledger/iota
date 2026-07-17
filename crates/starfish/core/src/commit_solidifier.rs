@@ -198,6 +198,9 @@ impl CommitSolidifier {
                 .map(|tx| tx.expect("Transaction must exist since we checked"))
                 .collect();
 
+            // Delayed subdags see current store state, not state at leader-round
+            // commit time. Safe: counts are absolute and consumers merge-max.
+            let misbehavior_counts = dag_state.misbehavior_store().snapshot_totals();
             Ok(CommittedSubDag::new(
                 subdag.leader,
                 subdag.base.headers.clone(),
@@ -206,6 +209,7 @@ impl CommitSolidifier {
                 subdag.timestamp_ms,
                 subdag.commit_ref,
                 subdag.reputation_scores_desc.clone(),
+                misbehavior_counts,
             ))
         } else {
             Err(missing)
@@ -218,7 +222,6 @@ mod tests {
     use std::sync::Arc;
 
     use parking_lot::RwLock;
-    use rstest::rstest;
 
     use super::*;
     use crate::{
@@ -240,16 +243,12 @@ mod tests {
     impl TestSetup {
         /// Creates a new test setup with a full DAG containing the specified
         /// number of rounds
-        fn new(num_rounds: u32, consensus_fast_commit_sync: bool) -> Self {
-            let (mut context, _) = Context::new_for_test(2);
-            context
-                .protocol_config
-                .set_consensus_fast_commit_sync_for_testing(consensus_fast_commit_sync);
-            context.parameters.enable_fast_commit_syncer = consensus_fast_commit_sync;
+        fn new(num_rounds: u32) -> Self {
+            let (context, _) = Context::new_for_test(2);
             let context = Arc::new(context);
             let dag_state = Arc::new(RwLock::new(DagState::new(
                 context.clone(),
-                Arc::new(crate::storage::mem_store::MemStore::new(context.clone())),
+                Arc::new(crate::storage::mem_store::MemStore::new()),
             )));
             let mut dag_builder = DagBuilder::new(context.clone());
             dag_builder
@@ -279,7 +278,7 @@ mod tests {
         ) -> Arc<RwLock<DagState>> {
             let selective_dag_state = Arc::new(RwLock::new(DagState::new(
                 self.context.clone(),
-                Arc::new(MemStore::new(self.context.clone())),
+                Arc::new(MemStore::new()),
             )));
 
             let mut state = selective_dag_state.write();
@@ -427,40 +426,21 @@ mod tests {
         }
 
         fn with_committed_refs_from_round(mut self, round: u32) -> Self {
-            let consensus_fast_commit_sync = self
-                .setup
-                .context
-                .protocol_config
-                .consensus_fast_commit_sync();
             let refs = if round == 0 {
-                if consensus_fast_commit_sync {
-                    genesis_blocks(&self.setup.context)
-                        .iter()
-                        .map(|b| {
-                            GenericTransactionRef::TransactionRef(
-                                b.verified_block_header.transaction_ref(),
-                            )
-                        })
-                        .collect()
-                } else {
-                    genesis_blocks(&self.setup.context)
-                        .iter()
-                        .map(|b| GenericTransactionRef::from(b.reference()))
-                        .collect()
-                }
-            } else if consensus_fast_commit_sync {
-                self.setup
-                    .dag_builder
-                    .block_headers(round..=round)
+                genesis_blocks(&self.setup.context)
                     .iter()
-                    .map(|b| GenericTransactionRef::TransactionRef(b.transaction_ref()))
+                    .map(|b| {
+                        GenericTransactionRef::TransactionRef(
+                            b.verified_block_header.transaction_ref(),
+                        )
+                    })
                     .collect()
             } else {
                 self.setup
                     .dag_builder
                     .block_headers(round..=round)
                     .iter()
-                    .map(|b| GenericTransactionRef::from(b.reference()))
+                    .map(|b| GenericTransactionRef::TransactionRef(b.transaction_ref()))
                     .collect()
             };
             self.committed_refs = refs;
@@ -550,10 +530,9 @@ mod tests {
     }
 
     /// Tests the happy path where a single sub-dag is successfully committed.
-    #[rstest]
     #[tokio::test]
-    async fn test_happy_path_commit(#[values(false, true)] consensus_fast_commit_sync: bool) {
-        let setup = Arc::new(TestSetup::new(3, consensus_fast_commit_sync));
+    async fn test_happy_path_commit() {
+        let setup = Arc::new(TestSetup::new(3));
         let mut commit_solidifier = CommitSolidifier::new(setup.dag_state.clone());
 
         let subdag = SubDagBuilder::new(setup, 1)
@@ -573,23 +552,18 @@ mod tests {
         assert!(commit_solidifier.pending_subdags.is_empty());
     }
 
-    #[rstest]
     #[tokio::test]
-    async fn test_missing_blocks(#[values(false, true)] consensus_fast_commit_sync: bool) {
-        let setup = Arc::new(TestSetup::new(3, consensus_fast_commit_sync));
+    async fn test_missing_blocks() {
+        let setup = Arc::new(TestSetup::new(3));
         let (mut commit_solidifier, _selective_dag_state) = setup
             .create_selective_commit_solidifier(
                 vec![1, 2, 3],
                 vec![(1, 0)], // Exclude the first transaction from round 1
             );
 
-        let committed_ref = if consensus_fast_commit_sync {
-            GenericTransactionRef::TransactionRef(
-                setup.dag_builder.block_headers(1..=1)[0].transaction_ref(),
-            )
-        } else {
-            GenericTransactionRef::from(setup.dag_builder.block_headers(1..=1)[0].reference())
-        };
+        let committed_ref = GenericTransactionRef::TransactionRef(
+            setup.dag_builder.block_headers(1..=1)[0].transaction_ref(),
+        );
 
         let subdag = SubDagBuilder::new(setup, 1)
             .leader(3, 0)
@@ -609,25 +583,18 @@ mod tests {
         assert_eq!(commit_solidifier.last_solid_committed_index, 0);
     }
 
-    #[rstest]
     #[tokio::test]
-    async fn test_commit_after_missing_blocks_arrive(
-        #[values(false, true)] consensus_fast_commit_sync: bool,
-    ) {
-        let setup = Arc::new(TestSetup::new(3, consensus_fast_commit_sync));
+    async fn test_commit_after_missing_blocks_arrive() {
+        let setup = Arc::new(TestSetup::new(3));
         let (mut commit_solidifier, selective_dag_state) = setup
             .create_selective_commit_solidifier(
                 vec![1, 2, 3],
                 vec![(1, 0)], // Exclude the first transactions from round 1
             );
 
-        let committed_ref = if consensus_fast_commit_sync {
-            GenericTransactionRef::TransactionRef(
-                setup.dag_builder.block_headers(1..=1)[0].transaction_ref(),
-            )
-        } else {
-            GenericTransactionRef::from(setup.dag_builder.block_headers(1..=1)[0].reference())
-        };
+        let committed_ref = GenericTransactionRef::TransactionRef(
+            setup.dag_builder.block_headers(1..=1)[0].transaction_ref(),
+        );
 
         let subdag = SubDagBuilder::new(setup.clone(), 1)
             .leader(3, 0)
@@ -656,12 +623,9 @@ mod tests {
         assert_eq!(commit_solidifier.last_solid_committed_index, 1);
     }
 
-    #[rstest]
     #[tokio::test]
-    async fn test_multiple_subdags_in_order(
-        #[values(false, true)] consensus_fast_commit_sync: bool,
-    ) {
-        let setup = Arc::new(TestSetup::new(4, consensus_fast_commit_sync));
+    async fn test_multiple_subdags_in_order() {
+        let setup = Arc::new(TestSetup::new(4));
         let mut commit_solidifier = CommitSolidifier::new(setup.dag_state.clone());
 
         let subdag1 = SubDagBuilder::new(setup.clone(), 1)
@@ -687,10 +651,9 @@ mod tests {
         assert_eq!(commit_solidifier.last_solid_committed_index, 2);
     }
 
-    #[rstest]
     #[tokio::test]
-    async fn test_out_of_order_subdags(#[values(false, true)] consensus_fast_commit_sync: bool) {
-        let setup = Arc::new(TestSetup::new(4, consensus_fast_commit_sync));
+    async fn test_out_of_order_subdags() {
+        let setup = Arc::new(TestSetup::new(4));
         let mut commit_solidifier = CommitSolidifier::new(setup.dag_state.clone());
 
         let subdag1 = SubDagBuilder::new(setup.clone(), 1)
@@ -724,10 +687,9 @@ mod tests {
         assert_eq!(commit_solidifier.last_solid_committed_index, 2);
     }
 
-    #[rstest]
     #[tokio::test]
-    async fn test_empty_subdag_commit(#[values(false, true)] consensus_fast_commit_sync: bool) {
-        let setup = Arc::new(TestSetup::new(2, consensus_fast_commit_sync));
+    async fn test_empty_subdag_commit() {
+        let setup = Arc::new(TestSetup::new(2));
         let mut commit_solidifier = CommitSolidifier::new(setup.dag_state.clone());
 
         let (committed, missing) = commit_solidifier.try_get_solid_sub_dags(&[]);
@@ -737,10 +699,9 @@ mod tests {
         assert_eq!(commit_solidifier.last_solid_committed_index, 0);
     }
 
-    #[rstest]
     #[tokio::test]
-    async fn test_duplicate_subdag_commit(#[values(false, true)] consensus_fast_commit_sync: bool) {
-        let setup = Arc::new(TestSetup::new(3, consensus_fast_commit_sync));
+    async fn test_duplicate_subdag_commit() {
+        let setup = Arc::new(TestSetup::new(3));
         let mut commit_solidifier = CommitSolidifier::new(setup.dag_state.clone());
 
         let subdag1 = SubDagBuilder::new(setup, 1)
@@ -761,12 +722,9 @@ mod tests {
         assert_eq!(commit_solidifier.last_solid_committed_index, 1);
     }
 
-    #[rstest]
     #[tokio::test]
-    async fn test_out_of_order_commit_calls(
-        #[values(false, true)] consensus_fast_commit_sync: bool,
-    ) {
-        let setup = Arc::new(TestSetup::new(4, consensus_fast_commit_sync));
+    async fn test_out_of_order_commit_calls() {
+        let setup = Arc::new(TestSetup::new(4));
         let mut commit_solidifier = CommitSolidifier::new(setup.dag_state.clone());
 
         let subdag1 = SubDagBuilder::new(setup.clone(), 1)
@@ -802,14 +760,11 @@ mod tests {
         assert_eq!(commit_solidifier.last_solid_committed_index, 2);
     }
 
-    #[rstest]
     #[tokio::test]
-    async fn test_all_missing_refs_are_collected(
-        #[values(false, true)] consensus_fast_commit_sync: bool,
-    ) {
+    async fn test_all_missing_refs_are_collected() {
         telemetry_subscribers::init_for_testing();
 
-        let setup = Arc::new(TestSetup::new(4, consensus_fast_commit_sync));
+        let setup = Arc::new(TestSetup::new(4));
         let (mut commit_solidifier, selective_dag_state) = setup
             .create_selective_commit_solidifier(
                 vec![1, 2, 3, 4],
@@ -825,13 +780,9 @@ mod tests {
             .with_committed_refs(vec![]) // No committed refs
             .build();
 
-        let subdag2_committed_ref = if consensus_fast_commit_sync {
-            GenericTransactionRef::TransactionRef(
-                setup.dag_builder.block_headers(1..=1)[0].transaction_ref(),
-            )
-        } else {
-            GenericTransactionRef::from(setup.dag_builder.block_headers(1..=1)[0].reference())
-        };
+        let subdag2_committed_ref = GenericTransactionRef::TransactionRef(
+            setup.dag_builder.block_headers(1..=1)[0].transaction_ref(),
+        );
 
         let subdag2 = SubDagBuilder::new(setup.clone(), 2)
             .leader(3, 0)
@@ -839,13 +790,9 @@ mod tests {
             .with_committed_refs(vec![subdag2_committed_ref])
             .build();
 
-        let subdag3_committed_ref = if consensus_fast_commit_sync {
-            GenericTransactionRef::TransactionRef(
-                setup.dag_builder.block_headers(2..=2)[0].transaction_ref(),
-            )
-        } else {
-            GenericTransactionRef::from(setup.dag_builder.block_headers(2..=2)[0].reference())
-        };
+        let subdag3_committed_ref = GenericTransactionRef::TransactionRef(
+            setup.dag_builder.block_headers(2..=2)[0].transaction_ref(),
+        );
 
         let subdag3 = SubDagBuilder::new(setup.clone(), 3)
             .leader(4, 0)
@@ -889,13 +836,10 @@ mod tests {
         assert!(commit_solidifier.pending_subdags.is_empty());
     }
 
-    #[rstest]
     #[tokio::test]
     #[should_panic(expected = "Duplicate missing blockref detected")]
-    async fn test_duplicate_missing_refs_panic(
-        #[values(false, true)] consensus_fast_commit_sync: bool,
-    ) {
-        let setup = Arc::new(TestSetup::new(4, consensus_fast_commit_sync));
+    async fn test_duplicate_missing_refs_panic() {
+        let setup = Arc::new(TestSetup::new(4));
         let (mut commit_solidifier, _selective_dag_state) = setup
             .create_selective_commit_solidifier(
                 vec![1, 2, 3, 4],
@@ -911,13 +855,9 @@ mod tests {
             .with_committed_refs(vec![])
             .build();
 
-        let subdag2_committed_ref = if consensus_fast_commit_sync {
-            GenericTransactionRef::TransactionRef(
-                setup.dag_builder.block_headers(1..=1)[0].transaction_ref(),
-            )
-        } else {
-            GenericTransactionRef::from(setup.dag_builder.block_headers(1..=1)[0].reference())
-        };
+        let subdag2_committed_ref = GenericTransactionRef::TransactionRef(
+            setup.dag_builder.block_headers(1..=1)[0].transaction_ref(),
+        );
 
         let subdag2 = SubDagBuilder::new(setup.clone(), 2)
             .leader(3, 0)
@@ -930,13 +870,7 @@ mod tests {
             &setup.dag_builder.block_headers(2..=2)[0],
         ]
         .iter()
-        .map(|header| {
-            if consensus_fast_commit_sync {
-                GenericTransactionRef::TransactionRef(header.transaction_ref())
-            } else {
-                GenericTransactionRef::from(header.reference())
-            }
-        })
+        .map(|header| GenericTransactionRef::TransactionRef(header.transaction_ref()))
         .collect::<Vec<_>>();
 
         let subdag3 = SubDagBuilder::new(setup, 2) // Same index as subdag2
@@ -949,12 +883,9 @@ mod tests {
         commit_solidifier.try_get_solid_sub_dags(&[subdag1, subdag2, subdag3]);
     }
 
-    #[rstest]
     #[tokio::test]
-    async fn test_gaps_in_subdags_sequence(
-        #[values(false, true)] consensus_fast_commit_sync: bool,
-    ) {
-        let setup = Arc::new(TestSetup::new(5, consensus_fast_commit_sync));
+    async fn test_gaps_in_subdags_sequence() {
+        let setup = Arc::new(TestSetup::new(5));
         let (mut commit_solidifier, selective_dag_state) = setup
             .create_selective_commit_solidifier(
                 vec![1, 2, 3, 4, 5],
@@ -973,13 +904,9 @@ mod tests {
             .with_committed_refs(vec![])
             .build();
 
-        let subdag3_committed_ref = if consensus_fast_commit_sync {
-            GenericTransactionRef::TransactionRef(
-                setup.dag_builder.block_headers(1..=1)[0].transaction_ref(),
-            )
-        } else {
-            GenericTransactionRef::from(setup.dag_builder.block_headers(1..=1)[0].reference())
-        };
+        let subdag3_committed_ref = GenericTransactionRef::TransactionRef(
+            setup.dag_builder.block_headers(1..=1)[0].transaction_ref(),
+        );
 
         let subdag3 = SubDagBuilder::new(setup.clone(), 3)
             .leader(4, 0)
@@ -990,13 +917,9 @@ mod tests {
             .with_committed_refs(vec![subdag3_committed_ref])
             .build();
 
-        let subdag5_committed_ref = if consensus_fast_commit_sync {
-            GenericTransactionRef::TransactionRef(
-                setup.dag_builder.block_headers(3..=3)[0].transaction_ref(),
-            )
-        } else {
-            GenericTransactionRef::from(setup.dag_builder.block_headers(3..=3)[0].reference())
-        };
+        let subdag5_committed_ref = GenericTransactionRef::TransactionRef(
+            setup.dag_builder.block_headers(3..=3)[0].transaction_ref(),
+        );
 
         let subdag5 = SubDagBuilder::new(setup.clone(), 5) // Gap: missing index 4
             .leader(5, 0)
@@ -1026,12 +949,9 @@ mod tests {
         assert_eq!(commit_solidifier.last_solid_committed_index, 3); // Unchanged
     }
 
-    #[rstest]
     #[tokio::test]
-    async fn test_set_last_committed_index(
-        #[values(false, true)] consensus_fast_commit_sync: bool,
-    ) {
-        let setup = Arc::new(TestSetup::new(3, consensus_fast_commit_sync));
+    async fn test_set_last_committed_index() {
+        let setup = Arc::new(TestSetup::new(3));
         let mut commit_solidifier = CommitSolidifier::new(setup.dag_state.clone());
 
         // Initially should be 0
@@ -1050,12 +970,9 @@ mod tests {
         assert_eq!(commit_solidifier.last_solid_committed_index, 0);
     }
 
-    #[rstest]
     #[tokio::test]
-    async fn test_get_missing_transaction_data(
-        #[values(false, true)] consensus_fast_commit_sync: bool,
-    ) {
-        let setup = Arc::new(TestSetup::new(4, consensus_fast_commit_sync));
+    async fn test_get_missing_transaction_data() {
+        let setup = Arc::new(TestSetup::new(4));
         let (mut commit_solidifier, selective_dag_state) = setup
             .create_selective_commit_solidifier(
                 vec![1, 2, 3, 4],
@@ -1064,13 +981,9 @@ mod tests {
             );
 
         // Create subdags that reference the missing transactions
-        let subdag1_committed_ref = if consensus_fast_commit_sync {
-            GenericTransactionRef::TransactionRef(
-                setup.dag_builder.block_headers(1..=1)[0].transaction_ref(),
-            )
-        } else {
-            GenericTransactionRef::from(setup.dag_builder.block_headers(1..=1)[0].reference())
-        };
+        let subdag1_committed_ref = GenericTransactionRef::TransactionRef(
+            setup.dag_builder.block_headers(1..=1)[0].transaction_ref(),
+        );
 
         let subdag1 = SubDagBuilder::new(setup.clone(), 1)
             .leader(3, 0)
@@ -1078,13 +991,9 @@ mod tests {
             .with_committed_refs(vec![subdag1_committed_ref])
             .build();
 
-        let subdag2_committed_ref = if consensus_fast_commit_sync {
-            GenericTransactionRef::TransactionRef(
-                setup.dag_builder.block_headers(2..=2)[1].transaction_ref(),
-            )
-        } else {
-            GenericTransactionRef::from(setup.dag_builder.block_headers(2..=2)[1].reference())
-        };
+        let subdag2_committed_ref = GenericTransactionRef::TransactionRef(
+            setup.dag_builder.block_headers(2..=2)[1].transaction_ref(),
+        );
 
         let subdag2 = SubDagBuilder::new(setup.clone(), 2)
             .leader(4, 0)

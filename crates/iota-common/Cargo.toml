@@ -9,30 +9,33 @@ publish = false
 [lints]
 workspace = true
 
-[features]
-default = ["metrics"]
-metrics = ["dep:iota-tls"]
-
 [dependencies]
 # external dependencies
-anyhow.workspace = true
-fastcrypto.workspace = true
 futures.workspace = true
 once_cell.workspace = true
 parking_lot.workspace = true
-prometheus.workspace = true
 rand.workspace = true
-reqwest.workspace = true
-snap.workspace = true
-tempfile.workspace = true
-tokio = { workspace = true, features = ["sync"] }
 tracing.workspace = true
 
 # internal dependencies
 iota-macros.workspace = true
+
+# Deps that don't compile to wasm32 (tempfile uses fs, iota-metrics pulls in
+# axum/anemo). They're consumed by node-side helpers in this crate that are
+# themselves gated below.
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+# external dependencies
+tempfile.workspace = true
+tokio = { workspace = true, features = ["sync"] }
+
+# internal dependencies
 iota-metrics.workspace = true
-iota-tls = { workspace = true, optional = true }
-iota-types.workspace = true
+
+# `rand::thread_rng()` (in `random.rs`) pulls `getrandom`, which on
+# `wasm32-unknown-unknown` needs the `js` feature for a randomness source; that
+# feature is enabled on the workspace `getrandom` dependency.
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+getrandom.workspace = true
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["test-util", "macros"] }

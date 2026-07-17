@@ -10,14 +10,14 @@ use std::{
 
 use anyhow::{Context, Result};
 use iota_genesis_common::prepare_and_execute_genesis_transaction;
+use iota_sdk_types::{ObjectData, TransactionDigest};
 use iota_types::{
     balance::Balance,
-    digests::TransactionDigest,
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     gas_coin::GasCoin,
     message_envelope::Message,
-    messages_checkpoint::{CheckpointContents, CheckpointSummary},
-    object::{Data, Object},
+    messages_checkpoint::{CheckpointContents, CheckpointContentsExt, CheckpointSummary},
+    object::Object,
     stardust::output::{AliasOutput, BasicOutput, NftOutput},
     timelock::timelock::{TimeLock, is_timelocked_gas_balance},
     transaction::Transaction,
@@ -94,17 +94,19 @@ impl MigrationTxData {
         genesis_tx_digest: TransactionDigest,
     ) -> anyhow::Result<()> {
         anyhow::ensure!(
-            checkpoint.content_digest == *contents.digest(),
+            checkpoint.content_digest == contents.digest(),
             "checkpoint's content digest is corrupted"
         );
         let mut validation_digests_queue: HashSet<TransactionDigest> =
             self.inner.keys().copied().collect();
-        // We skip the genesis transaction to process only migration transactions from
-        // the migration.blob.
-        for (valid_tx_digest, valid_effects_digest) in contents.iter().filter_map(|exec_digest| {
-            (exec_digest.transaction != genesis_tx_digest)
-                .then_some((&exec_digest.transaction, &exec_digest.effects))
-        }) {
+        for exec_digest in contents.iter() {
+            // We skip the genesis transaction to process only migration transactions from
+            // the migration.blob.
+            if exec_digest.transaction == genesis_tx_digest {
+                continue;
+            }
+            let valid_tx_digest = &exec_digest.transaction;
+            let valid_effects_digest = &exec_digest.effects;
             let (tx, effects, events) = self
                 .inner
                 .get(valid_tx_digest)
@@ -121,7 +123,7 @@ impl MigrationTxData {
                 if &events.digest() != valid_events_digest {
                     anyhow::bail!("invalid events data");
                 }
-            } else if !events.data.is_empty() {
+            } else if !events.is_empty() {
                 anyhow::bail!("invalid events data");
             }
             validation_digests_queue.remove(valid_tx_digest);
@@ -165,7 +167,7 @@ impl MigrationTxData {
         let total_supply: u64 = self
             .get_objects()
             .map(|object| match &object.data {
-                Data::Move(_) => GasCoin::try_from(&object)
+                ObjectData::Struct(_) => GasCoin::try_from(&object)
                     .map(|gas| gas.value())
                     .or_else(|_| {
                         TimeLock::<Balance>::try_from(&object).map(|t| {
@@ -179,7 +181,7 @@ impl MigrationTxData {
                     .or_else(|_| BasicOutput::try_from(&object).map(|b| b.balance.value()))
                     .or_else(|_| NftOutput::try_from(&object).map(|n| n.balance.value()))
                     .unwrap_or(0),
-                Data::Package(_) => 0,
+                ObjectData::Package(_) => 0,
             })
             .sum();
 

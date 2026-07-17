@@ -2,9 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use prometheus::{
-    IntCounter, IntCounterVec, IntGauge, Registry, register_int_counter_vec_with_registry,
-    register_int_counter_with_registry, register_int_gauge_with_registry,
+use prometheus_filtered::{
+    IntCounter, IntCounterVec, IntGauge, MetricLevel, Registry,
+    register_int_counter_vec_with_registry, register_int_counter_with_registry,
+    register_int_gauge_with_registry,
 };
 use tracing::trace;
 
@@ -26,7 +27,8 @@ impl ExecutionCacheMetrics {
             pending_notify_read: register_int_gauge_with_registry!(
                 "pending_notify_read",
                 "Pending notify read requests",
-                registry,
+                registry;
+                MetricLevel::Warn,
             )
             .unwrap(),
             // `request_type` is "object_by_version", "object_latest", "transaction", etc
@@ -35,14 +37,16 @@ impl ExecutionCacheMetrics {
                 "execution_cache_requests",
                 "Execution cache requests",
                 &["request_type", "level"],
-                registry,
+                registry;
+                MetricLevel::Warn,
             )
             .unwrap(),
             cache_hits: register_int_counter_vec_with_registry!(
                 "execution_cache_hits",
                 "Execution cache hits",
                 &["request_type", "level"],
-                registry,
+                registry;
+                MetricLevel::Warn,
             )
             .unwrap(),
             cache_negative_hits: register_int_counter_vec_with_registry!(
@@ -79,14 +83,16 @@ impl ExecutionCacheMetrics {
             backpressure_status: register_int_gauge_with_registry!(
                 "execution_cache_backpressure_status",
                 "Backpressure status (1 = on, 0 = off)",
-                registry,
+                registry;
+                MetricLevel::Warn,
             )
             .unwrap(),
 
             backpressure_toggles: register_int_counter_with_registry!(
                 "execution_cache_backpressure_toggles",
                 "Number of times backpressure was turned on or off",
-                registry,
+                registry;
+                MetricLevel::Warn,
             )
             .unwrap(),
         }

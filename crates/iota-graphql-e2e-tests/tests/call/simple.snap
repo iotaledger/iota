@@ -10,23 +10,23 @@ task 1, lines 7-26:
 //# publish
 created: object(1,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, computation_cost_burned: 234000, storage_cost: 5563200,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 234000, storage_cost: 5563200, storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 2, line 28:
 //# run Test::M1::create --args 0 @A --gas-price 1000
 created: object(2,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, computation_cost_burned: 234000, storage_cost: 2287600,  storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 234000, storage_cost: 2287600, storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 3, line 30:
 //# run Test::M1::create --args 0 @validator_0
 created: object(3,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, computation_cost_burned: 234000, storage_cost: 2287600,  storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 234000, storage_cost: 2287600, storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 4, line 32:
 //# view-object 0,0
-Owner: Account Address ( validator_0 )
+Owner: Address(validator_0)
 Version: 1
 Contents: iota_system::validator_cap::UnverifiedValidatorOperationCap {
     id: iota::object::UID {
@@ -39,7 +39,7 @@ Contents: iota_system::validator_cap::UnverifiedValidatorOperationCap {
 
 task 5, line 34:
 //# view-object 0,1
-Owner: Account Address ( _ )
+Owner: Address(_)
 Version: 4
 Contents: iota::coin::Coin<iota::iota::IOTA> {
     id: iota::object::UID {
@@ -54,7 +54,7 @@ Contents: iota::coin::Coin<iota::iota::IOTA> {
 
 task 6, line 36:
 //# view-object 2,0
-Owner: Account Address ( A )
+Owner: Address(A)
 Version: 3
 Contents: Test::M1::Object {
     id: iota::object::UID {
@@ -67,7 +67,7 @@ Contents: Test::M1::Object {
 
 task 7, line 38:
 //# view-object 3,0
-Owner: Account Address ( validator_0 )
+Owner: Address(validator_0)
 Version: 4
 Contents: Test::M1::Object {
     id: iota::object::UID {
@@ -84,8 +84,7 @@ Checkpoint created: 4
 
 task 9, line 42:
 //# view-checkpoint
-CheckpointSummary { epoch: 0, seq: 4, content_digest: D3oWLCcqoa1D15gxzvMaDemNNY8YYVspAkYkcmtQKWRt,
-            epoch_rolling_gas_cost_summary: GasCostSummary { computation_cost: 3000000, computation_cost_burned: 702000, storage_cost: 10138400, storage_rebate: 1960800, non_refundable_storage_fee: 0 }}
+CheckpointSummary { epoch: 0, sequence_number: 4, network_total_transactions: 4, content_digest: CheckpointContentsDigest("D3oWLCcqoa1D15gxzvMaDemNNY8YYVspAkYkcmtQKWRt"), previous_digest: Some(CheckpointDigest("2wh7A2YYqQ8ovUF6CzjBMPoLowwgGe76nWW3WCaC35gU")), epoch_rolling_gas_cost_summary: GasCostSummary { computation_cost: 3000000, computation_cost_burned: 702000, storage_cost: 10138400, storage_rebate: 1960800, non_refundable_storage_fee: 0 }, timestamp_ms: 0, checkpoint_commitments: [], end_of_epoch_data: None, version_specific_data: "AAA=" }
 
 task 10, line 44:
 //# advance-epoch 6
@@ -93,8 +92,7 @@ Epoch advanced: 5
 
 task 11, line 46:
 //# view-checkpoint
-CheckpointSummary { epoch: 5, seq: 10, content_digest: FRPQVpwfjX5JZ8eNE5Abe6maxTFVT7rsuA8RKxmWHoGf,
-            epoch_rolling_gas_cost_summary: GasCostSummary { computation_cost: 0, computation_cost_burned: 0, storage_cost: 0, storage_rebate: 0, non_refundable_storage_fee: 0 }}
+CheckpointSummary { epoch: 5, sequence_number: 10, network_total_transactions: 10, content_digest: CheckpointContentsDigest("FRPQVpwfjX5JZ8eNE5Abe6maxTFVT7rsuA8RKxmWHoGf"), previous_digest: Some(CheckpointDigest("5YsCsZSzHSJDoMVX2ZxZhVQRwXqLZ3kcyUcmsfe1pWff")), epoch_rolling_gas_cost_summary: GasCostSummary { computation_cost: 0, computation_cost_burned: 0, storage_cost: 0, storage_rebate: 0, non_refundable_storage_fee: 0 }, timestamp_ms: 0, checkpoint_commitments: [], end_of_epoch_data: Some(EndOfEpochData { next_epoch_committee: [ValidatorCommitteeMember { public_key: Bls12381PublicKey("qqgbtEP57SCwGrO7tmcKwy/daeoOFwANmrMTm1Qu4jUJRhi2VePz/brF9YAcjmJ7BLOpN8c5Ia7zYzTNmGtGoaUnjoYrbvDG9E05s9antwSmkHAIGsM8mkmeBkSjSBrt"), stake: 10000 }], next_epoch_protocol_version: 13, epoch_commitments: [], epoch_supply_change: 0 }), version_specific_data: "AAA=" }
 
 task 12, lines 48-53:
 //# run-graphql
@@ -112,8 +110,7 @@ Checkpoint created: 11
 
 task 14, line 57:
 //# view-checkpoint
-CheckpointSummary { epoch: 6, seq: 11, content_digest: D3oWLCcqoa1D15gxzvMaDemNNY8YYVspAkYkcmtQKWRt,
-            epoch_rolling_gas_cost_summary: GasCostSummary { computation_cost: 0, computation_cost_burned: 0, storage_cost: 0, storage_rebate: 0, non_refundable_storage_fee: 0 }}
+CheckpointSummary { epoch: 6, sequence_number: 11, network_total_transactions: 10, content_digest: CheckpointContentsDigest("D3oWLCcqoa1D15gxzvMaDemNNY8YYVspAkYkcmtQKWRt"), previous_digest: Some(CheckpointDigest("2bbQchhrZwBcJW1zMGecEaRUZ4BR9i6wyJ2w4WxW6Df2")), epoch_rolling_gas_cost_summary: GasCostSummary { computation_cost: 0, computation_cost_burned: 0, storage_cost: 0, storage_rebate: 0, non_refundable_storage_fee: 0 }, timestamp_ms: 0, checkpoint_commitments: [], end_of_epoch_data: None, version_specific_data: "AAA=" }
 
 task 15, lines 59-64:
 //# run-graphql
@@ -129,12 +126,12 @@ task 16, lines 66-71:
 //# run-graphql --show-usage --show-headers --show-service-version
 Headers: {
     "content-type": "application/graphql-response+json",
-    "x-iota-rpc-version": "1.21.0-testing-no-sha",
+    "x-iota-rpc-version": "1.28.0-testing-no-sha",
     "vary": "origin, access-control-request-method, access-control-request-headers",
     "access-control-allow-origin": "*",
     "content-length": "157",
 }
-Service version: 1.21.0-testing-no-sha
+Service version: 1.28.0-testing-no-sha
 Response: {
   "data": {
     "checkpoint": {
@@ -155,8 +152,7 @@ Response: {
 
 task 17, line 73:
 //# view-checkpoint
-CheckpointSummary { epoch: 6, seq: 11, content_digest: D3oWLCcqoa1D15gxzvMaDemNNY8YYVspAkYkcmtQKWRt,
-            epoch_rolling_gas_cost_summary: GasCostSummary { computation_cost: 0, computation_cost_burned: 0, storage_cost: 0, storage_rebate: 0, non_refundable_storage_fee: 0 }}
+CheckpointSummary { epoch: 6, sequence_number: 11, network_total_transactions: 10, content_digest: CheckpointContentsDigest("D3oWLCcqoa1D15gxzvMaDemNNY8YYVspAkYkcmtQKWRt"), previous_digest: Some(CheckpointDigest("2bbQchhrZwBcJW1zMGecEaRUZ4BR9i6wyJ2w4WxW6Df2")), epoch_rolling_gas_cost_summary: GasCostSummary { computation_cost: 0, computation_cost_burned: 0, storage_cost: 0, storage_rebate: 0, non_refundable_storage_fee: 0 }, timestamp_ms: 0, checkpoint_commitments: [], end_of_epoch_data: None, version_specific_data: "AAA=" }
 
 task 18, lines 75-78:
 //# advance-epoch
@@ -431,19 +427,19 @@ task 23, line 185:
 //# run Test::M1::create --args 0 @A --gas-price 999
 created: object(23,0)
 mutated: object(0,1)
-gas summary: computation_cost: 999000, computation_cost_burned: 234000, storage_cost: 2287600,  storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 999000, computation_cost_burned: 234000, storage_cost: 2287600, storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 24, line 187:
 //# run Test::M1::create --args 0 @A --gas-price 1000
 created: object(24,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, computation_cost_burned: 234000, storage_cost: 2287600,  storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 234000, storage_cost: 2287600, storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 25, line 189:
 //# run Test::M1::create --args 0 @A --gas-price 235
 created: object(25,0)
 mutated: object(0,1)
-gas summary: computation_cost: 235000, computation_cost_burned: 234000, storage_cost: 2287600,  storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 235000, computation_cost_burned: 234000, storage_cost: 2287600, storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 26, lines 191-196:
 //# run-graphql
@@ -451,7 +447,7 @@ Response: {
   "data": {
     "serviceConfig": {
       "availableVersions": [
-        "1.21"
+        "1.28"
       ]
     }
   }

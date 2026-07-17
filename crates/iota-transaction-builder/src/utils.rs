@@ -12,20 +12,27 @@ use iota_json::{
 };
 use iota_json_rpc_types::{IotaArgument, IotaData, IotaObjectDataOptions, IotaRawData, PtbInput};
 use iota_protocol_config::ProtocolConfig;
+use iota_sdk_types::{
+    Address, Argument, Identifier, ObjectId, ObjectReference, Owner, SharedObjectReference,
+    StructTag, TypeTag, move_package::MovePackage,
+};
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, ObjectRef, ObjectType, TxContext, TxContextKind},
-    error::UserInputError,
+    base_types::{ObjectType, TxContext, TxContextKind},
+    error::{IotaError, UserInputError},
     fp_ensure,
     gas_coin::GasCoin,
-    move_package::MovePackage,
-    object::{Object, Owner},
+    move_package::{
+        IotaAttributeV2, MovePackageExt, ProtocolBuildConfig, RuntimeModuleMetadata,
+        RuntimeModuleMetadataWrapper,
+    },
+    object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{Argument, CallArg, ObjectArg},
+    transaction::CallArg,
 };
 use move_binary_format::{
     CompiledModule, binary_config::BinaryConfig, file_format::SignatureToken,
+    file_format_common::IOTA_METADATA_KEY,
 };
-use move_core_types::{identifier::Identifier, language_storage::TypeTag};
 
 use crate::TransactionBuilder;
 
@@ -33,12 +40,12 @@ impl TransactionBuilder {
     /// Select a gas coin for the provided gas budget.
     pub async fn select_gas(
         &self,
-        signer: IotaAddress,
-        input_gas: impl Into<Option<ObjectID>>,
+        signer: Address,
+        input_gas: impl Into<Option<ObjectId>>,
         gas_budget: u64,
-        input_objects: Vec<ObjectID>,
+        input_objects: Vec<ObjectId>,
         gas_price: u64,
-    ) -> Result<ObjectRef, anyhow::Error> {
+    ) -> Result<ObjectReference, anyhow::Error> {
         if gas_budget < gas_price {
             bail!(
                 "Gas budget {gas_budget} is less than the reference gas price {gas_price}. The gas budget must be at least the current reference gas price of {gas_price}."
@@ -54,7 +61,7 @@ impl TransactionBuilder {
                     .0
                     .get_owned_objects(
                         signer,
-                        GasCoin::type_(),
+                        StructTag::new_gas_coin(),
                         cursor,
                         None,
                         IotaObjectDataOptions::new().with_bcs(),
@@ -87,51 +94,53 @@ impl TransactionBuilder {
     }
 
     /// Get the object references for a list of object IDs
-    pub async fn input_refs(&self, obj_ids: &[ObjectID]) -> Result<Vec<ObjectRef>, anyhow::Error> {
+    pub async fn input_refs(
+        &self,
+        obj_ids: &[ObjectId],
+    ) -> Result<Vec<ObjectReference>, anyhow::Error> {
         let handles: Vec<_> = obj_ids.iter().map(|id| self.get_object_ref(*id)).collect();
         let obj_refs = join_all(handles)
             .await
             .into_iter()
-            .collect::<anyhow::Result<Vec<ObjectRef>>>()?;
+            .collect::<anyhow::Result<Vec<ObjectReference>>>()?;
         Ok(obj_refs)
     }
 
-    /// Resolve a provided [`ObjectID`] to the required [`ObjectArg`] for a
+    /// Resolve a provided [`ObjectId`] to the required [`CallArg`] for a
     /// given move module.
     async fn get_object_arg(
         &self,
-        id: ObjectID,
+        id: ObjectId,
         is_mutable_ref: bool,
         view: &CompiledModule,
         arg_type: &SignatureToken,
-    ) -> Result<ObjectArg, anyhow::Error> {
+    ) -> Result<CallArg, anyhow::Error> {
         let response = self
             .0
             .get_object_with_options(id, IotaObjectDataOptions::bcs_lossless())
             .await?;
 
         let obj: Object = response.into_object()?.try_into()?;
-        let obj_ref = obj.compute_object_reference();
+        let obj_ref = obj.object_ref();
         let owner = obj.owner;
         if is_receiving_argument(view, arg_type) {
-            return Ok(ObjectArg::Receiving(obj_ref));
+            return Ok(CallArg::Receiving(obj_ref));
         }
         Ok(match owner {
-            Owner::Shared {
-                initial_shared_version,
-            } => ObjectArg::SharedObject {
+            Owner::Shared(initial_shared_version) => CallArg::Shared(SharedObjectReference::new(
                 id,
                 initial_shared_version,
-                mutable: is_mutable_ref,
-            },
-            Owner::AddressOwner(_) | Owner::ObjectOwner(_) | Owner::Immutable => {
-                ObjectArg::ImmOrOwnedObject(obj_ref)
+                is_mutable_ref,
+            )),
+            Owner::Address(_) | Owner::Object(_) | Owner::Immutable => {
+                CallArg::ImmutableOrOwned(obj_ref)
             }
+            _ => unimplemented!("a new Owner enum variant was added and needs to be handled"),
         })
     }
 
     /// Resolve a [`ResolvedCallArg`] to a [`CallArg`] or a list of
-    /// [`ObjectArg`] for object vectors.
+    /// [`CallArg`] for object vectors.
     async fn resolved_call_arg_to_call_arg(
         &self,
         resolved_arg: ResolvedCallArg,
@@ -146,7 +155,7 @@ impl TransactionBuilder {
                 let is_mutable =
                     matches!(param, SignatureToken::MutableReference(_)) || !param.is_reference();
                 let object_arg = self.get_object_arg(id, is_mutable, module, param).await?;
-                Ok(ResolvedCallArgResult::CallArg(CallArg::Object(object_arg)))
+                Ok(ResolvedCallArgResult::CallArg(object_arg))
             }
             ResolvedCallArg::ObjVec(vec_ids) => {
                 let mut object_args = Vec::with_capacity(vec_ids.len());
@@ -183,7 +192,7 @@ impl TransactionBuilder {
     pub async fn resolve_and_checks_json_args(
         &self,
         builder: &mut ProgrammableTransactionBuilder,
-        package_id: ObjectID,
+        package_id: ObjectId,
         module_ident: &Identifier,
         function_ident: &Identifier,
         type_args: &[TypeTag],
@@ -196,8 +205,8 @@ impl TransactionBuilder {
         // Then resolve the function parameters type.
         let json_args_and_tokens = resolve_move_function_args(
             &package,
-            module_ident.clone(),
-            function_ident.clone(),
+            module_ident.to_owned(),
+            function_ident.to_owned(),
             type_args,
             json_args,
         )?;
@@ -222,7 +231,7 @@ impl TransactionBuilder {
     pub async fn resolve_and_check_call_args(
         &self,
         builder: &mut ProgrammableTransactionBuilder,
-        package_id: ObjectID,
+        package_id: ObjectId,
         module: &Identifier,
         function: &Identifier,
         type_args: &[TypeTag],
@@ -263,7 +272,7 @@ impl TransactionBuilder {
                     }
                 }
                 PtbInput::PtbRef(iota_arg) => match iota_arg {
-                    IotaArgument::GasCoin => Argument::GasCoin,
+                    IotaArgument::GasCoin => Argument::Gas,
                     IotaArgument::Input(idx) => Argument::Input(idx),
                     IotaArgument::Result(idx) => Argument::Result(idx),
                     IotaArgument::NestedResult(idx, nested_idx) => {
@@ -280,12 +289,12 @@ impl TransactionBuilder {
 
     /// Convert provided JSON arguments for a move function to their
     /// [`Argument`] representation and check their validity. Also, check that
-    /// the passed function is compliant to the Move View
-    /// Function specification.
+    /// the passed function is declared as a `#[view]` function in the
+    /// module's runtime metadata.
     pub async fn resolve_and_checks_json_view_args(
         &self,
         builder: &mut ProgrammableTransactionBuilder,
-        package_id: ObjectID,
+        package_id: ObjectId,
         module_ident: &Identifier,
         function_ident: &Identifier,
         type_args: &[TypeTag],
@@ -295,9 +304,29 @@ impl TransactionBuilder {
         let package = self.fetch_move_package(package_id).await?;
         let module = package.deserialize_module(module_ident, &BinaryConfig::standard())?;
 
-        // Extract the expected function signature and check the return type.
-        // If the function is a view function, it MUST return at least a value.
-        check_function_has_a_return(&module, function_ident)?;
+        fp_ensure!(
+            module.find_function_def_by_name(function_ident.as_str()).is_some(),
+            UserInputError::InvalidMoveViewFunction {
+                error: format!(
+                    "function {function_ident} not found in module {module_ident} of package {package_id}"
+                ),
+            }
+            .into()
+        );
+
+        // Check the function against the view functions recorded in the module's
+        // runtime metadata. Functions recorded there passed the view function
+        // verifier at publish time, so no further signature checks are needed.
+        let is_view = is_view_function_from_module_metadata(&module, function_ident.as_str())?;
+        fp_ensure!(
+            is_view,
+            UserInputError::InvalidMoveViewFunction {
+                error: format!(
+                    "function {function_ident} in module {module_ident} of package {package_id} is not declared as a #[view] function"
+                ),
+            }
+            .into()
+        );
 
         // Then resolve the function parameters type.
         let json_args_and_tokens = resolve_move_function_args(
@@ -313,7 +342,8 @@ impl TransactionBuilder {
         for (arg, expected_type) in json_args_and_tokens {
             args.push(match arg {
                 // Move View Functions can accept pure arguments.
-                ResolvedCallArg::Pure(p) => builder.input(CallArg::Pure(p)),
+                // `p` is already BCS-encoded for the expected Move type.
+                ResolvedCallArg::Pure(p) => Ok(builder.pure_bytes(p, false)),
                 // Move View Functions can accept only immutable object references.
                 ResolvedCallArg::Object(id) => {
                     fp_ensure!(
@@ -324,7 +354,7 @@ impl TransactionBuilder {
                             }
                             .into()
                         );
-                    builder.input(CallArg::Object(
+                    builder.input(
                         self.get_object_arg(
                             id,
                             // Setting false is safe because of fp_ensure! above
@@ -333,7 +363,7 @@ impl TransactionBuilder {
                             &expected_type,
                         )
                         .await?,
-                    ))
+                    )
                 }
                 // Move View Functions can not accept vector of object by value (this case).
                 ResolvedCallArg::ObjVec(_) => Err(UserInputError::InvalidMoveViewFunction {
@@ -353,7 +383,7 @@ impl TransactionBuilder {
     /// `CallArg::Object` entry.
     pub async fn resolve_and_check_json_args_to_call_args(
         &self,
-        package_id: ObjectID,
+        package_id: ObjectId,
         module: &Identifier,
         function: &Identifier,
         type_args: &[TypeTag],
@@ -378,9 +408,9 @@ impl TransactionBuilder {
             match resolved_arg {
                 ResolvedCallArgResult::CallArg(call_arg) => arguments.push(call_arg),
                 ResolvedCallArgResult::ObjVec(object_args) => {
-                    // For object vectors, add each object as a separate CallArg::Object entry
+                    // For object vectors, add each object as a separate CallArg entry
                     for obj_arg in object_args {
-                        arguments.push(CallArg::Object(obj_arg));
+                        arguments.push(obj_arg);
                     }
                 }
             }
@@ -390,19 +420,20 @@ impl TransactionBuilder {
     }
 
     /// Get the latest object ref for an object.
-    pub async fn get_object_ref(&self, object_id: ObjectID) -> anyhow::Result<ObjectRef> {
+    pub async fn get_object_ref(&self, object_id: ObjectId) -> anyhow::Result<ObjectReference> {
         // TODO: we should add retrial to reduce the transaction building error rate
         self.get_object_ref_and_type(object_id)
             .await
             .map(|(oref, _)| oref)
     }
 
-    /// Helper function to get the latest ObjectRef (ObjectID, SequenceNumber,
-    /// ObjectDigest) and ObjectType for a provided ObjectID.
+    /// Helper function to get the latest ObjectReference (ObjectId,
+    /// Version, ObjectDigest) and ObjectType for a provided
+    /// ObjectId.
     pub(crate) async fn get_object_ref_and_type(
         &self,
-        object_id: ObjectID,
-    ) -> anyhow::Result<(ObjectRef, ObjectType)> {
+        object_id: ObjectId,
+    ) -> anyhow::Result<(ObjectReference, ObjectType)> {
         let object = self
             .0
             .get_object_with_options(object_id, IotaObjectDataOptions::new().with_type())
@@ -412,8 +443,8 @@ impl TransactionBuilder {
         Ok((object.object_ref(), object.object_type()?))
     }
 
-    /// Helper function to get a Move Package for a provided ObjectID.
-    async fn fetch_move_package(&self, package_id: ObjectID) -> Result<MovePackage, anyhow::Error> {
+    /// Helper function to get a Move Package for a provided ObjectId.
+    async fn fetch_move_package(&self, package_id: ObjectId) -> Result<MovePackage, anyhow::Error> {
         let object = self
             .0
             .get_object_with_options(package_id, IotaObjectDataOptions::bcs_lossless())
@@ -422,48 +453,72 @@ impl TransactionBuilder {
         let Some(IotaRawData::Package(package)) = object.bcs else {
             bail!("Bcs field in object [{package_id}] is missing or not a package.");
         };
+
         Ok(MovePackage::new(
             package.id,
             object.version,
-            package.module_map,
+            package
+                .module_map
+                .iter()
+                .map(|(k, v)| (Identifier::new_unchecked(k.as_str()), v.clone()))
+                .collect(),
             ProtocolConfig::get_for_min_version().max_move_package_size(),
             package.type_origin_table,
-            package.linkage_table,
+            package
+                .linkage_table
+                .into_iter()
+                .map(|(k, v)| (k, v.into()))
+                .collect(),
         )?)
     }
 }
 
-/// Helper function to check if the provided function within a module has at
-/// least a return type.
-fn check_function_has_a_return(
+/// Checks whether `function_name` is recorded as a `#[view]` function in the
+/// module's runtime metadata.
+///
+/// Returns `false` for modules without version 2 runtime metadata (compiled
+/// before view functions were introduced, or carrying no function
+/// attributes), which therefore record no view function information.
+fn is_view_function_from_module_metadata(
     module: &CompiledModule,
-    function_ident: &Identifier,
-) -> Result<(), anyhow::Error> {
-    let (_, fdef) = module
-        .find_function_def_by_name(function_ident.as_str())
-        .ok_or_else(|| {
-            anyhow!(
-                "Could not resolve function {} in module {}",
-                function_ident,
-                module.self_id()
-            )
+    function_name: &str,
+) -> Result<bool, IotaError> {
+    let Some(metadata) = module
+        .metadata
+        .iter()
+        .find(|metadata| metadata.key == IOTA_METADATA_KEY)
+    else {
+        return Ok(false);
+    };
+    let metadata_wrapper: RuntimeModuleMetadataWrapper =
+        bcs::from_bytes(&metadata.value).map_err(|error| {
+            IotaError::RuntimeModuleMetadataDeserialization {
+                error: error.to_string(),
+            }
         })?;
-    let function_signature = module.function_handle_at(fdef.function);
-    fp_ensure!(
-        !&module.signature_at(function_signature.return_).is_empty(),
-        UserInputError::InvalidMoveViewFunction {
-            error: "No return type for this function".to_owned(),
-        }
-        .into()
-    );
-    Ok(())
+    // Module metadata stored on chain passed the verifier at publish time, so
+    // decoding may assume view function support.
+    let metadata = metadata_wrapper.try_into_runtime_module_metadata(&ProtocolBuildConfig {
+        allow_view_function: true,
+    })?;
+    Ok(match metadata {
+        RuntimeModuleMetadata::V1(_) => false,
+        RuntimeModuleMetadata::V2(metadata_v2) => metadata_v2
+            .fun_attributes
+            .get(function_name)
+            .is_some_and(|attributes| {
+                attributes
+                    .iter()
+                    .any(|attribute| matches!(attribute, IotaAttributeV2::View))
+            }),
+    })
 }
 
 /// Result of resolving a call argument, distinguishing between single
 /// [`CallArg`] and object vectors.
 enum ResolvedCallArgResult {
     CallArg(CallArg),
-    ObjVec(Vec<ObjectArg>),
+    ObjVec(Vec<CallArg>),
 }
 
 /// Get function parameters from a compiled module, excluding TxContext.
@@ -471,12 +526,14 @@ fn get_function_parameters<'a>(
     module: &'a CompiledModule,
     function: &Identifier,
 ) -> Result<&'a [SignatureToken], anyhow::Error> {
-    let function_str = function.as_ident_str();
+    let function_str = function.as_str();
     let function_def = module
         .function_defs
         .iter()
         .find(|function_def| {
-            module.identifier_at(module.function_handle_at(function_def.function).name)
+            module
+                .identifier_at(module.function_handle_at(function_def.function).name)
+                .as_str()
                 == function_str
         })
         .ok_or_else(|| {

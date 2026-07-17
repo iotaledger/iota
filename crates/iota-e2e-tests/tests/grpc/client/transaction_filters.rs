@@ -10,6 +10,7 @@
 use std::time::Duration;
 
 use futures::StreamExt;
+use iota_grpc_client::{ReadMask, read_mask_fields::CheckpointTransactionField};
 use iota_grpc_types::v1::{filter as grpc_filter, types as grpc_types};
 use iota_macros::sim_test;
 use iota_types::transaction::CallArg;
@@ -17,7 +18,7 @@ use tokio::time::timeout;
 
 use super::super::utils::{
     BASICS_PACKAGE, CLOCK_ACCESS_FUNCTION, CLOCK_MODULE, NFT_PACKAGE, publish_example_package,
-    setup_grpc_test,
+    setup_grpc_test, wait_for_executed_transactions_checkpointed,
 };
 
 /// Single test exercising multiple transaction filter scenarios.
@@ -77,21 +78,13 @@ async fn test_transaction_filter_scenarios() {
             basics_package_id,
             CLOCK_MODULE,
             CLOCK_ACCESS_FUNCTION,
-            vec![CallArg::CLOCK_IMM],
+            vec![CallArg::CLOCK_IMMUTABLE],
         )
         .build();
     let signed_tx = cluster.sign_transaction(&clock_tx);
     cluster.execute_transaction(signed_tx).await;
 
-    // Wait for all transactions to land in checkpoints
-    tokio::time::sleep(Duration::from_millis(1500)).await;
-
-    let latest_seq = client
-        .get_checkpoint_latest(Some(""), None, None)
-        .await
-        .expect("get latest checkpoint")
-        .body()
-        .sequence_number();
+    let latest_seq = wait_for_executed_transactions_checkpointed(&cluster, &client).await;
 
     // --- Helper closure to stream and collect matching transactions ---
     let stream_and_collect = |tx_filter: grpc_filter::TransactionFilter| {
@@ -101,7 +94,10 @@ async fn test_transaction_filter_scenarios() {
                 .stream_checkpoints(
                     Some(0),
                     Some(latest_seq),
-                    Some("transactions.transaction.bcs,transactions.effects.bcs"),
+                    Some(ReadMask::from(&[
+                        CheckpointTransactionField::TRANSACTION_BCS,
+                        CheckpointTransactionField::EFFECTS_BCS,
+                    ])),
                     Some(tx_filter),
                     None,
                 )
@@ -125,8 +121,9 @@ async fn test_transaction_filter_scenarios() {
     // --- Scenario A: Sender filter (sender_1) ---
     // sender_1 did: publish NFT, publish basics, mint NFT = 3 transactions
     let sender_filter = grpc_filter::TransactionFilter::default().with_sender(
-        grpc_filter::AddressFilter::default()
-            .with_address(grpc_types::Address::default().with_address(sender_1.to_vec())),
+        grpc_filter::AddressFilter::default().with_address(
+            grpc_types::Address::default().with_address(sender_1.into_bytes().to_vec()),
+        ),
     );
     let count = stream_and_collect(sender_filter).await;
     assert_eq!(count, 3, "Scenario A: sender_1 should have 3 transactions");
@@ -145,7 +142,8 @@ async fn test_transaction_filter_scenarios() {
     let move_call_filter = grpc_filter::TransactionFilter::default().with_command(
         grpc_filter::CommandFilter::default().with_move_call(
             grpc_filter::MoveCallCommandFilter::default().with_package_id(
-                grpc_types::ObjectId::default().with_object_id(nft_package_id.to_vec()),
+                grpc_types::ObjectId::default()
+                    .with_object_id(nft_package_id.into_bytes().to_vec()),
             ),
         ),
     );
@@ -164,9 +162,8 @@ async fn test_transaction_filter_scenarios() {
                 grpc_filter::ExecutionStatusFilter::default().with_success(true),
             ),
             grpc_filter::TransactionFilter::default().with_transaction_kinds(
-                grpc_filter::TransactionKindsFilter::default().with_kinds(vec![
-                    grpc_filter::TransactionKind::ProgrammableTransaction.into(),
-                ]),
+                grpc_filter::TransactionKindsFilter::default()
+                    .with_kinds(vec![grpc_filter::TransactionKind::Programmable.into()]),
             ),
         ]),
     );
@@ -181,8 +178,9 @@ async fn test_transaction_filter_scenarios() {
     let sender_and_publish = grpc_filter::TransactionFilter::default().with_all(
         grpc_filter::AllTransactionFilter::default().with_filters(vec![
             grpc_filter::TransactionFilter::default().with_sender(
-                grpc_filter::AddressFilter::default()
-                    .with_address(grpc_types::Address::default().with_address(sender_1.to_vec())),
+                grpc_filter::AddressFilter::default().with_address(
+                    grpc_types::Address::default().with_address(sender_1.into_bytes().to_vec()),
+                ),
             ),
             grpc_filter::TransactionFilter::default().with_command(
                 grpc_filter::CommandFilter::default()
@@ -208,7 +206,8 @@ async fn test_transaction_filter_scenarios() {
             grpc_filter::TransactionFilter::default().with_command(
                 grpc_filter::CommandFilter::default().with_move_call(
                     grpc_filter::MoveCallCommandFilter::default().with_package_id(
-                        grpc_types::ObjectId::default().with_object_id(basics_package_id.to_vec()),
+                        grpc_types::ObjectId::default()
+                            .with_object_id(basics_package_id.into_bytes().to_vec()),
                     ),
                 ),
             ),

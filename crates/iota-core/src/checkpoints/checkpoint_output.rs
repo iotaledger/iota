@@ -8,10 +8,9 @@ use async_trait::async_trait;
 use iota_types::{
     base_types::AuthorityName,
     error::IotaResult,
-    message_envelope::Message,
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointContents, CheckpointSignatureMessage,
-        CheckpointSummary, SignedCheckpointSummary, VerifiedCheckpoint,
+        CheckpointSummary, CheckpointSummaryExt, SignedCheckpointSummary, VerifiedCheckpoint,
     },
     messages_consensus::ConsensusTransaction,
 };
@@ -24,6 +23,9 @@ use crate::{
     epoch::reconfiguration::ReconfigurationInitiator,
 };
 
+const REPORT_END_OF_EPOCH_MARGIN_MS: u64 = 2000;
+const MIN_CHECKPOINTS_BETWEEN_REPORTS: u64 = 1000;
+const MAX_CHECKPOINT_LAG_FOR_REPORT: u64 = 100;
 #[async_trait]
 pub trait CheckpointOutput: Sync + Send + 'static {
     async fn checkpoint_created(
@@ -91,7 +93,7 @@ impl<T: SubmitToConsensus + ReconfigurationInitiator> CheckpointOutput
 
         let highest_verified_checkpoint = checkpoint_store
             .get_highest_verified_checkpoint()?
-            .map(|x| *x.sequence_number());
+            .map(|x| x.sequence_number());
 
         if Some(checkpoint_seq) > highest_verified_checkpoint {
             debug!(
@@ -123,22 +125,55 @@ impl<T: SubmitToConsensus + ReconfigurationInitiator> CheckpointOutput
                 .set(checkpoint_seq as i64);
         }
 
-        // If scoring is enabled in protocol config, we also send misbehavior reports to
-        // consensus at this point. Misbehavior reports containing proofs of
-        // misbehaviour can be send whenever the misbehavior is detected, but we
-        // choose to send the ones that include only unprovable counts at this
-        // point, due to periodicity reasons and to ensure a (approximate)
+        // If `calculate_validator_scores` is enabled in protocol config, we also send
+        // misbehavior reports to consensus at this point. Misbehavior reports
+        // containing proofs of misbehaviour can be sent whenever the misbehavior is
+        // detected, but we choose to send the ones that include only unprovable counts
+        // at this point, due to periodicity reasons and to ensure a (approximate)
         // synchronization with the score updates.
+        //
+        // Reports are rate-limited: only sent when metrics have changed (different
+        // summaries) and at least 1000 checkpoints have passed since the last report.
+        // We also require that the checkpoint for which we want to send the report is
+        // at most 100 checkpoints behind the highest verified checkpoint, to avoid
+        // sending reports during resync.
+        //
+        // Additionally to these periodic reports, we also send a report when the epoch
+        // is coming to an end. Since `close_epoch` is called according to local clocks,
+        // we use an analogous rule for the last reports, requiring that the checkpoint
+        // is close to the next reconfiguration timestamp.
         if epoch_store.protocol_config().calculate_validator_scores() {
-            let misbehavior_report = epoch_store.scorer.current_local_metrics_count.to_report();
-            let transaction = ConsensusTransaction::new_misbehavior_report(
-                epoch_store.name,
-                &misbehavior_report,
-                checkpoint_seq,
-            );
-            info!(?transaction, "submitting misbehavior report to consensus");
-            self.sender
-                .submit_to_consensus(&[transaction], epoch_store)?;
+            let mut rl = epoch_store.misbehavior_monitor.rate_limit();
+
+            let should_send_last_report = checkpoint_timestamp
+                >= self
+                    .next_reconfiguration_timestamp_ms
+                    .saturating_sub(REPORT_END_OF_EPOCH_MARGIN_MS)
+                && !rl.has_sent_end_of_epoch_report;
+
+            if (checkpoint_seq.saturating_sub(rl.last_report_checkpoint_seq)
+                >= MIN_CHECKPOINTS_BETWEEN_REPORTS
+                && Some(checkpoint_seq + MAX_CHECKPOINT_LAG_FOR_REPORT)
+                    >= highest_verified_checkpoint)
+                || should_send_last_report
+            {
+                let misbehavior_report = epoch_store
+                    .misbehavior_monitor
+                    .generate_report(checkpoint_seq);
+                let new_report_summary = misbehavior_report.summary();
+                if new_report_summary != rl.last_report_summary || should_send_last_report {
+                    let transaction =
+                        ConsensusTransaction::new_misbehavior_report(misbehavior_report);
+                    info!(?transaction, "submitting misbehavior report to consensus");
+                    self.sender
+                        .submit_to_consensus(&[transaction], epoch_store)?;
+                    rl.last_report_summary = new_report_summary;
+                    rl.last_report_checkpoint_seq = checkpoint_seq;
+                    if should_send_last_report {
+                        rl.has_sent_end_of_epoch_report = true;
+                    }
+                }
+            }
         }
 
         if checkpoint_timestamp >= self.next_reconfiguration_timestamp_ms {
@@ -168,7 +203,7 @@ impl CheckpointOutput for LogCheckpointOutput {
             summary.epoch,
             summary.sequence_number,
             summary.previous_digest,
-            contents.size(),
+            contents.len(),
             summary.content_digest,
             summary.end_of_epoch_data,
         );

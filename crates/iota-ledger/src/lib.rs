@@ -11,10 +11,12 @@ use transport::{APDUAnswer, APDUCommand, LedgerTransport};
 
 pub use crate::api::errors::LedgerError;
 mod api;
-use iota_sdk_types::crypto::{Intent, IntentMessage};
+use iota_sdk_types::{
+    Address,
+    crypto::{Intent, IntentMessage},
+};
 use iota_types::{
-    base_types::IotaAddress,
-    crypto::{Ed25519IotaSignature, Signature, SignatureScheme, ToFromBytes},
+    crypto::{Signature, SignatureScheme},
     object::Object,
 };
 
@@ -30,7 +32,7 @@ pub struct Ledger {
 
 pub struct SignedTransaction {
     pub signature: Signature,
-    pub address: IotaAddress,
+    pub address: Address,
 }
 
 const IOTA_APP_NAME: &str = "IOTA";
@@ -152,7 +154,7 @@ impl Ledger {
     pub fn sign_intent<T: Serialize>(
         &self,
         bip32: &bip32::DerivationPath,
-        address: &IotaAddress,
+        address: &Address,
         intent: Intent,
         msg: &T,
         objects: Vec<Object>,
@@ -184,10 +186,9 @@ impl Ledger {
         signature_bytes.extend_from_slice(key_response.public_key.as_ref());
 
         Ok(SignedTransaction {
-            signature: Ed25519IotaSignature::from_bytes(&signature_bytes)
-                .map_err(|_| LedgerError::Serialization)?
-                .into(),
-            address: IotaAddress::from_bytes(key_response.address)
+            signature: Signature::from_bytes(&signature_bytes)
+                .map_err(|_| LedgerError::Serialization)?,
+            address: Address::from_bytes(key_response.address)
                 .map_err(|_| LedgerError::Serialization)?,
         })
     }

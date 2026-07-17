@@ -7,11 +7,12 @@ use iota_sdk::{
     IotaClient,
     rpc_types::{IotaObjectData, IotaObjectDataOptions, IotaObjectResponse},
     types::{
-        base_types::{ObjectID, ObjectType},
-        object::{MoveObject, Object},
+        base_types::ObjectType,
+        object::{MoveObject, MoveObjectExt, Object},
         transaction::{InputObjectKind, TransactionData, TransactionDataAPI},
     },
 };
+use iota_sdk_types::ObjectId;
 
 use crate::LedgerSignerError;
 
@@ -40,18 +41,18 @@ pub(crate) async fn load_objects_with_client(
 
 fn object_ids_from_transaction(
     transaction: &TransactionData,
-) -> Result<Vec<ObjectID>, LedgerSignerError> {
+) -> Result<Vec<ObjectId>, LedgerSignerError> {
     let object_ids = transaction
         .gas_data()
-        .payment
+        .objects
         .iter()
-        .map(|payment| payment.0);
+        .map(|object| object.object_id);
 
     let input_objects = transaction
         .input_objects()?
         .into_iter()
         .filter_map(|input| match input {
-            InputObjectKind::ImmOrOwnedMoveObject(id) => Some(id.0),
+            InputObjectKind::ImmOrOwnedMoveObject(id) => Some(id.object_id),
             _ => None,
         });
 
@@ -78,7 +79,7 @@ fn object_from_response(resp: IotaObjectResponse) -> Option<Object> {
     };
 
     let move_object = MoveObject::new_from_execution_with_limit(
-        move_object_type,
+        move_object_type.into(),
         data.version,
         bcs_bytes,
         250 * 1024, // The limit is not important here, it is copied from the protocol config

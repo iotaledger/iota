@@ -10,7 +10,8 @@ use std::{
 use anemo::codegen::InboundRequestLayer;
 use anemo_tower::{auth::RequireAuthorizationLayer, inflight_limit};
 use iota_config::p2p::RandomnessConfig;
-use iota_types::{base_types::AuthorityName, committee::EpochId, crypto::RandomnessRound};
+use iota_sdk_types::RandomnessRound;
+use iota_types::{base_types::AuthorityName, committee::EpochId};
 use tokio::sync::mpsc;
 
 use super::{
@@ -44,12 +45,12 @@ impl Builder {
         self
     }
 
-    pub fn with_metrics(mut self, registry: &prometheus::Registry) -> Self {
+    pub fn with_metrics(mut self, registry: &prometheus_filtered::Registry) -> Self {
         self.metrics = Some(Metrics::enabled(registry));
         self
     }
 
-    pub fn build(self) -> (UnstartedRandomness, anemo::Router) {
+    pub fn build(self) -> (UnstartedRandomness, anemo::Router<anemo::ServicesSealed>) {
         let Builder {
             name,
             config,
@@ -75,8 +76,8 @@ impl Builder {
 
         let allowed_peers = AllowedPeersUpdatable::new(Arc::new(HashSet::new()));
         let router = anemo::Router::new()
-            .route_layer(RequireAuthorizationLayer::new(allowed_peers.clone()))
-            .add_rpc_service(randomness_server);
+            .add_rpc_service(randomness_server)
+            .route_layer(RequireAuthorizationLayer::new(allowed_peers.clone()));
 
         (
             UnstartedRandomness {

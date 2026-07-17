@@ -5,14 +5,14 @@
 use std::sync::Arc;
 
 use iota_node_storage::{GrpcIndexes, GrpcStateReader};
+use iota_sdk_types::{CheckpointContentsDigest, CheckpointDigest, StructTag, TransactionDigest};
 use iota_types::{
-    base_types::TransactionDigest,
     committee::{Committee, EpochId},
     effects::{TransactionEffects, TransactionEvents},
     error::IotaError,
     messages_checkpoint::{
-        CheckpointContentsDigest, CheckpointDigest, CheckpointSequenceNumber, EndOfEpochData,
-        FullCheckpointContents, VerifiedCheckpoint, VerifiedCheckpointContents,
+        CheckpointContentsExt, CheckpointSequenceNumber, EndOfEpochData, FullCheckpointContents,
+        VerifiedCheckpoint, VerifiedCheckpointContents,
     },
     object::Object,
     storage::{
@@ -124,41 +124,31 @@ impl ReadStore for RocksDbStore {
         &self,
         sequence_number: CheckpointSequenceNumber,
     ) -> Result<Option<FullCheckpointContents>, StorageError> {
-        self.checkpoint_store
+        Ok(self
+            .checkpoint_store
             .get_full_checkpoint_contents_by_sequence_number(sequence_number)
-            .map_err(Into::into)
+            .map(|contents| contents.as_ref().clone()))
     }
 
     fn try_get_full_checkpoint_contents(
         &self,
         digest: &CheckpointContentsDigest,
     ) -> Result<Option<FullCheckpointContents>, StorageError> {
-        // First look to see if we saved the complete contents already.
-        if let Some(seq_num) = self
+        // First look to see if the in-memory cache still holds the complete
+        // contents.
+        if let Some(contents) = self
             .checkpoint_store
-            .get_sequence_number_by_contents_digest(digest)
-            .map_err(iota_types::storage::error::Error::custom)?
+            .get_full_checkpoint_contents_by_digest(digest)
         {
-            let contents = self
-                .checkpoint_store
-                .get_full_checkpoint_contents_by_sequence_number(seq_num)
-                .map_err(iota_types::storage::error::Error::custom)?;
-            if contents.is_some() {
-                return Ok(contents);
-            }
+            return Ok(Some(contents.as_ref().clone()));
         }
 
         // Otherwise gather it from the individual components.
-        // Note we can't insert the constructed contents into `full_checkpoint_content`,
-        // because it needs to be inserted along with
-        // `checkpoint_sequence_by_contents_digest` and `checkpoint_content`.
-        // However at this point it's likely we don't know the corresponding
-        // sequence number yet.
         self.checkpoint_store
             .get_checkpoint_contents(digest)
             .map_err(iota_types::storage::error::Error::custom)?
             .map(|contents| {
-                let mut transactions = Vec::with_capacity(contents.size());
+                let mut transactions = Vec::with_capacity(contents.len());
                 for tx in contents.iter() {
                     if let (Some(t), Some(e)) = (
                         self.try_get_transaction(&tx.transaction)?,
@@ -266,14 +256,14 @@ impl ReadStore for RocksDbStore {
 impl ObjectStore for RocksDbStore {
     fn try_get_object(
         &self,
-        object_id: &iota_types::base_types::ObjectID,
+        object_id: &iota_sdk_types::ObjectId,
     ) -> iota_types::storage::error::Result<Option<Object>> {
         self.cache_traits.object_store.try_get_object(object_id)
     }
 
     fn try_get_object_by_key(
         &self,
-        object_id: &iota_types::base_types::ObjectID,
+        object_id: &iota_sdk_types::ObjectId,
         version: iota_types::base_types::VersionNumber,
     ) -> iota_types::storage::error::Result<Option<Object>> {
         self.cache_traits
@@ -293,9 +283,10 @@ impl WriteStore for RocksDbStore {
             ..
         }) = checkpoint.end_of_epoch_data.as_ref()
         {
-            let next_committee = next_epoch_committee.iter().cloned().collect();
-            let committee =
-                Committee::new(checkpoint.epoch().checked_add(1).unwrap(), next_committee);
+            let committee = Committee::from_committee_members(
+                checkpoint.epoch().checked_add(1).unwrap(),
+                next_epoch_committee,
+            );
             self.try_insert_committee(committee)?;
         }
 
@@ -379,14 +370,14 @@ impl GrpcReadStore {
 impl ObjectStore for GrpcReadStore {
     fn try_get_object(
         &self,
-        object_id: &iota_types::base_types::ObjectID,
+        object_id: &iota_sdk_types::ObjectId,
     ) -> iota_types::storage::error::Result<Option<Object>> {
         self.rocks.try_get_object(object_id)
     }
 
     fn try_get_object_by_key(
         &self,
-        object_id: &iota_types::base_types::ObjectID,
+        object_id: &iota_sdk_types::ObjectId,
         version: iota_types::base_types::VersionNumber,
     ) -> iota_types::storage::error::Result<Option<Object>> {
         self.rocks.try_get_object_by_key(object_id, version)
@@ -521,13 +512,23 @@ impl GrpcStateReader for GrpcReadStore {
             .map_err(iota_types::storage::error::Error::custom)
     }
 
+    fn get_epoch_info(
+        &self,
+        epoch: EpochId,
+    ) -> iota_types::storage::error::Result<Option<iota_types::storage::EpochInfoV2>> {
+        self.rocks
+            .checkpoint_store
+            .get_epoch_info(epoch)
+            .map_err(iota_types::storage::error::Error::custom)
+    }
+
     fn grpc_indexes(&self) -> Option<&dyn GrpcIndexes> {
         self.grpc_indexes_store().ok().map(|index| index as _)
     }
 
     fn get_struct_layout(
         &self,
-        struct_tag: &move_core_types::language_storage::StructTag,
+        struct_tag: &StructTag,
     ) -> Result<Option<move_core_types::annotated_value::MoveTypeLayout>> {
         self.state
             .load_epoch_store_one_call_per_task()

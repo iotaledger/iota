@@ -14,7 +14,7 @@ use iota_grpc_types::{
         transaction::ExecutedTransaction,
     },
 };
-use iota_types::digests::TransactionDigest;
+use iota_sdk_types::TransactionDigest;
 use prost::Message;
 use prost_types::FieldMask;
 
@@ -46,7 +46,7 @@ pub(crate) fn validate_get_transaction_requests(
                     .nested_at("requests", idx)
             })?;
 
-            TransactionDigest::try_from(digest_bytes.as_slice()).map_err(|e| {
+            TransactionDigest::from_bytes(&digest_bytes).map_err(|e| {
                 FieldViolation::new("digest")
                     .with_description(format!("invalid digest: {e}"))
                     .with_reason(ErrorReason::FieldInvalid)
@@ -93,6 +93,10 @@ pub(crate) fn validate_get_transaction_requests(
 ///   transaction
 ///
 /// ## Object Fields
+/// If a required object is unavailable (e.g. pruned from the object store),
+/// the transaction's result is a `FAILED_PRECONDITION` error rather than a
+/// silently incomplete list; narrow the read mask or fetch objects
+/// individually via `get_objects` for best-effort retrieval.
 /// - `input_objects` - includes all input object fields
 ///   - `input_objects.reference` - includes all reference fields
 ///     - `input_objects.reference.object_id` - the ID of the input object
@@ -111,6 +115,16 @@ pub(crate) fn validate_get_transaction_requests(
 ///     - `output_objects.reference.digest` - the digest of the output object
 ///       contents, which can be used for integrity verification
 ///   - `output_objects.bcs` - the full BCS-encoded object
+///
+/// ## Derived Change Fields
+/// Derived from the transaction's effects and input/output objects. If a
+/// required object is unavailable (e.g. pruned from the object store), the
+/// transaction's result is a `FAILED_PRECONDITION` error rather than a
+/// silently wrong answer; retry without these fields.
+/// - `balance_changes` - per-owner, per-coin-type balance deltas. For a failed
+///   transaction this contains only the gas charge.
+/// - `object_changes` - structured object changes (created, mutated, deleted,
+///   wrapped, unwrapped, published)
 #[tracing::instrument(skip(reader))]
 pub(crate) fn get_transactions(
     reader: Arc<GrpcReader>,
@@ -176,6 +190,7 @@ fn get_transaction_impl(
         timestamp_ms: tx_read.timestamp_ms,
         input_objects: tx_read.input_objects,
         output_objects: tx_read.output_objects,
+        mocked_coin: None,
     };
 
     ExecutedTransaction::merge_from(&source, read_mask)

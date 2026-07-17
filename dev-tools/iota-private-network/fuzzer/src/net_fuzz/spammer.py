@@ -1,7 +1,8 @@
 """Helpers to run a background spammer against the private network.
 
-This module wraps the `stress` binary from the `iota-benchmark` crate,
-running it via the `iotaledger/iota-tools` Docker image on the
+This module wraps the `stress` binary from the `iota-benchmark` crate
+(https://github.com/iotaledger/network-benchmark), running it via the
+`iotaledger/stress` Docker image on the
 `iota-private-network_iota-network` Docker network.
 
 The main entry points are:
@@ -146,7 +147,7 @@ def start_stress_spammer(
         f"{genesis_blob}:/opt/iota/config/genesis.blob:ro",
         "-v",
         f"{keystore}:/opt/iota/config/iota.keystore:ro",
-        "iotaledger/iota-tools",
+        "iotaledger/stress",
         "/usr/local/bin/stress",
         "--local",
         "false",

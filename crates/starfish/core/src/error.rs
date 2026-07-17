@@ -45,6 +45,9 @@ pub(crate) enum ConsensusError {
     #[error("Block contains too many transaction bytes: {size} > {limit}")]
     TooManyTransactionBytes { size: usize, limit: usize },
 
+    #[error("Serialized block transactions are too large: {size} > {limit}")]
+    SerializedTransactionsTooLarge { size: usize, limit: usize },
+
     #[error("Unexpected block authority {0} from peer {1}")]
     UnexpectedAuthority(AuthorityIndex, AuthorityIndex),
 
@@ -87,10 +90,10 @@ pub(crate) enum ConsensusError {
     )]
     InvalidSizeOfHighestAcceptedRounds(usize, usize),
 
-    #[error("Invalid authority index: {index} > {max}")]
+    #[error("Invalid authority index: {index} >= {max}")]
     InvalidAuthorityIndex { index: AuthorityIndex, max: usize },
 
-    #[error("Invalid authority index: {index} > {max} from peer {peer}")]
+    #[error("Invalid authority index: {index} >= {max} from peer {peer}")]
     InvalidAuthorityIndexRequested {
         index: AuthorityIndex,
         max: usize,
@@ -141,6 +144,50 @@ pub(crate) enum ConsensusError {
 
     #[error("Too many ancestors in the block: {0} > {1}")]
     TooManyAncestors(usize, usize),
+
+    #[error("Too many acknowledgments in the block: {count} > {max}")]
+    TooManyAcknowledgments { count: usize, max: usize },
+
+    #[error("Too many commit votes in the block: {count} > {max}")]
+    TooManyCommitVotes { count: usize, max: usize },
+
+    #[error(
+        "Acknowledgment's round ({acknowledgment}) should be lower than the block's round ({block})"
+    )]
+    InvalidAcknowledgmentRound { acknowledgment: Round, block: Round },
+
+    #[error(
+        "Acknowledgment is older than gc_depth: block {block}, acknowledgment {acknowledgment}, gc_depth {gc_depth}"
+    )]
+    AcknowledgmentRoundTooOld {
+        acknowledgment: Round,
+        block: Round,
+        gc_depth: u32,
+    },
+
+    #[error(
+        "Ancestor is older than gc_depth: block {block}, ancestor {ancestor}, gc_depth {gc_depth}"
+    )]
+    AncestorRoundTooOld {
+        ancestor: Round,
+        block: Round,
+        gc_depth: u32,
+    },
+
+    #[error("Merkle tree has no root (empty shard list)")]
+    EmptyMerkleTree,
+
+    #[error("Missing block header for {block_ref}")]
+    MissingBlockHeader { block_ref: BlockRef },
+
+    #[error(
+        "Invalid overlap indices: overlap_start={overlap_start}, overlap_end={overlap_end}, references_len={references_len}"
+    )]
+    InvalidOverlapIndices {
+        overlap_start: u8,
+        overlap_end: u8,
+        references_len: usize,
+    },
 
     #[error(
         "Commit range exceeded limit after scanning during {sync_type} sync: {count} > {limit}"
@@ -193,6 +240,34 @@ pub(crate) enum ConsensusError {
         stake: Stake,
         peer: AuthorityIndex,
         commit: Box<Commit>,
+    },
+
+    #[error("Received too many commit vote headers from peer {peer}: {count} > {limit}")]
+    TooManyCommitVoteHeaders {
+        peer: AuthorityIndex,
+        count: usize,
+        limit: usize,
+    },
+
+    #[error("Peer {peer} sent a commit that is too large: {size} > {limit}")]
+    SerializedCommitTooLarge {
+        peer: AuthorityIndex,
+        size: usize,
+        limit: usize,
+    },
+
+    #[error("Peer {peer} sent a block header that is too large: {size} > {limit}")]
+    SerializedBlockHeaderTooLarge {
+        peer: AuthorityIndex,
+        size: usize,
+        limit: usize,
+    },
+
+    #[error("Invalid commit range from peer {peer}: start {start} > end {end}")]
+    InvalidCommitRange {
+        peer: AuthorityIndex,
+        start: CommitIndex,
+        end: CommitIndex,
     },
 
     #[error("Received unexpected block header from peer {peer}: {requested:?} vs {received:?}")]
@@ -282,14 +357,8 @@ pub(crate) enum ConsensusError {
     )]
     InconsistentTransactionRefVariants,
 
-    #[error(
-        "Transaction reference variant is inconsistent with protocol flag consensus_fast_commit_sync={protocol_flag_enabled}. Expected {expected_variant}, but received {received_variant}"
-    )]
-    TransactionRefVariantMismatch {
-        protocol_flag_enabled: bool,
-        expected_variant: &'static str,
-        received_variant: &'static str,
-    },
+    #[error("Expected TransactionRef, but received {received_variant}")]
+    TransactionRefVariantMismatch { received_variant: &'static str },
 
     #[error("Failed to fetch {num_requested} block headers from any peer")]
     FailedToFetchBlockHeaders { num_requested: usize },
@@ -297,11 +366,37 @@ pub(crate) enum ConsensusError {
     #[error("Voting block header {block_ref:?} for commit certification was not found in storage")]
     MissingVotingBlockHeaderInStorage { block_ref: BlockRef },
 
-    // TODO: This error can be removed once consensus_fast_commit_sync is enabled on all networks.
-    // It's currently used to gate fast commit sync endpoints and features during the gradual
-    // rollout phase.
-    #[error("Fast commit sync is not enabled in the current protocol version")]
-    FastCommitSyncNotEnabled,
+    #[error("ShardWithProof variant {actual} is not the expected V2")]
+    WrongShardVersion { actual: &'static str },
+
+    #[error(
+        "Commit variant {actual} does not match protocol flags (consensus_starfish_speed={starfish_speed})"
+    )]
+    WrongCommitVersionForFlags {
+        actual: &'static str,
+        starfish_speed: bool,
+    },
+
+    #[error("Block strong_vote contains invalid authority index {index}, committee size is {max}")]
+    InvalidStrongVoteAuthority { index: AuthorityIndex, max: usize },
+
+    #[error(
+        "Block at round {block_round} carries strong_vote pinned to leader \
+         authority {leader_authority} but does not reference that leader at round {leader_round}"
+    )]
+    StrongVoteLeaderNotInAncestors {
+        block_round: Round,
+        leader_round: Round,
+        leader_authority: AuthorityIndex,
+    },
+
+    #[error(
+        "BlockHeader variant {actual} does not match protocol flag (consensus_starfish_speed={starfish_speed})"
+    )]
+    WrongBlockHeaderVersionForFlag {
+        actual: &'static str,
+        starfish_speed: bool,
+    },
 }
 
 impl ConsensusError {

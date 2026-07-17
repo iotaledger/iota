@@ -214,29 +214,11 @@ impl Extension for LoggerExtension {
                 }
             }
         } else if self.config.log_response {
-            match operation_name {
-                Some("IntrospectionQuery") => {
-                    debug!(
-                        %query_id,
-                        %session_id,
-                        "[Schema] {}", resp.data
-                    );
-                }
-                _ if self.is_subscription.load(Ordering::Relaxed) => {
-                    // a subscription can emit many payloads; to avoid flooding normal response
-                    // logs we log subscription payloads at debug level.
-                    debug!(
-                        %query_id,
-                        %session_id,
-                        "[Subscription] {}", resp.data
-                    );
-                }
-                _ => info!(
-                    %query_id,
-                    %session_id,
-                    "[Response] {}", resp.data
-                ),
-            }
+            debug!(
+                %query_id,
+                %session_id,
+                "[Response] {}", resp.data
+            );
         }
         resp
     }

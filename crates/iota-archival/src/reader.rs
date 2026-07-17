@@ -30,7 +30,7 @@ use iota_types::{
     },
     storage::WriteStore,
 };
-use prometheus::{IntCounterVec, Registry, register_int_counter_vec_with_registry};
+use prometheus_filtered::{IntCounterVec, Registry, register_int_counter_vec_with_registry};
 use rand::seq::SliceRandom;
 use tokio::sync::{Mutex, oneshot, oneshot::Sender};
 use tracing::info;
@@ -216,7 +216,7 @@ impl ArchiveReader {
 
         let files: Vec<(FileMetadata, FileMetadata)> = summary_files
             .into_iter()
-            .zip(contents_files.into_iter())
+            .zip(contents_files)
             .map(|(s, c)| {
                 assert_eq!(s.checkpoint_seq_range, c.checkpoint_seq_range);
                 (s, c)
@@ -278,10 +278,18 @@ impl ArchiveReader {
             .await
     }
 
-    /// Load checkpoints from archive into the input store `S` for the given
-    /// checkpoint range. Summaries are downloaded out of order and inserted
-    /// without verification
-    pub async fn read_summaries_for_range_no_verify<S>(
+    /// Load checkpoint summaries for `checkpoint_range` from the archive into
+    /// `store`, in sequence order.
+    ///
+    /// A summary already present in `store` is left untouched; a new one is
+    /// inserted only after [`verify_checkpoint`] checks it against the
+    /// previous summary (its committee signature and `previous_digest`
+    /// linkage). Unlike a bulk unverified load, this never overwrites an
+    /// existing summary and never persists an unverified one — so it is safe
+    /// to run against a live node's store. Summaries are processed in
+    /// sequence order (each is verified against the previous one), so the
+    /// genesis checkpoint must already be present.
+    pub async fn read_summaries_for_range<S>(
         &self,
         store: S,
         checkpoint_range: Range<CheckpointSequenceNumber>,
@@ -307,7 +315,9 @@ impl ArchiveReader {
             })
             .boxed();
         stream
-            .buffer_unordered(self.concurrency)
+            // Ordered: `get_or_insert_verified_checkpoint` verifies each
+            // summary against the previous one, which must already be inserted.
+            .buffered(self.concurrency)
             .try_for_each(|summary_data| {
                 let result: Result<(), anyhow::Error> =
                     make_iterator::<CertifiedCheckpointSummary, Reader<Bytes>>(
@@ -321,7 +331,7 @@ impl ArchiveReader {
                                     && s.sequence_number < checkpoint_range.end
                             })
                             .try_for_each(|summary| {
-                                Self::insert_certified_checkpoint(&store, summary)?;
+                                Self::get_or_insert_verified_checkpoint(&store, summary, true)?;
                                 checkpoint_counter.fetch_add(1, Ordering::Relaxed);
                                 Ok::<(), anyhow::Error>(())
                             })
@@ -401,10 +411,7 @@ impl ArchiveReader {
             .context("Checkpoint seq num underflow")?;
 
         if checkpoint_range.start > latest_available_checkpoint {
-            bail!(
-                "Latest available checkpoint is: {}",
-                latest_available_checkpoint
-            );
+            bail!("Latest available checkpoint is: {latest_available_checkpoint}");
         }
 
         let files: Vec<(FileMetadata, FileMetadata)> = self.verify_manifest(manifest).await?;
@@ -590,7 +597,7 @@ impl ArchiveReader {
                     .expect("store operation should not fail");
                 Ok::<VerifiedCheckpoint, anyhow::Error>(verified_checkpoint)
             })
-            .map_err(|e| anyhow!("Failed to get verified checkpoint: {:?}", e))
+            .map_err(|e| anyhow!("Failed to get verified checkpoint: {e:?}"))
     }
 
     async fn get_summary_files_for_range(
@@ -605,10 +612,7 @@ impl ArchiveReader {
             .context("Checkpoint seq num underflow")?;
 
         if checkpoint_range.start > latest_available_checkpoint {
-            bail!(
-                "Latest available checkpoint is: {}",
-                latest_available_checkpoint
-            );
+            bail!("Latest available checkpoint is: {latest_available_checkpoint}");
         }
 
         let summary_files: Vec<FileMetadata> = self
@@ -649,10 +653,7 @@ impl ArchiveReader {
         let mut ordered_checkpoints = checkpoints;
         ordered_checkpoints.sort();
         if *ordered_checkpoints.first().unwrap() > latest_available_checkpoint {
-            bail!(
-                "Latest available checkpoint is: {}",
-                latest_available_checkpoint
-            );
+            bail!("Latest available checkpoint is: {latest_available_checkpoint}");
         }
 
         let summary_files: Vec<FileMetadata> = self

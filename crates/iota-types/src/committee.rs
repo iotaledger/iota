@@ -11,6 +11,7 @@ use std::{
 
 use fastcrypto::traits::KeyPair;
 pub use iota_protocol_config::ProtocolVersion;
+use iota_sdk_types::{TransactionDigest, validator::ValidatorCommitteeMember};
 use once_cell::sync::OnceCell;
 use rand::{
     Rng, SeedableRng,
@@ -25,6 +26,7 @@ use crate::{
         AuthorityKeyPair, AuthorityPublicKey, NetworkPublicKey, random_committee_key_pairs_of_size,
     },
     error::{IotaError, IotaResult},
+    messages_checkpoint::{CertifiedCheckpointSummary, VerifiedCheckpoint},
     multiaddr::Multiaddr,
 };
 
@@ -83,6 +85,30 @@ impl Committee {
             expanded_keys,
             index_map,
         }
+    }
+
+    /// Build a committee for `epoch` from a [`ValidatorCommitteeMember`]
+    /// list.
+    pub fn from_committee_members(epoch: EpochId, members: &[ValidatorCommitteeMember]) -> Self {
+        Self::new(
+            epoch,
+            members
+                .iter()
+                .map(|member| (member.public_key.into(), member.stake))
+                .collect(),
+        )
+    }
+
+    /// The committee's voting rights expressed as a
+    /// [`ValidatorCommitteeMember`] list used by `EndOfEpochData`.
+    pub fn committee_members(&self) -> Vec<ValidatorCommitteeMember> {
+        self.voting_rights
+            .iter()
+            .map(|(name, stake)| ValidatorCommitteeMember {
+                public_key: (*name).into(),
+                stake: *stake,
+            })
+            .collect()
     }
 
     /// Normalize the given weights to TOTAL_VOTING_POWER and create the
@@ -247,6 +273,14 @@ impl Committee {
 
     pub fn stakes(&self) -> impl Iterator<Item = StakeUnit> + '_ {
         self.voting_rights.iter().map(|(_, stake)| *stake)
+    }
+
+    /// Returns the stake of the authority at the given index, or `None` if out
+    /// of bounds.
+    pub fn stake_by_index(&self, index: u32) -> Option<StakeUnit> {
+        self.voting_rights
+            .get(index as usize)
+            .map(|(_, stake)| *stake)
     }
 
     pub fn authority_exists(&self, name: &AuthorityName) -> bool {
@@ -443,12 +477,110 @@ impl Display for CommitteeWithNetworkMetadata {
     }
 }
 
+/// Verifies the committee chain: the sequence of committees linked by each
+/// epoch's certified closing checkpoint, whose `end_of_epoch_data` elects the
+/// committee of the next epoch.
+///
+/// Starting from a trusted committee (typically the genesis committee, the
+/// operator's trust root), feed it each epoch's closing
+/// [`CertifiedCheckpointSummary`] in epoch order via
+/// [`Self::verify_epoch_close`]; every summary a consumer obtains this way is
+/// committee-verified, with no trust in whatever transport delivered it.
+///
+/// The walk is transport-agnostic by design — callers drive their own loop
+/// (an in-memory list, a remote-store stream, files on disk) and feed
+/// summaries in; this type only holds the verification state.
+#[derive(Debug)]
+pub struct CommitteeChainVerifier {
+    committee: Committee,
+}
+
+impl CommitteeChainVerifier {
+    /// Start the walk at a trusted committee — the trust root for everything
+    /// verified after it.
+    pub fn new(trusted_committee: Committee) -> Self {
+        Self {
+            committee: trusted_committee,
+        }
+    }
+
+    /// The epoch whose closing checkpoint must be fed next.
+    pub fn epoch(&self) -> EpochId {
+        self.committee.epoch
+    }
+
+    /// The committee of [`Self::epoch`] (trusted root or chain-verified).
+    pub fn committee(&self) -> &Committee {
+        &self.committee
+    }
+
+    /// Verify `summary` as the certified closing checkpoint of
+    /// [`Self::epoch`] and advance to the committee it elects for the next
+    /// epoch.
+    ///
+    /// Errors leave the verifier unchanged, e.g. if the summary is for a
+    /// different epoch, its signatures don't verify under the current
+    /// committee, or it is not a close-of-epoch checkpoint (no
+    /// `end_of_epoch_data`).
+    pub fn verify_epoch_close(
+        &mut self,
+        summary: CertifiedCheckpointSummary,
+    ) -> IotaResult<VerifiedCheckpoint> {
+        // The structural checks run before the (expensive) signature
+        // verification. They can only ever reject; nothing from the summary
+        // is trusted until the signatures verify.
+        if summary.data().epoch != self.committee.epoch {
+            return Err(IotaError::WrongEpoch {
+                expected_epoch: self.committee.epoch,
+                actual_epoch: summary.data().epoch,
+            });
+        }
+
+        if summary.data().end_of_epoch_data.is_none() {
+            return Err(IotaError::GenericAuthority {
+                error: format!(
+                    "checkpoint {} is not the closing checkpoint of epoch {} (no \
+                     end-of-epoch data)",
+                    summary.data().sequence_number,
+                    self.committee.epoch,
+                ),
+            });
+        }
+
+        let verified = summary.try_into_verified(&self.committee)?;
+        let end_of_epoch_data = verified
+            .end_of_epoch_data
+            .as_ref()
+            .expect("checked before verification");
+
+        self.committee = Committee::from_committee_members(
+            self.committee
+                .epoch
+                .checked_add(1)
+                .ok_or(IotaError::AdvanceEpoch {
+                    error: "epoch number overflow".to_string(),
+                })?,
+            &end_of_epoch_data.next_epoch_committee,
+        );
+        Ok(verified)
+    }
+}
+
 #[cfg(test)]
 mod test {
     use fastcrypto::traits::KeyPair;
 
     use super::*;
-    use crate::crypto::{AuthorityKeyPair, get_key_pair};
+    use crate::{
+        crypto::{AuthorityKeyPair, get_key_pair},
+        messages_checkpoint::{CheckpointSummary, EndOfEpochData, SignedCheckpointSummary},
+        utils::make_committee_key,
+    };
+
+    const RNG_SEED: [u8; 32] = [
+        21, 23, 199, 200, 234, 250, 252, 178, 94, 15, 202, 178, 62, 186, 88, 137, 233, 192, 130,
+        157, 179, 179, 65, 9, 31, 249, 221, 123, 225, 112, 199, 247,
+    ];
 
     #[test]
     fn test_shuffle_by_weight() {
@@ -497,5 +629,106 @@ mod test {
 
         let res = committee.shuffle_by_stake(None, Some(&BTreeSet::new()));
         assert_eq!(0, res.len());
+    }
+
+    /// `CommitteeChainVerifier` accepts a correctly signed chain of closing
+    /// checkpoints, advancing one committee per epoch — and rejects, without
+    /// advancing, a summary for the wrong epoch, one signed by a different
+    /// committee, and one that is not a close of epoch.
+    #[test]
+    fn committee_chain_verifier_walks_and_rejects() {
+        let mut rng = StdRng::from_seed(RNG_SEED);
+        let (keys, committee) = make_committee_key(&mut rng);
+        let (other_keys, other_committee) = make_committee_key(&mut rng);
+
+        let close_of_epoch = |epoch: EpochId, end_of_epoch_data: Option<EndOfEpochData>| {
+            let summary = CheckpointSummary {
+                epoch,
+                sequence_number: epoch,
+                network_total_transactions: 0,
+                content_digest: Default::default(),
+                previous_digest: None,
+                epoch_rolling_gas_cost_summary: Default::default(),
+                end_of_epoch_data,
+                timestamp_ms: 0,
+                version_specific_data: Vec::new(),
+                checkpoint_commitments: Vec::new(),
+            };
+            let signatures = keys
+                .iter()
+                .map(|k| SignedCheckpointSummary::sign(epoch, &summary, k, k.public().into()))
+                .collect();
+            let committee_at_epoch =
+                Committee::new(epoch, committee.voting_rights.iter().cloned().collect());
+            CertifiedCheckpointSummary::new(summary, signatures, &committee_at_epoch)
+                .expect("test summary must certify")
+        };
+        let handing_forward = Some(EndOfEpochData {
+            next_epoch_committee: committee.committee_members(),
+            next_epoch_protocol_version: 1,
+            epoch_commitments: Vec::new(),
+            epoch_supply_change: 0,
+        });
+
+        let mut verifier = CommitteeChainVerifier::new(committee.clone());
+
+        // Wrong epoch: epoch 1's close fed while epoch 0 is expected.
+        assert!(matches!(
+            verifier.verify_epoch_close(close_of_epoch(1, handing_forward.clone())),
+            Err(IotaError::WrongEpoch { .. })
+        ));
+        assert_eq!(verifier.epoch(), 0, "a rejected summary must not advance");
+
+        // Not a close of epoch.
+        verifier
+            .verify_epoch_close(close_of_epoch(0, None))
+            .expect_err("a non-closing checkpoint must be rejected");
+        assert_eq!(verifier.epoch(), 0);
+
+        // The close-of-epoch check runs before the (expensive) signature
+        // verification: a non-closing summary certified by a foreign
+        // committee yields the structural error, not a signature error.
+        let foreign_non_closing = {
+            let summary = CheckpointSummary {
+                epoch: 0,
+                sequence_number: 0,
+                network_total_transactions: 0,
+                content_digest: Default::default(),
+                previous_digest: None,
+                epoch_rolling_gas_cost_summary: Default::default(),
+                end_of_epoch_data: None,
+                timestamp_ms: 0,
+                version_specific_data: Vec::new(),
+                checkpoint_commitments: Vec::new(),
+            };
+            let signatures = other_keys
+                .iter()
+                .map(|k| SignedCheckpointSummary::sign(0, &summary, k, k.public().into()))
+                .collect();
+            CertifiedCheckpointSummary::new(summary, signatures, &other_committee)
+                .expect("certifies under the foreign committee")
+        };
+        assert!(matches!(
+            verifier.verify_epoch_close(foreign_non_closing),
+            Err(IotaError::GenericAuthority { .. })
+        ));
+        assert_eq!(verifier.epoch(), 0);
+
+        // The valid chain walks: epoch 0 then epoch 1.
+        verifier
+            .verify_epoch_close(close_of_epoch(0, handing_forward.clone()))
+            .expect("epoch 0 close must verify");
+        assert_eq!(verifier.epoch(), 1);
+        verifier
+            .verify_epoch_close(close_of_epoch(1, handing_forward.clone()))
+            .expect("epoch 1 close must verify");
+        assert_eq!(verifier.epoch(), 2);
+
+        // A different trust root rejects the same (validly signed) chain.
+        let mut wrong_root = CommitteeChainVerifier::new(other_committee);
+        wrong_root
+            .verify_epoch_close(close_of_epoch(0, handing_forward))
+            .expect_err("a chain signed by a different committee must be rejected");
+        assert_eq!(wrong_root.epoch(), 0);
     }
 }

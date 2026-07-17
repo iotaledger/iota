@@ -221,7 +221,7 @@ fn dump_package(output_dir: &Path, pkg: &packages::MovePackage) -> Result<()> {
 
     let object = bcs::from_bytes::<Object>(&bytes).context("failed to deserialize")?;
     let id = object.id();
-    let Some(package) = object.data.try_as_package() else {
+    let Some(package) = object.data.as_opt_package() else {
         bail!("not a package");
     };
 
@@ -236,7 +236,7 @@ fn dump_package(output_dir: &Path, pkg: &packages::MovePackage) -> Result<()> {
         })
         .collect();
 
-    let package_dir = output_dir.join(format!("{}.{}", id, package.version().value()));
+    let package_dir = output_dir.join(format!("{}.{}", id, package.version()));
     fs::create_dir(&package_dir).context("failed to make output directory")?;
 
     let linkage_json = serde_json::to_string_pretty(package.linkage_table())

@@ -7,9 +7,11 @@ use std::{
     sync::Arc,
 };
 
+use iota_sdk_types::ObjectReference;
 use iota_types::{
-    base_types::ObjectRef,
-    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
+    effects::{
+        TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt, TransactionEvents,
+    },
     inner_temporary_store::{InnerTemporaryStore, WrittenObjects},
     storage::{MarkerValue, ObjectKey},
     transaction::{TransactionDataAPI, VerifiedTransaction},
@@ -24,8 +26,8 @@ pub struct TransactionOutputs {
     pub markers: Vec<(ObjectKey, MarkerValue)>,
     pub wrapped: Vec<ObjectKey>,
     pub deleted: Vec<ObjectKey>,
-    pub live_object_markers_to_delete: Vec<ObjectRef>,
-    pub new_live_object_markers_to_init: Vec<ObjectRef>,
+    pub live_object_markers_to_delete: Vec<ObjectReference>,
+    pub new_live_object_markers_to_init: Vec<ObjectReference>,
     pub written: WrittenObjects,
 }
 
@@ -58,7 +60,7 @@ impl TransactionOutputs {
         let possible_to_receive = transaction.transaction_data().receiving_objects();
         let received_objects = possible_to_receive
             .into_iter()
-            .filter(|obj_ref| modified_at.contains(&(obj_ref.0, obj_ref.1)));
+            .filter(|obj_ref| modified_at.contains(&(obj_ref.object_id, obj_ref.version)));
 
         // We record any received or deleted objects since they could be pruned, and
         // smear shared object deletions in the marker table. For deleted
@@ -99,7 +101,9 @@ impl TransactionOutputs {
         let live_object_markers_to_delete: Vec<_> = mutable_inputs
             .into_iter()
             .filter_map(|(id, ((version, digest), owner))| {
-                owner.is_address_owned().then_some((id, version, digest))
+                owner
+                    .is_address()
+                    .then_some(ObjectReference::new(id, version, digest))
             })
             .chain(received_objects)
             .collect();
@@ -108,7 +112,7 @@ impl TransactionOutputs {
             .values()
             .filter_map(|new_object| {
                 if new_object.is_address_owned() {
-                    Some(new_object.compute_object_reference())
+                    Some(new_object.object_ref())
                 } else {
                     None
                 }

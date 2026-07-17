@@ -7,22 +7,17 @@ use std::{env, time::Duration};
 use anyhow::{Context, Result};
 use iota_data_ingestion_core::ReaderOptions;
 use iota_metrics::spawn_monitored_task;
-use prometheus::Registry;
+use prometheus_filtered::Registry;
 use tokio_util::sync::CancellationToken;
-use tracing::{info, warn};
+use tracing::info;
 
 use crate::{
     build_json_rpc_server,
-    config::{
-        HistoricFallbackOptions, IngestionConfig, JsonRpcConfig, RetentionConfig, SnapshotLagConfig,
-    },
+    config::{HistoricFallbackOptions, IngestionConfig, JsonRpcConfig, RetentionConfig},
     db::ConnectionPool,
     errors::IndexerError,
     historical_fallback::reader::HistoricalFallbackReader,
-    ingestion::{
-        common::connection::resolve_remote_url, primary::orchestration::PrimaryPipeline,
-        snapshot::orchestration::SnapshotPipelineBuilder,
-    },
+    ingestion::{common::connection::resolve_remote_url, primary::orchestration::PrimaryPipeline},
     metrics::IndexerMetrics,
     processors::processor_orchestrator::ProcessorOrchestrator,
     pruning::{
@@ -44,8 +39,9 @@ impl Indexer {
         config: &IngestionConfig,
         store: PgIndexerStore,
         metrics: IndexerMetrics,
-        snapshot_config: SnapshotLagConfig,
         retention_config: Option<RetentionConfig>,
+        pruning_delay_ms: u64,
+        pruning_batch_size: u64,
         cancel: CancellationToken,
     ) -> Result<(), IndexerError> {
         info!(
@@ -65,7 +61,13 @@ impl Indexer {
             resolve_remote_url(&config.sources, MAX_URL_RESOLUTION_TIMEOUT).await?;
 
         if let Some(retention_config) = retention_config {
-            let pruner = Pruner::new(store.clone(), retention_config, metrics.clone())?;
+            let pruner = Pruner::new(
+                store.clone(),
+                retention_config,
+                pruning_delay_ms,
+                pruning_batch_size,
+                metrics.clone(),
+            )?;
             let cancel_clone = cancel.clone();
             spawn_monitored_task!(pruner.start(cancel_clone));
         }
@@ -78,71 +80,35 @@ impl Indexer {
             store.persist_protocol_configs_and_feature_flags(chain_id)?;
         }
 
-        let mut primary_pipeline = PrimaryPipeline::setup(
+        // Restore metric from the DB so it doesn't stay as 0 until next epoch change.
+        let (_, latest_epoch) = IndexerStore::get_available_epoch_range(&store).await?;
+        metrics.last_committed_epoch.set(latest_epoch as i64);
+
+        let primary_pipeline = PrimaryPipeline::setup(
             store.clone(),
             metrics.clone(),
             config.checkpoint_download_queue_size,
             cancel.clone(),
         )
         .await?;
-
-        let snapshot_pipeline_builder = SnapshotPipelineBuilder::new(
-            store.clone(),
-            metrics.clone(),
-            snapshot_config,
-            config.checkpoint_download_queue_size,
-            cancel.clone(),
-        )
-        .await?;
-
-        // data_ingestion_path can only feed data to one executor,
-        // but if we have remote_store_url we can use many executors
-        let use_separate_executors = remote_store_url.is_some();
-        let snapshot_pipeline = if use_separate_executors {
-            snapshot_pipeline_builder
-                .finalize_with_dedicated_executor()
-                .await?
-        } else {
-            warn!(
-                "Sharing the same executor between Primary and Snapshot pipelines due to not \
-                 provided --remote-store-url argument. Limited possibilities for Snapshot lag \
-                 config. This may be deprecated in the future."
-            );
-            snapshot_pipeline_builder
-                .finalize_with_shared_executor(&mut primary_pipeline.executor)
-                .await?
-        };
 
         info!("Starting data ingestion executor...");
-        let mut primary_pipeline_handle = primary_pipeline
+        let primary_pipeline_handle = primary_pipeline
             .run(
                 config.sources.data_ingestion_path.clone(),
-                remote_store_url.clone(),
-                extra_reader_options.clone(),
+                remote_store_url,
+                extra_reader_options,
             )
             .await;
 
-        let mut snapshot_pipeline_handle = snapshot_pipeline
-            .run(remote_store_url, extra_reader_options)
-            .await;
-
-        let mut primary_pipeline_done = false;
-        let mut snapshot_pipeline_done = false;
-        while !primary_pipeline_done || !snapshot_pipeline_done {
-            tokio::select! {
-                result = &mut primary_pipeline_handle, if !primary_pipeline_done => {
-                    result.context("failed to join primary pipeline")?.context("primary pipeline failed")?;
-                    info!("Primary pipeline finished successfully");
-                    primary_pipeline_done = true;
-                },
-                result = &mut snapshot_pipeline_handle, if !snapshot_pipeline_done => {
-                    result.context("failed to join snapshot pipeline")?.context("snapshot pipeline failed")?;
-                    info!("Snapshot pipeline finished successfully");
-                    snapshot_pipeline_done = true;
-                },
-            }
-            cancel.cancel();
-        }
+        let result = primary_pipeline_handle
+            .await
+            .context("failed to join primary pipeline")?
+            .context("primary pipeline failed");
+        info!("Primary pipeline finished");
+        // Tell other tasks (e.g. the pruner) to stop.
+        cancel.cancel();
+        result?;
 
         Ok(())
     }
@@ -153,6 +119,7 @@ impl Indexer {
         registry: &Registry,
         connection_pool: ConnectionPool,
         metrics: IndexerMetrics,
+        cancel: CancellationToken,
     ) -> Result<(), IndexerError> {
         info!(
             "IOTA Indexer Reader (version {:?}) started...",
@@ -184,10 +151,16 @@ impl Indexer {
             info!("No config for HistoricalFallbackReader provided, skipping...");
         }
 
-        let (handle, cancel) =
-            build_json_rpc_server(store.clone(), registry, read.clone(), config, metrics)
-                .await
-                .expect("json rpc server should not run into errors upon start.");
+        let handle = build_json_rpc_server(
+            store.clone(),
+            registry,
+            read.clone(),
+            config,
+            metrics,
+            cancel.clone(),
+        )
+        .await
+        .expect("json rpc server should not run into errors upon start.");
 
         tracing::info!("Starting watermark background task to track pruning state");
         let watermark_task = WatermarkTask::new(store, watermark_cache);

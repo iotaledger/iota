@@ -5,12 +5,12 @@
 use std::{sync::Arc, time::Duration};
 
 use fastcrypto::{hash::MultisetHash, traits::KeyPair};
-use iota_sdk_types::crypto::{Intent, IntentScope};
+use iota_sdk_types::{
+    Address, Identifier, ObjectId, ObjectReference, TransactionDigest,
+    crypto::{Intent, IntentScope},
+};
 use iota_types::{
-    base_types::{
-        AuthorityName, ExecutionDigests, IotaAddress, ObjectID, ObjectRef, TransactionDigest,
-        random_object_ref,
-    },
+    base_types::{AuthorityName, ExecutionDigests, random_object_ref},
     committee::Committee,
     crypto::{
         AccountKeyPair, AuthorityKeyPair, AuthorityPublicKeyBytes, AuthoritySignInfo,
@@ -18,19 +18,17 @@ use iota_types::{
     },
     effects::{SignedTransactionEffects, TestEffectsBuilder},
     error::IotaError,
-    message_envelope::Message,
-    signature_verification::VerifiedDigestCache,
     transaction::{
-        CallArg, CertifiedTransaction, ObjectArg, SignedTransaction,
-        TEST_ONLY_GAS_UNIT_FOR_TRANSFER, Transaction, TransactionData,
+        CallArg, CertifiedTransaction, SignedTransaction, TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+        Transaction, TransactionData, TransactionDataAPI,
     },
     utils::{create_fake_transaction, to_sender_signed_transaction},
 };
-use move_core_types::{account_address::AccountAddress, ident_str};
+use move_core_types::account_address::AccountAddress;
 use tokio::time::timeout;
 use tracing::{info, warn};
 
-use crate::{authority::AuthorityState, state_accumulator::StateAccumulator};
+use crate::{authority::AuthorityState, global_state_hasher::GlobalStateHasher};
 
 const WAIT_FOR_TX_TIMEOUT: Duration = Duration::from_secs(15);
 
@@ -41,7 +39,7 @@ pub async fn send_and_confirm_transaction(
 ) -> Result<(CertifiedTransaction, SignedTransactionEffects), IotaError> {
     // Make the initial request
     let epoch_store = authority.load_epoch_store_one_call_per_task();
-    transaction.validity_check(epoch_store.protocol_config(), epoch_store.epoch())?;
+    transaction.validity_check(&epoch_store.tx_validity_check_context())?;
     let transaction = epoch_store.verify_transaction(transaction)?;
     let response = authority
         .handle_transaction(&epoch_store, transaction.clone())
@@ -61,8 +59,9 @@ pub async fn send_and_confirm_transaction(
     // wrong inside the VM
     //
     // We also check the incremental effects of the transaction on the live object
-    // set against StateAccumulator for testing and regression detection
-    let state_acc = StateAccumulator::new_for_tests(authority.get_accumulator_store().clone());
+    // set against GlobalStateHasher for testing and regression detection
+    let state_acc =
+        GlobalStateHasher::new_for_tests(authority.get_global_state_hash_store().clone());
     let mut state = state_acc.accumulate_cached_live_object_set_for_testing();
     let (result, _execution_error_opt) = authority.try_execute_for_test(&certificate)?;
     let state_after = state_acc.accumulate_cached_live_object_set_for_testing();
@@ -105,7 +104,8 @@ pub async fn wait_for_tx(digest: TransactionDigest, state: Arc<AuthorityState>) 
     )
     .await
     {
-        Ok(_) => info!(?digest, "digest found"),
+        Ok(Ok(_)) => info!(?digest, "digest found"),
+        Ok(Err(e)) => panic!("failed to read effects of digest! {e}"),
         Err(e) => {
             warn!(?digest, "digest not found!");
             panic!("timed out waiting for effects of digest! {e}");
@@ -122,7 +122,8 @@ pub async fn wait_for_all_txes(digests: Vec<TransactionDigest>, state: Arc<Autho
     )
     .await
     {
-        Ok(_) => info!(?digests, "all digests found"),
+        Ok(Ok(_)) => info!(?digests, "all digests found"),
+        Ok(Err(e)) => panic!("failed to read effects of digests! {e}"),
         Err(e) => {
             warn!(?digests, "some digests not found!");
             panic!("timed out waiting for effects of digests! {e}");
@@ -164,10 +165,10 @@ pub fn create_fake_cert_and_effect_digest<'a>(
 }
 
 pub fn make_transfer_iota_transaction(
-    gas_object: ObjectRef,
-    recipient: IotaAddress,
+    gas_object: ObjectReference,
+    recipient: Address,
     amount: Option<u64>,
-    sender: IotaAddress,
+    sender: Address,
     keypair: &AccountKeyPair,
     gas_price: u64,
 ) -> Transaction {
@@ -183,11 +184,11 @@ pub fn make_transfer_iota_transaction(
 }
 
 pub fn make_pay_iota_transaction(
-    gas_object: ObjectRef,
-    coins: Vec<ObjectRef>,
-    recipients: Vec<IotaAddress>,
+    gas_object: ObjectReference,
+    coins: Vec<ObjectReference>,
+    recipients: Vec<Address>,
     amounts: Vec<u64>,
-    sender: IotaAddress,
+    sender: Address,
     keypair: &AccountKeyPair,
     gas_price: u64,
     gas_budget: u64,
@@ -200,11 +201,11 @@ pub fn make_pay_iota_transaction(
 }
 
 pub fn make_transfer_object_transaction(
-    object_ref: ObjectRef,
-    gas_object: ObjectRef,
-    sender: IotaAddress,
+    object_ref: ObjectReference,
+    gas_object: ObjectReference,
+    sender: Address,
     keypair: &AccountKeyPair,
-    recipient: IotaAddress,
+    recipient: Address,
     gas_price: u64,
 ) -> Transaction {
     let data = TransactionData::new_transfer(
@@ -219,26 +220,26 @@ pub fn make_transfer_object_transaction(
 }
 
 pub fn make_transfer_object_move_transaction(
-    src: IotaAddress,
+    src: Address,
     keypair: &AccountKeyPair,
-    dest: IotaAddress,
-    object_ref: ObjectRef,
-    framework_obj_id: ObjectID,
-    gas_object_ref: ObjectRef,
+    dest: Address,
+    object_ref: ObjectReference,
+    framework_obj_id: ObjectId,
+    gas_object_ref: ObjectReference,
     gas_budget_in_units: u64,
     gas_price: u64,
 ) -> Transaction {
     let args = vec![
-        CallArg::Object(ObjectArg::ImmOrOwnedObject(object_ref)),
-        CallArg::Pure(bcs::to_bytes(&AccountAddress::from(dest)).unwrap()),
+        CallArg::ImmutableOrOwned(object_ref),
+        CallArg::pure(&AccountAddress::new(dest.into_bytes())),
     ];
 
     to_sender_signed_transaction(
         TransactionData::new_move_call(
             src,
             framework_obj_id,
-            ident_str!("object_basics").to_owned(),
-            ident_str!("transfer").to_owned(),
+            Identifier::from_static("object_basics"),
+            Identifier::from_static("transfer"),
             Vec::new(),
             gas_object_ref,
             args,
@@ -252,8 +253,8 @@ pub fn make_transfer_object_move_transaction(
 
 /// Make a dummy tx that uses random object refs.
 pub fn make_dummy_tx(
-    receiver: IotaAddress,
-    sender: IotaAddress,
+    receiver: Address,
+    sender: Address,
     sender_sec: &AccountKeyPair,
 ) -> Transaction {
     Transaction::from_data_and_signer(
@@ -296,11 +297,7 @@ pub fn make_cert_with_large_committee(
         .collect();
 
     let cert = CertifiedTransaction::new(transaction.clone().into_data(), sigs, committee).unwrap();
-    cert.verify_signatures_authenticated(
-        committee,
-        &Default::default(),
-        Arc::new(VerifiedDigestCache::new_empty()),
-    )
-    .unwrap();
+    cert.verify_signatures_authenticated(committee, &Default::default())
+        .unwrap();
     cert
 }

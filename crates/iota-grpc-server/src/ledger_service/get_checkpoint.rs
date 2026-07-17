@@ -69,6 +69,12 @@
 //!       - `transactions.output_objects.reference.digest` - the digest of the
 //!         output object contents
 //!     - `transactions.output_objects.bcs` - the full BCS-encoded object
+//!   - `transactions.balance_changes` - per-owner, per-coin-type balance deltas
+//!     derived from the transaction's effects and input/output objects. For a
+//!     failed transaction this contains only the gas charge.
+//!   - `transactions.object_changes` - structured object changes (created,
+//!     mutated, deleted, wrapped, unwrapped, published) derived from the
+//!     transaction's effects and input/output objects.
 //!
 //! ## Event Fields
 //! - `events` - includes all event fields (all events of all transactions in
@@ -226,10 +232,9 @@ pub(crate) fn get_checkpoint(
     let sequence_number = match req.checkpoint_id {
         Some(grpc_ledger_service::get_checkpoint_request::CheckpointId::SequenceNumber(seq)) => seq,
         Some(grpc_ledger_service::get_checkpoint_request::CheckpointId::Digest(digest)) => {
-            let sdk_digest: iota_sdk_types::Digest = (&digest)
+            let digest = (&digest)
                 .try_into()
                 .map_err(|e| Status::invalid_argument(format!("invalid checkpoint digest: {e}")))?;
-            let digest: iota_types::digests::CheckpointDigest = sdk_digest.into();
             service
                 .reader
                 .get_checkpoint_sequence_number_by_digest(&digest)
@@ -379,8 +384,7 @@ pub(crate) fn stream_checkpoints(
             })?;
         if start < lowest_available {
             return Err(Status::not_found(format!(
-                "Requested checkpoint {} is below the lowest available checkpoint {}",
-                start, lowest_available
+                "Requested checkpoint {start} is below the lowest available checkpoint {lowest_available}"
             ))
             .into());
         }
@@ -408,9 +412,12 @@ pub(crate) fn stream_checkpoints(
         return Err(Status::invalid_argument("events_filter requires events in read_mask").into());
     }
 
-    let rx = service.checkpoint_data_broadcaster.subscribe();
+    let subscription = service
+        .checkpoint_data_broadcaster
+        .subscribe()
+        .ok_or_else(|| Status::unavailable("maximum concurrent stream subscribers reached"))?;
     let stream = Box::pin(service.reader.create_checkpoint_data_stream(
-        rx,
+        subscription,
         start_sequence_number,
         end_sequence_number,
         checkpoint_mask,

@@ -21,6 +21,7 @@ export const Networks: Record<string, NetworkProps> = {
         ],
       },
       graphql: 'https://graphql.mainnet.iota.cafe',
+      grpc: 'grpc.mainnet.iota.cafe:443',
     },
     explorer: 'https://explorer.iota.org/',
     evm: {
@@ -67,6 +68,7 @@ export const Networks: Record<string, NetworkProps> = {
         ],
       },
       graphql: 'https://graphql.testnet.iota.cafe',
+      grpc: 'grpc.testnet.iota.cafe:443',
     },
     faucet: 'https://faucet.testnet.iota.cafe',
     explorer: {
@@ -111,6 +113,7 @@ export const Networks: Record<string, NetworkProps> = {
         },
       },
       graphql: 'https://graphql.devnet.iota.cafe',
+      grpc: 'grpc.devnet.iota.cafe:443',
     },
     faucet: 'https://faucet.devnet.iota.cafe',
     explorer: {
@@ -182,6 +185,7 @@ export interface Rpc {
     thirdParty?: JsonRpcEndpoints[];
   };
   graphql: string;
+  grpc?: string;
 };
 
 export interface JsonRpcEndpoints {

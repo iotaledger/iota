@@ -29,21 +29,21 @@ use crate::{
     multiaddr::{Multiaddr, Protocol, parse_dns, parse_ip4, parse_ip6},
 };
 
-pub async fn connect(address: &Multiaddr, tls_config: Option<ClientConfig>) -> Result<Channel> {
+pub async fn connect(address: &Multiaddr, tls_config: ClientConfig) -> Result<Channel> {
     let channel = endpoint_from_multiaddr(address, tls_config)?
         .connect()
         .await?;
     Ok(channel)
 }
 
-pub fn connect_lazy(address: &Multiaddr, tls_config: Option<ClientConfig>) -> Result<Channel> {
+pub fn connect_lazy(address: &Multiaddr, tls_config: ClientConfig) -> Result<Channel> {
     let channel = endpoint_from_multiaddr(address, tls_config)?.connect_lazy();
     Ok(channel)
 }
 
 pub(crate) async fn connect_with_config(
     address: &Multiaddr,
-    tls_config: Option<ClientConfig>,
+    tls_config: ClientConfig,
     config: &Config,
 ) -> Result<Channel> {
     let channel = endpoint_from_multiaddr(address, tls_config)?
@@ -55,7 +55,7 @@ pub(crate) async fn connect_with_config(
 
 pub(crate) fn connect_lazy_with_config(
     address: &Multiaddr,
-    tls_config: Option<ClientConfig>,
+    tls_config: ClientConfig,
     config: &Config,
 ) -> Result<Channel> {
     let channel = endpoint_from_multiaddr(address, tls_config)?
@@ -64,10 +64,7 @@ pub(crate) fn connect_lazy_with_config(
     Ok(channel)
 }
 
-fn endpoint_from_multiaddr(
-    addr: &Multiaddr,
-    tls_config: Option<ClientConfig>,
-) -> Result<MyEndpoint> {
+fn endpoint_from_multiaddr(addr: &Multiaddr, tls_config: ClientConfig) -> Result<MyEndpoint> {
     let mut iter = addr.iter();
 
     let channel = match iter.next().ok_or_else(|| eyre!("address is empty"))? {
@@ -94,20 +91,20 @@ fn endpoint_from_multiaddr(
 
 struct MyEndpoint {
     endpoint: Endpoint,
-    tls_config: Option<ClientConfig>,
+    tls_config: ClientConfig,
 }
 
 static DISABLE_CACHING_RESOLVER: OnceCell<bool> = OnceCell::new();
 
 impl MyEndpoint {
-    fn new(endpoint: Endpoint, tls_config: Option<ClientConfig>) -> Self {
+    fn new(endpoint: Endpoint, tls_config: ClientConfig) -> Self {
         Self {
             endpoint,
             tls_config,
         }
     }
 
-    fn try_from_uri(uri: String, tls_config: Option<ClientConfig>) -> Result<Self> {
+    fn try_from_uri(uri: String, tls_config: ClientConfig) -> Result<Self> {
         let uri: Uri = uri
             .parse()
             .with_context(|| format!("unable to create Uri from '{uri}'"))?;
@@ -127,52 +124,54 @@ impl MyEndpoint {
             disable_caching_resolver
         });
 
+        // Propagate the endpoint's configured connect timeout (Config::connect_timeout
+        // applied in apply_config_to_endpoint) down to the HTTP connector. tonic's
+        // Channel::new path does not forward Endpoint::connect_timeout to a provided
+        // connector, so without this the lazy channel can sit in State::Connecting
+        // forever when a peer is unreachable (msim with dropped SYNs, real network
+        // partitions, etc), blocking every gRPC call on that channel.
+        let connect_timeout = self.endpoint.get_connect_timeout();
+
         if disable_caching_resolver {
-            if let Some(tls_config) = self.tls_config {
-                self.endpoint.connect_with_connector_lazy(
-                    hyper_rustls::HttpsConnectorBuilder::new()
-                        .with_tls_config(tls_config)
-                        .https_only()
-                        .enable_http2()
-                        .build(),
-                )
-            } else {
-                self.endpoint.connect_lazy()
-            }
+            let mut http = HttpConnector::new();
+            http.enforce_http(false);
+            http.set_nodelay(true);
+            http.set_keepalive(None);
+            http.set_connect_timeout(connect_timeout);
+
+            Channel::new(
+                hyper_rustls::HttpsConnectorBuilder::new()
+                    .with_tls_config(self.tls_config)
+                    .https_only()
+                    .enable_http2()
+                    .wrap_connector(http),
+                self.endpoint,
+            )
         } else {
             let mut http = HttpConnector::new_with_resolver(CachingResolver::new());
             http.enforce_http(false);
             http.set_nodelay(true);
             http.set_keepalive(None);
-            http.set_connect_timeout(None);
+            http.set_connect_timeout(connect_timeout);
 
-            if let Some(tls_config) = self.tls_config {
-                let https = hyper_rustls::HttpsConnectorBuilder::new()
-                    .with_tls_config(tls_config)
-                    .https_only()
-                    .enable_http1()
-                    .wrap_connector(http);
-                self.endpoint.connect_with_connector_lazy(https)
-            } else {
-                self.endpoint.connect_with_connector_lazy(http)
-            }
+            let https = hyper_rustls::HttpsConnectorBuilder::new()
+                .with_tls_config(self.tls_config)
+                .https_only()
+                .enable_http2()
+                .wrap_connector(http);
+            Channel::new(https, self.endpoint)
         }
     }
 
     async fn connect(self) -> Result<Channel> {
-        if let Some(tls_config) = self.tls_config {
-            let https_connector = hyper_rustls::HttpsConnectorBuilder::new()
-                .with_tls_config(tls_config)
-                .https_only()
-                .enable_http2()
-                .build();
-            self.endpoint
-                .connect_with_connector(https_connector)
-                .await
-                .map_err(Into::into)
-        } else {
-            self.endpoint.connect().await.map_err(Into::into)
-        }
+        let https_connector = hyper_rustls::HttpsConnectorBuilder::new()
+            .with_tls_config(self.tls_config)
+            .https_only()
+            .enable_http2()
+            .build();
+        Channel::connect(https_connector, self.endpoint)
+            .await
+            .map_err(Into::into)
     }
 }
 

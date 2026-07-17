@@ -15,16 +15,16 @@ use std::{
 
 use iota_config::WritebackCacheConfig;
 use iota_framework::BuiltInFramework;
+use iota_sdk_types::{Address, Event, Identifier, ObjectId, Owner, StructTag};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::{IotaAddress, random_object_ref},
+    base_types::random_object_ref,
     crypto::{AccountKeyPair, deterministic_random_account_key, get_key_pair_from_rng},
     effects::{TestEffectsBuilder, TransactionEffectsAPI},
-    event::Event,
-    object::{MoveObject, OBJECT_START_VERSION, Owner},
+    object::{MoveObject, MoveObjectExt, OBJECT_START_VERSION},
     storage::ChildObjectResolver,
 };
-use prometheus::default_registry;
+use prometheus_filtered::default_registry;
 use rand::{Rng, SeedableRng, rngs::StdRng};
 use tokio::sync::RwLock;
 
@@ -50,6 +50,21 @@ impl AssertInserted for bool {
     }
 }
 
+fn random_event() -> Event {
+    Event {
+        package_id: ObjectId::random(),
+        module: Identifier::new("test").unwrap(),
+        sender: Address::random(),
+        type_: StructTag::new(
+            Address::random(),
+            Identifier::new("test").unwrap(),
+            Identifier::new("test").unwrap(),
+            vec![],
+        ),
+        contents: vec![],
+    }
+}
+
 type ActionCb = Box<dyn Fn(&mut Scenario) + Send>;
 
 pub(crate) struct Scenario {
@@ -58,8 +73,8 @@ pub(crate) struct Scenario {
     pub epoch_store: Arc<AuthorityPerEpochStore>,
     pub cache: Arc<WritebackCache>,
 
-    id_map: BTreeMap<u32, ObjectID>,
-    objects: BTreeMap<ObjectID, Object>,
+    id_map: BTreeMap<u32, ObjectId>,
+    objects: BTreeMap<ObjectId, Object>,
     outputs: TransactionOutputs,
     transactions: BTreeSet<TransactionDigest>,
 
@@ -142,8 +157,8 @@ impl Scenario {
 
     fn new_outputs() -> TransactionOutputs {
         let mut rng = StdRng::from_seed([0; 32]);
-        let (sender, keypair): (IotaAddress, AccountKeyPair) = get_key_pair_from_rng(&mut rng);
-        let (receiver, _): (IotaAddress, AccountKeyPair) = get_key_pair_from_rng(&mut rng);
+        let (sender, keypair): (Address, AccountKeyPair) = get_key_pair_from_rng(&mut rng);
+        let (receiver, _): (Address, AccountKeyPair) = get_key_pair_from_rng(&mut rng);
 
         // Tx is opaque to the cache, so we just build a dummy tx. The only requirement
         // is that it has a unique digest every time.
@@ -170,11 +185,11 @@ impl Scenario {
     }
 
     fn new_object() -> Object {
-        let id = ObjectID::random();
+        let id = ObjectId::random();
         let (owner, _) = deterministic_random_account_key();
         Object::new_move(
             MoveObject::new_gas_coin(OBJECT_START_VERSION, id, 100),
-            Owner::AddressOwner(owner),
+            Owner::Address(owner),
             TransactionDigest::ZERO,
         )
     }
@@ -191,16 +206,16 @@ impl Scenario {
             .get_modules()
             .cloned()
             .collect();
-        let digest = TransactionDigest::genesis_marker();
+        let digest = TransactionDigest::GENESIS_MARKER;
         Object::new_package_for_testing(&modules, digest, BuiltInFramework::genesis_move_packages())
             .unwrap()
     }
 
-    fn new_child(owner: ObjectID) -> Object {
-        let id = ObjectID::random();
+    fn new_child(owner: ObjectId) -> Object {
+        let id = ObjectId::random();
         Object::new_move(
             MoveObject::new_gas_coin(OBJECT_START_VERSION, id, 100),
-            Owner::ObjectOwner(owner.into()),
+            Owner::Object(owner),
             TransactionDigest::ZERO,
         )
     }
@@ -210,9 +225,9 @@ impl Scenario {
         let mut inner = object.into_inner();
         inner
             .data
-            .try_as_move_mut()
+            .as_opt_mut_struct()
             .unwrap()
-            .increment_version_to(SequenceNumber::from_u64(version.value() + delta));
+            .increment_version_to(version + delta);
         inner.into()
     }
 
@@ -221,7 +236,7 @@ impl Scenario {
         let object = Self::new_child(*owner_id);
         self.outputs
             .new_live_object_markers_to_init
-            .push(object.compute_object_reference());
+            .push(object.object_ref());
         let id = object.id();
         assert!(self.id_map.insert(short_id, id).is_none());
         self.outputs.written.insert(id, object.clone());
@@ -234,7 +249,7 @@ impl Scenario {
             let object = Self::new_object();
             self.outputs
                 .new_live_object_markers_to_init
-                .push(object.compute_object_reference());
+                .push(object.object_ref());
             let id = object.id();
             assert!(self.id_map.insert(*short_id, id).is_none());
             self.outputs.written.insert(id, object.clone());
@@ -244,7 +259,7 @@ impl Scenario {
 
     pub fn with_events(&mut self) {
         let mut events: TransactionEvents = Default::default();
-        events.data.push(Event::random_for_testing());
+        events.push(random_event());
 
         let effects = TestEffectsBuilder::new(self.outputs.transaction.inner())
             .with_events_digest(events.digest())
@@ -275,12 +290,12 @@ impl Scenario {
             let object = self.objects.get(id).cloned().expect("object not found");
             self.outputs
                 .live_object_markers_to_delete
-                .push(object.compute_object_reference());
+                .push(object.object_ref());
             let object = Self::inc_version_by(object, delta);
             self.objects.insert(*id, object.clone());
             self.outputs
                 .new_live_object_markers_to_init
-                .push(object.compute_object_reference());
+                .push(object.object_ref());
             self.outputs.written.insert(object.id(), object);
         }
     }
@@ -291,10 +306,10 @@ impl Scenario {
         for short_id in short_ids {
             let id = self.id_map.get(short_id).expect("object not found");
             let object = self.objects.remove(id).expect("object not found");
-            let mut object_ref = object.compute_object_reference();
+            let mut object_ref = object.object_ref();
             self.outputs.live_object_markers_to_delete.push(object_ref);
             // in the authority this would be set to the lamport version of the tx
-            object_ref.1.increment();
+            object_ref.version.increment().unwrap();
             self.outputs.deleted.push(object_ref.into());
         }
     }
@@ -305,10 +320,10 @@ impl Scenario {
         for short_id in short_ids {
             let id = self.id_map.get(short_id).expect("object not found");
             let object = self.objects.get(id).cloned().expect("object not found");
-            let mut object_ref = object.compute_object_reference();
+            let mut object_ref = object.object_ref();
             self.outputs.live_object_markers_to_delete.push(object_ref);
             // in the authority this would be set to the lamport version of the tx
-            object_ref.1.increment();
+            object_ref.version.increment().unwrap();
             self.outputs.wrapped.push(object_ref.into());
         }
     }
@@ -323,12 +338,11 @@ impl Scenario {
             self.outputs
                 .new_live_object_markers_to_init
                 .iter()
-                .find(|o| **o == object.compute_object_reference())
+                .find(|o| **o == object.object_ref())
                 .expect("received object must have new lock");
-            self.outputs.markers.push((
-                object.compute_object_reference().into(),
-                MarkerValue::Received,
-            ));
+            self.outputs
+                .markers
+                .push((object.object_ref().into(), MarkerValue::Received));
         }
     }
 
@@ -357,7 +371,7 @@ impl Scenario {
 
     // commit a transaction to the database
     pub async fn commit(&mut self, tx: TransactionDigest) {
-        let batch = self.cache().build_db_batch(1, &[tx]);
+        let batch = self.cache().build_db_batch(1, 0, &[tx]);
         self.cache().commit_transaction_outputs(1, batch, &[tx]);
         self.count_action();
     }
@@ -385,13 +399,10 @@ impl Scenario {
         self.objects.clear();
 
         self.store.iter_live_object_set().for_each(|o| {
-            let LiveObject::Normal(o) = o else {
-                panic!("expected normal object")
-            };
-            let id = o.id();
+            let id = o.object.id();
             // genesis objects are not managed by Scenario, ignore them
             if reverse_id_map.contains_key(&id) {
-                self.objects.insert(id, o);
+                self.objects.insert(id, o.object);
             }
         });
     }
@@ -409,7 +420,7 @@ impl Scenario {
             // TODO: enable after lock caching is implemented
             // assert!(!self
             //  .cache()
-            //  .get_lock(expected.compute_object_reference(), 1)
+            //  .get_lock(expected.object_ref(), 1)
             //  .unwrap()
             //  .is_locked());
         }
@@ -506,7 +517,7 @@ impl Scenario {
         }
     }
 
-    pub fn obj_id(&self, short_id: u32) -> ObjectID {
+    pub fn obj_id(&self, short_id: u32) -> ObjectId {
         *self.id_map.get(&short_id).expect("no such id")
     }
 
@@ -517,8 +528,8 @@ impl Scenario {
             .clone()
     }
 
-    pub fn obj_ref(&self, short_id: u32) -> ObjectRef {
-        self.object(short_id).compute_object_reference()
+    pub fn obj_ref(&self, short_id: u32) -> ObjectReference {
+        self.object(short_id).object_ref()
     }
 
     pub fn make_signed_transaction(&self, tx: &VerifiedTransaction) -> VerifiedSignedTransaction {
@@ -554,10 +565,32 @@ async fn test_committed() {
 
         s.assert_live(&[1, 2]);
         s.assert_dirty(&[1, 2]);
-        let batch = s.cache().build_db_batch(1, &[tx]);
+        // Distinct, recognizable checkpoint sequence number. Asserted below
+        // to lock the `build_db_batch` -> row -> read round-trip on the
+        // `WritebackCache` path.
+        let expected_checkpoint: u64 = 0xCAFE_F00D_BEEF_0042;
+        let batch = s.cache().build_db_batch(1, expected_checkpoint, &[tx]);
         s.cache().commit_transaction_outputs(1, batch, &[tx]);
         s.assert_not_dirty(&[1, 2]);
         s.assert_cached(&[1, 2]);
+
+        // Read the committed rows back from the perpetual store and assert
+        // each newly-written object's `previous_transaction_checkpoint`
+        // matches what was passed to `build_db_batch`. The test's own
+        // `id_map` bounds the assertion to the objects this scenario
+        // created (skipping any genesis rows from the test authority).
+        let tracked_ids: BTreeSet<_> = s.id_map.values().copied().collect();
+        let observed: BTreeMap<_, _> = s
+            .store
+            .perpetual_tables
+            .iter_live_object_set()
+            .filter(|entry| tracked_ids.contains(&entry.object_id()))
+            .map(|entry| (entry.object_id(), entry.previous_transaction_checkpoint))
+            .collect();
+        assert_eq!(observed.len(), tracked_ids.len());
+        for ckpt in observed.values() {
+            assert_eq!(*ckpt, Some(expected_checkpoint));
+        }
 
         s.reset_cache();
         s.assert_live(&[1, 2]);
@@ -706,7 +739,7 @@ async fn test_lt_or_eq() {
     Scenario::iterate(|mut s| async move {
         let check_all_versions = |s: &Scenario| {
             for i in 1u64..=3 {
-                let v = SequenceNumber::from_u64(i);
+                let v = Version::from_u64(i);
                 assert_eq!(
                     s.cache()
                         .find_object_lt_or_eq_version(s.obj_id(1), v)
@@ -757,8 +790,8 @@ async fn test_lt_or_eq_caching() {
         s.reset_cache();
 
         let check_version = |lookup_version: u64, expected_version: u64| {
-            let lookup_version = SequenceNumber::from_u64(lookup_version);
-            let expected_version = SequenceNumber::from_u64(expected_version);
+            let lookup_version = Version::from_u64(lookup_version);
+            let expected_version = Version::from_u64(expected_version);
             assert_eq!(
                 s.cache()
                     .find_object_lt_or_eq_version(s.obj_id(1), lookup_version)
@@ -769,7 +802,7 @@ async fn test_lt_or_eq_caching() {
         };
 
         // latest object not yet cached
-        assert!(!s.cache.cached.object_by_id_cache.contains_key(&s.obj_id(1)));
+        assert!(!s.cache.object_by_id_cache.contains_key(&s.obj_id(1)));
 
         // version <= 0 does not exist
         assert!(
@@ -781,14 +814,12 @@ async fn test_lt_or_eq_caching() {
         // query above populates cache
         assert_eq!(
             s.cache
-                .cached
                 .object_by_id_cache
                 .get(&s.obj_id(1))
                 .unwrap()
                 .lock()
                 .version()
-                .unwrap()
-                .value(),
+                .unwrap(),
             5
         );
 
@@ -819,23 +850,23 @@ async fn test_lt_or_eq_with_cached_tombstone() {
         s.reset_cache();
 
         let check_version = |lookup_version: u64, expected_version: Option<u64>| {
-            let lookup_version = SequenceNumber::from_u64(lookup_version);
+            let lookup_version = Version::from_u64(lookup_version);
             assert_eq!(
                 s.cache()
                     .find_object_lt_or_eq_version(s.obj_id(1), lookup_version)
                     .map(|v| v.version()),
-                expected_version.map(SequenceNumber::from_u64)
+                expected_version.map(Version::from_u64)
             );
         };
 
         // latest object not yet cached
-        assert!(!s.cache.cached.object_by_id_cache.contains_key(&s.obj_id(1)));
+        assert!(!s.cache.object_by_id_cache.contains_key(&s.obj_id(1)));
 
         // version 2 is deleted
         check_version(2, None);
 
         // checking the version pulled the tombstone into the cache
-        assert!(s.cache.cached.object_by_id_cache.contains_key(&s.obj_id(1)));
+        assert!(s.cache.object_by_id_cache.contains_key(&s.obj_id(1)));
 
         // version 1 is still found, tombstone in cache is ignored
         check_version(1, Some(1));
@@ -975,12 +1006,7 @@ async fn test_concurrent_readers() {
         s.with_deleted(&[child_id]);
         let tx2 = s.take_outputs();
 
-        txns.push((
-            tx1,
-            tx2,
-            s.object(parent_id).compute_object_reference(),
-            child_full_id,
-        ));
+        txns.push((tx1, tx2, s.object(parent_id).object_ref(), child_full_id));
     }
 
     let barrier = Arc::new(tokio::sync::Barrier::new(2));
@@ -1011,16 +1037,16 @@ async fn test_concurrent_readers() {
 
                 println!("parent: {parent_ref:?}");
                 loop {
-                    let parent = cache.get_object_by_key(&parent_ref.0, parent_ref.1);
+                    let parent = cache.get_object_by_key(&parent_ref.object_id, parent_ref.version);
                     if parent.is_none() {
                         tokio::task::yield_now().await;
                         continue;
                     }
-                    assert_eq!(parent.unwrap().version(), parent_ref.1);
+                    assert_eq!(parent.unwrap().version(), parent_ref.version);
                     break;
                 }
                 let child = cache
-                    .read_child_object(&parent_ref.0, &child_id, parent_ref.1)
+                    .read_child_object(&parent_ref.object_id, &child_id, parent_ref.version)
                     .unwrap();
                 assert!(child.is_none(), "Inconsistent child read detected");
             }
@@ -1203,8 +1229,8 @@ async fn latest_object_cache_race_test() {
         BackpressureManager::new_for_tests(),
     ));
 
-    let object_id = ObjectID::random();
-    let owner = IotaAddress::random_for_testing_only();
+    let object_id = ObjectId::random();
+    let owner = Address::random();
 
     // a writer thread that keeps writing new versions
     let writer = {
@@ -1216,12 +1242,12 @@ async fn latest_object_cache_race_test() {
                 let object = Object::with_id_owner_version_for_testing(
                     object_id,
                     version,
-                    Owner::AddressOwner(owner),
+                    Owner::Address(owner),
                 );
 
                 cache.write_object_entry(&object_id, version, object.into());
 
-                version = version.next();
+                version.increment().unwrap();
             }
         })
     };
@@ -1234,10 +1260,7 @@ async fn latest_object_cache_race_test() {
             while start.elapsed() < Duration::from_secs(2) {
                 // If you move the get_ticket_for_read to after we get the latest version,
                 // the test will fail! (this is good, it means the test is doing something)
-                let ticket = cache
-                    .cached
-                    .object_by_id_cache
-                    .get_ticket_for_read(&object_id);
+                let ticket = cache.object_by_id_cache.get_ticket_for_read(&object_id);
 
                 // get the latest version, but then let it become stale
                 let Some(latest_version) = cache
@@ -1257,7 +1280,7 @@ async fn latest_object_cache_race_test() {
                 let object = Object::with_id_owner_version_for_testing(
                     object_id,
                     latest_version,
-                    Owner::AddressOwner(owner),
+                    Owner::Address(owner),
                 );
 
                 // because we obtained the ticket before reading the object, we will not write a
@@ -1277,7 +1300,7 @@ async fn latest_object_cache_race_test() {
         let start = Instant::now();
         std::thread::spawn(move || {
             while start.elapsed() < Duration::from_secs(2) {
-                cache.cached.object_by_id_cache.invalidate(&object_id);
+                cache.object_by_id_cache.invalidate(&object_id);
                 // sleep for 1 to 10µs
                 std::thread::sleep(Duration::from_micros(rand::thread_rng().gen_range(1..10)));
             }
@@ -1293,7 +1316,6 @@ async fn latest_object_cache_race_test() {
 
             while start.elapsed() < Duration::from_secs(2) {
                 let Some(cur) = cache
-                    .cached
                     .object_by_id_cache
                     .get(&object_id)
                     .and_then(|e| e.lock().version())
@@ -1389,8 +1411,8 @@ async fn concurrent_latest_object_cache_race_test() {
         BackpressureManager::new_for_tests(),
     ));
 
-    let object_id = ObjectID::random();
-    let owner = IotaAddress::random_for_testing_only();
+    let object_id = ObjectId::random();
+    let owner = Address::random();
 
     // write a new version on request
     let mut write_version = OBJECT_START_VERSION;
@@ -1398,24 +1420,23 @@ async fn concurrent_latest_object_cache_race_test() {
         let object = Object::with_id_owner_version_for_testing(
             object_id,
             write_version,
-            Owner::AddressOwner(owner),
+            Owner::Address(owner),
         );
 
         cache.write_object_entry(&object_id, write_version, object.into());
 
-        write_version = write_version.next();
+        write_version.increment().unwrap();
     };
 
     // invalidate the cache on request
     let invalidator = || {
-        cache.cached.object_by_id_cache.invalidate(&object_id);
+        cache.object_by_id_cache.invalidate(&object_id);
     };
 
     // check cache consistency, ie. it can't contain an older version
     let mut checked_latest = OBJECT_START_VERSION;
     let mut checker = || {
         if let Some(cur) = cache
-            .cached
             .object_by_id_cache
             .get(&object_id)
             .and_then(|e| e.lock().version())
@@ -1431,10 +1452,7 @@ async fn concurrent_latest_object_cache_race_test() {
     // a reader that pretends it saw some previous version on the db
     {
         // acquire the ticket before getting the latest version
-        let ticket = cache
-            .cached
-            .object_by_id_cache
-            .get_ticket_for_read(&object_id);
+        let ticket = cache.object_by_id_cache.get_ticket_for_read(&object_id);
 
         // get the latest cached version
         let latest_version = cache
@@ -1447,7 +1465,7 @@ async fn concurrent_latest_object_cache_race_test() {
         let object = Object::with_id_owner_version_for_testing(
             object_id,
             latest_version,
-            Owner::AddressOwner(owner),
+            Owner::Address(owner),
         );
 
         // preempt the reader to update the latest version and invalidate the cache
@@ -1492,10 +1510,10 @@ async fn concurrent_latest_object_cache_collision_test() {
         BackpressureManager::new_for_tests(),
     ));
 
-    let mk_object_id = |i: usize| -> ObjectID {
+    let mk_object_id = |i: usize| -> ObjectId {
         let mut obj_id = [0_u8; 32];
         obj_id[0..8].copy_from_slice(&i.to_le_bytes());
-        ObjectID::new(obj_id)
+        ObjectId::new(obj_id)
     };
     // these two object ids have the same hash within MonotonicCache
     let object1_id = mk_object_id(166);
@@ -1505,13 +1523,13 @@ async fn concurrent_latest_object_cache_collision_test() {
         key_generation_hash(&object2_id)
     );
 
-    let owner1 = IotaAddress::random_for_testing_only();
-    let owner2 = IotaAddress::random_for_testing_only();
+    let owner1 = Address::random();
+    let owner2 = Address::random();
 
     // write a new version on request
     let mut write1_version = OBJECT_START_VERSION;
     let mut write2_version = OBJECT_START_VERSION;
-    let mut writer = |object_id: ObjectID| {
+    let mut writer = |object_id: ObjectId| {
         let (write_version, owner) = if object_id == object1_id {
             (&mut write1_version, owner1)
         } else {
@@ -1520,17 +1538,17 @@ async fn concurrent_latest_object_cache_collision_test() {
         let object = Object::with_id_owner_version_for_testing(
             object_id,
             *write_version,
-            Owner::AddressOwner(owner),
+            Owner::Address(owner),
         );
 
         cache.write_object_entry(&object_id, *write_version, object.into());
 
-        *write_version = write_version.next();
+        write_version.increment().unwrap();
     };
 
     // invalidate the cache on request
-    let invalidator = |object_id: ObjectID| {
-        cache.cached.object_by_id_cache.invalidate(&object_id);
+    let invalidator = |object_id: ObjectId| {
+        cache.object_by_id_cache.invalidate(&object_id);
     };
 
     // populate the cache
@@ -1540,10 +1558,7 @@ async fn concurrent_latest_object_cache_collision_test() {
     // a reader that pretends it saw some previous version on the db
     {
         // acquire the ticket before getting the latest version
-        let ticket2 = cache
-            .cached
-            .object_by_id_cache
-            .get_ticket_for_read(&object2_id);
+        let ticket2 = cache.object_by_id_cache.get_ticket_for_read(&object2_id);
 
         // get the latest version
         let latest2_version = cache
@@ -1556,7 +1571,7 @@ async fn concurrent_latest_object_cache_collision_test() {
         let object2 = Object::with_id_owner_version_for_testing(
             object2_id,
             latest2_version,
-            Owner::AddressOwner(owner2),
+            Owner::Address(owner2),
         );
 
         // preempt the reader
@@ -1579,15 +1594,14 @@ async fn concurrent_latest_object_cache_collision_test() {
     // object1 is up to date in the cache
     assert_eq!(
         cache
-            .cached
             .object_by_id_cache
             .get(&object1_id)
             .unwrap()
             .lock()
             .version()
             .unwrap(),
-        OBJECT_START_VERSION.next()
+        OBJECT_START_VERSION.next().unwrap()
     );
     // but now we get a cache miss on object2 instead of getting the latest version
-    assert!(cache.cached.object_by_id_cache.get(&object2_id).is_none());
+    assert!(cache.object_by_id_cache.get(&object2_id).is_none());
 }

@@ -7,6 +7,7 @@ mod transaction;
 
 use std::{sync::Arc, time::Duration};
 
+use futures::stream::{FuturesUnordered, StreamExt as _};
 use iota_grpc_types::{
     field::{FieldMaskTree, FieldMaskUtil, MessageFields},
     google::rpc::bad_request::FieldViolation,
@@ -22,8 +23,8 @@ use iota_grpc_types::{
         },
     },
 };
+use iota_sdk_types::TransactionDigest;
 use iota_types::{
-    digests::TransactionDigest,
     effects::TransactionEffectsAPI,
     quorum_driver_types::{ExecuteTransactionRequestV1, ExecuteTransactionResponseV1},
     transaction_executor::TransactionExecutor,
@@ -104,10 +105,7 @@ fn validate_batch_size(items_len: usize, max_batch: usize) -> Result<(), RpcErro
     if items_len > max_batch {
         return Err(RpcError::new(
             tonic::Code::InvalidArgument,
-            format!(
-                "batch size {} exceeds maximum allowed ({})",
-                items_len, max_batch
-            ),
+            format!("batch size {items_len} exceeds maximum allowed ({max_batch})"),
         ));
     }
     Ok(())
@@ -250,6 +248,13 @@ fn parse_transaction_proto(
 ///     - `output_objects.reference.digest` - the digest of the output object
 ///       contents
 ///   - `output_objects.bcs` - the full BCS-encoded object
+///
+/// ## Derived Change Fields
+/// Derived from the transaction's effects and input/output objects.
+/// - `balance_changes` - per-owner, per-coin-type balance deltas. For a failed
+///   transaction this contains only the gas charge.
+/// - `object_changes` - structured object changes (created, mutated, deleted,
+///   wrapped, unwrapped, published)
 #[tracing::instrument(skip(reader, executor))]
 pub async fn execute_transactions(
     reader: &Arc<GrpcReader>,
@@ -277,68 +282,328 @@ pub async fn execute_transactions(
         .filter(|&ms| ms > 0)
         .map(|ms| Duration::from_millis(ms.min(config.max_checkpoint_inclusion_timeout_ms)));
 
-    // Execute each transaction sequentially, collecting per-item results and
-    // digests for successful executions.
-    let mut transaction_results = Vec::with_capacity(request.transactions.len());
-    let mut successful_digests: Vec<(usize, TransactionDigest)> = Vec::new();
-    for (i, item) in request.transactions.iter().enumerate() {
-        let result = match execute_single_transaction(reader, executor, config, item, &read_mask)
-            .await
-        {
-            Ok((digest, tx)) => {
-                successful_digests.push((i, digest));
+    // If the client opted into waiting for checkpoint inclusion, the
+    // subsequent `wait_for_checkpoint_inclusion` call below provides
+    // finality, so we instruct the executor to skip its 2f+1 effects
+    // certification. Otherwise the executor performs the full certification.
+    let skip_certification = checkpoint_timeout.is_some();
+
+    // Drive the per-tx executions concurrently so a slow validator submission
+    // on one item doesn't stall the rest of the batch. Results are collected
+    // back into per-index slots so the response order matches the request
+    // order regardless of completion order. The post-batch
+    // `wait_for_checkpoint_inclusion` + `finalize_item` gate still applies
+    // unchanged — uncertified single-validator data is never returned to the
+    // client without checkpoint corroboration (or a `DeadlineExceeded` error
+    // in its place).
+    let mut transaction_results: Vec<ExecuteTransactionResult> = (0..request.transactions.len())
+        .map(|_| ExecuteTransactionResult::default())
+        .collect();
+    // For each successful execution: (index, digest, rebuild_ctx). `rebuild_ctx`
+    // is `Some` only when the response carried uncertified single-validator
+    // data and must be rebuilt from cache after checkpoint inclusion.
+    let mut successful_digests: Vec<(usize, TransactionDigest, Option<RebuildCtx>)> = Vec::new();
+    let read_mask_ref = &read_mask;
+    let mut driver_futs: FuturesUnordered<_> = request
+        .transactions
+        .iter()
+        .enumerate()
+        .map(|(i, item)| async move {
+            let result = execute_single_transaction(
+                reader,
+                executor,
+                config,
+                item,
+                read_mask_ref,
+                skip_certification,
+            )
+            .await;
+            (i, result)
+        })
+        .collect();
+    while let Some((i, result)) = driver_futs.next().await {
+        transaction_results[i] = match result {
+            Ok((digest, tx, rebuild_ctx)) => {
+                successful_digests.push((i, digest, rebuild_ctx));
                 ExecuteTransactionResult::default().with_executed_transaction(tx)
             }
             Err(error) => ExecuteTransactionResult::default().with_error(error.into_status_proto()),
         };
-        transaction_results.push(result);
     }
 
-    // Optionally wait for checkpoint inclusion and populate checkpoint/timestamp
-    // on the already-built results.
-    if let Some(timeout) = checkpoint_timeout {
-        if !successful_digests.is_empty() {
-            let digests: Vec<_> = successful_digests.iter().map(|(_, d)| *d).collect();
-            match executor
-                .wait_for_checkpoint_inclusion(&digests, timeout)
-                .await
-            {
-                Ok(checkpoint_map) => {
-                    let needs_checkpoint =
-                        read_mask.contains(ExecutedTransaction::CHECKPOINT_FIELD.name);
-                    let needs_timestamp =
-                        read_mask.contains(ExecutedTransaction::TIMESTAMP_FIELD.name);
-
-                    if !needs_checkpoint && !needs_timestamp {
-                        // No need to update results if fields aren't requested in read mask
-                        return Ok(ExecuteTransactionsResponse::default()
-                            .with_transaction_results(transaction_results));
-                    }
-
-                    for (i, digest) in &successful_digests {
-                        if let Some((seq, ts)) = checkpoint_map.get(digest) {
-                            if let Some(execute_transaction_result::Result::ExecutedTransaction(
-                                ref mut tx,
-                            )) = transaction_results[*i].result
-                            {
-                                if needs_checkpoint {
-                                    tx.checkpoint = Some(*seq);
-                                }
-                                if needs_timestamp && *ts > 0 {
-                                    tx.timestamp = Some(timestamp_ms_to_proto(*ts));
-                                }
-                            }
-                        }
-                    }
-                }
-                Err(e) => {
-                    tracing::warn!("wait_for_checkpoint_inclusion failed: {e}");
-                }
+    // Optionally wait for checkpoint inclusion, then finalize each successful
+    // item: rebuild from cache for skip-effect-cert items (so we don't return
+    // uncertified single-validator data) or patch checkpoint/timestamp on the
+    // already-built response for the cert path.
+    if let (Some(timeout), false) = (checkpoint_timeout, successful_digests.is_empty()) {
+        let digests: Vec<_> = successful_digests.iter().map(|(_, d, _)| *d).collect();
+        let (checkpoint_map, wait_error) = match executor
+            .wait_for_checkpoint_inclusion(&digests, timeout)
+            .await
+        {
+            Ok(m) => (m, None),
+            Err(e) => {
+                tracing::warn!("wait_for_checkpoint_inclusion failed: {e}");
+                (std::collections::BTreeMap::new(), Some(format!("{e}")))
             }
+        };
+        let flags = ReadFlags::from_mask(&read_mask);
+        let flags_ref = &flags;
+        let read_mask_ref = &read_mask;
+        let wait_error_ref = wait_error.as_deref();
+
+        // Run per-tx finalization (which calls into `rebuild_from_cache` →
+        // cache reads + object derivation) in parallel; results land back
+        // in per-index slots so the response order matches the request.
+        let mut finalize_futs: FuturesUnordered<_> = successful_digests
+            .into_iter()
+            .map(|(i, digest, rebuild_ctx)| {
+                let original = std::mem::take(&mut transaction_results[i]);
+                let checkpoint_entry = checkpoint_map.get(&digest).copied();
+                async move {
+                    let result = finalize_item(
+                        reader,
+                        executor,
+                        config,
+                        read_mask_ref,
+                        flags_ref,
+                        original,
+                        &digest,
+                        rebuild_ctx,
+                        checkpoint_entry,
+                        wait_error_ref,
+                    )
+                    .await;
+                    (i, result)
+                }
+            })
+            .collect();
+        while let Some((i, result)) = finalize_futs.next().await {
+            transaction_results[i] = result;
         }
     }
 
     Ok(ExecuteTransactionsResponse::default().with_transaction_results(transaction_results))
+}
+
+/// Read-mask flags extracted once and passed into the per-item finalizer.
+struct ReadFlags {
+    include_events: bool,
+    include_input_objects: bool,
+    include_output_objects: bool,
+    needs_checkpoint: bool,
+    needs_timestamp: bool,
+}
+
+impl ReadFlags {
+    fn from_mask(mask: &FieldMaskTree) -> Self {
+        // Balance/object changes are derived from the input/output objects, so
+        // the executor must return them whenever the derived fields are
+        // requested.
+        let derives_changes = mask.contains(ExecutedTransaction::BALANCE_CHANGES_FIELD.name)
+            || mask.contains(ExecutedTransaction::OBJECT_CHANGES_FIELD.name);
+
+        Self {
+            include_events: mask.contains(ExecutedTransaction::EVENTS_FIELD.name),
+            include_input_objects: mask.contains(ExecutedTransaction::INPUT_OBJECTS_FIELD.name)
+                || derives_changes,
+            include_output_objects: mask.contains(ExecutedTransaction::OUTPUT_OBJECTS_FIELD.name)
+                || derives_changes,
+            needs_checkpoint: mask.contains(ExecutedTransaction::CHECKPOINT_FIELD.name),
+            needs_timestamp: mask.contains(ExecutedTransaction::TIMESTAMP_FIELD.name),
+        }
+    }
+}
+
+/// Patch `checkpoint` / `timestamp` on an already-built executed transaction
+/// result when requested by the read mask. No-op if the result isn't an
+/// `ExecutedTransaction`.
+fn patch_checkpoint_timestamp(
+    result: &mut ExecuteTransactionResult,
+    seq: u64,
+    ts_ms: u64,
+    flags: &ReadFlags,
+) {
+    if let Some(execute_transaction_result::Result::ExecutedTransaction(ref mut tx)) = result.result
+    {
+        if flags.needs_checkpoint {
+            tx.checkpoint = Some(seq);
+        }
+        if flags.needs_timestamp && ts_ms > 0 {
+            tx.timestamp = Some(timestamp_ms_to_proto(ts_ms));
+        }
+    }
+}
+
+fn error_result(code: tonic::Code, message: String) -> ExecuteTransactionResult {
+    ExecuteTransactionResult::default().with_error(RpcError::new(code, message).into_status_proto())
+}
+
+/// Produce the final result for one item after the checkpoint wait. Handles
+/// all four combinations of (cert vs skip-cert) × (checkpointed vs not).
+#[allow(clippy::too_many_arguments)]
+async fn finalize_item(
+    reader: &Arc<GrpcReader>,
+    executor: &Arc<dyn TransactionExecutor>,
+    config: &iota_config::node::GrpcApiConfig,
+    read_mask: &FieldMaskTree,
+    flags: &ReadFlags,
+    mut original: ExecuteTransactionResult,
+    digest: &TransactionDigest,
+    rebuild_ctx: Option<RebuildCtx>,
+    checkpoint_entry: Option<(u64, u64)>,
+    wait_error: Option<&str>,
+) -> ExecuteTransactionResult {
+    let Some((seq, ts)) = checkpoint_entry else {
+        // Not checkpointed within the timeout (or the wait call itself failed).
+        // Cert path: leave the 2f+1-safe response as-is; the client can poll
+        // for the checkpoint/timestamp fields later. Skip-effect-cert path:
+        // the response holds uncertified single-validator data — return an
+        // error instead of leaking it.
+        if rebuild_ctx.is_none() {
+            return original;
+        }
+        return match wait_error {
+            Some(e) => error_result(
+                tonic::Code::Internal,
+                format!("wait_for_checkpoint_inclusion failed for tx {digest:?}: {e}"),
+            ),
+            None => error_result(
+                tonic::Code::DeadlineExceeded,
+                format!(
+                    "transaction {digest:?} was submitted but not included in a checkpoint \
+                     within the timeout"
+                ),
+            ),
+        };
+    };
+
+    let Some(ctx) = rebuild_ctx else {
+        // Cert path, checkpointed: just patch checkpoint/timestamp.
+        patch_checkpoint_timestamp(&mut original, seq, ts, flags);
+        return original;
+    };
+
+    // Was the original (single-validator) response claiming events? Captured
+    // here so we can detect a submitter-vs-cache events disagreement after
+    // the rebuild (mirrors the orchestrator's `skip_effect_cert_events_cache_miss`
+    // invariant).
+    let submitter_claimed_events = matches!(
+        &original.result,
+        Some(execute_transaction_result::Result::ExecutedTransaction(tx)) if tx.events.is_some(),
+    );
+
+    // Skip-effect-cert path, checkpointed: rebuild the response from the
+    // authoritative local cache to replace the single-validator data.
+    match rebuild_from_cache(
+        reader, executor, config, read_mask, ctx, digest, seq, ts, flags,
+    )
+    .await
+    {
+        Ok(Some(tx)) => {
+            if submitter_claimed_events && flags.include_events && tx.events.is_none() {
+                tracing::warn!(
+                    ?digest,
+                    "submitter claimed events but local cache has none — discarding \
+                     (possible byzantine submitter)"
+                );
+            }
+            ExecuteTransactionResult::default().with_executed_transaction(tx)
+        }
+        Ok(None) => {
+            // Executor has no cache (e.g. simulacrum). The skip-cert path
+            // here means `original` still carries uncertified single-validator
+            // data — never return that to the client. In production the
+            // orchestrator impl always returns `Some`; an executor that opts
+            // into `skip_certification` without providing a cache is a
+            // configuration error.
+            tracing::error!(
+                ?digest,
+                "skip-cert finalize: executor returned no cached data despite checkpoint \
+                 inclusion — refusing to return uncertified response"
+            );
+            error_result(
+                tonic::Code::Internal,
+                format!(
+                    "executor cannot rebuild tx {digest:?} from local cache; \
+                     skip-certification requires a cache-backed executor"
+                ),
+            )
+        }
+        Err(e) => {
+            tracing::warn!(?digest, "failed to rebuild executed tx from cache: {e}");
+            error_result(
+                tonic::Code::Internal,
+                format!(
+                    "failed to rebuild tx {digest:?} from local cache after checkpoint \
+                     inclusion: {e}"
+                ),
+            )
+        }
+    }
+}
+
+/// Pre-parsed transaction identity carried forward from
+/// `execute_single_transaction` so that `rebuild_from_cache` does not need to
+/// re-parse the proto request.
+struct RebuildCtx {
+    transaction: iota_sdk_types::Transaction,
+    signatures: Vec<iota_sdk_types::UserSignature>,
+}
+
+/// Rebuild an `ExecutedTransaction` from the local cache for a tx that has
+/// just been observed in a checkpoint. Returns `Ok(None)` if the executor
+/// does not have cache data for this tx (e.g. simulacrum).
+async fn rebuild_from_cache(
+    reader: &Arc<GrpcReader>,
+    executor: &Arc<dyn TransactionExecutor>,
+    config: &iota_config::node::GrpcApiConfig,
+    read_mask: &FieldMaskTree,
+    ctx: RebuildCtx,
+    digest: &TransactionDigest,
+    checkpoint_seq: u64,
+    checkpoint_ts_ms: u64,
+    flags: &ReadFlags,
+) -> Result<Option<ExecutedTransaction>, RpcError> {
+    let Some(cached) = executor
+        .read_transaction_from_cache(
+            digest,
+            flags.include_events,
+            flags.include_input_objects,
+            flags.include_output_objects,
+        )
+        .map_err(|e| {
+            RpcError::new(
+                tonic::Code::Internal,
+                format!("failed to read tx {digest:?} from cache: {e:?}"),
+            )
+        })?
+    else {
+        return Ok(None);
+    };
+
+    let source = TransactionReadSource {
+        reader: reader.clone(),
+        config,
+        transaction: Some(ctx.transaction),
+        signatures: Some(ctx.signatures),
+        effects: Some(cached.effects),
+        events: cached.events,
+        checkpoint: Some(checkpoint_seq),
+        timestamp_ms: if checkpoint_ts_ms > 0 {
+            Some(checkpoint_ts_ms)
+        } else {
+            None
+        },
+        input_objects: cached.input_objects,
+        output_objects: cached.output_objects,
+        mocked_coin: None,
+    };
+
+    let executed = ExecutedTransaction::merge_from(&source, read_mask)
+        .map_err(|e| e.with_context("failed to merge executed transaction from cache"))?;
+
+    Ok(Some(executed))
 }
 
 /// Validate, execute, and merge a single transaction item.
@@ -348,7 +613,8 @@ async fn execute_single_transaction(
     config: &iota_config::node::GrpcApiConfig,
     item: &ExecuteTransactionItem,
     read_mask: &FieldMaskTree,
-) -> Result<(TransactionDigest, ExecutedTransaction), RpcError> {
+    skip_certification: bool,
+) -> Result<(TransactionDigest, ExecutedTransaction, Option<RebuildCtx>), RpcError> {
     let sdk_transaction = parse_transaction_proto(item.transaction.as_ref())?;
 
     // Extract and validate signatures
@@ -391,9 +657,15 @@ async fn execute_single_transaction(
         })?;
 
     // Determine what to include in the request based on read mask.
+    // Balance/object changes are derived from the input/output objects, so the
+    // executor must return them whenever the derived fields are requested.
+    let derives_changes = read_mask.contains(ExecutedTransaction::BALANCE_CHANGES_FIELD.name)
+        || read_mask.contains(ExecutedTransaction::OBJECT_CHANGES_FIELD.name);
     let include_events = read_mask.contains(ExecutedTransaction::EVENTS_FIELD.name);
-    let include_input_objects = read_mask.contains(ExecutedTransaction::INPUT_OBJECTS_FIELD.name);
-    let include_output_objects = read_mask.contains(ExecutedTransaction::OUTPUT_OBJECTS_FIELD.name);
+    let include_input_objects =
+        read_mask.contains(ExecutedTransaction::INPUT_OBJECTS_FIELD.name) || derives_changes;
+    let include_output_objects =
+        read_mask.contains(ExecutedTransaction::OUTPUT_OBJECTS_FIELD.name) || derives_changes;
 
     // Create execution request
     let exec_request = ExecuteTransactionRequestV1 {
@@ -412,21 +684,32 @@ async fn execute_single_transaction(
         output_objects,
         auxiliary_data: _,
     } = executor
-        .execute_transaction(exec_request, None)
+        .execute_transaction(exec_request, skip_certification, None)
         .await
         .map_err(RpcError::from)?;
 
     let digest = *effects.effects.transaction_digest();
 
     // Build the merged response
-    let sdk_transaction: iota_sdk_types::Transaction =
-        transaction.transaction_data().clone().try_into()?;
+    let sdk_transaction: iota_sdk_types::Transaction = transaction.transaction_data().clone();
     let signatures: Vec<iota_sdk_types::UserSignature> = transaction
         .tx_signatures()
         .to_owned()
         .into_iter()
         .map(|sig| sig.try_into())
         .collect::<Result<_, _>>()?;
+
+    // Keep a pre-parsed copy for the rebuild-from-cache path so it doesn't
+    // have to re-parse the proto request. Only materialised when the response
+    // carries uncertified single-validator data (skip-effect-cert path).
+    let rebuild_ctx = matches!(
+        effects.finality_info,
+        iota_types::quorum_driver_types::EffectsFinalityInfo::UncertifiedSingleValidator(_)
+    )
+    .then(|| RebuildCtx {
+        transaction: sdk_transaction.clone(),
+        signatures: signatures.clone(),
+    });
 
     let source = TransactionReadSource {
         reader: reader.clone(),
@@ -439,10 +722,11 @@ async fn execute_single_transaction(
         timestamp_ms: None,
         input_objects,
         output_objects,
+        mocked_coin: None,
     };
 
     let executed = ExecutedTransaction::merge_from(&source, read_mask)
         .map_err(|e| e.with_context("failed to merge executed transaction"))?;
 
-    Ok((digest, executed))
+    Ok((digest, executed, rebuild_ctx))
 }

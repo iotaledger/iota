@@ -16,9 +16,11 @@ use iota_grpc_types::{
     },
 };
 use iota_node_storage::GrpcStateReader;
+use iota_sdk_types::{
+    Address, CheckpointDigest, ObjectId, StructTag, TransactionDigest, TypeTag, Version,
+};
 use iota_types::{
-    base_types::{ObjectID, VersionNumber},
-    digests::TransactionDigest,
+    base_types::VersionNumber,
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     full_checkpoint_content::{
         CheckpointData as IotaTypesCheckpointData,
@@ -28,8 +30,12 @@ use iota_types::{
     object::Object,
     storage::error::Kind,
 };
+use prometheus_filtered::IntGauge;
 use prost::Message;
-use tokio::sync::broadcast::{Receiver, Sender, error::RecvError};
+use tokio::sync::{
+    OwnedSemaphorePermit, Semaphore,
+    broadcast::{Receiver, Sender, error::RecvError},
+};
 use tokio_util::sync::CancellationToken;
 use tonic::Status;
 use tracing::debug;
@@ -48,6 +54,8 @@ pub struct TransactionReadFields {
     pub include_timestamp: bool,
     pub include_input_objects: bool,
     pub include_output_objects: bool,
+    pub include_balance_changes: bool,
+    pub include_object_changes: bool,
 }
 
 impl TransactionReadFields {
@@ -64,6 +72,8 @@ impl TransactionReadFields {
             include_timestamp: mask.contains(ExecutedTransaction::TIMESTAMP_FIELD.name),
             include_input_objects: mask.contains(ExecutedTransaction::INPUT_OBJECTS_FIELD.name),
             include_output_objects: mask.contains(ExecutedTransaction::OUTPUT_OBJECTS_FIELD.name),
+            include_balance_changes: mask.contains(ExecutedTransaction::BALANCE_CHANGES_FIELD.name),
+            include_object_changes: mask.contains(ExecutedTransaction::OBJECT_CHANGES_FIELD.name),
         }
     }
 }
@@ -79,23 +89,99 @@ pub type GetCheckpointStream = Pin<Box<dyn futures::Stream<Item = CheckpointStre
 pub type StreamCheckpointsStream =
     Pin<Box<dyn futures::Stream<Item = CheckpointStreamResult> + Send>>;
 
-/// Wrapper that converts native CheckpointData to gRPC type before broadcasting
+/// Broadcasts checkpoint data to subscribers, capping concurrent subscribers.
 #[derive(Clone)]
 pub struct GrpcCheckpointDataBroadcaster {
     sender: Sender<Arc<IotaTypesCheckpointData>>,
+    /// Semaphore enforcing the concurrent-subscriber cap. Each successful
+    /// `subscribe()` acquires one permit; dropping the returned
+    /// [`SubscriberGuard`] releases it. This makes the cap atomic (no
+    /// check-then-subscribe race).
+    subscription_semaphore: Arc<Semaphore>,
+    /// Optional gauge tracking the number of active subscribers. Incremented
+    /// on `subscribe()`, decremented when the subscriber's
+    /// [`SubscriberGuard`] drops — so the metric is always in sync with
+    /// actual subscriber count, including client disconnects between
+    /// broadcasts.
+    inflight_subscribers: Option<IntGauge>,
+}
+
+/// A broadcast [`Receiver`] bundled with the [`SubscriberGuard`] holding
+/// its slot in the subscriber cap. Bundling them at the `subscribe()`
+/// boundary makes it impossible for callers to acquire a receiver without
+/// also holding the cap/gauge lifetime.
+#[must_use = "dropping the SubscribedReceiver immediately releases the subscriber slot"]
+pub struct SubscribedReceiver {
+    pub(crate) rx: Receiver<Arc<IotaTypesCheckpointData>>,
+    pub(crate) guard: SubscriberGuard,
+}
+
+/// RAII guard that holds one slot in the subscriber cap and keeps the
+/// inflight gauge in sync: the gauge is incremented on construction and
+/// decremented on drop.
+pub struct SubscriberGuard {
+    _permit: OwnedSemaphorePermit,
+    gauge: Option<IntGauge>,
+}
+
+impl SubscriberGuard {
+    fn new(permit: OwnedSemaphorePermit, gauge: Option<IntGauge>) -> Self {
+        if let Some(g) = &gauge {
+            g.inc();
+        }
+        Self {
+            _permit: permit,
+            gauge,
+        }
+    }
+}
+
+impl Drop for SubscriberGuard {
+    fn drop(&mut self) {
+        if let Some(gauge) = &self.gauge {
+            gauge.dec();
+        }
+    }
 }
 
 impl GrpcCheckpointDataBroadcaster {
-    pub fn new(sender: Sender<Arc<IotaTypesCheckpointData>>) -> Self {
-        Self { sender }
+    pub fn new(
+        sender: Sender<Arc<IotaTypesCheckpointData>>,
+        max_subscribers: usize,
+        inflight_subscribers: Option<IntGauge>,
+    ) -> Self {
+        Self {
+            sender,
+            subscription_semaphore: Arc::new(Semaphore::new(max_subscribers)),
+            inflight_subscribers,
+        }
     }
 
-    /// Subscribe to checkpoint data broadcasts
-    pub fn subscribe(&self) -> Receiver<Arc<IotaTypesCheckpointData>> {
-        self.sender.subscribe()
+    /// Subscribe to checkpoint data broadcasts, enforcing the configured cap
+    /// on concurrent subscribers.
+    ///
+    /// Returns `None` when the cap has been reached. Callers should surface
+    /// this as `Unavailable` to the client (transient capacity, retryable).
+    pub fn subscribe(&self) -> Option<SubscribedReceiver> {
+        let permit = self
+            .subscription_semaphore
+            .clone()
+            .try_acquire_owned()
+            .ok()?;
+        let rx = self.sender.subscribe();
+        let guard = SubscriberGuard::new(permit, self.inflight_subscribers.clone());
+        Some(SubscribedReceiver { rx, guard })
     }
 
-    /// Get the number of active receivers
+    /// Get the number of active broadcast receivers.
+    ///
+    /// Counts every receiver on the underlying `broadcast::Sender`, including
+    /// any internal subscribers that did not go through [`subscribe`] and are
+    /// therefore not tracked by the subscriber cap or `inflight_subscribers`
+    /// gauge. Use this when deciding whether to send on the channel; use the
+    /// gauge when reporting externally-subscribed stream count.
+    ///
+    /// [`subscribe`]: Self::subscribe
     pub fn receiver_count(&self) -> usize {
         self.sender.receiver_count()
     }
@@ -139,19 +225,16 @@ pub type CheckpointStreamResult = Result<grpc_ledger_service::CheckpointData, St
 /// A dynamic-field index key (parent + field_id).
 pub type DynamicFieldIterItem = anyhow::Result<iota_types::storage::DynamicFieldKey>;
 
-/// An owned-object from the legacy `owner` (v1) index.
-pub type OwnedObjectIterItem = anyhow::Result<iota_types::storage::AccountOwnedObjectInfo>;
+pub use iota_types::storage::OwnedObjectCursor;
 
-pub use iota_types::storage::OwnedObjectV2Cursor;
-
-/// An owned-object together with the v2 seek cursor for the position it
+/// An owned-object together with a seek cursor for the position it
 /// occupies in the index.
 ///
-/// Unlike [`OwnedObjectIterItem`], this carries the full v2 key components
-/// so that page tokens can encode an exact seek position.
-pub type OwnedObjectV2IterItem = anyhow::Result<(
+/// Carries the full key components so that page tokens can encode an exact
+/// seek position.
+pub type OwnedObjectIterItem = anyhow::Result<(
     iota_types::storage::AccountOwnedObjectInfo,
-    iota_types::storage::OwnedObjectV2Cursor,
+    iota_types::storage::OwnedObjectCursor,
 )>;
 
 /// A package-version index entry (key + storage info).
@@ -175,7 +258,7 @@ enum FilterCheckResult {
 /// have been executed yet) by returning `Ok(None)`.
 fn latest_checkpoint_seq(reader: &dyn GrpcStateReader) -> anyhow::Result<Option<u64>> {
     match reader.try_get_latest_checkpoint() {
-        Ok(checkpoint) => Ok(Some(*checkpoint.sequence_number())),
+        Ok(checkpoint) => Ok(Some(checkpoint.sequence_number())),
         Err(e) => match e.kind() {
             Kind::Missing => Ok(None),
             _ => Err(anyhow::anyhow!(
@@ -250,11 +333,11 @@ impl GrpcReader {
     /// Get checkpoint sequence number by digest
     pub fn get_checkpoint_sequence_number_by_digest(
         &self,
-        digest: &iota_types::digests::CheckpointDigest,
+        digest: &CheckpointDigest,
     ) -> anyhow::Result<Option<u64>> {
         self.state_reader
             .try_get_checkpoint_by_digest(digest)
-            .map(|opt| opt.map(|c| *c.sequence_number()))
+            .map(|opt| opt.map(|c| c.sequence_number()))
             .map_err(Into::into)
     }
 
@@ -351,24 +434,12 @@ impl GrpcReader {
             let mut checkpoint_proto = grpc_checkpoint::Checkpoint::default()
                 .with_sequence_number(sequence_number);
 
-            // Convert to iota_sdk_types for Merge compatibility
-            let sdk_summary: iota_sdk_types::CheckpointSummary = checkpoint_summary
-                .data()
-                .clone()
-                .try_into()
-                .map_err(|e| Status::internal(format!("failed to convert checkpoint summary: {e}")))?;
-
-            let sdk_contents: iota_sdk_types::CheckpointContents = checkpoint_contents
-                .clone()
-                .try_into()
-                .map_err(|e| Status::internal(format!("failed to convert checkpoint contents: {e}")))?;
-
             let sdk_signature = iota_sdk_types::ValidatorAggregatedSignature::from(checkpoint_summary.auth_sig().clone());
 
             // Use Merge to populate based on mask
-            Merge::merge(&mut checkpoint_proto, &sdk_summary, &checkpoint_mask)
+            Merge::merge(&mut checkpoint_proto, checkpoint_summary.data(), &checkpoint_mask)
                 .map_err(|e| e.with_context("failed to merge summary"))?;
-            Merge::merge(&mut checkpoint_proto, sdk_contents, &checkpoint_mask)
+            Merge::merge(&mut checkpoint_proto, checkpoint_contents, &checkpoint_mask)
                 .map_err(|e| e.with_context("failed to merge contents"))?;
             Merge::merge(&mut checkpoint_proto, sdk_signature, &checkpoint_mask)
                 .map_err(|e| e.with_context("failed to merge signature"))?;
@@ -399,20 +470,14 @@ impl GrpcReader {
                             if should_collect_events {
                                 if let Some(ref tx_events) = checkpoint_transaction.events {
                                     // Filter raw events before SDK conversion
-                                    for raw_event in &tx_events.data {
+                                    for raw_event in &tx_events.0 {
                                         // Apply event filter if present
                                         if let Some(ref evt_filter) = event_filter {
                                             if !evt_filter.matches_event(raw_event) {
                                                 continue; // Skip non-matching events
                                             }
                                         }
-
-                                        // Convert matching event to SDK type
-                                        let sdk_event: iota_sdk_types::Event = raw_event
-                                            .clone()
-                                            .try_into()
-                                            .map_err(|e| Status::internal(format!("event conversion error: {e}")))?;
-                                        let grpc_event = grpc_event::Event::merge_from(&sdk_event, &events_submask)
+                                        let grpc_event = grpc_event::Event::merge_from(raw_event, &events_submask)
                                             .map_err(|e| e.with_context("failed to merge event"))?;
                                         let event_encoded_len = grpc_event.encoded_len();
                                         let event_size = event_encoded_len + crate::utils::repeated_field_item_overhead(event_encoded_len);
@@ -524,14 +589,17 @@ impl GrpcReader {
     }
 
     pub fn get_latest_checkpoint(&self) -> anyhow::Result<CertifiedCheckpointSummary> {
-        let seq = latest_checkpoint_seq(&*self.state_reader)?.ok_or_else(|| {
-            anyhow::anyhow!("Unable to determine current epoch: no checkpoints available")
-        })?;
-        self.state_reader
-            .try_get_checkpoint_by_sequence_number(seq)
-            .map_err(anyhow::Error::from)?
-            .map(CertifiedCheckpointSummary::from)
-            .ok_or_else(|| anyhow::anyhow!("Checkpoint {seq} not found"))
+        match self.state_reader.try_get_latest_checkpoint() {
+            Ok(checkpoint) => Ok(CertifiedCheckpointSummary::from(checkpoint)),
+            Err(e) => match e.kind() {
+                Kind::Missing => Err(anyhow::anyhow!(
+                    "Unable to determine current epoch: no checkpoints available"
+                )),
+                _ => Err(anyhow::anyhow!(
+                    "Storage error getting latest checkpoint: {e}"
+                )),
+            },
+        }
     }
 
     pub fn get_lowest_available_checkpoint(&self) -> anyhow::Result<u64> {
@@ -546,7 +614,7 @@ impl GrpcReader {
             .map_err(Into::into)
     }
 
-    pub fn get_object(&self, object_id: &ObjectID) -> anyhow::Result<Option<Object>> {
+    pub fn get_object(&self, object_id: &ObjectId) -> anyhow::Result<Option<Object>> {
         self.state_reader
             .try_get_object(object_id)
             .map_err(Into::into)
@@ -554,7 +622,7 @@ impl GrpcReader {
 
     pub fn get_object_by_key(
         &self,
-        object_id: &ObjectID,
+        object_id: &ObjectId,
         version: VersionNumber,
     ) -> anyhow::Result<Option<Object>> {
         self.state_reader
@@ -594,15 +662,13 @@ impl GrpcReader {
     pub fn get_epoch_info(
         &self,
         epoch: u64,
-    ) -> anyhow::Result<Option<iota_types::storage::EpochInfo>> {
-        self.require_indexes()?
-            .get_epoch_info(epoch)
-            .map_err(Into::into)
+    ) -> anyhow::Result<Option<iota_types::storage::EpochInfoV2>> {
+        self.state_reader.get_epoch_info(epoch).map_err(Into::into)
     }
 
     pub fn get_type_layout(
         &self,
-        type_tag: &iota_types::TypeTag,
+        type_tag: &TypeTag,
     ) -> anyhow::Result<Option<move_core_types::annotated_value::MoveTypeLayout>> {
         self.state_reader
             .get_type_layout(type_tag)
@@ -611,28 +677,19 @@ impl GrpcReader {
 
     /// Iterate over objects owned by an account address.
     ///
-    /// Returns `Err(IndexBackfillInProgressError)` when the `owner_v2`
-    /// backfill has not yet completed.
-    ///
     /// The cursor is exclusive: items *after* the cursor position are returned.
-    pub fn account_owned_objects_info_iter_v2(
+    pub fn account_owned_objects_info_iter(
         &self,
-        owner: iota_types::base_types::IotaAddress,
-        cursor: Option<&OwnedObjectV2Cursor>,
-        object_type: Option<move_core_types::language_storage::StructTag>,
-    ) -> Result<Box<dyn Iterator<Item = OwnedObjectV2IterItem> + '_>, crate::error::RpcError> {
+        owner: Address,
+        cursor: Option<&OwnedObjectCursor>,
+        object_type: Option<StructTag>,
+    ) -> Result<Box<dyn Iterator<Item = OwnedObjectIterItem> + '_>, crate::error::RpcError> {
         let indexes = self
             .require_indexes()
             .map_err(|e| crate::error::RpcError::internal().with_context(e))?;
-        if !indexes.is_owner_v2_index_ready() {
-            return Err(crate::error::IndexBackfillInProgressError {
-                index_name: "owner_v2",
-            }
-            .into());
-        }
         let skip = usize::from(cursor.is_some());
         let iter = indexes
-            .account_owned_objects_info_iter_v2(owner, cursor, object_type)
+            .account_owned_objects_info_iter(owner, cursor, object_type)
             .map_err(|e| crate::error::RpcError::internal().with_context(e))?;
         Ok(Box::new(iter.map(|r| r.map_err(Into::into)).skip(skip)))
     }
@@ -643,55 +700,37 @@ impl GrpcReader {
     /// so callers get items *after* the cursor (exclusive lower bound).
     pub fn dynamic_field_iter(
         &self,
-        parent: ObjectID,
-        cursor: Option<ObjectID>,
+        parent: ObjectId,
+        cursor: Option<ObjectId>,
     ) -> anyhow::Result<Box<dyn Iterator<Item = DynamicFieldIterItem> + '_>> {
         let skip = usize::from(cursor.is_some());
         let iter = self.require_indexes()?.dynamic_field_iter(parent, cursor)?;
         Ok(Box::new(iter.map(|r| r.map_err(Into::into)).skip(skip)))
     }
 
-    /// Get unified coin info from the `coin_v2` table.
-    ///
-    /// Returns `Err(IndexBackfillInProgressError)` when the `coin_v2`
-    /// backfill has not yet completed.
-    pub fn get_coin_v2_info(
+    /// Get unified coin info.
+    pub fn get_coin_info(
         &self,
-        coin_type: &move_core_types::language_storage::StructTag,
-    ) -> Result<Option<iota_types::storage::CoinInfoV2>, crate::error::RpcError> {
+        coin_type: &StructTag,
+    ) -> Result<Option<iota_types::storage::CoinInfo>, crate::error::RpcError> {
         let indexes = self
             .require_indexes()
             .map_err(|e| crate::error::RpcError::internal().with_context(e))?;
-        if !indexes.is_coin_v2_index_ready() {
-            return Err(crate::error::IndexBackfillInProgressError {
-                index_name: "coin_v2",
-            }
-            .into());
-        }
         let info = indexes
-            .get_coin_v2_info(coin_type)
+            .get_coin_info(coin_type)
             .map_err(|e| crate::error::RpcError::internal().with_context(e))?;
         Ok(info)
     }
 
     /// Iterate over all versions of a package by its original package ID.
-    ///
-    /// Returns `Err(IndexBackfillInProgressError)` when the backfill has not
-    /// yet completed so callers receive a retryable `Unavailable` gRPC status.
     pub fn package_versions_iter(
         &self,
-        original_package_id: ObjectID,
+        original_package_id: ObjectId,
         cursor: Option<u64>,
     ) -> Result<Box<dyn Iterator<Item = PackageVersionIterItem> + '_>, crate::error::RpcError> {
         let indexes = self
             .require_indexes()
             .map_err(|e| crate::error::RpcError::internal().with_context(e))?;
-        if !indexes.is_package_version_index_ready() {
-            return Err(crate::error::IndexBackfillInProgressError {
-                index_name: "package_version",
-            }
-            .into());
-        }
         let skip = usize::from(cursor.is_some());
         let iter = indexes
             .package_versions_iter(original_package_id, cursor)
@@ -703,6 +742,7 @@ impl GrpcReader {
     fn create_generic_checkpoint_stream<T, S, R>(
         &self,
         mut rx: Receiver<Arc<T>>,
+        subscriber_guard: SubscriberGuard,
         start_sequence_number: Option<u64>,
         end_sequence_number: Option<u64>,
         cancellation_token: CancellationToken,
@@ -731,6 +771,9 @@ impl GrpcReader {
     {
         let state_reader = self.state_reader.clone();
         async_stream::try_stream! {
+            // Capture the guard so it drops (releasing the subscriber slot
+            // and decrementing the gauge) when the stream is dropped.
+            let _subscriber_guard = subscriber_guard;
             let mut latest = latest_checkpoint_seq(&*state_reader)
                 .map_err(|e| Status::internal(format!("Failed to get latest checkpoint: {e}")))?
                 .unwrap_or(0);
@@ -851,7 +894,7 @@ impl GrpcReader {
 
             if let Some(ref evt_filter) = event_filter {
                 if let Some(ref tx_events) = checkpoint_transaction.events {
-                    for event in &tx_events.data {
+                    for event in &tx_events.0 {
                         if evt_filter.matches_event(event) {
                             return Ok(true);
                         }
@@ -905,7 +948,7 @@ impl GrpcReader {
     /// Create a checkpoint stream implementation
     pub fn create_checkpoint_data_stream(
         &self,
-        rx: Receiver<Arc<IotaTypesCheckpointData>>,
+        subscription: SubscribedReceiver,
         start_sequence_number: Option<u64>,
         end_sequence_number: Option<u64>,
         checkpoint_mask: FieldMaskTree,
@@ -933,7 +976,8 @@ impl GrpcReader {
         let event_filter_historical = event_filter.clone();
 
         Box::new(Box::pin(reader.create_generic_checkpoint_stream(
-            rx,
+            subscription.rx,
+            subscription.guard,
             start_sequence_number,
             end_sequence_number,
             cancellation_token,
@@ -946,7 +990,7 @@ impl GrpcReader {
                         Status::internal(format!("Failed to get checkpoint {seq}: {e}"))
                     })
             },
-            |item| *item.checkpoint_summary.sequence_number(),
+            |item| item.checkpoint_summary.sequence_number(),
             // Historical data processor - uses transaction stream from DB
             {
                 let state_reader_historical = state_reader_clone.clone();
@@ -1020,7 +1064,7 @@ impl GrpcReader {
                     let ev_filter = event_filter.clone();
                     let last_msg_time = last_message_time_live.clone();
                     Box::pin(async_stream::stream! {
-                        let seq = *item.checkpoint_summary.sequence_number();
+                        let seq = item.checkpoint_summary.sequence_number();
 
                         // Pass 1: lightweight filter check when filter_checkpoints is enabled
                         if filter_checkpoints {
@@ -1083,23 +1127,32 @@ impl GrpcReader {
     /// callers to skip unnecessary reads. Effects are fetched when any of
     /// effects/events/input_objects/output_objects are requested since they
     /// provide the digests and references needed to fetch those fields.
+    /// Balance/object changes are derived fields: they additionally force the
+    /// fetch of effects and input/output objects, and object changes force the
+    /// transaction fetch (for the sender). Over-fetched data never leaks into
+    /// the response — the `Merge` impls only populate mask-requested fields.
+    ///
+    /// Errors with `FAILED_PRECONDITION` if a required object is unavailable
+    /// (e.g. pruned): a silently incomplete object set would be undetectable
+    /// by the client and would corrupt derived change fields.
     #[tracing::instrument(skip(self))]
     pub fn get_transaction_read(
         &self,
         digest: &TransactionDigest,
         fields: &TransactionReadFields,
     ) -> Result<TransactionReadData, crate::error::RpcError> {
-        let (transaction, signatures) = if fields.include_transaction || fields.include_signatures {
+        let (transaction, signatures) = if fields.include_transaction
+            || fields.include_signatures
+            || fields.include_object_changes
+        {
             // Get the transaction if transaction data or signatures are requested
             let transaction = self
                 .state_reader
                 .try_get_transaction(digest)?
                 .ok_or(crate::error::TransactionNotFoundError(*digest))?;
 
-            let transaction_data = fields
-                .include_transaction
-                .then(|| transaction.transaction_data().clone().try_into())
-                .transpose()?;
+            let transaction_data = (fields.include_transaction || fields.include_object_changes)
+                .then(|| transaction.transaction_data().clone());
 
             let signatures_data = fields
                 .include_signatures
@@ -1134,8 +1187,7 @@ impl GrpcReader {
                                 crate::error::RpcError::new(
                                     tonic::Code::Internal,
                                     format!(
-                                        "Checkpoint summary {} not found for transaction {}",
-                                        checkpoint_seq, digest
+                                        "Checkpoint summary {checkpoint_seq} not found for transaction {digest}"
                                     ),
                                 )
                             })?;
@@ -1152,12 +1204,17 @@ impl GrpcReader {
             (None, None)
         };
 
+        // Derived change fields need effects plus the input/output objects
+        let include_derived_changes =
+            fields.include_balance_changes || fields.include_object_changes;
+
         // Get the effects if any of the following are requested: effects, events,
-        // checkpoint/timestamp, input/output objects
+        // checkpoint/timestamp, input/output objects, balance/object changes
         let (effects, events, input_objects, output_objects) = if fields.include_effects
             || fields.include_events
             || fields.include_input_objects
             || fields.include_output_objects
+            || include_derived_changes
         {
             // Effects are required for events and input/output objects, so we fetch them if
             // any of those are requested
@@ -1176,16 +1233,31 @@ impl GrpcReader {
                 None
             };
 
+            // The object sets must be complete: a silently missing object
+            // would shorten the input/output object lists and corrupt any
+            // derived change fields, with no way for the client to detect it
+            let require_object = |object_id: &iota_sdk_types::ObjectId,
+                                  version: Version|
+             -> Result<Object, crate::error::RpcError> {
+                self.state_reader
+                    .try_get_object_by_key(object_id, version)?
+                    .ok_or_else(|| {
+                        crate::error::RpcError::new(
+                            tonic::Code::FailedPrecondition,
+                            format!(
+                                "object {object_id} at version {version} required by the \
+                                 requested fields is unavailable (possibly pruned); narrow the \
+                                 read_mask or fetch objects individually via `get_objects` for best-effort retrieval"
+                            ),
+                        )
+                    })
+            };
+
             // Get input objects only if requested
-            let input_objects = if fields.include_input_objects {
+            let input_objects = if fields.include_input_objects || include_derived_changes {
                 let mut objects = Vec::new();
                 for (object_id, version) in effects.modified_at_versions() {
-                    if let Some(obj) = self
-                        .state_reader
-                        .try_get_object_by_key(&object_id, version)?
-                    {
-                        objects.push(obj);
-                    }
+                    objects.push(require_object(&object_id, version)?);
                 }
                 Some(objects)
             } else {
@@ -1193,20 +1265,15 @@ impl GrpcReader {
             };
 
             // Get output objects only if requested
-            let output_objects = if fields.include_output_objects {
+            let output_objects = if fields.include_output_objects || include_derived_changes {
                 let mut objects = Vec::new();
-                for ((object_id, version, _digest), _owner) in effects
+                for (object_ref, _owner) in effects
                     .created()
                     .into_iter()
                     .chain(effects.mutated())
                     .chain(effects.unwrapped())
                 {
-                    if let Some(obj) = self
-                        .state_reader
-                        .try_get_object_by_key(&object_id, version)?
-                    {
-                        objects.push(obj);
-                    }
+                    objects.push(require_object(&object_ref.object_id, object_ref.version)?);
                 }
                 Some(objects)
             } else {
@@ -1315,7 +1382,7 @@ impl Merge<CheckpointTransactionWithContext>
             // events vec — to distinguish between "no events" and "events
             // not requested in the mask".
             self.events = Some(grpc_transaction::TransactionEvents::merge_from(
-                source.transaction.events.unwrap_or_default(),
+                &source.transaction.events.unwrap_or_default(),
                 &submask,
             )?);
         }
@@ -1328,6 +1395,44 @@ impl Merge<CheckpointTransactionWithContext>
         // Set checkpoint timestamp if requested
         if mask.contains(Self::TIMESTAMP_FIELD.name) {
             self.timestamp = source.checkpoint_timestamp_ms.map(timestamp_ms_to_proto);
+        }
+
+        // Derive balance changes if requested. Checkpoint transactions always
+        // carry effects and input/output objects, so no extra fetches needed.
+        if mask.subtree(Self::BALANCE_CHANGES_FIELD.name).is_some() {
+            self.balance_changes = Some(
+                iota_grpc_types::v1::transaction::BalanceChanges::default().with_balance_changes(
+                    crate::changes::derive_balance_changes(
+                        &source.transaction.effects,
+                        &source.transaction.input_objects,
+                        &source.transaction.output_objects,
+                        None,
+                    )?
+                    .into_iter()
+                    .map(Into::into)
+                    .collect(),
+                ),
+            );
+        }
+
+        // Derive object changes if requested
+        if mask.subtree(Self::OBJECT_CHANGES_FIELD.name).is_some() {
+            use iota_types::transaction::TransactionDataAPI as _;
+
+            let sender = source.transaction.transaction.transaction_data().sender();
+            self.object_changes = Some(
+                iota_grpc_types::v1::transaction::ObjectChanges::default().with_object_changes(
+                    crate::changes::derive_object_changes(
+                        sender,
+                        &source.transaction.effects,
+                        &source.transaction.input_objects,
+                        &source.transaction.output_objects,
+                    )?
+                    .into_iter()
+                    .map(Into::into)
+                    .collect(),
+                ),
+            );
         }
 
         if let Some(submask) = mask.subtree(Self::INPUT_OBJECTS_FIELD.name) {

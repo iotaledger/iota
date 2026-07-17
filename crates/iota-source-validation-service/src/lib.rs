@@ -27,16 +27,15 @@ use hyper::{
 };
 use iota_metrics::RegistryService;
 use iota_move::manage_package::resolve_lock_file_path;
-use iota_move_build::{BuildConfig, IotaPackageHooks, implicit_deps};
+use iota_move_build::{BuildConfig, IotaPackageHooks, ProtocolBuildConfig, implicit_deps};
 use iota_package_management::system_package_versions::latest_system_packages;
-use iota_sdk::{
-    IotaClientBuilder, rpc_types::IotaTransactionBlockEffects, types::base_types::ObjectID,
-};
+use iota_sdk::{IotaClientBuilder, rpc_types::IotaTransactionBlockEffects};
+use iota_sdk_types::ObjectId;
 use iota_source_validation::{BytecodeSourceVerifier, ValidationMode};
 use move_core_types::account_address::AccountAddress;
 use move_package::{BuildConfig as MoveBuildConfig, LintFlag};
 use move_symbol_pool::Symbol;
-use prometheus::{IntCounter, Registry, register_int_counter_with_registry};
+use prometheus_filtered::{IntCounter, MetricLevel, Registry, register_int_counter_with_registry};
 use serde::{Deserialize, Serialize};
 use tokio::sync::oneshot::Sender;
 use tower::ServiceBuilder;
@@ -106,7 +105,7 @@ pub struct Package {
     /// Optional object ID to watch for upgrades. For framework packages, this
     /// is an address like 0x2. For non-framework packages this is an
     /// upgrade cap (possibly wrapped).
-    pub watch: Option<ObjectID>,
+    pub watch: Option<ObjectId>,
 }
 
 #[derive(Clone, Serialize, Debug)]
@@ -168,6 +167,7 @@ pub async fn verify_package(
     };
     let client = IotaClientBuilder::default().build(network_url).await?;
     let chain_id = client.read_api().get_chain_identifier().await?;
+    let protocol_config = client.read_api().get_protocol_config(None).await?;
     let mut config =
         resolve_lock_file_path(MoveBuildConfig::default(), Some(package_path.as_ref()))?;
     config.lint_flag = LintFlag::LEVEL_NONE;
@@ -178,6 +178,7 @@ pub async fn verify_package(
         run_bytecode_verifier: false, // no need to run verifier if code is on-chain
         print_diags_to_stderr: false,
         chain_id: Some(chain_id),
+        protocol_build_config: ProtocolBuildConfig::from(&protocol_config),
     };
     let compiled_package = build_config.build(package_path.as_ref())?;
 
@@ -190,7 +191,7 @@ pub async fn verify_package(
     let address = compiled_package
         .published_at
         .as_ref()
-        .map(|id| **id)
+        .map(|id| AccountAddress::new(id.into_bytes()))
         .map_err(|_| anyhow!("could not resolve published-at field in package manifest"))?;
     info!("verifying {} at {address}", package_path.as_ref().display());
     for v in &compiled_package.package.root_compiled_units {
@@ -604,7 +605,8 @@ impl SourceServiceMetrics {
             total_requests_received: register_int_counter_with_registry!(
                 "total_requests",
                 "Total number of requests received by Source Service",
-                registry
+                registry;
+                MetricLevel::Info
             )
             .unwrap(),
         }

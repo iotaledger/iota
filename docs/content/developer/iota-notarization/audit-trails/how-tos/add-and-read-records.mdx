@@ -1,0 +1,181 @@
+---
+title: Add and Read Records
+sidebar_label: Add and Read Records
+description: How to add records to an Audit Trail and read them back individually or through paginated traversal.
+tags:
+  - notarization
+  - audit-trails
+  - how-to
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# Add and Read Records
+
+This guide shows how to append records to an existing `AuditTrail` object, read them back by sequence number, and paginate through the full record history.
+
+## Prerequisites
+
+- An existing `AuditTrail` object on the IOTA network
+- A capability with `AddRecord` permission (e.g., a `RecordAdmin` role)
+- Familiarity with [creating an `AuditTrail` object](./create-audit-trails.mdx)
+
+## Steps
+
+### 1. Set Up Multiple Wallets
+
+Create an admin wallet to set up the trail and a record-admin wallet that adds and reads records.
+
+<details closed>
+    <summary>Used Utility Functions</summary>
+
+    * [Get Funded (Audit Trails) Client](./utility-functions.mdx#get-funded-audit-trails-client)
+</details>
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/examples/audit-trail/02_add_and_read_records.rs#L25-L26
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/bindings/wasm/audit_trail_wasm/examples/src/02_add_and_read_records.ts#L26-L27
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+:::note
+In this example we expect the record-admin address to already own a capability granting the `AddRecord` permission
+and the admin address to own full admin permissions as been shown in the [Create an Audit Trail](./create-audit-trails)
+how-to page.
+:::
+
+### 2. Add Records
+
+Each record contains **data** (text or binary) and optional **metadata** (a string describing the event context). Records are appended sequentially and each receives an auto-incrementing sequence number.
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/examples/audit-trail/02_add_and_read_records.rs#L88-L108
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/bindings/wasm/audit_trail_wasm/examples/src/02_add_and_read_records.ts#L43-L52
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 3. Read Records by Sequence Number
+
+Fetch individual records using their sequence number. Sequence numbers start at `0` (the initial seed record).
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/examples/audit-trail/02_add_and_read_records.rs#L119-L125
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/bindings/wasm/audit_trail_wasm/examples/src/02_add_and_read_records.ts#L56-L59
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 4. Query Record Count
+
+Check how many records currently exist in the trail.
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/examples/audit-trail/02_add_and_read_records.rs#L141-L143
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/bindings/wasm/audit_trail_wasm/examples/src/02_add_and_read_records.ts#L61-L63
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 5. Paginate Through Records
+
+Use cursor-based pagination to traverse large trails efficiently. Each page returns a batch of records, a cursor for the next page, and a flag indicating whether more pages exist.
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/examples/audit-trail/02_add_and_read_records.rs#L145-L157
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/bindings/wasm/audit_trail_wasm/examples/src/02_add_and_read_records.ts#L65-L74
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+## Expected Behavior
+
+- Records are appended with auto-incrementing sequence numbers starting after the initial seed record.
+- Individual records can be fetched by sequence number.
+- Paginated listing supports configurable page sizes (max 1000 per page).
+- The `has_next_page` / `hasNextPage` flag and cursor enable full traversal.
+
+## Running Examples Locally
+
+In order to run the examples, you will need to run an IOTA network locally. See the [local network setup](../getting-started/local-network-setup.mdx) guide.
+
+## Full Example Code
+
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/examples/audit-trail/02_add_and_read_records.rs
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/trails-v0.1/bindings/wasm/audit_trail_wasm/examples/src/02_add_and_read_records.ts
+```
+
+</TabItem>
+</Tabs>

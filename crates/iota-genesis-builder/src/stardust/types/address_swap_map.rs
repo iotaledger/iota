@@ -4,28 +4,28 @@
 use std::{collections::HashMap, fs::File};
 
 use iota_config::genesis::csv_reader_with_comments;
+use iota_sdk_types::{Address, Owner};
 use iota_stardust_types::block::address::Address as StardustAddress;
-use iota_types::{base_types::IotaAddress, object::Owner};
 
 use super::address::stardust_to_iota_address;
 
-type OriginAddress = IotaAddress;
+type OriginAddress = Address;
 
 #[derive(Debug)]
 pub struct DestinationAddress {
-    address: IotaAddress,
+    address: Address,
     swapped: bool,
 }
 
 impl DestinationAddress {
-    fn new(address: IotaAddress) -> Self {
+    fn new(address: Address) -> Self {
         Self {
             address,
             swapped: false,
         }
     }
 
-    fn address(&self) -> IotaAddress {
+    fn address(&self) -> Address {
         self.address
     }
 
@@ -45,7 +45,7 @@ pub struct AddressSwapMap {
 
 impl AddressSwapMap {
     /// Retrieves the destination address for a given origin address.
-    pub fn destination_address(&self, origin_address: &OriginAddress) -> Option<IotaAddress> {
+    pub fn destination_address(&self, origin_address: &OriginAddress) -> Option<Address> {
         self.addresses
             .get(origin_address)
             .map(DestinationAddress::address)
@@ -53,7 +53,7 @@ impl AddressSwapMap {
 
     /// Retrieves the destination address for a given origin address.
     /// Marks the origin address as swapped if found.
-    fn swap_destination_address(&mut self, origin_address: &OriginAddress) -> Option<IotaAddress> {
+    fn swap_destination_address(&mut self, origin_address: &OriginAddress) -> Option<Address> {
         self.addresses.get_mut(origin_address).map(|destination| {
             // Mark the origin address as swapped
             destination.set_swapped();
@@ -70,14 +70,14 @@ impl AddressSwapMap {
             .filter_map(|a| (!a.is_swapped()).then_some(a.address()))
             .collect::<Vec<_>>();
         if !unswapped_addresses.is_empty() {
-            anyhow::bail!("unswapped addresses: {:?}", unswapped_addresses);
+            anyhow::bail!("unswapped addresses: {unswapped_addresses:?}");
         }
 
         Ok(())
     }
 
     /// Converts a [`StardustAddress`] to an [`Owner`] by first
-    /// converting it to an [`IotaAddress`] and then checking against the
+    /// converting it to an [`Address`] and then checking against the
     /// swap map for potential address substitutions.
     ///
     /// If the address exists in the swap map, it is swapped with the
@@ -90,11 +90,11 @@ impl AddressSwapMap {
         if let Some(addr) = self.destination_address(&address) {
             address = addr;
         }
-        Ok(Owner::AddressOwner(address))
+        Ok(Owner::Address(address))
     }
 
     /// Converts a [`StardustAddress`] to an [`Owner`] by first
-    /// converting it to an [`IotaAddress`] and then checking against the
+    /// converting it to an [`Address`] and then checking against the
     /// swap map for potential address substitutions.
     ///
     /// If the address exists in the swap map, it is swapped with the
@@ -107,21 +107,21 @@ impl AddressSwapMap {
         if let Some(addr) = self.swap_destination_address(&address) {
             address = addr;
         }
-        Ok(Owner::AddressOwner(address))
+        Ok(Owner::Address(address))
     }
 
-    /// Converts a [`StardustAddress`] to an [`IotaAddress`] and
+    /// Converts a [`StardustAddress`] to an [`Address`] and
     /// checks against the swap map for potential address
     /// substitutions.
     ///
     /// If the address exists in the swap map, it is swapped with the
     /// mapped destination address before being returned as an
-    /// [`IotaAddress`].
+    /// [`Address`].
     pub fn swap_stardust_to_iota_address(
         &mut self,
         stardust_address: impl Into<StardustAddress>,
-    ) -> anyhow::Result<IotaAddress> {
-        let mut address: IotaAddress = stardust_to_iota_address(stardust_address)?;
+    ) -> anyhow::Result<Address> {
+        let mut address: Address = stardust_to_iota_address(stardust_address)?;
         if let Some(addr) = self.swap_destination_address(&address) {
             address = addr;
         }
@@ -158,7 +158,7 @@ impl AddressSwapMap {
     /// - Returns an error if the file cannot be found, read, or parsed
     ///   correctly.
     /// - Returns an error if the origin or destination addresses cannot be
-    ///   parsed into an [`IotaAddress`].
+    ///   parsed into an [`Address`].
     pub fn from_csv(file_path: &str) -> Result<AddressSwapMap, anyhow::Error> {
         let current_dir = std::env::current_dir()?;
         let file_path = current_dir.join(file_path);

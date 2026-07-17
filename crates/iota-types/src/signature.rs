@@ -2,67 +2,41 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{hash::Hash, sync::Arc};
+use std::hash::Hash;
 
 pub use enum_dispatch::enum_dispatch;
 use fastcrypto::{
     ed25519::{Ed25519PublicKey, Ed25519Signature},
-    error::FastCryptoError,
+    encoding::{Base64, Encoding},
+    error::{FastCryptoError, FastCryptoResult},
     secp256k1::{Secp256k1PublicKey, Secp256k1Signature},
     secp256r1::{Secp256r1PublicKey, Secp256r1Signature},
     traits::{EncodeDecodeBase64, ToFromBytes},
 };
-use fastcrypto_zkp::bn254::{
-    zk_login::{JWK, JwkId},
-    zk_login_api::ZkLoginEnv,
-};
-use im::hashmap::HashMap as ImHashMap;
-use iota_sdk_types::crypto::IntentMessage;
-use schemars::JsonSchema;
+use iota_sdk_types::{Address, crypto::IntentMessage};
 use serde::Serialize;
 use tracing::instrument;
 
 use crate::{
-    base_types::IotaAddress,
-    committee::EpochId,
     crypto::{
         CompressedSignature, IotaSignature, PasskeyAuthenticatorAsBytes, PublicKey, Signature,
-        SignatureScheme, ZkLoginAuthenticatorAsBytes,
+        SignatureScheme,
     },
-    digests::ZKLoginInputsDigest,
     error::{IotaError, IotaResult},
-    move_authenticator::{MoveAuthenticator, MoveAuthenticatorInner, MoveAuthenticatorV1},
+    move_authenticator::MoveAuthenticator,
     multisig::MultiSig,
     passkey_authenticator::PasskeyAuthenticator,
-    signature_verification::VerifiedDigestCache,
-    zk_login_authenticator::ZkLoginAuthenticator,
 };
 #[derive(Default, Debug, Clone)]
 pub struct VerifyParams {
-    // map from JwkId (iss, kid) => JWK
-    pub oidc_provider_jwks: ImHashMap<JwkId, JWK>,
-    pub zk_login_env: ZkLoginEnv,
-    pub accept_zklogin_in_multisig: bool,
     pub accept_passkey_in_multisig: bool,
-    pub zklogin_max_epoch_upper_bound_delta: Option<u64>,
     pub additional_multisig_checks: bool,
 }
 
 impl VerifyParams {
-    pub fn new(
-        oidc_provider_jwks: ImHashMap<JwkId, JWK>,
-        zk_login_env: ZkLoginEnv,
-        accept_zklogin_in_multisig: bool,
-        accept_passkey_in_multisig: bool,
-        zklogin_max_epoch_upper_bound_delta: Option<u64>,
-        additional_multisig_checks: bool,
-    ) -> Self {
+    pub fn new(accept_passkey_in_multisig: bool, additional_multisig_checks: bool) -> Self {
         Self {
-            oidc_provider_jwks,
-            zk_login_env,
-            accept_zklogin_in_multisig,
             accept_passkey_in_multisig,
-            zklogin_max_epoch_upper_bound_delta,
             additional_multisig_checks,
         }
     }
@@ -71,21 +45,46 @@ impl VerifyParams {
 /// A lightweight trait that all members of [enum GenericSignature] implement.
 #[enum_dispatch]
 pub trait AuthenticatorTrait {
-    fn verify_user_authenticator_epoch(
-        &self,
-        epoch: EpochId,
-        max_epoch_upper_bound_delta: Option<u64>,
-    ) -> IotaResult;
-
     fn verify_claims<T>(
         &self,
         value: &IntentMessage<T>,
-        author: IotaAddress,
+        author: Address,
         aux_verify_data: &VerifyParams,
-        zklogin_inputs_cache: Arc<VerifiedDigestCache<ZKLoginInputsDigest>>,
     ) -> IotaResult
     where
         T: Serialize;
+}
+
+/// Deprecated zkLogin authenticator — empty stub retained only so the
+/// [`GenericSignature::ZkLoginAuthenticatorDeprecated`] enum variant compiles.
+/// Instances are never constructed; deserialization rejects the flag byte.
+#[iota_proc_macros::allow_deprecated_for_derives]
+#[deprecated(note = "zkLogin is deprecated and was never enabled on IOTA")]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct ZkLoginAuthenticatorDeprecated;
+
+#[allow(deprecated)]
+impl AuthenticatorTrait for ZkLoginAuthenticatorDeprecated {
+    fn verify_claims<T>(
+        &self,
+        _value: &IntentMessage<T>,
+        _author: Address,
+        _aux_verify_data: &VerifyParams,
+    ) -> IotaResult
+    where
+        T: Serialize,
+    {
+        Err(IotaError::UnsupportedFeature {
+            error: "zkLogin is not supported".to_string(),
+        })
+    }
+}
+
+#[allow(deprecated)]
+impl AsRef<[u8]> for ZkLoginAuthenticatorDeprecated {
+    fn as_ref(&self) -> &[u8] {
+        &[]
+    }
 }
 
 /// Due to the incompatibility of [enum Signature] (which dispatches a trait
@@ -93,20 +92,20 @@ pub trait AuthenticatorTrait {
 /// wrapper enum where member can just implement a lightweight [trait
 /// AuthenticatorTrait]. This way MultiSig (and future Authenticators) can
 /// implement its own `verify`.
+#[iota_proc_macros::allow_deprecated_for_derives]
 #[enum_dispatch(AuthenticatorTrait)]
-#[derive(Debug, Clone, PartialEq, Eq, JsonSchema, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[allow(clippy::large_enum_variant)]
 pub enum GenericSignature {
     MultiSig,
     Signature,
-    ZkLoginAuthenticator,
+    #[deprecated(note = "zkLogin is deprecated and was never enabled on IOTA")]
+    ZkLoginAuthenticatorDeprecated,
     PasskeyAuthenticator,
     MoveAuthenticator,
 }
 
 impl GenericSignature {
-    pub fn is_zklogin(&self) -> bool {
-        matches!(self, GenericSignature::ZkLoginAuthenticator(_))
-    }
     pub fn is_passkey(&self) -> bool {
         matches!(self, GenericSignature::PasskeyAuthenticator(_))
     }
@@ -122,19 +121,13 @@ impl GenericSignature {
     pub fn verify_authenticator<T>(
         &self,
         value: &IntentMessage<T>,
-        author: IotaAddress,
-        epoch: EpochId,
+        author: Address,
         verify_params: &VerifyParams,
-        zklogin_inputs_cache: Arc<VerifiedDigestCache<ZKLoginInputsDigest>>,
     ) -> IotaResult
     where
         T: Serialize,
     {
-        self.verify_user_authenticator_epoch(
-            epoch,
-            verify_params.zklogin_max_epoch_upper_bound_delta,
-        )?;
-        self.verify_claims(value, author, verify_params, zklogin_inputs_cache)
+        self.verify_claims(value, author, verify_params)
     }
 
     /// Parse [enum CompressedSignature] from trait IotaSignature `flag || sig
@@ -144,7 +137,7 @@ impl GenericSignature {
         match self {
             GenericSignature::Signature(s) => {
                 let bytes = s.signature_bytes();
-                match s.scheme() {
+                match s.signature_scheme() {
                     SignatureScheme::ED25519 => Ok(CompressedSignature::Ed25519(
                         (&Ed25519Signature::from_bytes(bytes).map_err(|_| {
                             IotaError::InvalidSignature {
@@ -176,11 +169,14 @@ impl GenericSignature {
                     }),
                 }
             }
-            GenericSignature::ZkLoginAuthenticator(s) => Ok(CompressedSignature::ZkLogin(
-                ZkLoginAuthenticatorAsBytes(s.as_ref().to_vec()),
-            )),
+            #[allow(deprecated)]
+            GenericSignature::ZkLoginAuthenticatorDeprecated(_) => {
+                Err(IotaError::UnsupportedFeature {
+                    error: "zkLogin is not supported".to_string(),
+                })
+            }
             GenericSignature::PasskeyAuthenticator(s) => Ok(CompressedSignature::Passkey(
-                PasskeyAuthenticatorAsBytes(s.as_ref().to_vec()),
+                PasskeyAuthenticatorAsBytes(s.to_bytes()),
             )),
             _ => Err(IotaError::UnsupportedFeature {
                 error: "Unsupported signature scheme".to_string(),
@@ -194,8 +190,9 @@ impl GenericSignature {
     pub fn to_public_key(&self) -> Result<PublicKey, IotaError> {
         match self {
             GenericSignature::Signature(s) => {
-                let bytes = s.public_key_bytes();
-                match s.scheme() {
+                let public_key = s.to_public_key();
+                let bytes = public_key.as_ref();
+                match s.signature_scheme() {
                     SignatureScheme::ED25519 => Ok(PublicKey::Ed25519(
                         (&Ed25519PublicKey::from_bytes(bytes).map_err(|_| {
                             IotaError::KeyConversion("Cannot parse ed25519 pk".to_string())
@@ -219,8 +216,19 @@ impl GenericSignature {
                     }),
                 }
             }
-            GenericSignature::ZkLoginAuthenticator(s) => s.get_pk(),
-            GenericSignature::PasskeyAuthenticator(s) => s.get_pk(),
+            #[allow(deprecated)]
+            GenericSignature::ZkLoginAuthenticatorDeprecated(_) => {
+                Err(IotaError::UnsupportedFeature {
+                    error: "zkLogin is not supported".to_string(),
+                })
+            }
+            GenericSignature::PasskeyAuthenticator(passkey) => {
+                let pk = Secp256r1PublicKey::from_bytes(passkey.public_key().inner().as_ref())
+                    .map_err(|e| {
+                        IotaError::KeyConversion(format!("Cannot parse secp256r1 pk: {e}"))
+                    })?;
+                Ok(PublicKey::Passkey((&pk).into()))
+            }
             GenericSignature::MoveAuthenticator(_) => Err(IotaError::UnsupportedFeature {
                 error: "Unsupported in MoveAuthenticator".to_string(),
             }),
@@ -229,14 +237,19 @@ impl GenericSignature {
             }),
         }
     }
-}
 
-/// GenericSignature encodes a single signature [enum Signature] as is `flag ||
-/// signature || pubkey`. [struct Multisig] is encoded as
-/// the MultiSig flag (0x03) concat with the bcs serialized bytes of [struct
-/// Multisig] i.e. `flag || bcs_bytes(Multisig)`.
-impl ToFromBytes for GenericSignature {
-    fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
+    pub fn to_bytes(&self) -> Vec<u8> {
+        match self {
+            GenericSignature::MultiSig(s) => s.to_bytes(),
+            GenericSignature::Signature(s) => s.to_bytes(),
+            #[allow(deprecated)]
+            GenericSignature::ZkLoginAuthenticatorDeprecated(s) => s.as_ref().to_vec(),
+            GenericSignature::PasskeyAuthenticator(s) => s.to_bytes(),
+            GenericSignature::MoveAuthenticator(s) => s.to_bytes(),
+        }
+    }
+
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
         match SignatureScheme::from_flag_byte(
             bytes.first().ok_or(FastCryptoError::InputTooShort(0))?,
         ) {
@@ -246,19 +259,25 @@ impl ToFromBytes for GenericSignature {
                 | SignatureScheme::Secp256r1 => Ok(GenericSignature::Signature(
                     Signature::from_bytes(bytes).map_err(|_| FastCryptoError::InvalidSignature)?,
                 )),
-                SignatureScheme::MultiSig => {
-                    Ok(GenericSignature::MultiSig(MultiSig::from_bytes(bytes)?))
-                }
-                SignatureScheme::ZkLoginAuthenticator => {
-                    let zk_login = ZkLoginAuthenticator::from_bytes(bytes)?;
-                    Ok(GenericSignature::ZkLoginAuthenticator(zk_login))
+                SignatureScheme::MultiSig => Ok(GenericSignature::MultiSig(
+                    MultiSig::from_bytes(bytes).map_err(|_| FastCryptoError::InvalidSignature)?,
+                )),
+                #[allow(deprecated)]
+                SignatureScheme::ZkLoginAuthenticatorDeprecated => {
+                    // zkLogin is deprecated and was never enabled on IOTA — reject at
+                    // deserialization.
+                    Err(FastCryptoError::GeneralError(
+                        "zkLogin is not supported".to_string(),
+                    ))
                 }
                 SignatureScheme::PasskeyAuthenticator => {
-                    let passkey = PasskeyAuthenticator::from_bytes(bytes)?;
+                    let passkey = PasskeyAuthenticator::from_bytes(bytes)
+                        .map_err(|e| FastCryptoError::GeneralError(e.to_string()))?;
                     Ok(GenericSignature::PasskeyAuthenticator(passkey))
                 }
                 SignatureScheme::MoveAuthenticator => {
-                    let move_auth = MoveAuthenticator::from_bytes(bytes)?;
+                    let move_auth = MoveAuthenticator::from_bytes(bytes)
+                        .map_err(|e| FastCryptoError::GeneralError(e.to_string()))?;
                     Ok(GenericSignature::MoveAuthenticator(move_auth))
                 }
                 _ => Err(FastCryptoError::InvalidInput),
@@ -268,16 +287,14 @@ impl ToFromBytes for GenericSignature {
     }
 }
 
-/// Trait useful to get the bytes reference for [enum GenericSignature].
-impl AsRef<[u8]> for GenericSignature {
-    fn as_ref(&self) -> &[u8] {
-        match self {
-            GenericSignature::MultiSig(s) => s.as_ref(),
-            GenericSignature::Signature(s) => s.as_ref(),
-            GenericSignature::ZkLoginAuthenticator(s) => s.as_ref(),
-            GenericSignature::PasskeyAuthenticator(s) => s.as_ref(),
-            GenericSignature::MoveAuthenticator(s) => s.as_ref(),
-        }
+impl EncodeDecodeBase64 for GenericSignature {
+    fn encode_base64(&self) -> String {
+        Base64::encode(self.to_bytes())
+    }
+
+    fn decode_base64(value: &str) -> FastCryptoResult<Self> {
+        let bytes = Base64::decode(value)?;
+        Self::from_bytes(&bytes)
     }
 }
 
@@ -290,7 +307,7 @@ impl ::serde::Serialize for GenericSignature {
         } else {
             #[derive(serde::Serialize)]
             struct GenericSignature<'a>(&'a [u8]);
-            GenericSignature(self.as_ref()).serialize(serializer)
+            GenericSignature(self.to_bytes().as_ref()).serialize(serializer)
         }
     }
 }
@@ -317,21 +334,16 @@ impl<'de> ::serde::Deserialize<'de> for GenericSignature {
 /// This ports the wrapper trait to the verify_secure defined on [enum
 /// Signature].
 impl AuthenticatorTrait for Signature {
-    fn verify_user_authenticator_epoch(&self, _: EpochId, _: Option<EpochId>) -> IotaResult {
-        Ok(())
-    }
-
     #[instrument(level = "trace", skip_all)]
     fn verify_claims<T>(
         &self,
         value: &IntentMessage<T>,
-        author: IotaAddress,
+        author: Address,
         _aux_verify_data: &VerifyParams,
-        _zklogin_inputs_cache: Arc<VerifiedDigestCache<ZKLoginInputsDigest>>,
     ) -> IotaResult
     where
         T: Serialize,
     {
-        self.verify_secure(value, author, self.scheme())
+        self.verify_secure(value, author, self.signature_scheme())
     }
 }

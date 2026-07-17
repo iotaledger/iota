@@ -11,14 +11,14 @@ use std::sync::Arc;
 
 use iota_json_rpc_types::IotaEvent;
 use iota_package_resolver::{PackageStore, Resolver};
+use iota_sdk_types::TransactionDigest;
 use iota_types::{
-    digests::TransactionDigest,
     effects::TransactionEvents,
     full_checkpoint_content::CheckpointTransaction,
-    messages_checkpoint::{CertifiedCheckpointSummary, CheckpointContents},
+    messages_checkpoint::{CertifiedCheckpointSummary, CheckpointContents, CheckpointContentsExt},
     object::Object,
 };
-use prometheus::Registry;
+use prometheus_filtered::Registry;
 
 use crate::{
     errors::{IndexerError, IndexerResult},

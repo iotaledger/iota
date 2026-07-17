@@ -12,7 +12,7 @@ use async_graphql::{
 use diesel::{ExpressionMethods, OptionalExtension, QueryDsl};
 use fastcrypto::encoding::{Base58, Encoding};
 use iota_indexer::{models::checkpoints::StoredCheckpoint, schema::checkpoints};
-use iota_types::messages_checkpoint::CheckpointDigest;
+use iota_sdk_types::CheckpointDigest;
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -95,7 +95,7 @@ impl Checkpoint {
     /// digest, and checking that the previous checkpoint digest matches.
     #[graphql(complexity = 0)]
     async fn digest(&self) -> Result<String> {
-        Ok(self.digest_impl().extend()?.base58_encode())
+        Ok(self.digest_impl().extend()?.to_base58())
     }
 
     /// This checkpoint's position in the total order of finalized checkpoints,
@@ -235,7 +235,7 @@ impl Checkpoint {
     }
 
     pub(crate) fn digest_impl(&self) -> Result<CheckpointDigest, Error> {
-        CheckpointDigest::try_from(self.stored.checkpoint_digest.clone())
+        CheckpointDigest::from_bytes(self.stored.checkpoint_digest.clone())
             .map_err(|e| Error::Internal(format!("Failed to deserialize checkpoint digest: {e}")))
     }
 

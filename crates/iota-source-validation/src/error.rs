@@ -4,11 +4,10 @@
 
 use std::fmt;
 
-use iota_json_rpc_types::IotaRawMoveObject;
+use iota_json_rpc_types::{IotaObjectResponseError, IotaRawMoveObject};
 use iota_package_management::PublishedAtError;
 use iota_sdk::error::Error as SdkError;
-use iota_types::{base_types::ObjectID, error::IotaObjectResponseError};
-use move_core_types::account_address::AccountAddress;
+use iota_sdk_types::{Address, ObjectId};
 use move_symbol_pool::Symbol;
 
 #[derive(Debug, thiserror::Error)]
@@ -19,44 +18,38 @@ pub enum Error {
     #[error("Cannot check local module for {package}: {message}")]
     CannotCheckLocalModules { package: Symbol, message: String },
 
-    #[error("Could not read a dependency's on-chain object: {0:?}")]
+    #[error("Could not read a dependency's on-chain object: {0}")]
     DependencyObjectReadFailure(SdkError),
 
     #[error("On-chain package {0} is empty")]
-    EmptyOnChainPackage(AccountAddress),
+    EmptyOnChainPackage(Address),
 
     #[error("Invalid module {name} with error: {message}")]
     InvalidModuleFailure { name: String, message: String },
 
     #[error("Local version of dependency {address}::{module} was not found.")]
-    LocalDependencyNotFound {
-        address: AccountAddress,
-        module: Symbol,
-    },
+    LocalDependencyNotFound { address: Address, module: Symbol },
 
     #[error("Source package depends on {0} which is not in the linkage table.")]
-    MissingDependencyInLinkageTable(AccountAddress),
+    MissingDependencyInLinkageTable(Address),
 
     #[error("On-chain package depends on {0} which is not a source dependency.")]
-    MissingDependencyInSourcePackage(AccountAddress),
+    MissingDependencyInSourcePackage(Address),
 
     #[error(
         "Local dependency did not match its on-chain version at {address}::{package}::{module}"
     )]
     ModuleBytecodeMismatch {
-        address: AccountAddress,
+        address: Address,
         package: Symbol,
         module: Symbol,
     },
 
     #[error("Dependency ID contains an IOTA object, not a Move package: {}", .0.0)]
-    ObjectFoundWhenPackageExpected(Box<(ObjectID, IotaRawMoveObject)>),
+    ObjectFoundWhenPackageExpected(Box<(ObjectId, IotaRawMoveObject)>),
 
     #[error("Could not deserialize on-chain dependency {address}::{module}.")]
-    OnChainDependencyDeserializationError {
-        address: AccountAddress,
-        module: Symbol,
-    },
+    OnChainDependencyDeserializationError { address: Address, module: Symbol },
 
     #[error("On-chain version of dependency {package}::{module} was not found.")]
     OnChainDependencyNotFound { package: Symbol, module: Symbol },
@@ -64,7 +57,7 @@ pub enum Error {
     #[error("{0}. Please supply an explicit on-chain address for the package")]
     PublishedAt(#[from] PublishedAtError),
 
-    #[error("Dependency object does not exist or was deleted: {0:?}")]
+    #[error("Dependency object does not exist or was deleted: {0}")]
     IotaObjectRefFailure(IotaObjectResponseError),
 
     #[error("On-chain address cannot be zero")]

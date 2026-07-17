@@ -10,10 +10,7 @@ use std::{
 };
 
 use iota_framework::{SystemPackage, SystemPackageMetadata};
-use iota_types::{
-    IOTA_FRAMEWORK_PACKAGE_ID, IOTA_SYSTEM_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID, STARDUST_PACKAGE_ID,
-    base_types::ObjectID,
-};
+use iota_sdk_types::ObjectId;
 use serde::{Deserialize, Serialize};
 
 pub type SnapshotManifest = BTreeMap<u64, Snapshot>;
@@ -50,11 +47,11 @@ pub struct SnapshotPackage {
     /// "crates/iota-framework/packages/move-stdlib").
     pub path: String,
     /// Object ID of the published package.
-    pub id: ObjectID,
+    pub id: ObjectId,
 }
 
 impl Snapshot {
-    pub fn package_ids(&self) -> impl Iterator<Item = ObjectID> + '_ {
+    pub fn package_ids(&self) -> impl Iterator<Item = ObjectId> + '_ {
         self.packages.iter().map(|p| p.id)
     }
 }
@@ -69,19 +66,19 @@ impl SnapshotPackage {
     }
 }
 
-const SYSTEM_PACKAGE_PUBLISH_ORDER: &[ObjectID] = &[
-    MOVE_STDLIB_PACKAGE_ID,
-    IOTA_FRAMEWORK_PACKAGE_ID,
-    IOTA_SYSTEM_PACKAGE_ID,
-    STARDUST_PACKAGE_ID,
+const SYSTEM_PACKAGE_PUBLISH_ORDER: &[ObjectId] = &[
+    ObjectId::STD,
+    ObjectId::FRAMEWORK,
+    ObjectId::SYSTEM,
+    ObjectId::STARDUST,
 ];
 
 /// Returns the list of system packages in the order they should be published.
 /// If the protocol version is < 9 then include also the bridge package.
-pub fn get_system_package_publish_order(protocol_version: u64) -> Vec<ObjectID> {
+pub fn get_system_package_publish_order(protocol_version: u64) -> Vec<ObjectId> {
     let mut publish_order = SYSTEM_PACKAGE_PUBLISH_ORDER.to_vec();
     if protocol_version < 9 {
-        publish_order.insert(3, iota_types::GENESIS_BRIDGE_PACKAGE_ID);
+        publish_order.insert(3, ObjectId::GENESIS_BRIDGE);
     }
     publish_order
 }
@@ -116,7 +113,7 @@ pub fn update_bytecode_snapshot_manifest(
 
 pub fn load_bytecode_snapshot(protocol_version: u64) -> anyhow::Result<Vec<SystemPackage>> {
     let snapshot_path = snapshot_path_for_version(protocol_version)?;
-    let mut snapshots: BTreeMap<ObjectID, SystemPackage> = fs::read_dir(&snapshot_path)?
+    let mut snapshots: BTreeMap<ObjectId, SystemPackage> = fs::read_dir(&snapshot_path)?
         .flatten()
         .map(|entry| {
             let file_name = entry.file_name().to_str().unwrap().to_string();
@@ -174,5 +171,5 @@ fn snapshot_path_for_version(version: u64) -> anyhow::Result<PathBuf> {
         .range(version..)
         .next()
         .map(|v| snapshot_dir.join(v.to_string()))
-        .ok_or_else(|| anyhow::anyhow!("No snapshot found for version {}", version))
+        .ok_or_else(|| anyhow::anyhow!("No snapshot found for version {version}"))
 }

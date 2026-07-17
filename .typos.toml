@@ -44,6 +44,7 @@ cpy = "cpy"
 AAS = "AAS"
 # actual typos purposely used in tests
 assing = "assing"
+namee = "namee"
 tring = "tring"
 # better suggestions for typos
 transferer = "transferrer"

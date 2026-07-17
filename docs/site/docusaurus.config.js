@@ -12,32 +12,6 @@ require("dotenv").config();
 
 const jargonConfig = require('./config/jargon.js');
 
-const typedocBaseConfig = {
-  skipErrorChecking: true,
-  plugin: ['typedoc-plugin-markdown'],
-  githubPages: false,
-  readme: 'none',
-  hideGenerator: true,
-  sort: ['source-order'],
-  excludeInternal: true,
-  excludePrivate: true,
-  excludeExternals: true,
-  disableSources: true,
-  hideBreadcrumbs: true,
-  intentionallyNotExported: [],
-  useCodeBlocks: true,
-  parametersFormat: 'table',
-  interfacePropertiesFormat: 'table',
-  classPropertiesFormat: 'table',
-  typeDeclarationFormat: 'table',
-  enumMembersFormat: 'table',
-  indexFormat: 'table',
-  tableColumnSettings: {
-    hideSources: true,
-    leftAlignHeaders: true,
-  },
-};
-
 /** @type {import('@docusaurus/types').Config} */
 const config = {
   title: "IOTA Documentation",
@@ -301,109 +275,6 @@ const config = {
     },
     path.resolve(__dirname, `./src/plugins/descriptions`),
     [
-      'docusaurus-plugin-typedoc',
-      {
-        id: 'ts-sdk',
-        tsconfig: '../../sdk/typescript/tsconfig.json',
-        entryPoints: [
-          '../../sdk/typescript/src/bcs',
-          '../../sdk/typescript/src/client',
-          '../../sdk/typescript/src/cryptography',
-          '../../sdk/typescript/src/faucet',
-          '../../sdk/typescript/src/graphql',
-          '../../sdk/typescript/src/keypairs/ed25519',
-          '../../sdk/typescript/src/keypairs/secp256k1',
-          '../../sdk/typescript/src/keypairs/secp256r1',
-          '../../sdk/typescript/src/multisig',
-          '../../sdk/typescript/src/transactions',
-          '../../sdk/typescript/src/utils',
-          '../../sdk/typescript/src/verify',
-        ],
-        out: '../content/developer/ts-sdk/typescript/api',
-        ...typedocBaseConfig,
-      },
-    ],
-    [
-      'docusaurus-plugin-typedoc',
-      {
-        id: 'dapp-kit',
-        tsconfig: '../../sdk/dapp-kit/tsconfig.json',
-        entryPoints: ['../../sdk/dapp-kit/src'],
-        out: '../content/developer/ts-sdk/dapp-kit/api',
-        ...typedocBaseConfig,
-      },
-    ],
-    [
-      'docusaurus-plugin-typedoc',
-      {
-        id: 'kiosk',
-        tsconfig: '../../sdk/kiosk/tsconfig.json',
-        entryPoints: ['../../sdk/kiosk/src'],
-        out: '../content/developer/ts-sdk/kiosk/api',
-        ...typedocBaseConfig,
-      },
-    ],
-    [
-      'docusaurus-plugin-typedoc',
-      {
-        id: 'bcs',
-        tsconfig: '../../sdk/bcs/tsconfig.json',
-        entryPoints: ['../../sdk/bcs/src/index.ts'],
-        out: '../content/developer/ts-sdk/bcs/api',
-        ...typedocBaseConfig,
-      },
-    ],
-    [
-      'docusaurus-plugin-typedoc',
-      {
-        id: 'signers',
-        tsconfig: '../../sdk/signers/tsconfig.json',
-        entryPoints: ['../../sdk/signers/src/ledger/index.ts', '../../sdk/signers/src/webcrypto/index.ts'],
-        out: '../content/developer/ts-sdk/signers/api',
-        ...typedocBaseConfig,
-      },
-    ],
-    [
-      'docusaurus-plugin-typedoc',
-      {
-        id: 'isc-sdk',
-        tsconfig: '../../sdk/isc-sdk/tsconfig.json',
-        entryPoints: ['../../sdk/isc-sdk/src/index.ts'],
-        out: '../content/developer/ts-sdk/isc-sdk/api',
-        ...typedocBaseConfig,
-      },
-    ],
-    [
-      'docusaurus-plugin-typedoc',
-      {
-        id: 'graphql-transport',
-        tsconfig: '../../sdk/graphql-transport/tsconfig.json',
-        entryPoints: ['../../sdk/graphql-transport/src'],
-        out: '../content/developer/ts-sdk/graphql-transport/api',
-        ...typedocBaseConfig,
-      },
-    ],
-    [
-      'docusaurus-plugin-typedoc',
-      {
-        id: 'wallet-standard',
-        tsconfig: '../../sdk/wallet-standard/tsconfig.json',
-        entryPoints: ['../../sdk/wallet-standard/src'],
-        out: '../content/developer/ts-sdk/wallet-standard/api',
-        ...typedocBaseConfig,
-      },
-    ],
-    [
-      'docusaurus-plugin-typedoc',
-      {
-        id: 'ledgerjs-hw-app-iota',
-        tsconfig: '../../sdk/ledgerjs-hw-app-iota/tsconfig.json',
-        entryPoints: ['../../sdk/ledgerjs-hw-app-iota/src/Iota.ts'],
-        out: '../content/developer/ts-sdk/ledgerjs-hw-app-iota/api',
-        ...typedocBaseConfig,
-      },
-    ],
-    [
       '@docusaurus/plugin-client-redirects',
       {
         createRedirects(existingPath) {
@@ -450,8 +321,32 @@ const config = {
             },
             {
               from: '/about-iota/iota-wallet/how-to/integrate-ledger',
-              to: '/users/iota-wallet/how-to/import/ledger'
-            }
+              to: '/users/iota-wallet/how-to/import/ledger',
+            },
+            {
+              from: '/developer/iota-notarization/getting-started',
+              to: '/developer/iota-notarization/single-notarization/getting-started',
+            },
+            {
+              from: '/developer/iota-notarization/explanations',
+              to: '/developer/iota-notarization/single-notarization/explanations',
+            },
+            {
+              from: '/developer/iota-notarization/how-tos',
+              to: '/developer/iota-notarization/single-notarization/how-tos',
+            },
+            {
+              from: '/developer/iota-notarization/references',
+              to: '/developer/iota-notarization/single-notarization/references',
+            },
+            {
+              from: '/developer/iota-notarization/how-tos/real-world',
+              to: '/developer/iota-notarization/single-notarization/real-world-examples',
+            },
+            {
+              from: '/operator/extensions/indexer-functions',
+              to: '/operator/extended-data-services/iota-indexer',
+            },
           ];
           let paths = [];
           for (const redirect of redirects) {
@@ -590,6 +485,10 @@ const config = {
         sidebar: {
           autoCollapseCategories: false,
         },
+      },
+      tableOfContents: {
+        minHeadingLevel: 2,
+        maxHeadingLevel: 4,
       },
       colorMode: {
         defaultMode: "dark",

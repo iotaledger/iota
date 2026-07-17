@@ -16,12 +16,13 @@ use iota_archival::reader::{ArchiveReader, ArchiveReaderMetrics};
 use iota_config::{genesis::Genesis, node::ArchiveReaderConfig};
 use iota_json_rpc_types::CheckpointId;
 use iota_sdk::IotaClientBuilder;
+use iota_sdk_types::{CheckpointContentsDigest, CheckpointDigest, TransactionDigest};
 use iota_types::{
-    committee::Committee,
-    messages_checkpoint::{CertifiedCheckpointSummary, EndOfEpochData, VerifiedCheckpoint},
+    committee::{Committee, CommitteeChainVerifier},
+    messages_checkpoint::{CertifiedCheckpointSummary, VerifiedCheckpoint},
     storage::{ObjectStore, ReadStore, WriteStore},
 };
-use prometheus::Registry;
+use prometheus_filtered::Registry;
 use serde::{Deserialize, Serialize};
 use tracing::{info, warn};
 
@@ -76,7 +77,7 @@ pub fn write_checkpoint_summary(
     config: &Config,
     summary: &CertifiedCheckpointSummary,
 ) -> Result<()> {
-    let path = config.checkpoint_summary_file_path(*summary.sequence_number());
+    let path = config.checkpoint_summary_file_path(summary.sequence_number());
     bcs::serialize_into(
         &mut fs::File::create(&path)
             .context(format!("error writing summary file '{}'", path.display()))?,
@@ -305,8 +306,9 @@ pub async fn sync_and_verify_checkpoints(config: &Config) -> anyhow::Result<()> 
 
     info!("Verifying summaries.");
 
-    // Check the signatures of all checkpoints
-    let mut prev_committee = genesis_committee;
+    // Walk the committee chain over the end-of-epoch checkpoints, anchored at
+    // the genesis committee.
+    let mut chain_verifier = CommitteeChainVerifier::new(genesis_committee);
     for seq in checkpoints_list.checkpoints {
         // Check if there is a corresponding checkpoint summary file in the checkpoints
         // directory
@@ -319,27 +321,15 @@ pub async fn sync_and_verify_checkpoints(config: &Config) -> anyhow::Result<()> 
             panic!("corrupted checkpoint directory");
         };
 
-        // Verify the checkpoint
-        summary.clone().try_into_verified(&prev_committee)?;
+        let verified = chain_verifier
+            .verify_epoch_close(summary)
+            .with_context(|| format!("Failed to verify checkpoint {seq}"))?;
 
         info!(
             "Verified epoch: {}, checkpoint: {seq}, checkpoint digest: {}",
-            summary.epoch(),
-            summary.digest()
+            verified.epoch(),
+            verified.digest()
         );
-
-        // Extract the next committee information
-        if let Some(EndOfEpochData {
-            next_epoch_committee,
-            ..
-        }) = &summary.end_of_epoch_data
-        {
-            let next_committee = next_epoch_committee.iter().cloned().collect();
-            prev_committee =
-                Committee::new(summary.epoch().checked_add(1).unwrap(), next_committee);
-        } else {
-            bail!("Expected all checkpoints to be end-of-epoch checkpoints");
-        }
     }
 
     Ok(())
@@ -363,7 +353,7 @@ impl WriteStore for CheckpointSummaryFileStore {
     ) -> iota_types::storage::error::Result<()> {
         let path = self
             .config
-            .checkpoint_summary_file_path(*checkpoint.sequence_number());
+            .checkpoint_summary_file_path(checkpoint.sequence_number());
         info!("Downloading checkpoint summary to '{}'", path.display());
         bcs::serialize_into(
             &mut fs::File::create(&path).expect("error writing file"),
@@ -433,7 +423,7 @@ impl ReadStore for CheckpointSummaryFileStore {
 
     fn try_get_checkpoint_by_digest(
         &self,
-        _: &iota_types::digests::CheckpointDigest,
+        _: &CheckpointDigest,
     ) -> iota_types::storage::error::Result<Option<VerifiedCheckpoint>> {
         unimplemented!()
     }
@@ -447,7 +437,7 @@ impl ReadStore for CheckpointSummaryFileStore {
 
     fn try_get_checkpoint_contents_by_digest(
         &self,
-        _: &iota_types::digests::CheckpointContentsDigest,
+        _: &CheckpointContentsDigest,
     ) -> iota_types::storage::error::Result<
         Option<iota_types::messages_checkpoint::CheckpointContents>,
     > {
@@ -465,7 +455,7 @@ impl ReadStore for CheckpointSummaryFileStore {
 
     fn try_get_transaction(
         &self,
-        _: &iota_types::digests::TransactionDigest,
+        _: &TransactionDigest,
     ) -> iota_types::storage::error::Result<Option<Arc<iota_types::transaction::VerifiedTransaction>>>
     {
         unimplemented!()
@@ -473,14 +463,14 @@ impl ReadStore for CheckpointSummaryFileStore {
 
     fn try_get_transaction_effects(
         &self,
-        _: &iota_types::digests::TransactionDigest,
+        _: &TransactionDigest,
     ) -> iota_types::storage::error::Result<Option<iota_types::effects::TransactionEffects>> {
         unimplemented!()
     }
 
     fn try_get_events(
         &self,
-        _: &iota_types::digests::TransactionDigest,
+        _: &TransactionDigest,
     ) -> iota_types::storage::error::Result<Option<iota_types::effects::TransactionEvents>> {
         unimplemented!()
     }
@@ -496,7 +486,7 @@ impl ReadStore for CheckpointSummaryFileStore {
 
     fn try_get_full_checkpoint_contents(
         &self,
-        _: &iota_types::digests::CheckpointContentsDigest,
+        _: &CheckpointContentsDigest,
     ) -> iota_types::storage::error::Result<
         Option<iota_types::messages_checkpoint::FullCheckpointContents>,
     > {
@@ -507,14 +497,14 @@ impl ReadStore for CheckpointSummaryFileStore {
 impl ObjectStore for CheckpointSummaryFileStore {
     fn try_get_object(
         &self,
-        _: &iota_types::base_types::ObjectID,
+        _: &iota_sdk_types::ObjectId,
     ) -> iota_types::storage::error::Result<Option<iota_types::object::Object>> {
         unimplemented!()
     }
 
     fn try_get_object_by_key(
         &self,
-        _: &iota_types::base_types::ObjectID,
+        _: &iota_sdk_types::ObjectId,
         _: iota_types::base_types::VersionNumber,
     ) -> iota_types::storage::error::Result<Option<iota_types::object::Object>> {
         unimplemented!()
@@ -523,11 +513,13 @@ impl ObjectStore for CheckpointSummaryFileStore {
 
 #[cfg(test)]
 mod tests {
+    use iota_sdk_types::gas::GasCostSummary;
     use iota_types::{
         crypto::AuthorityQuorumSignInfo,
-        gas::GasCostSummary,
         message_envelope::Envelope,
-        messages_checkpoint::{CheckpointContents, CheckpointSummary},
+        messages_checkpoint::{
+            CheckpointContents, CheckpointContentsExt, CheckpointSummary, CheckpointSummaryExt,
+        },
         supported_protocol_versions::ProtocolConfig,
     };
     use roaring::RoaringBitmap;
@@ -566,7 +558,7 @@ mod tests {
     fn test_checkpoint_read_write() {
         let (config, _temp_dir) = create_test_config();
         let contents = CheckpointContents::new_with_digests_only_for_tests(vec![]);
-        let summary = CheckpointSummary::new(
+        let summary = CheckpointSummary::new_with_protocol_config(
             &ProtocolConfig::get_for_max_version_UNSAFE(),
             0,
             0,

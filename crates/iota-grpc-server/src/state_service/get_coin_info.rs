@@ -14,6 +14,7 @@ use iota_grpc_types::{
         state_service::{GetCoinInfoRequest, GetCoinInfoResponse},
     },
 };
+use iota_sdk_types::{Address, Owner};
 
 use crate::{error::RpcError, types::GrpcReader, validation::object_id_proto};
 
@@ -41,7 +42,7 @@ pub(crate) fn get_coin_info(
             .with_reason(ErrorReason::FieldInvalid)
     })?;
 
-    let coin_info = reader.get_coin_v2_info(&core_coin_type)?;
+    let coin_info = reader.get_coin_info(&core_coin_type)?;
     let coin_info = coin_info.ok_or_else(|| {
         RpcError::new(
             tonic::Code::NotFound,
@@ -87,12 +88,8 @@ pub(crate) fn get_coin_info(
             // Immutable or owned by 0x0 means the TreasuryCap can never be used
             // to mint, so supply is fixed.
             let supply_state = match &object.owner {
-                iota_types::object::Owner::Immutable => SupplyState::Fixed,
-                iota_types::object::Owner::AddressOwner(addr)
-                    if *addr == iota_types::base_types::IotaAddress::ZERO =>
-                {
-                    SupplyState::Fixed
-                }
+                Owner::Immutable => SupplyState::Fixed,
+                Owner::Address(addr) if *addr == Address::ZERO => SupplyState::Fixed,
                 _ => SupplyState::Unknown,
             };
 
@@ -113,7 +110,7 @@ pub(crate) fn get_coin_info(
                 }
             }
         }
-    } else if iota_types::gas_coin::GAS::is_gas(&core_coin_type) {
+    } else if core_coin_type.is_gas() {
         // Special case for native GAS coin: get treasury from system state.
         // The native gas coin's total supply is fixed (no TreasuryCap can mint more).
         let summary = reader.get_system_state_summary()?;
@@ -135,7 +132,7 @@ pub(crate) fn get_coin_info(
     // updated to use it for consistency and better error handling.
     if let Some(regulated_object_id) = coin_info.regulated_coin_metadata_object_id {
         if let Some(object) = reader.get_object(&regulated_object_id)? {
-            if let Some(move_obj) = object.data.try_as_move() {
+            if let Some(move_obj) = object.data.as_opt_struct() {
                 match bcs::from_bytes::<iota_types::deny_list_v1::RegulatedCoinMetadata>(
                     move_obj.contents(),
                 ) {

@@ -4,8 +4,8 @@
 
 use dashmap::{DashMap, mapref::entry::Entry as DashMapEntry};
 use iota_common::debug_fatal;
+use iota_sdk_types::{ObjectId, ObjectReference};
 use iota_types::{
-    base_types::{ObjectID, ObjectRef},
     error::{IotaError, IotaResult, UserInputError},
     object::Object,
     storage::ObjectStore,
@@ -29,7 +29,7 @@ pub(super) struct ObjectLocks {
     // for those objects. Therefore we do a db read for each object we are locking.
     //
     // TODO: find a strategy to allow us to avoid db reads for each object.
-    locked_transactions: DashMap<ObjectRef, (RefCount, LockDetails)>,
+    locked_transactions: DashMap<ObjectReference, (RefCount, LockDetails)>,
 }
 
 impl ObjectLocks {
@@ -41,7 +41,7 @@ impl ObjectLocks {
 
     pub(crate) fn get_transaction_lock(
         &self,
-        obj_ref: &ObjectRef,
+        obj_ref: &ObjectReference,
         epoch_store: &AuthorityPerEpochStore,
     ) -> IotaResult<Option<LockDetails>> {
         // We don't consult the in-memory state here. We are only interested in state
@@ -56,7 +56,7 @@ impl ObjectLocks {
     /// transaction, the lock is set.
     pub(crate) fn try_set_transaction_lock(
         &self,
-        obj_ref: &ObjectRef,
+        obj_ref: &ObjectReference,
         new_lock: LockDetails,
         epoch_store: &AuthorityPerEpochStore,
     ) -> IotaResult {
@@ -118,9 +118,9 @@ impl ObjectLocks {
         self.locked_transactions.clear();
     }
 
-    fn verify_live_object(obj_ref: &ObjectRef, live_object: &Object) -> IotaResult {
-        debug_assert_eq!(obj_ref.0, live_object.id());
-        if obj_ref.1 != live_object.version() {
+    fn verify_live_object(obj_ref: &ObjectReference, live_object: &Object) -> IotaResult {
+        debug_assert_eq!(obj_ref.object_id, live_object.id());
+        if obj_ref.version != live_object.version() {
             debug!(
                 "object version unavailable for consumption: {:?} (current: {})",
                 obj_ref,
@@ -135,10 +135,10 @@ impl ObjectLocks {
         }
 
         let live_digest = live_object.digest();
-        if obj_ref.2 != live_digest {
+        if obj_ref.digest != live_digest {
             return Err(IotaError::UserInput {
                 error: UserInputError::InvalidObjectDigest {
-                    object_id: obj_ref.0,
+                    object_id: obj_ref.object_id,
                     expected_digest: live_digest,
                 },
             });
@@ -147,7 +147,7 @@ impl ObjectLocks {
         Ok(())
     }
 
-    fn clear_cached_locks(&self, locks: &[(ObjectRef, LockDetails)]) {
+    fn clear_cached_locks(&self, locks: &[(ObjectReference, LockDetails)]) {
         for (obj_ref, lock) in locks {
             let entry = self.locked_transactions.entry(*obj_ref);
             let mut occupied = match entry {
@@ -175,7 +175,7 @@ impl ObjectLocks {
 
     fn multi_get_objects_must_exist(
         cache: &WritebackCache,
-        object_ids: &[ObjectID],
+        object_ids: &[ObjectId],
     ) -> IotaResult<Vec<Object>> {
         let objects = cache.try_multi_get_objects(object_ids)?;
         let mut result = Vec::with_capacity(objects.len());
@@ -194,17 +194,37 @@ impl ObjectLocks {
         Ok(result)
     }
 
+    /// Validates that all owned input objects exist and their versions/digests
+    /// match the live objects. Does not acquire any locks.
+    pub(crate) fn validate_owned_object_versions(
+        cache: &WritebackCache,
+        owned_input_objects: &[ObjectReference],
+    ) -> IotaResult {
+        if owned_input_objects.is_empty() {
+            return Ok(());
+        }
+        let object_ids: Vec<_> = owned_input_objects.iter().map(|o| o.object_id).collect();
+        let live_objects = Self::multi_get_objects_must_exist(cache, &object_ids)?;
+        for (obj_ref, live_object) in owned_input_objects.iter().zip(live_objects.iter()) {
+            Self::verify_live_object(obj_ref, live_object)?;
+        }
+        Ok(())
+    }
+
     #[instrument(level = "debug", skip_all)]
     pub(crate) fn acquire_transaction_locks(
         &self,
         cache: &WritebackCache,
         epoch_store: &AuthorityPerEpochStore,
-        owned_input_objects: &[ObjectRef],
+        owned_input_objects: &[ObjectReference],
         transaction: VerifiedSignedTransaction,
     ) -> IotaResult {
         let tx_digest = *transaction.digest();
 
-        let object_ids = owned_input_objects.iter().map(|o| o.0).collect::<Vec<_>>();
+        let object_ids = owned_input_objects
+            .iter()
+            .map(|o| o.object_id)
+            .collect::<Vec<_>>();
         let live_objects = Self::multi_get_objects_must_exist(cache, &object_ids)?;
 
         // Only live objects can be locked
@@ -227,7 +247,7 @@ impl ObjectLocks {
         // signed. If one client then retries, they will succeed (counterintuitively).
         let owned_input_objects = {
             let mut o = owned_input_objects.to_vec();
-            o.sort_by_key(|o| o.0);
+            o.sort_by_key(|o| o.object_id);
             o
         };
 
@@ -400,7 +420,7 @@ mod tests {
 
             let objects: Vec<_> = vec![s.object(1), s.object(2)]
                 .into_iter()
-                .map(|o| o.compute_object_reference())
+                .map(|o| o.object_ref())
                 .collect();
 
             s.with_mutated(&[1, 2]);

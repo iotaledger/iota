@@ -4,23 +4,19 @@
 
 use async_trait::async_trait;
 use futures::StreamExt;
-use iota_json::IotaJsonValue;
 use iota_json_rpc_types::{
     Balance, IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, ObjectChange,
 };
 use iota_move_build::test_utils::compile_managed_coin_package;
 use iota_sdk::PagedFn;
-use iota_test_transaction_builder::make_staking_transaction;
+use iota_sdk_transaction_builder::SharedMut;
+use iota_sdk_types::{ObjectId, ObjectReference, Owner, StructTag};
+use iota_test_transaction_builder::{make_staking_transaction, move_call_tx};
 use iota_types::{
-    base_types::{ObjectID, ObjectRef},
-    gas_coin::GAS,
     iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
-    object::Owner,
     quorum_driver_types::ExecuteTransactionRequestType,
 };
 use jsonrpsee::rpc_params;
-use move_core_types::language_storage::StructTag;
-use serde_json::json;
 use tracing::info;
 
 use crate::{TestCaseImpl, TestContext};
@@ -40,6 +36,7 @@ impl TestCaseImpl for CoinIndexTest {
     async fn run(&self, ctx: &mut TestContext) -> Result<(), anyhow::Error> {
         let account = ctx.get_wallet_address();
         let client = ctx.clone_fullnode_client();
+        let grpc_client = ctx.get_fullnode_grpc_client();
         let rgp = ctx.get_reference_gas_price().await;
 
         // 0. Get some coins first
@@ -68,11 +65,11 @@ impl TestCaseImpl for CoinIndexTest {
         let balance_change = response.balance_changes.unwrap();
         let owner_balance = balance_change
             .iter()
-            .find(|b| b.owner == Owner::AddressOwner(account))
+            .find(|b| b.owner == Owner::Address(account))
             .unwrap();
         let recipient_balance = balance_change
             .iter()
-            .find(|b| b.owner != Owner::AddressOwner(account))
+            .find(|b| b.owner != Owner::Address(account))
             .unwrap();
         let Balance {
             coin_object_count,
@@ -80,7 +77,7 @@ impl TestCaseImpl for CoinIndexTest {
             coin_type,
             ..
         } = client.coin_read_api().get_balance(account, None).await?;
-        assert_eq!(coin_type, GAS::type_().to_string());
+        assert_eq!(coin_type, StructTag::new_gas().to_string());
 
         assert_eq!(coin_object_count, old_coin_object_count);
         assert_eq!(
@@ -96,7 +93,7 @@ impl TestCaseImpl for CoinIndexTest {
             ..
         } = client
             .coin_read_api()
-            .get_balance(recipient_balance.owner.get_owner_address().unwrap(), None)
+            .get_balance(*recipient_balance.owner.address_or_object().unwrap(), None)
             .await?;
         assert_eq!(coin_object_count, 1);
         assert!(recipient_balance.amount > 0);
@@ -106,7 +103,9 @@ impl TestCaseImpl for CoinIndexTest {
         let validator_addr = match ctx.get_latest_iota_system_state().await {
             IotaSystemStateSummary::V1(v1) => v1.active_validators,
             IotaSystemStateSummary::V2(v2) => v2.active_validators,
-            _ => panic!("unsupported IotaSystemStateSummary"),
+            _ => unimplemented!(
+                "a new IotaSystemStateSummary enum variant was added and needs to be handled"
+            ),
         }
         .first()
         .unwrap()
@@ -125,7 +124,7 @@ impl TestCaseImpl for CoinIndexTest {
             .await?;
 
         let balance_change = &response.balance_changes.unwrap()[0];
-        assert_eq!(balance_change.owner, Owner::AddressOwner(account));
+        assert_eq!(balance_change.owner, Owner::Address(account));
 
         let Balance {
             coin_object_count,
@@ -149,30 +148,20 @@ impl TestCaseImpl for CoinIndexTest {
 
         info!("token package published, package: {package:?}, cap: {cap:?}",);
         let iota_type_str = "0x2::iota::IOTA";
-        let coin_type_str = format!("{}::managed::MANAGED", package.0);
+        let coin_type_str = format!("{}::managed::MANAGED", package.object_id);
         info!("coin type: {coin_type_str}");
 
         // 4. Mint 1 MANAGED coin to account, balance 10000
-        let args = vec![
-            IotaJsonValue::from_object_id(cap.0),
-            IotaJsonValue::new(json!("10000"))?,
-            IotaJsonValue::new(json!(account))?,
-        ];
-        let txn = client
-            .transaction_builder()
-            .move_call(
-                account,
-                package.0,
-                "managed",
-                "mint",
-                vec![],
-                args,
-                None,
-                rgp * 2_000_000,
-                None,
-            )
-            .await
-            .unwrap();
+        let txn = move_call_tx(
+            &grpc_client,
+            account,
+            package.object_id,
+            "managed",
+            "mint",
+            (cap.object_id, 10000u64, account),
+            rgp * 2_000_000,
+        )
+        .await;
         let response = ctx.sign_and_execute(txn, "mint managed coin to self").await;
 
         let balance_changes = &response.balance_changes.unwrap();
@@ -185,8 +174,8 @@ impl TestCaseImpl for CoinIndexTest {
             .find(|b| b.coin_type.to_string().contains("MANAGED"))
             .unwrap();
 
-        assert_eq!(iota_balance_change.owner, Owner::AddressOwner(account));
-        assert_eq!(managed_balance_change.owner, Owner::AddressOwner(account));
+        assert_eq!(iota_balance_change.owner, Owner::Address(account));
+        assert_eq!(managed_balance_change.owner, Owner::Address(account));
 
         let Balance { total_balance, .. } =
             client.coin_read_api().get_balance(account, None).await?;
@@ -235,25 +224,16 @@ impl TestCaseImpl for CoinIndexTest {
         assert_eq!(balances, expected_balances,);
 
         // 5. Mint another MANAGED coin to account, balance 10
-        let txn = client
-            .transaction_builder()
-            .move_call(
-                account,
-                package.0,
-                "managed",
-                "mint",
-                vec![],
-                vec![
-                    IotaJsonValue::from_object_id(cap.0),
-                    IotaJsonValue::new(json!("10"))?,
-                    IotaJsonValue::new(json!(account))?,
-                ],
-                None,
-                rgp * 2_000_000,
-                None,
-            )
-            .await
-            .unwrap();
+        let txn = move_call_tx(
+            &grpc_client,
+            account,
+            package.object_id,
+            "managed",
+            "mint",
+            (cap.object_id, 10u64, account),
+            rgp * 2_000_000,
+        )
+        .await;
         let response = ctx.sign_and_execute(txn, "mint managed coin to self").await;
         assert!(response.status_ok().unwrap());
 
@@ -285,7 +265,7 @@ impl TestCaseImpl for CoinIndexTest {
             .find(|c| c.balance == 10000)
             .unwrap()
             .coin_object_id;
-        let _ = add_to_envelope(ctx, package.0, envelope.0, managed_coin_id).await;
+        let _ = add_to_envelope(ctx, package.object_id, envelope.object_id, managed_coin_id).await;
 
         let managed_balance = client
             .coin_read_api()
@@ -304,22 +284,16 @@ impl TestCaseImpl for CoinIndexTest {
         let managed_old_total_count = managed_balance.coin_object_count;
 
         // 7. take back the balance 10 MANAGED coin
-        let args = vec![IotaJsonValue::from_object_id(envelope.0)];
-        let txn = client
-            .transaction_builder()
-            .move_call(
-                account,
-                package.0,
-                "managed",
-                "take_from_envelope",
-                vec![],
-                args,
-                None,
-                rgp * 2_000_000,
-                None,
-            )
-            .await
-            .unwrap();
+        let txn = move_call_tx(
+            &grpc_client,
+            account,
+            package.object_id,
+            "managed",
+            "take_from_envelope",
+            [SharedMut(envelope.object_id)],
+            rgp * 2_000_000,
+        )
+        .await;
         let response = ctx
             .sign_and_execute(txn, "take back managed coin from envelope")
             .await;
@@ -339,27 +313,19 @@ impl TestCaseImpl for CoinIndexTest {
         );
 
         // 8. Put the balance = 10 MANAGED coin back to envelope
-        let _ = add_to_envelope(ctx, package.0, envelope.0, managed_coin_id).await;
+        let _ = add_to_envelope(ctx, package.object_id, envelope.object_id, managed_coin_id).await;
 
         // 9. Take from envelope and burn
-        let txn = client
-            .transaction_builder()
-            .move_call(
-                account,
-                package.0,
-                "managed",
-                "take_from_envelope_and_burn",
-                vec![],
-                vec![
-                    IotaJsonValue::from_object_id(cap.0),
-                    IotaJsonValue::from_object_id(envelope.0),
-                ],
-                None,
-                rgp * 2_000_000,
-                None,
-            )
-            .await
-            .unwrap();
+        let txn = move_call_tx(
+            &grpc_client,
+            account,
+            package.object_id,
+            "managed",
+            "take_from_envelope_and_burn",
+            (cap.object_id, SharedMut(envelope.object_id)),
+            rgp * 2_000_000,
+        )
+        .await;
         let response = ctx
             .sign_and_execute(txn, "take back managed coin from envelope and burn")
             .await;
@@ -374,24 +340,16 @@ impl TestCaseImpl for CoinIndexTest {
         assert_eq!(managed_balance.coin_object_count, managed_old_total_count);
 
         // 10. Burn the balance=10000 MANAGED coin
-        let txn = client
-            .transaction_builder()
-            .move_call(
-                account,
-                package.0,
-                "managed",
-                "burn",
-                vec![],
-                vec![
-                    IotaJsonValue::from_object_id(cap.0),
-                    IotaJsonValue::from_object_id(managed_coin_id_10k),
-                ],
-                None,
-                rgp * 2_000_000,
-                None,
-            )
-            .await
-            .unwrap();
+        let txn = move_call_tx(
+            &grpc_client,
+            account,
+            package.object_id,
+            "managed",
+            "burn",
+            (cap.object_id, managed_coin_id_10k),
+            rgp * 2_000_000,
+        )
+        .await;
         let response = ctx.sign_and_execute(txn, "burn coin").await;
         assert!(response.status_ok().unwrap());
         let managed_balance = client
@@ -442,26 +400,21 @@ impl TestCaseImpl for CoinIndexTest {
         );
 
         // 11. Mint 40 MANAGED coins with balance 5
-        let txn = client
-            .transaction_builder()
-            .move_call(
+        let txn = move_call_tx(
+            &grpc_client,
+            account,
+            package.object_id,
+            "managed",
+            "mint_multi",
+            (
+                cap.object_id,
+                5u64,  // balance = 5
+                40u64, // num = 40
                 account,
-                package.0,
-                "managed",
-                "mint_multi",
-                vec![],
-                vec![
-                    IotaJsonValue::from_object_id(cap.0),
-                    IotaJsonValue::new(json!("5"))?,  // balance = 5
-                    IotaJsonValue::new(json!("40"))?, // num = 40
-                    IotaJsonValue::new(json!(account))?,
-                ],
-                None,
-                rgp * 2_000_000,
-                None,
-            )
-            .await
-            .unwrap();
+            ),
+            rgp * 2_000_000,
+        )
+        .await;
         let response = ctx.sign_and_execute(txn, "multi mint").await;
         assert!(response.status_ok().unwrap());
 
@@ -586,7 +539,7 @@ impl TestCaseImpl for CoinIndexTest {
 
         // 12. add one coin to envelope, now we only have 39 coins
         let removed_coin_id = managed_coins.get(20).unwrap().coin_object_id;
-        let _ = add_to_envelope(ctx, package.0, envelope.0, removed_coin_id).await;
+        let _ = add_to_envelope(ctx, package.object_id, envelope.object_id, removed_coin_id).await;
         let managed_coins_12_39 = client
             .coin_read_api()
             .get_all_coins(account, cursor, Some(40))
@@ -621,7 +574,7 @@ impl TestCaseImpl for CoinIndexTest {
 
 async fn publish_managed_coin_package(
     ctx: &mut TestContext,
-) -> Result<(ObjectRef, ObjectRef, ObjectRef), anyhow::Error> {
+) -> Result<(ObjectReference, ObjectReference, ObjectReference), anyhow::Error> {
     let compiled_package = compile_managed_coin_package();
     let all_module_bytes =
         compiled_package.get_package_base64(/* with_unpublished_deps */ false);
@@ -631,7 +584,7 @@ async fn publish_managed_coin_package(
         ctx.get_wallet_address(),
         all_module_bytes,
         dependencies,
-        None::<ObjectID>,
+        None::<ObjectId>,
         // Doesn't need to be scaled by RGP since most of the cost is storage
         500_000_000.to_string()
     ];
@@ -651,13 +604,10 @@ async fn publish_managed_coin_package(
         .iter()
         .find(|change| {
             matches!(change, ObjectChange::Created {
-            owner: Owner::AddressOwner(_),
-            object_type: StructTag {
-                name,
-                ..
-            },
+            owner: Owner::Address(_),
+            object_type,
             ..
-        } if name.as_str() == "TreasuryCap")
+        } if object_type.is_treasury_cap())
         })
         .unwrap()
         .object_ref();
@@ -665,13 +615,10 @@ async fn publish_managed_coin_package(
         .iter()
         .find(|change| {
             matches!(change, ObjectChange::Created {
-            owner: Owner::Shared {..},
-            object_type: StructTag {
-                name,
-                ..
-            },
+            owner: Owner::Shared(_),
+            object_type,
             ..
-        } if name.as_str() == "PublicRedEnvelope")
+        } if object_type.name().as_str() == "PublicRedEnvelope")
         })
         .unwrap()
         .object_ref();
@@ -680,31 +627,23 @@ async fn publish_managed_coin_package(
 
 async fn add_to_envelope(
     ctx: &mut TestContext,
-    pkg_id: ObjectID,
-    envelope: ObjectID,
-    coin: ObjectID,
+    pkg_id: ObjectId,
+    envelope: ObjectId,
+    coin: ObjectId,
 ) -> IotaTransactionBlockResponse {
     let account = ctx.get_wallet_address();
-    let client = ctx.clone_fullnode_client();
+    let grpc_client = ctx.get_fullnode_grpc_client();
     let rgp = ctx.get_reference_gas_price().await;
-    let txn = client
-        .transaction_builder()
-        .move_call(
-            account,
-            pkg_id,
-            "managed",
-            "add_to_envelope",
-            vec![],
-            vec![
-                IotaJsonValue::from_object_id(envelope),
-                IotaJsonValue::from_object_id(coin),
-            ],
-            None,
-            rgp * 2_000_000,
-            None,
-        )
-        .await
-        .unwrap();
+    let txn = move_call_tx(
+        &grpc_client,
+        account,
+        pkg_id,
+        "managed",
+        "add_to_envelope",
+        (SharedMut(envelope), coin),
+        rgp * 2_000_000,
+    )
+    .await;
     let response = ctx
         .sign_and_execute(txn, "add managed coin to envelope")
         .await;

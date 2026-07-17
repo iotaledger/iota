@@ -10,9 +10,9 @@ use std::{
 
 use futures::{StreamExt, stream::FuturesUnordered};
 use iota_config::node::RunWithRange;
+use iota_sdk_types::{Address, ObjectId, ObjectReference, Version};
 use iota_test_transaction_builder::PublishData;
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
     effects::{TransactionEffects, TransactionEffectsAPI},
     messages_grpc::HandleTransactionResponse,
     mock_checkpoint_builder::ValidatorKeypairProvider,
@@ -31,7 +31,7 @@ use crate::{
 
 pub struct BenchmarkContext {
     validator: SingleValidator,
-    user_accounts: BTreeMap<IotaAddress, Account>,
+    user_accounts: BTreeMap<Address, Account>,
     admin_account: Account,
     benchmark_component: Component,
 }
@@ -75,7 +75,7 @@ impl BenchmarkContext {
         self.validator.clone()
     }
 
-    pub(crate) async fn publish_package(&mut self, publish_data: PublishData) -> ObjectRef {
+    pub(crate) async fn publish_package(&mut self, publish_data: PublishData) -> ObjectReference {
         let mut gas_objects = self.admin_account.gas_objects.deref().clone();
         let (package, updated_gas) = self
             .validator
@@ -96,9 +96,9 @@ impl BenchmarkContext {
     /// address.
     pub(crate) async fn preparing_dynamic_fields(
         &mut self,
-        move_package: ObjectID,
+        move_package: ObjectId,
         num_dynamic_fields: u64,
-    ) -> HashMap<IotaAddress, ObjectRef> {
+    ) -> HashMap<Address, ObjectReference> {
         let mut root_objects = HashMap::new();
 
         if num_dynamic_fields == 0 {
@@ -118,11 +118,11 @@ impl BenchmarkContext {
         let mut new_gas_objects = HashMap::new();
         let cache_commit = self.validator().get_validator().get_cache_commit().clone();
         for effects in results {
-            let batch = cache_commit
-                .build_db_batch(effects.executed_epoch(), &[*effects.transaction_digest()]);
+            let batch =
+                cache_commit.build_db_batch(effects.epoch(), 0, &[*effects.transaction_digest()]);
 
             cache_commit.commit_transaction_outputs(
-                effects.executed_epoch(),
+                effects.epoch(),
                 batch,
                 &[*effects.transaction_digest()],
             );
@@ -130,17 +130,12 @@ impl BenchmarkContext {
             let (owner, root_object) = effects
                 .created()
                 .into_iter()
-                .filter_map(|(oref, owner)| {
-                    owner
-                        .get_address_owner_address()
-                        .ok()
-                        .map(|owner| (owner, oref))
-                })
+                .filter_map(|(oref, owner)| owner.as_opt_address().map(|owner| (*owner, oref)))
                 .next()
                 .unwrap();
             root_objects.insert(owner, root_object);
             let gas_object = effects.gas_object().0;
-            new_gas_objects.insert(gas_object.0, gas_object);
+            new_gas_objects.insert(gas_object.object_id, gas_object);
         }
         self.refresh_gas_objects(new_gas_objects);
         info!("Finished preparing root object with dynamic fields");
@@ -149,9 +144,9 @@ impl BenchmarkContext {
 
     pub(crate) async fn prepare_shared_objects(
         &mut self,
-        move_package: ObjectID,
+        move_package: ObjectId,
         num_shared_objects: usize,
-    ) -> Vec<(ObjectID, SequenceNumber)> {
+    ) -> Vec<(ObjectId, Version)> {
         let mut shared_objects = Vec::new();
 
         if num_shared_objects == 0 {
@@ -178,7 +173,7 @@ impl BenchmarkContext {
                 .into_iter()
                 .filter_map(|(oref, owner)| {
                     if owner.is_shared() {
-                        Some((oref.0, oref.1))
+                        Some((oref.object_id, oref.version))
                     } else {
                         None
                     }
@@ -187,17 +182,17 @@ impl BenchmarkContext {
                 .unwrap();
             shared_objects.push(shared_object);
             let gas_object = effects.gas_object().0;
-            new_gas_objects.insert(gas_object.0, gas_object);
+            new_gas_objects.insert(gas_object.object_id, gas_object);
             // Make sure to commit them to DB. This is needed by both the execution-only
             // mode and the checkpoint-executor mode. For execution-only mode,
             // we iterate through all live objects to construct the in memory
             // object store, hence requiring these objects committed to DB.
             // For checkpoint executor, in order to commit a checkpoint it is required
             // previous versions of objects are already committed.
-            let batch = cache_commit
-                .build_db_batch(effects.executed_epoch(), &[*effects.transaction_digest()]);
+            let batch =
+                cache_commit.build_db_batch(effects.epoch(), 0, &[*effects.transaction_digest()]);
             cache_commit.commit_transaction_outputs(
-                effects.executed_epoch(),
+                effects.epoch(),
                 batch,
                 &[*effects.transaction_digest()],
             );
@@ -359,7 +354,7 @@ impl BenchmarkContext {
             .execute_dry_run(sample_transaction.into_unsigned())
             .await;
         info!("Sample effects: {:?}\n\n", effects);
-        assert!(effects.status().is_ok());
+        assert!(effects.status().is_success());
     }
 
     /// Benchmark parallel signing a vector of transactions and measure the TPS.
@@ -408,7 +403,7 @@ impl BenchmarkContext {
             .build_checkpoints(transactions, effects, checkpoint_size)
             .await;
         info!("Built {} checkpoints", checkpoints.len());
-        let last_checkpoint_seq = *checkpoints.last().unwrap().0.sequence_number();
+        let last_checkpoint_seq = checkpoints.last().unwrap().0.sequence_number();
         let checkpoint_executor = validator.create_checkpoint_executor();
         for (checkpoint, contents) in checkpoints {
             let state = validator.get_validator();
@@ -489,14 +484,14 @@ impl BenchmarkContext {
         }
     }
 
-    fn refresh_gas_objects(&mut self, mut new_gas_objects: HashMap<ObjectID, ObjectRef>) {
+    fn refresh_gas_objects(&mut self, mut new_gas_objects: HashMap<ObjectId, ObjectReference>) {
         info!("Refreshing gas objects");
         for account in self.user_accounts.values_mut() {
             let refreshed_gas_objects: Vec<_> = account
                 .gas_objects
                 .iter()
                 .map(|oref| {
-                    if let Some(new_oref) = new_gas_objects.remove(&oref.0) {
+                    if let Some(new_oref) = new_gas_objects.remove(&oref.object_id) {
                         new_oref
                     } else {
                         *oref

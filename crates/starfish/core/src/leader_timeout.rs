@@ -43,6 +43,8 @@ pub(crate) struct LeaderTimeoutTask<D: CoreThreadDispatcher> {
     new_block_receiver: broadcast::Receiver<VerifiedBlock>,
     leader_timeout: Duration,
     min_block_delay: Duration,
+    soft_leader_timeout: Duration,
+    starfish_speed_enabled: bool,
     stop: Receiver<()>,
 }
 
@@ -64,6 +66,8 @@ impl<D: CoreThreadDispatcher> LeaderTimeoutTask<D> {
             new_round_receiver: signals_receivers.new_round_receiver(),
             leader_timeout: context.parameters.leader_timeout,
             min_block_delay: context.parameters.min_block_delay,
+            soft_leader_timeout: context.parameters.soft_leader_timeout,
+            starfish_speed_enabled: context.protocol_config.consensus_starfish_speed(),
         };
         let handle = tokio::spawn(async move { me.run().await });
 
@@ -88,12 +92,15 @@ impl<D: CoreThreadDispatcher> LeaderTimeoutTask<D> {
         let mut clock_round: Round = *new_clock_round.borrow_and_update();
         let mut last_own_block_round: Option<Round> = None;
         let mut min_block_delay_timed_out = false;
+        let mut soft_timed_out = false;
         let mut max_leader_round_timed_out = false;
         let timer_start = Instant::now();
         let min_block_delay_timeout = sleep_until(timer_start + self.min_block_delay);
+        let soft_timeout = sleep_until(timer_start + self.soft_leader_timeout);
         let max_leader_timeout = sleep_until(timer_start + self.leader_timeout);
 
         tokio::pin!(min_block_delay_timeout);
+        tokio::pin!(soft_timeout);
         tokio::pin!(max_leader_timeout);
 
         loop {
@@ -104,55 +111,25 @@ impl<D: CoreThreadDispatcher> LeaderTimeoutTask<D> {
 
                 () = &mut min_block_delay_timeout, if !min_block_delay_timed_out && last_own_block_round.is_some() => {
                     let next_round: Round = last_own_block_round.expect("We should expect some last own round") + 1;
-                    match self.dispatcher.new_block(next_round, ReasonToCreateBlock::MinBlockDelayTimeout).await {
-                        Ok(missing_committed_txns) => {
-                            if !missing_committed_txns.is_empty() {
-                                debug!(
-                                    "Missing committed transactions after creating new block: {:?}",
-                                    missing_committed_txns
-                                );
-                                if let Err(err) = self.transactions_synchronizer
-                                    .fetch_transactions(missing_committed_txns)
-                                    .await
-                                {
-                                    warn!(
-                                        "Error while trying to fetch missing transactions via transactions synchronizer: {err}"
-                                    );
-                                }
-                            }
-                        },
-                        Err(err) => {
-                            warn!("Error received while calling dispatcher, probably dispatcher is shutting down, will now exit: {err:?}");
-                            return;
-                        }
+                    if Self::dispatch_new_block(&self.dispatcher, &self.transactions_synchronizer, next_round, ReasonToCreateBlock::MinBlockDelayTimeout).await {
+                        return;
                     }
                     min_block_delay_timed_out = true;
+                },
+                // When the soft leader timeout expires, attempt block creation without requiring
+                // a strong-vote quorum. Only active when starfish speed is enabled.
+                () = &mut soft_timeout, if !soft_timed_out && self.starfish_speed_enabled => {
+                    if Self::dispatch_new_block(&self.dispatcher, &self.transactions_synchronizer, clock_round, ReasonToCreateBlock::SoftTimeout).await {
+                        return;
+                    }
+                    soft_timed_out = true;
                 },
                 // When the max leader timer expires then we attempt to trigger the creation of a new block. This
                 // call is made with reason MaxLeaderTimeout to bypass any checks that allow to propose immediately if block
                 // not already produced.
                 () = &mut max_leader_timeout, if !max_leader_round_timed_out => {
-                    match self.dispatcher.new_block(clock_round, ReasonToCreateBlock::MaxLeaderTimeout).await {
-                        Ok(missing_committed_txns) => {
-                            if !missing_committed_txns.is_empty() {
-                                debug!(
-                                    "Missing committed transactions after creating new block: {:?}",
-                                    missing_committed_txns
-                                );
-                                if let Err(err) = self.transactions_synchronizer
-                                    .fetch_transactions(missing_committed_txns)
-                                    .await
-                                {
-                                    warn!(
-                                        "Error while trying to fetch missing transactions via transactions synchronizer: {err}"
-                                    );
-                                }
-                            }
-                        }
-                        Err(err) =>  {
-                            warn!("Error received while calling dispatcher, probably dispatcher is shutting down, will now exit: {err:?}");
-                            return;
-                        }
+                    if Self::dispatch_new_block(&self.dispatcher, &self.transactions_synchronizer, clock_round, ReasonToCreateBlock::MaxLeaderTimeout).await {
+                        return;
                     }
                     max_leader_round_timed_out = true;
                 }
@@ -164,12 +141,16 @@ impl<D: CoreThreadDispatcher> LeaderTimeoutTask<D> {
                     let _span = tracing::trace_span!("new_consensus_round_received", round = ?clock_round).entered();
 
                     max_leader_round_timed_out = false;
+                    soft_timed_out = false;
 
                     let now = Instant::now();
 
                     max_leader_timeout
                     .as_mut()
                     .reset(now + self.leader_timeout);
+                    soft_timeout
+                    .as_mut()
+                    .reset(now + self.soft_leader_timeout);
                 },
                  // A new block was created. Set a timer in min_block_delay
                 Ok(block) = new_block.recv() => {
@@ -177,14 +158,50 @@ impl<D: CoreThreadDispatcher> LeaderTimeoutTask<D> {
                     last_own_block_round = Some(block.round());
 
                     min_block_delay_timed_out = false;
+                    soft_timed_out = false;
 
                     let now = Instant::now();
                     min_block_delay_timeout.as_mut().reset(now + self.min_block_delay);
+                    soft_timeout.as_mut().reset(now + self.soft_leader_timeout);
                 },
                 _ = &mut self.stop => {
                     debug!("Stop signal has been received, now shutting down");
                     return;
                 }
+            }
+        }
+    }
+
+    /// Request a new block and fetch any missing committed transactions.
+    /// Returns `true` if the dispatcher is shutting down.
+    async fn dispatch_new_block(
+        dispatcher: &D,
+        transactions_synchronizer: &TransactionsSynchronizerHandle,
+        round: Round,
+        reason: ReasonToCreateBlock,
+    ) -> bool {
+        match dispatcher.new_block(round, reason).await {
+            Ok(missing_committed_txns) => {
+                if !missing_committed_txns.is_empty() {
+                    debug!(
+                        "Missing committed transactions after creating new block: {missing_committed_txns:?}"
+                    );
+                    if let Err(err) = transactions_synchronizer
+                        .fetch_transactions(missing_committed_txns)
+                        .await
+                    {
+                        warn!(
+                            "Error while trying to fetch missing transactions via transactions synchronizer: {err}"
+                        );
+                    }
+                }
+                false
+            }
+            Err(err) => {
+                warn!(
+                    "Error received while calling dispatcher, probably dispatcher is shutting down, will now exit: {err:?}"
+                );
+                true
             }
         }
     }
@@ -196,6 +213,7 @@ mod tests {
 
     use bytes::Bytes;
     use parking_lot::RwLock;
+    use rstest::rstest;
     use starfish_config::{AuthorityIndex, Parameters};
     use tokio::time::{Instant, sleep};
 
@@ -278,16 +296,24 @@ mod tests {
         }
     }
 
+    #[rstest]
     #[tokio::test(flavor = "current_thread", start_paused = true)]
-    async fn basic_leader_timeout() {
+    async fn basic_leader_timeout(#[values(false, true)] starfish_speed: bool) {
         telemetry_subscribers::init_for_testing();
-        let (context, _signers) = Context::new_for_test(4);
+        let (mut context, _signers) = Context::new_for_test(4);
+        context
+            .protocol_config
+            .set_consensus_starfish_speed_for_testing(starfish_speed);
         let dispatcher = Arc::new(MockCoreThreadDispatcher::default());
         let leader_timeout = Duration::from_millis(500);
         let min_block_delay = Duration::from_millis(50);
+        // Chosen so no timer deadline coincides with a sleep below — a tie
+        // would make the drained call sequence racy.
+        let soft_leader_timeout = Duration::from_millis(200);
         let parameters = Parameters {
             leader_timeout,
             min_block_delay,
+            soft_leader_timeout,
             ..Default::default()
         };
         let context = Arc::new(context.with_parameters(parameters));
@@ -300,7 +326,7 @@ mod tests {
             dispatcher.clone(),
             Arc::new(RwLock::new(DagState::new(
                 context.clone(),
-                Arc::new(MemStore::new(context.clone())),
+                Arc::new(MemStore::new()),
             ))),
         );
 
@@ -355,17 +381,29 @@ mod tests {
         // wait enough until a new_block has been received
         sleep(2 * leader_timeout).await;
         let all_calls = dispatcher.get_new_block_calls().await;
-        assert_eq!(all_calls.len(), 1);
-
-        let (round, reason, timestamp) = all_calls[0];
-        assert_eq!(round, 10);
-        assert_eq!(reason, ReasonToCreateBlock::MaxLeaderTimeout);
-        assert!(
-            leader_timeout <= timestamp - start,
-            "Leader timeout setting {:?} should be less than actual time difference {:?}",
-            leader_timeout,
-            timestamp - start
-        );
+        // With starfish speed enabled the soft leader timeout fires before the
+        // max leader timeout.
+        let expected = if starfish_speed {
+            vec![
+                (ReasonToCreateBlock::SoftTimeout, soft_leader_timeout),
+                (ReasonToCreateBlock::MaxLeaderTimeout, leader_timeout),
+            ]
+        } else {
+            vec![(ReasonToCreateBlock::MaxLeaderTimeout, leader_timeout)]
+        };
+        assert_eq!(all_calls.len(), expected.len());
+        for ((round, reason, timestamp), (expected_reason, timeout)) in
+            all_calls.iter().zip(&expected)
+        {
+            assert_eq!(*round, 10);
+            assert_eq!(reason, expected_reason);
+            assert!(
+                *timeout <= *timestamp - start,
+                "Timeout setting {:?} should be less than actual time difference {:?}",
+                timeout,
+                *timestamp - start
+            );
+        }
 
         // now wait another 2 * leader_timeout, no other call should be received
         sleep(2 * leader_timeout).await;
@@ -374,16 +412,24 @@ mod tests {
         assert_eq!(all_calls.len(), 0);
     }
 
+    #[rstest]
     #[tokio::test(flavor = "current_thread", start_paused = true)]
-    async fn multiple_leader_timeouts() {
+    async fn multiple_leader_timeouts(#[values(false, true)] starfish_speed: bool) {
         telemetry_subscribers::init_for_testing();
-        let (context, _signers) = Context::new_for_test(4);
+        let (mut context, _signers) = Context::new_for_test(4);
+        context
+            .protocol_config
+            .set_consensus_starfish_speed_for_testing(starfish_speed);
         let dispatcher = Arc::new(MockCoreThreadDispatcher::default());
         let leader_timeout = Duration::from_millis(500);
         let min_block_delay = Duration::from_millis(50);
+        // Chosen so no timer deadline coincides with a sleep below — a tie
+        // would make the drained call sequence racy.
+        let soft_leader_timeout = Duration::from_millis(200);
         let parameters = Parameters {
             leader_timeout,
             min_block_delay,
+            soft_leader_timeout,
             ..Default::default()
         };
         let context = Arc::new(context.with_parameters(parameters));
@@ -394,7 +440,7 @@ mod tests {
             dispatcher.clone(),
             Arc::new(RwLock::new(DagState::new(
                 context.clone(),
-                Arc::new(MemStore::new(context.clone())),
+                Arc::new(MemStore::new()),
             ))),
         );
 
@@ -442,16 +488,29 @@ mod tests {
             .expect("We should expect correct sending a new block");
         sleep(2 * leader_timeout).await;
 
-        // only the last one should be received
+        // only the last round should be received; with starfish speed enabled
+        // the soft leader timeout fires between the min block delay and the
+        // max leader timeout.
         let all_calls = dispatcher.get_new_block_calls().await;
-        let (round, reason, timestamp) = all_calls[0];
-        assert_eq!(round, 15);
-        assert_eq!(reason, ReasonToCreateBlock::MinBlockDelayTimeout);
-        assert!(min_block_delay < timestamp - now);
-
-        let (round, reason, timestamp) = all_calls[1];
-        assert_eq!(round, 15);
-        assert_eq!(reason, ReasonToCreateBlock::MaxLeaderTimeout);
-        assert!(leader_timeout < timestamp - now);
+        let expected = if starfish_speed {
+            vec![
+                (ReasonToCreateBlock::MinBlockDelayTimeout, min_block_delay),
+                (ReasonToCreateBlock::SoftTimeout, soft_leader_timeout),
+                (ReasonToCreateBlock::MaxLeaderTimeout, leader_timeout),
+            ]
+        } else {
+            vec![
+                (ReasonToCreateBlock::MinBlockDelayTimeout, min_block_delay),
+                (ReasonToCreateBlock::MaxLeaderTimeout, leader_timeout),
+            ]
+        };
+        assert_eq!(all_calls.len(), expected.len());
+        for ((round, reason, timestamp), (expected_reason, timeout)) in
+            all_calls.iter().zip(&expected)
+        {
+            assert_eq!(*round, 15);
+            assert_eq!(reason, expected_reason);
+            assert!(*timeout < *timestamp - now);
+        }
     }
 }

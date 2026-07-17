@@ -12,18 +12,29 @@ use std::{
     fs,
     net::{IpAddr, Ipv4Addr, SocketAddr},
     ops::Add,
-    sync::Arc,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
     time::{Duration, Instant, SystemTime},
 };
 
 use dashmap::DashMap;
 use fs::File;
+use iota_common::fatal;
 use iota_metrics::spawn_monitored_task;
-use iota_types::traffic_control::{PolicyConfig, PolicyType, RemoteFirewallConfig, Weight};
-use prometheus::IntGauge;
+use iota_types::{
+    error::IotaError,
+    traffic_control::{
+        ClientIdSource, PolicyConfig, PolicyType, RemoteFirewallConfig,
+        TrafficControlReconfigParams, Weight,
+    },
+};
+use parking_lot::Mutex as ParkingLotMutex;
+use prometheus_filtered::IntGauge;
 use rand::Rng;
 use tokio::{
-    sync::{mpsc, mpsc::error::TrySendError},
+    sync::{Mutex, RwLock, mpsc, mpsc::error::TrySendError},
     time,
 };
 use tracing::{debug, error, info, trace, warn};
@@ -57,10 +68,17 @@ enum Acl {
 
 #[derive(Clone)]
 pub struct TrafficController {
-    tally_channel: Option<mpsc::Sender<TrafficTally>>,
+    tally_channel: Arc<ParkingLotMutex<Option<mpsc::Sender<TrafficTally>>>>,
     acl: Acl,
     metrics: Arc<TrafficControllerMetrics>,
-    dry_run_mode: bool,
+    spam_policy: Option<Arc<Mutex<TrafficControlPolicy>>>,
+    error_policy: Option<Arc<Mutex<TrafficControlPolicy>>>,
+    policy_config: Arc<RwLock<PolicyConfig>>,
+    // Lifted out of `policy_config` so the request hot path in `check`
+    // can read it with a relaxed atomic load instead of acquiring the
+    // RwLock and cloning the entire config.
+    dry_run: Arc<AtomicBool>,
+    fw_config: Option<RemoteFirewallConfig>,
 }
 
 impl Debug for TrafficController {
@@ -84,78 +102,208 @@ impl Debug for TrafficController {
 }
 
 impl TrafficController {
-    pub fn init(
+    pub async fn init(
         policy_config: PolicyConfig,
-        metrics: TrafficControllerMetrics,
+        metrics: Arc<TrafficControllerMetrics>,
         fw_config: Option<RemoteFirewallConfig>,
     ) -> Self {
-        match policy_config.allow_list {
+        metrics.dry_run_enabled.set(policy_config.dry_run as i64);
+        let dry_run = Arc::new(AtomicBool::new(policy_config.dry_run));
+        match policy_config.allow_list.clone() {
             Some(allow_list) => {
                 let allowlist = allow_list
                     .into_iter()
                     .map(|ip_str| {
                         parse_ip(&ip_str).unwrap_or_else(|| {
-                            panic!("Failed to parse allowlist IP address: {ip_str:?}")
+                            fatal!("Failed to parse allowlist IP address: {ip_str:?}")
                         })
                     })
                     .collect();
                 Self {
-                    tally_channel: None,
+                    tally_channel: Arc::new(ParkingLotMutex::new(None)),
                     acl: Acl::Allowlist(allowlist),
-                    metrics: Arc::new(metrics),
-                    dry_run_mode: policy_config.dry_run,
+                    metrics,
+                    policy_config: Arc::new(RwLock::new(policy_config)),
+                    dry_run,
+                    fw_config,
+                    spam_policy: None,
+                    error_policy: None,
                 }
             }
-            None => Self::spawn(policy_config, metrics, fw_config),
+            None => {
+                let spam_policy = Arc::new(Mutex::new(
+                    TrafficControlPolicy::from_spam_config(policy_config.clone()).await,
+                ));
+                let error_policy = Arc::new(Mutex::new(
+                    TrafficControlPolicy::from_error_config(policy_config.clone()).await,
+                ));
+                let this = Self {
+                    tally_channel: Arc::new(ParkingLotMutex::new(None)),
+                    acl: Acl::Blocklists(Blocklists {
+                        clients: Arc::new(DashMap::new()),
+                        proxied_clients: Arc::new(DashMap::new()),
+                    }),
+                    metrics,
+                    policy_config: Arc::new(RwLock::new(policy_config)),
+                    dry_run,
+                    fw_config,
+                    spam_policy: Some(spam_policy),
+                    error_policy: Some(error_policy),
+                };
+                this.spawn().await;
+                this
+            }
         }
     }
 
-    fn spawn(
+    pub async fn init_for_test(
         policy_config: PolicyConfig,
-        metrics: TrafficControllerMetrics,
         fw_config: Option<RemoteFirewallConfig>,
     ) -> Self {
-        let metrics = Arc::new(metrics);
-        Self::set_policy_config_metrics(&policy_config, metrics.clone());
+        let metrics = Arc::new(TrafficControllerMetrics::new(
+            &prometheus_filtered::Registry::new(),
+        ));
+        Self::init(policy_config, metrics, fw_config).await
+    }
+
+    async fn spawn(&self) {
+        let policy_config = { self.policy_config.read().await.clone() };
+        Self::set_policy_config_metrics(&policy_config, self.metrics.clone());
         let (tx, rx) = mpsc::channel(policy_config.channel_capacity);
         // Memoized drainfile existence state. This is passed into delegation
         // functions to prevent them from continuing to populate blocklists
         // if drain is set, as otherwise it will grow without bounds
         // without the firewall running to periodically clear it.
-        let mem_drainfile_present = fw_config
+        let mem_drainfile_present = self
+            .fw_config
             .as_ref()
             .map(|config| config.drain_path.exists())
             .unwrap_or(false);
-        metrics
+        self.metrics
             .deadmans_switch_enabled
             .set(mem_drainfile_present as i64);
-        let blocklists = Blocklists {
-            clients: Arc::new(DashMap::new()),
-            proxied_clients: Arc::new(DashMap::new()),
+        let blocklists = match self.acl.clone() {
+            Acl::Blocklists(blocklists) => blocklists,
+            Acl::Allowlist(_) => fatal!("Allowlist ACL should not exist on spawn"),
         };
         let tally_loop_blocklists = blocklists.clone();
-        let clear_loop_blocklists = blocklists.clone();
-        let tally_loop_metrics = metrics.clone();
-        let clear_loop_metrics = metrics.clone();
-        let dry_run_mode = policy_config.dry_run;
+        let tally_loop_metrics = self.metrics.clone();
+        let clear_loop_metrics = self.metrics.clone();
+        let tally_loop_fw_config = self.fw_config.clone();
+
+        let spam_policy = self
+            .spam_policy
+            .clone()
+            .expect("spam policy should exist on spawn");
+        let error_policy = self
+            .error_policy
+            .clone()
+            .expect("error policy should exist on spawn");
+
         spawn_monitored_task!(run_tally_loop(
             rx,
             policy_config,
-            fw_config,
+            spam_policy,
+            error_policy,
+            tally_loop_fw_config,
             tally_loop_blocklists,
             tally_loop_metrics,
             mem_drainfile_present,
         ));
-        spawn_monitored_task!(run_clear_blocklists_loop(
-            clear_loop_blocklists,
-            clear_loop_metrics,
-        ));
-        Self {
-            tally_channel: Some(tx),
-            acl: Acl::Blocklists(blocklists),
-            metrics,
-            dry_run_mode,
+        spawn_monitored_task!(run_clear_blocklists_loop(blocklists, clear_loop_metrics));
+        self.open_tally_channel(tx);
+    }
+
+    pub async fn get_current_state(&self) -> TrafficControlReconfigParams {
+        let mut result = TrafficControlReconfigParams {
+            error_threshold: None,
+            spam_threshold: None,
+            dry_run: None,
+        };
+
+        if let Some(error_policy) = self.error_policy.as_ref() {
+            if let TrafficControlPolicy::FreqThreshold(ref policy) = *error_policy.lock().await {
+                result.error_threshold = Some(policy.client_threshold);
+            }
         }
+
+        if let Some(spam_policy) = self.spam_policy.as_ref() {
+            if let TrafficControlPolicy::FreqThreshold(ref policy) = *spam_policy.lock().await {
+                result.spam_threshold = Some(policy.client_threshold);
+            }
+        }
+
+        result.dry_run = Some(self.dry_run.load(Ordering::Relaxed));
+        result
+    }
+
+    pub async fn admin_reconfigure(
+        &self,
+        params: TrafficControlReconfigParams,
+    ) -> Result<TrafficControlReconfigParams, IotaError> {
+        let TrafficControlReconfigParams {
+            error_threshold,
+            spam_threshold,
+            dry_run,
+        } = params;
+        if let Some(error_threshold) = error_threshold {
+            let policy = self.error_policy.as_ref().ok_or_else(|| {
+                IotaError::InvalidAdminRequest(
+                    "Cannot reconfigure error policy threshold in allowlist mode".to_string(),
+                )
+            })?;
+            self.metrics
+                .error_client_threshold
+                .set(error_threshold as i64);
+            Self::update_policy_threshold(policy, error_threshold, dry_run).await?;
+        }
+        if let Some(spam_threshold) = spam_threshold {
+            let policy = self.spam_policy.as_ref().ok_or_else(|| {
+                IotaError::InvalidAdminRequest(
+                    "Cannot reconfigure spam policy threshold in allowlist mode".to_string(),
+                )
+            })?;
+            self.metrics
+                .spam_client_threshold
+                .set(spam_threshold as i64);
+            Self::update_policy_threshold(policy, spam_threshold, dry_run).await?;
+        }
+        if let Some(dry_run) = dry_run {
+            self.metrics.dry_run_enabled.set(dry_run as i64);
+            self.dry_run.store(dry_run, Ordering::Relaxed);
+        }
+
+        Ok(self.get_current_state().await)
+    }
+
+    async fn update_policy_threshold(
+        policy: &Arc<Mutex<TrafficControlPolicy>>,
+        threshold: u64,
+        dry_run: Option<bool>,
+    ) -> Result<(), IotaError> {
+        match *policy.lock().await {
+            TrafficControlPolicy::FreqThreshold(ref mut policy) => {
+                policy.client_threshold = threshold;
+                if let Some(dry_run) = dry_run {
+                    policy.config.dry_run = dry_run;
+                }
+                Ok(())
+            }
+            TrafficControlPolicy::TestNConnIP(ref mut policy) => {
+                policy.threshold = threshold;
+                if let Some(dry_run) = dry_run {
+                    policy.config.dry_run = dry_run;
+                }
+                Ok(())
+            }
+            _ => Err(IotaError::InvalidAdminRequest(
+                "Unsupported prior policy type during traffic control reconfiguration".to_string(),
+            )),
+        }
+    }
+
+    fn open_tally_channel(&self, tx: mpsc::Sender<TrafficTally>) {
+        self.tally_channel.lock().replace(tx);
     }
 
     fn set_policy_config_metrics(
@@ -180,16 +328,8 @@ impl TrafficController {
         }
     }
 
-    pub fn init_for_test(
-        policy_config: PolicyConfig,
-        fw_config: Option<RemoteFirewallConfig>,
-    ) -> Self {
-        let metrics = TrafficControllerMetrics::new(&prometheus::Registry::new());
-        Self::init(policy_config, metrics, fw_config)
-    }
-
     pub fn tally(&self, tally: TrafficTally) {
-        if let Some(channel) = self.tally_channel.as_ref() {
+        if let Some(channel) = self.tally_channel.lock().as_ref() {
             // Use try_send rather than send mainly to avoid creating backpressure
             // on the caller if the channel is full, which may slow down the critical
             // path. Dropping the tally on the floor should be ok, as in this case
@@ -205,27 +345,34 @@ impl TrafficController {
                     // that clearly the system is overloaded
                 }
                 Err(TrySendError::Closed(_)) => {
-                    panic!("TrafficController tally channel closed unexpectedly");
+                    warn!("TrafficController tally channel closed unexpectedly");
                 }
                 Ok(_) => {}
             }
+        } else {
+            warn!("TrafficController not yet accepting tally requests.");
         }
     }
 
     /// Handle check with dry-run mode considered
     pub async fn check(&self, client: &Option<IpAddr>, proxied_client: &Option<IpAddr>) -> bool {
+        let dry_run = self.dry_run.load(Ordering::Relaxed);
         let check_with_dry_run_maybe = |allowed| -> bool {
-            match (allowed, self.dry_run_mode()) {
-                // check succeeded
+            match (allowed, dry_run) {
+                // request allowed
                 (true, _) => true,
-                // check failed while in dry-run mode
+                // request blocked while in dry-run mode
                 (false, true) => {
                     debug!("Dry run mode: Blocked request from client {:?}", client);
                     self.metrics.num_dry_run_blocked_requests.inc();
                     true
                 }
-                // check failed
-                (false, false) => false,
+                // request blocked
+                (false, false) => {
+                    debug!("Blocked request from client {:?}", client);
+                    self.metrics.requests_blocked_at_protocol.inc();
+                    false
+                }
             }
         };
 
@@ -265,10 +412,6 @@ impl TrafficController {
         client_check && proxied_client_check
     }
 
-    pub fn dry_run_mode(&self) -> bool {
-        self.dry_run_mode
-    }
-
     async fn check_and_clear_blocklist(
         &self,
         client: &Option<IpAddr>,
@@ -289,9 +432,8 @@ impl TrafficController {
                 _ => (true, false),
             }
         };
-        if should_remove {
+        if should_remove && blocklist.remove(client).is_some() {
             blocklist_len_gauge.dec();
-            blocklist.remove(client);
         }
         !should_block
     }
@@ -323,13 +465,13 @@ async fn run_clear_blocklists_loop(blocklists: Blocklists, metrics: Arc<TrafficC
 async fn run_tally_loop(
     mut receiver: mpsc::Receiver<TrafficTally>,
     policy_config: PolicyConfig,
+    spam_policy: Arc<Mutex<TrafficControlPolicy>>,
+    error_policy: Arc<Mutex<TrafficControlPolicy>>,
     fw_config: Option<RemoteFirewallConfig>,
     blocklists: Blocklists,
     metrics: Arc<TrafficControllerMetrics>,
     mut mem_drainfile_present: bool,
 ) {
-    let mut spam_policy = TrafficControlPolicy::from_spam_config(policy_config.clone()).await;
-    let mut error_policy = TrafficControlPolicy::from_error_config(policy_config.clone()).await;
     let spam_blocklists = Arc::new(blocklists.clone());
     let error_blocklists = Arc::new(blocklists);
     let node_fw_client = fw_config
@@ -350,7 +492,7 @@ async fn run_tally_loop(
                     Some(tally) => {
                         // TODO: spawn a task to handle tallying concurrently
                         if let Err(err) = handle_spam_tally(
-                            &mut spam_policy,
+                            spam_policy.clone(),
                             &policy_config,
                             &node_fw_client,
                             &fw_config,
@@ -363,7 +505,7 @@ async fn run_tally_loop(
                             warn!("Error handling spam tally: {}", err);
                         }
                         if let Err(err) = handle_error_tally(
-                            &mut error_policy,
+                            error_policy.clone(),
                             &policy_config,
                             &node_fw_client,
                             &fw_config,
@@ -403,7 +545,8 @@ async fn run_tally_loop(
         // every N seconds, we update metrics and logging that would be too
         // spammy to be handled while processing each tally
         if metric_timer.elapsed() > Duration::from_secs(METRICS_INTERVAL_SECS) {
-            if let TrafficControlPolicy::FreqThreshold(spam_policy) = &spam_policy {
+            if let TrafficControlPolicy::FreqThreshold(ref spam_policy) = *spam_policy.lock().await
+            {
                 if let Some(highest_direct_rate) = spam_policy.highest_direct_rate() {
                     metrics
                         .highest_direct_spam_rate
@@ -420,7 +563,9 @@ async fn run_tally_loop(
                     );
                 }
             }
-            if let TrafficControlPolicy::FreqThreshold(error_policy) = &error_policy {
+            if let TrafficControlPolicy::FreqThreshold(ref error_policy) =
+                *error_policy.lock().await
+            {
                 if let Some(highest_direct_rate) = error_policy.highest_direct_rate() {
                     metrics
                         .highest_direct_error_rate
@@ -446,7 +591,7 @@ async fn run_tally_loop(
 }
 
 async fn handle_error_tally(
-    policy: &mut TrafficControlPolicy,
+    policy: Arc<Mutex<TrafficControlPolicy>>,
     policy_config: &PolicyConfig,
     nodefw_client: &Option<NodeFWClient>,
     fw_config: &Option<RemoteFirewallConfig>,
@@ -469,7 +614,7 @@ async fn handle_error_tally(
         .tally_error_types
         .with_label_values(&[error_type.as_str()])
         .inc();
-    let resp = policy.handle_tally(tally);
+    let resp = policy.lock().await.handle_tally(tally);
     metrics.error_tally_handled.inc();
     if let Some(fw_config) = fw_config {
         if fw_config.delegate_error_blocking && !mem_drainfile_present {
@@ -491,7 +636,7 @@ async fn handle_error_tally(
 }
 
 async fn handle_spam_tally(
-    policy: &mut TrafficControlPolicy,
+    policy: Arc<Mutex<TrafficControlPolicy>>,
     policy_config: &PolicyConfig,
     nodefw_client: &Option<NodeFWClient>,
     fw_config: &Option<RemoteFirewallConfig>,
@@ -503,7 +648,7 @@ async fn handle_spam_tally(
     if !(tally.spam_weight.is_sampled() && policy_config.spam_sample_rate.is_sampled()) {
         return Ok(());
     }
-    let resp = policy.handle_tally(tally.clone());
+    let resp = policy.lock().await.handle_tally(tally.clone());
     metrics.tally_handled.inc();
     if let Some(fw_config) = fw_config {
         if fw_config.delegate_spam_blocking && !mem_drainfile_present {
@@ -549,8 +694,7 @@ async fn handle_policy_response(
             .is_none()
         {
             // Only increment the metric if the client was not already blocked
-            debug!("Blocking client: {:?}", client);
-            metrics.requests_blocked_at_protocol.inc();
+            debug!("Adding client {:?} to blocklist", client);
             metrics.connection_ip_blocklist_len.inc();
         }
     }
@@ -564,8 +708,7 @@ async fn handle_policy_response(
             .is_none()
         {
             // Only increment the metric if the client was not already blocked
-            debug!("Blocking proxied client: {:?}", client);
-            metrics.requests_blocked_at_protocol.inc();
+            debug!("Adding proxied client {:?} to blocklist", client);
             metrics.proxy_ip_blocklist_len.inc();
         }
     }
@@ -695,7 +838,7 @@ impl TrafficSim {
         assert!(per_client_tps > 0);
         assert!(duration.as_secs() > 0);
 
-        let controller = TrafficController::init_for_test(policy.clone(), None);
+        let controller = TrafficController::init_for_test(policy.clone(), None).await;
         let tasks = (0..num_clients).map(|task_num| {
             tokio::spawn(Self::run_single_client(
                 controller.clone(),
@@ -855,11 +998,10 @@ impl TrafficSim {
             metrics.abs_time_to_first_block
         );
         // Useful for ensuring that TTL is respected
-        let avg_time_blocked = if metrics.num_blocklist_adds > 0 {
-            metrics.total_time_blocked.as_millis() as u64 / metrics.num_blocklist_adds
-        } else {
-            0
-        };
+        let avg_time_blocked = (metrics.total_time_blocked.as_millis() as u64)
+            .checked_div(metrics.num_blocklist_adds)
+            .unwrap_or_default();
+
         println!(
             "Average time blocked (ttl): {:?}",
             Duration::from_millis(avg_time_blocked)
@@ -877,4 +1019,71 @@ pub fn parse_ip(ip: &str) -> Option<IpAddr> {
                 None
             })
     })
+}
+
+/// Outcome of resolving the client IP for an incoming request.
+#[derive(Debug)]
+pub enum ClientIpStatus {
+    Ok(IpAddr),
+    /// `SocketAddr` source but the IO type did not expose a remote address
+    /// (e.g. Unix sockets, custom transports). In tests this is usually a
+    /// programming error; in production it usually means a misconfigured
+    /// transport.
+    SocketAddrMissing,
+    /// `XForwardedFor` source but no `x-forwarded-for` header on the request.
+    XForwardedForHeaderMissing,
+    /// `XForwardedFor` source but the header value was not valid UTF-8.
+    XForwardedForInvalidUtf8,
+    /// `XForwardedFor` configured with `num_hops == 0` (operator misconfig).
+    XForwardedForZeroHops,
+    /// `XForwardedFor` configured with `expected` hops but the header
+    /// only had `actual` entries.
+    XForwardedForConfigMismatch {
+        expected: usize,
+        actual: usize,
+    },
+    /// `XForwardedFor` header was present and well-formed but the chosen hop
+    /// position did not parse as an IP address.
+    XForwardedForUnparsable,
+}
+
+/// Resolve the client IP for an incoming request.
+pub fn get_client_ip(
+    headers: &http::HeaderMap,
+    remote_addr: Option<SocketAddr>,
+    source: &ClientIdSource,
+) -> ClientIpStatus {
+    match source {
+        ClientIdSource::SocketAddr => match remote_addr {
+            Some(addr) => ClientIpStatus::Ok(addr.ip()),
+            None => ClientIpStatus::SocketAddrMissing,
+        },
+        ClientIdSource::XForwardedFor(num_hops) => {
+            let header = match headers
+                .get("x-forwarded-for")
+                .or_else(|| headers.get("X-Forwarded-For"))
+            {
+                Some(h) => h,
+                None => return ClientIpStatus::XForwardedForHeaderMissing,
+            };
+            let value = match header.to_str() {
+                Ok(v) => v,
+                Err(_) => return ClientIpStatus::XForwardedForInvalidUtf8,
+            };
+            if *num_hops == 0 {
+                return ClientIpStatus::XForwardedForZeroHops;
+            }
+            let contents: Vec<&str> = value.split(',').map(str::trim).collect();
+            if contents.len() < *num_hops {
+                return ClientIpStatus::XForwardedForConfigMismatch {
+                    expected: *num_hops,
+                    actual: contents.len(),
+                };
+            }
+            match parse_ip(contents[contents.len() - num_hops]) {
+                Some(ip) => ClientIpStatus::Ok(ip),
+                None => ClientIpStatus::XForwardedForUnparsable,
+            }
+        }
+    }
 }

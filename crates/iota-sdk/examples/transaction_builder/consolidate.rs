@@ -14,9 +14,10 @@ use iota_sdk::{
     rpc_types::ObjectChange,
     types::{
         programmable_transaction_builder::ProgrammableTransactionBuilder,
-        transaction::{Argument, Command, ObjectArg, TransactionData, TransactionKind},
+        transaction::{CallArg, TransactionData, TransactionDataAPI},
     },
 };
+use iota_sdk_types::{Argument, Command, ObjectReference, TransactionKind};
 use utils::{setup_for_write, sign_and_execute_transaction};
 
 #[tokio::main]
@@ -57,15 +58,15 @@ async fn main() -> Result<(), anyhow::Error> {
                     .iter()
                     .map(|c| {
                         builder
-                            .obj(ObjectArg::ImmOrOwnedObject(c.object_ref()))
+                            .obj(CallArg::ImmutableOrOwned(c.object_ref()))
                             .unwrap()
                     })
                     .collect::<Vec<_>>();
-                builder.command(Command::MergeCoins(Argument::GasCoin, coin_args));
+                builder.command(Command::new_merge_coins(Argument::Gas, coin_args));
             }
             builder.finish()
         };
-        let kind = TransactionKind::ProgrammableTransaction(pt);
+        let kind = TransactionKind::Programmable(pt);
 
         let gas_price = client.read_api().get_reference_gas_price().await?;
         let tx_data =
@@ -86,7 +87,7 @@ async fn main() -> Result<(), anyhow::Error> {
                 ..
             } = object_change
             {
-                gas_coin_ref.replace((object_id, version, digest));
+                gas_coin_ref.replace(ObjectReference::new(object_id, version, digest));
             }
         }
     }

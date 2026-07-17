@@ -10,22 +10,23 @@ use std::{
 use iota_core::{
     authority::{
         AuthorityState, authority_per_epoch_store::AuthorityPerEpochStore,
-        authority_store_tables::LiveObject, test_authority_builder::TestAuthorityBuilder,
+        test_authority_builder::TestAuthorityBuilder,
     },
     authority_server::{ValidatorService, ValidatorServiceMetrics},
     checkpoints::checkpoint_executor::CheckpointExecutor,
     consensus_adapter::{
         ConnectionMonitorStatusForTests, ConsensusAdapter, ConsensusAdapterMetrics,
     },
+    global_state_hasher::GlobalStateHasher,
     mock_consensus::{ConsensusMode, MockConsensusClient},
-    state_accumulator::StateAccumulator,
 };
+use iota_sdk_types::{Address, ObjectReference, TransactionDigest};
 use iota_test_transaction_builder::{PublishData, TestTransactionBuilder};
 use iota_types::{
-    base_types::{AuthorityName, IotaAddress, ObjectRef, TransactionDigest},
+    base_types::AuthorityName,
     committee::Committee,
     crypto::{AccountKeyPair, AuthoritySignature, Signer},
-    effects::{TransactionEffects, TransactionEffectsAPI},
+    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
     executable_transaction::VerifiedExecutableTransaction,
     messages_checkpoint::{VerifiedCheckpoint, VerifiedCheckpointContents},
     messages_grpc::HandleTransactionResponse,
@@ -72,6 +73,7 @@ impl SingleValidator {
             None,
             None,
             ConsensusAdapterMetrics::new_test(),
+            50,
         ));
         // TODO: for validator benchmarking purposes, we should allow for traffic
         // control to be configurable and introduce traffic control benchmarks
@@ -100,10 +102,10 @@ impl SingleValidator {
     pub async fn publish_package(
         &self,
         publish_data: PublishData,
-        sender: IotaAddress,
+        sender: Address,
         keypair: &AccountKeyPair,
-        gas: ObjectRef,
-    ) -> (ObjectRef, ObjectRef) {
+        gas: ObjectReference,
+    ) -> (ObjectReference, ObjectReference) {
         let tx_builder = TestTransactionBuilder::new(sender, gas, DEFAULT_VALIDATOR_GAS_PRICE)
             .publish_with_data(publish_data);
         let transaction = tx_builder.build_and_sign(keypair);
@@ -128,7 +130,7 @@ impl SingleValidator {
             .try_execute_immediately(&executable, None, &self.epoch_store)
             .unwrap()
             .0;
-        assert!(effects.status().is_ok());
+        assert!(effects.status().is_success());
         effects
     }
 
@@ -141,7 +143,7 @@ impl SingleValidator {
             )
             .unwrap()
             .2;
-        assert!(effects.status().is_ok());
+        assert!(effects.status().is_success());
         effects
     }
 
@@ -170,7 +172,7 @@ impl SingleValidator {
                         .enqueue_certificates_for_execution(vec![cert.clone()], &self.epoch_store);
                 }
                 self.get_validator()
-                    .execute_certificate(&cert, &self.epoch_store)
+                    .wait_for_certificate_execution(&cert, &self.epoch_store)
                     .await
                     .unwrap()
             }
@@ -187,7 +189,7 @@ impl SingleValidator {
                 unreachable!()
             }
         };
-        assert!(effects.status().is_ok());
+        assert!(effects.status().is_success());
         effects
     }
 
@@ -229,7 +231,7 @@ impl SingleValidator {
                 *executable.digest(),
                 &mut None,
             );
-        assert!(effects.status().is_ok());
+        assert!(effects.status().is_success());
         store.commit_objects(inner_temp_store);
         effects
     }
@@ -280,8 +282,8 @@ impl SingleValidator {
             self.epoch_store.clone(),
             validator.get_checkpoint_store().clone(),
             validator.clone(),
-            Arc::new(StateAccumulator::new_for_tests(
-                validator.get_accumulator_store().clone(),
+            Arc::new(GlobalStateHasher::new_for_tests(
+                validator.get_global_state_hash_store().clone(),
             )),
         )
     }
@@ -289,12 +291,9 @@ impl SingleValidator {
     pub(crate) fn create_in_memory_store(&self) -> InMemoryObjectStore {
         let objects: HashMap<_, _> = self
             .get_validator()
-            .get_accumulator_store()
+            .get_global_state_hash_store()
             .iter_cached_live_object_set_for_testing()
-            .map(|o| match o {
-                LiveObject::Normal(object) => (object.id(), object),
-                LiveObject::Wrapped(_) => unreachable!(),
-            })
+            .map(|o| (o.object.id(), o.object))
             .collect();
         InMemoryObjectStore::new(objects)
     }

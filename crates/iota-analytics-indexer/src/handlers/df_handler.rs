@@ -10,11 +10,12 @@ use iota_data_ingestion_core::Worker;
 use iota_indexer::{errors::IndexerError, types::owner_to_owner_info};
 use iota_json_rpc_types::IotaMoveValue;
 use iota_package_resolver::Resolver;
+use iota_sdk_types::{ObjectId, TypeTag};
 use iota_types::{
-    SYSTEM_PACKAGE_ADDRESSES, TypeTag,
-    base_types::ObjectID,
+    SYSTEM_PACKAGE_ADDRESSES,
     dynamic_field::{DynamicFieldName, DynamicFieldType, visitor as DFV},
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
+    iota_sdk_types_conversions::type_tag_core_to_sdk,
     object::{Object, bounded_visitor::BoundedVisitor},
 };
 use tap::tap::TapFallible;
@@ -69,7 +70,7 @@ impl Worker for DynamicFieldHandler {
                 state
                     .resolver
                     .package_store()
-                    .evict(SYSTEM_PACKAGE_ADDRESSES.iter().copied());
+                    .evict(SYSTEM_PACKAGE_ADDRESSES);
             }
         }
         Ok(())
@@ -112,27 +113,24 @@ impl DynamicFieldHandler {
         checkpoint: u64,
         timestamp_ms: u64,
         object: &Object,
-        all_written_objects: &HashMap<ObjectID, Object>,
+        all_written_objects: &HashMap<ObjectId, Object>,
         state: &mut State,
     ) -> Result<()> {
-        let move_obj_opt = object.data.try_as_move();
+        let move_obj_opt = object.data.as_opt_struct();
         // Skip if not a move object
         let Some(move_object) = move_obj_opt else {
             return Ok(());
         };
-        if !move_object.type_().is_dynamic_field() {
+        if !move_object.struct_tag().is_dynamic_field() {
             return Ok(());
         }
-        let layout = state
-            .resolver
-            .type_layout(move_object.type_().clone().into())
-            .await?;
+        let layout = state.resolver.type_layout(move_object.type_tag()).await?;
         let object_id = object.id();
 
         let field = DFV::FieldVisitor::deserialize(move_object.contents(), &layout)?;
 
         let type_ = field.kind;
-        let name_type: TypeTag = field.name_layout.into();
+        let name_type: TypeTag = type_tag_core_to_sdk(&field.name_layout.into());
         let bcs_name = field.name_bytes.to_owned();
 
         let name_value = BoundedVisitor::deserialize_value(field.name_bytes, field.name_layout)
@@ -151,7 +149,7 @@ impl DynamicFieldHandler {
         let entry = match type_ {
             DynamicFieldType::DynamicField => DynamicFieldEntry {
                 parent_object_id: parent_id.to_string(),
-                transaction_digest: object.previous_transaction.base58_encode(),
+                transaction_digest: object.previous_transaction.to_base58(),
                 checkpoint,
                 epoch,
                 timestamp_ms,
@@ -159,24 +157,24 @@ impl DynamicFieldHandler {
                 bcs_name: Base64::encode(bcs_name),
                 type_,
                 object_id: object.id().to_string(),
-                version: object.version().value(),
+                version: object.version().as_u64(),
                 digest: object.digest().to_string(),
-                object_type: move_object.clone().into_type().into_type_params()[1]
+                object_type: move_object.struct_tag().type_params()[1]
                     .to_canonical_string(/* with_prefix */ true),
             },
             DynamicFieldType::DynamicObject => {
                 let object = all_written_objects.get(&object_id).ok_or(
                     IndexerError::Uncategorized(anyhow!(
-                        "failed to find object_id {object_id:?} when trying to create dynamic field info",
+                        "failed to find object_id {object_id} when trying to create dynamic field info",
 
                     )),
                 )?;
-                let version = object.version().value();
+                let version = object.version().as_u64();
                 let digest = object.digest().to_string();
-                let object_type = object.data.type_().unwrap().clone();
+                let object_type = object.data.opt_object_type().unwrap().clone();
                 DynamicFieldEntry {
                     parent_object_id: parent_id.to_string(),
-                    transaction_digest: object.previous_transaction.base58_encode(),
+                    transaction_digest: object.previous_transaction.to_base58(),
                     checkpoint,
                     epoch,
                     timestamp_ms,

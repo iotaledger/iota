@@ -6,8 +6,9 @@ use anyhow::Result;
 use iota_data_ingestion::{ArchivalConfig, ArchivalReducer, RelayWorker};
 use iota_data_ingestion_core::{
     DataIngestionMetrics, IndexerExecutor, ReaderOptions, ShimProgressStore, WorkerPool,
+    reader::v2::{CheckpointReaderConfig, RemoteUrl},
 };
-use prometheus::Registry;
+use prometheus_filtered::Registry;
 use serde::{Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;
 
@@ -60,12 +61,11 @@ async fn main() -> Result<()> {
     );
     executor.register(worker_pool).await?;
     executor
-        .run(
-            tempfile::tempdir()?.keep(),
-            Some(config.remote_store_url),
-            vec![],
-            ReaderOptions::default(),
-        )
+        .run_with_config(CheckpointReaderConfig {
+            reader_options: ReaderOptions::default(),
+            remote_store_url: Some(RemoteUrl::Fullnode(config.remote_store_url)),
+            ingestion_path: None, // defaults to a tempdir
+        })
         .await?;
     Ok(())
 }

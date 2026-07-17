@@ -4,8 +4,8 @@
 
 use std::sync::Arc;
 
-use prometheus::{
-    HistogramVec, IntCounterVec, IntGauge, IntGaugeVec, Registry,
+use prometheus_filtered::{
+    HistogramVec, IntCounterVec, IntGauge, IntGaugeVec, MetricLevel, Registry,
     register_histogram_vec_with_registry, register_int_counter_vec_with_registry,
     register_int_gauge_vec_with_registry, register_int_gauge_with_registry,
 };
@@ -17,6 +17,12 @@ pub(crate) struct NetworkMetrics {
     pub(crate) outbound: Arc<NetworkRouteMetrics>,
     #[cfg_attr(msim, allow(dead_code))]
     pub(crate) tcp_connection_metrics: Arc<TcpConnectionMetrics>,
+    /// Inbound requests rejected by per-peer admission control, by RPC group.
+    pub(crate) admission_rejected: IntCounterVec,
+    /// Inbound requests currently in flight under admission control, by RPC
+    /// group (summed across peers). Shows live concurrency vs the per-peer
+    /// caps.
+    pub(crate) admission_in_use: IntGaugeVec,
 }
 
 impl NetworkMetrics {
@@ -32,6 +38,22 @@ impl NetworkMetrics {
             inbound: Arc::new(NetworkRouteMetrics::new("inbound", registry)),
             outbound: Arc::new(NetworkRouteMetrics::new("outbound", registry)),
             tcp_connection_metrics: Arc::new(TcpConnectionMetrics::new(registry)),
+            admission_rejected: register_int_counter_vec_with_registry!(
+                "inbound_admission_rejected",
+                "Inbound consensus requests rejected by per-peer admission control, by RPC group",
+                &["group"],
+                registry;
+                MetricLevel::Warn,
+            )
+            .unwrap(),
+            admission_in_use: register_int_gauge_vec_with_registry!(
+                "inbound_admission_in_use",
+                "Inbound consensus requests currently in flight under admission control, by RPC group",
+                &["group"],
+                registry;
+                MetricLevel::Warn,
+            )
+            .unwrap(),
         }
     }
 }
@@ -119,7 +141,8 @@ impl NetworkRouteMetrics {
             format!("{direction}_requests"),
             "The number of requests made on the network",
             &["route"],
-            registry
+            registry;
+            MetricLevel::Warn,
         )
         .unwrap();
 
@@ -128,7 +151,8 @@ impl NetworkRouteMetrics {
             "Latency of a request by route",
             &["route"],
             LATENCY_SEC_BUCKETS.to_vec(),
-            registry,
+            registry;
+            MetricLevel::Warn,
         )
         .unwrap();
 
@@ -137,7 +161,8 @@ impl NetworkRouteMetrics {
             "Size of a request by route",
             &["route"],
             SIZE_BYTE_BUCKETS.to_vec(),
-            registry,
+            registry;
+            MetricLevel::Warn,
         )
         .unwrap();
 
@@ -146,7 +171,8 @@ impl NetworkRouteMetrics {
             "Size of a response by route",
             &["route"],
             SIZE_BYTE_BUCKETS.to_vec(),
-            registry,
+            registry;
+            MetricLevel::Warn,
         )
         .unwrap();
 

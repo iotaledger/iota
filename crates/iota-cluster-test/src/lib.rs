@@ -15,12 +15,11 @@ use iota_json_rpc_types::{
     IotaTransactionBlockResponseOptions, TransactionBlockBytes,
 };
 use iota_sdk::{IotaClient, wallet_context::WalletContext};
+use iota_sdk_types::{Address, Owner, TransactionDigest};
 use iota_test_transaction_builder::batch_make_transfer_transactions;
 use iota_types::{
-    base_types::{IotaAddress, TransactionDigest},
     gas_coin::GasCoin,
     iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
-    object::Owner,
     quorum_driver_types::ExecuteTransactionRequestType,
     transaction::{Transaction, TransactionData},
 };
@@ -103,6 +102,17 @@ impl TestContext {
         self.cluster.fullnode_url()
     }
 
+    /// Connect a gRPC client to the fullnode.
+    ///
+    /// Panics if the cluster exposes no gRPC endpoint (remote clusters).
+    fn get_fullnode_grpc_client(&self) -> iota_grpc_client::Client {
+        let url = self
+            .cluster
+            .grpc_url()
+            .expect("cluster exposes no gRPC endpoint");
+        iota_grpc_client::Client::new(url).expect("failed to create gRPC client")
+    }
+
     fn get_wallet(&self) -> &WalletContext {
         self.client.get_wallet()
     }
@@ -125,7 +135,7 @@ impl TestContext {
             .unwrap()
     }
 
-    fn get_wallet_address(&self) -> IotaAddress {
+    fn get_wallet_address(&self) -> Address {
         self.client.get_wallet_address()
     }
 
@@ -241,14 +251,14 @@ impl TestContext {
     async fn check_owner_and_into_gas_coin(
         &self,
         coin_info: Vec<CoinInfo>,
-        owner: IotaAddress,
+        owner: Address,
     ) -> Vec<GasCoin> {
         futures::future::join_all(
             coin_info
                 .iter()
                 .map(|coin_info| {
                     ObjectChecker::new(coin_info.id)
-                        .owner(Owner::AddressOwner(owner))
+                        .owner(Owner::Address(owner))
                         .check_into_gas_coin(self.get_fullnode_client())
                 })
                 .collect::<Vec<_>>(),

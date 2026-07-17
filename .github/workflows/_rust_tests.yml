@@ -24,10 +24,6 @@ on:
       changedExternalCrates:
         type: string
         required: false
-      consensusProtocol:
-        type: string
-        required: false
-        default: "mysticeti"
       isNightly:
         type: boolean
         default: false
@@ -37,7 +33,6 @@ concurrency:
   cancel-in-progress: ${{ github.ref != 'refs/heads/develop' }}
 
 env:
-  CONSENSUS_PROTOCOL: ${{ inputs.consensusProtocol }}
   CARGO_TERM_COLOR: always
   RUST_LOG: "error"
   # Don't emit giant backtraces in the CI logs.
@@ -89,7 +84,7 @@ jobs:
         ports:
           - 5432:5432
     steps:
-      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Setup db
         run: |
@@ -160,7 +155,7 @@ jobs:
         ports:
           - 5432:5432
     steps:
-      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Setup db
         run: |
@@ -208,6 +203,29 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
 
+  check-wasm32:
+    name: Check Move VM crates compile to wasm32-unknown-unknown
+    if: (!cancelled() && !failure() && inputs.isRust)
+    runs-on: [self-hosted-x64]
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Install wasm32 target
+        run: rustup target add wasm32-unknown-unknown
+
+      - name: Check Move VM crates compile to wasm32
+        run: cargo check -p iota-types -p iota-common -p iota-config -p iota-adapter-latest -p iota-vm-sdk --features iota-vm-sdk/wasm-bindgen --target wasm32-unknown-unknown
+
+  check-wasm32-cancel:
+    needs: [check-wasm32]
+    if: failure() && !inputs.isNightly
+    runs-on: ubuntu-latest
+    steps:
+      - name: Cancel workflow run
+        run: gh run cancel ${{ github.run_id }} --repo ${{ github.repository }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+
   check-unused-deps:
     name: Check Unused Dependencies (${{ matrix.flags }})
     if: (!cancelled() && !failure())
@@ -217,13 +235,13 @@ jobs:
       fail-fast: false
     runs-on: [self-hosted-x64]
     steps:
-      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Run Cargo Udeps
-        run: cargo +nightly-2026-01-07 ci-udeps ${{ matrix.flags }}
+        run: cargo +nightly-2026-06-29 ci-udeps ${{ matrix.flags }}
 
       - name: Run Cargo Udeps (external crates)
-        run: cargo +nightly-2026-01-07 ci-udeps-external ${{ matrix.flags }}
+        run: cargo +nightly-2026-06-29 ci-udeps-external ${{ matrix.flags }}
 
   check-unused-deps-cancel:
     needs: [check-unused-deps]
@@ -249,11 +267,7 @@ jobs:
           - [self-hosted-x64]
       fail-fast: false
     steps:
-      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
-
-      - name: benchmark (smoke)
-        run: |
-          cargo run --package iota-benchmark --bin stress -- --log-path /tmp/stress.log --num-client-threads 10 --num-server-threads 24 --num-transfer-accounts 2 bench --target-qps 100 --num-workers 10  --transfer-object 50 --shared-counter 50 --run-duration 10s --stress-stat-collection
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: doctests
         run: |

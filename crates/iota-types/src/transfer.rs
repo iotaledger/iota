@@ -2,40 +2,29 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use iota_sdk_types::{ObjectId, StructTag, TypeTag, Version};
 use move_binary_format::{CompiledModule, file_format::SignatureToken};
 use move_bytecode_utils::resolve_struct;
-use move_core_types::{
-    account_address::AccountAddress,
-    ident_str,
-    identifier::IdentStr,
-    language_storage::{StructTag, TypeTag},
-};
+use move_core_types::{account_address::AccountAddress, ident_str, identifier::IdentStr};
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    IOTA_FRAMEWORK_ADDRESS,
-    base_types::{ObjectID, SequenceNumber},
-    id::ID,
-};
-
-const TRANSFER_MODULE_NAME: &IdentStr = ident_str!("transfer");
-const RECEIVING_STRUCT_NAME: &IdentStr = ident_str!("Receiving");
+use crate::{IOTA_FRAMEWORK_ADDRESS, id::ID};
 
 pub const RESOLVED_RECEIVING_STRUCT: (&AccountAddress, &IdentStr, &IdentStr) = (
     &IOTA_FRAMEWORK_ADDRESS,
-    TRANSFER_MODULE_NAME,
-    RECEIVING_STRUCT_NAME,
+    ident_str!("transfer"),
+    ident_str!("Receiving"),
 );
 
 /// Rust version of the Move iota::transfer::Receiving type
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct Receiving {
     pub id: ID,
-    pub version: SequenceNumber,
+    pub version: Version,
 }
 
 impl Receiving {
-    pub fn new(id: ObjectID, version: SequenceNumber) -> Self {
+    pub fn new(id: ObjectId, version: Version) -> Self {
         Self {
             id: ID::new(id),
             version,
@@ -46,19 +35,12 @@ impl Receiving {
         bcs::to_bytes(self).expect("Value representation is owned and should always serialize")
     }
 
-    pub fn struct_tag() -> StructTag {
-        StructTag {
-            address: IOTA_FRAMEWORK_ADDRESS,
-            module: TRANSFER_MODULE_NAME.to_owned(),
-            name: RECEIVING_STRUCT_NAME.to_owned(),
-            // TODO: this should really include the type parameters eventually when we add type
-            // parameters to the other polymorphic types like this.
-            type_params: vec![],
-        }
+    pub fn struct_tag(value_type: TypeTag) -> StructTag {
+        StructTag::new_transfer_receiving(value_type)
     }
 
-    pub fn type_tag() -> TypeTag {
-        TypeTag::Struct(Box::new(Self::struct_tag()))
+    pub fn type_tag(value_type: TypeTag) -> TypeTag {
+        TypeTag::Struct(Box::new(Self::struct_tag(value_type)))
     }
 
     pub fn is_receiving(view: &CompiledModule, s: &SignatureToken) -> bool {

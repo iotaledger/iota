@@ -10,8 +10,8 @@ mod utils;
 
 use std::path::PathBuf;
 
-use iota_move_build::BuildConfig;
-use iota_sdk::{rpc_types::ObjectChange, types::move_package::UpgradeCap};
+use iota_move_build::{BuildConfig, ProtocolBuildConfig};
+use iota_sdk::rpc_types::ObjectChange;
 use move_package::BuildConfig as MoveBuildConfig;
 use utils::{setup_for_write, sign_and_execute_transaction};
 
@@ -42,6 +42,7 @@ async fn main() -> Result<(), anyhow::Error> {
         run_bytecode_verifier: true,
         print_diags_to_stderr: false,
         chain_id: None,
+        protocol_build_config: ProtocolBuildConfig::default(),
     };
 
     let module = build_config.clone().build(&package_path)?;
@@ -85,7 +86,7 @@ async fn main() -> Result<(), anyhow::Error> {
         .iter()
         .find_map(|c| {
             if let ObjectChange::Created { object_type, .. } = c {
-                if object_type == &UpgradeCap::type_() {
+                if object_type.is_upgrade_cap() {
                     Some(c.object_id())
                 } else {
                     None

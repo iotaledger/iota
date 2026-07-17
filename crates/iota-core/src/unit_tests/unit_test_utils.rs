@@ -11,8 +11,8 @@ use iota_framework::BuiltInFramework;
 use iota_genesis_builder::validator_info::ValidatorInfo;
 use iota_move_build::test_utils::compile_basics_package;
 use iota_protocol_config::ProtocolConfig;
+use iota_sdk_types::{Address, ObjectId, TransactionDigest};
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, TransactionDigest},
     crypto::{
         AccountKeyPair, AuthorityKeyPair, AuthorityPublicKeyBytes, IotaKeyPair, NetworkKeyPair,
         generate_proof_of_possession, get_key_pair,
@@ -32,7 +32,7 @@ async fn init_genesis(
 ) -> (
     Genesis,
     Vec<(AuthorityPublicKeyBytes, AuthorityKeyPair)>,
-    ObjectID,
+    ObjectId,
 ) {
     // add object_basics package object to genesis
     let modules: Vec<_> = compile_basics_package().get_modules().cloned().collect();
@@ -40,7 +40,7 @@ async fn init_genesis(
     let config = ProtocolConfig::get_for_max_version_UNSAFE();
     let pkg = Object::new_package(
         &modules,
-        TransactionDigest::genesis_marker(),
+        TransactionDigest::GENESIS_MARKER,
         &config,
         &genesis_move_packages,
     )
@@ -61,7 +61,7 @@ async fn init_genesis(
             name: format!("validator-{i}"),
             authority_key: authority_pubkey_bytes,
             protocol_key: protocol_pubkey,
-            account_address: IotaAddress::from(&account_key_pair.public()),
+            account_address: Address::from(&account_key_pair.public()),
             network_key: network_key_pair.public().clone(),
             gas_price: 1,
             commission_rate: 0,
@@ -92,7 +92,7 @@ pub async fn init_local_authorities(
     AuthorityAggregator<LocalAuthorityClient>,
     Vec<Arc<AuthorityState>>,
     Genesis,
-    ObjectID,
+    ObjectId,
 ) {
     let (genesis, key_pairs, framework) = init_genesis(committee_size, genesis_objects).await;
     let authorities = join_all(key_pairs.iter().map(|(_, key_pair)| {
@@ -114,7 +114,7 @@ pub async fn init_local_authorities_with_overload_thresholds(
     AuthorityAggregator<LocalAuthorityClient>,
     Vec<Arc<AuthorityState>>,
     Genesis,
-    ObjectID,
+    ObjectId,
 ) {
     let (genesis, key_pairs, framework) = init_genesis(committee_size, genesis_objects).await;
     let authorities = join_all(key_pairs.iter().map(|(_, key_pair)| {

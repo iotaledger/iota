@@ -4,7 +4,7 @@
         "questionText": "What consensus mechanism does IOTA use to achieve transaction finality?",
         "answerOptions": [
             { "answerText": "Proof-of-Work (PoW)", "isCorrect": false },
-            { "answerText": "Delegated Proof-of-Stake (dPoS) combined with the Mysticeti BFT protocol", "isCorrect": true },
+            { "answerText": "Delegated Proof-of-Stake (dPoS) combined with the Starfish BFT protocol", "isCorrect": true },
             { "answerText": "Pure Proof-of-Stake (PoS)", "isCorrect": false },
             { "answerText": "Randomized Leader Election (RLE)", "isCorrect": false }
         ]
@@ -19,7 +19,7 @@
         ]
         },
         {
-        "questionText": "Which of the following is a key feature of the Mysticeti consensus protocol?",
+        "questionText": "Which of the following is a key feature of the Starfish consensus protocol?",
         "answerOptions": [
             { "answerText": "Uses Proof-of-Work to secure the network", "isCorrect": false },
             { "answerText": "Relies on a central coordinator for block approvals", "isCorrect": false },

@@ -38,12 +38,26 @@ impl ObjectStoreGetExt for LocalStorage {
         let path_to_filesystem = path_to_filesystem(self.root.clone(), location)?;
         let handle = tokio::task::spawn_blocking(move || {
             let mut f = File::open(path_to_filesystem)
-                .map_err(|e| anyhow!("Failed to open file with error: {}", e.to_string()))?;
+                .map_err(|e| anyhow!("Failed to open file with error: {e}"))?;
             let mut buf = vec![];
             f.read_to_end(&mut buf)
                 .context(anyhow!("Failed to read file"))?;
             Ok(buf.into())
         });
         handle.await?
+    }
+
+    async fn exists(&self, location: &Path) -> Result<bool> {
+        let path_to_filesystem = path_to_filesystem(self.root.clone(), location)?;
+        let exists = tokio::task::spawn_blocking(move || {
+            path_to_filesystem.try_exists().map_err(|e| {
+                anyhow!(
+                    "Failed to check if file {} exists with error: {e}",
+                    path_to_filesystem.display()
+                )
+            })
+        })
+        .await??;
+        Ok(exists)
     }
 }

@@ -32,7 +32,7 @@ use iota_types::{
     storage::WriteStore,
 };
 use object_store::DynObjectStore;
-use prometheus::{IntGauge, Registry, register_int_gauge_with_registry};
+use prometheus_filtered::{IntGauge, Registry, register_int_gauge_with_registry};
 use tokio::{
     sync::{
         mpsc,
@@ -173,7 +173,7 @@ impl CheckpointWriter {
 
         assert_eq!(
             checkpoint_summary.content_digest,
-            *checkpoint_contents.checkpoint_contents().digest()
+            checkpoint_contents.checkpoint_contents().digest()
         );
 
         let contents_blob = Blob::encode(&checkpoint_contents, BlobEncoding::Bcs)?;

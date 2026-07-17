@@ -4,11 +4,7 @@
 
 use std::fmt;
 
-use iota_types::{
-    Identifier, TypeTag,
-    base_types::{ObjectID, RESOLVED_ASCII_STR, RESOLVED_STD_OPTION, RESOLVED_UTF8_STR},
-    id::RESOLVED_IOTA_ID,
-};
+use iota_sdk_types::{Identifier, ObjectId, TypeTag};
 use move_core_types::{
     parsing::{
         address::{NumericalAddress, ParsedAddress},
@@ -30,6 +26,8 @@ pub const MAKE_MOVE_VEC: &str = "make-move-vec";
 pub const MOVE_CALL: &str = "move-call";
 pub const PUBLISH: &str = "publish";
 pub const UPGRADE: &str = "upgrade";
+pub const EXECUTE_UPGRADE: &str = "execute-upgrade";
+pub const COMPILE_UPGRADE: &str = "compile-upgrade";
 pub const ASSIGN: &str = "assign";
 pub const PREVIEW: &str = "preview";
 pub const WARN_SHADOWS: &str = "warn-shadows";
@@ -76,6 +74,8 @@ pub const COMMANDS: &[&str] = &[
     MOVE_CALL,
     PUBLISH,
     UPGRADE,
+    EXECUTE_UPGRADE,
+    COMPILE_UPGRADE,
     ASSIGN,
     PREVIEW,
     WARN_SHADOWS,
@@ -122,7 +122,7 @@ pub struct ProgramMetadata {
     pub summary_set: bool,
     pub serialize_unsigned_set: bool,
     pub serialize_signed_set: bool,
-    pub gas_object_ids: Option<Vec<Spanned<ObjectID>>>,
+    pub gas_object_ids: Option<Vec<Spanned<ObjectId>>>,
     pub json_set: bool,
     pub tx_digest_set: bool,
     pub dry_run_set: bool,
@@ -158,6 +158,14 @@ pub enum ParsedPTBCommand {
     Assign(Spanned<String>, Option<Spanned<Argument>>),
     Publish(Spanned<String>),
     Upgrade(Spanned<String>, Spanned<Argument>),
+    /// execute-upgrade \<ticket\>
+    /// Executes the system upgrade using previously compiled package data.
+    /// Returns the UpgradeReceipt.
+    ExecuteUpgrade(Spanned<Argument>),
+    /// compile-upgrade \<path\> \<upgrade_cap\>
+    /// Compiles the package and returns the digest as a pure value.
+    /// Stores compiled data for a subsequent execute-upgrade.
+    CompileUpgrade(Spanned<String>, Spanned<Argument>),
     WarnShadows,
     Preview,
 }
@@ -210,24 +218,11 @@ impl Argument {
                 MoveValue::Vector(s.bytes().map(MoveValue::U8).collect::<Vec<_>>())
             }
             (Argument::String(s), TypeTag::Struct(stag))
-                if {
-                    let resolved = (
-                        &stag.address,
-                        stag.module.as_ident_str(),
-                        stag.name.as_ident_str(),
-                    );
-                    resolved == RESOLVED_ASCII_STR || resolved == RESOLVED_UTF8_STR
-                } =>
+                if stag.is_string() || stag.is_ascii_string() =>
             {
                 MoveValue::Vector(s.bytes().map(MoveValue::U8).collect::<Vec<_>>())
             }
-            (Argument::Address(a), TypeTag::Struct(stag))
-                if (
-                    &stag.address,
-                    stag.module.as_ident_str(),
-                    stag.name.as_ident_str(),
-                ) == RESOLVED_IOTA_ID =>
-            {
+            (Argument::Address(a), TypeTag::Struct(stag)) if stag.is_id() => {
                 MoveValue::Address(a.into_inner())
             }
             (Argument::Option(sp!(loc, o)), TypeTag::Vector(ty)) => {
@@ -245,18 +240,11 @@ impl Argument {
                     MoveValue::Vector(vec![])
                 }
             }
-            (Argument::Option(sp!(loc, o)), TypeTag::Struct(stag))
-                if (
-                    &stag.address,
-                    stag.module.as_ident_str(),
-                    stag.name.as_ident_str(),
-                ) == RESOLVED_STD_OPTION
-                    && stag.type_params.len() == 1 =>
-            {
+            (Argument::Option(sp!(loc, o)), TypeTag::Struct(stag)) if stag.is_option() => {
                 if let Some(v) = o {
                     let v = v
                         .as_ref()
-                        .checked_to_pure_move_value(*loc, &stag.type_params[0])
+                        .checked_to_pure_move_value(*loc, &stag.type_params()[0])
                         .map_err(|e| {
                             e.with_help(
                                 "Literal option values cannot contain object values.".to_string(),
@@ -428,6 +416,12 @@ impl fmt::Display for ParsedPTBCommand {
             ),
             ParsedPTBCommand::Publish(s) => write!(f, "{PUBLISH} {}", s.value),
             ParsedPTBCommand::Upgrade(s, a) => write!(f, "{UPGRADE} {} {}", s.value, a.value),
+            ParsedPTBCommand::ExecuteUpgrade(ticket) => {
+                write!(f, "{EXECUTE_UPGRADE} {}", ticket.value)
+            }
+            ParsedPTBCommand::CompileUpgrade(s, cap) => {
+                write!(f, "{COMPILE_UPGRADE} {} {}", s.value, cap.value)
+            }
             ParsedPTBCommand::WarnShadows => write!(f, "{WARN_SHADOWS}"),
             ParsedPTBCommand::Preview => write!(f, "{PREVIEW}"),
             ParsedPTBCommand::MakeMoveVec(ty, args) => {

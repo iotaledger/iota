@@ -5,11 +5,10 @@
 #[cfg(msim)]
 use std::sync::atomic::Ordering;
 use std::{
-    collections::{BTreeSet, HashMap, HashSet},
+    collections::HashMap,
     fmt,
     future::Future,
     path::PathBuf,
-    str::FromStr,
     sync::{Arc, Weak},
     time::Duration,
 };
@@ -21,7 +20,6 @@ use anemo_tower::{
 };
 use anyhow::{Result, anyhow};
 use arc_swap::ArcSwap;
-use fastcrypto_zkp::bn254::zk_login::{JWK, JwkId, OIDCProvider};
 use futures::future::BoxFuture;
 pub use handle::IotaNodeHandle;
 use iota_archival::{reader::ArchiveReaderBalancer, writer::ArchiveWriter};
@@ -47,10 +45,13 @@ use iota_core::{
         AggregatorSendCapabilityNotificationError, AuthAggMetrics, AuthorityAggregator,
     },
     authority_client::NetworkAuthorityClient,
-    authority_server::{ValidatorService, ValidatorServiceMetrics},
+    authority_server::{
+        ValidatorService, ValidatorServiceMetrics, soft_lock::PreConsensusSoftLocks,
+    },
+    checkpoint_progress_tracker::CheckpointProgressTracker,
     checkpoints::{
-        CheckpointMetrics, CheckpointService, CheckpointStore, SendCheckpointToStateSync,
-        SubmitCheckpointToConsensus,
+        CheckpointMetrics, CheckpointService, CheckpointStore, FullCheckpointContentsCache,
+        FullCheckpointContentsCacheMetrics, SendCheckpointToStateSync, SubmitCheckpointToConsensus,
         checkpoint_executor::{CheckpointExecutor, StopReason, metrics::CheckpointExecutorMetrics},
     },
     connection_monitor::ConnectionMonitor,
@@ -68,15 +69,14 @@ use iota_core::{
         reconfiguration::ReconfigurationInitiator,
     },
     execution_cache::build_execution_cache,
+    global_state_hasher::{GlobalStateHashMetrics, GlobalStateHasher},
     grpc_indexes::{GRPC_INDEXES_DIR, GrpcIndexesStore},
     jsonrpc_index::IndexStore,
     module_cache_metrics::ResolverMetrics,
-    overload_monitor::overload_monitor,
+    overload_monitor::{consensus_queue_overload_monitor, overload_monitor},
     safe_client::SafeClientMetricsBase,
     signature_verifier::SignatureVerifierMetrics,
-    state_accumulator::{StateAccumulator, StateAccumulatorMetrics},
     storage::{GrpcReadStore, RocksDbStore},
-    traffic_controller::metrics::TrafficControllerMetrics,
     transaction_orchestrator::TransactionOrchestrator,
     validator_tx_finalizer::ValidatorTxFinalizer,
 };
@@ -91,17 +91,22 @@ use iota_json_rpc_api::JsonRpcMetrics;
 use iota_macros::{fail_point, fail_point_async, replay_log};
 use iota_metrics::{
     RegistryID, RegistryService,
-    hardware_metrics::register_hardware_metrics,
     metrics_network::{MetricsMakeCallbackHandler, NetworkConnectionMetrics, NetworkMetrics},
     server_timing_middleware, spawn_monitored_task,
 };
 use iota_names::config::IotaNamesConfig;
 use iota_network::{
-    api::ValidatorServer, discovery, discovery::TrustedPeerChangeEvent, randomness, state_sync,
+    api::{ValidatorPeerServer, ValidatorServer, ValidatorV2Server},
+    discovery,
+    discovery::TrustedPeerChangeEvent,
+    randomness, state_sync,
 };
 use iota_network_stack::server::{IOTA_TLS_SERVER_NAME, ServerBuilder};
-use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::crypto::{Intent, IntentMessage, IntentScope};
+use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
+use iota_sdk_types::{
+    RandomnessRound,
+    crypto::{Intent, IntentMessage, IntentScope},
+};
 use iota_snapshot::uploader::StateSnapshotUploader;
 use iota_storage::{
     FileCompression, StorageFormat,
@@ -112,7 +117,7 @@ use iota_storage::{
 use iota_types::{
     base_types::{AuthorityName, ConciseableName, EpochId},
     committee::Committee,
-    crypto::{AuthoritySignature, IotaAuthoritySignature, KeypairTraits, RandomnessRound},
+    crypto::{AuthoritySignature, IotaAuthoritySignature, KeypairTraits},
     digests::ChainIdentifier,
     error::{IotaError, IotaResult},
     executable_transaction::VerifiedExecutableTransaction,
@@ -122,18 +127,17 @@ use iota_types::{
         IotaSystemState, IotaSystemStateTrait,
         epoch_start_iota_system_state::{EpochStartSystemState, EpochStartSystemStateTrait},
     },
+    messages_checkpoint::CheckpointSummaryExt,
     messages_consensus::{
         AuthorityCapabilitiesV1, ConsensusTransaction, ConsensusTransactionKind,
-        SignedAuthorityCapabilitiesV1, check_total_jwk_size,
+        SignedAuthorityCapabilitiesV1,
     },
     messages_grpc::HandleCapabilityNotificationRequestV1,
     quorum_driver_types::QuorumDriverEffectsQueueResult,
     supported_protocol_versions::SupportedProtocolVersions,
     transaction::{Transaction, VerifiedCertificate},
 };
-use prometheus::Registry;
-#[cfg(msim)]
-pub use simulator::set_jwk_injector;
+use prometheus_filtered::Registry;
 #[cfg(msim)]
 use simulator::*;
 use tap::tap::TapFallible;
@@ -158,9 +162,19 @@ pub mod metrics;
 pub struct ValidatorComponents {
     validator_server_handle: SpawnOnce,
     validator_overload_monitor_handle: Option<JoinHandle<()>>,
-    consensus_manager: ConsensusManager,
+    /// Handle for the consensus queue overload monitor task, present only
+    /// when the certificate-less (P-COOL) flow is enabled. The
+    /// task self-terminates via `Weak` references; this handle exists purely
+    /// for ownership clarity.
+    consensus_queue_overload_monitor_handle: Option<JoinHandle<()>>,
+    /// Handle for the soft-lock expiry sweep task. The task self-terminates
+    /// via a `Weak` reference; this handle exists purely for ownership clarity.
+    soft_lock_sweep_handle: JoinHandle<()>,
+    overload_notifier_handle: Option<JoinHandle<()>>,
+    consensus_manager: Arc<ConsensusManager>,
     consensus_store_pruner: ConsensusStorePruner,
     consensus_adapter: Arc<ConsensusAdapter>,
+    soft_locks: Arc<PreConsensusSoftLocks>,
     // Keeping the handle to the checkpoint service tasks to shut them down during reconfiguration.
     checkpoint_service_tasks: JoinSet<()>,
     checkpoint_metrics: Arc<CheckpointMetrics>,
@@ -171,8 +185,6 @@ pub struct ValidatorComponents {
 #[cfg(msim)]
 mod simulator {
     use std::sync::atomic::AtomicBool;
-
-    use super::*;
 
     pub(super) struct SimState {
         pub sim_node: iota_simulator::runtime::NodeHandle,
@@ -188,36 +200,6 @@ mod simulator {
                 _leak_detector: iota_simulator::NodeLeakDetector::new(),
             }
         }
-    }
-
-    type JwkInjector = dyn Fn(AuthorityName, &OIDCProvider) -> IotaResult<Vec<(JwkId, JWK)>>
-        + Send
-        + Sync
-        + 'static;
-
-    fn default_fetch_jwks(
-        _authority: AuthorityName,
-        _provider: &OIDCProvider,
-    ) -> IotaResult<Vec<(JwkId, JWK)>> {
-        use fastcrypto_zkp::bn254::zk_login::parse_jwks;
-        // Just load a default Twitch jwk for testing.
-        parse_jwks(
-            iota_types::zk_login_util::DEFAULT_JWK_BYTES,
-            &OIDCProvider::Twitch,
-        )
-        .map_err(|_| IotaError::JWKRetrieval)
-    }
-
-    thread_local! {
-        static JWK_INJECTOR: std::cell::RefCell<Arc<JwkInjector>> = std::cell::RefCell::new(Arc::new(default_fetch_jwks));
-    }
-
-    pub(super) fn get_jwk_injector() -> Arc<JwkInjector> {
-        JWK_INJECTOR.with(|injector| injector.borrow().clone())
-    }
-
-    pub fn set_jwk_injector(injector: Arc<JwkInjector>) {
-        JWK_INJECTOR.with(|cell| *cell.borrow_mut() = injector);
     }
 }
 
@@ -255,7 +237,7 @@ pub struct IotaNode {
     state_sync_handle: state_sync::Handle,
     randomness_handle: randomness::Handle,
     checkpoint_store: Arc<CheckpointStore>,
-    accumulator: Mutex<Option<Arc<StateAccumulator>>>,
+    global_state_hasher: Mutex<Option<Arc<GlobalStateHasher>>>,
     connection_monitor_status: Arc<ConnectionMonitorStatus>,
 
     /// Broadcast channel to send the starting system state for the next epoch.
@@ -266,6 +248,8 @@ pub struct IotaNode {
     trusted_peer_change_tx: watch::Sender<TrustedPeerChangeEvent>,
 
     backpressure_manager: Arc<BackpressureManager>,
+
+    checkpoint_progress_tracker: Arc<CheckpointProgressTracker>,
 
     _db_checkpoint_handle: Option<tokio::sync::broadcast::Sender<()>>,
 
@@ -297,8 +281,6 @@ impl fmt::Debug for IotaNode {
     }
 }
 
-static MAX_JWK_KEYS_PER_FETCH: usize = 100;
-
 impl IotaNode {
     pub async fn start(
         config: NodeConfig,
@@ -312,143 +294,49 @@ impl IotaNode {
         .await
     }
 
-    /// Starts the JWK (JSON Web Key) updater tasks for the specified node
-    /// configuration.
-    /// This function ensures continuous fetching, validation, and submission of
-    /// JWKs, maintaining up-to-date keys for the specified providers.
-    fn start_jwk_updater(
+    /// Starts a background task that polls the authority's load shedding
+    /// percentage and broadcasts changes to other validators via consensus.
+    /// Returns the task handle if the feature flag is enabled, or `None`
+    /// otherwise.
+    fn start_overload_notifier(
         config: &NodeConfig,
-        metrics: Arc<IotaNodeMetrics>,
-        authority: AuthorityName,
+        state: Arc<AuthorityState>,
         epoch_store: Arc<AuthorityPerEpochStore>,
         consensus_adapter: Arc<ConsensusAdapter>,
-    ) {
-        let epoch = epoch_store.epoch();
-
-        let supported_providers = config
-            .zklogin_oauth_providers
-            .get(&epoch_store.get_chain_identifier().chain())
-            .unwrap_or(&BTreeSet::new())
-            .iter()
-            .map(|s| OIDCProvider::from_str(s).expect("Invalid provider string"))
-            .collect::<Vec<_>>();
-
-        let fetch_interval = Duration::from_secs(config.jwk_fetch_interval_seconds);
-
-        info!(
-            ?fetch_interval,
-            "Starting JWK updater tasks with supported providers: {:?}", supported_providers
-        );
-
-        fn validate_jwk(
-            metrics: &Arc<IotaNodeMetrics>,
-            provider: &OIDCProvider,
-            id: &JwkId,
-            jwk: &JWK,
-        ) -> bool {
-            let Ok(iss_provider) = OIDCProvider::from_iss(&id.iss) else {
-                warn!(
-                    "JWK iss {:?} (retrieved from {:?}) is not a valid provider",
-                    id.iss, provider
-                );
-                metrics
-                    .invalid_jwks
-                    .with_label_values(&[&provider.to_string()])
-                    .inc();
-                return false;
-            };
-
-            if iss_provider != *provider {
-                warn!(
-                    "JWK iss {:?} (retrieved from {:?}) does not match provider {:?}",
-                    id.iss, provider, iss_provider
-                );
-                metrics
-                    .invalid_jwks
-                    .with_label_values(&[&provider.to_string()])
-                    .inc();
-                return false;
-            }
-
-            if !check_total_jwk_size(id, jwk) {
-                warn!("JWK {:?} (retrieved from {:?}) is too large", id, provider);
-                metrics
-                    .invalid_jwks
-                    .with_label_values(&[&provider.to_string()])
-                    .inc();
-                return false;
-            }
-
-            true
+    ) -> Option<JoinHandle<()>> {
+        if !epoch_store.protocol_config().enable_pcool_flow() {
+            return None;
         }
 
-        // metrics is:
-        //  pub struct IotaNodeMetrics {
-        //      pub jwk_requests: IntCounterVec,
-        //      pub jwk_request_errors: IntCounterVec,
-        //      pub total_jwks: IntCounterVec,
-        //      pub unique_jwks: IntCounterVec,
-        //  }
+        let poll_interval = config.authority_overload_config.overload_monitor_interval;
+        let authority_name = state.name;
 
-        for p in supported_providers.into_iter() {
-            let provider_str = p.to_string();
-            let epoch_store = epoch_store.clone();
-            let consensus_adapter = consensus_adapter.clone();
-            let metrics = metrics.clone();
-            spawn_monitored_task!(epoch_store.clone().within_alive_epoch(
-                async move {
-                    // note: restart-safe de-duplication happens after consensus, this is
-                    // just best-effort to reduce unneeded submissions.
-                    let mut seen = HashSet::new();
-                    loop {
-                        info!("fetching JWK for provider {:?}", p);
-                        metrics.jwk_requests.with_label_values(&[&provider_str]).inc();
-                        match Self::fetch_jwks(authority, &p).await {
-                            Err(e) => {
-                                metrics.jwk_request_errors.with_label_values(&[&provider_str]).inc();
-                                warn!("Error when fetching JWK for provider {:?} {:?}", p, e);
-                                // Retry in 30 seconds
-                                tokio::time::sleep(Duration::from_secs(30)).await;
-                                continue;
-                            }
-                            Ok(mut keys) => {
-                                metrics.total_jwks
-                                    .with_label_values(&[&provider_str])
-                                    .inc_by(keys.len() as u64);
-
-                                keys.retain(|(id, jwk)| {
-                                    validate_jwk(&metrics, &p, id, jwk) &&
-                                    !epoch_store.jwk_active_in_current_epoch(id, jwk) &&
-                                    seen.insert((id.clone(), jwk.clone()))
-                                });
-
-                                metrics.unique_jwks
-                                    .with_label_values(&[&provider_str])
-                                    .inc_by(keys.len() as u64);
-
-                                // prevent oauth providers from sending too many keys,
-                                // inadvertently or otherwise
-                                if keys.len() > MAX_JWK_KEYS_PER_FETCH {
-                                    warn!("Provider {:?} sent too many JWKs, only the first {} will be used", p, MAX_JWK_KEYS_PER_FETCH);
-                                    keys.truncate(MAX_JWK_KEYS_PER_FETCH);
-                                }
-
-                                for (id, jwk) in keys.into_iter() {
-                                    info!("Submitting JWK to consensus: {:?}", id);
-
-                                    let txn = ConsensusTransaction::new_jwk_fetched(authority, id, jwk);
-                                    consensus_adapter.submit(txn, None, &epoch_store)
-                                        .tap_err(|e| warn!("Error when submitting JWKs to consensus {:?}", e))
-                                        .ok();
-                                }
-                            }
-                        }
-                        tokio::time::sleep(fetch_interval).await;
+        Some(spawn_monitored_task!(async move {
+            // Seed from the percentage this authority last broadcasted
+            let mut last_notified_percentage: u32 = epoch_store
+                .load_overload_notification(&authority_name)
+                .unwrap_or(0) as u32;
+            loop {
+                tokio::time::sleep(poll_interval).await;
+                let current = state
+                    .overload_info
+                    .local_load_shedding_percentage
+                    .load(std::sync::atomic::Ordering::Relaxed);
+                if current != last_notified_percentage {
+                    last_notified_percentage = current;
+                    let transaction = ConsensusTransaction::new_overload_notification_v1(
+                        authority_name,
+                        current as u8,
+                    );
+                    if let Err(e) = consensus_adapter.submit(transaction, None, &epoch_store) {
+                        tracing::warn!(
+                            "Failed to submit overload notification to consensus: {:?}",
+                            e
+                        );
                     }
                 }
-                .instrument(error_span!("jwk_updater_task", epoch)),
-            ));
-        }
+            }
+        }))
     }
 
     pub async fn start_async(
@@ -496,9 +384,6 @@ impl IotaNode {
         #[cfg(not(msim))]
         iota_metrics::thread_stall_monitor::start_thread_stall_monitor();
 
-        // Register hardware metrics.
-        register_hardware_metrics(&registry_service, &config.db_path)
-            .expect("Failed registering hardware metrics");
         // Register uptime metric
         prometheus_registry
             .register(iota_metrics::uptime_metric(
@@ -556,10 +441,19 @@ impl IotaNode {
         let is_genesis = perpetual_tables
             .database_is_empty()
             .expect("Database read should not fail at init.");
-        let checkpoint_store = CheckpointStore::new(&config.db_path().join("checkpoints"));
+        let checkpoint_store = CheckpointStore::new_with_contents_cache(
+            &config.db_path().join("checkpoints"),
+            FullCheckpointContentsCache::new(
+                config
+                    .full_checkpoint_contents_cache_size_mb
+                    .saturating_mul(1024 * 1024),
+                FullCheckpointContentsCacheMetrics::new(&prometheus_registry),
+            ),
+        );
         let backpressure_manager =
             BackpressureManager::new_from_checkpoint_store(&checkpoint_store);
 
+        let perpetual_tables_for_progress = perpetual_tables.clone();
         let store = AuthorityStore::open(
             perpetual_tables,
             &genesis,
@@ -581,7 +475,6 @@ impl IotaNode {
 
         let cache_traits = build_execution_cache(
             &config.execution_cache_config,
-            &epoch_start_configuration,
             &prometheus_registry,
             &store,
             backpressure_manager.clone(),
@@ -614,7 +507,6 @@ impl IotaNode {
             EpochMetrics::new(&registry_service.default_registry()),
             epoch_start_configuration,
             cache_traits.backing_package_store.clone(),
-            cache_traits.object_store.clone(),
             cache_metrics,
             signature_verifier_metrics,
             &config.expensive_safety_check_config,
@@ -688,8 +580,6 @@ impl IotaNode {
         };
 
         let grpc_indexes_store = if is_full_node && config.enable_grpc_api {
-            // Migrate legacy directory names before opening the DB.
-            GrpcIndexesStore::migrate_legacy_dirs(&config.db_path());
             Some(Arc::new(
                 GrpcIndexesStore::new(
                     config.db_path().join(GRPC_INDEXES_DIR),
@@ -701,6 +591,11 @@ impl IotaNode {
         } else {
             None
         };
+
+        // Seed the open epoch's `epoch_info` row before services start.
+        checkpoint_store
+            .seed_epoch_info(&store, chain_identifier)
+            .expect("failed to seed the epoch_info chain");
 
         info!("creating archive reader");
         // Create network
@@ -745,8 +640,14 @@ impl IotaNode {
 
         info!("start snapshot upload");
         // Start uploading state snapshot to remote store
-        let state_snapshot_handle =
-            Self::start_state_snapshot(&config, &prometheus_registry, checkpoint_store.clone())?;
+        let state_snapshot_handle = Self::start_state_snapshot(
+            &config,
+            &prometheus_registry,
+            checkpoint_store.clone(),
+            is_full_node,
+        )?;
+
+        let checkpoint_progress_tracker = Arc::new(CheckpointProgressTracker::new());
 
         // Start uploading db checkpoints to remote store
         info!("start db checkpoint");
@@ -754,6 +655,7 @@ impl IotaNode {
             &config,
             &prometheus_registry,
             state_snapshot_handle.is_some(),
+            Some(checkpoint_progress_tracker.clone()),
         )?;
 
         let mut genesis_objects = genesis.objects().to_vec();
@@ -791,6 +693,9 @@ impl IotaNode {
             validator_tx_finalizer,
             chain_identifier,
             pruner_db,
+            Some(checkpoint_progress_tracker.clone()),
+            config.policy_config.clone(),
+            config.firewall_config.clone(),
         )
         .await;
 
@@ -832,7 +737,7 @@ impl IotaNode {
         {
             if let Some(indexes) = state.indexes.clone() {
                 iota_core::verify_indexes::verify_indexes(
-                    state.get_accumulator_store().as_ref(),
+                    state.get_global_state_hash_store().as_ref(),
                     indexes,
                 )
                 .expect("secondary indexes are inconsistent");
@@ -849,6 +754,7 @@ impl IotaNode {
                 end_of_epoch_receiver,
                 &config.db_path(),
                 &prometheus_registry,
+                Some(&config),
             )))
         } else {
             None
@@ -862,9 +768,9 @@ impl IotaNode {
         )
         .await?;
 
-        let accumulator = Arc::new(StateAccumulator::new(
-            cache_traits.accumulator_store.clone(),
-            StateAccumulatorMetrics::new(&prometheus_registry),
+        let global_state_hasher = Arc::new(GlobalStateHasher::new(
+            cache_traits.global_state_hash_store.clone(),
+            GlobalStateHashMetrics::new(&prometheus_registry),
         ));
 
         let authority_names_to_peer_ids = epoch_store
@@ -891,6 +797,13 @@ impl IotaNode {
         let connection_monitor_status = Arc::new(connection_monitor_status);
         let iota_node_metrics =
             Arc::new(IotaNodeMetrics::new(&registry_service.default_registry()));
+
+        iota_node_metrics
+            .binary_max_protocol_version
+            .set(ProtocolVersion::MAX.as_u64() as i64);
+        iota_node_metrics
+            .configured_max_protocol_version
+            .set(config.supported_protocol_versions.unwrap().max.as_u64() as i64);
 
         // Convert transaction orchestrator to executor trait object for gRPC server
         // Note that the transaction_orchestrator (so as executor) will be None if it is
@@ -920,11 +833,10 @@ impl IotaNode {
                     checkpoint_store.clone(),
                     state_sync_handle.clone(),
                     randomness_handle.clone(),
-                    Arc::downgrade(&accumulator),
+                    Arc::downgrade(&global_state_hasher),
                     backpressure_manager.clone(),
                     connection_monitor_status.clone(),
                     &registry_service,
-                    iota_node_metrics.clone(),
                 ),
                 Self::reexecute_pending_consensus_certs(&epoch_store, &state,)
             );
@@ -956,11 +868,12 @@ impl IotaNode {
             state_sync_handle,
             randomness_handle,
             checkpoint_store,
-            accumulator: Mutex::new(Some(accumulator)),
+            global_state_hasher: Mutex::new(Some(global_state_hasher)),
             end_of_epoch_channel,
             connection_monitor_status,
             trusted_peer_change_tx,
             backpressure_manager,
+            checkpoint_progress_tracker: checkpoint_progress_tracker.clone(),
 
             _db_checkpoint_handle: db_checkpoint_handle,
 
@@ -985,6 +898,9 @@ impl IotaNode {
                 warn!("Reconfiguration finished with error {:?}", error);
             }
         });
+
+        node.checkpoint_progress_tracker
+            .spawn_logging_task(node.checkpoint_store.clone(), perpetual_tables_for_progress);
 
         Ok(node)
     }
@@ -1066,18 +982,28 @@ impl IotaNode {
         }
     }
 
-    /// Creates an StateSnapshotUploader and start it if the StateSnapshotConfig
+    /// Creates a StateSnapshotUploader and starts it if the StateSnapshotConfig
     /// is set.
     fn start_state_snapshot(
         config: &NodeConfig,
         prometheus_registry: &Registry,
         checkpoint_store: Arc<CheckpointStore>,
+        is_full_node: bool,
     ) -> Result<Option<tokio::sync::broadcast::Sender<()>>> {
         if let Some(remote_store_config) = &config.state_snapshot_write_config.object_store_config {
+            // Snapshot publication is a fullnode-only role.
+            anyhow::ensure!(
+                is_full_node,
+                "Snapshot upload is configured, but this node is a validator. \
+                 Snapshot publication is only supported on fullnodes. Remove the \
+                 `state_snapshot_write_config.object_store_config` setting, or move \
+                 the upload to a fullnode."
+            );
             let snapshot_uploader = StateSnapshotUploader::new(
                 &config.db_checkpoint_path(),
                 &config.snapshot_path(),
                 remote_store_config.clone(),
+                config.state_snapshot_write_config.concurrency,
                 60,
                 prometheus_registry,
                 checkpoint_store,
@@ -1092,6 +1018,7 @@ impl IotaNode {
         config: &NodeConfig,
         prometheus_registry: &Registry,
         state_snapshot_enabled: bool,
+        checkpoint_progress_tracker: Option<Arc<CheckpointProgressTracker>>,
     ) -> Result<(
         DBCheckpointConfig,
         Option<tokio::sync::broadcast::Sender<()>>,
@@ -1139,6 +1066,7 @@ impl IotaNode {
                     config.authority_store_pruning_config.clone(),
                     prometheus_registry,
                     state_snapshot_enabled,
+                    checkpoint_progress_tracker,
                 )?;
                 Ok((
                     db_checkpoint_config,
@@ -1206,7 +1134,7 @@ impl IotaNode {
                 .layer(
                     TraceLayer::new_for_client_and_server_errors()
                         .make_span_with(DefaultMakeSpan::new().level(tracing::Level::INFO))
-                        .on_failure(DefaultOnFailure::new().level(tracing::Level::WARN)),
+                        .on_failure(DefaultOnFailure::new().level(tracing::Level::DEBUG)),
                 )
                 .layer(CallbackLayer::new(MetricsMakeCallbackHandler::new(
                     Arc::new(outbound_network_metrics),
@@ -1297,18 +1225,17 @@ impl IotaNode {
         checkpoint_store: Arc<CheckpointStore>,
         state_sync_handle: state_sync::Handle,
         randomness_handle: randomness::Handle,
-        accumulator: Weak<StateAccumulator>,
+        global_state_hasher: Weak<GlobalStateHasher>,
         backpressure_manager: Arc<BackpressureManager>,
         connection_monitor_status: Arc<ConnectionMonitorStatus>,
         registry_service: &RegistryService,
-        iota_node_metrics: Arc<IotaNodeMetrics>,
     ) -> Result<ValidatorComponents> {
         let mut config_clone = config.clone();
         let consensus_config = config_clone
             .consensus_config
             .as_mut()
             .ok_or_else(|| anyhow!("Validator is missing consensus config"))?;
-        let validator_registry = Registry::new();
+        let validator_registry = registry_service.new_registry_custom(None, None)?;
         let validator_registry_id = registry_service.add(validator_registry.clone());
 
         let client = Arc::new(UpdatableConsensusClient::new());
@@ -1321,13 +1248,13 @@ impl IotaNode {
             client.clone(),
             checkpoint_store.clone(),
         ));
-        let consensus_manager = ConsensusManager::new(
+        let consensus_manager = Arc::new(ConsensusManager::new(
             &config,
             consensus_config,
             registry_service,
             &validator_registry,
             client,
-        );
+        ));
 
         // This only gets started up once, not on every epoch. (Make call to remove
         // every epoch.)
@@ -1338,14 +1265,39 @@ impl IotaNode {
             &validator_registry,
         );
 
+        let soft_locks = Arc::new(if config.enable_soft_locking {
+            PreConsensusSoftLocks::new()
+        } else {
+            info!("pre-consensus soft-locking disabled via node config");
+            PreConsensusSoftLocks::disabled()
+        });
+
         let checkpoint_metrics = CheckpointMetrics::new(&validator_registry);
         let iota_tx_validator_metrics = IotaTxValidatorMetrics::new(&validator_registry);
+        let validator_service_metrics = Arc::new(ValidatorServiceMetrics::new(&validator_registry));
+
+        // Spawn the soft-lock sweep once for the lifetime of this validator
+        // instance. The task holds only a `Weak<PreConsensusSoftLocks>` so it
+        // stops itself automatically: each iteration it tries to upgrade the
+        // weak reference, and when all strong `Arc` owners have been dropped
+        // (i.e. `ValidatorComponents` is destructured and the old epoch store
+        // is released after an epoch transition that removes us from the
+        // committee) the upgrade returns `None` and the loop exits. No explicit
+        // `abort()` is needed. The same `Arc<PreConsensusSoftLocks>` is reused
+        // across epoch transitions (see `start_epoch_specific_validator_components`),
+        // so the task keeps running uninterrupted while the node remains a validator.
+        let soft_lock_sweep_handle = PreConsensusSoftLocks::spawn_sweep(
+            Arc::downgrade(&soft_locks),
+            validator_service_metrics.clone(),
+        );
 
         let validator_server_handle = Self::start_grpc_validator_service(
             &config,
             state.clone(),
             consensus_adapter.clone(),
             &validator_registry,
+            soft_locks.clone(),
+            validator_service_metrics.clone(),
         )
         .await?;
 
@@ -1367,6 +1319,27 @@ impl IotaNode {
             None
         };
 
+        // Starts a monitor that periodically refreshes the
+        // `consensus_queue_load_shedding_percentage` metric. Without this, the
+        // metric goes stale once gRPC traffic stops (the only other update
+        // path is `AuthorityState::check_consensus_queue_graduated_limits`, called on
+        // each inbound tx). Used in the certificate-less (P-COOL)
+        // mode.
+        let consensus_queue_overload_monitor_handle =
+            if epoch_store.protocol_config().enable_pcool_flow() {
+                let consensus_queue_monitor_authority_state = Arc::downgrade(&state);
+                let consensus_queue_monitor_consensus_adapter = Arc::downgrade(&consensus_adapter);
+                let consensus_queue_monitor_interval =
+                    config.authority_overload_config.overload_monitor_interval;
+                Some(spawn_monitored_task!(consensus_queue_overload_monitor(
+                    consensus_queue_monitor_authority_state,
+                    consensus_queue_monitor_consensus_adapter,
+                    consensus_queue_monitor_interval,
+                )))
+            } else {
+                None
+            };
+
         Self::start_epoch_specific_validator_components(
             &config,
             state.clone(),
@@ -1377,12 +1350,14 @@ impl IotaNode {
             randomness_handle,
             consensus_manager,
             consensus_store_pruner,
-            accumulator,
+            global_state_hasher,
             backpressure_manager,
+            soft_locks,
             validator_server_handle,
             validator_overload_monitor_handle,
+            consensus_queue_overload_monitor_handle,
+            soft_lock_sweep_handle,
             checkpoint_metrics,
-            iota_node_metrics,
             iota_tx_validator_metrics,
             validator_registry_id,
         )
@@ -1399,14 +1374,16 @@ impl IotaNode {
         epoch_store: Arc<AuthorityPerEpochStore>,
         state_sync_handle: state_sync::Handle,
         randomness_handle: randomness::Handle,
-        consensus_manager: ConsensusManager,
+        consensus_manager: Arc<ConsensusManager>,
         consensus_store_pruner: ConsensusStorePruner,
-        accumulator: Weak<StateAccumulator>,
+        global_state_hasher: Weak<GlobalStateHasher>,
         backpressure_manager: Arc<BackpressureManager>,
+        soft_locks: Arc<PreConsensusSoftLocks>,
         validator_server_handle: SpawnOnce,
         validator_overload_monitor_handle: Option<JoinHandle<()>>,
+        consensus_queue_overload_monitor_handle: Option<JoinHandle<()>>,
+        soft_lock_sweep_handle: JoinHandle<()>,
         checkpoint_metrics: Arc<CheckpointMetrics>,
-        iota_node_metrics: Arc<IotaNodeMetrics>,
         iota_tx_validator_metrics: Arc<IotaTxValidatorMetrics>,
         validator_registry_id: RegistryID,
     ) -> Result<ValidatorComponents> {
@@ -1417,7 +1394,7 @@ impl IotaNode {
             epoch_store.clone(),
             state.clone(),
             state_sync_handle,
-            accumulator,
+            global_state_hasher,
             checkpoint_metrics.clone(),
         );
 
@@ -1428,6 +1405,13 @@ impl IotaNode {
         let low_scoring_authorities = Arc::new(ArcSwap::new(Arc::new(HashMap::new())));
 
         consensus_adapter.swap_low_scoring_authorities(low_scoring_authorities.clone());
+
+        // Wire pre-consensus soft locks to the epoch store so that
+        // post-consensus processing can release locks once permanent locks are
+        // quarantined. Clear stale locks from the previous epoch and spawn a
+        // background sweep task.
+        soft_locks.clear();
+        epoch_store.set_soft_locks(soft_locks.clone());
 
         let randomness_manager = RandomnessManager::try_new(
             Arc::downgrade(&epoch_store),
@@ -1450,41 +1434,57 @@ impl IotaNode {
             backpressure_manager,
         );
 
-        info!("Starting consensus manager");
+        info!("Starting consensus manager asynchronously");
 
-        consensus_manager
-            .start(
-                config,
+        // Spawn consensus startup asynchronously to avoid blocking other components
+        tokio::spawn({
+            let config = config.clone();
+            let epoch_store = epoch_store.clone();
+            let iota_tx_validator = IotaTxValidator::new(
                 epoch_store.clone(),
-                consensus_handler_initializer,
-                IotaTxValidator::new(
-                    epoch_store.clone(),
-                    checkpoint_service.clone(),
-                    state.transaction_manager().clone(),
-                    iota_tx_validator_metrics.clone(),
-                ),
-            )
-            .await;
+                checkpoint_service.clone(),
+                state.transaction_manager().clone(),
+                iota_tx_validator_metrics.clone(),
+            );
+            let consensus_manager = consensus_manager.clone();
+            async move {
+                consensus_manager
+                    .start(
+                        &config,
+                        epoch_store,
+                        consensus_handler_initializer,
+                        iota_tx_validator,
+                    )
+                    .await;
+            }
+        });
+        let replay_waiter = consensus_manager.replay_waiter();
 
         info!("Spawning checkpoint service");
-        let checkpoint_service_tasks = checkpoint_service.spawn().await;
+        let replay_waiter = if std::env::var("DISABLE_REPLAY_WAITER").is_ok() {
+            None
+        } else {
+            Some(replay_waiter)
+        };
+        let checkpoint_service_tasks = checkpoint_service.spawn(replay_waiter).await;
 
-        if epoch_store.authenticator_state_enabled() {
-            Self::start_jwk_updater(
-                config,
-                iota_node_metrics,
-                state.name,
-                epoch_store.clone(),
-                consensus_adapter.clone(),
-            );
-        }
+        let overload_notifier_handle = Self::start_overload_notifier(
+            config,
+            state.clone(),
+            epoch_store.clone(),
+            consensus_adapter.clone(),
+        );
 
         Ok(ValidatorComponents {
             validator_server_handle,
             validator_overload_monitor_handle,
+            consensus_queue_overload_monitor_handle,
+            soft_lock_sweep_handle,
+            overload_notifier_handle,
             consensus_manager,
             consensus_store_pruner,
             consensus_adapter,
+            soft_locks,
             checkpoint_service_tasks,
             checkpoint_metrics,
             iota_tx_validator_metrics,
@@ -1505,7 +1505,7 @@ impl IotaNode {
         epoch_store: Arc<AuthorityPerEpochStore>,
         state: Arc<AuthorityState>,
         state_sync_handle: state_sync::Handle,
-        accumulator: Weak<StateAccumulator>,
+        global_state_hasher: Weak<GlobalStateHasher>,
         checkpoint_metrics: Arc<CheckpointMetrics>,
     ) -> Arc<CheckpointService> {
         let epoch_start_timestamp_ms = epoch_store.epoch_start_state().epoch_start_timestamp_ms();
@@ -1537,7 +1537,7 @@ impl IotaNode {
             checkpoint_store,
             epoch_store,
             state.get_transaction_cache_reader().clone(),
-            accumulator,
+            global_state_hasher,
             checkpoint_output,
             Box::new(certified_checkpoint_output),
             checkpoint_metrics,
@@ -1569,6 +1569,7 @@ impl IotaNode {
             consensus_config.max_submit_position,
             consensus_config.submit_delay_step_override(),
             ca_metrics,
+            consensus_config.graduated_load_shedding_soft_limit_pct(),
         )
     }
 
@@ -1577,14 +1578,15 @@ impl IotaNode {
         state: Arc<AuthorityState>,
         consensus_adapter: Arc<ConsensusAdapter>,
         prometheus_registry: &Registry,
+        soft_locks: Arc<PreConsensusSoftLocks>,
+        validator_service_metrics: Arc<ValidatorServiceMetrics>,
     ) -> Result<SpawnOnce> {
         let validator_service = ValidatorService::new(
             state,
             consensus_adapter,
-            Arc::new(ValidatorServiceMetrics::new(prometheus_registry)),
-            TrafficControllerMetrics::new(prometheus_registry),
-            config.policy_config.clone(),
-            config.firewall_config.clone(),
+            validator_service_metrics,
+            config.policy_config.clone().map(|p| p.client_id_source),
+            soft_locks,
         );
 
         let mut server_conf = iota_network_stack::config::Config::new();
@@ -1592,7 +1594,9 @@ impl IotaNode {
         server_conf.load_shed = config.grpc_load_shed;
         let server_builder =
             ServerBuilder::from_config(&server_conf, GrpcMetrics::new(prometheus_registry))
-                .add_service(ValidatorServer::new(validator_service));
+                .add_service(ValidatorServer::new(validator_service.clone()))
+                .add_service(ValidatorV2Server::new(validator_service.clone()))
+                .add_service(ValidatorPeerServer::new(validator_service));
 
         let tls_config = iota_tls::create_rustls_server_config(
             config.network_key_pair().copy().private(),
@@ -1642,8 +1646,15 @@ impl IotaNode {
 
         for tx in epoch_store.get_all_pending_consensus_transactions() {
             match tx.kind {
-                // Shared object txns cannot be re-executed at this point, because we must wait for
-                // consensus replay to assign shared object versions.
+                // TODO: what to do with UserTransactionV1 here? It seems like this only applies to
+                //  optimistically executed owned-object transactions that possibly didn't go
+                //  through  consensus before the node restarted. UserTransactionsV1
+                //  always needs to go  through consensus, so it will be replayed
+                //  there, just like shared object  transactions.
+                //
+                // Shared object txns
+                // cannot be re-executed at this  point, because we must wait for
+                // consensus replay to assign shared  object versions.
                 ConsensusTransactionKind::CertifiedTransaction(tx)
                     if !tx.contains_shared_object() =>
                 {
@@ -1742,9 +1753,9 @@ impl IotaNode {
     // self.state.db()
     // }
 
-    /// Clone an AuthorityAggregator currently used in this node's
-    /// QuorumDriver, if the node is a fullnode. After reconfig,
-    /// QuorumDriver builds a new AuthorityAggregator. The caller
+    /// Clone the AuthorityAggregator currently used by this node's
+    /// transaction orchestrator, if the node is a fullnode. After reconfig,
+    /// the active driver builds a new AuthorityAggregator. The caller
     /// of this function will mostly likely want to call this again
     /// to get a fresh one.
     pub fn clone_authority_aggregator(
@@ -1766,8 +1777,11 @@ impl IotaNode {
     ) -> Result<tokio::sync::broadcast::Receiver<QuorumDriverEffectsQueueResult>> {
         self.transaction_orchestrator
             .as_ref()
-            .map(|to| to.subscribe_to_effects_queue())
-            .ok_or_else(|| anyhow::anyhow!("Transaction Orchestrator is not enabled in this node."))
+            .ok_or_else(|| {
+                anyhow::anyhow!("Transaction Orchestrator is not enabled in this node.")
+            })?
+            .subscribe_to_effects_queue()
+            .ok_or_else(|| anyhow::anyhow!("Effects queue is not available under the P-COOL flow."))
     }
 
     /// This function awaits the completion of checkpoint execution of the
@@ -1783,8 +1797,8 @@ impl IotaNode {
             CheckpointExecutorMetrics::new(&self.registry_service.default_registry());
 
         loop {
-            let mut accumulator_guard = self.accumulator.lock().await;
-            let accumulator = accumulator_guard.take().unwrap();
+            let mut hasher_guard = self.global_state_hasher.lock().await;
+            let hasher = hasher_guard.take().unwrap();
             info!(
                 "Creating checkpoint executor for epoch {}",
                 epoch_store.epoch()
@@ -1806,16 +1820,22 @@ impl IotaNode {
                 epoch_store.clone(),
                 self.checkpoint_store.clone(),
                 self.state.clone(),
-                accumulator.clone(),
+                hasher.clone(),
                 self.backpressure_manager.clone(),
                 self.config.checkpoint_executor_config.clone(),
                 checkpoint_executor_metrics.clone(),
                 data_sender,
+                Some(self.checkpoint_progress_tracker.clone()),
             );
 
             let run_with_range = self.config.run_with_range;
 
             let cur_epoch_store = self.state.load_epoch_store_one_call_per_task();
+
+            // Update the current protocol version metric.
+            self.metrics
+                .current_protocol_version
+                .set(cur_epoch_store.protocol_config().version.as_u64() as i64);
 
             // Advertise capabilities to committee, if we are a validator.
             if let Some(components) = &*self.validator_components.lock().await {
@@ -1827,7 +1847,7 @@ impl IotaNode {
                 let transaction = ConsensusTransaction::new_capability_notification_v1(
                     AuthorityCapabilitiesV1::new(
                         self.state.name,
-                        cur_epoch_store.get_chain_identifier().chain(),
+                        cur_epoch_store.get_chain(),
                         self.config
                             .supported_protocol_versions
                             .expect("Supported versions should be populated")
@@ -1948,16 +1968,20 @@ impl IotaNode {
                     &cur_epoch_store,
                     next_epoch_committee.clone(),
                     new_epoch_start_state,
-                    accumulator.clone(),
+                    hasher.clone(),
                 )
                 .await?;
 
             let new_validator_components = if let Some(ValidatorComponents {
                 validator_server_handle,
                 validator_overload_monitor_handle,
+                consensus_queue_overload_monitor_handle,
+                soft_lock_sweep_handle,
+                overload_notifier_handle,
                 consensus_manager,
                 consensus_store_pruner,
                 consensus_adapter,
+                soft_locks,
                 mut checkpoint_service_tasks,
                 checkpoint_metrics,
                 iota_tx_validator_metrics,
@@ -1965,6 +1989,11 @@ impl IotaNode {
             }) = validator_components_lock_guard.take()
             {
                 info!("Reconfiguring the validator.");
+                // Cancel the old overload notifier task so a new one can be
+                // started for the next epoch.
+                if let Some(handle) = overload_notifier_handle {
+                    handle.abort();
+                }
                 // Cancel the old checkpoint service tasks.
                 // Waiting for checkpoint builder to finish gracefully is not possible, because
                 // it may wait on transactions while consensus on peers have
@@ -1985,17 +2014,17 @@ impl IotaNode {
 
                 info!("Epoch store finished reconfiguration.");
 
-                // No other components should be holding a strong reference to state accumulator
-                // at this point. Confirm here before we swap in the new accumulator.
-                let accumulator_metrics = Arc::into_inner(accumulator)
-                    .expect("Accumulator should have no other references at this point")
+                // No other components should be holding a strong reference to state hasher
+                // at this point. Confirm here before we swap in the new hasher.
+                let global_state_hasher_metrics = Arc::into_inner(hasher)
+                    .expect("Object state hasher should have no other references at this point")
                     .metrics();
-                let new_accumulator = Arc::new(StateAccumulator::new(
-                    self.state.get_accumulator_store().clone(),
-                    accumulator_metrics,
+                let new_hasher = Arc::new(GlobalStateHasher::new(
+                    self.state.get_global_state_hash_store().clone(),
+                    global_state_hasher_metrics,
                 ));
-                let weak_accumulator = Arc::downgrade(&new_accumulator);
-                *accumulator_guard = Some(new_accumulator);
+                let weak_hasher = Arc::downgrade(&new_hasher);
+                *hasher_guard = Some(new_hasher);
 
                 consensus_store_pruner.prune(next_epoch).await;
 
@@ -2012,12 +2041,14 @@ impl IotaNode {
                             self.randomness_handle.clone(),
                             consensus_manager,
                             consensus_store_pruner,
-                            weak_accumulator,
+                            weak_hasher,
                             self.backpressure_manager.clone(),
+                            soft_locks,
                             validator_server_handle,
                             validator_overload_monitor_handle,
+                            consensus_queue_overload_monitor_handle,
+                            soft_lock_sweep_handle,
                             checkpoint_metrics,
-                            self.metrics.clone(),
                             iota_tx_validator_metrics,
                             validator_registry_id,
                         )
@@ -2036,17 +2067,17 @@ impl IotaNode {
                     None
                 }
             } else {
-                // No other components should be holding a strong reference to state accumulator
-                // at this point. Confirm here before we swap in the new accumulator.
-                let accumulator_metrics = Arc::into_inner(accumulator)
-                    .expect("Accumulator should have no other references at this point")
+                // No other components should be holding a strong reference to state hasher
+                // at this point. Confirm here before we swap in the new hasher.
+                let global_state_hasher_metrics = Arc::into_inner(hasher)
+                    .expect("Object state hasher should have no other references at this point")
                     .metrics();
-                let new_accumulator = Arc::new(StateAccumulator::new(
-                    self.state.get_accumulator_store().clone(),
-                    accumulator_metrics,
+                let new_hasher = Arc::new(GlobalStateHasher::new(
+                    self.state.get_global_state_hash_store().clone(),
+                    global_state_hasher_metrics,
                 ));
-                let weak_accumulator = Arc::downgrade(&new_accumulator);
-                *accumulator_guard = Some(new_accumulator);
+                let weak_hasher = Arc::downgrade(&new_hasher);
+                *hasher_guard = Some(new_hasher);
 
                 if self.state.is_committee_validator(&new_epoch_store) {
                     info!("Promoting the node from fullnode to validator, starting grpc server");
@@ -2059,11 +2090,10 @@ impl IotaNode {
                         self.checkpoint_store.clone(),
                         self.state_sync_handle.clone(),
                         self.randomness_handle.clone(),
-                        weak_accumulator,
+                        weak_hasher,
                         self.backpressure_manager.clone(),
                         self.connection_monitor_status.clone(),
                         &self.registry_service,
-                        self.metrics.clone(),
                     )
                     .await?;
 
@@ -2081,6 +2111,16 @@ impl IotaNode {
             // Arc<AuthorityPerEpochStore> may linger.
             cur_epoch_store.release_db_handles();
 
+            // Drop the old epoch store to free its in-memory structures
+            // (ConsensusOutputCache, ConsensusQuarantine, DashMaps, etc.).
+            // The DB tables were already released above.
+            drop(cur_epoch_store);
+
+            // Prune old epoch databases after each epoch transition to prevent
+            // accumulation of RocksDB instances during fast catch-up sync
+            // (e.g. syncing from genesis).
+            self.state.epoch_db_pruner().prune_old_epoch_dbs().await;
+
             if cfg!(msim)
                 && !matches!(
                     self.config
@@ -2090,11 +2130,11 @@ impl IotaNode {
                 )
             {
                 self.state
-                .prune_checkpoints_for_eligible_epochs_for_testing(
-                    self.config.clone(),
-                    iota_core::authority::authority_store_pruner::AuthorityStorePruningMetrics::new_for_test(),
-                )
-                .await?;
+                    .prune_checkpoints_for_eligible_epochs_for_testing(
+                        self.config.clone(),
+                        iota_core::authority::authority_store_pruner::AuthorityStorePruningMetrics::new_for_test(),
+                    )
+                    .await?;
             }
 
             epoch_store = new_epoch_store;
@@ -2124,7 +2164,7 @@ impl IotaNode {
         cur_epoch_store: &AuthorityPerEpochStore,
         next_epoch_committee: Committee,
         next_epoch_start_system_state: EpochStartSystemState,
-        accumulator: Arc<StateAccumulator>,
+        global_state_hasher: Arc<GlobalStateHasher>,
     ) -> IotaResult<Arc<AuthorityPerEpochStore>> {
         let next_epoch = next_epoch_committee.epoch();
 
@@ -2141,7 +2181,7 @@ impl IotaNode {
             })?
             .epoch_supply_change;
 
-        let last_checkpoint_seq = *last_checkpoint.sequence_number();
+        let last_checkpoint_seq = last_checkpoint.sequence_number();
 
         assert_eq!(
             Some(last_checkpoint_seq),
@@ -2165,7 +2205,7 @@ impl IotaNode {
                 self.config.supported_protocol_versions.unwrap(),
                 next_epoch_committee,
                 epoch_start_configuration,
-                accumulator,
+                global_state_hasher,
                 &self.config.expensive_safety_check_config,
                 epoch_supply_change,
                 last_checkpoint_seq,
@@ -2229,7 +2269,7 @@ impl IotaNode {
         // Create the capability notification
         let capabilities = AuthorityCapabilitiesV1::new(
             self.state.name,
-            epoch_store.get_chain_identifier().chain(),
+            epoch_store.get_chain(),
             self.config
                 .supported_protocol_versions
                 .expect("Supported versions should be populated")
@@ -2300,20 +2340,6 @@ impl IotaNode {
     }
 }
 
-#[cfg(not(msim))]
-impl IotaNode {
-    async fn fetch_jwks(
-        _authority: AuthorityName,
-        provider: &OIDCProvider,
-    ) -> IotaResult<Vec<(JwkId, JWK)>> {
-        use fastcrypto_zkp::bn254::zk_login::fetch_jwks;
-        let client = reqwest::Client::new();
-        fetch_jwks(provider, &client)
-            .await
-            .map_err(|_| IotaError::JWKRetrieval)
-    }
-}
-
 #[cfg(msim)]
 impl IotaNode {
     pub fn get_sim_node_id(&self) -> iota_simulator::task::NodeId {
@@ -2325,13 +2351,6 @@ impl IotaNode {
         self.sim_state
             .sim_safe_mode_expected
             .store(new_value, Ordering::Relaxed);
-    }
-
-    async fn fetch_jwks(
-        authority: AuthorityName,
-        provider: &OIDCProvider,
-    ) -> IotaResult<Vec<(JwkId, JWK)>> {
-        get_jwk_injector()(authority, provider)
     }
 }
 
@@ -2475,6 +2494,10 @@ async fn build_grpc_server(
 
     // Create gRPC server metrics
     let grpc_server_metrics = iota_grpc_server::GrpcServerMetrics::new(prometheus_registry);
+    let client_id_source = config
+        .policy_config
+        .as_ref()
+        .map(|p| p.client_id_source.clone());
 
     let handle = start_grpc_server(
         grpc_reader,
@@ -2483,6 +2506,8 @@ async fn build_grpc_server(
         shutdown_token,
         chain_id,
         Some(grpc_server_metrics),
+        state.traffic_controller.clone(),
+        client_id_source,
     )
     .await?;
 
@@ -2517,11 +2542,12 @@ pub async fn build_http_server(
     let mut router = axum::Router::new();
 
     let json_rpc_router = {
+        let traffic_controller = state.traffic_controller.clone();
         let mut server = JsonRpcServerBuilder::new(
             env!("CARGO_PKG_VERSION"),
             prometheus_registry,
+            traffic_controller,
             config.policy_config.clone(),
-            config.firewall_config.clone(),
         );
 
         let kv_store = build_kv_store(&state, config, prometheus_registry)?;

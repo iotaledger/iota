@@ -13,22 +13,20 @@ use std::fmt::Debug;
 
 use executor::Executor;
 use iota_protocol_config::ProtocolConfig;
+use iota_sdk_types::{Address, GasPayment, ObjectId, Owner, TransactionDigest};
 use iota_types::{
-    base_types::{IotaAddress, ObjectID},
     crypto::{AccountKeyPair, get_key_pair},
-    digests::TransactionDigest,
     gas_coin::NANOS_PER_IOTA,
-    object::{MoveObject, OBJECT_START_VERSION, Object, Owner},
-    transaction::GasData,
+    object::{MoveObject, MoveObjectExt, OBJECT_START_VERSION, Object},
 };
 use proptest::{collection::vec, prelude::*, test_runner::TestRunner};
 use rand::{Rng, SeedableRng, rngs::StdRng};
 
 fn new_gas_coin_with_balance_and_owner(balance: u64, owner: Owner) -> Object {
     Object::new_move(
-        MoveObject::new_gas_coin(OBJECT_START_VERSION, ObjectID::random(), balance),
+        MoveObject::new_gas_coin(OBJECT_START_VERSION, ObjectId::random(), balance),
         owner,
-        TransactionDigest::genesis_marker(),
+        TransactionDigest::GENESIS_MARKER,
     )
 }
 
@@ -45,7 +43,7 @@ fn generate_random_gas_data(
     // was implemented.
     const MAX_GAS_BALANCE: u64 = 4_600_000_000 * NANOS_PER_IOTA;
 
-    let (sender, sender_key): (IotaAddress, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (Address, AccountKeyPair) = get_key_pair();
     let mut rng = StdRng::from_seed(seed);
     let mut gas_objects = vec![];
     let mut object_refs = vec![];
@@ -56,9 +54,7 @@ fn generate_random_gas_data(
     let gas_coin_owners = gas_coin_owners
         .iter()
         .map(|o| match o {
-            Owner::ObjectOwner(_) | Owner::AddressOwner(_) if owned_by_sender => {
-                Owner::AddressOwner(sender)
-            }
+            Owner::Object(_) | Owner::Address(_) if owned_by_sender => Owner::Address(sender),
             _ => *o,
         })
         .collect::<Vec<_>>();
@@ -66,7 +62,7 @@ fn generate_random_gas_data(
         let gas_balance = rng.gen_range(0..=remaining_gas_balance);
         let gas_object = new_gas_coin_with_balance_and_owner(gas_balance, *owner);
         remaining_gas_balance -= gas_balance;
-        object_refs.push(gas_object.compute_object_reference());
+        object_refs.push(gas_object.object_ref());
         gas_objects.push(gas_object);
     }
     // Put the remaining balance in the last gas object.
@@ -74,21 +70,21 @@ fn generate_random_gas_data(
         remaining_gas_balance,
         gas_coin_owners[num_gas_objects - 1],
     );
-    object_refs.push(last_gas_object.compute_object_reference());
+    object_refs.push(last_gas_object.object_ref());
     gas_objects.push(last_gas_object);
 
     assert_eq!(gas_objects.len(), num_gas_objects);
     assert_eq!(
         gas_objects
             .iter()
-            .map(|o| o.data.try_as_move().unwrap().get_coin_value_unsafe())
+            .map(|o| o.data.as_opt_struct().unwrap().get_coin_value_unchecked())
             .sum::<u64>(),
         total_gas_balance
     );
 
     GasDataWithObjects {
-        gas_data: GasData {
-            payment: object_refs,
+        gas_data: GasPayment {
+            objects: object_refs,
             owner: sender,
             price: rng.gen_range(0..=ProtocolConfig::get_for_max_version_UNSAFE().max_gas_price()),
             budget: rng.gen_range(0..=ProtocolConfig::get_for_max_version_UNSAFE().max_tx_gas()),
@@ -101,7 +97,7 @@ fn generate_random_gas_data(
 /// Need to have a wrapper struct here so we can implement Arbitrary for it.
 #[derive(Debug)]
 pub struct GasDataWithObjects {
-    pub gas_data: GasData,
+    pub gas_data: GasPayment,
     pub sender_key: AccountKeyPair,
     pub objects: Vec<Object>,
 }

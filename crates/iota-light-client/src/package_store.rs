@@ -7,7 +7,7 @@ use std::{collections::HashMap, sync::Arc};
 use anyhow::Result;
 use async_trait::async_trait;
 use iota_package_resolver::{Package, PackageStore, error::Error as PackageResolverError};
-use move_core_types::account_address::AccountAddress;
+use iota_sdk_types::{Address, ObjectId};
 use tokio::sync::Mutex;
 use tracing::{error, info};
 
@@ -15,7 +15,7 @@ use crate::{config::Config, verifier::get_verified_object};
 
 pub struct RemotePackageStore {
     config: Config,
-    cache: Mutex<HashMap<AccountAddress, Arc<Package>>>,
+    cache: Mutex<HashMap<Address, Arc<Package>>>,
 }
 
 impl RemotePackageStore {
@@ -31,7 +31,7 @@ impl RemotePackageStore {
 impl PackageStore for RemotePackageStore {
     /// Read package contents. Fails if `id` is not an object, not a package, or
     /// is malformed in some way.
-    async fn fetch(&self, id: AccountAddress) -> iota_package_resolver::Result<Arc<Package>> {
+    async fn fetch(&self, id: Address) -> iota_package_resolver::Result<Arc<Package>> {
         // Check if we have it in the cache
         let res: Result<Arc<Package>> = async move {
             if let Some(package) = self.cache.lock().await.get(&id) {
@@ -41,7 +41,7 @@ impl PackageStore for RemotePackageStore {
 
             info!("Fetch Package: {id}");
 
-            let object = get_verified_object(&self.config, id.into()).await?;
+            let object = get_verified_object(&self.config, ObjectId::new(id.into_bytes())).await?;
             let package = Arc::new(Package::read_from_object(&object)?);
 
             // Add to the cache

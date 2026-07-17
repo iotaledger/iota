@@ -6,17 +6,17 @@ use std::{collections::BTreeMap, path::PathBuf};
 
 use insta::assert_json_snapshot;
 use iota_json_rpc_types::IotaTransactionBlockEffectsAPI;
+use iota_sdk_types::{
+    Address, Identifier, ObjectId, ObjectReference, SharedObjectReference, gas::GasCostSummary,
+};
 use iota_swarm_config::genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT};
 use iota_test_transaction_builder::{
     TestTransactionBuilder, publish_basics_package_and_make_counter,
 };
 use iota_types::{
-    IOTA_FRAMEWORK_PACKAGE_ID,
-    base_types::{IotaAddress, ObjectRef},
-    coin::{COIN_JOIN_FUNC_NAME, COIN_MODULE_NAME, PAY_MODULE_NAME, PAY_SPLIT_VEC_FUNC_NAME},
-    gas::GasCostSummary,
+    coin::{COIN_JOIN_FUNC_NAME, PAY_SPLIT_VEC_FUNC_NAME},
     gas_coin::GAS,
-    transaction::{CallArg, ObjectArg, TransactionData},
+    transaction::{CallArg, TransactionData},
 };
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumString};
@@ -69,22 +69,22 @@ async fn test_good_snapshot() -> Result<(), anyhow::Error> {
 
 async fn split_n_tx(
     n: u64,
-    coin: ObjectRef,
-    gas: ObjectRef,
+    coin: ObjectReference,
+    gas: ObjectReference,
     gas_price: u64,
-    sender: IotaAddress,
+    sender: Address,
 ) -> TransactionData {
     let split_amounts = vec![10u64; n as usize];
     let type_args = vec![GAS::type_tag()];
 
     TestTransactionBuilder::new(sender, gas, gas_price)
         .move_call(
-            IOTA_FRAMEWORK_PACKAGE_ID,
-            PAY_MODULE_NAME.as_str(),
+            ObjectId::FRAMEWORK,
+            Identifier::PAY_MODULE.as_str(),
             PAY_SPLIT_VEC_FUNC_NAME.as_str(),
             vec![
-                CallArg::Object(ObjectArg::ImmOrOwnedObject(coin)),
-                CallArg::Pure(bcs::to_bytes(&split_amounts).unwrap()),
+                CallArg::ImmutableOrOwned(coin),
+                CallArg::pure(&split_amounts),
             ],
         )
         .with_type_args(type_args)
@@ -99,8 +99,8 @@ async fn create_txes(
     // function.
     let (counter_package, counter) =
         publish_basics_package_and_make_counter(&test_cluster.wallet).await;
-    let counter_package_id = counter_package.0;
-    let (counter_id, counter_initial_shared_version) = (counter.0, counter.1);
+    let counter_package_id = counter_package.object_id;
+    let (counter_id, counter_initial_shared_version) = (counter.object_id, counter.version);
 
     let mut ret = BTreeMap::new();
     let (sender, mut gas_objects) = test_cluster.wallet.get_one_account().await.unwrap();
@@ -119,11 +119,11 @@ async fn create_txes(
     //
     let whole_iota_coin_tx =
         TestTransactionBuilder::new(sender, gas_objects.pop().unwrap(), gas_price)
-            .transfer_iota(None, IotaAddress::default())
+            .transfer_iota(None, Address::ZERO)
             .build();
     let partial_iota_coin_tx =
         TestTransactionBuilder::new(sender, gas_objects.pop().unwrap(), gas_price)
-            .transfer_iota(Some(10), IotaAddress::default())
+            .transfer_iota(Some(10), Address::ZERO)
             .build();
     ret.insert(
         CommonTransactionCosts::TransferWholeIotaCoin,
@@ -137,7 +137,7 @@ async fn create_txes(
     // Transfer Whole Coin Object
     //
     let whole_coin_tx = TestTransactionBuilder::new(sender, gas_objects.pop().unwrap(), gas_price)
-        .transfer(gas_objects.pop().unwrap(), IotaAddress::default())
+        .transfer(gas_objects.pop().unwrap(), Address::ZERO)
         .build();
 
     ret.insert(CommonTransactionCosts::TransferWholeCoin, whole_coin_tx);
@@ -149,12 +149,12 @@ async fn create_txes(
 
     let merge_tx = TestTransactionBuilder::new(sender, gas_objects.pop().unwrap(), gas_price)
         .move_call(
-            IOTA_FRAMEWORK_PACKAGE_ID,
-            COIN_MODULE_NAME.as_str(),
+            ObjectId::FRAMEWORK,
+            Identifier::COIN_MODULE.as_str(),
             COIN_JOIN_FUNC_NAME.as_str(),
             vec![
-                CallArg::Object(ObjectArg::ImmOrOwnedObject(c1)),
-                CallArg::Object(ObjectArg::ImmOrOwnedObject(gas_objects.pop().unwrap())),
+                CallArg::ImmutableOrOwned(c1),
+                CallArg::ImmutableOrOwned(gas_objects.pop().unwrap()),
             ],
         )
         .with_type_args(type_args)
@@ -188,11 +188,11 @@ async fn create_txes(
             "counter",
             "assert_value",
             vec![
-                CallArg::Object(ObjectArg::SharedObject {
-                    id: counter_id,
-                    initial_shared_version: counter_initial_shared_version,
-                    mutable: true,
-                }),
+                CallArg::Shared(SharedObjectReference::new(
+                    counter_id,
+                    counter_initial_shared_version,
+                    true,
+                )),
                 CallArg::Pure(0u64.to_le_bytes().to_vec()),
             ],
         )

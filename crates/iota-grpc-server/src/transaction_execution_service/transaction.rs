@@ -13,7 +13,7 @@ use iota_grpc_types::{
         event as grpc_event, object as grpc_obj, signatures as grpc_sig, transaction as grpc_tx,
     },
 };
-use iota_types::iota_sdk_types_conversions::type_tag_core_to_sdk;
+use iota_sdk_types::TypeTag;
 
 use crate::{GrpcReader, error::RpcError, merge::Merge, utils::render_json};
 
@@ -29,6 +29,9 @@ pub struct TransactionReadSource<'a> {
     pub timestamp_ms: Option<u64>,
     pub input_objects: Option<Vec<iota_types::object::Object>>,
     pub output_objects: Option<Vec<iota_types::object::Object>>,
+    /// Simulate-only: gas coin mocked during simulation, excluded from derived
+    /// balance changes.
+    pub mocked_coin: Option<iota_sdk_types::ObjectId>,
 }
 
 impl Merge<&TransactionReadSource<'_>> for grpc_tx::ExecutedTransaction {
@@ -93,7 +96,82 @@ impl Merge<&TransactionReadSource<'_>> for grpc_tx::ExecutedTransaction {
             )?);
         }
 
+        // Derive balance changes if requested. Every producer guarantees the
+        // required source data is present when the mask requests them, so a
+        // missing field here is a server bug — error out instead of silently
+        // returning wrong (empty) changes.
+        if mask.subtree(Self::BALANCE_CHANGES_FIELD.name).is_some() {
+            let (effects, input_objects, output_objects) = source.changes_source()?;
+            self.balance_changes = Some(
+                grpc_tx::BalanceChanges::default().with_balance_changes(
+                    crate::changes::derive_balance_changes(
+                        effects,
+                        input_objects,
+                        output_objects,
+                        source.mocked_coin,
+                    )?
+                    .into_iter()
+                    .map(Into::into)
+                    .collect(),
+                ),
+            );
+        }
+
+        // Derive object changes if requested
+        if mask.subtree(Self::OBJECT_CHANGES_FIELD.name).is_some() {
+            use iota_types::transaction::TransactionDataAPI as _;
+
+            let sender = source
+                .transaction
+                .as_ref()
+                .ok_or_else(|| RpcError::internal().with_context("missing transaction"))?
+                .sender();
+            let (effects, input_objects, output_objects) = source.changes_source()?;
+            self.object_changes = Some(
+                grpc_tx::ObjectChanges::default().with_object_changes(
+                    crate::changes::derive_object_changes(
+                        sender,
+                        effects,
+                        input_objects,
+                        output_objects,
+                    )?
+                    .into_iter()
+                    .map(Into::into)
+                    .collect(),
+                ),
+            );
+        }
+
         Ok(())
+    }
+}
+
+impl TransactionReadSource<'_> {
+    /// The (effects, input objects, output objects) triple the change
+    /// derivation runs on, erroring on fields the producer failed to supply.
+    fn changes_source(
+        &self,
+    ) -> Result<
+        (
+            &iota_types::effects::TransactionEffects,
+            &[iota_types::object::Object],
+            &[iota_types::object::Object],
+        ),
+        RpcError,
+    > {
+        let effects = self
+            .effects
+            .as_ref()
+            .ok_or_else(|| RpcError::internal().with_context("missing effects"))?;
+        let input_objects = self
+            .input_objects
+            .as_deref()
+            .ok_or_else(|| RpcError::internal().with_context("missing input objects"))?;
+        let output_objects = self
+            .output_objects
+            .as_deref()
+            .ok_or_else(|| RpcError::internal().with_context("missing output objects"))?;
+        Ok((effects, input_objects, output_objects))
     }
 }
 
@@ -159,7 +237,7 @@ impl Merge<&TransactionReadSource<'_>> for grpc_tx::TransactionEvents {
         // not requested in the mask".
         let events = source.events.clone().unwrap_or_default();
 
-        Self::merge(self, events.clone(), mask)?;
+        Self::merge(self, &events, mask)?;
 
         if mask
             .subtree(Self::EVENTS_FIELD.name)
@@ -170,12 +248,12 @@ impl Merge<&TransactionReadSource<'_>> for grpc_tx::TransactionEvents {
             match self.events.as_mut() {
                 None => return Ok(()),
                 Some(proto_events) => {
-                    for (message, event) in proto_events.events.iter_mut().zip(&events.data) {
+                    for (message, event) in proto_events.events.iter_mut().zip(&events.0) {
                         // Populate json_contents if we have a valid datatype layout
                         message.json_contents = crate::utils::render_json(
                             source.reader.clone(),
                             source.config.max_json_move_value_size,
-                            &iota_types::TypeTag::Struct(Box::new(event.type_.clone())),
+                            &TypeTag::Struct(Box::new(event.type_.clone())),
                             &event.contents,
                         );
                     }
@@ -247,12 +325,8 @@ impl Merge<&CommandResultsReadSource<'_>> for CommandResults {
 struct CommandResultReadSource<'a> {
     reader: &'a Arc<GrpcReader>,
     config: &'a iota_config::node::GrpcApiConfig,
-    mutable_reference_outputs: &'a [(
-        iota_types::transaction::Argument,
-        Vec<u8>,
-        iota_types::TypeTag,
-    )],
-    return_values: &'a [(Vec<u8>, iota_types::TypeTag)],
+    mutable_reference_outputs: &'a [(iota_sdk_types::Argument, Vec<u8>, TypeTag)],
+    return_values: &'a [(Vec<u8>, TypeTag)],
 }
 
 impl Merge<&CommandResultReadSource<'_>> for CommandResult {
@@ -299,11 +373,7 @@ impl Merge<&CommandResultReadSource<'_>> for CommandResult {
 struct CommandOutputsReadSource<'a> {
     reader: &'a Arc<GrpcReader>,
     config: &'a iota_config::node::GrpcApiConfig,
-    outputs: Vec<(
-        Option<iota_types::transaction::Argument>,
-        &'a [u8],
-        &'a iota_types::TypeTag,
-    )>,
+    outputs: Vec<(Option<iota_sdk_types::Argument>, &'a [u8], &'a TypeTag)>,
 }
 
 impl Merge<&CommandOutputsReadSource<'_>> for CommandOutputs {
@@ -338,9 +408,9 @@ impl Merge<&CommandOutputsReadSource<'_>> for CommandOutputs {
 struct CommandOutputReadSource<'a> {
     reader: &'a Arc<GrpcReader>,
     config: &'a iota_config::node::GrpcApiConfig,
-    arg: Option<iota_types::transaction::Argument>,
+    arg: Option<iota_sdk_types::Argument>,
     bcs_bytes: &'a [u8],
-    ty: &'a iota_types::TypeTag,
+    ty: &'a TypeTag,
 }
 
 impl Merge<&CommandOutputReadSource<'_>> for CommandOutput {
@@ -355,20 +425,14 @@ impl Merge<&CommandOutputReadSource<'_>> for CommandOutput {
             self.argument = source
                 .arg
                 .map(|arg| -> Result<_, RpcError> {
-                    let sdk_arg: iota_sdk_types::Argument = arg.into();
-                    sdk_arg
-                        .try_into()
+                    arg.try_into()
                         .map_err(|e| RpcError::from(e).with_context("failed to merge argument"))
                 })
                 .transpose()?;
         }
 
         if mask.contains(Self::TYPE_TAG_FIELD.name) {
-            self.type_tag = Some({
-                let sdk_type_tag = type_tag_core_to_sdk(source.ty.clone())
-                    .map_err(|e| RpcError::from(e).with_context("failed to convert type tag"))?;
-                (&sdk_type_tag).into()
-            });
+            self.type_tag = Some(source.ty.into())
         }
 
         if mask.contains(Self::BCS_FIELD.name) {

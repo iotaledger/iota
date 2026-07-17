@@ -13,24 +13,28 @@ use std::collections::HashMap;
 
 use futures::future;
 use iota_json_rpc_types::{CheckpointId, IotaEvent};
+use iota_sdk_types::{Address, ObjectId, TransactionDigest, Version};
 use iota_types::{
-    base_types::{ObjectID, SequenceNumber},
-    digests::TransactionDigest,
-    effects::{TransactionEffects, TransactionEffectsAPI},
+    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
     event::EventID,
     full_checkpoint_content::CheckpointTransaction,
     messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointContents, CheckpointSequenceNumber,
+        CertifiedCheckpointSummary, CheckpointContents, CheckpointContentsExt,
+        CheckpointSequenceNumber,
     },
     object::Object,
 };
 use itertools::{Either, Itertools, izip};
-use prometheus::Registry;
+use moka::sync::{Cache as MokaCache, CacheBuilder as MokaCacheBuilder};
+use prometheus_filtered::Registry;
 
 use crate::{
     errors::{IndexerError, IndexerResult},
     historical_fallback::{
-        client::{HttpRestKVClient, KeyValueStoreClient},
+        client::{
+            CACHE_TIME_TO_IDLE, HttpRestKVClient, KeyValueStoreClient,
+            PaginatedKeyValueStoreClient, TransactionSequenceNumber,
+        },
         convert::{
             HistoricalFallbackCheckpoint, HistoricalFallbackEvents, HistoricalFallbackTransaction,
         },
@@ -61,6 +65,9 @@ pub(crate) struct HistoricalFallbackReader {
     /// storage through REST API interface.
     client: HttpRestKVClient,
     package_resolver: PackageResolver,
+    /// Caches transaction sequence numbers to enable efficient pagination
+    /// cursors for "transactions by address" queries.
+    pub(crate) cursor_cache: MokaCache<TransactionDigest, TransactionSequenceNumber>,
 }
 
 impl HistoricalFallbackReader {
@@ -79,9 +86,15 @@ impl HistoricalFallbackReader {
             fallback_kv_concurrent_fetches,
             HistoricalFallbackClientMetrics::new(registry),
         )?;
+
+        let cursor_cache = MokaCacheBuilder::new(cache_size)
+            .time_to_idle(CACHE_TIME_TO_IDLE)
+            .build();
+
         Ok(Self {
             client,
             package_resolver,
+            cursor_cache,
         })
     }
 
@@ -95,12 +108,12 @@ impl HistoricalFallbackReader {
         let output_object_keys = transaction_effects
             .all_changed_objects()
             .into_iter()
-            .map(|((object_id, version, _object_digest), _owner, _kind)| (object_id, version))
-            .collect::<Vec<(ObjectID, SequenceNumber)>>();
+            .map(|(object_ref, _owner, _kind)| (object_ref.object_id, object_ref.version))
+            .collect::<Vec<(ObjectId, Version)>>();
 
         let (raw_input_objects, raw_output_objects) = tokio::try_join!(
-            self.client.multi_get_objects(&input_object_keys),
-            self.client.multi_get_objects(&output_object_keys),
+            self.client.multi_get_objects(&input_object_keys, false),
+            self.client.multi_get_objects(&output_object_keys, false),
         )?;
 
         let input_objects = raw_input_objects
@@ -156,7 +169,7 @@ impl HistoricalFallbackReader {
 
         let checkpoints_map = summaries
             .into_iter()
-            .zip(contents.into_iter())
+            .zip(contents)
             .filter_map(|(summary, contents)| {
                 summary.and_then(|summary| contents.map(|contents| (summary.sequence_number, (summary, contents))))
             })
@@ -179,7 +192,7 @@ impl HistoricalFallbackReader {
     }
 
     /// Fetches a checkpoint by either a [`CheckpointSequenceNumber`] or
-    /// [`CheckpointDigest`](iota_types::digests::CheckpointDigest).
+    /// [`CheckpointDigest`](iota_sdk_types::CheckpointDigest).
     pub(crate) async fn checkpoint(
         &self,
         id: CheckpointId,
@@ -342,29 +355,14 @@ impl HistoricalFallbackReader {
     ///
     /// - If `before_version` is `false`, it looks for the exact version.
     /// - If `true`, it finds the latest version before the given one.
-    ///
-    /// # Note
-    ///
-    /// Currently only supports `before_version = false`.
-    ///
-    /// Support for `before_version = true` will be added once range scan is
-    /// implemented on the KV REST API.
     pub(crate) async fn objects(
         &self,
-        object_refs: &[(ObjectID, SequenceNumber)],
+        object_refs: &[(ObjectId, Version)],
         before_version: bool,
     ) -> IndexerResult<Vec<Option<StoredObject>>> {
-        if before_version {
-            // TODO: Implement once range scan is available on KV REST API
-            // For now, we cannot determine the correct previous version without it due to
-            // non-contiguous object versioning:
-            // https://docs.iota.org/developer/iota-101/objects/versioning#move-objects.
-            return Ok(vec![None; object_refs.len()]);
-        }
-
         let stored_objects = self
             .client
-            .multi_get_objects(object_refs)
+            .multi_get_objects(object_refs, before_version)
             .await?
             .into_iter()
             .map(|obj| obj.map(StoredObject::from))
@@ -511,5 +509,86 @@ impl HistoricalFallbackReader {
         };
 
         Ok(events)
+    }
+
+    /// Resolves the sequence number for a given [`TransactionDigest`] by
+    /// retrieving its corresponding checkpoint data from the fallback storage.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`IndexerError::HistoricalFallbackInput`] when the checkpoint
+    /// data associated with the digest is not found in the historical fallback
+    /// store.
+    ///
+    /// # Panics
+    ///
+    /// If the resolved checkpoint's contents do not contain the digest,
+    /// which would indicate inconsistency between the historical store's index
+    /// and its checkpoint contents.
+    async fn resolve_transaction_sequence_number(
+        &self,
+        digest: TransactionDigest,
+    ) -> IndexerResult<TransactionSequenceNumber> {
+        let checkpoints = self.resolve_checkpoints(&[digest]).await?;
+        let (summary, contents) = checkpoints.get(&digest).cloned().ok_or_else(|| {
+            IndexerError::HistoricalFallbackInput(format!(
+                "checkpoint summary and contents linked to transaction: {digest} not found",
+            ))
+        })?;
+
+        let transaction_sequence_number = contents
+            .enumerate_transactions(&summary)
+            .find_map(|(seq, ed)| (ed.transaction == digest).then_some(seq))
+            .expect(
+                "historical fallback store inconsistency: checkpoint resolved via transaction digest does not contain the transaction digest in its contents",
+            );
+
+        Ok(transaction_sequence_number)
+    }
+
+    /// Fetches a paginated list of transaction digests that affect a given
+    /// address.
+    pub(crate) async fn paginate_transaction_digests_by_address(
+        &self,
+        address: Address,
+        cursor: Option<TransactionDigest>,
+        limit: usize,
+        oldest_first: bool,
+    ) -> IndexerResult<Vec<TransactionDigest>> {
+        let cursor = match cursor {
+            Some(digest) => match self.cursor_cache.get(&digest) {
+                Some(tx_sequence_number) => Some(tx_sequence_number),
+                None => Some(self.resolve_transaction_sequence_number(digest).await?),
+            },
+            None => None,
+        };
+
+        let pairs = self
+            .client
+            .transaction_digests_by_address(address, cursor, limit, oldest_first)
+            .await?;
+
+        Ok(pairs
+            .into_iter()
+            .map(|(seq, digest)| {
+                self.cursor_cache.insert(digest, seq);
+                digest
+            })
+            .collect())
+    }
+
+    /// Fetches a paginated list of transactions that affect a given address.
+    pub(crate) async fn transactions_by_address(
+        &self,
+        address: Address,
+        cursor: Option<TransactionDigest>,
+        limit: usize,
+        oldest_first: bool,
+    ) -> IndexerResult<Vec<Option<StoredTransaction>>> {
+        let digests = self
+            .paginate_transaction_digests_by_address(address, cursor, limit, oldest_first)
+            .await?;
+
+        self.transactions(&digests).await
     }
 }

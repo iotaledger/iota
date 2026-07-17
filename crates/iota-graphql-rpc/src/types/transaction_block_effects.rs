@@ -6,12 +6,14 @@ use async_graphql::{
     connection::{Connection, ConnectionNameType, CursorType, Edge, EdgeNameType, EmptyFields},
     *,
 };
-use iota_indexer::models::transactions::{OptimisticTransaction, StoredTransaction};
+use iota_indexer::{
+    models::transactions::{OptimisticTransaction, StoredTransaction},
+    optimistic_indexing::IngestionPath,
+};
 use iota_json_rpc_types::IotaExecutionStatus;
+use iota_sdk_types::{Event as NativeEvent, ExecutionStatus as NativeExecutionStatus};
 use iota_types::{
     effects::{TransactionEffects as NativeTransactionEffects, TransactionEffectsAPI},
-    event::Event as NativeEvent,
-    execution_status::ExecutionStatus as NativeExecutionStatus,
     transaction::TransactionData as NativeTransactionData,
 };
 
@@ -107,6 +109,9 @@ impl TransactionBlockEffects {
         Some(match self.native().status() {
             NativeExecutionStatus::Success => ExecutionStatus::Success,
             NativeExecutionStatus::Failure { .. } => ExecutionStatus::Failure,
+            _ => unimplemented!(
+                "a new ExecutionStatus enum variant was added and needs to be handled"
+            ),
         })
     }
 
@@ -115,7 +120,7 @@ impl TransactionBlockEffects {
     /// transaction.
     #[graphql(complexity = 0)]
     async fn lamport_version(&self) -> UInt53 {
-        self.native().lamport_version().value().into()
+        self.native().lamport_version().as_u64().into()
     }
 
     /// The reason for a transaction failure, if it did fail.
@@ -123,7 +128,7 @@ impl TransactionBlockEffects {
     /// human-readable form if possible, otherwise it will fall back to
     /// displaying the abort code and location.
     #[graphql(complexity = 0)]
-    async fn errors(&self, ctx: &Context<'_>) -> Result<Option<String>> {
+    pub(crate) async fn errors(&self, ctx: &Context<'_>) -> Result<Option<String>> {
         let resolver: &PackageResolver = ctx.data_unchecked();
 
         let status = IotaExecutionStatus::from_native_with_clever_error(
@@ -234,7 +239,7 @@ impl TransactionBlockEffects {
         connection.has_next_page = consistent_page.has_next_page;
 
         for c in consistent_page.cursors {
-            let result = UnchangedSharedObject::try_from(input_shared_objects[c.ix].clone(), c.c);
+            let result = UnchangedSharedObject::try_from(input_shared_objects[c.ix], c.c);
             match result {
                 Ok(unchanged_shared_object) => {
                     connection
@@ -282,7 +287,7 @@ impl TransactionBlockEffects {
 
         for c in consistent_page.cursors {
             let object_change = ObjectChange {
-                native: object_changes[c.ix].clone(),
+                native: object_changes[c.ix],
                 checkpoint_viewed_at: c.c,
                 source: source.clone(),
             };
@@ -418,13 +423,9 @@ impl TransactionBlockEffects {
     /// The epoch this transaction was executed in.
     #[graphql(complexity = "child_complexity")]
     async fn epoch(&self, ctx: &Context<'_>) -> Result<Option<Epoch>> {
-        Epoch::query(
-            ctx,
-            Some(self.native().executed_epoch()),
-            self.checkpoint_viewed_at,
-        )
-        .await
-        .extend()
+        Epoch::query(ctx, Some(self.native().epoch()), self.checkpoint_viewed_at)
+            .await
+            .extend()
     }
 
     /// The checkpoint this transaction was finalized in, if it is within the
@@ -563,5 +564,18 @@ impl TryFrom<TransactionBlock> for TransactionBlockEffects {
             kind: block.try_into()?,
             checkpoint_viewed_at,
         })
+    }
+}
+
+impl TryFrom<IngestionPath> for TransactionBlockEffects {
+    type Error = Error;
+
+    fn try_from(ingestion_path: IngestionPath) -> std::result::Result<Self, Self::Error> {
+        match ingestion_path {
+            IngestionPath::Optimistic(optimistic_tx) => optimistic_tx.try_into(),
+            IngestionPath::Checkpoint(checkpointed_tx) => {
+                TransactionBlock::try_from(checkpointed_tx)?.try_into()
+            }
+        }
     }
 }

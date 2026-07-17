@@ -1,0 +1,9 @@
+[package]
+name = "authenticator_shared_object_swap"
+edition = "2024"
+
+[dependencies]
+Iota = { local = "../../../../../crates/iota-framework/packages/iota-framework" }
+
+[addresses]
+authenticator_shared_object_swap = "0x0"

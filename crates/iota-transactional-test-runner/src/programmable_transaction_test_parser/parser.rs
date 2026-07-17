@@ -5,14 +5,10 @@
 use std::{borrow::BorrowMut, marker::PhantomData, str::FromStr};
 
 use anyhow::{Context, Result, bail};
-use iota_types::{
-    base_types::ObjectID,
-    transaction::{Argument, Command, ProgrammableMoveCall},
-    type_input::TypeInput,
-};
+use iota_sdk_types::{Argument, Command, Identifier, MoveCall, ObjectId};
+use iota_types::iota_sdk_types_conversions::type_tag_core_to_sdk;
 use move_core_types::{
     account_address::AccountAddress,
-    identifier::Identifier,
     parsing::{
         parser::{Parser, Token},
         types::{ParsedType, TypeToken},
@@ -218,7 +214,7 @@ where
                 ParsedCommand::MoveCall(Box::new(call))
             }
 
-            (tok, _) => bail!("unexpected token {}, expected command identifier", tok),
+            (tok, _) => bail!("unexpected token {tok}, expected command identifier"),
         })
     }
 
@@ -249,7 +245,7 @@ where
     pub fn parse_command_arg(&mut self) -> Result<Argument> {
         use super::token::CommandToken as Tok;
         Ok(match self.inner().advance_any()? {
-            (Tok::Ident, GAS_COIN) => Argument::GasCoin,
+            (Tok::Ident, GAS_COIN) => Argument::Gas,
             (Tok::Ident, INPUT) => {
                 self.inner().advance(Tok::LParen)?;
                 let num = self.parse_u16()?;
@@ -273,7 +269,7 @@ where
                 self.inner().advance(Tok::RParen)?;
                 Argument::NestedResult(i, j)
             }
-            (tok, _) => bail!("unexpected token {}, expected argument identifier", tok),
+            (tok, _) => bail!("unexpected token {tok}, expected argument identifier"),
         })
     }
 
@@ -307,7 +303,7 @@ where
         let res = parser.parse_list(|p| p.parse_type(), TypeToken::Comma, TypeToken::Gt, true)?;
         parser.advance(TypeToken::Gt)?;
         if let Ok((_, contents)) = parser.advance_any() {
-            bail!("Expected end of token stream. Got: {}", contents)
+            bail!("Expected end of token stream. Got: {contents}")
         }
         Ok(Some(res))
     }
@@ -326,7 +322,7 @@ impl ParsedCommand {
         let mut parser = CommandParser::new(tokens);
         let res = parser.parse_commands()?;
         if let Ok((_, contents)) = parser.inner().advance_any() {
-            bail!("Expected end of token stream. Got: {}", contents)
+            bail!("Expected end of token stream. Got: {contents}")
         }
         Ok(res)
     }
@@ -337,17 +333,18 @@ impl ParsedCommand {
         address_mapping: &impl Fn(&str) -> Option<AccountAddress>,
     ) -> Result<Command> {
         Ok(match self {
-            ParsedCommand::MoveCall(c) => {
-                Command::MoveCall(Box::new(c.into_move_call(address_mapping)?))
-            }
+            ParsedCommand::MoveCall(c) => Command::MoveCall(c.into_move_call(address_mapping)?),
             ParsedCommand::TransferObjects(objs, recipient) => {
-                Command::TransferObjects(objs, recipient)
+                Command::new_transfer_objects(objs, recipient)
             }
-            ParsedCommand::SplitCoins(coin, amts) => Command::SplitCoins(coin, amts),
-            ParsedCommand::MergeCoins(target, coins) => Command::MergeCoins(target, coins),
-            ParsedCommand::MakeMoveVec(ty_opt, args) => Command::make_move_vec(
+            ParsedCommand::SplitCoins(coin, amts) => Command::new_split_coins(coin, amts),
+            ParsedCommand::MergeCoins(target, coins) => Command::new_merge_coins(target, coins),
+            ParsedCommand::MakeMoveVec(ty_opt, args) => Command::new_make_move_vector(
                 ty_opt
-                    .map(|t| t.into_type_tag(address_mapping))
+                    .map(|t| {
+                        t.into_type_tag(address_mapping)
+                            .map(|tt| type_tag_core_to_sdk(&tt))
+                    })
                     .transpose()?,
                 args,
             ),
@@ -358,11 +355,11 @@ impl ParsedCommand {
                 let dependencies = dependencies
                     .into_iter()
                     .map(|d| match address_mapping(&d) {
-                        Some(a) => Ok(a.into()),
+                        Some(a) => Ok(ObjectId::new(a.into_bytes())),
                         None => bail!("Unbound dependency '{d}"),
                     })
-                    .collect::<Result<Vec<ObjectID>>>()?;
-                Command::Publish(package_contents, dependencies)
+                    .collect::<Result<Vec<ObjectId>>>()?;
+                Command::new_publish(package_contents, dependencies)
             }
             ParsedCommand::Upgrade(staged_package, dependencies, upgraded_package, ticket) => {
                 let Some(package_contents) = staged_packages(&staged_package) else {
@@ -371,15 +368,15 @@ impl ParsedCommand {
                 let dependencies = dependencies
                     .into_iter()
                     .map(|d| match address_mapping(&d) {
-                        Some(a) => Ok(a.into()),
+                        Some(a) => Ok(ObjectId::new(a.into_bytes())),
                         None => bail!("Unbound dependency '{d}"),
                     })
-                    .collect::<Result<Vec<ObjectID>>>()?;
+                    .collect::<Result<Vec<ObjectId>>>()?;
                 let Some(upgraded_package) = address_mapping(&upgraded_package) else {
                     bail!("Unbound upgraded package '{upgraded_package}'");
                 };
-                let upgraded_package = upgraded_package.into();
-                Command::Upgrade(package_contents, dependencies, upgraded_package, ticket)
+                let upgraded_package = ObjectId::new(upgraded_package.into_bytes());
+                Command::new_upgrade(package_contents, dependencies, upgraded_package, ticket)
             }
         })
     }
@@ -389,7 +386,7 @@ impl ParsedMoveCall {
     pub fn into_move_call(
         self,
         address_mapping: &impl Fn(&str) -> Option<AccountAddress>,
-    ) -> Result<ProgrammableMoveCall> {
+    ) -> Result<MoveCall> {
         let Self {
             package,
             module,
@@ -398,16 +395,20 @@ impl ParsedMoveCall {
             arguments,
         } = self;
         let Some(package) = address_mapping(package.as_str()) else {
-            bail!("Unable to resolve package {}", package)
+            bail!("Unable to resolve package {package}")
         };
         let type_arguments = type_arguments
             .into_iter()
-            .map(|t| t.into_type_tag(address_mapping).map(TypeInput::from))
+            .map(|t| {
+                t.into_type_tag(address_mapping)
+                    .map(|tt| type_tag_core_to_sdk(&tt))
+            })
             .collect::<Result<_>>()?;
-        Ok(ProgrammableMoveCall {
-            package: package.into(),
-            module: module.to_string(),
-            function: function.to_string(),
+
+        Ok(MoveCall {
+            package: ObjectId::new(package.into_bytes()),
+            module,
+            function,
             type_arguments,
             arguments,
         })

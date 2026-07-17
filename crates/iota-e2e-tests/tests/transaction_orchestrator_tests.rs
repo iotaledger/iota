@@ -2,25 +2,36 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+// Skip-effect-certification futures plus the msim scheduler layers push
+// rustc's monomorphization query depth past the default 128 in this test
+// binary. See the same attribute in `iota-json-rpc/src/lib.rs` for the
+// underlying explanation.
+#![recursion_limit = "256"]
+
 use std::{sync::Arc, time::Duration};
 
 use iota_core::{
     authority_client::NetworkAuthorityClient, transaction_orchestrator::TransactionOrchestrator,
 };
 use iota_macros::sim_test;
+use iota_protocol_config::ProtocolConfig;
+use iota_sdk_types::{ObjectReference, TransactionExpiration};
 use iota_storage::{
     key_value_store::TransactionKeyValueStore, key_value_store_metrics::KeyValueStoreMetrics,
 };
 use iota_test_transaction_builder::{
-    batch_make_transfer_transactions, make_staking_transaction, make_transfer_iota_transaction,
+    TestTransactionBuilder, batch_make_transfer_transactions, make_staking_transaction,
+    make_transfer_iota_transaction,
 };
 use iota_types::{
-    effects::TransactionEffectsAPI,
+    effects::{TransactionEffectsAPI, TransactionEffectsExt},
+    error::IotaError,
     quorum_driver_types::{
-        ExecuteTransactionRequestType, ExecuteTransactionRequestV1, ExecuteTransactionResponseV1,
-        FinalizedEffects, IsTransactionExecutedLocally, QuorumDriverError,
+        EffectsFinalityInfo, ExecuteTransactionRequestType, ExecuteTransactionRequestV1,
+        ExecuteTransactionResponseV1, FinalizedEffects, IsTransactionExecutedLocally,
+        QuorumDriverError,
     },
-    transaction::Transaction,
+    transaction::{Transaction, TransactionDataAPI},
 };
 use test_cluster::TestClusterBuilder;
 use tokio::time::timeout;
@@ -49,6 +60,7 @@ async fn test_blocking_execution() -> Result<(), anyhow::Error> {
     let digest = *txn.digest();
     orchestrator
         .quorum_driver()
+        .expect("quorum driver should be present when P-COOL is disabled")
         .submit_transaction_no_ticket(
             ExecuteTransactionRequestV1::new(txn),
             Some(make_socket_addr()),
@@ -59,7 +71,7 @@ async fn test_blocking_execution() -> Result<(), anyhow::Error> {
     handle
         .state()
         .get_transaction_cache_reader()
-        .notify_read_executed_effects(&[digest])
+        .notify_read_executed_effects_for_testing(&[digest])
         .await;
 
     // Transaction Orchestrator proactivcely executes txn locally
@@ -186,6 +198,7 @@ async fn test_transaction_orchestrator_reconfig() {
         node.transaction_orchestrator()
             .unwrap()
             .quorum_driver()
+            .expect("quorum driver should be present when P-COOL is disabled")
             .current_epoch()
     });
     assert_eq!(epoch, 0);
@@ -202,6 +215,7 @@ async fn test_transaction_orchestrator_reconfig() {
                 node.transaction_orchestrator()
                     .unwrap()
                     .quorum_driver()
+                    .expect("quorum driver should be present when P-COOL is disabled")
                     .current_epoch()
             });
             if epoch == 1 {
@@ -324,7 +338,9 @@ async fn execute_transaction_v1() -> Result<(), anyhow::Error> {
         include_output_objects: true,
         include_auxiliary_data: false,
     };
-    let response = orchestrator.execute_transaction_v1(request, None).await?;
+    let response = orchestrator
+        .execute_transaction_v1(request, false, None)
+        .await?;
     let fx = &response.effects.effects;
 
     let mut expected_input_objects = fx.modified_at_versions();
@@ -334,7 +350,7 @@ async fn execute_transaction_v1() -> Result<(), anyhow::Error> {
         .into_iter()
         .map(|(object_ref, _, _)| object_ref)
         .collect::<Vec<_>>();
-    expected_output_objects.sort_by_key(|&(id, _version, _digest)| id);
+    expected_output_objects.sort_by_key(|&object_ref| object_ref.object_id);
 
     let mut actual_input_objects_received = response
         .input_objects
@@ -349,12 +365,285 @@ async fn execute_transaction_v1() -> Result<(), anyhow::Error> {
         .output_objects
         .unwrap()
         .iter()
-        .map(|object| (object.id(), object.version(), object.digest()))
+        .map(|object| ObjectReference::new(object.id(), object.version(), object.digest()))
         .collect::<Vec<_>>();
-    actual_output_objects_received.sort_by_key(|&(id, _version, _digest)| id);
+    actual_output_objects_received.sort_by_key(|&object_ref| object_ref.object_id);
     assert_eq!(expected_output_objects, actual_output_objects_received);
 
     Ok(())
+}
+
+/// With the P-COOL flow enabled, `WaitForLocalExecution` takes the
+/// skip-effect-certification path inside the orchestrator. The single-
+/// validator response tagged `UncertifiedSingleValidator` must be upgraded
+/// to `Checkpointed(epoch, seq)` by the local-cache reconciliation before
+/// being returned to the caller — otherwise the safety guard at the end of
+/// `execute_transaction_block` would reject the response as
+/// `QuorumDriverInternal`.
+/// Drop-guard that clears the P-COOL env vars on scope exit, so a test
+/// that enables the flow does not contaminate sibling tests sharing the same
+/// process (e.g. when run via `cargo nextest` with `--test-threads`).
+#[must_use = "drop the guard at the end of the test to restore env vars"]
+struct PcoolEnvGuard;
+
+impl Drop for PcoolEnvGuard {
+    fn drop(&mut self) {
+        // SAFETY: paired with `enable_pcool_env`; both calls run on the
+        // test thread before/after the cluster is alive.
+        unsafe {
+            std::env::remove_var("IOTA_PROTOCOL_CONFIG_OVERRIDE_ENABLE");
+            std::env::remove_var("IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_PCOOL_FLOW");
+        }
+    }
+}
+
+fn enable_pcool_env() -> PcoolEnvGuard {
+    // SAFETY: set before spawning the test cluster; env vars are the only
+    // reliable way to flip the P-COOL protocol flag inside validator
+    // tasks spawned by the cluster (thread-local `apply_overrides_for_testing`
+    // does not propagate to spawned tasks outside msim).
+    unsafe {
+        std::env::set_var("IOTA_PROTOCOL_CONFIG_OVERRIDE_ENABLE", "1");
+        std::env::set_var(
+            "IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_PCOOL_FLOW",
+            "true",
+        );
+    }
+    PcoolEnvGuard
+}
+
+#[sim_test]
+async fn test_skip_effect_cert_reconciles_to_checkpointed() -> Result<(), anyhow::Error> {
+    let _env_guard = enable_pcool_env();
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(true);
+        config
+    });
+
+    let mut test_cluster = TestClusterBuilder::new().build().await;
+    let context = &mut test_cluster.wallet;
+    let handle = &test_cluster.fullnode_handle.iota_node;
+    let orchestrator = handle.with(|n| n.transaction_orchestrator().as_ref().unwrap().clone());
+
+    let txn = batch_make_transfer_transactions(context, 1)
+        .await
+        .pop()
+        .expect("gas objects should produce at least one tx");
+    let digest = *txn.digest();
+
+    let (response, executed_locally) = orchestrator
+        .execute_transaction_block(
+            ExecuteTransactionRequestV1 {
+                transaction: txn,
+                include_events: true,
+                include_input_objects: true,
+                include_output_objects: true,
+                include_auxiliary_data: false,
+            },
+            ExecuteTransactionRequestType::WaitForLocalExecution,
+            Some(make_socket_addr()),
+        )
+        .await
+        .unwrap_or_else(|e| panic!("skip-cert execution failed for {digest:?}: {e:?}"));
+
+    assert!(executed_locally, "tx should be executed locally");
+
+    // The strong signal that reconcile ran: the TD skip-cert path never
+    // produces `Certified` (no 2f+1 broadcast happened) and never produces
+    // `QuorumExecuted` (that's the pre-reconcile TD output). Only the
+    // reconcile step upgrades to `Checkpointed(epoch, seq)`. If the safety
+    // guard had fired instead, `execute_transaction_block` would have
+    // returned a `QuorumDriverInternal` error.
+    match response.effects.finality_info {
+        EffectsFinalityInfo::Checkpointed(_epoch, seq) => {
+            assert!(seq > 0, "checkpoint sequence should be populated");
+        }
+        other => panic!(
+            "skip-cert reconciliation should upgrade finality to Checkpointed, got {other:?}"
+        ),
+    }
+    // Request flags were set — the reconcile path must populate the object
+    // fields rather than dropping them. (Events are skipped: a transfer
+    // tx does not emit any; the negative-case is covered by
+    // `test_skip_effect_cert_respects_request_flags`.)
+    assert!(response.input_objects.is_some());
+    assert!(response.output_objects.is_some());
+
+    Ok(())
+}
+
+/// With the P-COOL flow enabled, a caller that did *not* ask for events
+/// or input/output objects must not receive them.
+#[sim_test]
+async fn test_skip_effect_cert_respects_request_flags() -> Result<(), anyhow::Error> {
+    let _env_guard = enable_pcool_env();
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(true);
+        config
+    });
+
+    let mut test_cluster = TestClusterBuilder::new().build().await;
+    let context = &mut test_cluster.wallet;
+    let handle = &test_cluster.fullnode_handle.iota_node;
+    let orchestrator = handle.with(|n| n.transaction_orchestrator().as_ref().unwrap().clone());
+
+    let txn = batch_make_transfer_transactions(context, 1)
+        .await
+        .pop()
+        .expect("gas objects should produce at least one tx");
+
+    let (response, _) = orchestrator
+        .execute_transaction_block(
+            ExecuteTransactionRequestV1 {
+                transaction: txn,
+                include_events: false,
+                include_input_objects: false,
+                include_output_objects: false,
+                include_auxiliary_data: false,
+            },
+            ExecuteTransactionRequestType::WaitForLocalExecution,
+            Some(make_socket_addr()),
+        )
+        .await?;
+
+    assert!(
+        matches!(
+            response.effects.finality_info,
+            EffectsFinalityInfo::Checkpointed(_, _)
+        ),
+        "skip-cert response should always be Checkpointed, got {:?}",
+        response.effects.finality_info
+    );
+    assert!(
+        response.events.is_none(),
+        "events must not leak when include_events=false"
+    );
+    assert!(
+        response.input_objects.is_none(),
+        "input_objects must not leak when include_input_objects=false"
+    );
+    assert!(
+        response.output_objects.is_none(),
+        "output_objects must not leak when include_output_objects=false"
+    );
+
+    Ok(())
+}
+
+/// Without consensus quorum, the skip-cert path can never observe checkpoint
+/// inclusion. The orchestrator must surface this as `TimeoutBeforeFinality`
+/// (a retriable transient), not `QuorumDriverInternal` — the latter would
+/// page on-call for a routine availability dip.
+#[sim_test]
+async fn test_skip_effect_cert_timeout_without_quorum() -> Result<(), anyhow::Error> {
+    let _env_guard = enable_pcool_env();
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(true);
+        config
+    });
+
+    let mut test_cluster = TestClusterBuilder::new().build().await;
+    let context = &mut test_cluster.wallet;
+    let handle = &test_cluster.fullnode_handle.iota_node;
+    let orchestrator = handle.with(|n| n.transaction_orchestrator().as_ref().unwrap().clone());
+
+    // Sanity-check the happy path first so the failure below is attributable
+    // to the deliberate quorum loss, not a misconfigured cluster.
+    let mut txns = batch_make_transfer_transactions(context, 2).await;
+    let healthy_txn = txns.swap_remove(0);
+    orchestrator
+        .execute_transaction_block(
+            ExecuteTransactionRequestV1 {
+                transaction: healthy_txn,
+                include_events: false,
+                include_input_objects: false,
+                include_output_objects: false,
+                include_auxiliary_data: false,
+            },
+            ExecuteTransactionRequestType::WaitForLocalExecution,
+            Some(make_socket_addr()),
+        )
+        .await
+        .expect("baseline skip-cert tx should succeed before quorum loss");
+
+    // Drop two validators (of four) so consensus cannot form. Checkpoint
+    // inclusion will never happen for any new tx submitted after this point.
+    let validator_addresses = test_cluster.get_validator_pubkeys();
+    assert_eq!(validator_addresses.len(), 4);
+    test_cluster.stop_node(&validator_addresses[0]);
+    test_cluster.stop_node(&validator_addresses[1]);
+
+    let stuck_txn = txns.swap_remove(0);
+    let result = orchestrator
+        .execute_transaction_block(
+            ExecuteTransactionRequestV1 {
+                transaction: stuck_txn,
+                include_events: false,
+                include_input_objects: false,
+                include_output_objects: false,
+                include_auxiliary_data: false,
+            },
+            ExecuteTransactionRequestType::WaitForLocalExecution,
+            Some(make_socket_addr()),
+        )
+        .await;
+
+    match result {
+        Err(QuorumDriverError::TimeoutBeforeFinality)
+        | Err(QuorumDriverError::FailedWithTransientErrorAfterMaximumAttempts { .. }) => {}
+        Err(QuorumDriverError::QuorumDriverInternal(e)) => panic!(
+            "skip-cert quorum loss should map to TimeoutBeforeFinality, got \
+             QuorumDriverInternal: {e:?}"
+        ),
+        Err(other) => {
+            panic!("unexpected error variant from skip-cert under quorum loss: {other:?}")
+        }
+        Ok((response, _)) => panic!(
+            "skip-cert should not succeed without consensus quorum; got {:?}",
+            response.effects.finality_info
+        ),
+    }
+
+    Ok(())
+}
+
+/// Under P-COOL the orchestrator has no quorum driver, so the authority
+/// aggregator must come from the transaction driver — and it must track
+/// reconfiguration, since test infra polls its committee epoch.
+#[sim_test]
+async fn test_authority_aggregator_accessor_under_pcool() {
+    let _env_guard = enable_pcool_env();
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(true);
+        config
+    });
+
+    let test_cluster = TestClusterBuilder::new().build().await;
+
+    let epoch = test_cluster
+        .fullnode_handle
+        .iota_node
+        .with(|node| node.clone_authority_aggregator().unwrap().committee.epoch);
+    assert_eq!(epoch, 0);
+
+    test_cluster.force_new_epoch().await;
+
+    // The aggregator is swapped asynchronously after the reconfig message,
+    // so poll with a timeout.
+    timeout(Duration::from_secs(5), async {
+        loop {
+            let epoch = test_cluster
+                .fullnode_handle
+                .iota_node
+                .with(|node| node.clone_authority_aggregator().unwrap().committee.epoch);
+            if epoch == 1 {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+    })
+    .await
+    .expect("transaction driver's authority aggregator should reconfigure to epoch 1");
 }
 
 #[sim_test]
@@ -385,7 +674,9 @@ async fn execute_transaction_v1_staking_transaction() -> Result<(), anyhow::Erro
         include_output_objects: true,
         include_auxiliary_data: false,
     };
-    let response = orchestrator.execute_transaction_v1(request, None).await?;
+    let response = orchestrator
+        .execute_transaction_v1(request, false, None)
+        .await?;
     let fx = &response.effects.effects;
 
     let mut expected_input_objects = fx.modified_at_versions();
@@ -395,7 +686,7 @@ async fn execute_transaction_v1_staking_transaction() -> Result<(), anyhow::Erro
         .into_iter()
         .map(|(object_ref, _, _)| object_ref)
         .collect::<Vec<_>>();
-    expected_output_objects.sort_by_key(|&(id, _version, _digest)| id);
+    expected_output_objects.sort_by_key(|&object_ref| object_ref.object_id);
 
     let mut actual_input_objects_received = response
         .input_objects
@@ -410,10 +701,52 @@ async fn execute_transaction_v1_staking_transaction() -> Result<(), anyhow::Erro
         .output_objects
         .unwrap()
         .iter()
-        .map(|object| (object.id(), object.version(), object.digest()))
+        .map(|object| ObjectReference::new(object.id(), object.version(), object.digest()))
         .collect::<Vec<_>>();
-    actual_output_objects_received.sort_by_key(|&(id, _version, _digest)| id);
+    actual_output_objects_received.sort_by_key(|&object_ref| object_ref.object_id);
     assert_eq!(expected_output_objects, actual_output_objects_received);
 
     Ok(())
+}
+
+// Submitting a transaction whose expiration epoch lies in the past must be
+// rejected by the orchestrator's `validity_check` before it ever reaches the
+// quorum driver. The expected surface error is `InvalidTransaction`, carrying
+// the inner `IotaError::TransactionExpired`.
+#[sim_test]
+async fn test_orchestrator_rejects_expired_transaction() {
+    let test_cluster = TestClusterBuilder::new().build().await;
+
+    // Advance to epoch >= 1 so a transaction marked as expiring at epoch 0
+    // is past its expiration window.
+    test_cluster.force_new_epoch().await;
+
+    let context = &test_cluster.wallet;
+    let handle = &test_cluster.fullnode_handle.iota_node;
+    let orchestrator = handle.with(|n| n.transaction_orchestrator().as_ref().unwrap().clone());
+
+    let (sender, gas_object) = context.get_one_gas_object().await.unwrap().unwrap();
+    let gas_price = context.get_reference_gas_price().await.unwrap();
+    let mut data = TestTransactionBuilder::new(sender, gas_object, gas_price)
+        .transfer_iota(Some(1), sender)
+        .build();
+    *data.expiration_mut_for_testing() = TransactionExpiration::Epoch(0);
+    let txn = context.sign_transaction(&data);
+
+    let err = orchestrator
+        .execute_transaction_block(
+            ExecuteTransactionRequestV1::new(txn),
+            ExecuteTransactionRequestType::WaitForEffectsCert,
+            None,
+        )
+        .await
+        .expect_err("expired transaction must be rejected by the orchestrator");
+
+    assert!(
+        matches!(
+            err,
+            QuorumDriverError::InvalidTransaction(IotaError::TransactionExpired)
+        ),
+        "expected InvalidTransaction(TransactionExpired), got {err:?}"
+    );
 }

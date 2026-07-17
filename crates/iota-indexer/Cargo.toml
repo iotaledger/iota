@@ -19,6 +19,7 @@ cached.workspace = true
 chrono.workspace = true
 clap = { workspace = true, features = ["env"] }
 dashmap.workspace = true
+derive_more.workspace = true
 diesel = { workspace = true, features = ["chrono", "r2d2", "serde_json", "postgres"] }
 diesel_migrations = "2.2.0"
 downcast.workspace = true
@@ -28,10 +29,8 @@ itertools.workspace = true
 jsonrpsee.workspace = true
 moka.workspace = true
 object_store.workspace = true
-prometheus.workspace = true
 rand = { workspace = true, optional = true }
 reqwest.workspace = true
-secrecy = "0.8.0"
 serde.workspace = true
 serde_with.workspace = true
 strum.workspace = true
@@ -39,7 +38,7 @@ strum_macros.workspace = true
 tap.workspace = true
 tempfile.workspace = true
 thiserror.workspace = true
-tokio = { workspace = true, features = ["full"] }
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "sync", "time", "net", "signal"] }
 tokio-stream.workspace = true
 tokio-util = { workspace = true, features = ["rt"] }
 toml.workspace = true
@@ -64,11 +63,13 @@ iota-names.workspace = true
 iota-open-rpc.workspace = true
 iota-package-resolver.workspace = true
 iota-protocol-config.workspace = true
+iota-sdk-types.workspace = true
 iota-storage.workspace = true
 iota-transaction-builder.workspace = true
 iota-types.workspace = true
 move-binary-format.workspace = true
 move-core-types.workspace = true
+prometheus-filtered.workspace = true
 telemetry-subscribers.workspace = true
 
 [features]
@@ -82,9 +83,12 @@ rand.workspace = true
 serde_json.workspace = true
 
 # internal dependencies
+iota-common.workspace = true
 iota-config.workspace = true
 iota-keys.workspace = true
 iota-move-build.workspace = true
+iota-sdk.workspace = true
+iota-sdk-transaction-builder.workspace = true
 iota-swarm-config.workspace = true
 iota-test-transaction-builder.workspace = true
 simulacrum.workspace = true

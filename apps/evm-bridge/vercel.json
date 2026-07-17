@@ -1,9 +1,0 @@
-{
-    "buildCommand": "pnpm turbo --filter iota-evm-bridge build",
-    "rewrites": [
-        {
-            "source": "/(.*)",
-            "destination": "/index.html"
-        }
-    ]
-}

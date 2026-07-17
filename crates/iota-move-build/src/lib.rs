@@ -15,16 +15,19 @@ use anyhow::bail;
 use fastcrypto::encoding::Base64;
 use iota_package_management::{
     PublishedAtError, resolve_published_id,
-    system_package_versions::{SYSTEM_GIT_REPO, SystemPackagesVersion},
+    system_package_versions::{SYSTEM_GIT_REPO, SystemPackagesVersion, latest_system_packages},
 };
+use iota_sdk_types::{Address, ObjectId, move_package::MovePackage};
+// `ProtocolBuildConfig` lives in `iota-types` (both this crate and the verifier
+// depend on it); re-export it here so callers that build a `BuildConfig` can
+// reach it without a separate `iota-types` dependency.
+pub use iota_types::move_package::ProtocolBuildConfig;
 use iota_types::{
-    IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS, MOVE_STDLIB_ADDRESS, STARDUST_ADDRESS,
-    base_types::ObjectID,
     error::{IotaError, IotaResult},
-    is_system_package,
     move_package::{
-        FnInfo, FnInfoKey, FnInfoMap, IotaAttribute, MovePackage, RuntimeModuleMetadata,
-        RuntimeModuleMetadataWrapper, get_authenticator_version_from_fun,
+        FnInfo, FnInfoKey, FnInfoMap, IotaAttribute, IotaAttributeV1, IotaAttributeV2,
+        RuntimeModuleMetadata, RuntimeModuleMetadataWrapper, get_authenticator_version_from_fun,
+        is_view_function_from_fn_info,
     },
 };
 use iota_verifier::verifier as iota_bytecode_verifier;
@@ -67,7 +70,9 @@ mod build_tests;
 pub mod test_utils {
     use std::path::PathBuf;
 
-    use crate::{BuildConfig, CompiledPackage, IotaPackageHooks};
+    use iota_types::supported_protocol_versions::ProtocolConfig;
+
+    use crate::{BuildConfig, CompiledPackage, IotaPackageHooks, ProtocolBuildConfig};
 
     pub fn compile_basics_package() -> CompiledPackage {
         compile_example_package("../../examples/move/basics")
@@ -79,10 +84,13 @@ pub mod test_utils {
 
     pub fn compile_example_package(relative_path: &str) -> CompiledPackage {
         move_package::package_hooks::register_package_hooks(Box::new(IotaPackageHooks));
+        let protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
         let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         path.push(relative_path);
 
-        BuildConfig::new_for_testing().build(&path).unwrap()
+        let mut build_config = BuildConfig::new_for_testing();
+        build_config.protocol_build_config = ProtocolBuildConfig::from(&protocol_config);
+        build_config.build(&path).unwrap()
     }
 }
 
@@ -92,7 +100,7 @@ pub mod test_utils {
 pub struct CompiledPackage {
     pub package: MoveCompiledPackage,
     /// Address the package is recorded as being published at.
-    pub published_at: Result<ObjectID, PublishedAtError>,
+    pub published_at: Result<ObjectId, PublishedAtError>,
     /// The dependency IDs of this package
     pub dependency_ids: PackageDependencies,
     /// The bytecode modules that this package depends on (both directly and
@@ -114,13 +122,16 @@ pub struct BuildConfig {
     /// The chain ID that compilation is with respect to (e.g., required to
     /// resolve published dependency IDs from the `Move.lock`).
     pub chain_id: Option<String>,
+    /// The build config for the protocol config of the network that the package
+    /// is being built (and verified) for.
+    pub protocol_build_config: ProtocolBuildConfig,
 }
 
 impl BuildConfig {
     pub fn new_for_testing() -> Self {
         move_package::package_hooks::register_package_hooks(Box::new(IotaPackageHooks));
 
-        let install_dir = tempfile::tempdir().unwrap().keep();
+        let install_dir = iota_common::tempdir().keep();
         let config = MoveBuildConfig {
             default_flavor: Some(move_compiler::editions::Flavor::Iota),
             lock_file: Some(install_dir.join("Move.lock")),
@@ -136,12 +147,13 @@ impl BuildConfig {
             run_bytecode_verifier: true,
             print_diags_to_stderr: false,
             chain_id: None,
+            protocol_build_config: ProtocolBuildConfig::default(),
         }
     }
 
     pub fn new_for_testing_replace_addresses<I, S>(dep_original_addresses: I) -> Self
     where
-        I: IntoIterator<Item = (S, ObjectID)>,
+        I: IntoIterator<Item = (S, ObjectId)>,
         S: Into<String>,
     {
         let mut build_config = Self::new_for_testing();
@@ -149,21 +161,27 @@ impl BuildConfig {
             build_config
                 .config
                 .additional_named_addresses
-                .insert(addr_name.into(), AccountAddress::from(obj_id));
+                .insert(addr_name.into(), AccountAddress::new(obj_id.into_bytes()));
         }
         build_config
+    }
+
+    pub fn with_allow_view_function(mut self) -> Self {
+        self.protocol_build_config.allow_view_function = true;
+        self
     }
 
     fn fn_info(units: &[AnnotatedCompiledModule]) -> FnInfoMap {
         let mut fn_info_map = BTreeMap::new();
         for u in units {
-            let mod_addr = u.named_module.address.into_inner();
+            let mod_addr = Address::new(u.named_module.address.into_bytes());
             let mod_name = u.named_module.module.name().to_string();
             let mod_is_test = u.attributes.is_test_or_test_only();
             for (_, s, info) in &u.function_infos {
                 let fn_name = s.as_str().to_string();
                 let is_test = mod_is_test || info.attributes.is_test_or_test_only();
                 let authenticator_version = info.attributes.get_authenticator();
+                let is_view = info.attributes.is_view();
                 fn_info_map.insert(
                     FnInfoKey {
                         fn_name,
@@ -173,6 +191,7 @@ impl BuildConfig {
                     FnInfo {
                         is_test,
                         authenticator_version,
+                        is_view,
                     },
                 );
             }
@@ -202,7 +221,7 @@ impl BuildConfig {
                     let diags_buf =
                         report_diagnostics_to_buffer(&files, error_diags, /* color */ true);
                     if let Err(err) = std::io::stderr().write_all(&diags_buf) {
-                        anyhow::bail!("Cannot output compiler diagnostics: {}", err);
+                        anyhow::bail!("Cannot output compiler diagnostics: {err}");
                     }
                     anyhow::bail!("Compilation error");
                 }
@@ -218,12 +237,14 @@ impl BuildConfig {
         let print_diags_to_stderr = self.print_diags_to_stderr;
         let run_bytecode_verifier = self.run_bytecode_verifier;
         let chain_id = self.chain_id.clone();
+        let protocol_build_config = self.protocol_build_config;
         let resolution_graph = self.resolution_graph(path, chain_id.clone())?;
         build_from_resolution_graph(
             resolution_graph,
             run_bytecode_verifier,
             print_diags_to_stderr,
             chain_id,
+            &protocol_build_config,
         )
     }
 
@@ -292,6 +313,7 @@ pub fn build_from_resolution_graph(
     run_bytecode_verifier: bool,
     print_diags_to_stderr: bool,
     chain_id: Option<String>,
+    protocol_build_config: &ProtocolBuildConfig,
 ) -> IotaResult<CompiledPackage> {
     let (published_at, dependency_ids) = gather_published_ids(&resolution_graph, chain_id);
 
@@ -313,10 +335,10 @@ pub fn build_from_resolution_graph(
 
     // Based on the information found in `fn_info`, fill in the metadata for each
     // compiled module
-    fill_metadata(&mut package, &fn_info)?;
+    fill_metadata(&mut package, &fn_info, protocol_build_config)?;
 
     if run_bytecode_verifier {
-        verify_bytecode(&package, &fn_info)?;
+        verify_bytecode(&package, &fn_info, protocol_build_config)?;
     }
 
     Ok(CompiledPackage {
@@ -365,23 +387,59 @@ fn collect_bytecode_deps(
 }
 
 /// Fill metadata
-fn fill_metadata(package: &mut MoveCompiledPackage, fn_info_map: &FnInfoMap) -> IotaResult<()> {
+fn fill_metadata(
+    package: &mut MoveCompiledPackage,
+    fn_info_map: &FnInfoMap,
+    protocol_build_config: &ProtocolBuildConfig,
+) -> IotaResult<()> {
     for module in package
         .root_compiled_units
         .iter_mut()
         .map(|unit| &mut unit.unit.module)
     {
-        let mut runtime_metadata = RuntimeModuleMetadata::default();
+        // View functions are only representable in V2 (dynamic) runtime metadata,
+        // which is gated behind the `package_metadata_with_dynamic_module_metadata`
+        // protocol feature.
+        let mut runtime_metadata = if protocol_build_config.allow_view_function {
+            RuntimeModuleMetadata::v2()
+        } else {
+            RuntimeModuleMetadata::v1()
+        };
         for fn_def in &module.function_defs {
             let fn_handle = module.function_handle_at(fn_def.function);
             let fn_name = module.identifier_at(fn_handle.name);
-            if let Some(version) = get_authenticator_version_from_fun(fn_name, module, fn_info_map)
+            if let Some(version) =
+                get_authenticator_version_from_fun(fn_name.as_str(), module, fn_info_map)
             {
-                runtime_metadata.add_function_attribute(
-                    fn_name.to_string(),
-                    IotaAttribute::authenticator_attribute(version),
-                );
+                let attribute = if protocol_build_config.allow_view_function {
+                    IotaAttribute::V2(IotaAttributeV2::authenticator_attribute(version))
+                } else {
+                    IotaAttribute::V1(IotaAttributeV1::authenticator_attribute(version))
+                };
+                runtime_metadata.add_function_attribute(fn_name.to_string(), attribute);
             };
+            if is_view_function_from_fn_info(fn_name, module, fn_info_map) {
+                if protocol_build_config.allow_view_function {
+                    runtime_metadata.add_function_attribute(
+                        fn_name.to_string(),
+                        IotaAttribute::V2(IotaAttributeV2::view_attribute()),
+                    );
+                } else {
+                    // The `View` attribute only exists in V2 (dynamic) runtime
+                    // metadata, gated behind the
+                    // `package_metadata_with_dynamic_module_metadata` protocol
+                    // feature. When it is off we drop the attribute rather than emit
+                    // metadata a not-yet-upgraded validator cannot deserialize, but
+                    // warn since the function will not be recorded as a view function.
+                    eprintln!(
+                        "warning: function '{}::{}' is marked `#[view]`, but the target \
+                        network protocol does not support view-function metadata; the `View` \
+                        attribute will not be published",
+                        module.name(),
+                        fn_name,
+                    );
+                }
+            }
         }
         if !runtime_metadata.is_empty() {
             module.metadata.push(move_core_types::metadata::Metadata {
@@ -394,7 +452,11 @@ fn fill_metadata(package: &mut MoveCompiledPackage, fn_info_map: &FnInfoMap) -> 
 }
 
 /// Check that the compiled modules in `package` are valid
-fn verify_bytecode(package: &MoveCompiledPackage, fn_info: &FnInfoMap) -> IotaResult<()> {
+fn verify_bytecode(
+    package: &MoveCompiledPackage,
+    fn_info: &FnInfoMap,
+    protocol_build_config: &ProtocolBuildConfig,
+) -> IotaResult<()> {
     let compiled_modules = package.root_modules_map();
     for m in compiled_modules.iter_modules() {
         move_bytecode_verifier::verify_module_unmetered(m).map_err(|err| {
@@ -402,7 +464,10 @@ fn verify_bytecode(package: &MoveCompiledPackage, fn_info: &FnInfoMap) -> IotaRe
                 error: err.to_string(),
             }
         })?;
-        iota_bytecode_verifier::iota_verify_module_unmetered(m, fn_info)?;
+        // The client build only sanity-checks the bytecode; whether the `View`
+        // attribute may actually be published is decided by the target network's
+        // protocol at publish time, so accept it here.
+        iota_bytecode_verifier::iota_verify_module_unmetered(m, fn_info, protocol_build_config)?;
     }
     // Don't change the link components to iota. It is correct as it is.
     // TODO(https://github.com/MystenLabs/sui/issues/69): Run Move linker
@@ -496,7 +561,7 @@ impl CompiledPackage {
     /// Return the set of Object IDs corresponding to this package's transitive
     /// dependencies' storage package IDs (where to load those packages
     /// on-chain).
-    pub fn get_dependency_storage_package_ids(&self) -> Vec<ObjectID> {
+    pub fn get_dependency_storage_package_ids(&self) -> Vec<ObjectId> {
         self.dependency_ids.published.values().copied().collect()
     }
 
@@ -506,6 +571,7 @@ impl CompiledPackage {
             &self.get_package_bytes(with_unpublished_deps),
             self.dependency_ids.published.values(),
         )
+        .into_inner()
     }
 
     /// Return a serialized representation of the bytecode modules in this
@@ -533,26 +599,26 @@ impl CompiledPackage {
     /// Get bytecode modules from the IOTA System that are used by this package
     pub fn get_iota_system_modules(&self) -> impl Iterator<Item = &CompiledModule> {
         self.get_modules_and_deps()
-            .filter(|m| *m.self_id().address() == IOTA_SYSTEM_ADDRESS)
+            .filter(|m| m.self_id().address().as_ref() == Address::SYSTEM.as_bytes())
     }
 
     /// Get bytecode modules from the IOTA Framework that are used by this
     /// package
     pub fn get_iota_framework_modules(&self) -> impl Iterator<Item = &CompiledModule> {
         self.get_modules_and_deps()
-            .filter(|m| *m.self_id().address() == IOTA_FRAMEWORK_ADDRESS)
+            .filter(|m| m.self_id().address().as_ref() == Address::FRAMEWORK.as_bytes())
     }
 
     /// Get bytecode modules from the Move stdlib that are used by this package
     pub fn get_stdlib_modules(&self) -> impl Iterator<Item = &CompiledModule> {
         self.get_modules_and_deps()
-            .filter(|m| *m.self_id().address() == MOVE_STDLIB_ADDRESS)
+            .filter(|m| m.self_id().address().as_ref() == Address::STD.as_bytes())
     }
 
     /// Get bytecode modules from Stardust that are used by this package
     pub fn get_stardust_modules(&self) -> impl Iterator<Item = &CompiledModule> {
         self.get_modules_and_deps()
-            .filter(|m| *m.self_id().address() == STARDUST_ADDRESS)
+            .filter(|m| m.self_id().address().as_ref() == Address::STARDUST.as_bytes())
     }
 
     /// Generate layout schemas for all types declared by this package, as well
@@ -632,7 +698,7 @@ impl CompiledPackage {
             return false;
         };
 
-        is_system_package(published_at)
+        published_at.is_system_package()
     }
 
     /// Checks for root modules with non-zero package addresses.  Returns an
@@ -695,7 +761,7 @@ impl CompiledPackage {
         })
     }
 
-    pub fn get_published_dependencies_ids(&self) -> Vec<ObjectID> {
+    pub fn get_published_dependencies_ids(&self) -> Vec<ObjectId> {
         self.dependency_ids.published.values().cloned().collect()
     }
 
@@ -704,7 +770,7 @@ impl CompiledPackage {
     pub fn find_immediate_deps_pkgs_to_keep(
         &self,
         with_unpublished_deps: bool,
-    ) -> Result<BTreeMap<Symbol, ObjectID>, anyhow::Error> {
+    ) -> Result<BTreeMap<Symbol, ObjectId>, anyhow::Error> {
         // Start from the root modules (or all modules if with_unpublished_deps is true
         // as we need to include modules with 0x0 address)
         let root_modules: Vec<_> = if with_unpublished_deps {
@@ -836,7 +902,7 @@ impl PackageHooks for IotaPackageHooks {
 #[derive(Debug, Clone)]
 pub struct PackageDependencies {
     /// Set of published dependencies (name and address).
-    pub published: BTreeMap<Symbol, ObjectID>,
+    pub published: BTreeMap<Symbol, ObjectId>,
     /// Set of unpublished dependencies (name).
     pub unpublished: BTreeSet<Symbol>,
     /// Set of dependencies with invalid `published-at` addresses.
@@ -844,7 +910,7 @@ pub struct PackageDependencies {
     /// Set of dependencies that have conflicting `published-at` addresses. The
     /// key refers to the package, and the tuple refers to the address in
     /// the (Move.lock, Move.toml) respectively.
-    pub conflicting: BTreeMap<Symbol, (ObjectID, ObjectID)>,
+    pub conflicting: BTreeMap<Symbol, (ObjectId, ObjectId)>,
 }
 
 /// Partition packages in `resolution_graph` into one of four groups:
@@ -856,7 +922,7 @@ pub struct PackageDependencies {
 pub fn gather_published_ids(
     resolution_graph: &ResolvedGraph,
     chain_id: Option<String>,
-) -> (Result<ObjectID, PublishedAtError>, PackageDependencies) {
+) -> (Result<ObjectId, PublishedAtError>, PackageDependencies) {
     let root = resolution_graph.root_package();
 
     let mut published = BTreeMap::new();
@@ -903,7 +969,7 @@ pub fn gather_published_ids(
     )
 }
 
-pub fn published_at_property(manifest: &SourceManifest) -> Result<ObjectID, PublishedAtError> {
+pub fn published_at_property(manifest: &SourceManifest) -> Result<ObjectId, PublishedAtError> {
     let Some(value) = manifest
         .package
         .custom_properties
@@ -912,7 +978,7 @@ pub fn published_at_property(manifest: &SourceManifest) -> Result<ObjectID, Publ
         return Err(PublishedAtError::NotPresent);
     };
 
-    ObjectID::from_str(value.as_str()).map_err(|_| PublishedAtError::Invalid(value.to_owned()))
+    ObjectId::from_str(value.as_str()).map_err(|_| PublishedAtError::Invalid(value.to_owned()))
 }
 
 pub fn check_unpublished_dependencies(unpublished: &BTreeSet<Symbol>) -> Result<(), IotaError> {
@@ -966,7 +1032,7 @@ pub fn check_invalid_dependencies(invalid: &BTreeMap<Symbol, String>) -> Result<
 }
 
 pub fn check_conflicting_addresses(
-    conflicting: &BTreeMap<Symbol, (ObjectID, ObjectID)>,
+    conflicting: &BTreeMap<Symbol, (ObjectId, ObjectId)>,
     dump_bytecode_base64: bool,
 ) -> Result<(), IotaError> {
     if conflicting.is_empty() {
@@ -1003,4 +1069,40 @@ pub fn check_conflicting_addresses(
     };
 
     Err(err)
+}
+
+/// Create a set of [Dependencies] from a [SystemPackagesVersion] that resolve
+/// to the system package sources on the local filesystem, relative to this
+/// crate's location in the iota source tree.
+pub fn local_implicit_deps(packages: &SystemPackagesVersion) -> Dependencies {
+    // This relies on the compile-time `CARGO_MANIFEST_DIR` still existing on disk
+    // at runtime, which holds when the binary is built and run on the same host.
+    // `CARGO_MANIFEST_DIR` is `<repo>/crates/iota-move-build`, so the repo root is
+    // two levels up and each system package lives at `<repo>/<repo_path>`.
+    let repo_root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .and_then(Path::parent)
+        .expect("iota-move-build manifest dir should have a grandparent");
+    packages
+        .packages
+        .iter()
+        .map(|package| {
+            (
+                package.package_name.clone().into(),
+                Dependency::Internal(InternalDependency {
+                    kind: DependencyKind::Local(repo_root.join(&package.repo_path)),
+                    subst: None,
+                    digest: None,
+                    dep_override: true,
+                }),
+            )
+        })
+        .collect()
+}
+
+/// Useful for callers (e.g. the `#[sim_test]` static initializer) that don't
+/// have a [SystemPackagesVersion] on hand and just want the framework resolved
+/// from the local checkout.
+pub fn local_implicit_deps_latest() -> Dependencies {
+    local_implicit_deps(latest_system_packages())
 }

@@ -7,9 +7,8 @@ use std::sync::Arc;
 use async_graphql::*;
 use diesel::QueryDsl;
 use iota_indexer::schema::chain_identifier;
-use iota_types::{
-    digests::ChainIdentifier as NativeChainIdentifier, messages_checkpoint::CheckpointDigest,
-};
+use iota_sdk_types::CheckpointDigest;
+use iota_types::digests::ChainIdentifier as NativeChainIdentifier;
 use tokio::sync::OnceCell;
 use tracing::error;
 
@@ -79,7 +78,7 @@ impl ChainIdentifier {
     /// Treat `bytes` as a checkpoint digest and extract a chain identifier from
     /// it.
     pub(crate) fn from_bytes(bytes: Vec<u8>) -> Result<NativeChainIdentifier, Error> {
-        let genesis_digest = CheckpointDigest::try_from(bytes)
+        let genesis_digest = CheckpointDigest::from_bytes(bytes)
             .map_err(|e| Error::Internal(format!("Failed to deserialize genesis digest: {e}")))?;
         Ok(NativeChainIdentifier::from(genesis_digest))
     }

@@ -23,7 +23,6 @@ validator_configs:
       max-pending-transactions: ~
       max-submit-position: ~
       submit-delay-step-override-millis: ~
-      parameters: ~
     enable-index-processing: true
     jsonrpc-server-type: ~
     grpc-load-shed: ~
@@ -37,10 +36,7 @@ validator_configs:
     migration-tx-data-path: "[fake migration path]"
     authority-store-pruning-config:
       num-latest-epoch-dbs-to-retain: 3
-      epoch-db-pruning-period-secs: 3600
       num-epochs-to-retain: 0
-      max-checkpoints-in-batch: 10
-      max-transactions-in-batch: 1000
     end-of-epoch-broadcast-channel-capacity: 128
     checkpoint-executor-config:
       checkpoint-execution-max-concurrency: 4
@@ -60,8 +56,6 @@ validator_configs:
       shared-object-disabled: false
       user-transaction-disabled: false
       receiving-objects-disabled: false
-      zklogin-sig-disabled: false
-      zklogin-disabled-providers: []
       move-authenticator-disabled: false
     certificate-deny-config: {}
     state-debug-dump-config: {}
@@ -75,33 +69,6 @@ validator_configs:
     transaction-kv-store-read-config:
       base-url: ""
       cache-size: 100000
-    jwk-fetch-interval-seconds: 3600
-    zklogin-oauth-providers:
-      Mainnet:
-        - Apple
-        - Credenza3
-        - Facebook
-        - Google
-        - KarrierOne
-        - Twitch
-      Testnet:
-        - Apple
-        - Credenza3
-        - Facebook
-        - Google
-        - KarrierOne
-        - Twitch
-      Unknown:
-        - Apple
-        - Credenza3
-        - Facebook
-        - Google
-        - Kakao
-        - KarrierOne
-        - Microsoft
-        - Slack
-        - TestIssuer
-        - Twitch
     authority-overload-config:
       max-txn-age-in-queue:
         secs: 0
@@ -121,16 +88,19 @@ validator_configs:
       check-system-overload-at-signing: true
       max-transaction-manager-queue-length: 100000
       max-transaction-manager-per-object-queue-length: 20
-    execution-cache: writeback-cache
+      max-transaction-manager-queue-length-soft-limit-pct: 50
     execution-cache-config:
       writeback-cache: {}
+    full-checkpoint-contents-cache-size-mb: 1024
     enable-validator-tx-finalizer: true
+    enable-soft-locking: true
     verifier-signing-config:
       max-per-fun-meter-units: ~
       max-per-mod-meter-units: ~
       max-per-pkg-meter-units: ~
       max-back-edges-per-function: ~
       max-back-edges-per-module: ~
+      sanity-check-with-regex-reference-safety: ~
     enable-grpc-api: false
   - authority-key-pair:
       value: avYcyVgYMXTyaUYh9IRwLK0gSzl7YF6ZQDAbrS1Bhvo=
@@ -152,7 +122,6 @@ validator_configs:
       max-pending-transactions: ~
       max-submit-position: ~
       submit-delay-step-override-millis: ~
-      parameters: ~
     enable-index-processing: true
     jsonrpc-server-type: ~
     grpc-load-shed: ~
@@ -166,10 +135,7 @@ validator_configs:
     migration-tx-data-path: "[fake migration path]"
     authority-store-pruning-config:
       num-latest-epoch-dbs-to-retain: 3
-      epoch-db-pruning-period-secs: 3600
       num-epochs-to-retain: 0
-      max-checkpoints-in-batch: 10
-      max-transactions-in-batch: 1000
     end-of-epoch-broadcast-channel-capacity: 128
     checkpoint-executor-config:
       checkpoint-execution-max-concurrency: 4
@@ -189,8 +155,6 @@ validator_configs:
       shared-object-disabled: false
       user-transaction-disabled: false
       receiving-objects-disabled: false
-      zklogin-sig-disabled: false
-      zklogin-disabled-providers: []
       move-authenticator-disabled: false
     certificate-deny-config: {}
     state-debug-dump-config: {}
@@ -204,33 +168,6 @@ validator_configs:
     transaction-kv-store-read-config:
       base-url: ""
       cache-size: 100000
-    jwk-fetch-interval-seconds: 3600
-    zklogin-oauth-providers:
-      Mainnet:
-        - Apple
-        - Credenza3
-        - Facebook
-        - Google
-        - KarrierOne
-        - Twitch
-      Testnet:
-        - Apple
-        - Credenza3
-        - Facebook
-        - Google
-        - KarrierOne
-        - Twitch
-      Unknown:
-        - Apple
-        - Credenza3
-        - Facebook
-        - Google
-        - Kakao
-        - KarrierOne
-        - Microsoft
-        - Slack
-        - TestIssuer
-        - Twitch
     authority-overload-config:
       max-txn-age-in-queue:
         secs: 0
@@ -250,16 +187,19 @@ validator_configs:
       check-system-overload-at-signing: true
       max-transaction-manager-queue-length: 100000
       max-transaction-manager-per-object-queue-length: 20
-    execution-cache: writeback-cache
+      max-transaction-manager-queue-length-soft-limit-pct: 50
     execution-cache-config:
       writeback-cache: {}
+    full-checkpoint-contents-cache-size-mb: 1024
     enable-validator-tx-finalizer: true
+    enable-soft-locking: true
     verifier-signing-config:
       max-per-fun-meter-units: ~
       max-per-mod-meter-units: ~
       max-per-pkg-meter-units: ~
       max-back-edges-per-function: ~
       max-back-edges-per-module: ~
+      sanity-check-with-regex-reference-safety: ~
     enable-grpc-api: false
   - authority-key-pair:
       value: OXnx3yM1C/ppgnDMx/o1d49fJs7E05kq11mXNae/O+I=
@@ -281,7 +221,6 @@ validator_configs:
       max-pending-transactions: ~
       max-submit-position: ~
       submit-delay-step-override-millis: ~
-      parameters: ~
     enable-index-processing: true
     jsonrpc-server-type: ~
     grpc-load-shed: ~
@@ -295,10 +234,7 @@ validator_configs:
     migration-tx-data-path: "[fake migration path]"
     authority-store-pruning-config:
       num-latest-epoch-dbs-to-retain: 3
-      epoch-db-pruning-period-secs: 3600
       num-epochs-to-retain: 0
-      max-checkpoints-in-batch: 10
-      max-transactions-in-batch: 1000
     end-of-epoch-broadcast-channel-capacity: 128
     checkpoint-executor-config:
       checkpoint-execution-max-concurrency: 4
@@ -318,8 +254,6 @@ validator_configs:
       shared-object-disabled: false
       user-transaction-disabled: false
       receiving-objects-disabled: false
-      zklogin-sig-disabled: false
-      zklogin-disabled-providers: []
       move-authenticator-disabled: false
     certificate-deny-config: {}
     state-debug-dump-config: {}
@@ -333,33 +267,6 @@ validator_configs:
     transaction-kv-store-read-config:
       base-url: ""
       cache-size: 100000
-    jwk-fetch-interval-seconds: 3600
-    zklogin-oauth-providers:
-      Mainnet:
-        - Apple
-        - Credenza3
-        - Facebook
-        - Google
-        - KarrierOne
-        - Twitch
-      Testnet:
-        - Apple
-        - Credenza3
-        - Facebook
-        - Google
-        - KarrierOne
-        - Twitch
-      Unknown:
-        - Apple
-        - Credenza3
-        - Facebook
-        - Google
-        - Kakao
-        - KarrierOne
-        - Microsoft
-        - Slack
-        - TestIssuer
-        - Twitch
     authority-overload-config:
       max-txn-age-in-queue:
         secs: 0
@@ -379,16 +286,19 @@ validator_configs:
       check-system-overload-at-signing: true
       max-transaction-manager-queue-length: 100000
       max-transaction-manager-per-object-queue-length: 20
-    execution-cache: writeback-cache
+      max-transaction-manager-queue-length-soft-limit-pct: 50
     execution-cache-config:
       writeback-cache: {}
+    full-checkpoint-contents-cache-size-mb: 1024
     enable-validator-tx-finalizer: true
+    enable-soft-locking: true
     verifier-signing-config:
       max-per-fun-meter-units: ~
       max-per-mod-meter-units: ~
       max-per-pkg-meter-units: ~
       max-back-edges-per-function: ~
       max-back-edges-per-module: ~
+      sanity-check-with-regex-reference-safety: ~
     enable-grpc-api: false
   - authority-key-pair:
       value: CyNkjqNVr3HrHTH7f/NLs7u5lUHJzuPAw0PqMTD2y2s=
@@ -410,7 +320,6 @@ validator_configs:
       max-pending-transactions: ~
       max-submit-position: ~
       submit-delay-step-override-millis: ~
-      parameters: ~
     enable-index-processing: true
     jsonrpc-server-type: ~
     grpc-load-shed: ~
@@ -424,10 +333,7 @@ validator_configs:
     migration-tx-data-path: "[fake migration path]"
     authority-store-pruning-config:
       num-latest-epoch-dbs-to-retain: 3
-      epoch-db-pruning-period-secs: 3600
       num-epochs-to-retain: 0
-      max-checkpoints-in-batch: 10
-      max-transactions-in-batch: 1000
     end-of-epoch-broadcast-channel-capacity: 128
     checkpoint-executor-config:
       checkpoint-execution-max-concurrency: 4
@@ -447,8 +353,6 @@ validator_configs:
       shared-object-disabled: false
       user-transaction-disabled: false
       receiving-objects-disabled: false
-      zklogin-sig-disabled: false
-      zklogin-disabled-providers: []
       move-authenticator-disabled: false
     certificate-deny-config: {}
     state-debug-dump-config: {}
@@ -462,33 +366,6 @@ validator_configs:
     transaction-kv-store-read-config:
       base-url: ""
       cache-size: 100000
-    jwk-fetch-interval-seconds: 3600
-    zklogin-oauth-providers:
-      Mainnet:
-        - Apple
-        - Credenza3
-        - Facebook
-        - Google
-        - KarrierOne
-        - Twitch
-      Testnet:
-        - Apple
-        - Credenza3
-        - Facebook
-        - Google
-        - KarrierOne
-        - Twitch
-      Unknown:
-        - Apple
-        - Credenza3
-        - Facebook
-        - Google
-        - Kakao
-        - KarrierOne
-        - Microsoft
-        - Slack
-        - TestIssuer
-        - Twitch
     authority-overload-config:
       max-txn-age-in-queue:
         secs: 0
@@ -508,16 +385,19 @@ validator_configs:
       check-system-overload-at-signing: true
       max-transaction-manager-queue-length: 100000
       max-transaction-manager-per-object-queue-length: 20
-    execution-cache: writeback-cache
+      max-transaction-manager-queue-length-soft-limit-pct: 50
     execution-cache-config:
       writeback-cache: {}
+    full-checkpoint-contents-cache-size-mb: 1024
     enable-validator-tx-finalizer: true
+    enable-soft-locking: true
     verifier-signing-config:
       max-per-fun-meter-units: ~
       max-per-mod-meter-units: ~
       max-per-pkg-meter-units: ~
       max-back-edges-per-function: ~
       max-back-edges-per-module: ~
+      sanity-check-with-regex-reference-safety: ~
     enable-grpc-api: false
   - authority-key-pair:
       value: X/I/kM+KvHcxAKEf2UU6Sr7SpN3bhiE9nP5CuM/iIY0=
@@ -539,7 +419,6 @@ validator_configs:
       max-pending-transactions: ~
       max-submit-position: ~
       submit-delay-step-override-millis: ~
-      parameters: ~
     enable-index-processing: true
     jsonrpc-server-type: ~
     grpc-load-shed: ~
@@ -553,10 +432,7 @@ validator_configs:
     migration-tx-data-path: "[fake migration path]"
     authority-store-pruning-config:
       num-latest-epoch-dbs-to-retain: 3
-      epoch-db-pruning-period-secs: 3600
       num-epochs-to-retain: 0
-      max-checkpoints-in-batch: 10
-      max-transactions-in-batch: 1000
     end-of-epoch-broadcast-channel-capacity: 128
     checkpoint-executor-config:
       checkpoint-execution-max-concurrency: 4
@@ -576,8 +452,6 @@ validator_configs:
       shared-object-disabled: false
       user-transaction-disabled: false
       receiving-objects-disabled: false
-      zklogin-sig-disabled: false
-      zklogin-disabled-providers: []
       move-authenticator-disabled: false
     certificate-deny-config: {}
     state-debug-dump-config: {}
@@ -591,33 +465,6 @@ validator_configs:
     transaction-kv-store-read-config:
       base-url: ""
       cache-size: 100000
-    jwk-fetch-interval-seconds: 3600
-    zklogin-oauth-providers:
-      Mainnet:
-        - Apple
-        - Credenza3
-        - Facebook
-        - Google
-        - KarrierOne
-        - Twitch
-      Testnet:
-        - Apple
-        - Credenza3
-        - Facebook
-        - Google
-        - KarrierOne
-        - Twitch
-      Unknown:
-        - Apple
-        - Credenza3
-        - Facebook
-        - Google
-        - Kakao
-        - KarrierOne
-        - Microsoft
-        - Slack
-        - TestIssuer
-        - Twitch
     authority-overload-config:
       max-txn-age-in-queue:
         secs: 0
@@ -637,16 +484,19 @@ validator_configs:
       check-system-overload-at-signing: true
       max-transaction-manager-queue-length: 100000
       max-transaction-manager-per-object-queue-length: 20
-    execution-cache: writeback-cache
+      max-transaction-manager-queue-length-soft-limit-pct: 50
     execution-cache-config:
       writeback-cache: {}
+    full-checkpoint-contents-cache-size-mb: 1024
     enable-validator-tx-finalizer: true
+    enable-soft-locking: true
     verifier-signing-config:
       max-per-fun-meter-units: ~
       max-per-mod-meter-units: ~
       max-per-pkg-meter-units: ~
       max-back-edges-per-function: ~
       max-back-edges-per-module: ~
+      sanity-check-with-regex-reference-safety: ~
     enable-grpc-api: false
   - authority-key-pair:
       value: N272EiFDyKtxRbDKbyN6ujenJ+skPcRoc/XolpOLGnU=
@@ -668,7 +518,6 @@ validator_configs:
       max-pending-transactions: ~
       max-submit-position: ~
       submit-delay-step-override-millis: ~
-      parameters: ~
     enable-index-processing: true
     jsonrpc-server-type: ~
     grpc-load-shed: ~
@@ -682,10 +531,7 @@ validator_configs:
     migration-tx-data-path: "[fake migration path]"
     authority-store-pruning-config:
       num-latest-epoch-dbs-to-retain: 3
-      epoch-db-pruning-period-secs: 3600
       num-epochs-to-retain: 0
-      max-checkpoints-in-batch: 10
-      max-transactions-in-batch: 1000
     end-of-epoch-broadcast-channel-capacity: 128
     checkpoint-executor-config:
       checkpoint-execution-max-concurrency: 4
@@ -705,8 +551,6 @@ validator_configs:
       shared-object-disabled: false
       user-transaction-disabled: false
       receiving-objects-disabled: false
-      zklogin-sig-disabled: false
-      zklogin-disabled-providers: []
       move-authenticator-disabled: false
     certificate-deny-config: {}
     state-debug-dump-config: {}
@@ -720,33 +564,6 @@ validator_configs:
     transaction-kv-store-read-config:
       base-url: ""
       cache-size: 100000
-    jwk-fetch-interval-seconds: 3600
-    zklogin-oauth-providers:
-      Mainnet:
-        - Apple
-        - Credenza3
-        - Facebook
-        - Google
-        - KarrierOne
-        - Twitch
-      Testnet:
-        - Apple
-        - Credenza3
-        - Facebook
-        - Google
-        - KarrierOne
-        - Twitch
-      Unknown:
-        - Apple
-        - Credenza3
-        - Facebook
-        - Google
-        - Kakao
-        - KarrierOne
-        - Microsoft
-        - Slack
-        - TestIssuer
-        - Twitch
     authority-overload-config:
       max-txn-age-in-queue:
         secs: 0
@@ -766,16 +583,19 @@ validator_configs:
       check-system-overload-at-signing: true
       max-transaction-manager-queue-length: 100000
       max-transaction-manager-per-object-queue-length: 20
-    execution-cache: writeback-cache
+      max-transaction-manager-queue-length-soft-limit-pct: 50
     execution-cache-config:
       writeback-cache: {}
+    full-checkpoint-contents-cache-size-mb: 1024
     enable-validator-tx-finalizer: true
+    enable-soft-locking: true
     verifier-signing-config:
       max-per-fun-meter-units: ~
       max-per-mod-meter-units: ~
       max-per-pkg-meter-units: ~
       max-back-edges-per-function: ~
       max-back-edges-per-module: ~
+      sanity-check-with-regex-reference-safety: ~
     enable-grpc-api: false
   - authority-key-pair:
       value: a74f03IOjL8ZFSWFChFVEi+wiMwHNwNCPDGIYkGfgjs=
@@ -797,7 +617,6 @@ validator_configs:
       max-pending-transactions: ~
       max-submit-position: ~
       submit-delay-step-override-millis: ~
-      parameters: ~
     enable-index-processing: true
     jsonrpc-server-type: ~
     grpc-load-shed: ~
@@ -811,10 +630,7 @@ validator_configs:
     migration-tx-data-path: "[fake migration path]"
     authority-store-pruning-config:
       num-latest-epoch-dbs-to-retain: 3
-      epoch-db-pruning-period-secs: 3600
       num-epochs-to-retain: 0
-      max-checkpoints-in-batch: 10
-      max-transactions-in-batch: 1000
     end-of-epoch-broadcast-channel-capacity: 128
     checkpoint-executor-config:
       checkpoint-execution-max-concurrency: 4
@@ -834,8 +650,6 @@ validator_configs:
       shared-object-disabled: false
       user-transaction-disabled: false
       receiving-objects-disabled: false
-      zklogin-sig-disabled: false
-      zklogin-disabled-providers: []
       move-authenticator-disabled: false
     certificate-deny-config: {}
     state-debug-dump-config: {}
@@ -849,33 +663,6 @@ validator_configs:
     transaction-kv-store-read-config:
       base-url: ""
       cache-size: 100000
-    jwk-fetch-interval-seconds: 3600
-    zklogin-oauth-providers:
-      Mainnet:
-        - Apple
-        - Credenza3
-        - Facebook
-        - Google
-        - KarrierOne
-        - Twitch
-      Testnet:
-        - Apple
-        - Credenza3
-        - Facebook
-        - Google
-        - KarrierOne
-        - Twitch
-      Unknown:
-        - Apple
-        - Credenza3
-        - Facebook
-        - Google
-        - Kakao
-        - KarrierOne
-        - Microsoft
-        - Slack
-        - TestIssuer
-        - Twitch
     authority-overload-config:
       max-txn-age-in-queue:
         secs: 0
@@ -895,16 +682,19 @@ validator_configs:
       check-system-overload-at-signing: true
       max-transaction-manager-queue-length: 100000
       max-transaction-manager-per-object-queue-length: 20
-    execution-cache: writeback-cache
+      max-transaction-manager-queue-length-soft-limit-pct: 50
     execution-cache-config:
       writeback-cache: {}
+    full-checkpoint-contents-cache-size-mb: 1024
     enable-validator-tx-finalizer: true
+    enable-soft-locking: true
     verifier-signing-config:
       max-per-fun-meter-units: ~
       max-per-mod-meter-units: ~
       max-per-pkg-meter-units: ~
       max-back-edges-per-function: ~
       max-back-edges-per-module: ~
+      sanity-check-with-regex-reference-safety: ~
     enable-grpc-api: false
 account_keys:
   - Hloy4pnf8pWEHGP+4OFsXz56bLdIJhkD2O+OdKMqCA4=

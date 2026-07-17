@@ -8,13 +8,12 @@ use std::{
     time::{Duration, Instant},
 };
 
-use anyhow::Result;
+use anyhow::{Result, bail};
 use aws_config::{BehaviorVersion, Region, timeout::TimeoutConfig};
 use aws_sdk_dynamodb::{Client, config::Credentials, primitives::Blob, types::AttributeValue};
 use bytes::Bytes;
 use iota_config::object_storage_config::ObjectStoreConfig;
 use iota_storage::http_key_value_store::{Key, TaggedKey};
-use iota_types::storage::ObjectKey;
 use object_store::{DynObjectStore, ObjectStoreExt, path::Path};
 use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
@@ -152,7 +151,13 @@ impl KvStoreClient {
             .operation_attempt_timeout(OPERATION_ATTEMPT_TIMEOUT_SECS)
             .connect_timeout(CONNECT_TIMEOUT_SECS)
             .build();
+        let http_client = aws_smithy_http_client::Builder::new()
+            .tls_provider(aws_smithy_http_client::tls::Provider::Rustls(
+                aws_smithy_http_client::tls::rustls_provider::CryptoMode::Ring,
+            ))
+            .build_https();
         let mut aws_config_loader = aws_config::defaults(BehaviorVersion::latest())
+            .http_client(http_client)
             .credentials_provider(credentials)
             .region(Region::new(dynamodb_config.aws_region))
             .timeout_config(timeout_config);
@@ -314,6 +319,9 @@ impl KvStoreClient {
         let item_type = key.item_type().to_string();
 
         match key {
+            Key::TransactionDigestsByAddress(_address) => {
+                bail!("unsupported key");
+            }
             Key::Transaction(transaction_digest) => {
                 self.get_from_dynamodb(transaction_digest, item_type).await
             }
@@ -349,8 +357,7 @@ impl KvStoreClient {
             Key::TransactionToCheckpoint(transaction_digest) => {
                 self.get_from_dynamodb(transaction_digest, item_type).await
             }
-            Key::ObjectKey(object_id, sequence_number) => {
-                let object_key = ObjectKey(object_id, sequence_number);
+            Key::ObjectKey(object_key) => {
                 let serialized_object_key = bcs::to_bytes(&object_key)?;
                 self.get_from_dynamodb(serialized_object_key, item_type)
                     .await

@@ -5,12 +5,13 @@
 use std::{collections::HashSet, path::PathBuf};
 
 use iota_macros::*;
+use iota_sdk_types::{ObjectId, ObjectReference, Owner};
 use iota_test_transaction_builder::publish_package;
 use iota_types::{
-    base_types::{ObjectID, ObjectRef},
-    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
-    object::Owner,
-    transaction::{CallArg, ObjectArg, Transaction},
+    effects::{
+        TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt, TransactionEvents,
+    },
+    transaction::{CallArg, Transaction},
 };
 use test_cluster::{TestCluster, TestClusterBuilder};
 
@@ -93,14 +94,19 @@ async fn delete_of_object_with_reconfiguration_receive_of_new_parent_and_old_chi
     assert!(env.receive(new_parent, child).await.is_err());
 }
 
-fn get_parent_and_child(created: Vec<(ObjectRef, Owner)>) -> (ObjectRef, ObjectRef) {
-    // make sure there is an object with an `AddressOwner` who matches the object ID
+fn get_parent_and_child(
+    created: Vec<(ObjectReference, Owner)>,
+) -> (ObjectReference, ObjectReference) {
+    // make sure there is an object with an `Address` who matches the object ID
     // of another object.
-    let created_addrs: HashSet<_> = created.iter().map(|((i, _, _), _)| i).collect();
+    let created_addrs: HashSet<_> = created
+        .iter()
+        .map(|(object_ref, _)| object_ref.object_id)
+        .collect();
     let (child, parent_id) = created
         .iter()
         .find_map(|child @ (_, owner)| match owner {
-            Owner::AddressOwner(j) if created_addrs.contains(&ObjectID::from(*j)) => {
+            Owner::Address(j) if created_addrs.contains(&ObjectId::from(*j)) => {
                 Some((child, (*j).into()))
             }
             _ => None,
@@ -108,21 +114,21 @@ fn get_parent_and_child(created: Vec<(ObjectRef, Owner)>) -> (ObjectRef, ObjectR
         .unwrap();
     let parent = created
         .iter()
-        .find(|((id, _, _), _)| *id == parent_id)
+        .find(|(object_ref, _)| object_ref.object_id == parent_id)
         .unwrap();
     (parent.0, child.0)
 }
 
 struct TestEnvironment {
     pub test_cluster: TestCluster,
-    move_package: ObjectID,
+    move_package: ObjectId,
 }
 
 impl TestEnvironment {
     async fn new() -> Self {
         let test_cluster = TestClusterBuilder::new().build().await;
 
-        let move_package = publish_move_package(&test_cluster).await.0;
+        let move_package = publish_move_package(&test_cluster).await.object_id;
 
         Self {
             test_cluster,
@@ -155,68 +161,46 @@ impl TestEnvironment {
             .await
     }
 
-    async fn start(&self) -> (ObjectRef, ObjectRef) {
+    async fn start(&self) -> (ObjectReference, ObjectReference) {
         let (fx, _) = self.move_call("start", vec![]).await.unwrap();
-        assert!(fx.status().is_ok());
+        assert!(fx.status().is_success());
 
         get_parent_and_child(fx.created())
     }
 
     async fn receive(
         &self,
-        parent: ObjectRef,
-        child: ObjectRef,
-    ) -> anyhow::Result<(ObjectRef, ObjectRef)> {
-        let arguments = vec![
-            CallArg::Object(ObjectArg::ImmOrOwnedObject(parent)),
-            CallArg::Object(ObjectArg::Receiving(child)),
-        ];
+        parent: ObjectReference,
+        child: ObjectReference,
+    ) -> anyhow::Result<(ObjectReference, ObjectReference)> {
+        let arguments = vec![CallArg::ImmutableOrOwned(parent), CallArg::Receiving(child)];
         let fx = self.move_call("receiver", arguments).await?;
-        assert!(fx.0.status().is_ok());
+        assert!(fx.0.status().is_success());
         let new_child_ref =
             fx.0.mutated_excluding_gas()
                 .iter()
-                .find_map(
-                    |(oref, _)| {
-                        if oref.0 == child.0 { Some(*oref) } else { None }
-                    },
-                )
+                .find_map(|(oref, _)| (oref.object_id == child.object_id).then_some(*oref))
                 .unwrap();
         let new_parent_ref =
             fx.0.mutated_excluding_gas()
                 .iter()
-                .find_map(|(oref, _)| {
-                    if oref.0 == parent.0 {
-                        Some(*oref)
-                    } else {
-                        None
-                    }
-                })
+                .find_map(|(oref, _)| (oref.object_id == parent.object_id).then_some(*oref))
                 .unwrap();
         Ok((new_parent_ref, new_child_ref))
     }
 
-    async fn delete(&self, parent: ObjectRef, child: ObjectRef) -> ObjectRef {
-        let arguments = vec![
-            CallArg::Object(ObjectArg::ImmOrOwnedObject(parent)),
-            CallArg::Object(ObjectArg::Receiving(child)),
-        ];
+    async fn delete(&self, parent: ObjectReference, child: ObjectReference) -> ObjectReference {
+        let arguments = vec![CallArg::ImmutableOrOwned(parent), CallArg::Receiving(child)];
         let fx = self.move_call("deleter", arguments).await.unwrap();
-        assert!(fx.0.status().is_ok());
+        assert!(fx.0.status().is_success());
         fx.0.mutated_excluding_gas()
             .iter()
-            .find_map(|(oref, _)| {
-                if oref.0 == parent.0 {
-                    Some(*oref)
-                } else {
-                    None
-                }
-            })
+            .find_map(|(oref, _)| (oref.object_id == parent.object_id).then_some(*oref))
             .unwrap()
     }
 }
 
-async fn publish_move_package(test_cluster: &TestCluster) -> ObjectRef {
+async fn publish_move_package(test_cluster: &TestCluster) -> ObjectReference {
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     path.push("tests/move_test_code");
     publish_package(&test_cluster.wallet, path).await

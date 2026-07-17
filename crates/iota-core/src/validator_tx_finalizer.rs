@@ -8,11 +8,9 @@ use std::{cmp::min, ops::Add, sync::Arc, time::Duration};
 
 use arc_swap::ArcSwap;
 use iota_metrics::LATENCY_SEC_BUCKETS;
-use iota_types::{
-    base_types::{AuthorityName, TransactionDigest},
-    transaction::VerifiedSignedTransaction,
-};
-use prometheus::{
+use iota_sdk_types::TransactionDigest;
+use iota_types::{base_types::AuthorityName, transaction::VerifiedSignedTransaction};
+use prometheus_filtered::{
     Histogram, IntCounter, Registry, register_histogram_with_registry,
     register_int_counter_with_registry,
 };
@@ -195,7 +193,7 @@ where
                 }
             }
             Err(err) => {
-                error!(?tx_digest, ?err, "Failed to finalize transaction");
+                debug!(?tx_digest, "Failed to finalize transaction: {err}");
             }
         }
     }
@@ -293,10 +291,11 @@ mod tests {
     use arc_swap::ArcSwap;
     use async_trait::async_trait;
     use iota_macros::sim_test;
+    use iota_sdk_types::{Address, ObjectId, TransactionDigest};
     use iota_swarm_config::network_config_builder::ConfigBuilder;
     use iota_test_transaction_builder::TestTransactionBuilder;
     use iota_types::{
-        base_types::{AuthorityName, IotaAddress, ObjectID, TransactionDigest},
+        base_types::AuthorityName,
         committee::{CommitteeTrait, StakeUnit},
         crypto::{AccountKeyPair, get_account_key_pair},
         effects::{TransactionEffectsAPI, TransactionEvents},
@@ -305,11 +304,13 @@ mod tests {
         iota_system_state::IotaSystemState,
         messages_checkpoint::{CheckpointRequest, CheckpointResponse},
         messages_grpc::{
-            HandleCapabilityNotificationRequestV1, HandleCapabilityNotificationResponseV1,
-            HandleCertificateRequestV1, HandleCertificateResponseV1,
-            HandleSoftBundleCertificatesRequestV1, HandleSoftBundleCertificatesResponseV1,
-            HandleTransactionResponse, ObjectInfoRequest, ObjectInfoResponse, SystemStateRequest,
-            TransactionInfoRequest, TransactionInfoResponse,
+            GetTxStatusRequest, HandleCapabilityNotificationRequestV1,
+            HandleCapabilityNotificationResponseV1, HandleCertificateRequestV1,
+            HandleCertificateResponseV1, HandleSoftBundleCertificatesRequestV1,
+            HandleSoftBundleCertificatesResponseV1, HandleTransactionResponse, ObjectInfoRequest,
+            ObjectInfoResponse, SystemStateRequest, TransactionInfoRequest,
+            TransactionInfoResponse, TxStatusUpdate, ValidatorHealthRequest,
+            ValidatorHealthResponse,
         },
         object::Object,
         transaction::{
@@ -322,7 +323,9 @@ mod tests {
     use crate::{
         authority::{AuthorityState, test_authority_builder::TestAuthorityBuilder},
         authority_aggregator::{AuthorityAggregator, AuthorityAggregatorBuilder},
-        authority_client::AuthorityAPI,
+        authority_client::{
+            validator::ValidatorAPI, validator_peer::ValidatorPeerAPI, validator_v2::ValidatorV2API,
+        },
         validator_tx_finalizer::ValidatorTxFinalizer,
     };
 
@@ -333,7 +336,46 @@ mod tests {
     }
 
     #[async_trait]
-    impl AuthorityAPI for MockAuthorityClient {
+    impl ValidatorPeerAPI for MockAuthorityClient {
+        async fn get_checkpoint_v2(
+            &self,
+            _request: CheckpointRequest,
+        ) -> Result<CheckpointResponse, IotaError> {
+            unimplemented!()
+        }
+    }
+    #[async_trait]
+    impl ValidatorV2API for MockAuthorityClient {
+        async fn submit_tx(
+            &self,
+            _transactions: Vec<Transaction>,
+            _client_addr: Option<SocketAddr>,
+        ) -> Result<Vec<(TransactionDigest, TxStatusUpdate)>, IotaError> {
+            unimplemented!()
+        }
+        async fn get_tx_status(
+            &self,
+            _request: GetTxStatusRequest,
+            _client_addr: Option<SocketAddr>,
+        ) -> Result<Vec<(TransactionDigest, TxStatusUpdate)>, IotaError> {
+            unimplemented!()
+        }
+        async fn notify_capabilities_v2(
+            &self,
+            _request: HandleCapabilityNotificationRequestV1,
+        ) -> Result<HandleCapabilityNotificationResponseV1, IotaError> {
+            unimplemented!()
+        }
+        async fn health_check(
+            &self,
+            _request: ValidatorHealthRequest,
+        ) -> Result<ValidatorHealthResponse, IotaError> {
+            unimplemented!()
+        }
+    }
+
+    #[async_trait]
+    impl ValidatorAPI for MockAuthorityClient {
         async fn handle_transaction(
             &self,
             transaction: Transaction,
@@ -672,15 +714,11 @@ mod tests {
     async fn create_tx(
         clients: &BTreeMap<AuthorityName, MockAuthorityClient>,
         state: &Arc<AuthorityState>,
-        sender: IotaAddress,
+        sender: Address,
         keypair: &AccountKeyPair,
-        gas_object_id: ObjectID,
+        gas_object_id: ObjectId,
     ) -> VerifiedSignedTransaction {
-        let gas_object_ref = state
-            .get_object(&gas_object_id)
-            .await
-            .unwrap()
-            .compute_object_reference();
+        let gas_object_ref = state.get_object(&gas_object_id).unwrap().object_ref();
         let tx_data = TestTransactionBuilder::new(
             sender,
             gas_object_ref,

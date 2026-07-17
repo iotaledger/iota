@@ -2,19 +2,146 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::sync::Arc;
+use std::{
+    collections::{BTreeSet, HashSet},
+    sync::Arc,
+};
 
 use async_trait::async_trait;
 use iota_data_ingestion_core::Worker;
-use iota_types::full_checkpoint_content::CheckpointData;
+use iota_sdk_types::{Address, Owner, TransactionDigest};
+use iota_types::{
+    effects::TransactionEffectsExt, full_checkpoint_content::CheckpointData,
+    messages_checkpoint::CheckpointContentsExt, transaction::TransactionDataAPI,
+};
+use strum::IntoEnumIterator;
 
-use crate::{BigTableClient, KeyValueStoreWriter, TransactionData};
+use crate::{
+    BigTableClient, KeyValueStoreWriter, TransactionData, client::TransactionSequenceNumber,
+};
+
+/// Represents the available BigTable tables the Client and the KvWorker can
+/// interact with.
+
+// Variants are declared in write order; the BTreeSet<Table> field
+// iterates by derived Ord, which follows declaration order.
+//
+// Order matters: data tables (Objects, Transactions, Checkpoints)
+// are written before their indexes (TransactionsByAddress,
+// CheckpointsByDigest), so a reader that sees an index entry can
+// always resolve the underlying row. Reordering variants will
+// reorder writes and may break that read-after-write invariant.
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Hash,
+    PartialOrd,
+    Ord,
+    serde::Serialize,
+    serde::Deserialize,
+    strum::Display,
+    strum::AsRefStr,
+    strum::EnumIter,
+)]
+#[serde(rename_all = "kebab-case")]
+#[strum(serialize_all = "snake_case")]
+#[non_exhaustive]
+pub enum Table {
+    /// Stores a mapping of [`ObjectKey`](iota_types::storage::ObjectKey) to
+    /// [`Object`](iota_types::object::Object) for every object.
+    Objects,
+    /// Stores a mapping of
+    /// [`TransactionDigest`](iota_sdk_types::TransactionDigest) to
+    /// [`Transaction`](iota_types::transaction::Transaction),
+    /// [`TransactionEffects`](iota_types::effects::TransactionEffects),
+    /// [`TransactionEvents`](iota_types::effects::TransactionEvents) and
+    /// [`CheckpointSequenceNumber`](iota_types::messages_checkpoint::CheckpointSequenceNumber) for every transaction.
+    Transactions,
+    /// Stores a mapping of ( [`Address`], [`TransactionSequenceNumber`] ) to
+    /// [`TransactionDigest`] for every affected address.
+    ///
+    /// An address is considered "affected" if it appears as the sender, a
+    /// recipient, or the gas payer.
+    TransactionsByAddress,
+    /// Stores a mapping of
+    /// [`CheckpointSequenceNumber`](iota_types::messages_checkpoint::CheckpointSequenceNumber)
+    /// to [`CheckpointContents`](iota_types::messages_checkpoint::CheckpointContents) and [`CertifiedCheckpointSummary`](iota_types::messages_checkpoint::CertifiedCheckpointSummary) for
+    /// every checkpoint.
+    Checkpoints,
+    /// Stores a mapping of
+    /// [`CheckpointDigest`](iota_sdk_types::CheckpointDigest) to
+    /// [`CheckpointSequenceNumber`](iota_types::messages_checkpoint::CheckpointSequenceNumber)
+    /// for every checkpoint.
+    CheckpointsByDigest,
+}
 
 /// This worker implementation is responsible for processing checkpoints by
 /// storing its data as Key-Value pairs. The Key-Value pairs are stored in a
 /// BigTableDB.
 pub struct KvWorker {
     pub client: BigTableClient,
+    /// The tables enabled for writing by this worker.
+    pub enabled_tables: BTreeSet<Table>,
+}
+
+impl KvWorker {
+    /// Creates a new KvWorker that writes data to all tables.
+    ///
+    /// For selective writing, use [`KvWorker::new_selective`].
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// # use iota_kvstore::KvWorker;
+    /// # use iota_kvstore::{Table, BigTableClient};
+    /// # #[tokio::main]
+    /// # async fn main() {
+    /// let client =
+    ///     BigTableClient::new_local("localhost", "local", "instance_id", "column_family").unwrap();
+    ///
+    /// // Write all available tables to BigTable.
+    /// let worker = KvWorker::new(client);
+    /// # drop(worker);
+    /// # }
+    /// ```
+    pub fn new(client: BigTableClient) -> Self {
+        Self {
+            client,
+            // All tables are enabled by default.
+            enabled_tables: Table::iter().collect(),
+        }
+    }
+
+    /// Creates a new KvWorker that writes only to the specified tables.
+    ///
+    /// # NOTE
+    /// Passing an empty iterator yields a worker that performs no writes.
+    /// Use [`KvWorker::new`] to write to all tables.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// # use iota_kvstore::KvWorker;
+    /// # use iota_kvstore::{Table, BigTableClient};
+    /// # #[tokio::main]
+    /// # async fn main() {
+    /// let client =
+    ///     BigTableClient::new_local("localhost", "local", "instance_id", "column_family").unwrap();
+    ///
+    /// // Write only the `Objects` table to BigTable.
+    /// let worker = KvWorker::new_selective(client, [Table::Objects]);
+    /// # drop(worker);
+    /// # }
+    /// ```
+    pub fn new_selective(client: BigTableClient, tables: impl IntoIterator<Item = Table>) -> Self {
+        Self {
+            client,
+            enabled_tables: BTreeSet::from_iter(tables),
+        }
+    }
 }
 
 #[async_trait]
@@ -24,21 +151,70 @@ impl Worker for KvWorker {
 
     async fn process_checkpoint(&self, checkpoint: Arc<CheckpointData>) -> anyhow::Result<()> {
         let mut client = self.client.clone();
-        let mut objects = vec![];
-        let mut transactions = Vec::with_capacity(checkpoint.transactions.len());
-        for transaction in &checkpoint.transactions {
-            for object in &transaction.output_objects {
-                objects.push(object);
-            }
-            transactions.push(TransactionData::new(
-                transaction,
-                checkpoint.checkpoint_summary.sequence_number,
-            ));
-        }
-        client.save_objects(&objects).await?;
-        client.save_transactions(&transactions).await?;
-        client.save_checkpoint(&checkpoint).await?;
 
+        for table in &self.enabled_tables {
+            match table {
+                Table::Objects => {
+                    let objects = checkpoint
+                        .transactions
+                        .iter()
+                        .flat_map(|t| &t.output_objects)
+                        .collect::<Vec<_>>();
+                    client.save_objects(&objects).await?;
+                }
+                Table::Transactions => {
+                    let transactions = checkpoint
+                        .transactions
+                        .iter()
+                        .map(|t| {
+                            TransactionData::new(t, checkpoint.checkpoint_summary.sequence_number)
+                        })
+                        .collect::<Vec<_>>();
+                    client.save_transactions(&transactions).await?;
+                }
+                Table::TransactionsByAddress => {
+                    let entries_by_address = transactions_by_address(&checkpoint);
+                    client
+                        .save_transactions_by_address(entries_by_address)
+                        .await?;
+                }
+                Table::Checkpoints => {
+                    client.save_checkpoint(&checkpoint).await?;
+                }
+                Table::CheckpointsByDigest => {
+                    client.save_checkpoint_by_digest(&checkpoint).await?;
+                }
+            }
+        }
         Ok(())
     }
+}
+
+/// Uses [`CheckpointData`] to map addresses affected by a transaction to the
+/// respective transaction identifiers.
+///
+/// Affected addresses include the sender, and payer of the transaction,
+/// plus the owners of all changed objects.
+pub fn transactions_by_address<'a>(
+    checkpoint: &'a CheckpointData,
+) -> impl Iterator<Item = (Address, TransactionSequenceNumber, TransactionDigest)> + 'a {
+    checkpoint
+        .checkpoint_contents
+        .enumerate_transactions(&checkpoint.checkpoint_summary)
+        .zip(&checkpoint.transactions)
+        .flat_map(|((seq, exec_digest), tx)| {
+            let tx_data = tx.transaction.transaction_data();
+            let affected: HashSet<Address> =
+                std::iter::once(tx_data.sender())
+                    .chain(std::iter::once(tx_data.gas_owner()))
+                    .chain(tx.effects.all_changed_objects().into_iter().filter_map(
+                        |(_, owner, _)| match owner {
+                            Owner::Address(a) => Some(a),
+                            _ => None,
+                        },
+                    ))
+                    .collect();
+            let digest = exec_digest.transaction;
+            affected.into_iter().map(move |addr| (addr, seq, digest))
+        })
 }

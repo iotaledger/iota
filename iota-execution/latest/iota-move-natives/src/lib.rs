@@ -77,13 +77,14 @@ use self::{
 };
 use crate::{
     auth_context::{
-        AuthContextDigestCostParams, AuthContextReplaceCostParams, AuthContextTxCommandsCostParams,
-        AuthContextTxInputsCostParams,
+        AuthContextAuthenticatorFunctionInfoV1CostParams, AuthContextDigestCostParams,
+        AuthContextReplaceCostParams, AuthContextTxCommandsCostParams,
+        AuthContextTxDataBytesCostParams, AuthContextTxInputsCostParams,
     },
     crypto::{
         group_ops::{self, GroupOpsCostParams},
         poseidon::PoseidonBN254CostParams,
-        zklogin::{self, CheckZkloginIdCostParams, CheckZkloginIssuerCostParams},
+        zklogin,
     },
     tx_context::TxContextDigestCostParams,
 };
@@ -97,6 +98,7 @@ mod dynamic_field;
 mod event;
 mod object;
 pub mod object_runtime;
+pub mod protocol_config;
 mod random;
 pub mod test_scenario;
 mod test_utils;
@@ -160,9 +162,12 @@ pub struct NativesCostTable {
 
     // AuthContext
     pub auth_context_digest_cost_params: AuthContextDigestCostParams,
+    pub auth_context_tx_data_bytes_cost_params: AuthContextTxDataBytesCostParams,
     pub auth_context_tx_commands_cost_params: AuthContextTxCommandsCostParams,
     pub auth_context_tx_inputs_cost_params: AuthContextTxInputsCostParams,
     pub auth_context_replace_cost_params: AuthContextReplaceCostParams,
+    pub auth_context_authenticator_function_info_v1_cost_params:
+        AuthContextAuthenticatorFunctionInfoV1CostParams,
 
     // Type
     pub type_is_one_time_witness_cost_params: TypesIsOneTimeWitnessCostParams,
@@ -211,10 +216,6 @@ pub struct NativesCostTable {
 
     // vdf
     pub vdf_cost_params: VDFCostParams,
-
-    // zklogin
-    pub check_zklogin_id_cost_params: CheckZkloginIdCostParams,
-    pub check_zklogin_issuer_cost_params: CheckZkloginIssuerCostParams,
 
     // Receive object
     pub transfer_receive_object_internal_cost_params: TransferReceiveObjectInternalCostParams,
@@ -476,6 +477,14 @@ impl NativesCostTable {
                     .auth_context_digest_cost_base_as_option()
                     .map(Into::into),
             },
+            auth_context_tx_data_bytes_cost_params: AuthContextTxDataBytesCostParams {
+                auth_context_tx_data_bytes_cost_base: protocol_config
+                    .auth_context_tx_data_bytes_cost_base_as_option()
+                    .map(Into::into),
+                auth_context_tx_data_bytes_cost_per_byte: protocol_config
+                    .auth_context_tx_data_bytes_cost_per_byte_as_option()
+                    .map(Into::into),
+            },
             auth_context_tx_commands_cost_params: AuthContextTxCommandsCostParams {
                 auth_context_tx_commands_cost_base: protocol_config
                     .auth_context_tx_commands_cost_base_as_option()
@@ -500,6 +509,12 @@ impl NativesCostTable {
                     .auth_context_replace_cost_per_byte_as_option()
                     .map(Into::into),
             },
+            auth_context_authenticator_function_info_v1_cost_params:
+                AuthContextAuthenticatorFunctionInfoV1CostParams {
+                    auth_context_authenticator_function_info_v1_cost_base: protocol_config
+                        .auth_context_authenticator_function_info_v1_cost_base_as_option()
+                        .map(Into::into),
+                },
             type_is_one_time_witness_cost_params: TypesIsOneTimeWitnessCostParams {
                 types_is_one_time_witness_cost_base: protocol_config
                     .types_is_one_time_witness_cost_base()
@@ -678,16 +693,6 @@ impl NativesCostTable {
                     .transfer_receive_object_cost_base_as_option()
                     .unwrap_or(0)
                     .into(),
-            },
-            check_zklogin_id_cost_params: CheckZkloginIdCostParams {
-                check_zklogin_id_cost_base: protocol_config
-                    .check_zklogin_id_cost_base_as_option()
-                    .map(Into::into),
-            },
-            check_zklogin_issuer_cost_params: CheckZkloginIssuerCostParams {
-                check_zklogin_issuer_cost_base: protocol_config
-                    .check_zklogin_issuer_cost_base_as_option()
-                    .map(Into::into),
             },
             poseidon_bn254_cost_params: PoseidonBN254CostParams {
                 poseidon_bn254_cost_base: protocol_config
@@ -941,6 +946,31 @@ pub fn all_natives(silent: bool, protocol_config: &ProtocolConfig) -> NativeFunc
             "auth_context",
             "native_digest",
             make_native!(auth_context::native_digest),
+        ),
+        (
+            "auth_context",
+            "native_sender_auth_digest",
+            make_native!(auth_context::native_sender_auth_digest),
+        ),
+        (
+            "auth_context",
+            "native_sponsor_auth_digest",
+            make_native!(auth_context::native_sponsor_auth_digest),
+        ),
+        (
+            "auth_context",
+            "native_sender_authenticator_function_info_v1",
+            make_native!(auth_context::native_sender_authenticator_function_info_v1),
+        ),
+        (
+            "auth_context",
+            "native_sponsor_authenticator_function_info_v1",
+            make_native!(auth_context::native_sponsor_authenticator_function_info_v1),
+        ),
+        (
+            "auth_context",
+            "native_tx_data_bytes",
+            make_native!(auth_context::native_tx_data_bytes),
         ),
         (
             "auth_context",
@@ -1269,11 +1299,14 @@ pub fn all_natives(silent: bool, protocol_config: &ProtocolConfig) -> NativeFunc
             "generate_rand_seed_for_testing",
             make_native!(random::generate_rand_seed_for_testing),
         ),
+        // Deprecated stubs for old bytecode snapshot compatibility.
+        #[allow(deprecated)]
         (
             "zklogin_verified_id",
             "check_zklogin_id_internal",
             make_native!(zklogin::check_zklogin_id_internal),
         ),
+        #[allow(deprecated)]
         (
             "zklogin_verified_issuer",
             "check_zklogin_issuer_internal",
@@ -1283,6 +1316,26 @@ pub fn all_natives(silent: bool, protocol_config: &ProtocolConfig) -> NativeFunc
             "poseidon",
             "poseidon_bn254_internal",
             make_native!(poseidon::poseidon_bn254_internal),
+        ),
+        (
+            "protocol_config",
+            "is_feature_enabled",
+            make_native!(protocol_config::is_feature_enabled),
+        ),
+        (
+            "protocol_config",
+            "get_attr",
+            make_native!(protocol_config::get_attr),
+        ),
+        (
+            "protocol_config",
+            "set_feature_enabled_for_testing",
+            make_native!(protocol_config::set_feature_enabled_for_testing),
+        ),
+        (
+            "protocol_config",
+            "set_attr_for_testing",
+            make_native!(protocol_config::set_attr_for_testing),
         ),
         (
             "vdf",
@@ -1317,11 +1370,33 @@ pub fn all_natives(silent: bool, protocol_config: &ProtocolConfig) -> NativeFunc
                     func,
                 )
             });
-    let iota_system_natives: &[(&str, &str, NativeFunction)] = &[(
-        "validator",
-        "validate_metadata_bcs",
-        make_native!(validator::validate_metadata_bcs),
-    )];
+    let iota_system_natives: &[(&str, &str, NativeFunction)] = &[
+        (
+            "validator",
+            "validate_metadata_bcs",
+            make_native!(validator::validate_metadata_bcs),
+        ),
+        (
+            "protocol_config",
+            "is_feature_enabled",
+            make_native!(protocol_config::is_feature_enabled),
+        ),
+        (
+            "protocol_config",
+            "get_attr",
+            make_native!(protocol_config::get_attr),
+        ),
+        (
+            "protocol_config",
+            "set_feature_enabled_for_testing",
+            make_native!(protocol_config::set_feature_enabled_for_testing),
+        ),
+        (
+            "protocol_config",
+            "set_attr_for_testing",
+            make_native!(protocol_config::set_attr_for_testing),
+        ),
+    ];
     iota_system_natives
         .iter()
         .cloned()

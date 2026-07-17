@@ -2,9 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use iota_sdk_types::{Address, Identifier};
 use iota_types::{
-    IOTA_FRAMEWORK_ADDRESS,
-    base_types::{TX_CONTEXT_MODULE_NAME, TX_CONTEXT_STRUCT_NAME, TxContext, TxContextKind},
+    base_types::{TxContext, TxContextKind},
     clock::Clock,
     error::ExecutionError,
     is_object, is_object_vector, is_primitive,
@@ -51,7 +51,7 @@ pub fn verify_module(
         let name = module.identifier_at(handle.name);
 
         // allow calling init function in the test code
-        if !is_test_fun(name, module, fn_info_map) {
+        if !is_test_fun(name.as_str(), module, fn_info_map) {
             verify_init_not_called(module, func_def).map_err(verification_failure)?;
         }
 
@@ -163,9 +163,9 @@ fn verify_init_function(module: &CompiledModule, fdef: &FunctionDefinition) -> R
             but found {5}",
             module.self_id(),
             INIT_FN_NAME,
-            IOTA_FRAMEWORK_ADDRESS,
-            TX_CONTEXT_MODULE_NAME,
-            TX_CONTEXT_STRUCT_NAME,
+            Address::FRAMEWORK,
+            Identifier::TX_CONTEXT_MODULE,
+            Identifier::TX_CONTEXT,
             format_signature_token(module, &parameters[0]),
         ))
     }

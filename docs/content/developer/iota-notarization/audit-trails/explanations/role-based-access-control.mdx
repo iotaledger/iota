@@ -1,0 +1,266 @@
+---
+title: Role-Based Access Control for Audit Trails
+description: An explanation of how roles, capabilities, and record tags govern access to Audit Trails operations.
+tags:
+ - explanation
+ - notarization
+ - audit-trails
+---
+
+# Role-Based Access Control for Audit Trails
+
+Every write operation on an Audit Trail requires the caller to present a valid **Capability** — an on-chain object that proves the caller is authorized to perform the requested action. The Audit Trail validates the capability before allowing the operation. This page explains how the access control system works, from roles and permissions through capability lifecycle to tag-based restrictions.
+
+---
+
+## Core Concepts
+
+### Roles
+
+A **role** is a named set of permissions stored on the trail. Roles define *what* a capability holder can do.
+For example (see [below](#permissions) for a list of exiting permissions):
+
+| Role name      | Typical permissions                         |
+|:---------------|:--------------------------------------------|
+| `Admin`        | Manage roles, capabilities, and record tags |
+| `RecordAdmin`  | Add, delete, and correct records            |
+| `LockingAdmin` | Configure locking                           |
+| `Auditor`      | *(read-only — no write permissions needed)* |
+
+Roles are identified by a unique string name within the trail. Multiple capabilities can be issued for the same role, allowing several users or services to share that access level.
+
+Roles may optionally carry a **RoleTags** allowlist that restricts which tagged records the role can operate on. See [Record Tags and RoleTags](#record-tags-and-roletags) for details.
+
+### Capabilities
+
+A **Capability** is an on-chain object owned by a wallet address. It is the "key" that unlocks access to trail operations. Each capability records:
+
+| Field         | Purpose                                                               |
+|:--------------|:----------------------------------------------------------------------|
+| `target_key`  | The `ObjectID` of the trail this capability is valid for.             |
+| `role`        | The role name — determines which permissions the holder has.          |
+| `issued_to`   | Optional address binding; only that address may present the capability. |
+| `valid_from`  | Optional Unix-ms timestamp before which the capability is not yet active. |
+| `valid_until` | Optional Unix-ms timestamp after which the capability expires.        |
+
+Possessing a capability does **not** automatically grant access. The `AuditTrail` object validates all fields above on every call before the operation is executed.
+
+### Permissions
+
+Audit Trails defines the following permissions, grouped by domain:
+
+| Domain | Permissions |
+|:-------|:------------|
+| **Trail management** | `DeleteAuditTrail`, `DeleteAllRecords`, `Migrate` |
+| **Record operations** | `AddRecord`, `DeleteRecord`, `CorrectRecord` |
+| **Locking configuration** | `UpdateLockingConfig`, `UpdateLockingConfigForDeleteRecord`, `UpdateLockingConfigForDeleteTrail`, `UpdateLockingConfigForWrite` |
+| **Role management** | `AddRoles`, `UpdateRoles`, `DeleteRoles` |
+| **Capability management** | `AddCapabilities`, `RevokeCapabilities` |
+| **Metadata** | `UpdateMetadata`, `DeleteMetadata` |
+| **Tag management** | `AddRecordTags`, `DeleteRecordTags` |
+
+For convenience, the library provides pre-built permission sets:
+
+| Constructor                    | Permissions included                                                                                              |
+|:-------------------------------|:------------------------------------------------------------------------------------------------------------------|
+| `admin_permissions()`          | AddRoles, UpdateRoles, DeleteRoles, AddCapabilities, RevokeCapabilities, AddRecordTags, DeleteRecordTags, Migrate |
+| `record_admin_permissions()`   | AddRecord, DeleteRecord, CorrectRecord                                                                            |
+| `role_admin_permissions()`     | AddRoles, UpdateRoles, DeleteRoles                                                                                |
+| `locking_admin_permissions()`  | All locking-related permissions                                                                                   |
+| `cap_admin_permissions()`      | AddCapabilities, RevokeCapabilities                                                                               |
+| `tag_admin_permissions()`      | AddRecordTags, DeleteRecordTags                                                                                   |
+| `metadata_admin_permissions()` | UpdateMetadata, DeleteMetadata                                                                                    |
+
+These are convenience shortcuts — you can always construct a custom permission set with any combination of permissions.
+
+---
+
+## The Admin Role
+
+When a trail is created, the access control registry is initialized with exactly one role — the **initial admin role** (named `"Admin"` by default). A corresponding capability object is minted and transferred to the trail creator.
+
+The Admin role is protected by two invariants:
+1. It can **never be deleted**.
+2. Although its permission set can be updated, it must always include a minimum set of permissions for managing the trail's access control: `AddRoles`, `UpdateRoles`, `DeleteRoles`, `AddCapabilities`, and `RevokeCapabilities`. Attempting to remove any of these will fail.
+
+:::warning
+If all initial admin capabilities are destroyed or revoked, the trail becomes **permanently sealed** — no further administrative operations (role changes, capability issuance, etc.) are possible. Manage admin capabilities with care.
+:::
+
+---
+
+## Lifecycle Example
+
+The following walkthrough illustrates how the access control system is used in practice.
+
+### 1 — Trail Is Created
+
+When a trail is created, the system automatically:
+- Creates a `RoleMap` with one role (`"Admin"`) containing the default admin permissions.
+- Mints an Admin Capability and transfers it to the creator's address.
+
+```
+Trail creator  ──create()──►  AuditTrail (shared object)
+                                    │
+                                    └── RoleMap
+                                          ├── roles: { "Admin" → [AddRoles, …] }
+                                          ├── initial_admin_role_name: "Admin"
+                                          └── initial_admin_cap_ids: { cap_id }
+                   ◄── Admin Capability (owned object, transferred to creator)
+```
+
+### 2 — Admin Defines Additional Roles
+
+The trail creator uses their Admin capability to define a `RecordAdmin` role:
+
+```
+Admin Capability + create_role("RecordAdmin", [AddRecord, DeleteRecord, CorrectRecord])
+    ──►  RoleMap.roles: { "Admin" → […], "RecordAdmin" → [AddRecord, DeleteRecord, CorrectRecord] }
+```
+
+### 3 — Admin Issues Capabilities to Operators
+
+The admin issues a capability for the `RecordAdmin` role to an operator:
+
+```
+Admin Capability + issue_capability("RecordAdmin", issued_to = operator_address)
+    ──►  RecordAdmin Capability (owned object, transferred to operator)
+```
+
+### 4 — Operator Uses Their Capability
+
+The operator presents their capability to add a record:
+
+```
+RecordAdmin Capability + add_record(trail, data)
+    ──►  RoleMap.assert_capability_valid(cap, AddRecord)   // validated
+    ──►  Record appended to trail
+```
+
+### 5 — Admin Revokes a Capability
+
+When an operator's access should be withdrawn:
+
+```
+Admin Capability + revoke_capability(cap_id, valid_until)
+    ──►  RoleMap.revoked_capabilities: { cap_id → valid_until_ms }
+```
+
+The revoked capability object still exists on-chain in the holder's wallet, but it will be rejected by the validation logic on every subsequent call.
+
+---
+
+## Capability Validation
+
+Every operation on a trail calls an internal validation function before executing. The checks run in the order listed below; the transaction aborts on the **first** failing check.
+
+### 1 — Target Key Mismatch
+
+The capability's `target_key` must match the trail's object ID. This prevents a capability issued for one trail from being used on a different trail.
+
+### 2 — Role Does Not Exist
+
+The role name stored in the capability must still exist in the RoleMap. If an admin deleted the role after the capability was issued, the capability becomes unusable — even though it was never explicitly revoked.
+
+### 3 — Permission Denied
+
+The role's current permission set must contain the permission required by the operation. If the role was updated after the capability was issued and the required permission was removed, existing capabilities for that role will start failing this check.
+
+### 4 — Capability Revoked
+
+The capability's ID must **not** appear in the `revoked_capabilities` denylist. A revoked capability is permanently rejected, even if it is still within its validity window.
+
+### 5 — Time Constraints Not Met
+
+This check only runs when the capability has a `valid_from` and/or `valid_until` field set:
+- `valid_from`: current time must be **{'<'}=** `valid_from`.
+- `valid_until`: current time must be **{'>'}=** `valid_until`.
+
+If neither field is set, this check is skipped.
+
+### 6 — Issued-To Mismatch
+
+This check only runs when the capability has a non-empty `issued_to` field. The address of the transaction sender must match the `issued_to` address. This binds the capability to a specific wallet, preventing it from being used by anyone else even if the on-chain object is transferred.
+
+### 7 — Record Tag Not Allowed
+
+This check applies only to record operations (add, correct, delete) that involve a tagged record. Two conditions must hold:
+1. The tag must be registered in the trail's tag registry.
+2. The role associated with the capability must include the tag in its `RoleTags` allowlist.
+
+If the record has no tag, this check is skipped.
+
+### Validation Summary
+
+| # | Check                   | Error                               | Skippable |
+|:--|:------------------------|:------------------------------------|:----------|
+| 1 | Target key mismatch     | `ECapabilityTargetKeyMismatch`      | No        |
+| 2 | Role does not exist     | `ERoleDoesNotExist`                 | No        |
+| 3 | Permission not in role  | `ECapabilityPermissionDenied`       | No        |
+| 4 | ID in revoked denylist  | `ECapabilityHasBeenRevoked`         | No        |
+| 5 | Outside validity window | `ECapabilityTimeConstraintsNotMet`  | Yes       |
+| 6 | Issued-to mismatch      | `ECapabilityIssuedToMismatch`       | Yes       |
+| 7 | Record tag not allowed  | `ERecordTagNotDefined` / `ERecordTagNotAllowed` | Yes |
+
+---
+
+## Record Tags and RoleTags
+
+Tags are string labels that can be attached to individual records. They are managed through a **tag registry** on the trail — a tag must be registered before it can be used on a record or referenced by a role.
+
+### Why Use Tags?
+
+Tags enable fine-grained access control beyond simple permission checks. For example, a legal department may only be allowed to access records tagged `"legal"`, while the finance team works with records tagged `"finance"`. Without tags, both departments would need the same `AddRecord` permission with no way to restrict which *type* of record they can create.
+
+### How Tags Interact with Roles
+
+A role may carry an optional **RoleTags** allowlist. When a capability holder adds a record with a tag, the `AuditTrail` object checks that:
+
+1. The tag is registered in the trail's tag registry.
+2. The role associated with the capability includes the requested tag in its `RoleTags` allowlist.
+
+If either check fails, the transaction is rejected. The same checks apply when a tagged record is corrected or deleted.
+
+Key rules:
+- Tags only restrict the use of tagged records to roles that explicitly grant access to those tags in their `RoleTags` allowlist.
+- Tags do not grant access permission themselves. A role still needs the relevant permissions (e.g., `AddRecord`) to perform operations on tagged records.
+- A role without any `RoleTags` can operate on any record that does not have a tag, as long as it has the necessary permissions.
+
+### Tag Usage Tracking
+
+The tag registry tracks a **usage count** for each tag — the combined number of records and roles that reference it. A tag cannot be removed from the registry while its usage count is greater than zero. This prevents orphaning tagged records or role configurations.
+
+---
+
+## Managing Revoked Capabilities
+
+### The Revoked Capabilities Denylist
+
+When a capability is revoked, it is **not deleted from the chain**. The on-chain Capability object still exists in the holder's wallet. Instead, the capability's ID is added to a **denylist** stored inside the `AuditTrail` object. During every access-restricted operation, the validation logic checks the denylist and rejects any capability whose ID appears in it.
+
+The denylist approach (as opposed to an allowlist of all issued capabilities) was chosen deliberately: it keeps on-chain storage proportional to the number of *currently revoked* capabilities rather than the total number ever issued. This is important for deployments that issue large numbers of capabilities over time.
+
+Each denylist entry maps a revoked capability ID to a `valid_until` timestamp (Unix milliseconds). If the revoked capability had no `valid_until` field, the stored value is `0`, signaling "no expiry — keep in the denylist indefinitely".
+
+### Time-Restricted Capabilities and Revocation
+
+Capabilities can carry optional `valid_from` and `valid_until` timestamps. A capability whose time window has passed is rejected regardless of whether it appears in the denylist. This means that once a capability's `valid_until` timestamp has passed, the capability is naturally expired — its denylist entry becomes redundant and can be safely removed.
+
+### Cleaning Up the Denylist
+
+Over time, the denylist can accumulate entries for capabilities that have already naturally expired. A cleanup operation walks the denylist and removes entries whose stored `valid_until` value is non-zero and less than the current on-chain clock time. Entries with `valid_until == 0` are kept because the corresponding capabilities never expire on their own.
+
+**Best practices for keeping the denylist short:**
+- Always set a `valid_until` when issuing capabilities. Even a generous validity window (e.g., one year) ensures the denylist entry can be automatically cleaned up after the capability expires.
+- Call cleanup periodically as a maintenance transaction to reclaim storage.
+- When a revoked capability is no longer needed, have the holder destroy the capability object. Destroying a capability also removes it from the denylist.
+
+### Off-Chain Tracking Requirements
+
+Because the `AuditTrail` object uses a denylist (not an allowlist), it does **not** maintain an on-chain registry of all issued capabilities. This design shifts the bookkeeping responsibility to the integrator:
+
+1. **Maintain an off-chain registry** of every issued capability, storing at least the capability ID, role, `issued_to` address, and validity timestamps. The `CapabilityIssued`, `CapabilityRevoked`, and `CapabilityDestroyed` [events](./events.mdx) carry exactly this information and are the recommended way to keep the registry in sync.
+2. **When revoking**, supply the correct capability ID and its `valid_until` value. The revoke function does not verify that the supplied ID refers to a real, previously-issued capability — accurate off-chain records are essential.
+3. **Track revocations and destructions** to avoid attempting to revoke the same capability twice.
+
+For deployments that only issue a small number of capabilities, a simplified approach is acceptable: track only the issued capability IDs and omit the `valid_until` value when revoking. The trade-off is that those denylist entries will persist until the capability object is explicitly destroyed.

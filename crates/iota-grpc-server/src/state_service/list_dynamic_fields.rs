@@ -12,7 +12,8 @@ use iota_grpc_types::{
         state_service::{ListDynamicFieldsRequest, ListDynamicFieldsResponse},
     },
 };
-use iota_types::{base_types::ObjectID, dynamic_field::visitor as DFV};
+use iota_sdk_types::{ObjectId, TypeTag};
+use iota_types::dynamic_field::visitor as DFV;
 use prost::Message;
 use serde::{Deserialize, Serialize};
 
@@ -31,8 +32,8 @@ const MAX_PAGE_SIZE: u32 = 1000;
 
 #[derive(Serialize, Deserialize)]
 struct PageToken {
-    parent: ObjectID,
-    cursor: ObjectID,
+    parent: ObjectId,
+    cursor: ObjectId,
 }
 
 /// Check whether the read mask requests any field that requires loading the
@@ -61,8 +62,8 @@ fn should_load_field(mask: &FieldMaskTree) -> bool {
 /// field object when the read mask requests them.
 fn get_dynamic_field(
     reader: &GrpcReader,
-    parent: &ObjectID,
-    field_id: &ObjectID,
+    parent: &ObjectId,
+    field_id: &ObjectId,
     read_mask: &FieldMaskTree,
     load_field: bool,
 ) -> Result<Option<DynamicField>, RpcError> {
@@ -98,7 +99,7 @@ fn get_dynamic_field(
 /// `field_object`, `child_object`.
 fn load_dynamic_field(
     reader: &GrpcReader,
-    field_id: &ObjectID,
+    field_id: &ObjectId,
     read_mask: &FieldMaskTree,
     message: &mut DynamicField,
 ) -> Result<(), RpcError> {
@@ -109,19 +110,19 @@ fn load_dynamic_field(
         return Ok(());
     };
 
-    let Some(move_object) = field_object.data.try_as_move() else {
+    let Some(move_object) = field_object.data.as_opt_struct() else {
         return Ok(());
     };
 
+    let struct_tag = move_object.struct_tag();
+
     // Only proceed if this is actually a `Field<Name, Value>` type.
-    if !move_object.type_().is_dynamic_field() {
+    if !struct_tag.is_dynamic_field() {
         return Ok(());
     }
 
-    let struct_tag: move_core_types::language_storage::StructTag =
-        move_object.type_().clone().into();
     let layout = match reader
-        .get_type_layout(&iota_types::TypeTag::Struct(Box::new(struct_tag)))
+        .get_type_layout(&TypeTag::from(struct_tag.clone()))
         .map_err(RpcError::from)?
     {
         Some(layout) => layout,
@@ -194,7 +195,7 @@ fn load_dynamic_field(
                 };
 
                 // For DynamicObjectField entries, `value` contains the
-                // BCS-encoded ObjectID of the child (the on-chain
+                // BCS-encoded ObjectId of the child (the on-chain
                 // `Field<Name, ID>` wrapper), while `value_type` is set to
                 // the child object's actual type (e.g.
                 // `0x2::coin::Coin<0x2::iota::IOTA>`).
@@ -203,7 +204,7 @@ fn load_dynamic_field(
                 // object, not BCS-decode `value` using `value_type`.
                 if read_mask.contains(DynamicField::VALUE_TYPE_FIELD.name) {
                     if let Some(struct_tag) = child_object.struct_tag() {
-                        let type_tag = iota_types::TypeTag::from(struct_tag);
+                        let type_tag = TypeTag::from(struct_tag);
                         message.value_type = Some(type_tag.to_canonical_string(true));
                     }
                 }
@@ -251,7 +252,7 @@ pub(crate) fn list_dynamic_fields(
 
     let mut items = Vec::with_capacity(page_size);
     let mut size_bytes = 0usize;
-    let mut last_field_id: Option<ObjectID> = None;
+    let mut last_field_id: Option<ObjectId> = None;
 
     for result in iter.by_ref() {
         let key = result.map_err(RpcError::from)?;

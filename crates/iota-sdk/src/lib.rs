@@ -106,16 +106,15 @@ pub use iota_json_rpc_types as rpc_types;
 use iota_json_rpc_types::{
     IotaObjectDataFilter, IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseQuery, Page,
 };
+use iota_sdk_types::{Address, ObjectId, StructTag};
 use iota_transaction_builder::{DataReader, TransactionBuilder};
 pub use iota_types as types;
-use iota_types::base_types::{IotaAddress, ObjectID};
 use jsonrpsee::{
     core::client::ClientT,
     http_client::{HeaderMap, HeaderValue, HttpClient, HttpClientBuilder},
     rpc_params,
     ws_client::{PingConfig, WsClient, WsClientBuilder},
 };
-use move_core_types::language_storage::StructTag;
 use reqwest::header::HeaderName;
 use rustls::crypto::{CryptoProvider, ring};
 use serde_json::Value;
@@ -129,15 +128,19 @@ pub const IOTA_COIN_TYPE: &str = "0x2::iota::IOTA";
 pub const IOTA_LOCAL_NETWORK_URL: &str = "http://127.0.0.1:9000";
 pub const IOTA_LOCAL_NETWORK_URL_0: &str = "http://0.0.0.0:9000";
 pub const IOTA_LOCAL_NETWORK_GRAPHQL_URL: &str = "http://127.0.0.1:9125";
+pub const IOTA_LOCAL_NETWORK_GRPC_URL: &str = "http://127.0.0.1:50051";
 pub const IOTA_LOCAL_NETWORK_GAS_URL: &str = "http://127.0.0.1:9123/v1/gas";
 pub const IOTA_DEVNET_URL: &str = "https://api.devnet.iota.cafe";
 pub const IOTA_DEVNET_GRAPHQL_URL: &str = "https://graphql.devnet.iota.cafe";
+pub const IOTA_DEVNET_GRPC_URL: &str = "https://grpc.devnet.iota.cafe:443";
 pub const IOTA_DEVNET_GAS_URL: &str = "https://faucet.devnet.iota.cafe/v1/gas";
 pub const IOTA_TESTNET_URL: &str = "https://api.testnet.iota.cafe";
 pub const IOTA_TESTNET_GRAPHQL_URL: &str = "https://graphql.testnet.iota.cafe";
+pub const IOTA_TESTNET_GRPC_URL: &str = "https://grpc.testnet.iota.cafe:443";
 pub const IOTA_TESTNET_GAS_URL: &str = "https://faucet.testnet.iota.cafe/v1/gas";
 pub const IOTA_MAINNET_URL: &str = "https://api.mainnet.iota.cafe";
 pub const IOTA_MAINNET_GRAPHQL_URL: &str = "https://graphql.mainnet.iota.cafe";
+pub const IOTA_MAINNET_GRPC_URL: &str = "https://grpc.mainnet.iota.cafe:443";
 
 /// Builder for creating an [IotaClient] for connecting to the IOTA network.
 ///
@@ -493,7 +496,8 @@ impl IotaClientBuilder {
 /// ```rust,no_run
 /// use std::str::FromStr;
 ///
-/// use iota_sdk::{IotaClientBuilder, types::base_types::IotaAddress};
+/// use iota_sdk::IotaClientBuilder;
+/// use iota_sdk_types::Address;
 ///
 /// #[tokio::main]
 /// async fn main() -> Result<(), anyhow::Error> {
@@ -505,7 +509,7 @@ impl IotaClientBuilder {
 ///     println!("{:?}", iota.available_subscriptions());
 ///     println!("{:?}", iota.api_version());
 ///
-///     let address = IotaAddress::from_str("0x0000....0000")?;
+///     let address = Address::from_str("0x0000....0000")?;
 ///     let owned_objects = iota
 ///         .read_api()
 ///         .get_owned_objects(address, None, None, None)
@@ -633,9 +637,9 @@ impl IotaClient {
 impl DataReader for ReadApi {
     async fn get_owned_objects(
         &self,
-        address: IotaAddress,
+        address: Address,
         object_type: StructTag,
-        cursor: Option<ObjectID>,
+        cursor: Option<ObjectId>,
         limit: Option<usize>,
         options: IotaObjectDataOptions,
     ) -> Result<iota_json_rpc_types::ObjectsPage, anyhow::Error> {
@@ -651,7 +655,7 @@ impl DataReader for ReadApi {
 
     async fn get_object_with_options(
         &self,
-        object_id: ObjectID,
+        object_id: ObjectId,
         options: IotaObjectDataOptions,
     ) -> Result<IotaObjectResponse, anyhow::Error> {
         Ok(self.get_object_with_options(object_id, options).await?)

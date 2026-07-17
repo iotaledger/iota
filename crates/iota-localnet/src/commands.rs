@@ -28,9 +28,13 @@ use iota_graphql_rpc::{
     config::ConnectionConfig, test_infra::cluster::start_graphql_server_with_fn_rpc,
 };
 #[cfg(feature = "indexer")]
-use iota_indexer::test_utils::{IndexerTypeConfig, start_test_indexer};
+use iota_indexer::{
+    config::PruningOptions,
+    test_utils::{IndexerTypeConfig, start_test_indexer},
+};
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore, Keystore};
 use iota_sdk::iota_client_config::{IotaClientConfig, IotaEnv};
+use iota_sdk_types::Address;
 use iota_swarm::memory::Swarm;
 use iota_swarm_config::{
     genesis_config::GenesisConfig,
@@ -38,7 +42,7 @@ use iota_swarm_config::{
     network_config_builder::ConfigBuilder,
     node_config_builder::FullnodeConfigBuilder,
 };
-use iota_types::{base_types::IotaAddress, crypto::IotaKeyPair};
+use iota_types::{base_types::address_from_iota_pub_key, crypto::IotaKeyPair};
 use rand::rngs::OsRng;
 use tempfile::tempdir;
 use tracing::{info, warn};
@@ -101,6 +105,12 @@ pub struct IndexerFeatureArgs {
     /// DB password for the Indexer Postgres DB. Default password is postgrespw.
     #[arg(long, default_value = "postgrespw")]
     pg_password: String,
+    /// Retention options for the indexer writer. By default the indexer keeps
+    /// all data, so its database grows without bound.
+    /// Pass `--pruning-config-path <PATH>` to point at a TOML retention config
+    /// (same format as the `iota-indexer indexer` command) to enable pruning.
+    #[command(flatten)]
+    pruning_options: PruningOptions,
 }
 
 #[cfg(feature = "indexer")]
@@ -115,6 +125,7 @@ impl IndexerFeatureArgs {
             pg_db_name: "iota_indexer".to_string(),
             pg_user: "postgres".to_string(),
             pg_password: "postgrespw".to_string(),
+            pruning_options: PruningOptions::default(),
         }
     }
 }
@@ -201,7 +212,7 @@ pub enum LocalnetCommand {
         with_grpc: Option<String>,
         #[cfg(feature = "indexer")]
         #[command(flatten)]
-        indexer_feature_args: IndexerFeatureArgs,
+        indexer_feature_args: Box<IndexerFeatureArgs>,
         /// Port to start the Fullnode RPC server on. Default port is 9000.
         #[arg(long, default_value = "9000")]
         fullnode_rpc_port: u16,
@@ -235,7 +246,7 @@ pub enum LocalnetCommand {
         #[arg(long, name = "iota|<full-url>", num_args(0..))]
         remote_migration_snapshots: Vec<SnapshotUrl>,
         #[arg(long, help = "Specify the delegator address")]
-        delegator: Option<IotaAddress>,
+        delegator: Option<Address>,
     },
     /// Bootstrap and initialize a new IOTA network
     Genesis {
@@ -286,7 +297,7 @@ pub enum LocalnetCommand {
         #[arg(long, name = "iota|<full-url>", num_args(0..))]
         remote_migration_snapshots: Vec<SnapshotUrl>,
         #[arg(long, help = "Specify the delegator address")]
-        delegator: Option<IotaAddress>,
+        delegator: Option<Address>,
         /// Set `admin-interface-address` config. This flag
         /// accepts also a port, a host, or both (e.g., 0.0.0.0:1337).
         /// When providing a specific value, please use the = sign between the
@@ -327,7 +338,7 @@ impl LocalnetCommand {
                     faucet_coin_count,
                     with_grpc,
                     #[cfg(feature = "indexer")]
-                    indexer_feature_args,
+                    *indexer_feature_args,
                     force_regenesis,
                     epoch_duration_ms,
                     fullnode_rpc_port,
@@ -395,7 +406,7 @@ async fn start(
     committee_size: Option<usize>,
     local_migration_snapshots: Vec<PathBuf>,
     remote_migration_snapshots: Vec<SnapshotUrl>,
-    delegator: Option<IotaAddress>,
+    delegator: Option<Address>,
 ) -> Result<(), anyhow::Error> {
     if force_regenesis {
         ensure!(
@@ -417,6 +428,7 @@ async fn start(
         pg_db_name,
         pg_user,
         pg_password,
+        pruning_options,
     } = indexer_feature_args;
 
     #[cfg(feature = "indexer")]
@@ -702,7 +714,7 @@ async fn start(
             true,
             None,
             fullnode_grpc_url.clone(),
-            IndexerTypeConfig::writer_mode(None, None),
+            IndexerTypeConfig::writer_mode(Some(pruning_options)),
             data_ingestion_dir.clone(),
         )
         .await;
@@ -778,12 +790,12 @@ async fn start(
             ..Default::default()
         };
 
-        let prometheus_registry = prometheus::Registry::new();
+        let prometheus_registry = prometheus_filtered::Registry::new();
         if force_regenesis {
             let kp = swarm.config_mut().account_keys.swap_remove(0);
             let keystore_path = faucet_config_dir.join(IOTA_KEYSTORE_FILENAME);
             let mut keystore = Keystore::from(FileBasedKeystore::new(&keystore_path).unwrap());
-            let address: IotaAddress = kp.public().into();
+            let address: Address = address_from_iota_pub_key(kp.public());
             keystore.add_key(None, IotaKeyPair::Ed25519(kp)).unwrap();
             IotaClientConfig::new(keystore)
                 .with_envs([IotaEnv::new("localnet", fullnode_url)])
@@ -846,7 +858,7 @@ async fn genesis(
     num_additional_gas_accounts: Option<usize>,
     local_migration_snapshots: Vec<PathBuf>,
     remote_migration_snapshots: Vec<SnapshotUrl>,
-    delegator: Option<IotaAddress>,
+    delegator: Option<Address>,
     admin_interface_address: Option<String>,
 ) -> Result<(), anyhow::Error> {
     let iota_config_dir = &match working_dir {

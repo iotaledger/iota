@@ -6,10 +6,10 @@ use iota_grpc_types::{
     google::rpc::bad_request::FieldViolation,
     v1::{
         error_reason::ErrorReason,
-        types::{Address, ObjectId},
+        types::{Address as GrpcAddress, ObjectId as ProtoObjectId},
     },
 };
-use iota_types::base_types::{IotaAddress, ObjectID};
+use iota_sdk_types::{Address, ObjectId};
 use prost_types::FieldMask;
 
 use crate::error::RpcError;
@@ -29,11 +29,11 @@ pub(crate) fn validate_read_mask<M: MessageFields>(
 }
 
 /// Validate and extract a required `ObjectId` proto field as an internal
-/// `ObjectID`.
+/// `ObjectId`.
 pub(crate) fn require_object_id(
-    field: &Option<ObjectId>,
+    field: &Option<ProtoObjectId>,
     field_name: &str,
-) -> Result<ObjectID, RpcError> {
+) -> Result<ObjectId, RpcError> {
     field
         .as_ref()
         .ok_or_else(|| {
@@ -42,7 +42,6 @@ pub(crate) fn require_object_id(
                 .with_reason(ErrorReason::FieldMissing)
         })?
         .object_id()
-        .map(Into::into)
         .map_err(|e| {
             FieldViolation::new(field_name)
                 .with_description(format!("invalid {field_name}: {e}"))
@@ -87,11 +86,11 @@ pub(crate) fn encode_page_token<T: serde::Serialize>(token: &T) -> Vec<u8> {
 }
 
 /// Validate and extract a required `Address` proto field as an internal
-/// `IotaAddress`.
+/// [`Address`].
 pub(crate) fn require_address(
-    field: &Option<Address>,
+    field: &Option<GrpcAddress>,
     field_name: &str,
-) -> Result<IotaAddress, RpcError> {
+) -> Result<Address, RpcError> {
     field
         .as_ref()
         .ok_or_else(|| {
@@ -100,7 +99,6 @@ pub(crate) fn require_address(
                 .with_reason(ErrorReason::FieldMissing)
         })?
         .address()
-        .map(Into::into)
         .map_err(|e| {
             FieldViolation::new(field_name)
                 .with_description(format!("invalid {field_name}: {e}"))
@@ -118,7 +116,7 @@ pub(crate) fn page_token_mismatch() -> RpcError {
         .into()
 }
 
-/// Convert an `ObjectID` to a gRPC `ObjectId` proto.
-pub(crate) fn object_id_proto(id: &ObjectID) -> ObjectId {
-    ObjectId::default().with_object_id(id.as_ref().to_vec())
+/// Convert an `ObjectId` to a gRPC `ObjectId` proto.
+pub(crate) fn object_id_proto(id: &ObjectId) -> ProtoObjectId {
+    ProtoObjectId::default().with_object_id(id.into_bytes().to_vec())
 }

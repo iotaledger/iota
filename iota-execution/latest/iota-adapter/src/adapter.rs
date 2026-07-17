@@ -8,6 +8,7 @@ mod checked {
     use std::{cell::RefCell, collections::BTreeMap, path::PathBuf, rc::Rc, sync::Arc};
 
     use anyhow::Result;
+    use iota_common::debug_fatal;
     use iota_move_natives::{
         NativesCostTable,
         authentication_context::AuthenticationContext,
@@ -15,12 +16,14 @@ mod checked {
         transaction_context::TransactionContext,
     };
     use iota_protocol_config::ProtocolConfig;
+    use iota_sdk_types::ObjectId;
     use iota_types::{
         auth_context::AuthContext,
         base_types::*,
         error::{ExecutionError, ExecutionErrorKind, IotaError},
         execution_config_utils::to_binary_config,
         metrics::{BytecodeVerifierMetrics, LimitsMetrics},
+        move_package::ProtocolBuildConfig,
         storage::ChildObjectResolver,
     };
     use iota_verifier::{
@@ -97,7 +100,7 @@ mod checked {
     /// via `NativeContext` instance.
     pub fn new_native_extensions<'r>(
         child_resolver: &'r dyn ChildObjectResolver,
-        input_objects: BTreeMap<ObjectID, object_runtime::InputObject>,
+        input_objects: BTreeMap<ObjectId, object_runtime::InputObject>,
         is_metered: bool,
         protocol_config: &'r ProtocolConfig,
         metrics: Arc<LimitsMetrics>,
@@ -128,9 +131,9 @@ mod checked {
     /// ID (which must be 0x0) to be `object_id`.
     pub fn substitute_package_id(
         modules: &mut [CompiledModule],
-        object_id: ObjectID,
+        object_id: ObjectId,
     ) -> Result<(), ExecutionError> {
-        let new_address = AccountAddress::from(object_id);
+        let new_address = AccountAddress::new(object_id.into_bytes());
 
         for module in modules.iter_mut() {
             let self_handle = module.self_handle().clone();
@@ -170,6 +173,7 @@ mod checked {
         verifier_config: &VerifierConfig,
         meter: &mut (impl Meter + ?Sized),
         metrics: &Arc<BytecodeVerifierMetrics>,
+        protocol_build_config: &ProtocolBuildConfig,
     ) -> Result<(), IotaError> {
         // run the Move verifier
         for module in modules.iter() {
@@ -177,7 +181,9 @@ mod checked {
                 .verifier_runtime_per_module_success_latency
                 .start_timer();
 
-            if let Err(e) = verify_module_timeout_only(module, verifier_config, meter) {
+            if let Err(e) =
+                verify_module_timeout_only(module, verifier_config, meter, protocol_build_config)
+            {
                 // We only checked that the failure was due to timeout
                 // Discard success timer, but record timeout/failure timer
                 metrics
@@ -216,19 +222,36 @@ mod checked {
         module: &CompiledModule,
         verifier_config: &VerifierConfig,
         meter: &mut (impl Meter + ?Sized),
+        protocol_build_config: &ProtocolBuildConfig,
     ) -> Result<(), IotaError> {
         meter.enter_scope(module.self_id().name().as_str(), Scope::Module);
 
         if let Err(e) = verify_module_with_config_metered(verifier_config, module, meter) {
             // Check that the status indicates metering timeout.
             if check_for_verifier_timeout(&e.major_status()) {
+                if e.major_status()
+                    == move_core_types::vm_status::StatusCode::REFERENCE_SAFETY_INCONSISTENT
+                {
+                    let mut bytes = vec![];
+                    let _ = module.serialize_with_version(
+                        move_binary_format::file_format_common::VERSION_MAX,
+                        &mut bytes,
+                    );
+                    debug_fatal!(
+                        "Reference safety inconsistency detected in module: {:?}",
+                        bytes
+                    );
+                }
                 return Err(IotaError::ModuleVerificationFailure {
                     error: format!("Verification timed out: {e}"),
                 });
             }
-        } else if let Err(err) =
-            iota_verify_module_metered_check_timeout_only(module, &BTreeMap::new(), meter)
-        {
+        } else if let Err(err) = iota_verify_module_metered_check_timeout_only(
+            module,
+            &BTreeMap::new(),
+            meter,
+            protocol_build_config,
+        ) {
             return Err(err.into());
         }
 

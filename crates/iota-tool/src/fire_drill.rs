@@ -29,15 +29,15 @@ use iota_config::{
 use iota_json_rpc_types::{IotaExecutionStatus, IotaTransactionBlockResponseOptions};
 use iota_keys::keypair_file::read_keypair_from_file;
 use iota_sdk::{IotaClient, IotaClientBuilder, rpc_types::IotaTransactionBlockEffectsAPI};
+use iota_sdk_types::{Address, Identifier, ObjectId, ObjectReference};
 use iota_types::{
-    IOTA_SYSTEM_PACKAGE_ID,
-    base_types::{IotaAddress, ObjectRef},
     committee::EpochId,
     crypto::{IotaKeyPair, generate_proof_of_possession, get_authority_key_pair, get_key_pair},
     multiaddr::{Multiaddr, Protocol},
-    transaction::{CallArg, TEST_ONLY_GAS_UNIT_FOR_GENERIC, Transaction, TransactionData},
+    transaction::{
+        CallArg, TEST_ONLY_GAS_UNIT_FOR_GENERIC, Transaction, TransactionData, TransactionDataAPI,
+    },
 };
-use move_core_types::ident_str;
 use tracing::info;
 
 #[derive(Parser)]
@@ -81,7 +81,7 @@ async fn run_metadata_rotation(metadata_rotation: MetadataRotation) -> anyhow::R
     })?;
 
     let iota_client = IotaClientBuilder::default().build(fullnode_rpc_url).await?;
-    let iota_address = IotaAddress::from(&account_key.public());
+    let iota_address = Address::from(&account_key.public());
     let starting_epoch = current_epoch(&iota_client).await?;
     info!(
         "Running Metadata Rotation fire drill for validator address {iota_address} in epoch {starting_epoch}."
@@ -109,10 +109,10 @@ async fn run_metadata_rotation(metadata_rotation: MetadataRotation) -> anyhow::R
 
 // TODO move this to a shared lib
 pub async fn get_gas_obj_ref(
-    iota_address: IotaAddress,
+    iota_address: Address,
     iota_client: &IotaClient,
     minimal_gas_balance: u64,
-) -> anyhow::Result<ObjectRef> {
+) -> anyhow::Result<ObjectReference> {
     let coins = iota_client
         .coin_read_api()
         .get_coins(iota_address, Some("0x2::iota::IOTA".into()), None, None)
@@ -138,7 +138,7 @@ async fn update_next_epoch_metadata(
     let backup_config = config.clone();
     backup_config.persisted(&backup_config_path).save()?;
 
-    let iota_address = IotaAddress::from(&account_key.public());
+    let iota_address = Address::from(&account_key.public());
 
     let mut new_config = config.clone();
 
@@ -222,10 +222,8 @@ async fn update_next_epoch_metadata(
         account_key,
         "update_validator_next_epoch_authority_pubkey",
         vec![
-            CallArg::Pure(
-                bcs::to_bytes(&new_authority_key_pair_copy.public().as_bytes().to_vec()).unwrap(),
-            ),
-            CallArg::Pure(bcs::to_bytes(&pop.as_bytes().to_vec()).unwrap()),
+            CallArg::pure(&new_authority_key_pair_copy.public().as_bytes().to_vec()),
+            CallArg::pure(&pop.as_bytes().to_vec()),
         ],
         iota_client,
     )
@@ -235,8 +233,8 @@ async fn update_next_epoch_metadata(
     update_metadata_on_chain(
         account_key,
         "update_validator_next_epoch_network_pubkey",
-        vec![CallArg::Pure(
-            bcs::to_bytes(&new_network_key_pair_copy.public().as_bytes().to_vec()).unwrap(),
+        vec![CallArg::pure(
+            &new_network_key_pair_copy.public().as_bytes().to_vec(),
         )],
         iota_client,
     )
@@ -246,8 +244,8 @@ async fn update_next_epoch_metadata(
     update_metadata_on_chain(
         account_key,
         "update_validator_next_epoch_protocol_pubkey",
-        vec![CallArg::Pure(
-            bcs::to_bytes(&new_protocol_key_pair_copy.public().as_bytes().to_vec()).unwrap(),
+        vec![CallArg::pure(
+            &new_protocol_key_pair_copy.public().as_bytes().to_vec(),
         )],
         iota_client,
     )
@@ -257,7 +255,7 @@ async fn update_next_epoch_metadata(
     update_metadata_on_chain(
         account_key,
         "update_validator_next_epoch_network_address",
-        vec![CallArg::Pure(bcs::to_bytes(&new_network_address).unwrap())],
+        vec![CallArg::pure(&new_network_address)],
         iota_client,
     )
     .await?;
@@ -266,7 +264,7 @@ async fn update_next_epoch_metadata(
     update_metadata_on_chain(
         account_key,
         "update_validator_next_epoch_p2p_address",
-        vec![CallArg::Pure(bcs::to_bytes(&new_external_address).unwrap())],
+        vec![CallArg::pure(&new_external_address)],
         iota_client,
     )
     .await?;
@@ -275,9 +273,7 @@ async fn update_next_epoch_metadata(
     update_metadata_on_chain(
         account_key,
         "update_validator_next_epoch_primary_address",
-        vec![CallArg::Pure(
-            bcs::to_bytes(&new_primary_addresses).unwrap(),
-        )],
+        vec![CallArg::pure(&new_primary_addresses)],
         iota_client,
     )
     .await?;
@@ -291,19 +287,19 @@ async fn update_metadata_on_chain(
     call_args: Vec<CallArg>,
     iota_client: &IotaClient,
 ) -> anyhow::Result<()> {
-    let iota_address = IotaAddress::from(&account_key.public());
+    let iota_address = Address::from(&account_key.public());
     let gas_obj_ref = get_gas_obj_ref(iota_address, iota_client, 10000 * 100).await?;
     let rgp = iota_client
         .governance_api()
         .get_reference_gas_price()
         .await?;
-    let mut args = vec![CallArg::IOTA_SYSTEM_MUT];
+    let mut args = vec![CallArg::IOTA_SYSTEM_MUTABLE];
     args.extend(call_args);
     let tx_data = TransactionData::new_move_call(
         iota_address,
-        IOTA_SYSTEM_PACKAGE_ID,
-        ident_str!("iota_system").to_owned(),
-        ident_str!(function).to_owned(),
+        ObjectId::SYSTEM,
+        Identifier::IOTA_SYSTEM_MODULE,
+        Identifier::from_static(function),
         vec![],
         gas_obj_ref,
         args,
@@ -335,7 +331,7 @@ async fn execute_tx(
         .await
         .unwrap();
     if *resp.effects.unwrap().status() != IotaExecutionStatus::Success {
-        anyhow::bail!("Tx to update metadata {:?} failed", tx_digest);
+        anyhow::bail!("Tx to update metadata {tx_digest:?} failed");
     }
     info!("{action} succeeded");
     Ok(())
@@ -349,9 +345,7 @@ async fn wait_for_next_epoch(
         let epoch_id = current_epoch(iota_client).await?;
         if epoch_id > target_epoch {
             bail!(
-                "Current epoch ID {} is higher than target {}, likely something is off.",
-                epoch_id,
-                target_epoch
+                "Current epoch ID {epoch_id} is higher than target {target_epoch}, likely something is off."
             );
         }
         if epoch_id == target_epoch {

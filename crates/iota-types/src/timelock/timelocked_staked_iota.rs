@@ -1,21 +1,12 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use move_core_types::{ident_str, identifier::IdentStr, language_storage::StructTag};
+use iota_sdk_types::{ObjectData, ObjectId};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    IOTA_SYSTEM_ADDRESS,
-    base_types::ObjectID,
-    committee::EpochId,
-    error::IotaError,
-    governance::StakedIota,
-    id::UID,
-    object::{Data, Object},
+    committee::EpochId, error::IotaError, governance::StakedIota, id::UID, object::Object,
 };
-
-pub const TIMELOCKED_STAKED_IOTA_MODULE_NAME: &IdentStr = ident_str!("timelocked_staking");
-pub const TIMELOCKED_STAKED_IOTA_STRUCT_NAME: &IdentStr = ident_str!("TimelockedStakedIota");
 
 /// Rust version of the Move
 /// stardust::timelocked_staked_iota::TimelockedStakedIota type.
@@ -31,31 +22,13 @@ pub struct TimelockedStakedIota {
 }
 
 impl TimelockedStakedIota {
-    /// Get the TimeLock's `type`.
-    pub fn type_() -> StructTag {
-        StructTag {
-            address: IOTA_SYSTEM_ADDRESS,
-            module: TIMELOCKED_STAKED_IOTA_MODULE_NAME.to_owned(),
-            name: TIMELOCKED_STAKED_IOTA_STRUCT_NAME.to_owned(),
-            type_params: vec![],
-        }
-    }
-
-    /// Is this other StructTag representing a TimelockedStakedIota?
-    pub fn is_timelocked_staked_iota(s: &StructTag) -> bool {
-        s.address == IOTA_SYSTEM_ADDRESS
-            && s.module.as_ident_str() == TIMELOCKED_STAKED_IOTA_MODULE_NAME
-            && s.name.as_ident_str() == TIMELOCKED_STAKED_IOTA_STRUCT_NAME
-            && s.type_params.is_empty()
-    }
-
     /// Get the TimelockedStakedIota's `id`.
-    pub fn id(&self) -> ObjectID {
+    pub fn id(&self) -> ObjectId {
         self.id.id.bytes
     }
 
     /// Get the wrapped StakedIota's `pool_id`.
-    pub fn pool_id(&self) -> ObjectID {
+    pub fn pool_id(&self) -> ObjectId {
         self.staked_iota.pool_id()
     }
 
@@ -90,8 +63,8 @@ impl TryFrom<&Object> for TimelockedStakedIota {
     type Error = IotaError;
     fn try_from(object: &Object) -> Result<Self, Self::Error> {
         match &object.data {
-            Data::Move(o) => {
-                if o.type_().is_timelocked_staked_iota() {
+            ObjectData::Struct(o) => {
+                if o.struct_tag().is_timelocked_staked_iota() {
                     return bcs::from_bytes(o.contents()).map_err(|err| IotaError::Type {
                         error: format!(
                             "Unable to deserialize TimelockedStakedIota object: {err:?}"
@@ -99,7 +72,7 @@ impl TryFrom<&Object> for TimelockedStakedIota {
                     });
                 }
             }
-            Data::Package(_) => {}
+            ObjectData::Package(_) => {}
         }
 
         Err(IotaError::Type {

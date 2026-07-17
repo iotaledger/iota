@@ -4,7 +4,11 @@
 
 use std::collections::VecDeque;
 
-use iota_types::{base_types::MoveObjectType, dynamic_field::derive_dynamic_field_id};
+use iota_sdk_types::{Address, ObjectId};
+use iota_types::{
+    dynamic_field::derive_dynamic_field_id,
+    iota_sdk_types_conversions::{struct_tag_core_to_sdk, type_tag_core_to_sdk},
+};
 use move_binary_format::errors::{PartialVMError, PartialVMResult};
 use move_core_types::{
     account_address::AccountAddress,
@@ -50,6 +54,7 @@ macro_rules! get_or_fetch_object {
                 ));
             }
         };
+        let tag = struct_tag_core_to_sdk(&tag);
 
         let object_runtime: &mut ObjectRuntime = $context.extensions_mut().get_mut()?;
         object_runtime.get_or_fetch_child_object(
@@ -58,7 +63,7 @@ macro_rules! get_or_fetch_object {
             &child_ty,
             &layout,
             &annotated_layout,
-            MoveObjectType::from(tag),
+            tag,
         )?
     }};
 }
@@ -126,6 +131,7 @@ pub fn hash_type_and_key(
 
     let k_tag = context.type_to_type_tag(&k_ty)?;
     let k_tag_size = u64::from(k_tag.abstract_size_for_gas_metering());
+    let k_tag = type_tag_core_to_sdk(&k_tag);
 
     native_charge_gas_early_exit!(
         context,
@@ -143,11 +149,15 @@ pub fn hash_type_and_key(
     let Some(k_bytes) = k.simple_serialize(&k_layout) else {
         return Ok(NativeResult::err(cost, E_BCS_SERIALIZATION_FAILURE));
     };
-    let Ok(id) = derive_dynamic_field_id(parent, &k_tag, &k_bytes) else {
+    let Ok(id) = derive_dynamic_field_id(Address::new(parent.into_bytes()), &k_tag, &k_bytes)
+    else {
         return Ok(NativeResult::err(cost, E_BCS_SERIALIZATION_FAILURE));
     };
 
-    Ok(NativeResult::ok(cost, smallvec![Value::address(id.into())]))
+    Ok(NativeResult::ok(
+        cost,
+        smallvec![Value::address(AccountAddress::new(id.into_bytes()))],
+    ))
 }
 
 #[derive(Clone)]
@@ -198,7 +208,7 @@ pub fn add_child_object(
     );
 
     let child = args.pop_back().unwrap();
-    let parent = pop_arg!(args, AccountAddress).into();
+    let parent = ObjectId::new(pop_arg!(args, AccountAddress).into_bytes());
     assert!(args.is_empty());
 
     let child_value_size = u64::from(child.legacy_size());
@@ -211,11 +221,13 @@ pub fn add_child_object(
     );
 
     // TODO remove this copy_value, which will require VM changes
-    let child_id = get_object_id(child.copy_value().unwrap())
-        .unwrap()
-        .value_as::<AccountAddress>()
-        .unwrap()
-        .into();
+    let child_id = ObjectId::new(
+        get_object_id(child.copy_value().unwrap())
+            .unwrap()
+            .value_as::<AccountAddress>()
+            .unwrap()
+            .into_bytes(),
+    );
     let child_ty = ty_args.pop().unwrap();
     let child_type_size = u64::from(child_ty.size());
 
@@ -244,15 +256,10 @@ pub fn add_child_object(
             .dynamic_field_add_child_object_struct_tag_cost_per_byte
             * struct_tag_size.into()
     );
+    let tag = struct_tag_core_to_sdk(&tag);
 
     let object_runtime: &mut ObjectRuntime = context.extensions_mut().get_mut()?;
-    object_runtime.add_child_object(
-        parent,
-        child_id,
-        &child_ty,
-        MoveObjectType::from(tag),
-        child,
-    )?;
+    object_runtime.add_child_object(parent, child_id, &child_ty, tag, child)?;
     Ok(NativeResult::ok(context.gas_used(), smallvec![]))
 }
 
@@ -299,15 +306,17 @@ pub fn borrow_child_object(
         dynamic_field_borrow_child_object_cost_params.dynamic_field_borrow_child_object_cost_base
     );
 
-    let child_id = pop_arg!(args, AccountAddress).into();
+    let child_id = ObjectId::new(pop_arg!(args, AccountAddress).into_bytes());
 
     let parent_uid = pop_arg!(args, StructRef).read_ref().unwrap();
     // UID { id: ID { bytes: address } }
-    let parent = get_nested_struct_field(parent_uid, &[0, 0])
-        .unwrap()
-        .value_as::<AccountAddress>()
-        .unwrap()
-        .into();
+    let parent = ObjectId::new(
+        get_nested_struct_field(parent_uid, &[0, 0])
+            .unwrap()
+            .value_as::<AccountAddress>()
+            .unwrap()
+            .into_bytes(),
+    );
 
     assert!(args.is_empty());
     let global_value_result = get_or_fetch_object!(
@@ -382,8 +391,8 @@ pub fn remove_child_object(
         dynamic_field_remove_child_object_cost_params.dynamic_field_remove_child_object_cost_base
     );
 
-    let child_id = pop_arg!(args, AccountAddress).into();
-    let parent = pop_arg!(args, AccountAddress).into();
+    let child_id = ObjectId::new(pop_arg!(args, AccountAddress).into_bytes());
+    let parent = ObjectId::new(pop_arg!(args, AccountAddress).into_bytes());
     assert!(args.is_empty());
     let global_value_result = get_or_fetch_object!(
         context,
@@ -447,8 +456,8 @@ pub fn has_child_object(
         dynamic_field_has_child_object_cost_params.dynamic_field_has_child_object_cost_base
     );
 
-    let child_id = pop_arg!(args, AccountAddress).into();
-    let parent = pop_arg!(args, AccountAddress).into();
+    let child_id = ObjectId::new(pop_arg!(args, AccountAddress).into_bytes());
+    let parent = ObjectId::new(pop_arg!(args, AccountAddress).into_bytes());
     let object_runtime: &mut ObjectRuntime = context.extensions_mut().get_mut()?;
     let has_child = object_runtime.child_object_exists(parent, child_id)?;
     Ok(NativeResult::ok(
@@ -497,8 +506,8 @@ pub fn has_child_object_with_ty(
             .dynamic_field_has_child_object_with_ty_cost_base
     );
 
-    let child_id = pop_arg!(args, AccountAddress).into();
-    let parent = pop_arg!(args, AccountAddress).into();
+    let child_id = ObjectId::new(pop_arg!(args, AccountAddress).into_bytes());
+    let parent = ObjectId::new(pop_arg!(args, AccountAddress).into_bytes());
     assert!(args.is_empty());
     let ty = ty_args.pop().unwrap();
 
@@ -525,13 +534,10 @@ pub fn has_child_object_with_ty(
             .dynamic_field_has_child_object_with_ty_type_tag_cost_per_byte
             * u64::from(tag.abstract_size_for_gas_metering()).into()
     );
+    let tag = struct_tag_core_to_sdk(&tag);
 
     let object_runtime: &mut ObjectRuntime = context.extensions_mut().get_mut()?;
-    let has_child = object_runtime.child_object_exists_and_has_type(
-        parent,
-        child_id,
-        &MoveObjectType::from(tag),
-    )?;
+    let has_child = object_runtime.child_object_exists_and_has_type(parent, child_id, &tag)?;
     Ok(NativeResult::ok(
         context.gas_used(),
         smallvec![Value::bool(has_child)],

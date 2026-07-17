@@ -14,16 +14,14 @@ use iota_json_rpc_types::{
     RPCTransactionRequestParams, StakeStatus, TransactionBlockBytes, TransferObjectParams,
 };
 use iota_protocol_config::ProtocolConfig;
+use iota_sdk_types::{Address, ObjectData, ObjectId, Owner, StructTag, TransactionDigest};
 use iota_swarm_config::genesis_config::AccountConfig;
 use iota_types::{
-    IOTA_FRAMEWORK_ADDRESS,
-    base_types::{IotaAddress, MoveObjectType, ObjectID},
     crypto::{AccountKeyPair, get_key_pair},
-    digests::TransactionDigest,
     gas_coin::GAS,
     id::UID,
     iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
-    object::{Data, MoveObject, OBJECT_START_VERSION, ObjectInner, Owner},
+    object::{MoveObject, MoveObjectExt, OBJECT_START_VERSION, ObjectInner},
     timelock::{
         label::label_struct_tag_to_string, stardust_upgrade_label::stardust_upgrade_label_type,
         timelock::TimeLock,
@@ -73,10 +71,7 @@ fn transfer_object() {
             .await
             .unwrap();
 
-        assert_eq!(
-            transferred_object.owner(),
-            Some(Owner::AddressOwner(receiver))
-        );
+        assert_eq!(transferred_object.owner(), Some(Owner::Address(receiver)));
     });
 }
 
@@ -252,7 +247,7 @@ fn move_call() {
             let tx_bytes = client
                 .move_call(
                     sender,
-                    ObjectID::new(IOTA_FRAMEWORK_ADDRESS.into_bytes()),
+                    ObjectId::FRAMEWORK,
                     "coin".to_string(),
                     "join".to_string(),
                     type_args![GAS::type_tag()].unwrap(),
@@ -402,7 +397,7 @@ fn batch_transaction() {
             let sender_coins = create_coins_and_wait_for_indexer(cluster, client, sender, 3).await;
             let gas = sender_coins[0];
             let coin_to_split = sender_coins[1];
-            let coin_to_transfer: ObjectID = sender_coins[2];
+            let coin_to_transfer: ObjectId = sender_coins[2];
             let amount_to_split = FUNDED_BALANCE_PER_COIN / 2 - 123_000;
             let amount_to_leave = FUNDED_BALANCE_PER_COIN - amount_to_split;
 
@@ -411,7 +406,7 @@ fn batch_transaction() {
                     sender,
                     vec![
                         RPCTransactionRequestParams::MoveCallRequestParams(MoveCallParams {
-                            package_object_id: ObjectID::new(IOTA_FRAMEWORK_ADDRESS.into_bytes()),
+                            package_object_id: ObjectId::FRAMEWORK,
                             module: "pay".to_string(),
                             function: "split".to_string(),
                             type_arguments: type_args![GAS::type_tag()]?,
@@ -780,7 +775,7 @@ fn request_withdraw_timelocked_stake_from_active() {
         .unwrap();
 }
 
-async fn get_address_balances(indexer_client: &HttpClient, address: IotaAddress) -> Vec<u64> {
+async fn get_address_balances(indexer_client: &HttpClient, address: Address) -> Vec<u64> {
     indexer_client
         .get_coins(address, None, None, None)
         .await
@@ -794,10 +789,10 @@ async fn get_address_balances(indexer_client: &HttpClient, address: IotaAddress)
 async fn create_coins_and_wait_for_indexer(
     cluster: &TestCluster,
     indexer_client: &HttpClient,
-    address: IotaAddress,
+    address: Address,
     objects_count: u32,
-) -> Vec<ObjectID> {
-    let mut coins: Vec<ObjectID> = Vec::new();
+) -> Vec<ObjectId> {
+    let mut coins: Vec<ObjectId> = Vec::new();
     for _ in 0..objects_count {
         let coin = cluster
             .fund_address_and_return_gas(
@@ -806,26 +801,26 @@ async fn create_coins_and_wait_for_indexer(
                 address,
             )
             .await;
-        indexer_wait_for_object(indexer_client, coin.0, coin.1).await;
-        coins.push(coin.0);
+        indexer_wait_for_object(indexer_client, coin.object_id, coin.version).await;
+        coins.push(coin.object_id);
     }
     coins
 }
 
 async fn create_cluster_with_timelocked_iota(
-    address: IotaAddress,
+    address: Address,
     indexer_db_name: &str,
-) -> (TestCluster, PgIndexerStore, HttpClient, ObjectID) {
+) -> (TestCluster, PgIndexerStore, HttpClient, ObjectId) {
     let principal = 100_000_000_000;
     let expiration_timestamp_ms = u64::MAX;
     let label = Option::Some(label_struct_tag_to_string(stardust_upgrade_label_type()));
 
     let timelock_iota = {
         MoveObject::new_from_execution(
-            MoveObjectType::timelocked_iota_balance(),
+            StructTag::new_timelocked_gas_balance(),
             OBJECT_START_VERSION,
             TimeLock::<iota_types::balance::Balance>::new(
-                UID::new(ObjectID::random()),
+                UID::new(ObjectId::random()),
                 iota_types::balance::Balance::new(principal),
                 expiration_timestamp_ms,
                 label.clone(),
@@ -836,9 +831,9 @@ async fn create_cluster_with_timelocked_iota(
         .unwrap()
     };
     let timelock_iota = ObjectInner {
-        owner: Owner::AddressOwner(address),
-        data: Data::Move(timelock_iota),
-        previous_transaction: TransactionDigest::genesis_marker(),
+        owner: Owner::Address(address),
+        data: ObjectData::Struct(timelock_iota),
+        previous_transaction: TransactionDigest::GENESIS_MARKER,
         storage_rebate: 0,
     };
 
@@ -886,16 +881,22 @@ async fn create_cluster_with_timelocked_iota(
     (cluster, store, client, timelocked_balance)
 }
 
-async fn get_validator(client: &HttpClient) -> IotaAddress {
-    let iota_system_state = client.get_latest_iota_system_state_v2().await.unwrap();
+async fn get_validator(client: &HttpClient) -> Address {
+    let iota_system_state = client
+        .get_latest_iota_system_state_v2()
+        .await
+        .unwrap()
+        .into();
     match iota_system_state {
         IotaSystemStateSummary::V1(v1) => v1.active_validators[0].iota_address,
         IotaSystemStateSummary::V2(v2) => v2.active_validators[0].iota_address,
-        _ => panic!("unsupported IotaSystemStateSummary"),
+        _ => unimplemented!(
+            "a new IotaSystemStateSummary enum variant was added and needs to be handled"
+        ),
     }
 }
 
-async fn get_gas_object_id(client: &HttpClient, address: IotaAddress) -> ObjectID {
+async fn get_gas_object_id(client: &HttpClient, address: Address) -> ObjectId {
     client
         .get_coins(address, None, None, None)
         .await

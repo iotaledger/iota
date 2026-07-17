@@ -10,7 +10,7 @@ use iota_json_rpc_types::{
     IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
 };
 use iota_sdk::IotaClient;
-use iota_types::base_types::{ObjectID, TransactionDigest};
+use iota_sdk_types::{ObjectId, TransactionDigest};
 use itertools::Itertools;
 use tracing::{error, warn};
 
@@ -113,7 +113,7 @@ pub(crate) async fn check_transactions(
     transactions
 }
 
-pub(crate) fn get_all_object_ids(response: &IotaTransactionBlockResponse) -> Vec<ObjectID> {
+pub(crate) fn get_all_object_ids(response: &IotaTransactionBlockResponse) -> Vec<ObjectId> {
     let objects = match response.effects.as_ref() {
         // TODO: handle deleted and wrapped objects
         Some(effects) => effects.all_changed_objects(),
@@ -147,7 +147,7 @@ where
 
 pub(crate) async fn check_objects(
     clients: &[IotaClient],
-    object_ids: &[ObjectID],
+    object_ids: &[ObjectId],
     cross_validate: bool,
 ) {
     let chunks = chunk_entities(object_ids, None);
@@ -162,7 +162,7 @@ pub(crate) async fn check_objects(
 
 pub(crate) async fn multi_get_object(
     clients: &[IotaClient],
-    object_ids: &[ObjectID],
+    object_ids: &[ObjectId],
 ) -> Vec<Vec<IotaObjectResponse>> {
     let objects: Vec<Vec<IotaObjectResponse>> = join_all(clients.iter().map(|client| async move {
         let object_ids = if object_ids.len() > LOADGEN_QUERY_MAX_RESULT_LIMIT {

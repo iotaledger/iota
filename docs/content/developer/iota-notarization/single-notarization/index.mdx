@@ -1,0 +1,46 @@
+---
+title: IOTA Single Notarization
+description: Discover how IOTA Single Notarization provides a universal layer of trust and integrity for individual digital records.
+sidebar_label: Introduction
+tags:
+ - reference
+ - notarization
+ - single-notarization
+---
+# IOTA Single Notarization
+
+![IOTA Single Notarization](/img/banner/banner_single_notarization.png)
+
+IOTA Single Notarization is one of the two components of the [IOTA Notarization Toolkit](../index.mdx), alongside [IOTA Audit Trails](../audit-trails/index.mdx). Single Notarization provides two powerful methods for creating verifiable, on-chain records of any individual piece of digital data. By anchoring data to the IOTA ledger, Single Notarization transforms it into a permanent, tamper-proof asset that can be independently verified by anyone, at any time.
+
+## Notarization Methods.
+
+The IOTA Single Notarization component offers two powerful, distinct methods to cater to a wide range of use cases:
+-   **Locked Notarization**: For creating permanent, static records that can not be changed until the object is destroyed. Ideal for contracts, certificates, and legal evidence.
+-   **Dynamic Notarization**: For creating records of evolving data where only the most current version is relevant. Ideal for tracking asset status, managing registries, or versioning living documents.
+
+Together, these methods provide a comprehensive foundation for building applications that require digital trust.
+
+## Key Actors in the Single Notarization Process
+
+The Single Notarization involves two primary actors that work together to ensure data integrity and verification:
+
+### Prover
+
+The **Prover** is responsible for creating and submitting notarization transactions that embed immutable data into the IOTA network.
+
+**Key Responsibilities:**
+- Generate cryptographic hashes of documents, media files, or any data requiring notarization
+- Submit transactions that store this data on the IOTA network, ensuring immutability
+- Maintain original documents off-chain while linking them to on-chain records through unique object IDs (for privacy-focused implementations)
+- Optionally store complete data on-chain using the notarization object as the official data repository
+
+### Verifier
+
+The **Verifier** confirms the integrity and immutability of data by validating information stored on the IOTA ledger.
+
+**Key Responsibilities:**
+- Request original documents and their associated object IDs from the Prover
+- Query the IOTA network through the Notarization client packages to retrieve stored data using object IDs
+- Validate that data stored in the ledger matches the original document (for hash-based verification)
+- Verify the authenticity and integrity of on-chain stored data independently

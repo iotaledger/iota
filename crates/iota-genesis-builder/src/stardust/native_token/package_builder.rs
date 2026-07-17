@@ -7,7 +7,8 @@
 use std::{collections::BTreeMap, fs, path::Path};
 
 use anyhow::Result;
-use iota_move_build::{BuildConfig, CompiledPackage, IotaPackageHooks};
+use iota_move_build::{BuildConfig, CompiledPackage, IotaPackageHooks, ProtocolBuildConfig};
+use move_docgen::DocgenFlags;
 use move_package::{BuildConfig as MoveBuildConfig, LintFlag};
 use tempfile::tempdir;
 
@@ -202,12 +203,13 @@ fn genesis_build_configuration() -> BuildConfig {
         dev_mode: false,
         test_mode: false,
         generate_docs: false,
+        docgen_flags: DocgenFlags::default(),
         save_disassembly: false,
         install_dir: None,
         force_recompilation: false,
         lock_file: None,
         fetch_deps_only: false,
-        skip_fetch_latest_git_deps: false,
+        skip_fetch_latest_git_deps: true,
         default_edition: None,
         deps_as_root: false,
         silence_warnings: false,
@@ -222,6 +224,7 @@ fn genesis_build_configuration() -> BuildConfig {
         run_bytecode_verifier: true,
         print_diags_to_stderr: false,
         chain_id: None,
+        protocol_build_config: ProtocolBuildConfig::default(),
     }
 }
 

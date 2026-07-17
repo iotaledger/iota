@@ -12,8 +12,9 @@ use async_graphql::{
 use futures::TryFutureExt;
 use iota_indexer::apis::GovernanceReadApi;
 use iota_json_rpc::governance_api::mean_apy_from_exchange_rates;
+use iota_protocol_config::PROTOCOL_VERSION_IIP8;
+use iota_sdk_types::Address as NativeAddress;
 use iota_types::{
-    base_types::IotaAddress as NativeIotaAddress,
     committee::EpochId,
     iota_system_state::{
         PoolTokenExchangeRate,
@@ -30,6 +31,7 @@ use crate::{
         base64::Base64,
         big_int::BigInt,
         cursor::{JsonCursor, Page},
+        epoch::Epoch,
         iota_address::IotaAddress,
         move_object::MoveObject,
         object::Object,
@@ -58,17 +60,15 @@ pub(crate) struct Validator {
 /// It automatically filters the exchange rate table to only include data for
 /// the epochs that are less than or equal to the requested epoch.
 impl Loader<u64> for Db {
-    type Value = BTreeMap<NativeIotaAddress, Vec<(EpochId, PoolTokenExchangeRate)>>;
+    type Value = BTreeMap<NativeAddress, Vec<(EpochId, PoolTokenExchangeRate)>>;
 
     type Error = Error;
 
     async fn load(
         &self,
         keys: &[u64],
-    ) -> Result<
-        HashMap<u64, BTreeMap<NativeIotaAddress, Vec<(EpochId, PoolTokenExchangeRate)>>>,
-        Error,
-    > {
+    ) -> Result<HashMap<u64, BTreeMap<NativeAddress, Vec<(EpochId, PoolTokenExchangeRate)>>>, Error>
+    {
         let latest_iota_system_state = self
             .inner
             .spawn_blocking(move |this| this.get_latest_iota_system_state())
@@ -98,47 +98,25 @@ impl Loader<u64> for Db {
             .await
             .map_err(|e| Error::Internal(format!("Error fetching exchange rates. {e}")))?;
 
-        exchange_rates.extend(candidate_rates.into_iter());
-        exchange_rates.extend(pending_rates.into_iter());
+        exchange_rates.extend(candidate_rates);
+        exchange_rates.extend(pending_rates);
 
         let mut results = BTreeMap::new();
 
-        // The requested epoch is the epoch for which we want to compute the APY. For
-        // the current ongoing epoch we cannot compute an APY, so we compute it
-        // for epoch - 1. First need to check if that requested epoch is not the
-        // current running one. If it is, then subtract one as the APY cannot be
-        // computed for a running epoch. If no epoch is passed in the key, then
-        // we default to the latest epoch - 1 for the same reasons as above.
-        let epoch_to_filter_out = if let Some(epoch) = keys.first() {
-            if epoch == &latest_iota_system_state.epoch() {
-                *epoch - 1
-            } else {
-                *epoch
-            }
-        } else {
-            latest_iota_system_state.epoch() - 1
-        };
+        let requested_epoch = keys
+            .first()
+            .copied()
+            .unwrap_or_else(|| latest_iota_system_state.epoch());
 
-        // filter the exchange rates to only include data for the epochs that are less
-        // than or equal to the requested epoch. This enables us to get
-        // historical exchange rates accurately and pass this to the APY
-        // calculation function TODO we might even filter here by the epoch at
-        // which the stake subsidy started to avoid passing that to the
-        // `calculate_apy` function and doing another filter there
         for er in exchange_rates {
             results.insert(
                 er.address,
                 er.rates
                     .into_iter()
-                    .filter(|(epoch, _)| epoch <= &epoch_to_filter_out)
+                    .filter(|(epoch, _)| epoch <= &requested_epoch)
                     .collect(),
             );
         }
-
-        let requested_epoch = match keys.first() {
-            Some(x) => *x,
-            None => latest_iota_system_state.epoch(),
-        };
 
         let mut r = HashMap::new();
         r.insert(requested_epoch, results);
@@ -332,9 +310,31 @@ impl Validator {
         Some(BigInt::from(self.validator_summary.gas_price))
     }
 
-    /// The fee charged by the validator for staking services.
+    /// The fee set by the validator for providing staking services.
     async fn commission_rate(&self) -> Option<u64> {
         Some(self.validator_summary.commission_rate)
+    }
+
+    /// The effective fee charged by the validator for staking services.
+    ///
+    /// This is evaluated according to [IIP8](https://github.com/iotaledger/IIPs/blob/main/iips/IIP-0008/IIP-0008.md)
+    /// for epochs with protocol version >= 20.
+    async fn effective_commission_rate(&self, ctx: &Context<'_>) -> Result<Option<u64>> {
+        let summary = &self.validator_summary;
+        let epoch = Epoch::query(
+            ctx,
+            Some(self.requested_for_epoch),
+            self.checkpoint_viewed_at,
+        )
+        .await
+        .extend()?;
+        if let Some(epoch) = epoch {
+            if epoch.protocol_version() < PROTOCOL_VERSION_IIP8 {
+                // Pre IIP8
+                return Ok(Some(summary.commission_rate));
+            }
+        }
+        Ok(Some(summary.commission_rate.max(summary.voting_power)))
     }
 
     /// The total number of IOTA tokens in this pool plus
@@ -424,6 +424,6 @@ impl Validator {
 
 impl Validator {
     pub fn operation_cap_id(&self) -> IotaAddress {
-        IotaAddress::from_array(**self.validator_summary.operation_cap_id)
+        IotaAddress::from_array(self.validator_summary.operation_cap_id.into_bytes())
     }
 }

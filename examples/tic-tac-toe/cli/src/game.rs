@@ -5,11 +5,7 @@
 use std::fmt;
 
 use fastcrypto::encoding::{Base64, Encoding};
-use iota_types::{
-    base_types::{ObjectRef, SequenceNumber},
-    digests::ObjectDigest,
-    object::Owner,
-};
+use iota_sdk_types::{ObjectDigest, ObjectReference, Owner, Version};
 use serde::Deserialize;
 
 use crate::board::Board;
@@ -17,7 +13,7 @@ use crate::board::Board;
 pub(crate) struct Game {
     pub kind: GameKind,
     pub owner: Owner,
-    pub version: SequenceNumber,
+    pub version: Version,
     pub digest: ObjectDigest,
     pub winner: Winner,
 }
@@ -50,8 +46,8 @@ pub(crate) enum Winner {
 }
 
 impl Game {
-    pub(crate) fn object_ref(&self) -> ObjectRef {
-        (self.kind.board().id, self.version, self.digest)
+    pub(crate) fn object_ref(&self) -> ObjectReference {
+        ObjectReference::new(self.kind.board().id, self.version, self.digest)
     }
 }
 

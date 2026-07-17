@@ -5,7 +5,6 @@
 use std::{
     collections::{BTreeMap, BTreeSet, VecDeque},
     ops::Bound::Included,
-    sync::Arc,
 };
 
 use bytes::Bytes;
@@ -22,8 +21,8 @@ use crate::{
         CommitAPI as _, CommitDigest, CommitIndex, CommitInfo, CommitRange, CommitRef,
         TrustedCommit,
     },
-    context::Context,
     error::{ConsensusError, ConsensusResult},
+    misbehavior_store::MisbehaviorCounts,
     storage::rocksdb_store::check_ref_consistency,
     transaction_ref::{GenericTransactionRef, TransactionRef},
 };
@@ -31,11 +30,9 @@ use crate::{
 /// In-memory storage for testing.
 pub(crate) struct MemStore {
     inner: RwLock<Inner>,
-    context: Arc<Context>,
 }
 
 struct Inner {
-    transactions: BTreeMap<(Round, AuthorityIndex, BlockHeaderDigest), VerifiedTransactions>,
     transactions_by_tx_refs:
         BTreeMap<(Round, AuthorityIndex, TransactionsCommitment), VerifiedTransactions>,
     block_headers: BTreeMap<(Round, AuthorityIndex, BlockHeaderDigest), VerifiedBlockHeader>,
@@ -49,13 +46,13 @@ struct Inner {
     voting_block_headers: BTreeMap<(Round, AuthorityIndex, BlockHeaderDigest), VerifiedBlockHeader>,
     /// Flag indicating fast commit sync is ongoing.
     fast_sync_ongoing: bool,
+    misbehavior_counts: BTreeMap<AuthorityIndex, MisbehaviorCounts>,
 }
 
 impl MemStore {
-    pub(crate) fn new(context: Arc<Context>) -> Self {
+    pub(crate) fn new() -> Self {
         MemStore {
             inner: RwLock::new(Inner {
-                transactions: BTreeMap::new(),
                 transactions_by_tx_refs: BTreeMap::new(),
                 block_headers: BTreeMap::new(),
                 digests_by_authorities: BTreeSet::new(),
@@ -65,14 +62,14 @@ impl MemStore {
                 commit_info: BTreeMap::new(),
                 voting_block_headers: BTreeMap::new(),
                 fast_sync_ongoing: false,
+                misbehavior_counts: BTreeMap::new(),
             }),
-            context,
         }
     }
 }
 
 impl Store for MemStore {
-    fn write(&self, write_batch: WriteBatch, context: Arc<Context>) -> ConsensusResult<()> {
+    fn write(&self, write_batch: WriteBatch) -> ConsensusResult<()> {
         let mut inner = self.inner.write();
 
         // Store block headers
@@ -97,30 +94,20 @@ impl Store for MemStore {
         // Store transactions data separately
         for transaction in write_batch.transactions {
             let transaction_ref = transaction.transaction_ref();
-            if context.protocol_config.consensus_fast_commit_sync() {
-                inner.transactions_by_tx_refs.insert(
-                    (
-                        transaction_ref.round,
-                        transaction_ref.author,
-                        transaction_ref.transactions_commitment,
-                    ),
-                    transaction,
-                );
-
-                inner.transaction_commitments_by_authorities.insert((
-                    transaction_ref.author,
+            inner.transactions_by_tx_refs.insert(
+                (
                     transaction_ref.round,
+                    transaction_ref.author,
                     transaction_ref.transactions_commitment,
-                ));
-            } else {
-                let block_ref = transaction
-                    .block_ref()
-                    .expect("block_ref must be present in non-transaction-ref path");
-                inner.transactions.insert(
-                    (block_ref.round, block_ref.author, block_ref.digest),
-                    transaction,
-                );
-            }
+                ),
+                transaction,
+            );
+
+            inner.transaction_commitments_by_authorities.insert((
+                transaction_ref.author,
+                transaction_ref.round,
+                transaction_ref.transactions_commitment,
+            ));
         }
 
         for commit in write_batch.commits {
@@ -152,6 +139,10 @@ impl Store for MemStore {
             inner.fast_sync_ongoing = flag;
         }
 
+        inner
+            .misbehavior_counts
+            .extend(write_batch.misbehavior_counts);
+
         Ok(())
     }
 
@@ -166,10 +157,8 @@ impl Store for MemStore {
         let transactions = refs
             .iter()
             .map(|r| match r {
-                GenericTransactionRef::BlockRef(b) => inner
-                    .transactions
-                    .get(&(b.round, b.author, b.digest))
-                    .cloned(),
+                // Legacy variant, never stored under v29.
+                GenericTransactionRef::BlockRef(_) => None,
                 GenericTransactionRef::TransactionRef(t) => inner
                     .transactions_by_tx_refs
                     .get(&(t.round, t.author, t.transactions_commitment))
@@ -190,10 +179,8 @@ impl Store for MemStore {
         let transactions = refs
             .iter()
             .map(|r| match r {
-                GenericTransactionRef::BlockRef(b) => inner
-                    .transactions
-                    .get(&(b.round, b.author, b.digest))
-                    .map(|tx| tx.serialized().clone()),
+                // Legacy variant, never stored under v29.
+                GenericTransactionRef::BlockRef(_) => None,
                 GenericTransactionRef::TransactionRef(t) => inner
                     .transactions_by_tx_refs
                     .get(&(t.round, t.author, t.transactions_commitment))
@@ -211,24 +198,16 @@ impl Store for MemStore {
         let inner = self.inner.read();
         // Get both headers and transactions for the given references
         let headers = self.read_verified_block_headers(refs)?;
-        let tx_refs = if self.context.protocol_config.consensus_fast_commit_sync() {
-            headers
-                .iter()
-                .map(|vh| {
-                    if vh.is_none() {
-                        GenericTransactionRef::TransactionRef(TransactionRef::default())
-                    } else {
-                        GenericTransactionRef::TransactionRef(
-                            vh.as_ref().unwrap().transaction_ref(),
-                        )
-                    }
-                })
-                .collect::<Vec<GenericTransactionRef>>()
-        } else {
-            refs.iter()
-                .map(|r| GenericTransactionRef::BlockRef(*r))
-                .collect()
-        };
+        let tx_refs = headers
+            .iter()
+            .map(|vh| {
+                if vh.is_none() {
+                    GenericTransactionRef::TransactionRef(TransactionRef::default())
+                } else {
+                    GenericTransactionRef::TransactionRef(vh.as_ref().unwrap().transaction_ref())
+                }
+            })
+            .collect::<Vec<GenericTransactionRef>>();
         let transactions = self.read_verified_transactions(tx_refs.as_slice())?;
         drop(inner); // Explicitly drop the read lock before combining results
 
@@ -253,9 +232,8 @@ impl Store for MemStore {
         let exist = refs
             .iter()
             .map(|r| match r {
-                GenericTransactionRef::BlockRef(b) => inner
-                    .transactions
-                    .contains_key(&(b.round, b.author, b.digest)),
+                // Legacy variant, never stored under v29.
+                GenericTransactionRef::BlockRef(_) => false,
                 GenericTransactionRef::TransactionRef(t) => inner
                     .transactions_by_tx_refs
                     .contains_key(&(t.round, t.author, t.transactions_commitment)),
@@ -279,7 +257,7 @@ impl Store for MemStore {
         }
         let results = self.read_blocks(refs.as_slice())?;
         let mut blocks = Vec::with_capacity(refs.len());
-        for (r, block) in refs.into_iter().zip(results.into_iter()) {
+        for (r, block) in refs.into_iter().zip(results) {
             blocks.push(
                 block.unwrap_or_else(|| panic!("Storage inconsistency: block {r:?} not found!")),
             );
@@ -311,15 +289,26 @@ impl Store for MemStore {
             refs.push_front(BlockRef::new(round, author, digest));
         }
 
-        // Read and combine transactions and headers
-        let results = self.read_blocks(refs.as_slices().0)?;
+        // Read and combine transactions and headers.
+        // Use make_contiguous() rather than as_slices().0 to ensure all refs are read
+        // when the VecDeque ring buffer wraps; otherwise trailing entries would be
+        // silently dropped.
+        let refs_slice = refs.make_contiguous();
+        let results = self.read_blocks(refs_slice)?;
         let mut blocks = vec![];
-        for (r, block) in refs.into_iter().zip(results.into_iter()) {
+        for (r, block) in refs.into_iter().zip(results) {
             blocks.push(
                 block.unwrap_or_else(|| panic!("Storage inconsistency: block {r:?} not found!")),
             );
         }
         Ok(blocks)
+    }
+
+    fn scan_misbehavior_counts(
+        &self,
+    ) -> ConsensusResult<BTreeMap<AuthorityIndex, MisbehaviorCounts>> {
+        let inner = self.inner.read();
+        Ok(inner.misbehavior_counts.clone())
     }
 
     fn read_verified_block_headers(
@@ -431,13 +420,17 @@ impl Store for MemStore {
         Ok(commits)
     }
 
-    fn read_commit_votes(&self, commit_index: CommitIndex) -> ConsensusResult<Vec<BlockRef>> {
+    fn read_commit_votes(
+        &self,
+        commit_index: CommitIndex,
+        commit_digest: CommitDigest,
+    ) -> ConsensusResult<Vec<BlockRef>> {
         let inner = self.inner.read();
         let votes = inner
             .commit_votes
             .range((
-                Included((commit_index, CommitDigest::MIN, BlockRef::MIN)),
-                Included((commit_index, CommitDigest::MAX, BlockRef::MAX)),
+                Included((commit_index, commit_digest, BlockRef::MIN)),
+                Included((commit_index, commit_digest, BlockRef::MAX)),
             ))
             .map(|(_, _, block_ref)| *block_ref)
             .collect();
@@ -516,7 +509,7 @@ impl Store for MemStore {
         Ok(headers)
     }
 
-    fn read_fast_sync_ongoing(&self) -> bool {
-        self.inner.read().fast_sync_ongoing
+    fn read_fast_sync_ongoing(&self) -> ConsensusResult<bool> {
+        Ok(self.inner.read().fast_sync_ongoing)
     }
 }

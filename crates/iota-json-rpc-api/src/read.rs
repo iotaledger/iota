@@ -5,13 +5,13 @@
 use iota_json_rpc_types::{
     Checkpoint, CheckpointId, CheckpointPage, IotaEvent, IotaGetPastObjectRequest,
     IotaObjectDataOptions, IotaObjectResponse, IotaPastObjectResponse,
-    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, ProtocolConfigResponse,
+    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, Page,
+    ProtocolConfigResponse,
+    iota_primitives::{Base58 as Base58Schema, ObjectId as ObjectIdSchema, SequenceNumberU64},
 };
 use iota_open_rpc_macros::open_rpc;
-use iota_types::{
-    base_types::{ObjectID, SequenceNumber, TransactionDigest},
-    iota_serde::BigInt,
-};
+use iota_sdk_types::{ObjectId, TransactionDigest, Version};
+use iota_types::iota_serde::BigInt;
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 
 /// Provides methods for reading transaction related data such as transaction
@@ -27,6 +27,7 @@ pub trait ReadApi {
     async fn is_transaction_indexed_on_node(
         &self,
         /// the digest of the queried transaction
+        #[schemars(with = "Base58Schema")]
         digest: TransactionDigest,
     ) -> RpcResult<bool>;
 
@@ -36,6 +37,7 @@ pub trait ReadApi {
     async fn get_transaction_block(
         &self,
         /// the digest of the queried transaction
+        #[schemars(with = "Base58Schema")]
         digest: TransactionDigest,
         /// options for specifying the content to be returned
         options: Option<IotaTransactionBlockResponseOptions>,
@@ -49,6 +51,7 @@ pub trait ReadApi {
     async fn multi_get_transaction_blocks(
         &self,
         /// A list of transaction digests.
+        #[schemars(with = "Vec<Base58Schema>")]
         digests: Vec<TransactionDigest>,
         /// config options to control which fields to fetch
         options: Option<IotaTransactionBlockResponseOptions>,
@@ -60,7 +63,8 @@ pub trait ReadApi {
     async fn get_object(
         &self,
         /// the ID of the queried object
-        object_id: ObjectID,
+        #[schemars(with = "ObjectIdSchema")]
+        object_id: ObjectId,
         /// options for specifying the content to be returned
         options: Option<IotaObjectDataOptions>,
     ) -> RpcResult<IotaObjectResponse>;
@@ -71,7 +75,8 @@ pub trait ReadApi {
     async fn multi_get_objects(
         &self,
         /// the IDs of the queried objects
-        object_ids: Vec<ObjectID>,
+        #[schemars(with = "Vec<ObjectIdSchema>")]
+        object_ids: Vec<ObjectId>,
         /// options for specifying the content to be returned
         options: Option<IotaObjectDataOptions>,
     ) -> RpcResult<Vec<IotaObjectResponse>>;
@@ -85,9 +90,10 @@ pub trait ReadApi {
     async fn try_get_past_object(
         &self,
         /// the ID of the queried object
-        object_id: ObjectID,
+        #[schemars(with = "ObjectIdSchema")]
+        object_id: ObjectId,
         /// the version of the queried object. If None, default to the latest known version
-        version: SequenceNumber,
+        version: SequenceNumberU64,
         /// options for specifying the content to be returned
         options: Option<IotaObjectDataOptions>,
     ) -> RpcResult<IotaPastObjectResponse>;
@@ -108,9 +114,9 @@ pub trait ReadApi {
     async fn try_get_object_before_version(
         &self,
         /// the ID of the queried object
-        object_id: ObjectID,
+        object_id: ObjectId,
         /// the version of the queried object
-        version: SequenceNumber,
+        version: Version,
     ) -> RpcResult<IotaPastObjectResponse>;
 
     /// Note there is no software-level guarantee/SLA that objects with past
@@ -139,10 +145,12 @@ pub trait ReadApi {
     /// Return paginated list of checkpoints
     #[rustfmt::skip]
     #[method(name = "getCheckpoints")]
+    #[schemars(with = "Page<Checkpoint, String>")]
     async fn get_checkpoints(
         &self,
         /// An optional paging cursor. If provided, the query will start from the next item after the specified cursor. Default to start from the first item if not specified.
-        cursor: Option<BigInt<u64>>,
+       #[schemars(with = "Option<String>")]
+       cursor: Option<BigInt<u64>>,
         /// Maximum item returned per page, default to [QUERY_MAX_RESULT_LIMIT_CHECKPOINTS] if not specified.
         limit: Option<usize>,
         /// query result ordering, default to false (ascending order), oldest record first.
@@ -154,16 +162,19 @@ pub trait ReadApi {
     async fn get_events(
         &self,
         /// the event query criteria.
+        #[schemars(with = "Base58Schema")]
         transaction_digest: TransactionDigest,
     ) -> RpcResult<Vec<IotaEvent>>;
 
     /// Return the total number of transaction blocks known to the server.
     #[method(name = "getTotalTransactionBlocks")]
+    #[schemars(with = "String")]
     async fn get_total_transaction_blocks(&self) -> RpcResult<BigInt<u64>>;
 
     /// Return the sequence number of the latest checkpoint that has been
     /// executed
     #[method(name = "getLatestCheckpointSequenceNumber")]
+    #[schemars(with = "String")]
     async fn get_latest_checkpoint_sequence_number(&self) -> RpcResult<BigInt<u64>>;
 
     /// Return the protocol config table for the given version number.
@@ -174,6 +185,7 @@ pub trait ReadApi {
     async fn get_protocol_config(
         &self,
         /// An optional protocol version specifier. If omitted, the latest protocol config table for the node will be returned.
+        #[schemars(with = "Option<String>")]
         version: Option<BigInt<u64>>,
     ) -> RpcResult<ProtocolConfigResponse>;
 

@@ -4,11 +4,8 @@
 
 use async_trait::async_trait;
 use iota_json_rpc_types::{IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse};
-use iota_types::{
-    base_types::{IotaAddress, ObjectID},
-    iota_serde::BigInt,
-    object::Owner,
-};
+use iota_sdk_types::{Address, ObjectId, Owner};
+use iota_types::iota_serde::BigInt;
 use jsonrpsee::rpc_params;
 use tracing::{debug, info};
 
@@ -54,7 +51,7 @@ impl TestCaseImpl for CoinMergeSplitTest {
                 .iter()
                 .map(|coin_ref| {
                     ObjectChecker::new(coin_ref.reference.object_id)
-                        .owner(Owner::AddressOwner(signer))
+                        .owner(Owner::Address(signer))
                         .check_into_gas_coin(ctx.get_fullnode_client())
                 })
                 .collect::<Vec<_>>(),
@@ -85,7 +82,7 @@ impl TestCaseImpl for CoinMergeSplitTest {
                 .iter()
                 .map(|obj_id| {
                     ObjectChecker::new(*obj_id)
-                        .owner(Owner::AddressOwner(signer))
+                        .owner(Owner::Address(signer))
                         .deleted()
                         .check(ctx.get_fullnode_client())
                 })
@@ -101,7 +98,7 @@ impl TestCaseImpl for CoinMergeSplitTest {
             *primary_coin.id()
         );
         let primary_after_merge = ObjectChecker::new(primary_coin_id)
-            .owner(Owner::AddressOwner(ctx.get_wallet_address()))
+            .owner(Owner::Address(ctx.get_wallet_address()))
             .check_into_gas_coin(ctx.get_fullnode_client())
             .await;
         assert_eq!(
@@ -117,10 +114,10 @@ impl TestCaseImpl for CoinMergeSplitTest {
 impl CoinMergeSplitTest {
     async fn merge_coin(
         ctx: &TestContext,
-        signer: IotaAddress,
-        primary_coin: ObjectID,
-        coin_to_merge: ObjectID,
-        gas_obj_id: ObjectID,
+        signer: Address,
+        primary_coin: ObjectId,
+        coin_to_merge: ObjectId,
+        gas_obj_id: ObjectId,
     ) -> IotaTransactionBlockResponse {
         let params = rpc_params![
             signer,
@@ -140,10 +137,10 @@ impl CoinMergeSplitTest {
 
     async fn split_coin(
         ctx: &TestContext,
-        signer: IotaAddress,
-        primary_coin: ObjectID,
+        signer: Address,
+        primary_coin: ObjectId,
         amounts: Vec<BigInt<u64>>,
-        gas_obj_id: ObjectID,
+        gas_obj_id: ObjectId,
     ) -> IotaTransactionBlockResponse {
         let params = rpc_params![
             signer,

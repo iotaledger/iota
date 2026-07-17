@@ -2,23 +2,23 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, num::NonZeroUsize, sync::Arc};
 
 use async_trait::async_trait;
-use iota_grpc_client::Client as GrpcClient;
+use iota_grpc_client::{Client as GrpcClient, ReadMask, read_mask_fields::TransactionField};
 use iota_json_rpc::{IotaRpcModule, error::IotaRpcInputError};
 use iota_json_rpc_api::{QUERY_MAX_RESULT_LIMIT, ReadApiServer, internal_error};
 use iota_json_rpc_types::{
     Checkpoint, CheckpointId, CheckpointPage, IotaEvent, IotaGetPastObjectRequest, IotaObjectData,
-    IotaObjectDataOptions, IotaObjectResponse, IotaPastObjectResponse,
+    IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseError, IotaPastObjectResponse,
     IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, ProtocolConfigResponse,
+    iota_primitives::SequenceNumberU64,
 };
 use iota_open_rpc::Module;
 use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
+use iota_sdk_types::{ObjectId, TransactionDigest, Version};
 use iota_types::{
-    base_types::{ObjectID, SequenceNumber},
-    digests::{ChainIdentifier, TransactionDigest},
-    error::IotaObjectResponseError,
+    digests::ChainIdentifier,
     iota_serde::BigInt,
     object::{ObjectRead, PastObjectRead},
 };
@@ -50,7 +50,7 @@ impl ReadApi {
         match self.inner.get_checkpoint_with_fallback(id).await {
             Ok(Some(checkpoint)) => Ok(checkpoint),
             Ok(None) => Err(IndexerError::InvalidArgument(format!(
-                "Checkpoint {id:?} not found"
+                "Checkpoint {id} not found"
             ))),
             Err(e) => Err(e),
         }
@@ -98,13 +98,13 @@ impl ReadApi {
                         .map_err(internal_error)?,
                 ))
             }
-            ObjectRead::Deleted((object_id, version, digest)) => Ok(
-                IotaObjectResponse::new_with_error(IotaObjectResponseError::Deleted {
-                    object_id,
-                    version,
-                    digest,
-                }),
-            ),
+            ObjectRead::Deleted(object_ref) => Ok(IotaObjectResponse::new_with_error(
+                IotaObjectResponseError::Deleted {
+                    object_id: object_ref.object_id,
+                    version: object_ref.version.into(),
+                    digest: object_ref.digest,
+                },
+            )),
         }
     }
 
@@ -119,7 +119,7 @@ impl ReadApi {
             PastObjectRead::ObjectNotExists(id) => Ok(IotaPastObjectResponse::ObjectNotExists(id)),
 
             PastObjectRead::ObjectDeleted(object_ref) => {
-                Ok(IotaPastObjectResponse::ObjectDeleted(object_ref.into()))
+                Ok(IotaPastObjectResponse::ObjectDeleted(object_ref))
             }
 
             PastObjectRead::VersionFound(object_ref, object, layout) => {
@@ -141,9 +141,9 @@ impl ReadApi {
                 ))
             }
 
-            PastObjectRead::VersionNotFound(object_id, version) => {
-                Ok(IotaPastObjectResponse::VersionNotFound(object_id, version))
-            }
+            PastObjectRead::VersionNotFound(object_id, version) => Ok(
+                IotaPastObjectResponse::VersionNotFound(object_id, version.into()),
+            ),
 
             PastObjectRead::VersionTooHigh {
                 object_id,
@@ -151,8 +151,8 @@ impl ReadApi {
                 latest_version,
             } => Ok(IotaPastObjectResponse::VersionTooHigh {
                 object_id,
-                asked_version,
-                latest_version,
+                asked_version: asked_version.into(),
+                latest_version: latest_version.into(),
             }),
         }
     }
@@ -164,7 +164,10 @@ impl ReadApi {
     ) -> IndexerResult<bool> {
         match self
             .fullnode_grpc_client
-            .get_transactions(&[digest.into()], Some("transaction.digest"))
+            .get_transactions(
+                &[digest],
+                Some(ReadMask::from(TransactionField::TRANSACTION_DIGEST)),
+            )
             .await
         {
             Ok(txns) => {
@@ -172,7 +175,7 @@ impl ReadApi {
                     IndexerError::Grpc("there should be one tx lookup response".into())
                 })?;
 
-                Ok(executed_tx.transaction()?.digest()? == digest.into())
+                Ok(executed_tx.transaction()?.digest()? == digest)
             }
             Err(e) => {
                 if matches!(e, iota_grpc_client::Error::Server(ref e) if e.to_tonic_status().code() == tonic::Code::NotFound)
@@ -189,7 +192,7 @@ impl ReadApi {
 impl ReadApiServer for ReadApi {
     async fn get_object(
         &self,
-        object_id: ObjectID,
+        object_id: ObjectId,
         options: Option<IotaObjectDataOptions>,
     ) -> RpcResult<IotaObjectResponse> {
         let object_read = self
@@ -202,7 +205,7 @@ impl ReadApiServer for ReadApi {
 
     async fn multi_get_objects(
         &self,
-        object_ids: Vec<ObjectID>,
+        object_ids: Vec<ObjectId>,
         options: Option<IotaObjectDataOptions>,
     ) -> RpcResult<Vec<IotaObjectResponse>> {
         if object_ids.len() > *QUERY_MAX_RESULT_LIMIT {
@@ -217,18 +220,18 @@ impl ReadApiServer for ReadApi {
             .multi_get_objects_in_blocking_task(object_ids.clone())
             .await?;
 
-        // Map the returned `StoredObject`s to `ObjectID`
-        let object_map: Arc<HashMap<ObjectID, StoredObject>> = Arc::new(
+        // Map the returned `StoredObject`s to `ObjectId`
+        let object_map: Arc<HashMap<ObjectId, StoredObject>> = Arc::new(
             stored_objects
                 .into_iter()
                 .map(|obj| {
-                    let object_id = ObjectID::try_from(obj.object_id.clone()).map_err(|_| {
+                    let object_id = ObjectId::from_bytes(obj.object_id.clone()).map_err(|_| {
                         IndexerError::PersistentStorageDataCorruption(format!(
-                            "failed to parse ObjectID: {:?}",
+                            "failed to parse ObjectId: {:?}",
                             obj.object_id
                         ))
                     })?;
-                    Ok::<(ObjectID, StoredObject), IndexerError>((object_id, obj))
+                    Ok::<(ObjectId, StoredObject), IndexerError>((object_id, obj))
                 })
                 .collect::<Result<_, IndexerError>>()?,
         );
@@ -313,13 +316,13 @@ impl ReadApiServer for ReadApi {
 
     async fn try_get_past_object(
         &self,
-        object_id: ObjectID,
-        version: SequenceNumber,
+        object_id: ObjectId,
+        version: SequenceNumberU64,
         options: Option<IotaObjectDataOptions>,
     ) -> RpcResult<IotaPastObjectResponse> {
         let past_object_read = self
             .inner
-            .get_past_object_read_with_fallback(object_id, version, false)
+            .get_past_object_read_with_fallback(object_id, version.into(), false)
             .await?;
 
         self.past_object_read_to_response(options, past_object_read)
@@ -328,8 +331,8 @@ impl ReadApiServer for ReadApi {
 
     async fn try_get_object_before_version(
         &self,
-        object_id: ObjectID,
-        version: SequenceNumber,
+        object_id: ObjectId,
+        version: Version,
     ) -> RpcResult<IotaPastObjectResponse> {
         let past_object_read = self
             .inner
@@ -386,14 +389,15 @@ impl ReadApiServer for ReadApi {
             iota_json_rpc_api::QUERY_MAX_RESULT_LIMIT_CHECKPOINTS,
         )
         .map_err(IotaRpcInputError::from)?;
+        let limit = NonZeroUsize::new(limit).expect("limit should be validated as positive");
 
         let mut checkpoints = self
             .inner
-            .get_checkpoints_with_fallback(cursor, limit + 1, descending_order)
+            .get_checkpoints_with_fallback(cursor, limit.saturating_add(1), descending_order)
             .await?;
 
-        let has_next_page = checkpoints.len() > limit;
-        checkpoints.truncate(limit);
+        let has_next_page = checkpoints.len() > limit.get();
+        checkpoints.truncate(limit.get());
 
         let next_cursor = checkpoints.last().map(|d| d.sequence_number.into());
 

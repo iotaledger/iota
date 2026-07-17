@@ -10,7 +10,7 @@ use starfish_config::AuthorityIndex;
 use crate::{
     base_committer::BaseCommitter,
     block_header::{GENESIS_ROUND, Round, Slot},
-    commit::{DecidedLeader, Decision},
+    commit::{CommitMetastate, DecidedLeader, Decision, LeaderStatus},
     context::Context,
     dag_state::DagState,
 };
@@ -47,25 +47,9 @@ impl UniversalCommitter {
         let highest_accepted_round = self.dag_state.read().highest_accepted_round();
 
         // Try to decide as many leaders as possible, starting with the highest round.
-        let mut leaders = VecDeque::new();
+        let mut leaders: VecDeque<(LeaderStatus, Decision)> = VecDeque::new();
 
         let last_round = last_decided.round + 1;
-
-        // Keep this code commented for re-use when we re-enable multiple leaders.
-        // let last_round = match self
-        //     .context
-        //     .protocol_config
-        //     .mysticeti_num_leaders_per_round()
-        // {
-        //     Some(1) => {
-        // Ensure that we don't commit any leaders from the same round as last_decided
-        // until we have full support for multi-leader per round.
-        // This can happen when we are on a leader schedule boundary and the leader
-        // elected for the round changes with the new schedule.
-        //         last_decided.round + 1
-        //     }
-        //     _ => last_decided.round,
-        // };
 
         // try to commit a leader up to the highest_accepted_round - 2. There is no
         // reason to try and iterate on higher rounds as in order to make a direct
@@ -85,36 +69,55 @@ impl UniversalCommitter {
                     break 'outer;
                 }
 
-                tracing::debug!("Trying to decide {slot} with {committer}",);
+                tracing::trace!("Trying to decide {slot} with {committer}",);
 
-                // Try to directly decide the leader.
                 let mut status = committer.try_direct_decide(slot);
-                tracing::debug!("Outcome of direct rule: {status}");
+                let mut decision = Decision::Direct;
+                tracing::debug!("Outcome of direct rule: {status} with {committer}");
 
-                // If we can't directly decide the leader, try to indirectly decide it.
-                if status.is_decided() {
-                    leaders.push_front((status, Decision::Direct));
-                } else {
-                    status = committer.try_indirect_decide(slot, leaders.iter().map(|(x, _)| x));
-                    tracing::debug!("Outcome of indirect rule: {status}");
-                    leaders.push_front((status, Decision::Indirect));
+                // If the direct result is not final (Commit(Pending) or
+                // Undecided), run the indirect rule. For Pending, a
+                // committed anchor's path can upgrade the metastate; for
+                // Undecided, indirect may resolve the slot entirely.
+                if !status.is_final() {
+                    let indirect = committer
+                        .try_indirect_decide(status.clone(), leaders.iter().map(|(x, _)| x));
+                    if indirect != status {
+                        tracing::debug!("Outcome of indirect rule: {indirect} with {committer}");
+                        decision = match (&status, &indirect) {
+                            (
+                                LeaderStatus::Commit(_, Some(CommitMetastate::Pending), _),
+                                LeaderStatus::Commit(_, Some(m), _),
+                            ) if *m != CommitMetastate::Pending => Decision::Upgraded,
+                            _ => Decision::Indirect,
+                        };
+                        status = indirect;
+                    }
                 }
+                leaders.push_front((status, decision));
             }
         }
 
-        // The decided sequence is the longest prefix of decided leaders.
+        // The decided sequence is the longest prefix of final decisions.
+        // Commit(Pending) is decided but non-final — sequencing stops until
+        // the metastate is upgraded on a subsequent commit pass.
         let mut decided_leaders = Vec::new();
         for (leader, decision) in leaders {
             if leader.round() == GENESIS_ROUND {
                 continue;
             }
-            let Some(decided_leader) = leader.into_decided_leader() else {
+            if !leader.is_final() {
                 break;
-            };
+            }
+            let decided_leader = leader
+                .into_decided_leader()
+                .expect("is_final implies decided");
             Self::update_metrics(&self.context, &decided_leader, decision);
             decided_leaders.push(decided_leader);
         }
-        tracing::debug!("Decided {decided_leaders:?}");
+        if !decided_leaders.is_empty() {
+            tracing::debug!("Decided {decided_leaders:?}");
+        }
         decided_leaders
     }
 
@@ -136,10 +139,14 @@ impl UniversalCommitter {
     ) {
         let decision_str = match decision {
             Decision::Direct => "direct",
+            Decision::Upgraded => "upgraded",
             Decision::Indirect => "indirect",
         };
         let status = match decided_leader {
-            DecidedLeader::Commit(..) => format!("{decision_str}-commit"),
+            DecidedLeader::Commit(_, None, _) => format!("{decision_str}-commit"),
+            DecidedLeader::Commit(_, Some(metastate), _) => {
+                format!("{decision_str}-commit-{metastate}")
+            }
             DecidedLeader::Skip(..) => format!("{decision_str}-skip"),
         };
         let leader_host = &context

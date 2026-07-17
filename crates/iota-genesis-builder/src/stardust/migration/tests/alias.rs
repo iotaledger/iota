@@ -3,6 +3,7 @@
 
 use std::str::FromStr;
 
+use iota_sdk_types::{Identifier, ObjectId, Owner, TypeTag};
 use iota_stardust_types::block::{
     address::{Address, AliasAddress, Ed25519Address},
     output::{
@@ -16,11 +17,9 @@ use iota_stardust_types::block::{
     },
 };
 use iota_types::{
-    TypeTag,
-    base_types::ObjectID,
     dynamic_field::{DynamicFieldInfo, derive_dynamic_field_id},
     id::UID,
-    object::{Object, Owner},
+    object::Object,
     stardust::{
         coin_type::CoinType,
         output::{
@@ -29,7 +28,6 @@ use iota_types::{
         },
     },
 };
-use move_core_types::ident_str;
 
 use crate::stardust::{
     migration::tests::{
@@ -45,7 +43,7 @@ fn migrate_alias(
     header: OutputHeader,
     stardust_alias: StardustAlias,
     coin_type: CoinType,
-) -> anyhow::Result<(ObjectID, Alias, AliasOutput, Object, Object)> {
+) -> anyhow::Result<(ObjectId, Alias, AliasOutput, Object, Object)> {
     let output_id = header.output_id();
     let alias_id: AliasId = stardust_alias
         .alias_id()
@@ -59,7 +57,7 @@ fn migrate_alias(
     )?;
 
     // Ensure the migrated objects exist under the expected identifiers.
-    let alias_object_id = ObjectID::new(*alias_id);
+    let alias_object_id = ObjectId::new(*alias_id);
     let created_objects = objects_map
         .get(&output_id)
         .expect("alias output should have created objects");
@@ -85,18 +83,18 @@ fn migrate_alias(
     // timestamp. When the alias is attached to the alias output, the version
     // should be incremented.
     assert!(
-        alias_object.version().value() > 1,
+        alias_object.version() > 1,
         "alias object version should have been incremented"
     );
     assert!(
-        alias_output_object.version().value() > 1,
+        alias_output_object.version() > 1,
         "alias output object version should have been incremented"
     );
 
     let alias_output: AliasOutput =
-        bcs::from_bytes(alias_output_object.data.try_as_move().unwrap().contents()).unwrap();
+        bcs::from_bytes(alias_output_object.data.as_opt_struct().unwrap().contents()).unwrap();
     let alias: Alias =
-        bcs::from_bytes(alias_object.data.try_as_move().unwrap().contents()).unwrap();
+        bcs::from_bytes(alias_object.data.as_opt_struct().unwrap().contents()).unwrap();
 
     Ok((
         alias_object_id,
@@ -139,10 +137,10 @@ fn alias_migration_with_full_features() {
     assert_eq!(stardust_alias.amount(), alias_output.balance.value());
     // The ID is newly generated, so we don't know the exact value, but it should
     // not be zero.
-    assert_ne!(alias_output.id, UID::new(ObjectID::ZERO));
+    assert_ne!(alias_output.id, UID::new(ObjectId::ZERO));
     assert_ne!(
         alias_output.id,
-        UID::new(ObjectID::new(
+        UID::new(ObjectId::new(
             stardust_alias.alias_id().as_slice().try_into().unwrap()
         ))
     );
@@ -159,10 +157,10 @@ fn alias_migration_with_full_features() {
         &bcs::to_bytes(ALIAS_DYNAMIC_OBJECT_FIELD_KEY).unwrap(),
     )
     .unwrap();
-    assert_eq!(alias_object.owner, Owner::ObjectOwner(alias_owner.into()));
+    assert_eq!(alias_object.owner, Owner::Object(alias_owner));
 
     let alias_output_owner =
-        Owner::AddressOwner(stardust_to_iota_address(stardust_alias.governor_address()).unwrap());
+        Owner::Address(stardust_to_iota_address(stardust_alias.governor_address()).unwrap());
     assert_eq!(alias_output_object.owner, alias_output_owner);
 }
 
@@ -222,9 +220,9 @@ fn alias_migration_with_alias_owner() {
             (alias1_header, stardust_alias1.into()),
             (alias2_header, stardust_alias2.into()),
         ],
-        ALIAS_OUTPUT_MODULE_NAME,
-        ALIAS_OUTPUT_MODULE_NAME,
-        ident_str!("unlock_alias_address_owned_alias"),
+        &ALIAS_OUTPUT_MODULE_NAME,
+        &ALIAS_OUTPUT_MODULE_NAME,
+        &Identifier::from_static("unlock_alias_address_owned_alias"),
         CoinType::Iota,
     )
     .unwrap();
@@ -258,9 +256,9 @@ fn alias_migration_with_nft_owner() {
         alias_header.output_id(),
         3_000_000,
         [(nft_header, nft.into()), (alias_header, alias.into())],
-        NFT_OUTPUT_MODULE_NAME,
-        ALIAS_OUTPUT_MODULE_NAME,
-        ident_str!("unlock_nft_address_owned_alias"),
+        &NFT_OUTPUT_MODULE_NAME,
+        &ALIAS_OUTPUT_MODULE_NAME,
+        &Identifier::from_static("unlock_nft_address_owned_alias"),
         CoinType::Iota,
     )
     .unwrap();
@@ -307,7 +305,7 @@ fn alias_migration_with_native_tokens() {
         alias_output_id,
         1_000_000,
         outputs,
-        ALIAS_OUTPUT_MODULE_NAME,
+        &ALIAS_OUTPUT_MODULE_NAME,
         native_tokens,
         ExpectedAssets::BalanceBagObject,
         CoinType::Iota,

@@ -10,12 +10,6 @@ iota-archival:
   - "crates/iota-archival/**"
 iota-authority-aggregation:
   - "crates/iota-authority-aggregation/**"
-iota-aws-orchestrator:
-  - "crates/iota-aws-orchestrator/**"
-iota-benchmark:
-  - "crates/iota-benchmark/**"
-iota-build-cache-server:
-  - "crates/iota-build-cache-server/**"
 iota-cluster-test:
   - "crates/iota-cluster-test/**"
 iota-common:
@@ -56,12 +50,8 @@ iota-graphql-rpc-client:
   - "crates/iota-graphql-rpc-client/**"
 iota-graphql-rpc-headers:
   - "crates/iota-graphql-rpc-headers/**"
-iota-grpc-client:
-  - "crates/iota-grpc-client/**"
 iota-grpc-server:
   - "crates/iota-grpc-server/**"
-iota-grpc-types:
-  - "crates/iota-grpc-types/**"
 iota-http:
   - "crates/iota-http/**"
 iota-indexer:
@@ -130,8 +120,6 @@ iota-package-resolver:
   - "crates/iota-package-resolver/**"
 iota-proc-macros:
   - "crates/iota-proc-macros/**"
-iota-proto-build:
-  - "crates/iota-proto-build/**"
 iota-protocol-config:
   - "crates/iota-protocol-config/**"
 iota-protocol-config-macros:
@@ -144,6 +132,8 @@ iota-rest-kv:
   - "crates/iota-rest-kv/**"
 iota-rpc-loadgen:
   - "crates/iota-rpc-loadgen/**"
+iota-rust-sdk:
+  - "crates/iota-rust-sdk/**"
 iota-sdk:
   - "crates/iota-sdk/**"
 iota-simulator:
@@ -158,8 +148,6 @@ iota-source-validation-service:
   - "crates/iota-source-validation-service/**"
 iota-storage:
   - "crates/iota-storage/**"
-iota-surfer:
-  - "crates/iota-surfer/**"
 iota-swarm:
   - "crates/iota-swarm/**"
 iota-swarm-config:
@@ -184,6 +172,8 @@ iota-upgrade-compatibility-transactional-tests:
   - "crates/iota-upgrade-compatibility-transactional-tests/**"
 iota-verifier-transactional-tests:
   - "crates/iota-verifier-transactional-tests/**"
+iota-vm-sdk:
+  - "crates/iota-vm-sdk/**"
 prometheus-closure-metric:
   - "crates/prometheus-closure-metric/**"
 simulacrum:
@@ -216,12 +206,6 @@ iota-move-natives-latest:
   - "iota-execution/latest/iota-move-natives/**"
 iota-verifier-latest:
   - "iota-execution/latest/iota-verifier/**"
-
-# Mysticeti Consensus
-consensus-config:
-  - "consensus/config/**"
-consensus-core:
-  - "consensus/core/**"
 
 # Starfish Consensus
 starfish-config:

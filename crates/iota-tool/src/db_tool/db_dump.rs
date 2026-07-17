@@ -28,8 +28,9 @@ use iota_core::{
     grpc_indexes::{GRPC_INDEXES_DIR, GrpcIndexesStore},
     jsonrpc_index::IndexStoreTables,
 };
-use iota_types::base_types::{EpochId, ObjectID};
-use prometheus::Registry;
+use iota_sdk_types::ObjectId;
+use iota_types::base_types::EpochId;
+use prometheus_filtered::Registry;
 use strum_macros::EnumString;
 use tracing::info;
 use typed_store::{
@@ -173,7 +174,7 @@ pub fn duplicate_objects_summary(db_path: PathBuf) -> anyhow::Result<(usize, usi
     let mut total_bytes = 0;
     let mut duplicated_bytes = 0;
 
-    let mut object_id: ObjectID = ObjectID::random();
+    let mut object_id: ObjectId = ObjectId::random();
     let mut data: HashMap<Vec<u8>, usize> = HashMap::new();
 
     for item in iter {
@@ -231,6 +232,7 @@ pub async fn prune_objects(db_path: PathBuf) -> anyhow::Result<()> {
         pruning_config,
         metrics,
         EPOCH_DURATION_MS_FOR_TESTING,
+        None,
     )
     .await?;
     Ok(())
@@ -257,6 +259,7 @@ pub async fn prune_checkpoints(db_path: PathBuf) -> anyhow::Result<()> {
         metrics,
         archive_readers,
         EPOCH_DURATION_MS_FOR_TESTING,
+        None,
     )
     .await?;
     Ok(())
@@ -282,6 +285,8 @@ pub fn dump_table(
                     page_number,
                 )
             } else {
+                let perpetual_tables = AuthorityPerpetualTables::describe_tables();
+                assert!(perpetual_tables.contains_key(table_name));
                 AuthorityPerpetualTables::open_readonly(&db_path).dump(
                     table_name,
                     page_size,
@@ -315,18 +320,19 @@ mod test {
 
     #[tokio::test]
     async fn db_dump_population() -> Result<(), anyhow::Error> {
-        let primary_path = tempfile::tempdir()?.keep();
+        let tmp_dir = iota_common::tempdir();
+        let primary_path = tmp_dir.path();
 
         // Open the DB for writing
-        let _: AuthorityEpochTables = AuthorityEpochTables::open(0, &primary_path, None);
-        let _: AuthorityPerpetualTables = AuthorityPerpetualTables::open(&primary_path, None);
+        let _: AuthorityEpochTables = AuthorityEpochTables::open(0, primary_path, None);
+        let _: AuthorityPerpetualTables = AuthorityPerpetualTables::open(primary_path, None);
 
         // Get all the tables for AuthorityEpochTables
         let tables = {
             let mut epoch_tables =
-                list_tables(AuthorityEpochTables::path(0, &primary_path)).unwrap();
+                list_tables(AuthorityEpochTables::path(0, primary_path)).unwrap();
             let mut perpetual_tables =
-                list_tables(AuthorityPerpetualTables::path(&primary_path)).unwrap();
+                list_tables(AuthorityPerpetualTables::path(primary_path)).unwrap();
             epoch_tables.append(&mut perpetual_tables);
             epoch_tables
         };
@@ -337,7 +343,7 @@ mod test {
             if dump_table(
                 StoreName::Validator,
                 Some(0),
-                primary_path.clone(),
+                primary_path.to_path_buf(),
                 &t,
                 0,
                 0,

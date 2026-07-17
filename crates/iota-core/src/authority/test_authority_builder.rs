@@ -7,7 +7,7 @@ use std::{path::PathBuf, sync::Arc};
 use fastcrypto::traits::KeyPair;
 use iota_archival::reader::ArchiveReaderBalancer;
 use iota_config::{
-    ExecutionCacheConfig, ExecutionCacheType,
+    ExecutionCacheConfig,
     certificate_deny_config::CertificateDenyConfig,
     genesis::Genesis,
     node::{
@@ -16,21 +16,16 @@ use iota_config::{
     },
     transaction_deny_config::TransactionDenyConfig,
 };
-use iota_macros::nondeterministic;
 use iota_network::randomness;
 use iota_protocol_config::{Chain, ProtocolConfig};
 use iota_swarm_config::{genesis_config::AccountConfig, network_config::NetworkConfig};
 use iota_types::{
-    base_types::{AuthorityName, ObjectID},
-    crypto::AuthorityKeyPair,
-    digests::ChainIdentifier,
-    executable_transaction::VerifiedExecutableTransaction,
-    iota_system_state::IotaSystemStateTrait,
-    object::Object,
-    supported_protocol_versions::SupportedProtocolVersions,
+    base_types::AuthorityName, crypto::AuthorityKeyPair, digests::ChainIdentifier,
+    executable_transaction::VerifiedExecutableTransaction, iota_system_state::IotaSystemStateTrait,
+    object::Object, supported_protocol_versions::SupportedProtocolVersions,
     transaction::VerifiedTransaction,
 };
-use prometheus::Registry;
+use prometheus_filtered::Registry;
 
 use super::{backpressure::BackpressureManager, epoch_start_configuration::EpochFlag};
 use crate::{
@@ -73,7 +68,6 @@ pub struct TestAuthorityBuilder<'a> {
     /// by most tests.
     insert_genesis_checkpoint: bool,
     authority_overload_config: Option<AuthorityOverloadConfig>,
-    cache_type: Option<ExecutionCacheType>,
     cache_config: Option<ExecutionCacheConfig>,
     disable_execute_genesis_transactions: bool,
     chain_override: Option<Chain>,
@@ -175,11 +169,6 @@ impl<'a> TestAuthorityBuilder<'a> {
         self
     }
 
-    pub fn with_cache_type(mut self, cache_type: ExecutionCacheType) -> Self {
-        self.cache_type = Some(cache_type);
-        self
-    }
-
     pub fn with_cache_config(mut self, config: ExecutionCacheConfig) -> Self {
         self.cache_config = Some(config);
         self
@@ -196,25 +185,44 @@ impl<'a> TestAuthorityBuilder<'a> {
     }
 
     pub async fn build(self) -> Arc<AuthorityState> {
-        let mut local_network_config_builder =
-            iota_swarm_config::network_config_builder::ConfigBuilder::new_with_temp_dir()
-                .with_accounts(self.accounts)
-                .with_reference_gas_price(self.reference_gas_price.unwrap_or(500));
-        if let Some(protocol_config) = &self.protocol_config {
-            local_network_config_builder =
-                local_network_config_builder.with_protocol_version(protocol_config.version);
-        }
+        let protocol_config = self.protocol_config.clone();
 
-        let local_network_config = local_network_config_builder.build();
+        // Genesis must build the system framework at the binary format version it was
+        // compiled with. A test override that lowers `move_binary_format_version`
+        // must not apply while genesis verifies the system packages.
+        // Build genesis with the framework's binary format version
+        // restored, then apply the unmodified override below for transaction
+        // execution.
+        let local_network_config = {
+            let _genesis_guard = protocol_config.clone().map(|mut config| {
+                let framework_binary_format_version =
+                    ProtocolConfig::get_for_version(config.version, Chain::Unknown)
+                        .move_binary_format_version();
+                config.set_move_binary_format_version_for_testing(framework_binary_format_version);
+                ProtocolConfig::apply_overrides_for_testing(move |_, _| config.clone())
+            });
+
+            let mut local_network_config_builder =
+                iota_swarm_config::network_config_builder::ConfigBuilder::new_with_temp_dir()
+                    .with_accounts(self.accounts)
+                    .with_reference_gas_price(self.reference_gas_price.unwrap_or(500));
+            if let Some(protocol_config) = &self.protocol_config {
+                local_network_config_builder =
+                    local_network_config_builder.with_protocol_version(protocol_config.version);
+            }
+            local_network_config_builder.build()
+        };
+
+        // `_guard` must be declared here so it is not dropped before
+        // `AuthorityPerEpochStore::new` is called
+        let _guard = protocol_config
+            .map(|config| ProtocolConfig::apply_overrides_for_testing(move |_, _| config.clone()));
+
         let genesis = &self.genesis.unwrap_or(&local_network_config.genesis);
         let genesis_committee = genesis.committee().unwrap();
-        let path = self.store_base_path.unwrap_or_else(|| {
-            let dir = std::env::temp_dir();
-            let store_base_path =
-                dir.join(format!("DB_{:?}", nondeterministic!(ObjectID::random())));
-            std::fs::create_dir(&store_base_path).unwrap();
-            store_base_path
-        });
+        let storage_dir = self
+            .store_base_path
+            .unwrap_or_else(|| iota_common::tempdir().keep());
         let mut config = local_network_config.validator_configs()[0].clone();
         let registry = Registry::new();
         let mut pruner_db = None;
@@ -222,7 +230,9 @@ impl<'a> TestAuthorityBuilder<'a> {
             .authority_store_pruning_config
             .enable_compaction_filter
         {
-            pruner_db = Some(Arc::new(AuthorityPrunerTables::open(&path.join("store"))));
+            pruner_db = Some(Arc::new(AuthorityPrunerTables::open(
+                &storage_dir.join("store"),
+            )));
         }
         let compaction_filter = pruner_db
             .clone()
@@ -236,7 +246,7 @@ impl<'a> TestAuthorityBuilder<'a> {
                     ..Default::default()
                 };
                 let perpetual_tables = Arc::new(AuthorityPerpetualTables::open(
-                    &path.join("store"),
+                    &storage_dir.join("store"),
                     Some(perpetual_tables_options),
                 ));
                 // unwrap ok - for testing only.
@@ -249,9 +259,6 @@ impl<'a> TestAuthorityBuilder<'a> {
                 .unwrap()
             }
         };
-        if let Some(cache_type) = self.cache_type {
-            config.execution_cache = cache_type;
-        }
         if let Some(cache_config) = self.cache_config {
             config.execution_cache_config = cache_config;
         }
@@ -266,11 +273,6 @@ impl<'a> TestAuthorityBuilder<'a> {
         let name: AuthorityName = secret.public().into();
         let cache_metrics = Arc::new(ResolverMetrics::new(&registry));
         let signature_verifier_metrics = SignatureVerifierMetrics::new(&registry);
-        // `_guard` must be declared here so it is not dropped before
-        // `AuthorityPerEpochStore::new` is called
-        let _guard = self
-            .protocol_config
-            .map(|config| ProtocolConfig::apply_overrides_for_testing(move |_, _| config.clone()));
         let epoch_flags = EpochFlag::default_flags_for_new_epoch(&config);
         let epoch_start_configuration = EpochStartConfiguration::new(
             genesis.iota_system_object().into_epoch_start_state(),
@@ -281,13 +283,12 @@ impl<'a> TestAuthorityBuilder<'a> {
         .unwrap();
         let expensive_safety_checks = self.expensive_safety_checks.unwrap_or_default();
 
-        let checkpoint_store = CheckpointStore::new(&path.join("checkpoints"));
+        let checkpoint_store = CheckpointStore::new(&storage_dir.join("checkpoints"));
         let backpressure_manager =
             BackpressureManager::new_from_checkpoint_store(&checkpoint_store);
 
         let cache_traits = build_execution_cache(
             &config.execution_cache_config,
-            &epoch_start_configuration,
             &registry,
             &authority_store,
             backpressure_manager.clone(),
@@ -302,12 +303,11 @@ impl<'a> TestAuthorityBuilder<'a> {
         let epoch_store = AuthorityPerEpochStore::new(
             name,
             Arc::new(genesis_committee.clone()),
-            &path.join("store"),
+            &storage_dir.join("store"),
             None,
             EpochMetrics::new(&registry),
             epoch_start_configuration,
             cache_traits.backing_package_store.clone(),
-            cache_traits.object_store.clone(),
             cache_metrics,
             signature_verifier_metrics,
             &expensive_safety_checks,
@@ -319,7 +319,7 @@ impl<'a> TestAuthorityBuilder<'a> {
         )
         .expect("failed to create authority per epoch store");
         let committee_store = Arc::new(CommitteeStore::new(
-            path.join("epochs"),
+            storage_dir.join("epochs"),
             &genesis_committee,
             None,
         ));
@@ -335,7 +335,7 @@ impl<'a> TestAuthorityBuilder<'a> {
             None
         } else {
             Some(Arc::new(IndexStore::new(
-                path.join("indexes"),
+                storage_dir.join("indexes"),
                 &registry,
                 epoch_store
                     .protocol_config()
@@ -347,7 +347,7 @@ impl<'a> TestAuthorityBuilder<'a> {
         } else {
             Some(Arc::new(
                 GrpcIndexesStore::new(
-                    path.join(GRPC_INDEXES_DIR),
+                    storage_dir.join(GRPC_INDEXES_DIR),
                     Arc::clone(&authority_store),
                     &checkpoint_store,
                 )
@@ -366,6 +366,8 @@ impl<'a> TestAuthorityBuilder<'a> {
         config.authority_store_pruning_config = pruning_config;
 
         let chain_identifier = ChainIdentifier::from(*genesis.checkpoint().digest());
+        let policy_config = config.policy_config.clone();
+        let firewall_config = config.firewall_config.clone();
 
         let state = AuthorityState::new(
             name,
@@ -386,6 +388,9 @@ impl<'a> TestAuthorityBuilder<'a> {
             None,
             chain_identifier,
             pruner_db,
+            None,
+            policy_config,
+            firewall_config,
         )
         .await;
 
@@ -428,9 +433,11 @@ impl<'a> TestAuthorityBuilder<'a> {
                 )
                 .unwrap();
 
-            let batch = state
-                .get_cache_commit()
-                .build_db_batch(epoch_store.epoch(), &[*genesis.transaction().digest()]);
+            let batch = state.get_cache_commit().build_db_batch(
+                epoch_store.epoch(),
+                genesis.checkpoint().sequence_number,
+                &[*genesis.transaction().digest()],
+            );
 
             state.get_cache_commit().commit_transaction_outputs(
                 epoch_store.epoch(),

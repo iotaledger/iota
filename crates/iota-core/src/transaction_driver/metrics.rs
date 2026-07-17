@@ -1,0 +1,185 @@
+// Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+use iota_metrics::COUNT_BUCKETS;
+use prometheus_filtered::{
+    Histogram, HistogramVec, IntCounter, IntCounterVec, MetricLevel, Registry,
+    register_histogram_vec_with_registry, register_histogram_with_registry,
+    register_int_counter_vec_with_registry, register_int_counter_with_registry,
+};
+
+const SUBMIT_TRANSACTION_RETRIES_BUCKETS: &[f64] = &[
+    0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 15.0, 20.0, 30.0,
+];
+
+#[derive(Clone)]
+pub struct TransactionDriverMetrics {
+    pub(crate) settlement_finality_latency: Histogram,
+    pub(crate) drive_transaction_errors: IntCounterVec,
+    pub(crate) total_transactions_submitted: IntCounter,
+    pub(crate) submit_transaction_retries: Histogram,
+    pub(crate) submit_transaction_latency: Histogram,
+    pub(crate) validator_submit_transaction_errors: IntCounterVec,
+    pub(crate) validator_submit_transaction_successes: IntCounterVec,
+    pub(crate) executed_transactions: IntCounter,
+    pub(crate) rejection_acks: IntCounter,
+    pub(crate) expiration_acks: IntCounter,
+    pub(crate) effects_digest_mismatches: IntCounter,
+    pub(crate) transaction_retries: HistogramVec,
+    pub(crate) certified_effects_ack_latency: Histogram,
+    pub(crate) certified_effects_ack_attempts: IntCounter,
+    pub(crate) certified_effects_ack_successes: IntCounter,
+    pub(crate) validator_selections: IntCounterVec,
+    pub(crate) submit_amplification_factor: Histogram,
+    pub(crate) latency_check_runs: IntCounter,
+    pub(crate) skip_cert_corroborated_rejections: IntCounter,
+    pub(crate) skip_cert_corroboration_unreachable: IntCounter,
+}
+
+impl TransactionDriverMetrics {
+    pub fn new(registry: &Registry) -> Self {
+        Self {
+            settlement_finality_latency: register_histogram_with_registry!(
+                "transaction_driver_settlement_finality_latency",
+                "Settlement finality latency observed from transaction driver",
+                iota_metrics::LATENCY_SEC_BUCKETS.to_vec(),
+                registry;
+                MetricLevel::Info,
+            )
+            .unwrap(),
+            drive_transaction_errors: register_int_counter_vec_with_registry!(
+                "transaction_driver_drive_transaction_errors",
+                "Number of errors observed from drive_transaction() attempts.",
+                &["error_type"],
+                registry,
+            )
+            .unwrap(),
+            total_transactions_submitted: register_int_counter_with_registry!(
+                "transaction_driver_total_transactions_submitted",
+                "Total number of transactions submitted through the transaction driver",
+                registry,
+            )
+            .unwrap(),
+            submit_transaction_retries: register_histogram_with_registry!(
+                "transaction_driver_submit_transaction_retries",
+                "Number of retries needed for successful transaction submission",
+                SUBMIT_TRANSACTION_RETRIES_BUCKETS.to_vec(),
+                registry,
+            )
+            .unwrap(),
+            submit_transaction_latency: register_histogram_with_registry!(
+                "transaction_driver_submit_transaction_latency",
+                "Time in seconds to successfully submit a transaction to a validator.\n\
+                Includes all retries and measures from the start of submission\n\
+                until a validator accepts the transaction.",
+                iota_metrics::LATENCY_SEC_BUCKETS.to_vec(),
+                registry,
+            )
+            .unwrap(),
+            validator_submit_transaction_errors: register_int_counter_vec_with_registry!(
+                "transaction_driver_validator_submit_transaction_errors",
+                "Number of submit transaction errors by validator",
+                &["validator", "error_type"],
+                registry,
+            )
+            .unwrap(),
+            validator_submit_transaction_successes: register_int_counter_vec_with_registry!(
+                "transaction_driver_validator_submit_transaction_successes",
+                "Number of successful submit transactions by validator",
+                &["validator"],
+                registry,
+            )
+            .unwrap(),
+            executed_transactions: register_int_counter_with_registry!(
+                "transaction_driver_executed_transactions",
+                "Number of transactions executed observed by the transaction driver",
+                registry,
+            )
+            .unwrap(),
+            rejection_acks: register_int_counter_with_registry!(
+                "transaction_driver_rejected_acks",
+                "Number of rejection acknowledgments observed by the transaction driver",
+                registry,
+            )
+            .unwrap(),
+            expiration_acks: register_int_counter_with_registry!(
+                "transaction_driver_expiration_acks",
+                "Number of expiration acknowledgments observed by the transaction driver",
+                registry,
+            )
+            .unwrap(),
+            effects_digest_mismatches: register_int_counter_with_registry!(
+                "transaction_driver_effects_digest_mismatches",
+                "Number of effects digest mismatches detected by the transaction driver",
+                registry;
+                MetricLevel::Info,
+            )
+            .unwrap(),
+            transaction_retries: register_histogram_vec_with_registry!(
+                "transaction_driver_transaction_retries",
+                "Number of retries per transaction attempt in drive_transaction",
+                &["result"],
+                SUBMIT_TRANSACTION_RETRIES_BUCKETS.to_vec(),
+                registry,
+            )
+            .unwrap(),
+            certified_effects_ack_latency: register_histogram_with_registry!(
+                "transaction_driver_certified_effects_ack_latency",
+                "Latency in seconds for getting certified effects acknowledgment",
+                iota_metrics::LATENCY_SEC_BUCKETS.to_vec(),
+                registry,
+            )
+            .unwrap(),
+            certified_effects_ack_attempts: register_int_counter_with_registry!(
+                "transaction_driver_certified_effects_ack_attempts",
+                "Total number of transactions that went through certified effects ack process",
+                registry,
+            )
+            .unwrap(),
+            certified_effects_ack_successes: register_int_counter_with_registry!(
+                "transaction_driver_certified_effects_ack_successes",
+                "Number of successful certified effects acknowledgments",
+                registry,
+            )
+            .unwrap(),
+            validator_selections: register_int_counter_vec_with_registry!(
+                "transaction_driver_validator_selections",
+                "Number of times each validator was selected for transaction submission",
+                &["validator"],
+                registry,
+            )
+            .unwrap(),
+            submit_amplification_factor: register_histogram_with_registry!(
+                "transaction_driver_submit_amplification_factor",
+                "The amplification factor used by transaction driver to submit to validators",
+                COUNT_BUCKETS.to_vec(),
+                registry,
+            )
+            .unwrap(),
+            latency_check_runs: register_int_counter_with_registry!(
+                "transaction_driver_latency_check_runs",
+                "Number of times the latency check runs",
+                registry,
+            )
+            .unwrap(),
+            skip_cert_corroborated_rejections: register_int_counter_with_registry!(
+                "transaction_driver_skip_cert_corroborated_rejections",
+                "Number of times skip-certification corroboration confirmed a single-validator rejection with f+1 stake",
+                registry,
+            )
+            .unwrap(),
+            skip_cert_corroboration_unreachable: register_int_counter_with_registry!(
+                "transaction_driver_skip_cert_corroboration_unreachable",
+                "Number of times skip-certification corroboration concluded the f+1 rejection threshold was unreachable and triggered a retriable error",
+                registry,
+            )
+            .unwrap(),
+        }
+    }
+
+    pub fn new_for_tests() -> Self {
+        let registry = Registry::new();
+        Self::new(&registry)
+    }
+}

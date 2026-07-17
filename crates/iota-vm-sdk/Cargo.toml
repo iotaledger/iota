@@ -1,0 +1,104 @@
+[package]
+name = "iota-vm-sdk"
+version.workspace = true
+authors = ["IOTA Foundation <info@iota.org>"]
+edition = "2021"
+license = "Apache-2.0"
+publish = false
+description = "Local IOTA Move VM SDK: execute transactions against the node's Move VM and analyze the results, offline."
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+default = []
+grpc = ["dep:iota-grpc-client", "dep:tokio", "dep:tonic"]
+graphql = ["dep:chrono", "dep:iota-sdk-graphql-client", "dep:tokio"]
+tracing = ["iota-execution/tracing"]
+wasm-bindgen = [
+  "dep:base64",
+  "dep:console_error_panic_hook",
+  "dep:js-sys",
+  "dep:serde",
+  "dep:serde-wasm-bindgen",
+  "dep:wasm-bindgen",
+]
+
+[dependencies]
+# external dependencies
+base64 = { workspace = true, optional = true }
+bcs.workspace = true
+chrono = { workspace = true, optional = true }
+serde_json.workspace = true
+thiserror.workspace = true
+tokio = { workspace = true, optional = true, features = ["macros", "rt", "rt-multi-thread"] }
+tonic = { workspace = true, optional = true }
+
+# internal dependencies
+iota-config.workspace = true
+iota-execution.workspace = true
+iota-framework.workspace = true
+iota-grpc-client = { workspace = true, optional = true }
+iota-protocol-config.workspace = true
+iota-sdk-graphql-client = { workspace = true, optional = true }
+iota-sdk-types.workspace = true
+iota-transaction-checks.workspace = true
+iota-types.workspace = true
+move-binary-format.workspace = true
+move-bytecode-utils.workspace = true
+move-core-types.workspace = true
+move-trace-format.workspace = true
+
+# `prometheus-filtered` (pulled by the metrics registry) does not build on
+# wasm32, which uses the stub metrics from `iota-types` instead.
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+prometheus-filtered.workspace = true
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+console_error_panic_hook = { version = "0.1", optional = true }
+# `getrandom` and `instant` are not imported by this crate: they pin the `js` /
+# `wasm-bindgen` features on so transitive users of randomness and time get a
+# browser-compatible source.
+getrandom.workspace = true
+instant = { version = "0.1", features = ["wasm-bindgen"] }
+js-sys = { version = "0.3", optional = true }
+serde = { workspace = true, optional = true }
+serde-wasm-bindgen = { version = "0.6", optional = true }
+wasm-bindgen = { version = "0.2", optional = true }
+
+[dev-dependencies]
+# external dependencies
+anyhow.workspace = true
+fastcrypto.workspace = true
+serde.workspace = true
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+
+# internal dependencies
+iota-sdk-transaction-builder.workspace = true
+
+[[example]]
+name = "offline_dev_inspect"
+path = "examples/offline_dev_inspect.rs"
+
+[[example]]
+name = "authenticator_gas_profile"
+path = "examples/authenticator_gas_profile.rs"
+required-features = ["tracing"]
+
+[[example]]
+name = "stake_grpc"
+path = "examples/stake_grpc.rs"
+required-features = ["grpc"]
+
+[[example]]
+name = "stake_graphql"
+path = "examples/stake_graphql.rs"
+required-features = ["graphql"]
+
+[package.metadata.cargo-udeps.ignore]
+development = [
+  "iota-sdk-transaction-builder",
+]
+
+[lints]
+workspace = true
