@@ -22,7 +22,7 @@ use iota_types::{
     base_types::VersionNumber,
     digests::ChainIdentifier,
     object::Object,
-    transaction::{SenderSignedData, TransactionDataAPI},
+    transaction::{SenderSignedData, SenderSignedDataAPI, TransactionDataAPI},
 };
 use lru::LruCache;
 use parking_lot::RwLock;

@@ -37,7 +37,7 @@ use crate::{
     global_state_hash::GlobalStateHash,
     message_envelope::{Envelope, Message, TrustedEnvelope, VerifiedEnvelope},
     storage::ReadStore,
-    transaction::{Transaction, TransactionData, TransactionDataAPI},
+    transaction::{SenderSignedDataAPI, Transaction, TransactionData, TransactionDataAPI},
 };
 
 pub type CheckpointSequenceNumber = u64;

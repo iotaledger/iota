@@ -27,8 +27,8 @@ use crate::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     signature::UserSignature,
     transaction::{
-        SenderSignedData, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, Transaction, TransactionData,
-        TransactionDataAPI,
+        SenderSignedData, SenderSignedDataAPI, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, Transaction,
+        TransactionData, TransactionDataAPI,
     },
 };
 
@@ -233,7 +233,7 @@ mod move_authenticator {
         crypto::DefaultHash,
         object::OBJECT_START_VERSION,
         signature::UserSignature,
-        transaction::{SenderSignedData, Transaction},
+        transaction::{SenderSignedData, SenderSignedDataAPI, Transaction},
         utils::{make_sponsored_transaction_data, make_transaction_data},
     };
 

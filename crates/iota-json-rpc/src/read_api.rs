@@ -40,7 +40,7 @@ use iota_types::{
     iota_serde::BigInt,
     messages_checkpoint::{CheckpointSequenceNumber, CheckpointTimestamp},
     object::{MoveObjectExt, Object, ObjectRead, PastObjectRead},
-    transaction::{Transaction, TransactionDataAPI},
+    transaction::{SenderSignedDataAPI, Transaction, TransactionDataAPI},
 };
 use itertools::Itertools;
 use jsonrpsee::{RpcModule, core::RpcResult};
@@ -372,9 +372,7 @@ impl ReadApi {
             for resp in temp_response.values() {
                 let input_objects = if let Some(tx) = resp.transaction() {
                     tx.data()
-                        .inner()
-                        .intent_message
-                        .value
+                        .transaction_data()
                         .input_objects()
                         .unwrap_or_default()
                 } else {
@@ -426,8 +424,7 @@ impl ReadApi {
                             )
                         })?
                         .data()
-                        .intent_message()
-                        .value
+                        .transaction_data()
                         .sender(),
                     effects.modified_at_versions(),
                     effects.all_changed_objects(),
@@ -776,9 +773,7 @@ impl ReadApiServer for ReadApi {
             .map_err(Error::from)??;
             let input_objects = transaction
                 .data()
-                .inner()
-                .intent_message
-                .value
+                .transaction_data()
                 .input_objects()
                 .unwrap_or_default();
 
@@ -887,7 +882,7 @@ impl ReadApiServer for ReadApi {
                 if let (Some(effects), Some(input)) =
                     (&temp_response.effects, &temp_response.transaction)
                 {
-                    let sender = input.data().intent_message().value.sender();
+                    let sender = input.data().transaction_data().sender();
                     let object_changes = get_object_changes(
                         &object_cache,
                         sender,

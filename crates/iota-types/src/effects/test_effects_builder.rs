@@ -16,7 +16,7 @@ use crate::{
     },
     execution::SharedInput,
     message_envelope::Message,
-    transaction::{InputObjectKind, SenderSignedData, TransactionDataAPI},
+    transaction::{InputObjectKind, SenderSignedData, SenderSignedDataAPI, TransactionDataAPI},
 };
 
 pub struct TestEffectsBuilder {

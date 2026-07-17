@@ -909,7 +909,9 @@ mod tests {
     use std::time::Duration;
 
     use iota_types::{
-        effects::TransactionEffectsAPI, gas_coin::GasCoin, transaction::TransactionDataAPI,
+        effects::TransactionEffectsAPI,
+        gas_coin::GasCoin,
+        transaction::{SenderSignedDataAPI, TransactionDataAPI},
     };
     use rand::{SeedableRng, rngs::StdRng};
 

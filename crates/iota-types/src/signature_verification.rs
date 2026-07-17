@@ -5,7 +5,7 @@
 #[cfg(not(target_arch = "wasm32"))]
 use std::hash::Hash;
 
-use iota_sdk_types::crypto::Intent;
+use iota_sdk_types::crypto::{Intent, IntentMessage};
 #[cfg(not(target_arch = "wasm32"))]
 use lru::LruCache;
 use nonempty::NonEmpty;
@@ -17,7 +17,7 @@ use prometheus_filtered::IntCounter;
 use crate::{
     error::{IotaError, IotaResult},
     signature::{AuthenticatorTrait, VerifyParams},
-    transaction::{SenderSignedData, TransactionDataAPI},
+    transaction::{SenderSignedData, SenderSignedDataAPI, TransactionDataAPI},
 };
 
 // Cache up to this many verified certs. We will need to tune this number in the
@@ -121,22 +121,21 @@ pub fn verify_sender_signed_data_message_signatures(
     txn: &SenderSignedData,
     verify_params: &VerifyParams,
 ) -> IotaResult {
-    let intent_message = txn.intent_message();
-    assert_eq!(intent_message.intent, Intent::iota_transaction());
+    let tx_data = txn.transaction_data();
 
     // 1. System transactions do not require signatures. User-submitted transactions
     //    are verified not to
     // be system transactions before this point
-    if intent_message.value.is_system_tx() {
+    if tx_data.is_system_tx() {
         return Ok(());
     }
 
     // 2. One signature per signer is required.
-    let signers: NonEmpty<_> = txn.intent_message().value.signers();
+    let signers: NonEmpty<_> = tx_data.signers();
     fp_ensure!(
-        txn.inner().tx_signatures.len() == signers.len(),
+        txn.tx_signatures().len() == signers.len(),
         IotaError::SignerSignatureNumberMismatch {
-            actual: txn.inner().tx_signatures.len(),
+            actual: txn.tx_signatures().len(),
             expected: signers.len()
         }
     );
@@ -153,8 +152,9 @@ pub fn verify_sender_signed_data_message_signatures(
     }
 
     // 4. Every signature must be valid.
+    let intent_message = IntentMessage::new(Intent::iota_transaction(), tx_data);
     for (signer, signature) in present_sigs {
-        signature.verify_claims(intent_message, signer, verify_params)?;
+        signature.verify_claims(&intent_message, signer, verify_params)?;
     }
     Ok(())
 }

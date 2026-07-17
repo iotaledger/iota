@@ -77,8 +77,8 @@ use iota_types::{
     quorum_driver_types::ExecuteTransactionRequestType,
     signature::UserSignature,
     transaction::{
-        CallArg, InputObjectKind, SenderSignedData, Transaction, TransactionData,
-        TransactionDataAPI, TransactionKindExt,
+        CallArg, InputObjectKind, SenderSignedData, SenderSignedDataAPI, Transaction,
+        TransactionData, TransactionDataAPI, TransactionKindExt,
     },
 };
 use json_to_table::json_to_table;

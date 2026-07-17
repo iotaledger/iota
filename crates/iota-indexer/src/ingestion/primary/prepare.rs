@@ -25,7 +25,7 @@ use iota_types::{
         CheckpointSequenceNumber,
     },
     object::Object,
-    transaction::{TransactionData, TransactionDataAPI},
+    transaction::{SenderSignedDataAPI, TransactionData, TransactionDataAPI},
 };
 use itertools::Itertools;
 use tracing::{info, warn};

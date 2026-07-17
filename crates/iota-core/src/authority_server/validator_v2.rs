@@ -20,7 +20,7 @@ use iota_types::{
         TxStatusUpdate, ValidatorHealthRequest, ValidatorHealthResponse,
     },
     traffic_control::Weight,
-    transaction::Transaction,
+    transaction::{SenderSignedDataAPI, Transaction},
 };
 use tokio_stream::wrappers::ReceiverStream;
 

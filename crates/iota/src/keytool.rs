@@ -491,8 +491,7 @@ impl KeyToolCommand {
                         let tx = bcs::from_bytes::<SenderSignedData>(&tx_bytes).map_err(|e| {
                             anyhow!("Failed to decode as signature or transaction: {e}")
                         })?;
-                        tx.into_inner()
-                            .tx_signatures
+                        tx.0.signatures
                             .into_iter()
                             .next()
                             .ok_or_else(|| anyhow!("Transaction has no signatures"))?

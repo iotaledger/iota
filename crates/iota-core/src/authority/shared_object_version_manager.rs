@@ -14,7 +14,7 @@ use iota_types::{
     storage::{
         ObjectKey, transaction_non_shared_input_object_keys, transaction_receiving_object_keys,
     },
-    transaction::{SenderSignedData, TransactionKey},
+    transaction::{SenderSignedData, SenderSignedDataAPI, TransactionKey},
 };
 use tracing::trace;
 

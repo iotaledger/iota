@@ -74,6 +74,7 @@ use iota_types::{
     multiaddr::Multiaddr,
     object::MoveObjectExt,
     storage::{ReadStore, SharedInMemoryStore},
+    transaction::SenderSignedDataAPI,
 };
 use itertools::Itertools;
 use prometheus_filtered::Registry;

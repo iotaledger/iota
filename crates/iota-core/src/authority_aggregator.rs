@@ -1104,7 +1104,7 @@ where
         );
         trace!(
             "Transaction data: {:?}",
-            transaction.data().intent_message().value
+            transaction.data().transaction_data()
         );
         let committee = self.committee.clone();
         let state = ProcessTransactionState {

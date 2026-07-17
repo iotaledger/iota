@@ -19,6 +19,7 @@ use iota_grpc_types::{
 use iota_macros::sim_test;
 use iota_sdk_types::Address;
 use iota_test_transaction_builder::make_transfer_iota_transaction;
+use iota_types::transaction::SenderSignedDataAPI;
 use prost_types::FieldMask;
 
 use super::build_item;

@@ -16,7 +16,7 @@ use crate::{
     messages_checkpoint::{CertifiedCheckpointSummary, CheckpointContents},
     object::Object,
     storage::{BackingPackageStore, EpochInfo, error::Error as StorageError},
-    transaction::{Transaction, TransactionDataAPI},
+    transaction::{SenderSignedDataAPI, Transaction, TransactionDataAPI},
 };
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -77,8 +77,7 @@ impl CheckpointData {
         let transaction = self.transactions.last()?;
         transaction
             .transaction
-            .intent_message()
-            .value
+            .transaction_data()
             .is_end_of_epoch_tx()
             .then_some(transaction)
     }
@@ -110,7 +109,7 @@ impl CheckpointData {
             // For checkpoint 0, we look for the genesis transaction
             let Some(transaction) = self.transactions.iter().find(|tx| {
                 matches!(
-                    tx.transaction.intent_message().value.kind(),
+                    tx.transaction.transaction_data().kind(),
                     TransactionKind::Genesis(_)
                 )
             }) else {

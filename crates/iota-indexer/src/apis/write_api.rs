@@ -35,7 +35,10 @@ use iota_types::{
     iota_serde::BigInt,
     object::{Object, PastObjectRead},
     signature::UserSignature,
-    transaction::{SenderSignedData, TransactionData, TransactionDataAPI, TransactionDataV1},
+    transaction::{
+        SenderSignedData, SenderSignedDataAPI, TransactionData, TransactionDataAPI,
+        TransactionDataV1,
+    },
 };
 use jsonrpsee::{RpcModule, core::RpcResult};
 

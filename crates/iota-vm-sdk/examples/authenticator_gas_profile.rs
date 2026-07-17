@@ -22,7 +22,7 @@ use iota_types::{
     effects::TransactionEffectsAPI,
     object::Object,
     signature::UserSignature,
-    transaction::{SenderSignedData, TransactionData, TransactionDataAPI},
+    transaction::{SenderSignedData, SenderSignedDataAPI, TransactionData, TransactionDataAPI},
 };
 use iota_vm_sdk::{
     Chain, ChainContext, DebugConfig, ExecuteOptions, InMemoryStore, LocalVm, ProfileOutput,

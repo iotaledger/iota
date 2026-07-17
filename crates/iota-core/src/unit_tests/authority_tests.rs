@@ -30,6 +30,7 @@ use iota_sdk_types::{
     GasPayment, Identifier, MoveStruct, ObjectData, ObjectDigest, ObjectId, ObjectReference, Owner,
     ProgrammableTransaction, SharedObjectReference, StructTag, TransactionDigest, TransactionKind,
     TypeTag, Version, VersionAssignment,
+    crypto::{Intent, IntentMessage},
 };
 use iota_types::{
     base_types::{AuthorityName, TxContext, dbg_addr, dbg_object_id, random_object_ref},
@@ -53,9 +54,9 @@ use iota_types::{
     randomness_state::get_randomness_state_obj_initial_shared_version,
     supported_protocol_versions::{SupportedProtocolVersions, SupportedProtocolVersionsWithHashes},
     transaction::{
-        CallArg, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS, TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
-        TEST_ONLY_GAS_UNIT_FOR_TRANSFER, Transaction, TransactionData, TransactionDataAPI,
-        VerifiedCertificate, VerifiedTransaction,
+        CallArg, SenderSignedDataAPI, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS,
+        TEST_ONLY_GAS_UNIT_FOR_PUBLISH, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, Transaction,
+        TransactionData, TransactionDataAPI, VerifiedCertificate, VerifiedTransaction,
     },
     utils::{to_sender_signed_transaction, to_sender_signed_transaction_with_multi_signers},
 };
@@ -235,7 +236,7 @@ async fn test_dry_run_transaction_block() {
 
     let (response, _, _, _) = fullnode
         .dry_exec_transaction(
-            transaction.data().intent_message().value.clone(),
+            transaction.data().transaction_data().clone(),
             transaction_digest,
         )
         .unwrap();
@@ -248,7 +249,7 @@ async fn test_dry_run_transaction_block() {
     let shared_object_version = fullnode.get_object(&shared_object_id).unwrap().version();
     assert_eq!(shared_object_version, initial_shared_object_version);
 
-    let txn_data = &transaction.data().intent_message().value;
+    let txn_data = &transaction.data().transaction_data();
     let txn_data = TransactionData::new_with_gas_coins(
         txn_data.kind().clone(),
         txn_data.sender(),
@@ -287,10 +288,7 @@ async fn test_dry_run_no_gas_big_transfer() {
     let signed = to_sender_signed_transaction(data, &sender_key);
 
     let (dry_run_res, _, _, _) = fullnode
-        .dry_exec_transaction(
-            signed.data().intent_message().value.clone(),
-            *signed.digest(),
-        )
+        .dry_exec_transaction(signed.data().transaction_data().clone(), *signed.digest())
         .unwrap();
     assert_eq!(*dry_run_res.effects.status(), IotaExecutionStatus::Success);
 }
@@ -970,7 +968,7 @@ async fn test_dry_run_on_validator() {
         construct_shared_object_transaction_with_version(None).await;
     let transaction_digest = *transaction.digest();
     let response = validator.dry_exec_transaction(
-        transaction.data().intent_message().value.clone(),
+        transaction.data().transaction_data().clone(),
         transaction_digest,
     );
     assert!(response.is_err());
@@ -1193,7 +1191,14 @@ async fn test_handle_transfer_transaction_bad_signature() {
     *bad_signature_transfer_transaction
         .data_mut_for_testing()
         .tx_signatures_mut_for_testing() = vec![
-        Signature::new_secure(transfer_transaction.data().intent_message(), &unknown_key).into(),
+        Signature::new_secure(
+            &IntentMessage::new(
+                Intent::iota_transaction(),
+                transfer_transaction.data().transaction_data(),
+            ),
+            &unknown_key,
+        )
+        .into(),
     ];
 
     assert!(
@@ -1415,8 +1420,8 @@ async fn test_handle_transfer_transaction_ok() {
     };
 
     assert_eq!(
-        envelope.data().intent_message().value,
-        transfer_transaction.data().intent_message().value
+        envelope.data().transaction_data(),
+        transfer_transaction.data().transaction_data()
     );
 }
 
@@ -5709,10 +5714,7 @@ async fn test_for_inc_201_dry_run() {
         _,
         _,
     ) = fullnode
-        .dry_exec_transaction(
-            signed.data().intent_message().value.clone(),
-            *signed.digest(),
-        )
+        .dry_exec_transaction(signed.data().transaction_data().clone(), *signed.digest())
         .unwrap();
     assert_eq!(effects.status(), &IotaExecutionStatus::Success);
 
@@ -5763,10 +5765,7 @@ async fn test_function_not_found() {
         _,
         _,
     ) = fullnode
-        .dry_exec_transaction(
-            signed.data().intent_message().value.clone(),
-            *signed.digest(),
-        )
+        .dry_exec_transaction(signed.data().transaction_data().clone(), *signed.digest())
         .unwrap();
     assert_eq!(
         effects.status(),
@@ -5819,10 +5818,7 @@ async fn test_arity_mismatch() {
         _,
         _,
     ) = authority
-        .dry_exec_transaction(
-            signed.data().intent_message().value.clone(),
-            *signed.digest(),
-        )
+        .dry_exec_transaction(signed.data().transaction_data().clone(), *signed.digest())
         .unwrap();
     assert_eq!(
         effects.status(),

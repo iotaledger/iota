@@ -57,7 +57,10 @@ use iota_types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     signature::UserSignature,
     storage::{ObjectStore, ReadStore},
-    transaction::{CallArg, Transaction, TransactionData, TransactionDataAPI, VerifiedTransaction},
+    transaction::{
+        CallArg, SenderSignedDataAPI, Transaction, TransactionData, TransactionDataAPI,
+        VerifiedTransaction,
+    },
     utils::{
         to_sender_signed_transaction, to_sender_signed_transaction_with_multi_signers,
         to_sender_signed_transaction_with_optional_sponsor,

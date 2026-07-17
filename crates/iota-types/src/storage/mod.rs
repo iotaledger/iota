@@ -43,7 +43,7 @@ use crate::{
     iota_sdk_types_conversions::identifier_core_to_sdk,
     object::Object,
     storage::error::Error as StorageError,
-    transaction::{SenderSignedData, TransactionDataAPI},
+    transaction::{SenderSignedData, SenderSignedDataAPI, TransactionDataAPI},
 };
 
 /// A potential input to a transaction.
@@ -542,8 +542,7 @@ pub fn transaction_non_shared_input_object_keys(
 }
 
 pub fn transaction_receiving_object_keys(tx: &SenderSignedData) -> Vec<ObjectKey> {
-    tx.intent_message()
-        .value
+    tx.transaction_data()
         .receiving_objects()
         .into_iter()
         .map(|oref| oref.into())

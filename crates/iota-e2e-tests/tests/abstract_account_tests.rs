@@ -44,8 +44,8 @@ use iota_types::{
     signature::UserSignature,
     storage::WriteKind,
     transaction::{
-        CallArg, TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, Transaction, TransactionData,
-        TransactionDataAPI,
+        CallArg, SenderSignedDataAPI, TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE,
+        Transaction, TransactionData, TransactionDataAPI,
     },
 };
 use move_command_line_common::error_bitset::ErrorBitset;

@@ -11,7 +11,7 @@ use iota_sdk_types::{Command, TransactionKind};
 use iota_types::{
     effects::{TransactionEffects, TransactionEffectsAPI},
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
-    transaction::{TransactionDataAPI, TransactionKindExt},
+    transaction::{SenderSignedDataAPI, TransactionDataAPI, TransactionKindExt},
 };
 use tokio::sync::Mutex;
 use tracing::error;
@@ -208,7 +208,7 @@ mod tests {
     use fastcrypto::encoding::{Base64, Encoding};
     use iota_data_ingestion_core::Worker;
     use iota_sdk_types::Address;
-    use iota_types::storage::ReadStore;
+    use iota_types::{storage::ReadStore, transaction::SenderSignedDataAPI};
     use simulacrum::Simulacrum;
 
     use crate::handlers::transaction_handler::TransactionHandler;

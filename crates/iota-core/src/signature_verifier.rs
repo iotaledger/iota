@@ -19,7 +19,9 @@ use iota_types::{
     messages_consensus::{AuthorityCapabilitiesDigest, SignedAuthorityCapabilitiesV1},
     signature::VerifyParams,
     signature_verification::{VerifiedDigestCache, verify_sender_signed_data_message_signatures},
-    transaction::{CertifiedTransaction, SenderSignedData, VerifiedCertificate},
+    transaction::{
+        CertifiedTransaction, SenderSignedData, SenderSignedDataAPI, VerifiedCertificate,
+    },
 };
 use itertools::{Itertools as _, izip};
 use parking_lot::{Mutex, MutexGuard};

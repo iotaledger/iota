@@ -10,6 +10,7 @@ use iota_sdk_types::ObjectId;
 use iota_types::{
     effects::TransactionEffects,
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
+    transaction::SenderSignedDataAPI,
 };
 use tokio::sync::Mutex;
 

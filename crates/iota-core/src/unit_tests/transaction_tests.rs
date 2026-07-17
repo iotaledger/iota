@@ -72,8 +72,11 @@ async fn test_handle_transfer_transaction_bad_signature() {
         |mut_tx| {
             let (_unknown_address, unknown_key): (_, AccountKeyPair) = get_key_pair();
             let data = mut_tx.data_mut_for_testing();
-            *data.tx_signatures_mut_for_testing() =
-                vec![Signature::new_secure(data.intent_message(), &unknown_key).into()];
+            let signature = Signature::new_secure(
+                &IntentMessage::new(Intent::iota_transaction(), data.transaction_data()),
+                &unknown_key,
+            );
+            *data.tx_signatures_mut_for_testing() = vec![signature.into()];
         },
         |err| {
             assert_matches!(err, IotaError::SignerSignatureAbsent { .. });
@@ -788,8 +791,11 @@ async fn test_handle_certificate_errors() {
     let mut absent_sig_tx = transfer_transaction.clone();
     let (_unknown_address, unknown_key): (_, AccountKeyPair) = get_key_pair();
     let data = absent_sig_tx.data_mut_for_testing();
-    *data.tx_signatures_mut_for_testing() =
-        vec![Signature::new_secure(data.intent_message(), &unknown_key).into()];
+    let signature = Signature::new_secure(
+        &IntentMessage::new(Intent::iota_transaction(), data.transaction_data()),
+        &unknown_key,
+    );
+    *data.tx_signatures_mut_for_testing() = vec![signature.into()];
     let ct = CertifiedTransaction::new(
         data.clone(),
         vec![signed_transaction.auth_sig().clone()],
@@ -1409,7 +1415,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
 
 #[test]
 fn sender_signed_data_serialized_intent() {
-    let mut txn = SenderSignedData::new(
+    let txn = SenderSignedData::new(
         TransactionData::new_transfer(
             Address::ZERO,
             random_object_ref(),
@@ -1421,16 +1427,22 @@ fn sender_signed_data_serialized_intent() {
         vec![],
     );
 
-    assert_eq!(txn.intent_message().intent, Intent::iota_transaction());
+    let bytes = bcs::to_bytes(&txn).unwrap();
+    // The serialized form starts with the length-1 sequence marker followed by
+    // the transaction intent.
+    assert_eq!(
+        &bytes[..4],
+        [
+            1,
+            IntentScope::TransactionData as u8,
+            IntentVersion::V0 as u8,
+            IntentAppId::Iota as u8
+        ]
+    );
 
     // deser fails when intent is wrong
-    let mut bytes = bcs::to_bytes(txn.inner()).unwrap();
-    bytes[0] = 1; // set invalid intent
-    let e = bcs::from_bytes::<SenderSignedTransaction>(&bytes).unwrap_err();
-    assert!(e.to_string().contains("invalid Intent for Transaction"));
-
-    // ser fails when intent is wrong
-    txn.inner_mut().intent_message.intent.scope = IntentScope::TransactionEffects;
-    let e = bcs::to_bytes(txn.inner()).unwrap_err();
-    assert!(e.to_string().contains("invalid Intent for Transaction"));
+    let mut bytes = bytes;
+    bytes[1] = IntentScope::TransactionEffects as u8;
+    let e = bcs::from_bytes::<SenderSignedData>(&bytes).unwrap_err();
+    assert!(e.to_string().contains("invalid intent"));
 }

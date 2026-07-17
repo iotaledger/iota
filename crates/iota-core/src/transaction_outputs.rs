@@ -14,7 +14,7 @@ use iota_types::{
     },
     inner_temporary_store::{InnerTemporaryStore, WrittenObjects},
     storage::{MarkerValue, ObjectKey},
-    transaction::{TransactionDataAPI, VerifiedTransaction},
+    transaction::{SenderSignedDataAPI, TransactionDataAPI, VerifiedTransaction},
 };
 
 /// TransactionOutputs

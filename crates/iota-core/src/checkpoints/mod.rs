@@ -50,7 +50,7 @@ use iota_types::{
     messages_consensus::ConsensusTransactionKey,
     signature::UserSignature,
     storage::EpochInfoV2,
-    transaction::{Transaction, TransactionDataAPI, TransactionKey},
+    transaction::{SenderSignedDataAPI, Transaction, TransactionDataAPI, TransactionKey},
 };
 use itertools::Itertools;
 use nonempty::NonEmpty;

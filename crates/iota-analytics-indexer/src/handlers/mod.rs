@@ -12,7 +12,7 @@ use iota_types::{
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
     iota_sdk_types_conversions::struct_tag_core_to_sdk,
     object::{Object, bounded_visitor::BoundedVisitor},
-    transaction::{SenderSignedData, TransactionDataAPI},
+    transaction::{SenderSignedData, SenderSignedDataAPI, TransactionDataAPI},
 };
 use move_core_types::annotated_value::{MoveStruct, MoveTypeLayout, MoveValue};
 

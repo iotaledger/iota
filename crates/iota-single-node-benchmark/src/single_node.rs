@@ -33,8 +33,8 @@ use iota_types::{
     mock_checkpoint_builder::{MockCheckpointBuilder, ValidatorKeypairProvider},
     object::Object,
     transaction::{
-        CertifiedTransaction, DEFAULT_VALIDATOR_GAS_PRICE, Transaction, TransactionDataAPI,
-        VerifiedCertificate, VerifiedTransaction,
+        CertifiedTransaction, DEFAULT_VALIDATOR_GAS_PRICE, SenderSignedDataAPI, Transaction,
+        TransactionDataAPI, VerifiedCertificate, VerifiedTransaction,
     },
 };
 
@@ -138,7 +138,7 @@ impl SingleValidator {
         let effects = self
             .get_validator()
             .dry_exec_transaction_for_benchmark(
-                transaction.data().intent_message().value.clone(),
+                transaction.data().transaction_data().clone(),
                 *transaction.digest(),
             )
             .unwrap()

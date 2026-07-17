@@ -15,7 +15,7 @@ use iota_types::{
     messages_checkpoint::CheckpointTimestamp,
     metrics::LimitsMetrics,
     object::Object,
-    transaction::{CheckedInputObjects, Transaction, TransactionDataAPI},
+    transaction::{CheckedInputObjects, SenderSignedDataAPI, Transaction, TransactionDataAPI},
 };
 use prometheus_filtered::Registry;
 
@@ -74,7 +74,7 @@ pub fn execute_genesis_transaction(
 
     let expensive_checks = false;
     let certificate_deny_set = HashSet::new();
-    let transaction_data = &genesis_transaction.data().intent_message().value;
+    let transaction_data = &genesis_transaction.data().transaction_data();
     let (kind, signer, mut gas_data) = transaction_data.execution_parts();
     gas_data.objects = vec![];
     let input_objects = CheckedInputObjects::new_for_genesis(vec![]);

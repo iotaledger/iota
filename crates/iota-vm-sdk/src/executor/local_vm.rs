@@ -15,7 +15,7 @@ use iota_types::{
     move_authenticator::MoveAuthenticator,
     signature::VerifyParams,
     signature_verification::verify_sender_signed_data_message_signatures,
-    transaction::{SenderSignedData, TransactionData, TransactionDataAPI},
+    transaction::{SenderSignedData, SenderSignedDataAPI, TransactionData, TransactionDataAPI},
     transaction_executor::SimulateTransactionResult,
 };
 use move_bytecode_utils::{layout::TypeLayoutBuilder, module_cache::GetModule};
@@ -196,7 +196,7 @@ impl LocalVm {
         let auth_digests = signed
             .compute_auth_digests()
             .map_err(VmSdkError::SignatureVerification)?;
-        let transaction = signed.into_inner().intent_message.value;
+        let transaction = signed.0.transaction;
 
         // A `MoveAuthenticator` on a protocol version that predates Move
         // authentication cannot be run; reject it with a typed error rather
@@ -302,7 +302,7 @@ impl LocalVm {
         let auth_digests = signed
             .compute_auth_digests()
             .map_err(VmSdkError::SignatureVerification)?;
-        let transaction = signed.into_inner().intent_message.value;
+        let transaction = signed.0.transaction;
 
         let env = ExecutionEnv::new(self, &DebugConfig::default())?;
         let backend = StoreBackend::new(self.store.as_ref());

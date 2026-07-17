@@ -1794,14 +1794,9 @@ impl AuthorityState {
         self.metrics
             .num_shared_objects
             .observe(shared_object_count as f64);
-        self.metrics.batch_size.observe(
-            transaction
-                .data()
-                .intent_message()
-                .value
-                .kind()
-                .num_commands() as f64,
-        );
+        self.metrics
+            .batch_size
+            .observe(transaction.data().transaction_data().kind().num_commands() as f64);
     }
 
     /// `execute_transaction()` validates the transaction input, and executes
@@ -2703,11 +2698,10 @@ impl AuthorityState {
             .tap_err(|e| warn!(tx_digest=?digest, "Failed to process object index, index_tx is skipped: {e}"))?;
 
         indexes.index_tx(
-            transaction.data().intent_message().value.sender(),
+            transaction.data().transaction_data().sender(),
             transaction
                 .data()
-                .intent_message()
-                .value
+                .transaction_data()
                 .input_objects()?
                 .iter()
                 .map(|o| o.object_id()),
@@ -2717,8 +2711,7 @@ impl AuthorityState {
                 .map(|(obj_ref, owner, _kind)| (obj_ref, owner)),
             transaction
                 .data()
-                .intent_message()
-                .value
+                .transaction_data()
                 .move_calls()
                 .into_iter()
                 .map(|(package, module, function)| {
@@ -2745,7 +2738,7 @@ impl AuthorityState {
         thread_local! {
             static FAIL_STATE: RefCell<(u64, HashSet<AuthorityName>)> = RefCell::new((0, HashSet::new()));
         }
-        if !transaction.data().intent_message().value.is_system_tx() {
+        if !transaction.data().transaction_data().is_system_tx() {
             let committee = epoch_store.committee();
             let cur_stake = (**committee).weight(&self.name);
             if cur_stake > 0 {

@@ -615,7 +615,7 @@ mod test {
         in_memory_storage::InMemoryStorage,
         iota_system_state::IotaSystemStateTrait,
         metrics::LimitsMetrics,
-        transaction::{CheckedInputObjects, TransactionDataAPI},
+        transaction::{CheckedInputObjects, SenderSignedDataAPI, TransactionDataAPI},
     };
 
     #[test]
@@ -654,7 +654,7 @@ mod test {
         let expensive_checks = false;
         let certificate_deny_set = HashSet::new();
         let epoch = EpochData::new_test();
-        let transaction_data = &genesis_transaction.data().intent_message().value;
+        let transaction_data = &genesis_transaction.data().transaction_data();
         let (kind, signer, mut gas_data) = transaction_data.execution_parts();
         gas_data.objects = vec![];
         let input_objects = CheckedInputObjects::new_for_genesis(vec![]);

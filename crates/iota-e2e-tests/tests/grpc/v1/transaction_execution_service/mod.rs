@@ -11,6 +11,7 @@ use iota_grpc_types::v1::{
     transaction::Transaction as ProtoTransaction,
     transaction_execution_service::ExecuteTransactionItem,
 };
+use iota_types::transaction::SenderSignedDataAPI;
 
 /// Build an `ExecuteTransactionItem` from a signed transaction.
 fn build_item(txn: &iota_types::transaction::Transaction) -> ExecuteTransactionItem {

@@ -22,7 +22,10 @@ use iota_types::{
         epoch_start_iota_system_state::{EpochStartSystemState, EpochStartSystemStateTrait},
     },
     metrics::{BytecodeVerifierMetrics, LimitsMetrics},
-    transaction::{ObjectReadResult, TransactionData, TransactionDataAPI, VerifiedTransaction},
+    transaction::{
+        ObjectReadResult, SenderSignedDataAPI, TransactionData, TransactionDataAPI,
+        VerifiedTransaction,
+    },
     transaction_executor::{SimulateTransactionResult, VmChecks},
 };
 
@@ -106,7 +109,7 @@ impl EpochState {
         Result<(), iota_types::error::ExecutionError>,
     )> {
         let tx_digest = *transaction.digest();
-        let tx_data = &transaction.data().intent_message().value;
+        let tx_data = &transaction.data().transaction_data();
         let input_object_kinds = tx_data.input_objects()?;
         let receiving_object_refs = tx_data.receiving_objects();
 

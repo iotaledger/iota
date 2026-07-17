@@ -62,9 +62,9 @@ use iota_types::{
     signature::UserSignature,
     storage::{BackingPackageStore, InputKey},
     transaction::{
-        CertifiedTransaction, InputObjectKind, SenderSignedData, Transaction, TransactionDataAPI,
-        TransactionKey, TxValidityCheckContext, VerifiedCertificate, VerifiedSignedTransaction,
-        VerifiedTransaction,
+        CertifiedTransaction, InputObjectKind, SenderSignedData, SenderSignedDataAPI, Transaction,
+        TransactionDataAPI, TransactionKey, TxValidityCheckContext, VerifiedCertificate,
+        VerifiedSignedTransaction, VerifiedTransaction,
     },
 };
 use itertools::izip;

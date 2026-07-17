@@ -11,8 +11,10 @@ use async_trait::async_trait;
 use iota_data_ingestion_core::Worker;
 use iota_sdk_types::{Address, Owner, TransactionDigest};
 use iota_types::{
-    effects::TransactionEffectsExt, full_checkpoint_content::CheckpointData,
-    messages_checkpoint::CheckpointContentsExt, transaction::TransactionDataAPI,
+    effects::TransactionEffectsExt,
+    full_checkpoint_content::CheckpointData,
+    messages_checkpoint::CheckpointContentsExt,
+    transaction::{SenderSignedDataAPI, TransactionDataAPI},
 };
 use strum::IntoEnumIterator;
 

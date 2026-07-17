@@ -17,7 +17,9 @@ use iota_grpc_types::{
     },
 };
 use iota_protocol_config::{ProtocolConfig as IotaProtocolConfig, ProtocolConfigValue};
-use iota_types::iota_sdk_types_conversions::SdkTypeConversionError;
+use iota_types::{
+    iota_sdk_types_conversions::SdkTypeConversionError, transaction::SenderSignedDataAPI,
+};
 
 use crate::{error::RpcError, validation::object_id_proto};
 

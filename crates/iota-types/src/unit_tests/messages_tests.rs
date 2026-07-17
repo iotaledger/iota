@@ -31,6 +31,7 @@ use crate::{
         get_key_pair,
     },
     effects::{SignedTransactionEffects, TestEffectsBuilder, TransactionEffectsAPIForTesting},
+    transaction::SenderSignedDataAPI,
     utils::{
         blake2b256_of_sig, make_move_authenticator_sig, make_move_authenticator_tx,
         make_passkey_authenticator_sig, make_sponsored_move_authenticator_tx,
@@ -534,8 +535,7 @@ fn test_digest_caching() {
 
     signed_tx
         .data_mut_for_testing()
-        .intent_message_mut_for_testing()
-        .value
+        .transaction_data_mut_for_testing()
         .gas_data_mut()
         .budget += 1;
 
@@ -1086,12 +1086,7 @@ fn test_consensus_commit_prologue_v1_transaction() {
     );
     assert!(tx.is_system_tx());
     assert_eq!(
-        tx.data()
-            .intent_message()
-            .value
-            .input_objects()
-            .unwrap()
-            .len(),
+        tx.data().transaction_data().input_objects().unwrap().len(),
         1
     );
 }

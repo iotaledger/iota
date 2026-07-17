@@ -8,7 +8,7 @@ use iota_sdk_types::{Address, Command, ExecutionStatus, ObjectId, Owner};
 use iota_types::{
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
     full_checkpoint_content::CheckpointTransaction,
-    transaction::TransactionDataAPI,
+    transaction::{SenderSignedDataAPI, TransactionDataAPI},
 };
 use serde::{Deserialize, Serialize};
 

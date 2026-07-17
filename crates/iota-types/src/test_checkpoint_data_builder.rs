@@ -27,7 +27,10 @@ use crate::{
     },
     object::{GAS_VALUE_FOR_TESTING, MoveObject, MoveObjectExt, Object},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{CallArg, SenderSignedData, Transaction, TransactionData, TransactionDataAPI},
+    transaction::{
+        CallArg, SenderSignedData, SenderSignedDataAPI, Transaction, TransactionData,
+        TransactionDataAPI,
+    },
 };
 
 /// A builder for creating test checkpoint data.

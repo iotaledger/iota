@@ -29,6 +29,7 @@ use iota_types::{
     messages_checkpoint::{CertifiedCheckpointSummary, CheckpointContents},
     object::Object,
     storage::error::Kind,
+    transaction::SenderSignedDataAPI,
 };
 use prometheus_filtered::IntGauge;
 use prost::Message;

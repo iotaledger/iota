@@ -18,7 +18,10 @@ use iota_types::{
     executable_transaction::VerifiedExecutableTransaction,
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{CallArg, Transaction, TransactionData, TransactionDataAPI, VerifiedCertificate},
+    transaction::{
+        CallArg, SenderSignedDataAPI, Transaction, TransactionData, TransactionDataAPI,
+        VerifiedCertificate,
+    },
     utils::to_sender_signed_transaction,
 };
 use rand::seq::SliceRandom;

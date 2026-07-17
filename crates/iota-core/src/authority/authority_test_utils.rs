@@ -17,8 +17,9 @@ use iota_types::{
     messages_consensus::ConsensusTransaction,
     object::Object,
     transaction::{
-        CertifiedTransaction, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, Transaction, TransactionData,
-        TransactionDataAPI, VerifiedCertificate, VerifiedSignedTransaction, VerifiedTransaction,
+        CertifiedTransaction, SenderSignedDataAPI, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, Transaction,
+        TransactionData, TransactionDataAPI, VerifiedCertificate, VerifiedSignedTransaction,
+        VerifiedTransaction,
     },
     utils::to_sender_signed_transaction,
 };

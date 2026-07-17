@@ -9,7 +9,7 @@ use crate::{
     crypto::AuthorityStrongQuorumSignInfo,
     message_envelope::{Envelope, TrustedEnvelope, VerifiedEnvelope},
     messages_checkpoint::CheckpointSequenceNumber,
-    transaction::{SenderSignedData, TransactionDataAPI},
+    transaction::{SenderSignedData, SenderSignedDataAPI, TransactionDataAPI},
 };
 
 /// CertificateProof is a proof that a transaction certs existed at a given

@@ -20,7 +20,7 @@ use iota_types::{
     fp_bail, fp_ensure,
     message_envelope::Message,
     storage::InputKey,
-    transaction::{SenderSignedData, TransactionDataAPI, VerifiedCertificate},
+    transaction::{SenderSignedData, SenderSignedDataAPI, TransactionDataAPI, VerifiedCertificate},
 };
 use lru::LruCache;
 use parking_lot::RwLock;
@@ -500,8 +500,7 @@ impl TransactionManager {
                         error!("Duplicated input objects: {:?}", input_object_kinds);
                     }
 
-                    let receiving_object_entries =
-                        tx.data().intent_message().value.receiving_objects();
+                    let receiving_object_entries = tx.data().transaction_data().receiving_objects();
                     for entry in receiving_object_entries {
                         let key = InputKey::VersionedObject {
                             id: entry.object_id,

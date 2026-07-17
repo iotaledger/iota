@@ -42,7 +42,7 @@ use iota_common::fatal;
 use iota_sdk_types::{ObjectReference, TransactionDigest};
 use iota_types::{
     error::{IotaError, IotaResult},
-    transaction::{InputObjectKind, VerifiedTransaction},
+    transaction::{InputObjectKind, SenderSignedDataAPI, VerifiedTransaction},
 };
 use tracing::{debug, warn};
 

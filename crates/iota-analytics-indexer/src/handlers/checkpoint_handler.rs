@@ -11,7 +11,7 @@ use iota_types::{
     effects::TransactionEffectsAPI,
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     messages_checkpoint::{CertifiedCheckpointSummary, CheckpointSummary},
-    transaction::TransactionDataAPI,
+    transaction::{SenderSignedDataAPI, TransactionDataAPI},
 };
 use tokio::sync::Mutex;
 

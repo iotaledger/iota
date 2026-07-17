@@ -20,8 +20,8 @@ use iota_types::{
     effects::TransactionEffects as NativeTransactionEffects,
     message_envelope::Message,
     transaction::{
-        SenderSignedData as NativeSenderSignedData, TransactionData as NativeTransactionData,
-        TransactionDataAPI,
+        SenderSignedData as NativeSenderSignedData, SenderSignedDataAPI,
+        TransactionData as NativeTransactionData, TransactionDataAPI,
     },
 };
 use serde::{Deserialize, Serialize};

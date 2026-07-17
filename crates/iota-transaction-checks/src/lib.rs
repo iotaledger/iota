@@ -27,7 +27,8 @@ mod checked {
         transaction::{
             CheckedInputObjects, InputObjectKind, InputObjects, ObjectReadResult,
             ObjectReadResultKind, ProgrammableTransactionExt, ReceivingObjectReadResult,
-            ReceivingObjects, TransactionData, TransactionDataAPI, TransactionKindExt,
+            ReceivingObjects, SenderSignedDataAPI, TransactionData, TransactionDataAPI,
+            TransactionKindExt,
         },
     };
     use tracing::{error, instrument};

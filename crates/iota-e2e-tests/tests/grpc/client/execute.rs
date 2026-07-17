@@ -59,8 +59,7 @@ async fn execute_transaction_transfer_outputs() {
 
     let tx =
         make_transfer_iota_transaction(&test_cluster.wallet, Some(recipient), Some(amount)).await;
-    let signed_tx: iota_sdk_types::SignedTransaction =
-        tx.try_into().expect("SDK type conversion failed");
+    let signed_tx: iota_sdk_types::SignedTransaction = tx.into();
 
     let result = client
         .execute_transaction(signed_tx, None, None)
