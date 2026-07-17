@@ -2,14 +2,14 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! This example shows how to publish a package containing a `#[view]`
-//! function and call it using the transaction builder and dev-inspect.
+//! function and call it with the `iota_view` JSON-RPC method.
 //!
 //! A function can only be called through `iota_view` if it is declared with
 //! the `#[view]` attribute and is recorded in its module's on-chain view
-//! functions metadata. This requires the network to have view function
-//! support enabled; at the time of writing this is not yet the case on
-//! testnet, so run this example against a local network (see the faucet URL
-//! notes in `utils.rs`) or devnet instead.
+//! functions metadata. The metadata is only recorded on networks with view
+//! function support enabled; at the time of writing this is not yet the case
+//! on testnet, so run this example against a local network (see the faucet
+//! URL notes in `utils.rs`) or devnet instead.
 //!
 //! cargo run --example move_view_function_call
 
@@ -19,10 +19,10 @@ mod utils;
 use std::path::PathBuf;
 
 use iota_json::IotaJsonValue;
-use iota_json_rpc_types::{DevInspectResults, IotaTypeTag};
+use iota_json_rpc_api::WriteApiClient;
 use iota_move_build::{BuildConfig, ProtocolBuildConfig};
-use iota_sdk::{IotaClient, rpc_types::ObjectChange};
-use iota_sdk_types::{Address, ObjectId, Owner};
+use iota_sdk::rpc_types::ObjectChange;
+use iota_sdk_types::Owner;
 use move_package::BuildConfig as MoveBuildConfig;
 use utils::{setup_for_write, sign_and_execute_transaction};
 
@@ -40,7 +40,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
     let package_path = [
         env!("CARGO_MANIFEST_DIR"),
-        "../../examples/move/view_function_example",
+        "../../examples/move/view_functions",
     ]
     .iter()
     .collect::<PathBuf>();
@@ -92,38 +92,15 @@ async fn main() -> Result<(), anyhow::Error> {
         })
         .expect("missing shared counter object");
 
-    let view_call_results = move_view_function_dev_inspect(
-        sender,
-        &client,
-        package_id,
-        "counter",
-        "value",
-        vec![],
-        vec![IotaJsonValue::new(serde_json::json!(counter_id))?],
-    )
-    .await?
-    .results;
+    let view_call_results = client
+        .http()
+        .view_function_call(
+            format!("{package_id}::counter::value"),
+            None,
+            vec![IotaJsonValue::new(serde_json::json!(counter_id))?],
+        )
+        .await?;
     println!("{view_call_results:?}");
 
     Ok(())
-}
-
-async fn move_view_function_dev_inspect(
-    sender: Address,
-    client: &IotaClient,
-    package_id: ObjectId,
-    module_name: &str,
-    function_name: &str,
-    type_args: Vec<IotaTypeTag>,
-    args: Vec<IotaJsonValue>,
-) -> Result<DevInspectResults, anyhow::Error> {
-    let pt = client
-        .transaction_builder()
-        .move_view_call_tx_kind(package_id, module_name, function_name, type_args, args)
-        .await?;
-
-    Ok(client
-        .read_api()
-        .dev_inspect_transaction_block(sender, pt, None, None, None)
-        .await?)
 }

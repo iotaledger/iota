@@ -1,0 +1,147 @@
+---
+description: 'How to call a Move #[view] function from off-chain over JSON-RPC, GraphQL, or the Rust SDK.'
+tags:
+  - how-to
+  - rpc
+---
+
+# Call a View Function
+
+This how-to demonstrates how to call a [view function](../explanations/view-functions.mdx) from off-chain and read its return values, without submitting a transaction or paying gas. The examples call the `leaderboard` module from [Define a View Function](./define-a-view-function.mdx):
+
+```move file=<rootDir>/examples/move/view_functions/sources/leaderboard.move#L56-L60
+```
+
+```move file=<rootDir>/examples/move/view_functions/sources/leaderboard.move#L80-L86
+```
+
+:::info
+
+A function can only be called as a view if it is recorded in its module's on-chain view functions metadata, which is written when the package is published. This requires the network to have view function support enabled; at the time of writing this is not yet the case on testnet or mainnet, so publish and call your package on a local network or devnet.
+
+:::
+
+## Call over JSON-RPC
+
+1. Call the [`iota_view`](/iota-api-ref#iota_view) method with the fully qualified function name `<package_id>::<module_name>::<function_name>`, the type arguments (empty for a non-generic view), and the function arguments. Objects are passed by their ID.
+
+```sh
+curl --location --request POST 'https://api.devnet.iota.cafe' \
+--header 'Content-Type: application/json' \
+--data-raw '{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "iota_view",
+  "params": [
+    "<PACKAGE-ID>::leaderboard::total_entries",
+    [],
+    ["<LEADERBOARD-ID>"]
+  ]
+}'
+```
+
+2. Read the return values from the `functionReturnValues` array. `u64` and `u128` values are returned as strings to avoid overflow.
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "functionReturnValues": ["3"]
+  }
+}
+```
+
+3. Struct return values carry their type and fields. Calling `<PACKAGE-ID>::leaderboard::highest_score` on the same leaderboard returns the leading `ScoreEntry`; a view returning `Option<T>` yields the inner value for `some` and `null` for `none`.
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "functionReturnValues": [
+      {
+        "type": "<PACKAGE-ID>::leaderboard::ScoreEntry",
+        "fields": {
+          "player": "<PLAYER-ADDRESS>",
+          "score": "2500"
+        }
+      }
+    ]
+  }
+}
+```
+
+For the exact parameter and result schemas, see the [`iota_view` reference](/iota-api-ref#iota_view).
+
+### Error Cases
+
+A call that fails validation — the target is not a recorded `#[view]` function, or the module or function does not exist — is rejected with a JSON-RPC error:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "error": {
+    "code": -32000,
+    "message": "Invalid Move View Function call: function submit_score in module leaderboard of package <PACKAGE-ID> is not declared as a #[view] function"
+  }
+}
+```
+
+A call that passes validation but fails during execution (for example, a view that aborts) returns an `executionError` instead of `functionReturnValues`:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "executionError": "..."
+  }
+}
+```
+
+## Call over GraphQL
+
+The [GraphQL API](../../references/iota-graphql.mdx) exposes the same call as the `moveViewCall` query, with the same arguments and value encoding.
+
+1. Send the query with the fully qualified function name and the function arguments.
+
+```graphql
+{
+  moveViewCall(
+    functionName: "<PACKAGE-ID>::leaderboard::total_entries"
+    arguments: ["<LEADERBOARD-ID>"]
+  ) {
+    error
+    results
+  }
+}
+```
+
+2. Read the return values from `results`; on execution failure `results` is `null` and `error` holds the message.
+
+```json
+{
+  "data": {
+    "moveViewCall": {
+      "error": null,
+      "results": ["3"]
+    }
+  }
+}
+```
+
+## Call from the Rust SDK
+
+The Rust SDK exposes `iota_view` as `view_function_call` on the JSON-RPC client. This example publishes a package with a `#[view]` function and calls it:
+
+```rust file=<rootDir>/crates/iota-sdk/examples/read_api/move_view_function_call.rs#L95-L103
+```
+
+## Full Example Code
+
+The complete Rust SDK example, including publishing the package:
+
+```rust file=<rootDir>/crates/iota-sdk/examples/read_api/move_view_function_call.rs
+```

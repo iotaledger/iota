@@ -525,6 +525,7 @@ const developer = [
                         items: ['developer/iota-101/nft/create-nft', 'developer/iota-101/nft/rent-nft', 'developer/iota-101/nft/marketplace'],
                     },
                     'developer/move/how-tos/define-a-view-function',
+                    'developer/move/how-tos/call-a-view-function',
                 ],
             },
             {

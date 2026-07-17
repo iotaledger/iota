@@ -3,7 +3,7 @@
 
 /// A minimal shared counter, exposing a `#[view]` function to read its value
 /// without submitting a transaction.
-module view_function_example::counter;
+module view_functions::counter;
 
 public struct Counter has key {
     id: UID,
