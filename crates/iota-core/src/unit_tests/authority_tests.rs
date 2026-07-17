@@ -25,18 +25,21 @@ use iota_protocol_config::{
     Chain, PerObjectCongestionControlMode, ProtocolConfig, ProtocolVersion,
 };
 use iota_sdk_types::{
-    Address, Argument, CancelledTransaction, CheckpointSequenceNumber, Command,
-    ConsensusDeterminedVersionAssignments, Digest, EpochId, ExecutionError, ExecutionStatus,
-    GasPayment, Identifier, MoveStruct, ObjectData, ObjectDigest, ObjectId, ObjectReference, Owner,
-    ProgrammableTransaction, SharedObjectReference, StructTag, TransactionDigest, TransactionKind,
-    TypeTag, Version, VersionAssignment,
+    Address, Argument, CancelledTransaction, CheckpointContents, CheckpointSequenceNumber,
+    CheckpointSummary, Command, ConsensusDeterminedVersionAssignments, Digest, EpochId,
+    ExecutionError, ExecutionStatus, GasCostSummary, GasPayment, Identifier, MoveStruct,
+    ObjectData, ObjectDigest, ObjectId, ObjectReference, Owner, ProgrammableTransaction,
+    SharedObjectReference, StructTag, TransactionDigest, TransactionKind, TypeTag, Version,
+    VersionAssignment,
 };
 use iota_types::{
-    base_types::{AuthorityName, TxContext, dbg_addr, dbg_object_id, random_object_ref},
+    base_types::{
+        AuthorityName, ExecutionDigests, TxContext, dbg_addr, dbg_object_id, random_object_ref,
+    },
     committee::Committee,
     crypto::{
-        AccountKeyPair, AuthorityKeyPair, AuthorityPublicKey, IotaSignature, Signature,
-        get_key_pair, random_committee_key_pairs_of_size,
+        AccountKeyPair, AuthorityKeyPair, AuthorityPublicKey, AuthorityStrongQuorumSignInfo,
+        IotaSignature, Signature, get_key_pair, random_committee_key_pairs_of_size,
     },
     dynamic_field::{DynamicFieldInfo, DynamicFieldType},
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
@@ -44,8 +47,10 @@ use iota_types::{
     error::{IotaError, IotaResult, UserInputError},
     executable_transaction::VerifiedExecutableTransaction,
     execution::SharedInput,
+    full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     gas_coin::{GasCoin, SIMULATION_GAS_COIN_VALUE},
     iota_system_state::{IotaSystemStateTrait, IotaSystemStateWrapper},
+    messages_checkpoint::{CertifiedCheckpointSummary, CheckpointContentsExt},
     messages_consensus::{AuthorityCapabilitiesV1, ConsensusTransaction, ConsensusTransactionKind},
     messages_grpc::{LayoutGenerationOption, ObjectInfoRequest, TransactionInfoRequest},
     object::{GAS_VALUE_FOR_TESTING, MoveStructExt, OBJECT_START_VERSION, Object},
@@ -3430,6 +3435,130 @@ async fn test_store_get_dynamic_field() {
     assert_eq!(TypeTag::Bool, fields[0].name.type_)
 }
 
+/// A node that starts with executed checkpoints but no index database — the
+/// state after a formal-snapshot restore — must rebuild the JSON-RPC indexes
+/// on open: history replay covers the genesis transaction, and the
+/// live-object scan covers objects outside any local checkpoint.
+#[tokio::test]
+async fn test_jsonrpc_index_rebuild_on_open() {
+    let authority_state = TestAuthorityBuilder::new()
+        .insert_genesis_checkpoint()
+        .build()
+        .await;
+
+    let owner = dbg_addr(1);
+    let gas_object = Object::with_id_owner_for_testing(ObjectId::random(), owner);
+    authority_state.insert_genesis_objects(std::slice::from_ref(&gas_object));
+
+    let checkpoint_store = &authority_state.checkpoint_store;
+    let genesis_checkpoint = checkpoint_store
+        .get_checkpoint_by_sequence_number(0)
+        .unwrap()
+        .unwrap();
+    checkpoint_store
+        .update_highest_executed_checkpoint(&genesis_checkpoint)
+        .unwrap();
+
+    // An empty index database on a node with executed checkpoints triggers
+    // the rebuild.
+    let index_dir = iota_common::tempdir();
+    let index_store = crate::jsonrpc_index::IndexStore::new(
+        index_dir.path().to_path_buf(),
+        &prometheus_filtered::Registry::default(),
+        Some(128),
+        &authority_state.database_for_testing(),
+        checkpoint_store,
+        &authority_state.epoch_store_for_testing(),
+        authority_state.get_backing_package_store().clone(),
+    )
+    .await;
+
+    // History replay indexed the genesis transaction.
+    let genesis_contents = checkpoint_store
+        .get_checkpoint_contents(&genesis_checkpoint.content_digest)
+        .unwrap()
+        .unwrap();
+    let genesis_tx_digest = genesis_contents.iter().next().unwrap().transaction;
+    assert_eq!(
+        index_store.get_transaction_seq(&genesis_tx_digest).unwrap(),
+        Some(0)
+    );
+
+    // The live-object scan indexed the object that is in no local checkpoint.
+    let owned: Vec<_> = index_store
+        .get_owner_objects(owner, None, 10, None)
+        .unwrap();
+    assert_eq!(owned.len(), 1);
+    assert_eq!(owned[0].object_id, gas_object.id());
+    let balance = index_store
+        .get_balance(owner, iota_types::gas_coin::GAS::type_tag())
+        .unwrap();
+    assert_eq!(balance.num_coins, 1);
+}
+
+/// Runs an executed transaction through the per-checkpoint JSON-RPC indexing
+/// path, as the checkpoint executor does after executing a checkpoint.
+fn jsonrpc_index_transaction(
+    authority_state: &AuthorityState,
+    checkpoint_seq: CheckpointSequenceNumber,
+    transaction: Transaction,
+    effects: TransactionEffects,
+) {
+    let events = effects.events_digest().map(|_| {
+        authority_state
+            .get_transaction_events(effects.transaction_digest())
+            .unwrap()
+    });
+    let input_objects = authority_state
+        .get_transaction_input_objects(&effects)
+        .unwrap();
+    let output_objects = authority_state
+        .get_transaction_output_objects(&effects)
+        .unwrap();
+
+    let epoch_store = authority_state.epoch_store_for_testing();
+    let summary = CheckpointSummary {
+        epoch: epoch_store.epoch(),
+        sequence_number: checkpoint_seq,
+        network_total_transactions: 0,
+        content_digest: Default::default(),
+        previous_digest: None,
+        epoch_rolling_gas_cost_summary: GasCostSummary::default(),
+        end_of_epoch_data: None,
+        timestamp_ms: 0,
+        version_specific_data: Vec::new(),
+        checkpoint_commitments: Vec::new(),
+    };
+    let sig = AuthorityStrongQuorumSignInfo {
+        epoch: epoch_store.epoch(),
+        signature: Default::default(),
+        signers_map: Default::default(),
+    };
+    let checkpoint_data = CheckpointData {
+        checkpoint_summary: CertifiedCheckpointSummary::new_from_data_and_sig(summary, sig),
+        checkpoint_contents: CheckpointContents::new_with_digests_only_for_tests([
+            ExecutionDigests::new(*effects.transaction_digest(), effects.digest()),
+        ]),
+        transactions: vec![CheckpointTransaction {
+            transaction,
+            effects,
+            events,
+            input_objects,
+            output_objects,
+        }],
+    };
+
+    authority_state
+        .index_checkpoint_for_jsonrpc(&checkpoint_data, &epoch_store)
+        .unwrap();
+    authority_state
+        .indexes
+        .as_ref()
+        .unwrap()
+        .commit_update_for_checkpoint(checkpoint_seq)
+        .unwrap();
+}
+
 async fn create_and_retrieve_df_info(function: &Identifier) -> (Address, Vec<DynamicFieldInfo>) {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
     let gas_object_id = ObjectId::random();
@@ -3488,7 +3617,7 @@ async fn create_and_retrieve_df_info(function: &Identifier) -> (Address, Vec<Dyn
         &sender_key,
     );
 
-    let add_cert = init_certified_transaction(add_txn, &authority_state);
+    let add_cert = init_certified_transaction(add_txn.clone(), &authority_state);
 
     let add_effects = authority_state.execute_for_test(&add_cert).0.into_message();
 
@@ -3498,6 +3627,8 @@ async fn create_and_retrieve_df_info(function: &Identifier) -> (Address, Vec<Dyn
         add_effects.status()
     );
     assert_eq!(add_effects.created().len(), 1);
+
+    jsonrpc_index_transaction(&authority_state, 0, add_txn, add_effects);
 
     (
         sender,

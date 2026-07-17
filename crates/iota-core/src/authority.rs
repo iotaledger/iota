@@ -35,7 +35,7 @@ use iota_config::{
 };
 use iota_framework::{BuiltInFramework, SystemPackage as FrameworkSystemPackage};
 use iota_json_rpc_types::{
-    DevInspectResults, DryRunTransactionBlockResponse, EventFilter, IotaEvent, IotaMoveValue,
+    DevInspectResults, DryRunTransactionBlockResponse, EventFilter, IotaEvent,
     IotaObjectDataFilter, IotaTransactionBlockData, IotaTransactionBlockEffects,
     IotaTransactionBlockEvents, TransactionFilter,
 };
@@ -73,7 +73,7 @@ use iota_types::{
     deny_list_v1::check_coin_deny_list_v1,
     deny_rule_governance::DenyRuleConfig,
     digests::ChainIdentifier,
-    dynamic_field::{DynamicFieldInfo, DynamicFieldName, visitor as DFV},
+    dynamic_field::DynamicFieldInfo,
     effects::{
         InputSharedObject, SignedTransactionEffects, TransactionEffects, TransactionEffectsAPI,
         TransactionEffectsExt, TransactionEvents, VerifiedSignedTransactionEffects,
@@ -83,18 +83,17 @@ use iota_types::{
     executable_transaction::VerifiedExecutableTransaction,
     execution_config_utils::to_binary_config,
     fp_ensure,
+    full_checkpoint_content::CheckpointData,
     gas::IotaGasStatus,
     gas_coin::{SIMULATION_GAS_COIN_VALUE, mock_simulation_gas_coin},
     inner_temporary_store::{
-        InnerTemporaryStore, ObjectMap, PackageStoreWithFallback, TemporaryModuleResolver, TxCoins,
-        WrittenObjects,
+        InnerTemporaryStore, PackageStoreWithFallback, TemporaryModuleResolver,
     },
-    iota_sdk_types_conversions::type_tag_core_to_sdk,
     iota_system_state::{
         IotaSystemState, IotaSystemStateTrait,
         epoch_start_iota_system_state::EpochStartSystemStateTrait, get_iota_system_state,
     },
-    layout_resolver::{LayoutResolver, into_struct_layout},
+    layout_resolver::into_struct_layout,
     message_envelope::Message,
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointContentsExt, CheckpointRequest, CheckpointResponse,
@@ -109,10 +108,7 @@ use iota_types::{
     },
     metrics::{BytecodeVerifierMetrics, LimitsMetrics},
     move_authenticator::MoveAuthenticatorExt,
-    object::{
-        MoveStructExt, OBJECT_START_VERSION, Object, ObjectRead, PastObjectRead,
-        bounded_visitor::BoundedVisitor,
-    },
+    object::{MoveStructExt, OBJECT_START_VERSION, Object, ObjectRead, PastObjectRead},
     storage::{
         BackingPackageStore, BackingStore, ObjectKey, ObjectOrTombstone, ObjectStore, WriteKind,
     },
@@ -174,7 +170,7 @@ use crate::{
     execution_driver::execution_process,
     global_state_hasher::{GlobalStateHashStore, GlobalStateHasher},
     grpc_indexes::{GRPC_INDEXES_DIR, GrpcIndexesStore},
-    jsonrpc_index::{CoinInfo, IndexStore, ObjectIndexChanges},
+    jsonrpc_index::{CoinInfo, IndexStore},
     metrics::{LatencyObserver, RateTracker},
     module_cache_metrics::ResolverMetrics,
     overload_monitor::{
@@ -305,7 +301,6 @@ pub struct AuthorityMetrics {
 
     // Post processing metrics
     post_processing_total_events_emitted: IntCounter,
-    post_processing_total_tx_indexed: IntCounter,
     post_processing_total_tx_had_event_processed: IntCounter,
     post_processing_total_failures: IntCounter,
 
@@ -684,12 +679,6 @@ impl AuthorityMetrics {
             post_processing_total_events_emitted: register_int_counter_with_registry!(
                 "post_processing_total_events_emitted",
                 "Total number of events emitted in post processing",
-                registry,
-            )
-                .unwrap(),
-            post_processing_total_tx_indexed: register_int_counter_with_registry!(
-                "post_processing_total_tx_indexed",
-                "Total number of txes indexed in post processing",
                 registry,
             )
                 .unwrap(),
@@ -1764,7 +1753,7 @@ impl AuthorityState {
 
         let output_keys = inner_temporary_store.get_output_keys(effects);
 
-        // index transaction
+        // emit subscription notifications
         let _ = self
             .post_process_one_tx(transaction, effects, &inner_temporary_store, epoch_store)
             .tap_err(|e| {
@@ -2723,51 +2712,36 @@ impl AuthorityState {
             .expect("storage access failed")
     }
 
-    /// Indexes a transaction by updating various indexes in the `IndexStore`.
-    #[instrument(level = "debug", skip_all, err)]
-    fn index_tx(
+    /// Builds and stages the JSON-RPC index update for an executed checkpoint.
+    ///
+    /// The staged batch is committed later, in checkpoint order, via
+    /// [`IndexStore::commit_update_for_checkpoint`]. No-op when the JSON-RPC
+    /// index is not configured.
+    #[instrument(level = "debug", skip_all, fields(checkpoint = checkpoint.checkpoint_summary.sequence_number))]
+    pub fn index_checkpoint_for_jsonrpc(
         &self,
-        indexes: &IndexStore,
-        digest: &TransactionDigest,
-        // TODO: index_tx really just need the transaction data here.
-        transaction: &VerifiedExecutableTransaction,
-        effects: &TransactionEffects,
-        events: &TransactionEvents,
-        timestamp_ms: u64,
-        tx_coins: Option<TxCoins>,
-        written: &WrittenObjects,
-        inner_temporary_store: &InnerTemporaryStore,
+        checkpoint: &CheckpointData,
         epoch_store: &Arc<AuthorityPerEpochStore>,
-    ) -> IotaResult<u64> {
-        let changes = self
-            .process_object_index(effects, written, inner_temporary_store, epoch_store)
-            .tap_err(|e| warn!(tx_digest=?digest, "Failed to process object index, index_tx is skipped: {e}"))?;
+    ) -> IotaResult {
+        let Some(indexes) = &self.indexes else {
+            return Ok(());
+        };
 
-        indexes.index_tx(
-            transaction.data().transaction().sender(),
-            transaction
-                .data()
-                .transaction()
-                .input_objects()?
-                .iter()
-                .map(|o| o.object_id()),
-            effects
-                .all_changed_objects()
-                .into_iter()
-                .map(|(obj_ref, owner, _kind)| (obj_ref, owner)),
-            transaction
-                .data()
-                .transaction()
-                .move_calls()
-                .into_iter()
-                .map(|(package, module, function)| {
-                    (*package, module.to_owned(), function.to_owned())
-                }),
-            events,
-            changes,
-            digest,
-            timestamp_ms,
-            tx_coins,
+        let mut layout_resolver =
+            epoch_store
+                .executor()
+                .type_layout_resolver(Box::new(PackageStoreWithFallback::new(
+                    checkpoint,
+                    self.get_backing_package_store(),
+                )));
+
+        indexes.index_checkpoint(
+            checkpoint,
+            self.get_object_store().as_ref(),
+            layout_resolver.as_mut(),
+            // Coin balances are only served by fullnodes, so validators skip
+            // the coin index.
+            !self.is_committee_validator(epoch_store),
         )
     }
 
@@ -2804,259 +2778,9 @@ impl AuthorityState {
         }
     }
 
-    fn process_object_index(
-        &self,
-        effects: &TransactionEffects,
-        written: &WrittenObjects,
-        inner_temporary_store: &InnerTemporaryStore,
-        epoch_store: &Arc<AuthorityPerEpochStore>,
-    ) -> IotaResult<ObjectIndexChanges> {
-        let mut layout_resolver =
-            epoch_store
-                .executor()
-                .type_layout_resolver(Box::new(PackageStoreWithFallback::new(
-                    inner_temporary_store,
-                    self.get_backing_package_store(),
-                )));
-
-        let modified_at_version = effects
-            .modified_at_versions()
-            .into_iter()
-            .collect::<HashMap<_, _>>();
-
-        let tx_digest = effects.transaction_digest();
-        let mut deleted_owners = vec![];
-        let mut deleted_dynamic_fields = vec![];
-        for object_ref in effects.deleted().into_iter().chain(effects.wrapped()) {
-            let old_version = modified_at_version.get(&object_ref.object_id).unwrap();
-            // When we process the index, the latest object hasn't been written yet so
-            // the old object must be present.
-            match self.get_owner_at_version(&object_ref.object_id, *old_version).unwrap_or_else(
-                |e| panic!("tx_digest={tx_digest}, error processing object owner index, cannot find owner for object {} at version {old_version:?}. Err: {e:?}", object_ref.object_id)
-            ) {
-                Owner::Address(addr) => deleted_owners.push((addr, object_ref.object_id)),
-                Owner::Object(object_id) => {
-                    deleted_dynamic_fields.push((object_id, object_ref.object_id))
-                }
-                _ => {}
-            }
-        }
-
-        let mut new_owners = vec![];
-        let mut new_dynamic_fields = vec![];
-
-        for (oref, owner, kind) in effects.all_changed_objects() {
-            let id = &oref.object_id;
-            // For mutated objects, retrieve old owner and delete old index if there is a
-            // owner change.
-            if let WriteKind::Mutate = kind {
-                let Some(old_version) = modified_at_version.get(id) else {
-                    panic!(
-                        "tx_digest={tx_digest}, error processing object owner index, cannot find modified at version for mutated object [{id}]."
-                    );
-                };
-                // When we process the index, the latest object hasn't been written yet so
-                // the old object must be present.
-                let Some(old_object) = self
-                    .get_object_store()
-                    .try_get_object_by_key(id, *old_version)?
-                else {
-                    panic!(
-                        "tx_digest={tx_digest}, error processing object owner index, cannot find owner for object {id} at version {old_version:?}"
-                    );
-                };
-                if old_object.owner != owner {
-                    match old_object.owner {
-                        Owner::Address(addr) => {
-                            deleted_owners.push((addr, *id));
-                        }
-                        Owner::Object(object_id) => deleted_dynamic_fields.push((object_id, *id)),
-                        _ => {}
-                    }
-                }
-            }
-
-            match owner {
-                Owner::Address(addr) => {
-                    // TODO: We can remove the object fetching after we added ObjectType to
-                    // TransactionEffects
-                    let new_object = written.get(id).unwrap_or_else(
-                        || panic!("tx_digest={tx_digest}, error processing object owner index, written does not contain object {id}")
-                    );
-                    assert_eq!(
-                        new_object.version(),
-                        oref.version,
-                        "tx_digest={} error processing object owner index, object {} from written has mismatched version. Actual: {}, expected: {}",
-                        tx_digest,
-                        id,
-                        new_object.version(),
-                        oref.version
-                    );
-
-                    let type_ = new_object
-                        .type_()
-                        .map(|type_| ObjectType::Struct(type_.clone()))
-                        .unwrap_or(ObjectType::Package);
-
-                    new_owners.push((
-                        (addr, *id),
-                        ObjectInfo {
-                            object_id: *id,
-                            version: oref.version,
-                            digest: oref.digest,
-                            type_,
-                            owner,
-                            previous_transaction: *effects.transaction_digest(),
-                        },
-                    ));
-                }
-                Owner::Object(owner) => {
-                    let new_object = written.get(id).unwrap_or_else(
-                        || panic!("tx_digest={tx_digest}, error processing object owner index, written does not contain object {id}")
-                    );
-                    assert_eq!(
-                        new_object.version(),
-                        oref.version,
-                        "tx_digest={} error processing object owner index, object {} from written has mismatched version. Actual: {}, expected: {}",
-                        tx_digest,
-                        id,
-                        new_object.version(),
-                        oref.version
-                    );
-
-                    let Some(df_info) = self
-                        .try_create_dynamic_field_info(new_object, written, layout_resolver.as_mut())
-                        .unwrap_or_else(|e| {
-                            error!("try_create_dynamic_field_info should not fail, {}, new_object={:?}", e, new_object);
-                            None
-                        }
-                        )
-                    else {
-                        // Skip indexing for non dynamic field objects.
-                        continue;
-                    };
-                    new_dynamic_fields.push(((owner, *id), df_info))
-                }
-                _ => {}
-            }
-        }
-
-        Ok(ObjectIndexChanges {
-            deleted_owners,
-            deleted_dynamic_fields,
-            new_owners,
-            new_dynamic_fields,
-        })
-    }
-
-    fn try_create_dynamic_field_info(
-        &self,
-        o: &Object,
-        written: &WrittenObjects,
-        resolver: &mut dyn LayoutResolver,
-    ) -> IotaResult<Option<DynamicFieldInfo>> {
-        // Skip if not a move object
-        let Some(move_object) = o.data.as_opt_struct().cloned() else {
-            return Ok(None);
-        };
-
-        // We only index dynamic field objects
-        if !move_object.struct_tag().is_dynamic_field() {
-            return Ok(None);
-        }
-
-        let layout = match resolver.get_annotated_layout(move_object.struct_tag()) {
-            Ok(annotated_layout) => annotated_layout.into_layout(),
-            Err(e) => {
-                error!(
-                    "unable to load layout for type `{:?}`: {e}",
-                    move_object.struct_tag()
-                );
-                return Ok(None);
-            }
-        };
-
-        let field =
-            DFV::FieldVisitor::deserialize(move_object.contents(), &layout).map_err(|e| {
-                IotaError::ObjectDeserialization {
-                    error: e.to_string(),
-                }
-            })?;
-
-        let type_ = field.kind;
-        let name_type: TypeTag = type_tag_core_to_sdk(&field.name_layout.into());
-        let bcs_name = field.name_bytes.to_owned();
-
-        let name_value = BoundedVisitor::deserialize_value(field.name_bytes, field.name_layout)
-            .map_err(|e| {
-                warn!("{e}");
-                IotaError::ObjectDeserialization {
-                    error: e.to_string(),
-                }
-            })?;
-
-        let name = DynamicFieldName {
-            type_: name_type,
-            value: IotaMoveValue::from(name_value).to_json_value(),
-        };
-
-        let value_metadata = field.value_metadata().map_err(|e| {
-            warn!("{e}");
-            IotaError::ObjectDeserialization {
-                error: e.to_string(),
-            }
-        })?;
-
-        Ok(Some(match value_metadata {
-            DFV::ValueMetadata::DynamicField(object_type) => DynamicFieldInfo {
-                name,
-                bcs_name,
-                type_,
-                object_type: object_type.to_canonical_string(/* with_prefix */ true),
-                object_id: o.id(),
-                version: o.version(),
-                digest: o.digest(),
-            },
-
-            DFV::ValueMetadata::DynamicObjectField(object_id) => {
-                // Find the actual object from storage using the object id obtained from the
-                // wrapper.
-
-                // Try to find the object in the written objects first.
-                let (version, digest, object_type) = if let Some(object) = written.get(&object_id) {
-                    (
-                        object.version(),
-                        object.digest(),
-                        object.data.opt_object_type().unwrap().clone(),
-                    )
-                } else {
-                    // If not found, try to find it in the database.
-                    let object = self
-                        .get_object_store()
-                        .try_get_object_by_key(&object_id, o.version())?
-                        .ok_or_else(|| UserInputError::ObjectNotFound {
-                            object_id,
-                            version: Some(o.version()),
-                        })?;
-                    let version = object.version();
-                    let digest = object.digest();
-                    let object_type = object.data.opt_object_type().unwrap().clone();
-                    (version, digest, object_type)
-                };
-
-                DynamicFieldInfo {
-                    name,
-                    bcs_name,
-                    type_,
-                    object_type: object_type.to_string(),
-                    object_id,
-                    version,
-                    digest,
-                }
-            }
-        }))
-    }
-
+    /// Emits transaction and event subscription notifications for an executed
+    /// transaction. Index updates happen per checkpoint instead, via
+    /// [`Self::index_checkpoint_for_jsonrpc`].
     #[instrument(level = "trace", skip_all, err)]
     fn post_process_one_tx(
         &self,
@@ -3073,60 +2797,34 @@ impl AuthorityState {
 
         let tx_digest = transaction.digest();
         let timestamp_ms = Self::unixtime_now_ms();
-        let events = &inner_temporary_store.events;
-        let written = &inner_temporary_store.written;
-        let tx_coins = self.fullnode_only_get_tx_coins_for_indexing(
-            effects,
-            inner_temporary_store,
+
+        let effects: IotaTransactionBlockEffects = effects.clone().try_into()?;
+        let events = self.make_transaction_block_events(
+            inner_temporary_store.events.clone(),
+            *tx_digest,
+            timestamp_ms,
             epoch_store,
-        );
-
-        // Index tx
-        if let Some(indexes) = &self.indexes {
-            let _ = self
-                .index_tx(
-                    indexes.as_ref(),
-                    tx_digest,
-                    transaction,
-                    effects,
-                    events,
-                    timestamp_ms,
-                    tx_coins,
-                    written,
-                    inner_temporary_store,
-                    epoch_store,
+            inner_temporary_store,
+        )?;
+        // Emit events
+        self.subscription_handler
+            .process_tx(transaction.data().transaction(), &effects, &events)
+            .tap_ok(|_| {
+                self.metrics
+                    .post_processing_total_tx_had_event_processed
+                    .inc()
+            })
+            .tap_err(|e| {
+                warn!(
+                    ?tx_digest,
+                    "Post processing - Couldn't process events for tx: {}", e
                 )
-                .tap_ok(|_| self.metrics.post_processing_total_tx_indexed.inc())
-                .tap_err(|e| error!(?tx_digest, "Post processing - Couldn't index tx: {e}"))
-                .expect("Indexing tx should not fail");
+            })?;
 
-            let effects: IotaTransactionBlockEffects = effects.clone().try_into()?;
-            let events = self.make_transaction_block_events(
-                events.clone(),
-                *tx_digest,
-                timestamp_ms,
-                epoch_store,
-                inner_temporary_store,
-            )?;
-            // Emit events
-            self.subscription_handler
-                .process_tx(transaction.data().transaction(), &effects, &events)
-                .tap_ok(|_| {
-                    self.metrics
-                        .post_processing_total_tx_had_event_processed
-                        .inc()
-                })
-                .tap_err(|e| {
-                    warn!(
-                        ?tx_digest,
-                        "Post processing - Couldn't process events for tx: {}", e
-                    )
-                })?;
+        self.metrics
+            .post_processing_total_events_emitted
+            .inc_by(events.data.len() as u64);
 
-            self.metrics
-                .post_processing_total_events_emitted
-                .inc_by(events.data.len() as u64);
-        };
         Ok(())
     }
 
@@ -3307,7 +3005,6 @@ impl AuthorityState {
         grpc_indexes_store: Option<Arc<GrpcIndexesStore>>,
         checkpoint_store: Arc<CheckpointStore>,
         prometheus_registry: &Registry,
-        genesis_objects: &[Object],
         db_checkpoint_config: &DBCheckpointConfig,
         config: NodeConfig,
         validator_tx_finalizer: Option<Arc<ValidatorTxFinalizer<NetworkAuthorityClient>>>,
@@ -3404,11 +3101,6 @@ impl AuthorityState {
             rx_execution_shutdown,
         ));
         spawn_monitored_task!(authority_store_migrations::migrate_events(store));
-
-        // TODO: This doesn't belong to the constructor of AuthorityState.
-        state
-            .create_owner_index_if_empty(genesis_objects, &epoch_store)
-            .expect("Error indexing genesis objects.");
 
         state
     }
@@ -3517,69 +3209,6 @@ impl AuthorityState {
     ) {
         self.transaction_manager
             .enqueue_with_expected_effects_digest(transactions, epoch_store)
-    }
-
-    fn create_owner_index_if_empty(
-        &self,
-        genesis_objects: &[Object],
-        epoch_store: &Arc<AuthorityPerEpochStore>,
-    ) -> IotaResult {
-        let Some(index_store) = &self.indexes else {
-            return Ok(());
-        };
-        if !index_store.is_empty() {
-            return Ok(());
-        }
-
-        let mut new_owners = vec![];
-        let mut new_dynamic_fields = vec![];
-        let mut layout_resolver = epoch_store
-            .executor()
-            .type_layout_resolver(Box::new(self.get_backing_package_store().as_ref()));
-        for o in genesis_objects.iter() {
-            match o.owner {
-                Owner::Address(addr) => {
-                    new_owners.push(((addr, o.id()), ObjectInfo::new(&o.object_ref(), o)))
-                }
-                Owner::Object(object_id) => {
-                    let id = o.id();
-                    let info = match self.try_create_dynamic_field_info(
-                        o,
-                        &BTreeMap::new(),
-                        layout_resolver.as_mut(),
-                    ) {
-                        Ok(Some(info)) => info,
-                        Ok(None) => continue,
-                        Err(IotaError::UserInput {
-                            error:
-                                UserInputError::ObjectNotFound {
-                                    object_id: not_found_id,
-                                    version,
-                                },
-                        }) => {
-                            warn!(
-                                ?not_found_id,
-                                ?version,
-                                object_owner=?object_id,
-                                field=?id,
-                                "Skipping dynamic field: referenced genesis object not found"
-                            );
-                            continue;
-                        }
-                        Err(e) => return Err(e),
-                    };
-                    new_dynamic_fields.push(((object_id, id), info));
-                }
-                _ => {}
-            }
-        }
-
-        index_store.insert_genesis_objects(ObjectIndexChanges {
-            deleted_owners: vec![],
-            deleted_dynamic_fields: vec![],
-            new_owners,
-            new_dynamic_fields,
-        })
     }
 
     /// Attempts to acquire execution lock for an executable transaction.
@@ -4141,18 +3770,6 @@ impl AuthorityState {
             })
             .transpose()?;
         Ok(layout)
-    }
-
-    fn get_owner_at_version(&self, object_id: &ObjectId, version: Version) -> IotaResult<Owner> {
-        self.get_object_store()
-            .try_get_object_by_key(object_id, version)?
-            .ok_or_else(|| {
-                IotaError::from(UserInputError::ObjectNotFound {
-                    object_id: *object_id,
-                    version: Some(version),
-                })
-            })
-            .map(|o| o.owner)
     }
 
     #[instrument(level = "trace", skip_all)]
@@ -4836,63 +4453,6 @@ impl AuthorityState {
         Ok(VerifiedSignedTransactionEffects::new_unchecked(
             signed_effects,
         ))
-    }
-
-    // Returns coin objects for indexing for fullnode if indexing is enabled.
-    #[instrument(level = "trace", skip_all)]
-    fn fullnode_only_get_tx_coins_for_indexing(
-        &self,
-        effects: &TransactionEffects,
-        inner_temporary_store: &InnerTemporaryStore,
-        epoch_store: &Arc<AuthorityPerEpochStore>,
-    ) -> Option<TxCoins> {
-        if self.indexes.is_none() || self.is_committee_validator(epoch_store) {
-            return None;
-        }
-        let written_coin_objects = inner_temporary_store
-            .written
-            .iter()
-            .filter_map(|(k, v)| {
-                if v.is_coin() {
-                    Some((*k, v.clone()))
-                } else {
-                    None
-                }
-            })
-            .collect();
-        let mut input_coin_objects = inner_temporary_store
-            .input_objects
-            .iter()
-            .filter_map(|(k, v)| {
-                if v.is_coin() {
-                    Some((*k, v.clone()))
-                } else {
-                    None
-                }
-            })
-            .collect::<ObjectMap>();
-
-        // Check for receiving objects that were actually used and modified during
-        // execution. Their updated version will already showup in
-        // "written_coins" but their input isn't included in the set of input
-        // objects in a inner_temporary_store.
-        for (object_id, version) in effects.modified_at_versions() {
-            if inner_temporary_store
-                .loaded_runtime_objects
-                .contains_key(&object_id)
-            {
-                if let Some(object) = self
-                    .get_object_store()
-                    .get_object_by_key(&object_id, version)
-                {
-                    if object.is_coin() {
-                        input_coin_objects.insert(object_id, object);
-                    }
-                }
-            }
-        }
-
-        Some((input_coin_objects, written_coin_objects))
     }
 
     /// Get the TransactionEnvelope that currently locks the given object, if
