@@ -225,7 +225,9 @@ impl ValidatorService {
                 &verified_tx,
                 epoch_store,
                 // Latest-value coin deny-list read: admission is validator-local,
-                // and denials should take effect immediately.
+                // and denials should take effect immediately. This deliberately
+                // differs from the epoch-gated post-consensus read; see the
+                // read-mode notes on `handle_transaction_validation_checks`.
                 false,
             )
             .await
