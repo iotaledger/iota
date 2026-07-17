@@ -393,23 +393,57 @@ throughout.*
 > and `actual_computation_units` — are described in finding 1's metric table.
 
 `authority_state_internal_execution_latency` (the real, post-consensus VM
-execution) is A≈B: the p95 B/A ratio has median **1.00** across all 45
-configurations (range 0.77–1.52). The deviations sit on the heavy-compute
+execution) is A≈B on `n4`: the p95 B/A ratio has median **1.00** across all
+45 configurations (range 0.77–1.52). The deviations sit on the heavy-compute
 configurations and swing in both directions — B faster on some, slower on
 others — so they are load noise, not a systematic attestation cost. The
 largest one (`v4` at `slow500`, 1.52) is the contention effect from finding 1:
 B's dry-runs add CPU load that stretches the real execution's wall clock.
 Attestation does not touch the execution path itself; its cost lives in the
-pre-consensus dry-run (finding 1). Execution latency p95 (CUs are
-measured on attested transactions, so they exist for B only):
+pre-consensus dry-run (finding 1). Execution latency p95 (CUs are measured
+on attested transactions, so they exist for B only), each latency cell
+`n4` · · · `n48`:
 
-| slow_size | f1: A | f1: B | f1 B/A | v1: A | v1: B | v1 B/A | v4: A | v4: B | v4 B/A | CUs |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 0   | 1.80 ms   | 2.06 ms   | 1.14 | 1.34 ms   | 1.32 ms   | 0.98 | 1.12 ms   | 1.21 ms   | 1.08 | 1k    |
-| 50  | 5.45 ms   | 5.87 ms   | 1.08 | 5.91 ms   | 6.20 ms   | 1.05 | 5.95 ms   | 6.02 ms   | 1.01 | 1k    |
-| 100 | 21.35 ms  | 20.30 ms  | 0.95 | 21.98 ms  | 21.29 ms  | 0.97 | 21.92 ms  | 21.19 ms  | 0.97 | 4k    |
-| 200 | 212.18 ms | 185.32 ms | 0.87 | 222.24 ms | 207.46 ms | 0.93 | 207.40 ms | 221.61 ms | 1.07 | 128k  |
-| 500 | 969.08 ms | 1.200 s   | 1.24 | 971.15 ms | 999.34 ms | 1.03 | 970.22 ms | 1.478 s   | 1.52 | 1.37M |
+Fullnode path (`f1`):
+
+| slow_size | A | B | B/A | CUs |
+| :---: | --- | --- | --- | :---: |
+| 0   |   1.80 ms · · · · · · **7.59 ms** |   2.06 ms · · · · · · **7.84 ms** | 1.14 · · · · **1.03** | 1k    |
+| 50  |   5.45 ms · · · · · · **189.17 ms** |   5.87 ms · · · · · · **190.88 ms** | 1.08 · · · · **1.01** | 1k    |
+| 100 |  21.35 ms · · · · · **553.39 ms** |  20.30 ms · · · · · **574.57 ms** | 0.95 · · · · **1.04** | 4k    |
+| 200 | 212.18 ms · · · · **1.690 s** | 185.32 ms · · · · **1.697 s** | 0.87 · · · · **1.00** | 128k  |
+| 500 | 969.08 ms · · · · **7.895 s** |   1.200 s · · · · · · · **8.942 s** | 1.24 · · · · **1.13** | 1.37M |
+
+Direct-to-one-validator path (`v1`):
+
+| slow_size | A | B | B/A | CUs |
+| :---: | --- | --- | --- | :---: |
+| 0   |   1.34 ms · · · · · · **8.35 ms** |   1.32 ms · · · · · · **8.40 ms** | 0.98 · · · · **1.01** | 1k    |
+| 50  |   5.91 ms · · · · · · **78.75 ms** |   6.20 ms · · · · · · **61.00 ms** | 1.05 · · · · **0.77** | 1k    |
+| 100 |  21.98 ms · · · · · **411.99 ms** |  21.29 ms · · · · · **251.13 ms** | 0.97 · · · · **0.61** | 4k    |
+| 200 | 222.24 ms · · · · **1.707 s** | 207.46 ms · · · · **1.234 s** | 0.93 · · · · **0.72** | 128k  |
+| 500 | 971.15 ms · · · · **7.583 s** | 999.34 ms · · · · **1.812 s** | 1.03 · · · · **0.24** | 1.37M |
+
+Direct-to-all-validators path (`v4` / `v48`):
+
+| slow_size | A | B | B/A | CUs |
+| :---: | --- | --- | --- | :---: |
+| 0   |   1.12 ms · · · · · · **8.01 ms** |   1.21 ms · · · · · · **7.86 ms** | 1.08 · · · · **0.98** | 1k    |
+| 50  |   5.95 ms · · · · · · **79.26 ms** |   6.02 ms · · · · · · **88.97 ms** | 1.01 · · · · **1.12** | 1k    |
+| 100 |  21.92 ms · · · · · **545.53 ms** |  21.19 ms · · · · · **617.04 ms** | 0.97 · · · · **1.13** | 4k    |
+| 200 | 207.40 ms · · · · **1.785 s** | 221.61 ms · · · · **1.769 s** | 1.07 · · · · **0.99** | 128k  |
+| 500 | 970.22 ms · · · · **7.678 s** |   1.478 s · · · · · · · **7.933 s** | 1.52 · · · · **1.03** | 1.37M |
+
+On `n48`, the picture splits by path. On `f1` and `v48`, the claim holds as
+on `n4`: the B/A p95 median is 1.01 and 1.00 (ranges 0.99–1.17 and 0.92–1.14,
+respectively). On `v1`, it turns one-sided: median 0.75, down to 0.24 at
+`slow500-qps1000` — B's executions are systematically faster than A's. That is
+not attestation speeding anything up: on the pinned path B's attestation and
+the submit semaphore throttle admission on the single entry validator (finding
+14), so fewer transactions execute concurrently and each takes less wall clock
+on the shared cores. The execution path itself is still untouched by
+attestation — the deviation is an upstream admission effect, visible only
+because this metric measures wall clock under CPU contention.
 
 ---
 
