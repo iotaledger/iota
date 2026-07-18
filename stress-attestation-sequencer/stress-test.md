@@ -132,6 +132,9 @@ configurations of each campaign.
 **1. Attestation is a full execution dry-run, plus scheduling overhead that
 grows with load.**
 
+<details>
+<summary>Metric descriptions</summary>
+
 | metric | codebase description | aggregation |
 | --- | --- | --- |
 | `validator_attestation_latency` | Latency of `attest_transaction` (the pre-consensus dry-run) for `UserTransactionV2` transactions; spans pool wait + dry-run execution + async resume | histogram; p50/p95/p99 (`histogram_quantile`) over buckets combined across validators; averaged over all seconds of all iterations |
@@ -140,6 +143,8 @@ grows with load.**
 | `validator_attestation_async_resume_latency` | Time from the dry-run finishing on the blocking pool until the awaiting async task resumes (`spawn_blocking` join). Grows when the async runtime is saturated; full latency = queue wait + execution + this | histogram; p50/p95/p99 (`histogram_quantile`) over buckets combined across validators; averaged over all seconds of all iterations |
 | `authority_state_internal_execution_latency` | Latency of actual certificate executions | histogram; p50/p95/p99 (`histogram_quantile`) over buckets combined across validators; averaged over all seconds of all iterations |
 | `actual_computation_units` | Actual computation cost in gas units (CU) of attested transactions (`computation_cost` / `gas_price`), observed after execution | histogram; per-tx mean `rate(_sum)/rate(_count)` combined across validators (exact, not a quantile); averaged over all seconds of all iterations |
+
+</details>
 
 > [!IMPORTANT]
 > The dry-run does not run on the async runtime: it is handed to a separate
@@ -454,10 +459,15 @@ because this metric measures wall clock under CPU contention.
 
 **3. Compute-unit accounting is exact.**
 
+<details>
+<summary>Metric descriptions</summary>
+
 | metric | codebase description | aggregation |
 | --- | --- | --- |
 | `attested_computation_units` | Attestor's pre-consensus estimate of the computation cost in gas units (CU), for transactions that arrived as `UserTransactionV2` | histogram; per-tx mean `rate(_sum)/rate(_count)` combined across validators; averaged over all seconds of all iterations |
 | `actual_to_attested_computation_units_ratio` | Ratio actual / attested computation units for attested transactions | histogram; per-tx mean `rate(_sum)/rate(_count)` combined across validators; averaged over all seconds of all iterations |
+
+</details>
 
 > [!TIP]
 > `actual_computation_units` — the other metric of this finding — is described
@@ -483,9 +493,14 @@ and land on impossible values (e.g., 850 for `slow0`, below the 1000-unit
 > where every path sits at the backlog ceiling; see the `n48` paragraph
 > below.
 
+<details>
+<summary>Metric descriptions</summary>
+
 | metric | codebase description | aggregation |
 | --- | --- | --- |
 | `validator_transaction_execution_latency` | Validator-internal latency from receiving a transaction via `submit_tx` until it finished executing (pre-consensus check, consensus, post-consensus validation, sequencing incl. deferral, execution); excludes client/fullnode time | histogram; p50/p95/p99 (`histogram_quantile`) per validator, then max across validators (busiest); averaged over all seconds of all iterations |
+
+</details>
 
 `validator_transaction_execution_latency` times the whole internal pipeline on
 the receiving validator — receipt via `submit_tx`, attestation, consensus,
@@ -571,9 +586,14 @@ consensus.**
 > total on the pinned path (B/A ≈0.07 at `slow500`), absent on the spread
 > paths (≈1.0); see the `n48` paragraph below.
 
+<details>
+<summary>Metric descriptions</summary>
+
 | metric | codebase description | aggregation |
 | --- | --- | --- |
 | `checkpoint_creation_latency` | Latency from consensus commit timestamp to local checkpoint creation in milliseconds | histogram; p50/p95/p99 (`histogram_quantile`) over buckets combined across validators; averaged over all seconds of all iterations |
+
+</details>
 
 `checkpoint_creation_latency` times consensus commit created → checkpoint
 built (values are seconds, despite the help text saying milliseconds). The
@@ -675,9 +695,14 @@ collapse (the relocation at full strength); the spread paths show none.*
 > pass far below A (B/A 0.02–0.26) — near-empty consensus commits under
 > throttled admission, not cheaper validation; see the `n48` paragraph below.
 
+<details>
+<summary>Metric descriptions</summary>
+
 | metric | codebase description | aggregation |
 | --- | --- | --- |
 | `post_consensus_validation_latency` | Latency of `validate_and_resolve_conflicts` over one consensus commit's user transactions (Checks #0-#3 plus owned-object conflict resolution) | histogram; p50/p95/p99 (`histogram_quantile`) over buckets combined across validators; averaged over all seconds of all iterations |
+
+</details>
 
 `validate_and_resolve_conflicts` (the post-consensus pass) is where attestation
 adds Check #3 — attestor verification plus cost bounds. But that's a few integer
@@ -787,20 +812,24 @@ path's B bars collapse (near-empty commits).*
 
 **7. Submit latency (fullnode path): a fixed per-transaction addition.**
 
+<details>
+<summary>Metric descriptions</summary>
+
 | metric | codebase description | aggregation |
 | --- | --- | --- |
 | `transaction_driver_submit_transaction_latency` | Time in seconds to successfully submit a transaction to a validator | histogram; p50/p95/p99 (`histogram_quantile`), fullnode client series only; averaged over all seconds of all iterations |
 
-> [!NOTE]
-> The full help text continues: "Includes all retries and measures from the
-> start of submission until a validator accepts the transaction." The timer
-> runs on the fullnode's `TransactionDriver`, and the validator's `submit_tx`
-> RPC responds only after the transaction passed the overload check, the whole
-> attestation span finished (pool wait + dry-run + async resume — the
-> attestation payload is needed to build the consensus transaction), and the
-> transaction was handed to the consensus adapter. It does not wait for
-> consensus sequencing — that time is in settlement finality (finding 8), not
-> here.
+The full help text continues: "Includes all retries and measures from the
+start of submission until a validator accepts the transaction." The timer
+runs on the fullnode's `TransactionDriver`, and the validator's `submit_tx`
+RPC responds only after the transaction passed the overload check, the whole
+attestation span finished (pool wait + dry-run + async resume — the
+attestation payload is needed to build the consensus transaction), and the
+transaction was handed to the consensus adapter. It does not wait for
+consensus sequencing — that time is in settlement finality (finding 8), not
+here.
+
+</details>
 
 B's submit `p50` exceeds A's by roughly the full attestation latency
 (`validator_attestation_latency`, pool wait + dry-run execution + async
@@ -884,9 +913,14 @@ queueing.*
 > both sides sit on the saturated pipeline (finding 4's ceiling) and B/A
 > stays 0.96–1.18; see the `n48` paragraph below.
 
+<details>
+<summary>Metric descriptions</summary>
+
 | metric | codebase description | aggregation |
 | --- | --- | --- |
 | `transaction_driver_settlement_finality_latency` | Settlement finality latency observed from transaction driver | histogram; p50/p95/p99 (`histogram_quantile`), fullnode client series only; averaged over all seconds of all iterations |
+
+</details>
 
 `settlement_finality_latency` is the client's submit→finality time (fullnode
 path only). It's the end-to-end view of the internal pipeline (finding 4) plus
@@ -948,11 +982,16 @@ to the backlog ceiling.*
 > concentration: ≈0–13 % on the spread paths, up to +134 % on the pinned
 > validator's host; see the `n48` paragraph below.
 
+<details>
+<summary>Metric descriptions</summary>
+
 | metric | codebase description | aggregation |
 | --- | --- | --- |
 | `container_cpu_usage_seconds_total` | cadvisor (no in-repo help): cumulative CPU seconds consumed by the container | counter; `rate()` → busy cores, max across validators (busiest); averaged over all seconds of all iterations |
 | `container_memory_rss` | cadvisor (no in-repo help): container resident set size (RSS) in bytes | gauge; max across validators (busiest); averaged over all seconds of all iterations |
 | `node_cpu_seconds_total` | node-exporter (no in-repo help): seconds each CPU spent in each mode | counter; `rate()` over non-idle modes summed to whole-machine busy cores; averaged over all seconds of all iterations |
+
+</details>
 
 Per-validator CPU (busiest validator, cadvisor) B/A median = **1.28×** (range
 0.99–2.23×) — e.g. `slow100-f1` 8.7 → 11.1 cores, `slow500-f1`
@@ -1064,10 +1103,15 @@ share on every path except the attesting `v1` host.*
 
 **10. Throughput: no penalty at normal load; a fullnode cost at heavy compute.**
 
+<details>
+<summary>Metric descriptions</summary>
+
 | metric | codebase description | aggregation |
 | --- | --- | --- |
 | `transactions_included_in_checkpoint` | Transactions included in a checkpoint | counter; `rate()` → finalized TPS, mean across validators (replicated); averaged over all seconds of all iterations |
 | `validator_attestations_total` | Number of attestations performed (dry-runs that completed without panicking) | counter; `rate()` → attestations/s, max across validators (busiest); averaged over all seconds of all iterations |
+
+</details>
 
 Finalized TPS (`transactions_included_in_checkpoint`) is statistically
 identical A vs B at normal load — median `(B−A)/A = −0.4 %` across all 45
@@ -1117,9 +1161,14 @@ attestations / sec by path (busiest validator):
 
 **11. No post-consensus validation drops.**
 
+<details>
+<summary>Metric descriptions</summary>
+
 | metric | codebase description | aggregation |
 | --- | --- | --- |
 | `consensus_handler_validation_dropped_transactions` | Number of `UserTransactionV1`/`UserTransactionV2` transactions dropped by post-consensus validation | counter; `rate()` → drops/s, mean across validators; averaged over all seconds of all iterations |
+
+</details>
 
 `consensus_handler_validation_dropped_transactions` is ≈0 on both the attested
 (V2) and unattested (V1) paths, across every configuration.
@@ -1133,11 +1182,16 @@ findings 10 and 11. TPS is A≈B; no validation drops on either path.*
 
 **12. Execution queues and backpressure: deeper backlog under heavy load.**
 
+<details>
+<summary>Metric descriptions</summary>
+
 | metric | codebase description | aggregation |
 | --- | --- | --- |
 | `execution_queueing_delay_s` | Queueing delay between a transaction is ready for execution until it starts executing | histogram; p50/p95/p99 (`histogram_quantile`) per validator, then max across validators; averaged over all seconds of all iterations |
 | `execution_driver_dispatch_queue` | Number of transaction pending in execution driver dispatch queue | gauge; max across validators (busiest); peak — max over time per iteration, averaged across iterations |
 | `transaction_manager_num_pending_certificates` | Number of certificates pending in `TransactionManager`, with at least 1 missing input object | gauge; max across validators (busiest); peak — max over time per iteration, averaged across iterations |
+
+</details>
 
 Under load, execution work queues up. Headline signal: queue-delay p95 (how long
 a tx waits before executing); dispatch-queue depth and pending-tx count track
@@ -1171,11 +1225,16 @@ sits after consensus.
 **13. Post-consensus load shedding: sheds under heavy compute on both
 paths.**
 
+<details>
+<summary>Metric descriptions</summary>
+
 | metric | codebase description | aggregation |
 | --- | --- | --- |
 | `consensus_handler_load_shedding_dropped_transactions` | Number of user transactions dropped by post-consensus load shedding, based on the quorum load shedding percentage | counter; `rate()` → drops/s, max across validators (busiest); averaged over all seconds of all iterations |
 | `consensus_handler_load_shedding_percentage` | Stake-weighted quorum (2f+1) load shedding percentage enforced on user transactions in the most recent consensus commit. 0 when the P-COOL flow is disabled | gauge; max across validators; peak — max over time per iteration, averaged across iterations |
 | `authority_load_shedding_percentage` | This authority's locally computed load shedding percentage. In the P-COOL flow this is the value broadcast to peers, not necessarily the rate enforced (see `consensus_handler_load_shedding_percentage`) | gauge; max across validators; peak — max over time per iteration, averaged across iterations |
+
+</details>
 
 Light and moderate configurations (`slow0`–`slow100`) barely shed — only
 small bursts at `qps2000` (percentages of a few percent, drops up to ≈7/s on
@@ -1222,12 +1281,17 @@ table above).*
 **14. Pre-consensus load shedding: quiet until the heaviest pinned
 configuration hits the submit semaphore.**
 
+<details>
+<summary>Metric descriptions</summary>
+
 | metric | codebase description | aggregation |
 | --- | --- | --- |
 | `transaction_overload_sources` | Number of times each source indicates transaction overload | counter with a `source` label (`consensus_graduated` / `consensus_max_pending` / `consensus_semaphore`); `rate()` → rejections/s per source, max across validators; averaged over all seconds of all iterations |
 | `validator_service_num_rejected_tx_during_overload` | Number of rejected transaction due to system overload | counter; `rate()` → rejections/s summed over error types, max across validators; averaged over all seconds of all iterations |
 | `consensus_queue_load_shedding_percentage` | Percentage of transactions shed due to consensus queue length. Separate admission-control signal, not an input to `authority_load_shedding_percentage` | gauge; max across validators; peak — max over time per iteration, averaged across iterations |
 | `sequencing_certificate_inflight` | The inflight requests to sequence certificates | gauge, one series per transaction type; summed per validator = `num_inflight` (the value the graduated / max-pending limits gate on), max across validators; peak — max over time per iteration, averaged across iterations |
+
+</details>
 
 `check_system_overload` rejects a transaction before consensus when the
 consensus queue is saturated, labeled by which limit tripped: the graduated
@@ -1262,6 +1326,9 @@ when the load pins to a single validator.
 inconsistent state hash, double-spend, attestation task panics, soft-lock
 equivocation), and no validator crashed, restarted, or OOM'd.
 
+<details>
+<summary>Metric descriptions</summary>
+
 | metric | codebase description | aggregation |
 | --- | --- | --- |
 | `split_brain_checkpoint_forks` | Number of checkpoints that have resulted in a split brain | counter; max across validators over the whole window (H4 requires 0) |
@@ -1270,6 +1337,8 @@ equivocation), and no validator crashed, restarted, or OOM'd.
 | `total_client_double_spend_attempts_detected` | Total number of client double spend attempts that are detected | counter; max over the whole window (H4 requires 0) |
 | `validator_attestation_task_panics` | Number of attestation dry-runs that panicked (surfaced as a `JoinError`) | counter; max across validators over the whole window (H4 requires 0) |
 | `validator_service_num_rejected_tx_soft_lock_conflict` | Number of transactions rejected due to pre-consensus soft lock conflict on owned objects | counter; max across validators over the whole window (H4 requires 0) |
+
+</details>
 
 > [!NOTE]
 > These results use two temporary post-consensus-validation fixes (one per
