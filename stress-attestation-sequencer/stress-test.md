@@ -943,6 +943,11 @@ to the backlog ceiling.*
 
 **9. CPU: attestation adds ≈30 % busy cores.**
 
+> [!NOTE]
+> The ≈30 % is the `n4` median. On `n48`, the overhead follows attestation
+> concentration: ≈0–13 % on the spread paths, up to +134 % on the pinned
+> validator's host; see the `n48` paragraph below.
+
 | metric | codebase description | aggregation |
 | --- | --- | --- |
 | `container_cpu_usage_seconds_total` | cadvisor (no in-repo help): cumulative CPU seconds consumed by the container | counter; `rate()` → busy cores, max across validators (busiest); averaged over all seconds of all iterations |
@@ -953,15 +958,37 @@ Per-validator CPU (busiest validator, cadvisor) B/A median = **1.28×** (range
 0.99–2.23×) — e.g. `slow100-f1` 8.7 → 11.1 cores, `slow500-f1`
 20.9 → 24.7 cores. Consistent with the extra dry-run execution.
 
-Busiest-validator CPU (cores) by slow_size:
+Busiest-validator CPU (cores) by slow_size, each cell `n4` ∣ `n48`:
 
-| slow_size | f1: A | f1: B | f1 B/A | v1: A | v1: B | v1 B/A | v4: A | v4: B | v4 B/A |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 0   | 2.7  | 2.8  | 1.05 | 3.0  | 3.3  | 1.09 | 2.7  | 2.9  | 1.05 |
-| 50  | 5.3  | 6.4  | 1.21 | 5.7  | 8.1  | 1.43 | 5.3  | 6.7  | 1.26 |
-| 100 | 8.7  | 11.1 | 1.28 | 9.1  | 14.6 | 1.60 | 9.0  | 11.8 | 1.30 |
-| 200 | 18.7 | 21.0 | 1.12 | 21.1 | 31.9 | 1.51 | 20.2 | 24.4 | 1.21 |
-| 500 | 20.9 | 24.7 | 1.19 | 23.0 | 35.9 | 1.56 | 23.7 | 24.7 | 1.04 |
+Fullnode path (`f1`):
+
+| slow_size | A | B | B/A |
+| :---: | --- | --- | --- |
+| 0   | 2.7  ∣ **2.0** | 2.8  ∣ **2.0** | 1.05 ∣ **1.00** |
+| 50  | 5.3  ∣ **2.0** | 6.4  ∣ **2.0** | 1.21 ∣ **1.01** |
+| 100 | 8.7  ∣ **2.1** | 11.1 ∣ **2.1** | 1.28 ∣ **1.01** |
+| 200 | 18.7 ∣ **2.2** | 21.0 ∣ **2.2** | 1.12 ∣ **1.02** |
+| 500 | 20.9 ∣ **2.2** | 24.7 ∣ **2.4** | 1.19 ∣ **1.10** |
+
+Direct-to-one-validator path (`v1`):
+
+| slow_size | A | B | B/A |
+| :---: | --- | --- | --- |
+| 0   | 3.0  ∣ **2.1** | 3.3  ∣ **2.1** | 1.09 ∣ **1.04** |
+| 50  | 5.7  ∣ **2.1** | 8.1  ∣ **2.2** | 1.43 ∣ **1.05** |
+| 100 | 9.1  ∣ **2.1** | 14.6 ∣ **2.4** | 1.60 ∣ **1.13** |
+| 200 | 21.1 ∣ **2.1** | 31.9 ∣ **3.2** | 1.51 ∣ **1.51** |
+| 500 | 23.0 ∣ **2.2** | 35.9 ∣ **5.0** | 1.56 ∣ **2.34** |
+
+Direct-to-all-validators path (`v4` / `v48`):
+
+| slow_size | A | B | B/A |
+| :---: | --- | --- | --- |
+| 0   | 2.7  ∣ **2.0** | 2.9  ∣ **2.0** | 1.05 ∣ **0.99** |
+| 50  | 5.3  ∣ **2.0** | 6.7  ∣ **2.1** | 1.26 ∣ **1.02** |
+| 100 | 9.0  ∣ **2.2** | 11.8 ∣ **2.2** | 1.30 ∣ **1.01** |
+| 200 | 20.2 ∣ **2.2** | 24.4 ∣ **2.2** | 1.21 ∣ **1.03** |
+| 500 | 23.7 ∣ **2.2** | 24.7 ∣ **2.5** | 1.04 ∣ **1.13** |
 
 The pinned path (`v1`) rises more (up to ≈1.6×) than the fullnode path
 (≈1.1–1.3×), because that one validator attests every transaction, while on
@@ -970,15 +997,49 @@ spreading that matters, not the fullnode: submitting directly to all 4 keeps
 the busiest validator at fullnode-path levels (B ≈ 24.7 cores at `slow500`,
 matching `f1` and well below `v1`'s 35.9).
 
-Busiest-validator memory RSS (GB) by slow_size:
+On `n48`, every validator runs at ≈2.0–2.5 cores — 49 containers share the
+96 hardware threads, so the machine, not the workload, sets the level — and
+the B/A ratio becomes the cleanest per-validator view of the overhead. On
+the spread paths, attestation is ≈free: B/A 0.99–1.13 (each validator attests
+≈1/48th of the load). On the pinned path, the one attesting host climbs from
+1.04 at `slow0` to 2.34 at `slow500` (2.2 → 5.0 cores) — it pays the full
+dry-run stream on top of its execution share. Memory moves the same
+direction but barely: `v1`-B up to 1.21, spread paths ≤1.09.
 
-| slow_size | f1: A | f1: B | f1 B/A | v1: A | v1: B | v1 B/A | v4: A | v4: B | v4 B/A |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 0   | 0.8 | 0.8 | 1.00 | 0.8 | 0.8 | 0.99 | 0.8 | 0.8 | 1.00 |
-| 50  | 0.8 | 0.7 | 0.99 | 0.8 | 0.8 | 0.99 | 0.8 | 0.8 | 1.01 |
-| 100 | 0.7 | 0.7 | 1.00 | 0.8 | 0.8 | 1.01 | 0.8 | 0.8 | 0.99 |
-| 200 | 0.7 | 0.8 | 1.08 | 0.8 | 0.9 | 1.07 | 0.8 | 0.8 | 1.05 |
-| 500 | 0.5 | 0.6 | 1.29 | 0.5 | 0.7 | 1.38 | 0.5 | 0.7 | 1.25 |
+<details>
+<summary>Busiest-validator memory RSS (GB), same cell format</summary>
+
+Fullnode path (`f1`):
+
+| slow_size | A | B | B/A |
+| :---: | --- | --- | --- |
+| 0   | 0.8 ∣ **1.61** | 0.8 ∣ **1.62** | 1.00 ∣ **1.01** |
+| 50  | 0.8 ∣ **1.57** | 0.7 ∣ **1.58** | 0.99 ∣ **1.00** |
+| 100 | 0.7 ∣ **1.47** | 0.7 ∣ **1.46** | 1.00 ∣ **1.00** |
+| 200 | 0.7 ∣ **1.37** | 0.8 ∣ **1.39** | 1.08 ∣ **1.01** |
+| 500 | 0.5 ∣ **1.34** | 0.6 ∣ **1.41** | 1.29 ∣ **1.05** |
+
+Direct-to-one-validator path (`v1`):
+
+| slow_size | A | B | B/A |
+| :---: | --- | --- | --- |
+| 0   | 0.8 ∣ **1.62** | 0.8 ∣ **1.69** | 0.99 ∣ **1.04** |
+| 50  | 0.8 ∣ **1.58** | 0.8 ∣ **1.67** | 0.99 ∣ **1.06** |
+| 100 | 0.8 ∣ **1.47** | 0.8 ∣ **1.61** | 1.01 ∣ **1.09** |
+| 200 | 0.8 ∣ **1.38** | 0.9 ∣ **1.53** | 1.07 ∣ **1.11** |
+| 500 | 0.5 ∣ **1.31** | 0.7 ∣ **1.59** | 1.38 ∣ **1.21** |
+
+Direct-to-all-validators path (`v4` / `v48`):
+
+| slow_size | A | B | B/A |
+| :---: | --- | --- | --- |
+| 0   | 0.8 ∣ **1.56** | 0.8 ∣ **1.57** | 1.00 ∣ **1.01** |
+| 50  | 0.8 ∣ **1.54** | 0.8 ∣ **1.54** | 1.01 ∣ **1.00** |
+| 100 | 0.8 ∣ **1.48** | 0.8 ∣ **1.47** | 0.99 ∣ **1.00** |
+| 200 | 0.8 ∣ **1.38** | 0.8 ∣ **1.40** | 1.05 ∣ **1.01** |
+| 500 | 0.5 ∣ **1.34** | 0.7 ∣ **1.45** | 1.25 ∣ **1.09** |
+
+</details>
 
 Memory stays small and roughly flat (≈0.7–0.8 GB); attestation barely moves it —
 the heavy-config bumps are on ≈0.5–0.9 GB and noisy. Attestation's cost is CPU,
@@ -986,7 +1047,18 @@ not memory.
 
 ![CPU and memory, n4](h1/results/summary_plots_n4/resources.png)
 
-*Whole-machine host CPU and busiest-validator CPU / memory (RSS) — finding 9.*
+*Whole-machine host CPU and busiest-validator CPU / memory (RSS), `n4`
+campaign — finding 9.*
+
+<details>
+<summary>The same figure for the <code>n48</code> campaign</summary>
+
+![CPU and memory, n48](h1/results/summary_plots_n48/resources.png)
+
+*Resources, `n48` campaign — per-validator CPU pinned at the ≈2-core machine
+share on every path except the attesting `v1` host.*
+
+</details>
 
 ---
 
