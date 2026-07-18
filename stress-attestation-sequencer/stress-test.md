@@ -809,41 +809,71 @@ resume — the submit RPC returns only after the whole attestation span), so the
 cost): `slow0-f1-q200` 4.7 ms → 14.5 ms (3.1×), `slow500-f1-q200` 25.2 ms →
 674 ms
 (27×, i.e. +649 ms ≈ the full attestation p50, 616 ms at that configuration).
-At high rate the queueing baseline dominates and the ratio shrinks (≈1.1–5×).
+At high rate, the queueing baseline dominates and the ratio shrinks (≈1.1–5×).
 The *added* latency (B − A) equals the full attestation span only at low rate;
 under load the dry-runs queue and it grows well past that (`slow500-f1-q2000`
 submit reaches 3.8 s).
 
-Submit p50 (ms) on the fullnode path (A = attestation off, B = on):
+Submit p50 (ms) on the fullnode path (A = attestation off, B = on), with
+B's full attestation latency p50 alongside to check the addition directly
+(submit A + full attestation ≈ submit B); each cell `n4` ∣ `n48`:
 
-| slow_size | q200 A | q200 B | q200 B/A | q1000 A | q1000 B | q1000 B/A | q2000 A | q2000 B | q2000 B/A |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 0   | 4.7  | 14.5 | 3.1  | 3.7  | 4.2  | 1.1 | 3.6  | 3.8  | 1.1 |
-| 50  | 4.9  | 24.9 | 5.1  | 3.7  | 10.2 | 2.8 | 3.1  | 6.6  | 2.1 |
-| 100 | 4.4  | 26.3 | 6.0  | 3.3  | 15.0 | 4.5 | 5.0  | 21.6 | 4.3 |
-| 200 | 3.7  | 41.4 | 11.1 | 83.0 | 261  | 3.1 | 106  | 379  | 3.6 |
-| 500 | 25.2 | 674  | 26.8 | 386  | 2044 | 5.3 | 1007 | 3760 | 3.7 |
+Target rate `qps200`:
 
-Full attestation latency p50 (ms) at the same configurations, to check the
-addition directly (submit A + full attestation ≈ submit B):
+| slow_size | A | B | B/A | full attest. |
+| :---: | --- | --- | --- | --- |
+| 0   | 4.7  ∣ **19.9** | 14.5 ∣ **23.1** | 3.1  ∣ **1.2** | 0.5  ∣ **2.6** |
+| 50  | 4.9  ∣ **28.7** | 24.9 ∣ **38.2** | 5.1  ∣ **1.3** | 3.0  ∣ **6.3** |
+| 100 | 4.4  ∣ **82.7** | 26.3 ∣ **135** | 6.0  ∣ **1.6** | 8.6  ∣ **43.7** |
+| 200 | 3.7  ∣ **246** | 41.4 ∣ **655** | 11.1 ∣ **2.7** | 33.1 ∣ **394** |
+| 500 | 25.2 ∣ **1478** | 674 ∣ **5049** | 26.8 ∣ **3.4** | 616 ∣ **4540** |
 
-| slow_size | q200 | q1000 | q2000 |
-| --- | --- | --- | --- |
-| 0   | 0.5  | 0.5  | 0.5  |
-| 50  | 3.0  | 3.0  | 2.8  |
-| 100 | 8.6  | 6.5  | 8.7  |
-| 200 | 33.1 | 114  | 116  |
-| 500 | 616  | 1050 | 1381 |
+Target rate `qps1000`:
+
+| slow_size | A | B | B/A | full attest. |
+| :---: | --- | --- | --- | --- |
+| 0   | 3.7  ∣ **614** | 4.2   ∣ **616** | 1.1 ∣ **1.0** | 0.5   ∣ **7.3** |
+| 50  | 3.7  ∣ **350** | 10.2 ∣ **423** | 2.8 ∣ **1.2** | 3.0   ∣ **28.1** |
+| 100 | 3.3  ∣ **469** | 15.0 ∣ **646** | 4.5 ∣ **1.4** | 6.5   ∣ **108** |
+| 200 | 83.0 ∣ **1201** | 261  ∣ **2432** | 3.1 ∣ **2.0** | 114  ∣ **846** |
+| 500 | 386 ∣ **3933** | 2044 ∣ **10691** | 5.3 ∣ **2.7** | 1050 ∣ **8638** |
+
+Target rate `qps2000`:
+
+| slow_size | A | B | B/A | full attest. |
+| :---: | --- | --- | --- | --- |
+| 0   | 3.6   ∣ **1326** | 3.8   ∣ **1373** | 1.1 ∣ **1.0** | 0.5   ∣ **11.3** |
+| 50  | 3.1   ∣ **648** | 6.6   ∣ **748** | 2.1 ∣ **1.2** | 2.8   ∣ **40.5** |
+| 100 | 5.0   ∣ **632** | 21.6 ∣ **853** | 4.3 ∣ **1.4** | 8.7   ∣ **118** |
+| 200 | 106  ∣ **2221** | 379  ∣ **4960** | 3.6 ∣ **2.2** | 116  ∣ **1233** |
+| 500 | 1007 ∣ **4341** | 3760 ∣ **9998** | 3.7 ∣ **2.3** | 1381 ∣ **10321** |
 
 The addition holds at low rate — e.g. `slow500-f1-q200`: 25.2 + 616 ≈ 674, and
-`slow200-f1-q200`: 3.7 + 33.1 ≈ 41.4. At high rate B's submit grows past the sum
-(`slow500-f1-q2000`: 1007 + 1381 = 2389 vs 3760 measured) — the extra is
-queueing
-on the loaded validator beyond the attestation span itself.
+`slow200-f1-q200`: 3.7 + 33.1 ≈ 41.4. At high rate B's submit grows past the
+sum (`slow500-f1-q2000`: 1007 + 1381 = 2389 vs 3760 measured) — the extra is
+queueing on the loaded validator beyond the attestation span itself.
+
+On `n48`, the same structure sits on inflated baselines: A's submit is already
+20 ms–4.3 s from queueing alone, so the ratio never exceeds 3.4× (vs 27× on
+`n4`). The addition still holds at `qps200` through `slow200` (B − A 409 ms
+vs a 394 ms attestation span; 52 vs 44 ms at `slow100`). At `slow500`, it
+over-predicts: B − A (3.6 s at `qps200`) falls short of the 4.5 s attestation
+span — under saturation the attestation span and the submit queue overlap
+rather than add.
 
 ![Submit-transaction latency, n4](h1/results/summary_plots_n4/submit_latency.png)
 
-*Client submit latency, fullnode path only — finding 7.*
+*Client submit latency, fullnode path only, `n4` campaign — finding 7.*
+
+<details>
+<summary>The same figure for the <code>n48</code> campaign</summary>
+
+![Submit-transaction latency, n48](h1/results/summary_plots_n48/submit_latency.png)
+
+*Client submit latency, `n48` campaign — same shape on baselines dominated by
+queueing.*
+
+</details>
 
 ---
 
