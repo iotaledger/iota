@@ -1103,6 +1103,13 @@ share on every path except the attesting `v1` host.*
 
 **10. Throughput: no penalty at normal load; a fullnode cost at heavy compute.**
 
+> [!NOTE]
+> The title describes `n4`. On `n48`, the fullnode cost is absent (B/A
+> 0.98–1.00 through `slow200`); instead the pinned path halves B's
+> throughput at moderate sizes (continuous shedding) and multiplies it at
+> `slow500` (B 2.9× A — admission control wins under overload); see the
+> `n48` paragraph below.
+
 <details>
 <summary>Metric descriptions</summary>
 
@@ -1117,16 +1124,38 @@ Finalized TPS (`transactions_included_in_checkpoint`) is statistically
 identical A vs B at normal load — median `(B−A)/A = −0.4 %` across all 45
 configurations, within the few-percent run-to-run noise.
 
-Finalized TPS by slow_size (A = attestation off, B = on; `slow500`
-is small and noisy):
+Finalized TPS by slow_size (A = attestation off, B = on; `slow500` is small
+and noisy), each cell `n4` ∣ `n48`:
 
-| slow_size | f1: A | f1: B | f1 B/A | v1: A | v1: B | v1 B/A | v4: A | v4: B | v4 B/A |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 0   | 994  | 987  | 0.99 | 1024 | 1024 | 1.00 | 1022 | 1022 | 1.00 |
-| 50  | 1010 | 1003 | 0.99 | 1022 | 1020 | 1.00 | 1022 | 1022 | 1.00 |
-| 100 | 1023 | 1019 | 1.00 | 1010 | 1024 | 1.01 | 1022 | 1022 | 1.00 |
-| 200 | 747  | 584  | 0.78 | 602  | 636  | 1.06 | 589  | 564  | 0.96 |
-| 500 | 129  | 104  | 0.81 | 105  | 94   | 0.90 | 88   | 79   | 0.89 |
+Fullnode path (`f1`):
+
+| slow_size | A | B | B/A |
+| :---: | --- | --- | --- |
+| 0   | 994  ∣ **602** | 987  ∣ **604** | 0.99 ∣ **1.00** |
+| 50  | 1010 ∣ **431** | 1003 ∣ **427** | 0.99 ∣ **0.99** |
+| 100 | 1023 ∣ **194** | 1019 ∣ **189** | 1.00 ∣ **0.98** |
+| 200 | 747  ∣ **64** | 584  ∣ **63** | 0.78 ∣ **1.00** |
+| 500 | 129  ∣ **6** | 104  ∣ **5** | 0.81 ∣ **0.85** |
+
+Direct-to-one-validator path (`v1`):
+
+| slow_size | A | B | B/A |
+| :---: | --- | --- | --- |
+| 0   | 1024 ∣ **488** | 1024 ∣ **487** | 1.00 ∣ **1.00** |
+| 50  | 1022 ∣ **374** | 1020 ∣ **187** | 1.00 ∣ **0.50** |
+| 100 | 1010 ∣ **190** | 1024 ∣ **103** | 1.01 ∣ **0.54** |
+| 200 | 602  ∣ **66** | 636  ∣ **47** | 1.06 ∣ **0.72** |
+| 500 | 105  ∣ **5** | 94   ∣ **15** | 0.90 ∣ **2.94** |
+
+Direct-to-all-validators path (`v4` / `v48`):
+
+| slow_size | A | B | B/A |
+| :---: | --- | --- | --- |
+| 0   | 1022 ∣ **471** | 1022 ∣ **471** | 1.00 ∣ **1.00** |
+| 50  | 1022 ∣ **398** | 1022 ∣ **401** | 1.00 ∣ **1.01** |
+| 100 | 1022 ∣ **186** | 1022 ∣ **188** | 1.00 ∣ **1.01** |
+| 200 | 589  ∣ **62** | 564  ∣ **64** | 0.96 ∣ **1.02** |
+| 500 | 88   ∣ **6** | 79   ∣ **10** | 0.89 ∣ **1.67** |
 
 Caveat: the −0.4 % median is the normal-load result. On the fullnode path the
 cost grows with compute — B/A ≈ 0.78 at `slow200`, ≈ 0.81 at `slow500` — while
@@ -1135,6 +1164,19 @@ the direct paths pay little or nothing (`v1` 1.06/0.90 and `v4` 0.96/0.89 at
 even though it sends every attestation to a single validator. Why the fullnode
 path pays more is not established here (both sit at ≈76–85/96 host CPU, so it
 is not spare capacity); it needs a dedicated look.
+
+On `n48`, the absolute numbers are saturation-bound before anything else: the
+machine delivers ≈470–600 TPS at `slow0` regardless of the requested 1000/s,
+and the sizes above collapse identically on A and B (`slow100` ≈190,
+`slow200` ≈64, `slow500` single digits). Within that ceiling the `n4` caveat
+inverts. The fullnode dip is gone — `f1` B/A is 0.98–1.00 through `slow200`
+(0.85 at the degenerate `slow500`). The pinned path pays instead: B/A ≈0.50
+at `slow50`/`slow100` — half of B's stream is rejected by the entry
+validator's continuous pre-consensus shedding (finding 14) — and 0.72 at
+`slow200`. At `slow500`, the same throttle wins: B delivers 2.9× A (15 vs
+5 TPS), the load-shedding paradox already visible in findings 2 and 5 —
+admitting less lets the network finish more. `v48` stays at B/A ≈1.0
+throughout (1.67 at the noisy `slow500`).
 
 attestations / sec (the busiest validator's rate) shows how the two client
 paths spread attestation work. On the pinned path (`v1`) one validator attests
@@ -1146,16 +1188,21 @@ heavy compute (`slow200`: 306 vs 1546 /s). `v4` spreads just as evenly
 without a fullnode in the picture (busiest ≈ 500 /s at light load, 426 at
 `slow200`) — the driver's validator selection balances the load on its own.
 Finalized TPS is approximately the same on all paths, so this is about how
-attestation work is spread, not throughput.
+attestation work is spread, not throughput. On `n48`, the concentration
+contrast widens: the spread paths' busiest validator attests ≈50–70/s at
+light load (≈600 TPS over 48 validators, with some imbalance) while the
+pinned one attests ≈480/s — a 6.8× ratio, up from 2.1× on `n4` — and the
+ratio only closes at `slow500` (1.9×), where the pinned validator's shedding
+caps its intake.
 
-attestations / sec by path (busiest validator):
+attestations / sec by path (busiest validator), each cell `n4` ∣ `n48`:
 
-| config          | `f1` | `v1` | `v4` | v1/f1 |
-| ---             | ---  | ---  | ---  | ---   |
-| `slow0`   | 484  | 994  | 500  | 2.1×  |
-| `slow100` | 501  | 993  | 503  | 2.0×  |
-| `slow200` | 306  | 1546 | 426  | 5.0×  |
-| `slow500` | 74   | 516  | 96   | 7.0×  |
+| config | `f1` | `v1` | `v4` / `v48` | v1/f1 |
+| :---: | --- | --- | --- | --- |
+| `slow0` | 484 ∣ **70** | 994  ∣ **480** | 500 ∣ **51** | 2.1× ∣ **6.8×** |
+| `slow100` | 501 ∣ **24** | 993  ∣ **195** | 503 ∣ **35** | 2.0× ∣ **8.0×** |
+| `slow200` | 306 ∣ **15** | 1546 ∣ **81** | 426 ∣ **26** | 5.0× ∣ **5.4×** |
+| `slow500` | 74  ∣ **13** | 516  ∣ **26** | 96  ∣ **17** | 7.0× ∣ **1.9×** |
 
 ---
 
