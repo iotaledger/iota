@@ -879,29 +879,52 @@ queueing.*
 
 **8. Settlement finality latency: the client sees the same doubling.**
 
+> [!NOTE]
+> The title describes `n4`. On `n48`, the doubling does not reach the client:
+> both sides sit on the saturated pipeline (finding 4's ceiling) and B/A
+> stays 0.96–1.18; see the `n48` paragraph below.
+
 | metric | codebase description | aggregation |
 | --- | --- | --- |
 | `transaction_driver_settlement_finality_latency` | Settlement finality latency observed from transaction driver | histogram; p50/p95/p99 (`histogram_quantile`), fullnode client series only; averaged over all seconds of all iterations |
 
 `settlement_finality_latency` is the client's submit→finality time (fullnode
 path only). It's the end-to-end view of the internal pipeline (finding 4) plus
-network and finality, so it moves the same way. Fullnode path:
+network and finality, so it moves the same way. Fullnode path, each cell
+`n4` ∣ `n48`:
 
 | slow_size | p50 A | p50 B | p50 B/A | p95 A | p95 B | p95 B/A |
-| --- | --- | --- | --- | --- | --- | --- |
-| 0   | 253 ms | 252 ms | 1.00 | 367 ms | 374 ms  | 1.02 |
-| 50  | 259 ms | 258 ms | 1.00 | 359 ms | 351 ms  | 0.98 |
-| 100 | 264 ms | 270 ms | 1.02 | 373 ms | 390 ms  | 1.05 |
-| 200 | 804 ms | 1.25 s | 1.56 | 1.20 s | 2.00 s  | 1.67 |
-| 500 | 4.26 s | 7.53 s | 1.77 | 7.08 s | 11.65 s | 1.65 |
+| :---: | --- | --- | --- | --- | --- | --- |
+| 0   | 253 ms ∣ **1.84 s** | 252 ms ∣ **1.82 s** | 1.00 ∣ **0.99** | 367 ms ∣ **3.38 s** | 374 ms ∣ **3.32 s** | 1.02 ∣ **0.98** |
+| 50  | 259 ms ∣ **2.35 s** | 258 ms ∣ **2.46 s** | 1.00 ∣ **1.04** | 359 ms ∣ **3.26 s** | 351 ms ∣ **3.43 s** | 0.98 ∣ **1.05** |
+| 100 | 264 ms ∣ **4.83 s** | 270 ms ∣ **5.03 s** | 1.02 ∣ **1.04** | 373 ms ∣ **6.51 s** | 390 ms ∣ **6.84 s** | 1.05 ∣ **1.05** |
+| 200 | 804 ms ∣ **12.57 s** | 1.25 s  ∣ **14.81 s** | 1.56 ∣ **1.18** | 1.20 s  ∣ **18.32 s** | 2.00 s  ∣ **20.97 s** | 1.67 ∣ **1.14** |
+| 500 | 4.26 s  ∣ **16.86 s** | 7.53 s  ∣ **16.24 s** | 1.77 ∣ **0.96** | 7.08 s  ∣ **20.88 s** | 11.65 s ∣ **20.08 s** | 1.65 ∣ **0.96** |
 
-At light load B≈A (≈250 ms, dominated by consensus/finality; attestation is
-negligible). At heavy compute B runs ≈1.6–1.8× A (`slow500` 4.26 s → 7.53 s
-p50), the doubling from finding 4 carried through to what the client observes.
+On `n4`, at light load B≈A (≈250 ms, dominated by consensus/finality;
+attestation is negligible). At heavy compute, B runs ≈1.6–1.8× A (`slow500`
+4.26 s → 7.53 s p50), the doubling from finding 4 carried through to what
+the client observes.
+
+On `n48`, the client sees finding 4's ceiling instead: the floor is already
+≈1.8 s at `slow0` and both sides climb together to ≈16–21 s at `slow500`, so
+B/A stays 0.96–1.18 throughout — the only visible bump is at `slow200`
+(1.14–1.18), matching the pipeline's 1.12 there. What the client observes is
+the saturated backlog, not the attestation span.
 
 ![Settlement finality latency, n4](h1/results/summary_plots_n4/settlement_finality_latency.png)
 
-*Client settlement-finality latency, fullnode path only.*
+*Client settlement-finality latency, fullnode path only, `n4` campaign.*
+
+<details>
+<summary>The same figure for the <code>n48</code> campaign</summary>
+
+![Settlement finality latency, n48](h1/results/summary_plots_n48/settlement_finality_latency.png)
+
+*Client settlement-finality latency, `n48` campaign — A and B climb together
+to the backlog ceiling.*
+
+</details>
 
 ---
 
