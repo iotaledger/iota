@@ -1504,9 +1504,15 @@ paces the fullnode's driver, so its stream arrives gentler than A's.
 
 ### H4 — safety (pass/fail)
 
-**PASS.** All safety counters are zero across all runs (checkpoint forks,
-inconsistent state hash, double-spend, attestation task panics, soft-lock
-equivocation), and no validator crashed, restarted, or OOM'd.
+**PASS.** All safety counters are zero across all runs of both campaigns,
+`n4` and `n48` (checkpoint forks, inconsistent state hash, double-spend,
+attestation task panics, soft-lock equivocation), and no validator crashed,
+restarted, or OOM'd inside any measurement window. The one incident on
+`n48`: two checkpoint-executor watchdog panics ("No new synced checkpoints
+received for 60s") on the saturated `slow500-f1-qps1000` configuration, each
+firing seconds after its measurement window closed, while the network was
+being torn down — a symptom of the extreme checkpoint lag in the degenerate
+regime (finding 5), not a safety event.
 
 <details>
 <summary>Metric descriptions</summary>
@@ -1540,28 +1546,53 @@ equivocation), and no validator crashed, restarted, or OOM'd.
 Attestation's cost is a **pre-consensus execution dry-run plus the scheduling
 around it**. The dry-run itself tracks the real execution latency — a heavy
 attested transaction is executed twice, roughly doubling the validator's work
-(≈+30 % busy cores). At light load that is the whole story (sub-millisecond
-overhead); under load the pool wait and async resume around the dry-run grow
-to dominate the attestation time (findings 1, 9). Compute-unit accounting is
-exact, and actual execution, post-consensus validation, and throughput at
-normal load are untouched (findings 2, 3, 6, 10).
+(≈+30 % busy cores on `n4`). At light load, that is the whole story
+(sub-millisecond overhead); under load, the pool wait and async resume around
+the dry-run grow to dominate the attestation time (findings 1, 9). Compute-unit
+accounting is exact, and actual execution, post-consensus validation, and
+throughput at normal load are untouched (findings 2, 3, 6, 10).
 
-The costs surface under heavy compute. The client pays the full attestation
-span on every fullnode submit, and end-to-end latency — receipt→execution and
-settlement finality — roughly doubles; on the fullnode path throughput also
-dips (B/A ≈ 0.78–0.81) and the execution backlog deepens (findings 4, 7, 8,
-12). But attestation also *relocates* load: by slowing admission it moves the
-backlog from after consensus to before it — checkpoint lag on the direct paths
-is far smaller with attestation on, while `num_inflight` grows until the
-heaviest pinned configuration reaches the submit semaphore and pre-consensus
-shedding fires (findings 5, 14). The strength of that shift follows how
-concentrated the attestation is (pinned strongest, spread-direct weaker,
-fullnode weakest), and the fullnode itself acts as an admission buffer: with
-attestation off, the direct paths — spread or pinned — build several times
-its post-consensus backlog (finding 5). One observation deserves follow-up: the
-fullnode-path throughput dip is unexplained (finding 10). With the temporary
-post-consensus fixes in place, there are no validation drops or checkpoint
-forks on either path (finding 11, H4 PASS).
+On `n4`, the costs surface under heavy compute. The client pays the full
+attestation span on every fullnode submit, and end-to-end latency —
+receipt→execution and settlement finality — roughly doubles; on the fullnode
+path, throughput also dips (B/A ≈ 0.78–0.81) and the execution backlog deepens
+(findings 4, 7, 8, 12). But attestation also *relocates* load: by slowing
+admission it moves the backlog from after consensus to before it — checkpoint
+lag on the direct paths is far smaller with attestation on, while
+`num_inflight` grows until the heaviest pinned configuration reaches the submit
+semaphore and pre-consensus shedding fires (findings 5, 14). The strength of
+that shift follows how concentrated the attestation is (pinned strongest,
+spread-direct weaker, fullnode weakest), and the fullnode itself acts as an
+admission buffer: with attestation off, the direct paths — spread or pinned —
+build several times its post-consensus backlog (finding 5). One observation
+deserves follow-up: the fullnode-path throughput dip is unexplained (finding
+10). With the temporary post-consensus fixes in place, there are no validation
+drops or checkpoint forks on either path or network size (finding 11, H4 PASS).
 
-Full per-configuration numbers: `h1/results/summary_table_n4.md`. Figures:
-`h1/results/summary_plots_n4/*.png`.
+The 48-validator campaign was run to test the spreading argument directly: each
+transaction is attested by one validator, so the more validators share the
+stream, the smaller each one's share of the overhead. On the validator side,
+the data confirms it. On the spread paths, the busiest validator attests ≈70/s
+of a ≈600 TPS stream (its 1/48th share plus imbalance), CPU B/A drops to
+0.99–1.13 (from 1.04–1.30 on `n4`), the `n4` fullnode throughput dip
+disappears, and B behaves like A after consensus — same checkpoint lag, same
+shedding (findings 5, 9, 10, 13). Concentrating the same stream on one
+validator shows the opposite pole: +134 % CPU on the attesting host and
+continuous pre-consensus shedding against the 12×-smaller submit semaphore —
+on `n48`, the admission throttle, not the dry-run, dominates every pinned-path
+comparison (findings 2, 5, 6, 12, 14).
+
+What `n48` cannot show is a client-visible gain. 48 validators replicate every
+execution on the same 96 hardware threads, so the machine saturates below the
+target rate (≈600 of 1000 TPS at `slow0`) and every client-side latency is
+backlog-shaped on A and B alike — the `n4` doubling washes out into B/A ≈ 1.0
+without saying anything about attestation (findings 4, 7, 8). The
+per-transaction attestation span also stays in the submit path regardless of
+committee size: spreading divides the validators' aggregate load, not the
+individual transaction's added wait. Measuring the client-side effect of a
+large committee needs a deployment where 48 validators do not share one
+machine.
+
+Full per-configuration numbers: `h1/results/summary_table_n4.md` and
+`h1/results/summary_table_n48.md`. Figures: `h1/results/summary_plots_n4/` and
+`h1/results/summary_plots_n48/`.
