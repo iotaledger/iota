@@ -1431,6 +1431,11 @@ and `slow500` sheds nothing.*
 **14. Pre-consensus load shedding: quiet until the heaviest pinned
 configuration hits the submit semaphore.**
 
+> [!NOTE]
+> The title describes `n4`. On `n48`, the semaphore is 12× smaller (833
+> permits) and the pinned path trips it continuously at `qps1000` — on A as
+> well as B; see the `n48` paragraphs below.
+
 <details>
 <summary>Metric descriptions</summary>
 
@@ -1446,10 +1451,11 @@ configuration hits the submit semaphore.**
 `check_system_overload` rejects a transaction before consensus when the
 consensus queue is saturated, labeled by which limit tripped: the graduated
 soft band, the `max_pending_transactions` hard limit (20000), or the submit
-semaphore (`max_pending_transactions × 2 / committee size` = 10000 for this
-4-validator network). Across the whole matrix it fired in exactly one
-configuration — B at `slow500-v1-qps2000`; no other configuration, at any
-rate, rejected a single transaction pre-consensus:
+semaphore (`max_pending_transactions × 2 / committee size` — 10000 on the
+4-validator network, 833 on the 48-validator one). Across the whole `n4`
+matrix it fired in exactly one configuration — B at `slow500-v1-qps2000`; no
+other `n4` configuration, at any rate, rejected a single transaction
+pre-consensus:
 
 | config | A `num_inflight` | B `num_inflight` | B graduated/s | B semaphore/s | B cons-queue % |
 | --- | --- | --- | --- | --- | --- |
@@ -1458,15 +1464,41 @@ rate, rejected a single transaction pre-consensus:
 `num_inflight` (transactions submitted to consensus but not yet sequenced) peaks
 higher in B than A on every heavy configuration — under attestation each
 transaction stays in the submit pipeline longer, so more sit in flight at
-once. At `slow500-v1-qps2000` B's peak reaches ≈9700 ≈ the 10000-permit submit
+once. At `slow500-v1-qps2000`, B's peak reaches ≈9700 ≈ the 10000-permit submit
 semaphore, and rejections fire: mostly `consensus_semaphore` (≈127/s) with
 some `consensus_graduated` (≈32/s), and `consensus_max_pending` never — the
 semaphore is reached first and holds `num_inflight` below the 20000 hard limit.
-The totals cross-check: rejections/s (≈154) ≈ graduated + semaphore. A never
-sheds pre-consensus at any configuration, and neither does `v4` at any load:
-spreading the submissions keeps every validator's `num_inflight` at ≈2100 or
-less, far from the semaphore — the pre-consensus limits only come into play
-when the load pins to a single validator.
+The totals cross-check: rejections/s (≈154) ≈ graduated + semaphore. On
+`n4`, A never sheds pre-consensus at any configuration, and neither does
+`v4` at any load: spreading the submissions keeps every validator's
+`num_inflight` at ≈2100 or less, far from the semaphore — the pre-consensus
+limits only come into play when the load pins to a single validator.
+
+On `n48`, nothing about this finding stays quiet. With 833 permits, the
+pinned path trips the semaphore at every rate, through the whole run window
+— and on both sides: A rejects too (71–115 /s at `qps1000` from `slow50`
+up; 1000/s through a single validator's submit path is enough on its own),
+with B rejecting more (187 vs 91 /s at `slow500`) because each attested
+submission holds its permit through the dry-run span. Every rejection is
+`consensus_semaphore`: the graduated band and `max_pending` never fire, and
+the consensus-queue shed % stays 0 throughout. The pinned path at `qps1000`:
+
+| config | A rej/s | B rej/s | A `num_inflight` | B `num_inflight` |
+| --- | --- | --- | --- | --- |
+| `slow0-v1` | 1.3 | 7.7 | 691 | 807 |
+| `slow50-v1` | 71.2 | 131.2 | 890 | 1324 |
+| `slow100-v1` | 103.5 | 119.8 | 1120 | 1438 |
+| `slow200-v1` | 115.1 | 99.6 | 1256 | 1666 |
+| `slow500-v1` | 91.2 | 187.1 | 1144 | 1538 |
+
+`num_inflight` peaks (0.8–1.7k here, up to 2.3k at `qps2000`) sit well above
+the 833 permits — the gauge counts everything queued for sequencing, not
+only submissions currently holding a permit — and B's peak exceeds A's
+everywhere, as on `n4`. Raising the rate amplifies the same picture (B up to
+541 /s rejected at `slow500-qps2000`). The `n4` exceptions soften but hold
+direction: `v48` fires once (`slow500-qps2000`: B 82 /s vs A 8.3), and `f1`
+shows a small A-only trickle at `qps2000` (≈6 /s) — B's longer submit RPC
+paces the fullnode's driver, so its stream arrives gentler than A's.
 
 ---
 
