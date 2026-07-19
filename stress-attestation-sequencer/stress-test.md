@@ -1334,6 +1334,11 @@ B queues drain below A.*
 **13. Post-consensus load shedding: sheds under heavy compute on both
 paths.**
 
+> [!NOTE]
+> The title describes `n4`. On `n48`, shedding fires at the moderate sizes
+> (`slow50`–`slow200`) and not at all at `slow500`, and A ≫ B survives only
+> on the pinned path; see the `n48` paragraph below.
+
 <details>
 <summary>Metric descriptions</summary>
 
@@ -1345,9 +1350,9 @@ paths.**
 
 </details>
 
-Light and moderate configurations (`slow0`–`slow100`) barely shed — only
-small bursts at `qps2000` (percentages of a few percent, drops up to ≈7/s on
-`slow0-f1-q2000` A). The heavy configurations:
+On `n4`, light and moderate configurations (`slow0`–`slow100`) barely shed —
+only small bursts at `qps2000` (percentages of a few percent, drops up to
+≈7/s on `slow0-f1-q2000` A). The heavy `n4` configurations:
 
 | config | A drops/s | A quorum % | A local % | B drops/s | B quorum % | B local % |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -1364,26 +1369,62 @@ small bursts at `qps2000` (percentages of a few percent, drops up to ≈7/s on
 | `slow500-v1-q2000` | 19.8 | 62.9 | 72.8 | 0.9  | 20.1 | 51.6 |
 | `slow500-v4-q2000` | 25.1 | 71.1 | 78.6 | 0.7  | 8.8  | 63.8 |
 
-Under heavy compute all paths shed: the percentages rise on A and B alike
+Under heavy compute, all paths shed: the percentages rise on A and B alike
 (the locally broadcast value runs ahead of the enforced quorum value, as
 expected — the quorum needs 2f+1 validators to agree), and all drop
-transactions. The paths differ in degree, not kind. On the direct paths A
+transactions. The paths differ in degree, not kind. On the direct paths, A
 drops far more than B (71.1 vs 3.0 /s at `slow200-v1-q2000`, 25.1 vs 0.7 /s at
 `slow500-v4-q2000`): attestation throttles admission, so less backlog reaches
 the post-consensus dropper (finding 5). How much less follows the attestation
 concentration: `v1` throttles hardest and its B drops least (0.9–3.0 /s); on
 `v4`, where each validator attests only a quarter, the throttling is weaker
 and B can still drop heavily (52.3 /s at `slow200-v4-q2000`). On the fullnode
-path the order can flip outright (1.8 vs 27.1 /s at `slow200-f1-q2000`) —
+path, the order can flip outright (1.8 vs 27.1 /s at `slow200-f1-q2000`) —
 there B carries the deeper execution backlog (finding 12), and its shed
 percentages run higher.
 
+On `n48`, the shedding window moves down the size scale: drops fire at
+`slow50`–`slow200` and vanish entirely at `slow500` — on both sides, at both
+rates — because the heaviest configurations barely admit anything for the
+dropper to act on (finding 10's collapse). The `n48` rows with ≥1 drop/s:
+
+| config | A drops/s | A quorum % | A local % | B drops/s | B quorum % | B local % |
+| --- | --- | --- | --- | --- | --- | --- |
+| `slow100-f1` | 5.2 | 7.0 | 36.4 | 4.0 | 8.6 | 38.4 |
+| `slow200-f1` | 3.2 | 22.3 | 60.1 | 4.6 | 20.4 | 54.3 |
+| `slow200-v1` | 11.3 | 30.4 | 55.5 | 4.1 | 26.1 | 50.4 |
+| `slow100-v48` | 27.0 | 24.4 | 45.6 | 21.1 | 24.1 | 45.4 |
+| `slow200-v48` | 13.5 | 32.0 | 71.6 | 16.6 | 28.8 | 73.2 |
+| `slow50-f1-q2000` | 2.6 | 3.4 | 32.9 | 2.4 | 1.7 | 34.0 |
+| `slow100-f1-q2000` | 24.9 | 27.0 | 50.8 | 22.6 | 24.0 | 56.3 |
+| `slow200-f1-q2000` | 4.1 | 33.3 | 78.5 | 1.6 | 22.0 | 84.3 |
+| `slow200-v1-q2000` | 14.8 | 29.3 | 54.1 | 1.8 | 23.3 | 52.4 |
+| `slow100-v48-q2000` | 44.1 | 39.8 | 64.3 | 49.0 | 43.5 | 65.6 |
+| `slow200-v48-q2000` | 2.4 | 16.0 | 81.1 | 2.2 | 31.5 | 88.4 |
+
+The A ≫ B contrast survives only on the pinned path (11.3 vs 4.1 /s at
+`slow200-v1`, 14.8 vs 1.8 at `slow200-v1-q2000`) — the relocation is total
+there (finding 5). On the spread paths, A ≈ B (44.1 vs 49.0 /s at
+`slow100-v48-q2000`): with no relocation, B's backlog sits after consensus
+exactly like A's, and both shed alike.
+
 ![Post-consensus load shedding, n4](h1/results/summary_plots_n4/load_shedding_post_consensus.png)
 
-*Post-consensus load shedding: drops / sec, enforced quorum shed %, and locally
-broadcast shed % (peaks). A dominates the drops on the pinned path; B can
-dominate on the fullnode path. The largest drops land at `qps2000` (see the
-table above).*
+*Post-consensus load shedding, `n4` campaign: drops / sec, enforced quorum
+shed %, and locally broadcast shed % (peaks). A dominates the drops on the
+pinned path; B can dominate on the fullnode path. The largest drops land at
+`qps2000` (see the table above).*
+
+<details>
+<summary>The same figure for the <code>n48</code> campaign</summary>
+
+![Post-consensus load shedding, n48](h1/results/summary_plots_n48/load_shedding_post_consensus.png)
+
+*Post-consensus shedding, `n48` campaign. Note the figure's `slow200`/
+`slow500` subset: the largest `n48` drops sit at `slow100` (table above),
+and `slow500` sheds nothing.*
+
+</details>
 
 ---
 
