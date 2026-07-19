@@ -251,6 +251,9 @@ def base_of(metric):
 # default view is qps1000 x {0,100,200,500} x all paths (12 groups instead of
 # 45). Figures that need another slice override:
 #   "slow" / "qps" / "paths" — allow-lists applied to parse_cfg's fields.
+#   "nonzero" — drop configs whose every value is 0/absent for the figure's
+#   metrics (e.g. shedding: most configs never shed and would render as
+#   empty groups).
 # The full 45-config grid stays in summary_table_n<N>.{md,csv}; this trims the
 # FIGURES only.
 DEF_SLOW = (0, 50, 100, 200, 500)
@@ -351,7 +354,7 @@ FIGURES = [
     },
     {
         "file": "load_shedding_post_consensus",
-        "slow": (200, 500),
+        "nonzero": True,
         "title": "Post-consensus load shedding",
         "metrics": [
             "post-cons shed drops / sec",
@@ -412,6 +415,7 @@ def make_figure(
     logy,
     title=None,
     subtitles=None,
+    nonzero=False,
 ):
     """Render one figure (one metric = single axes; several = stacked shared-x
     subplots) to `out`. Returns the output path, or None if no data. `title` is a
@@ -419,6 +423,22 @@ def make_figure(
     optionally overrides individual subplot titles (metric name -> label)."""
     n = len(metrics)
     metric_data = {m: load(csv_path, m) for m in metrics}  # m -> (rows, unit)
+
+    if nonzero:
+        # Keep only configs with signal: any finite non-zero value in any of
+        # the figure's metrics, either version.
+        def has_signal(c):
+            return any(
+                v == v and v != 0
+                for rows, _ in metric_data.values()
+                for ver in ("V1", "V2")
+                for v in (rows.get(c, {}).get(ver, (float("nan"),))[0],)
+            )
+
+        configs = [c for c in configs if has_signal(c)]
+        if not configs:
+            print(f"skip {out}: all values zero for {metrics}", file=sys.stderr)
+            return None
 
     # Figure-wide version slots (shared across subplots -> consistent x-layout).
     versions = select_versions(metric_data, configs, versions_mode)
@@ -578,6 +598,7 @@ def main():
                 args.logy,
                 title=spec.get("title"),
                 subtitles=spec.get("subtitles"),
+                nonzero=spec.get("nonzero", False),
             )
 
 

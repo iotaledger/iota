@@ -122,8 +122,9 @@ attestation on)**; the x-axis is one group per configuration
 (`s<size>·<path>`, `f1` = fullnode, `v1` = pinned to one validator,
 `v4`/`v48` = direct to all validators), with dashed separators between
 computation sizes; the y-axis is log-scaled. To keep the figures readable,
-the shedding figure shows only the heavy sizes (`slow200`/`slow500`) and the
-client-side figures only the fullnode path. The tables and
+the shedding figure shows only the configurations with a non-zero value in
+at least one of its panels, and the client-side figures only the fullnode
+path. The tables and
 `summary_table_n4.md` / `summary_table_n48.md` carry the full 45
 configurations of each campaign.
 
@@ -1420,9 +1421,9 @@ pinned path; B can dominate on the fullnode path. The largest drops land at
 
 ![Post-consensus load shedding, n48](h1/results/summary_plots_n48/load_shedding_post_consensus.png)
 
-*Post-consensus shedding, `n48` campaign. Note the figure's `slow200`/
-`slow500` subset: the largest `n48` drops sit at `slow100` (table above),
-and `slow500` sheds nothing.*
+*Post-consensus shedding, `n48` campaign — drops fire at the moderate
+sizes; at `slow500` the locally computed shed % is high but nothing is
+dropped, because almost nothing is admitted (finding 10).*
 
 </details>
 
