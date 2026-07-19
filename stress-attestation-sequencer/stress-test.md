@@ -1195,6 +1195,22 @@ pinned one attests ≈480/s — a 6.8× ratio, up from 2.1× on `n4` — and the
 ratio only closes at `slow500` (1.9×), where the pinned validator's shedding
 caps its intake.
 
+![Throughput, attestation rate, and validation-drop rate, n4](h1/results/summary_plots_n4/TPS.png)
+
+*Finalized TPS, attestations / sec, and post-consensus validation-drops / sec,
+`n4` campaign — findings 10 and 11. TPS is A≈B; no validation drops on either
+path.*
+
+<details>
+<summary>The same figure for the <code>n48</code> campaign</summary>
+
+![Throughput, attestation rate, and validation-drop rate, n48](h1/results/summary_plots_n48/TPS.png)
+
+*The same panels, `n48` campaign — `v1`'s B throughput halves at the moderate
+sizes (shedding); validation drops stay zero on every path.*
+
+</details>
+
 attestations / sec by path (busiest validator), each cell `n4` ∣ `n48`:
 
 | config | `f1` | `v1` | `v4` / `v48` | v1/f1 |
@@ -1218,12 +1234,10 @@ attestations / sec by path (busiest validator), each cell `n4` ∣ `n48`:
 </details>
 
 `consensus_handler_validation_dropped_transactions` is ≈0 on both the attested
-(V2) and unattested (V1) paths, across every configuration.
-
-![Throughput, attestation rate, and validation-drop rate, n4](h1/results/summary_plots_n4/TPS.png)
-
-*Finalized TPS, attestations / sec, and post-consensus validation-drops / sec —
-findings 10 and 11. TPS is A≈B; no validation drops on either path.*
+(V2) and unattested (V1) paths, across every configuration of both campaigns
+(`n4` and `n48`) — the counter never moves even where shedding and
+saturation are at their worst. The rates are shown in the throughput figure
+(finding 10).
 
 ---
 
