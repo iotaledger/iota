@@ -1243,6 +1243,12 @@ saturation are at their worst. The rates are shown in the throughput figure
 
 **12. Execution queues and backpressure: deeper backlog under heavy load.**
 
+> [!NOTE]
+> The title describes `n4`'s fullnode path. On `n48` queue delay tracks
+> saturation, not attestation: the fullnode effect does not reproduce, and
+> the pinned path's B queues far less than A (B/A 0.12 at `slow500`); see
+> the `n48` paragraph below.
+
 <details>
 <summary>Metric descriptions</summary>
 
@@ -1254,21 +1260,43 @@ saturation are at their worst. The rates are shown in the throughput figure
 
 </details>
 
-Under load, execution work queues up. Headline signal: queue-delay p95 (how long
-a tx waits before executing); dispatch-queue depth and pending-tx count track
-it:
+Under load, execution work queues up. Headline signal: queue-delay p95 (how
+long a tx waits before executing); dispatch-queue depth and pending-tx count
+track it. Each cell `n4` ∣ `n48`:
 
-| slow_size | f1: A | f1: B | f1 B/A | v1: A | v1: B | v1 B/A | v4: A | v4: B | v4 B/A |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 0   | 5 ms   | 5 ms   | 1.00 | 5 ms   | 5 ms   | 0.98 | 5 ms   | 5 ms   | 1.00 |
-| 50  | 10 ms  | 10 ms  | 1.08 | 11 ms  | 11 ms  | 0.98 | 10 ms  | 11 ms  | 1.09 |
-| 100 | 27 ms  | 29 ms  | 1.05 | 28 ms  | 26 ms  | 0.92 | 29 ms  | 27 ms  | 0.94 |
-| 200 | 508 ms | 997 ms | 1.96 | 1.91 s | 1.81 s | 0.95 | 1.83 s | 1.70 s | 0.93 |
-| 500 | 2.44 s | 3.41 s | 1.39 | 5.21 s | 5.33 s | 1.02 | 5.23 s | 7.35 s | 1.41 |
+Fullnode path (`f1`):
 
-Light configs barely queue (≈5–29 ms, A≈B). On the fullnode path B carries a
-deeper backlog under heavy compute — queue-delay 1.4–2.0× A, and the
-dispatch-queue peak grows the same way (`slow200-f1` 877 → 1280) — because
+| slow_size | A | B | B/A |
+| :---: | --- | --- | --- |
+| 0   | 5 ms   ∣ **381 ms** | 5 ms   ∣ **358 ms** | 1.00 ∣ **0.94** |
+| 50  | 10 ms  ∣ **1.14 s** | 10 ms  ∣ **1.16 s** | 1.08 ∣ **1.02** |
+| 100 | 27 ms  ∣ **2.12 s** | 29 ms  ∣ **2.22 s** | 1.05 ∣ **1.05** |
+| 200 | 508 ms ∣ **5.31 s** | 997 ms ∣ **4.09 s** | 1.96 ∣ **0.77** |
+| 500 | 2.44 s  ∣ **2.09 s** | 3.41 s  ∣ **2.57 s** | 1.39 ∣ **1.23** |
+
+Direct-to-one-validator path (`v1`):
+
+| slow_size | A | B | B/A |
+| :---: | --- | --- | --- |
+| 0   | 5 ms  ∣ **31 ms** | 5 ms  ∣ **46 ms** | 0.98 ∣ **1.47** |
+| 50  | 11 ms ∣ **274 ms** | 11 ms ∣ **326 ms** | 0.98 ∣ **1.19** |
+| 100 | 28 ms ∣ **1.39 s** | 26 ms ∣ **952 ms** | 0.92 ∣ **0.69** |
+| 200 | 1.91 s ∣ **2.97 s** | 1.81 s ∣ **2.48 s** | 0.95 ∣ **0.84** |
+| 500 | 5.21 s ∣ **2.10 s** | 5.33 s ∣ **258 ms** | 1.02 ∣ **0.12** |
+
+Direct-to-all-validators path (`v4` / `v48`):
+
+| slow_size | A | B | B/A |
+| :---: | --- | --- | --- |
+| 0   | 5 ms  ∣ **23 ms** | 5 ms  ∣ **24 ms** | 1.00 ∣ **1.02** |
+| 50  | 10 ms ∣ **305 ms** | 11 ms ∣ **353 ms** | 1.09 ∣ **1.16** |
+| 100 | 29 ms ∣ **3.20 s** | 27 ms ∣ **3.31 s** | 0.94 ∣ **1.04** |
+| 200 | 1.83 s ∣ **9.54 s** | 1.70 s ∣ **7.90 s** | 0.93 ∣ **0.83** |
+| 500 | 5.23 s ∣ **2.60 s** | 7.35 s ∣ **2.01 s** | 1.41 ∣ **0.77** |
+
+On `n4`, light configs barely queue (≈5–29 ms, A≈B). On the fullnode path B
+carries a deeper backlog under heavy compute — queue-delay 1.4–2.0× A, and
+the dispatch-queue peak grows the same way (`slow200-f1` 877 → 1280) — because
 attestation's extra execution piles onto a busy pipeline. The direct paths
 show no clean effect on queue delay (`v1` B/A 0.92–1.02; `v4` mixed,
 0.93–1.41), but their A sides carry large pending-transactions outliers
@@ -1276,10 +1304,30 @@ show no clean effect on queue delay (`v1` B/A 0.92–1.02; `v4` mixed,
 the same picture as finding 5: without attestation the direct paths' backlog
 sits after consensus.
 
+On `n48`, queue delay stops tracking attestation and tracks saturation: even
+`slow0` queues 23–381 ms, the delay peaks at `slow200` (up to 9.5 s on
+`v48`-A), and shrinks again at `slow500`, where little is admitted at all.
+The `n4` fullnode effect does not reproduce (`f1` B/A 0.77–1.23, no
+direction). On the pinned path, B queues far less than A at heavy compute
+(258 ms vs 2.10 s at `slow500`, B/A 0.12 — finding 14's admission throttle
+again), and its dispatch-queue peak drops the same way (688 → 177 at
+`slow500`; `v48` 1559 → 776). Pending transactions stay at ≈10–20 on every
+`n48` configuration — the large A-side outliers from `n4` do not reappear.
+
 ![Execution queues and backpressure, n4](h1/results/summary_plots_n4/queues.png)
 
 *Execution dispatch queue, pending transactions, and execution queue delay
-(p95).*
+(p95), `n4` campaign.*
+
+<details>
+<summary>The same figure for the <code>n48</code> campaign</summary>
+
+![Execution queues and backpressure, n48](h1/results/summary_plots_n48/queues.png)
+
+*Queues, `n48` campaign — delay peaks at `slow200`, and the throttled paths'
+B queues drain below A.*
+
+</details>
 
 ---
 
