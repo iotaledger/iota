@@ -8306,7 +8306,6 @@ dependencies = [
  "starfish-config",
  "static_assertions",
  "strum 0.27.2",
- "strum_macros 0.27.2",
  "tap",
  "thiserror 1.0.64",
  "tokio",
