@@ -283,6 +283,7 @@ fs_extra = "1.3.0"
 futures = "0.3.28"
 getrandom = { version = "0.2", features = ["js"] }
 git-version = "0.3.5"
+governor = "0.6.0"
 hdrhistogram = "7.5.4"
 hex = "0.4.3"
 http = "1"

@@ -13,6 +13,7 @@ axum.workspace = true
 count-min-sketch = "0.1.7"
 dashmap.workspace = true
 futures.workspace = true
+governor.workspace = true
 http.workspace = true
 parking_lot.workspace = true
 rand.workspace = true

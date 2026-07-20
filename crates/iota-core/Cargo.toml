@@ -100,6 +100,7 @@ clap.workspace = true
 criterion.workspace = true
 expect-test.workspace = true
 fs_extra.workspace = true
+libc = "0.2"
 more-asserts = "0.3.1"
 num-bigint = "0.4.4"
 pretty_assertions.workspace = true
@@ -131,6 +132,10 @@ test = false
 
 [[bench]]
 name = "verified_cert_cache_bench"
+harness = false
+
+[[bench]]
+name = "traffic_controller_bench"
 harness = false
 
 [[bench]]

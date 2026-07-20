@@ -2,6 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+pub mod gcra;
+pub mod inline;
 pub mod metrics;
 pub mod nodefw_client;
 pub mod nodefw_test_server;
@@ -352,86 +354,88 @@ impl TrafficController {
     /// Handle check with dry-run mode considered
     pub async fn check(&self, client: &Option<IpAddr>, proxied_client: &Option<IpAddr>) -> bool {
         let dry_run = self.dry_run.load(Ordering::Relaxed);
-        let check_with_dry_run_maybe = |allowed| -> bool {
-            match (allowed, dry_run) {
-                // request allowed
-                (true, _) => true,
-                // request blocked while in dry-run mode
-                (false, true) => {
-                    debug!("Dry run mode: Blocked request from client {:?}", client);
-                    self.metrics.num_dry_run_blocked_requests.inc();
-                    true
-                }
-                // request blocked
-                (false, false) => {
-                    debug!("Blocked request from client {:?}", client);
-                    self.metrics.requests_blocked_at_protocol.inc();
-                    false
-                }
-            }
-        };
-
         match &self.acl {
             Acl::Allowlist(allowlist) => {
                 let allowed = client.is_none() || allowlist.contains(&client.unwrap());
-                check_with_dry_run_maybe(allowed)
+                check_with_dry_run(allowed, dry_run, client, &self.metrics)
             }
             Acl::Blocklists(blocklists) => {
-                let allowed = self
-                    .check_blocklists(blocklists, client, proxied_client)
-                    .await;
-                check_with_dry_run_maybe(allowed)
+                let allowed = check_blocklists(blocklists, client, proxied_client, &self.metrics);
+                check_with_dry_run(allowed, dry_run, client, &self.metrics)
             }
         }
     }
+}
 
-    /// Returns true if the connection is in blocklist, false otherwise
-    async fn check_blocklists(
-        &self,
-        blocklists: &Blocklists,
-        client: &Option<IpAddr>,
-        proxied_client: &Option<IpAddr>,
-    ) -> bool {
-        let client_check = self.check_and_clear_blocklist(
-            client,
-            blocklists.clients.clone(),
-            &self.metrics.connection_ip_blocklist_len,
-        );
-        let proxied_client_check = self.check_and_clear_blocklist(
-            proxied_client,
-            blocklists.proxied_clients.clone(),
-            &self.metrics.proxy_ip_blocklist_len,
-        );
-        let (client_check, proxied_client_check) =
-            futures::future::join(client_check, proxied_client_check).await;
-        client_check && proxied_client_check
-    }
-
-    async fn check_and_clear_blocklist(
-        &self,
-        client: &Option<IpAddr>,
-        blocklist: Blocklist,
-        blocklist_len_gauge: &IntGauge,
-    ) -> bool {
-        let client = match client {
-            Some(client) => client,
-            None => return true,
-        };
-        let now = SystemTime::now();
-        // the below two blocks cannot be nested, otherwise we will deadlock
-        // due to acquiring the lock on get, then holding across the remove
-        let (should_block, should_remove) = {
-            match blocklist.get(client) {
-                Some(expiration) if now >= *expiration => (false, true),
-                None => (false, false),
-                _ => (true, false),
-            }
-        };
-        if should_remove && blocklist.remove(client).is_some() {
-            blocklist_len_gauge.dec();
+/// Applies dry-run semantics to a blocklist decision: blocked requests
+/// pass through (but are counted) when dry-run mode is enabled.
+fn check_with_dry_run(
+    allowed: bool,
+    dry_run: bool,
+    client: &Option<IpAddr>,
+    metrics: &TrafficControllerMetrics,
+) -> bool {
+    match (allowed, dry_run) {
+        // request allowed
+        (true, _) => true,
+        // request blocked while in dry-run mode
+        (false, true) => {
+            debug!("Dry run mode: Blocked request from client {:?}", client);
+            metrics.num_dry_run_blocked_requests.inc();
+            true
         }
-        !should_block
+        // request blocked
+        (false, false) => {
+            debug!("Blocked request from client {:?}", client);
+            metrics.requests_blocked_at_protocol.inc();
+            false
+        }
     }
+}
+
+/// Returns true if neither client is in a blocklist, false otherwise
+fn check_blocklists(
+    blocklists: &Blocklists,
+    client: &Option<IpAddr>,
+    proxied_client: &Option<IpAddr>,
+    metrics: &TrafficControllerMetrics,
+) -> bool {
+    let client_check = check_and_clear_blocklist(
+        client,
+        &blocklists.clients,
+        &metrics.connection_ip_blocklist_len,
+    );
+    let proxied_client_check = check_and_clear_blocklist(
+        proxied_client,
+        &blocklists.proxied_clients,
+        &metrics.proxy_ip_blocklist_len,
+    );
+    client_check && proxied_client_check
+}
+
+fn check_and_clear_blocklist(
+    client: &Option<IpAddr>,
+    blocklist: &Blocklist,
+    blocklist_len_gauge: &IntGauge,
+) -> bool {
+    let client = match client {
+        Some(client) => client,
+        None => return true,
+    };
+    let now = SystemTime::now();
+    // the below two blocks cannot be nested, otherwise we will deadlock
+    // due to acquiring the lock on get, then holding across the remove
+    let (should_block, should_remove) = {
+        match blocklist.get(client) {
+            Some(expiration) if now >= *expiration => (false, true),
+            None => (false, false),
+            _ => (true, false),
+        }
+    };
+    if should_remove && blocklist.remove(client).is_some() {
+        blocklist_len_gauge.dec();
+    }
+    !should_block
 }
 
 /// Although we clear IPs from the blocklist lazily when they are checked,
@@ -640,7 +644,7 @@ async fn handle_error_tally(
             .await;
         }
     }
-    handle_policy_response(resp, policy_config, blocklists, metrics).await;
+    handle_policy_response(resp, policy_config, &blocklists, &metrics);
     Ok(())
 }
 
@@ -674,15 +678,45 @@ async fn handle_spam_tally(
             .await;
         }
     }
-    handle_policy_response(resp, policy_config, blocklists, metrics).await;
+    handle_policy_response(resp, policy_config, &blocklists, &metrics);
     Ok(())
 }
 
-async fn handle_policy_response(
+/// Shared accounting for the inline tally-path candidates: applies the
+/// sampling gates, charges the spam and error policies via the given
+/// closures, and applies any resulting blocks before returning.
+fn account_tally(
+    tally: &TrafficTally,
+    policy_config: &PolicyConfig,
+    blocklists: &Blocklists,
+    metrics: &TrafficControllerMetrics,
+    charge_spam: impl FnOnce(&TrafficTally) -> PolicyResponse,
+    charge_error: impl FnOnce(&TrafficTally) -> PolicyResponse,
+) {
+    metrics.tallies.inc();
+    if tally.spam_weight.is_sampled() && policy_config.spam_sample_rate.is_sampled() {
+        let response = charge_spam(tally);
+        metrics.tally_handled.inc();
+        handle_policy_response(response, policy_config, blocklists, metrics);
+    }
+    if let Some((error_weight, error_type)) = &tally.error_info {
+        if error_weight.is_sampled() {
+            metrics
+                .tally_error_types
+                .with_label_values(&[error_type.as_str()])
+                .inc();
+            let response = charge_error(tally);
+            metrics.error_tally_handled.inc();
+            handle_policy_response(response, policy_config, blocklists, metrics);
+        }
+    }
+}
+
+fn handle_policy_response(
     response: PolicyResponse,
     policy_config: &PolicyConfig,
-    blocklists: Arc<Blocklists>,
-    metrics: Arc<TrafficControllerMetrics>,
+    blocklists: &Blocklists,
+    metrics: &TrafficControllerMetrics,
 ) {
     let PolicyResponse {
         block_client,
