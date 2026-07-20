@@ -343,11 +343,20 @@ impl IndexStoreTables {
     /// bound has overtaken the upper).
     fn transaction_index_range(
         &self,
+        authority_store: &AuthorityStore,
         checkpoint_store: &CheckpointStore,
         highest_executed_checkpoint: Option<CheckpointSequenceNumber>,
     ) -> Result<Option<std::ops::RangeInclusive<CheckpointSequenceNumber>>, StorageError> {
+        // Replay loads each transaction's input/output objects in addition to
+        // the checkpoint data, and the object pruner advances independently of
+        // the checkpoint-contents pruner, so the range must clear both.
         let lowest = checkpoint_store
             .get_highest_pruned_checkpoint_seq_number()?
+            .max(
+                authority_store
+                    .perpetual_tables
+                    .get_highest_pruned_checkpoint()?,
+            )
             .map(|c| c.saturating_add(1))
             .unwrap_or(0);
         Ok(highest_executed_checkpoint
@@ -384,8 +393,11 @@ impl IndexStoreTables {
 
         // Phase 1 — history-derived tables, replayed over the checkpoints
         // whose full data is still locally available.
-        let tx_range =
-            self.transaction_index_range(checkpoint_store, highest_executed_checkpoint)?;
+        let tx_range = self.transaction_index_range(
+            authority_store,
+            checkpoint_store,
+            highest_executed_checkpoint,
+        )?;
         if let Some(range) = tx_range {
             self.index_historical_checkpoints(
                 authority_store,
