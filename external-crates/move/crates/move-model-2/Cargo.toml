@@ -9,7 +9,6 @@ publish = false
 [dependencies]
 # external dependencies
 anyhow.workspace = true
-bcs.workspace = true
 indexmap = { workspace = true, features = ["serde"] }
 serde.workspace = true
 
