@@ -8,7 +8,7 @@ use iota_sdk_types::{Address, Command, ExecutionStatus, ObjectId, Owner};
 use iota_types::{
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
     full_checkpoint_content::CheckpointTransaction,
-    transaction::{SenderSignedDataAPI, TransactionDataAPI},
+    transaction::TransactionDataAPI,
 };
 use serde::{Deserialize, Serialize};
 
@@ -329,7 +329,7 @@ fn is_system_transaction(transaction_kind: &TransactionKind) -> bool {
 impl TransactionFilter {
     pub fn matches_transaction(&self, item: &CheckpointTransaction) -> bool {
         let _scope = monitored_scope("TransactionFilter::matches_transaction");
-        let tx_data = item.transaction.data().transaction_data();
+        let tx_data = item.transaction.data().transaction();
 
         match self {
             TransactionFilter::All(filters) => filters.iter().all(|f| f.matches_transaction(item)),

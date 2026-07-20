@@ -44,10 +44,7 @@ use iota_types::{
     object::{MoveObject, MoveObjectExt, ObjectInner},
     signature::UserSignature,
     storage::DeleteKind,
-    transaction::{
-        CallArg, SenderSignedData, SenderSignedDataAPI, Transaction, TransactionData,
-        TransactionDataAPI,
-    },
+    transaction::{CallArg, SenderSignedData, Transaction, TransactionData, TransactionDataAPI},
 };
 use move_core_types::{account_address::AccountAddress, language_storage::ModuleId};
 use pretty_assertions::assert_str_eq;

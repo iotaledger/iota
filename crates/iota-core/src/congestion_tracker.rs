@@ -8,7 +8,7 @@ use iota_sdk_types::{ExecutionError, ExecutionStatus, ObjectId};
 use iota_types::{
     effects::{InputSharedObject, TransactionEffects, TransactionEffectsAPI},
     messages_checkpoint::{CheckpointTimestamp, VerifiedCheckpoint},
-    transaction::{SenderSignedDataAPI, TransactionData, TransactionDataAPI},
+    transaction::{TransactionData, TransactionDataAPI},
 };
 use moka::{ops::compute::Op, sync::Cache};
 
@@ -183,7 +183,7 @@ impl CongestionTracker {
                         effects.transaction_digest()
                     )
                 })
-                .transaction_data()
+                .transaction()
                 .gas_price();
 
             // Skip system transactions

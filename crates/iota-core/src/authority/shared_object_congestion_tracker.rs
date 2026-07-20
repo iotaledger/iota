@@ -510,7 +510,7 @@ impl SharedObjectCongestionTracker {
             object_ids,
             start_time,
             estimated_execution_duration,
-            transaction.transaction_data().gas_price(),
+            transaction.transaction().gas_price(),
         ))
     }
 

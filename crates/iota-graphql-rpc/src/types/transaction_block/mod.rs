@@ -20,8 +20,8 @@ use iota_types::{
     effects::TransactionEffects as NativeTransactionEffects,
     message_envelope::Message,
     transaction::{
-        SenderSignedData as NativeSenderSignedData, SenderSignedDataAPI,
-        TransactionData as NativeTransactionData, TransactionDataAPI,
+        SenderSignedData as NativeSenderSignedData, TransactionData as NativeTransactionData,
+        TransactionDataAPI,
     },
 };
 use serde::{Deserialize, Serialize};
@@ -251,7 +251,7 @@ impl TransactionBlock {
     #[graphql(complexity = 0)]
     async fn signatures(&self) -> Option<Vec<Base64>> {
         self.native_signed_data().map(|s| {
-            s.tx_signatures()
+            s.signatures()
                 .iter()
                 .map(|sig| Base64::from(sig.to_bytes()))
                 .collect()
@@ -329,8 +329,8 @@ impl TransactionBlock {
 impl TransactionBlock {
     fn native(&self) -> &NativeTransactionData {
         match &self.inner {
-            TransactionBlockInner::Checkpointed { native, .. } => native.transaction_data(),
-            TransactionBlockInner::Executed { native, .. } => native.transaction_data(),
+            TransactionBlockInner::Checkpointed { native, .. } => native.transaction(),
+            TransactionBlockInner::Executed { native, .. } => native.transaction(),
 
             TransactionBlockInner::DryRun { tx_data, .. } => tx_data,
         }

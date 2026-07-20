@@ -138,7 +138,7 @@ impl SingleValidator {
         let effects = self
             .get_validator()
             .dry_exec_transaction_for_benchmark(
-                transaction.data().transaction_data().clone(),
+                transaction.data().transaction().clone(),
                 *transaction.digest(),
             )
             .unwrap()
@@ -198,7 +198,7 @@ impl SingleValidator {
         store: InMemoryObjectStore,
         transaction: CertifiedTransaction,
     ) -> TransactionEffects {
-        let input_objects = transaction.transaction_data().input_objects().unwrap();
+        let input_objects = transaction.transaction().input_objects().unwrap();
         let objects = store
             .read_objects_for_execution(&self.epoch_store, &transaction.key(), &input_objects)
             .unwrap();
@@ -213,7 +213,7 @@ impl SingleValidator {
             self.epoch_store.reference_gas_price(),
         )
         .unwrap();
-        let (kind, signer, gas_data) = executable.transaction_data().execution_parts();
+        let (kind, signer, gas_data) = executable.transaction().execution_parts();
         let (inner_temp_store, _, effects, _) =
             self.epoch_store.executor().execute_transaction_to_effects(
                 &store,

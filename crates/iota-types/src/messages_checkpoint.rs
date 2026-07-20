@@ -37,7 +37,7 @@ use crate::{
     global_state_hash::GlobalStateHash,
     message_envelope::{Envelope, Message, TrustedEnvelope, VerifiedEnvelope},
     storage::ReadStore,
-    transaction::{SenderSignedDataAPI, Transaction, TransactionData, TransactionDataAPI},
+    transaction::{Transaction, TransactionData, TransactionDataAPI},
 };
 
 pub type CheckpointSequenceNumber = u64;
@@ -416,7 +416,7 @@ impl CheckpointContentsExt for CheckpointContents {
                     CheckpointTransactionInfo {
                         transaction: digests.transaction,
                         effects: digests.effects,
-                        signatures: data.transaction.inner().data().tx_signatures().to_owned(),
+                        signatures: data.transaction.inner().data().signatures().to_owned(),
                     }
                 })
                 .collect(),
@@ -489,7 +489,7 @@ impl FullCheckpointContents {
         let (transactions, user_signatures): (Vec<_>, Vec<_>) = contents
             .into_iter()
             .map(|data| {
-                let sig = data.transaction.data().tx_signatures().to_owned();
+                let sig = data.transaction.data().signatures().to_owned();
                 (data, sig)
             })
             .unzip();

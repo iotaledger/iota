@@ -5,7 +5,7 @@ use async_graphql::OneofObject;
 use iota_indexer::models::{events::StoredEvent, transactions::StoredTransaction};
 use iota_json_rpc_types::{Filter, IotaTransactionKind};
 use iota_sdk_types::ObjectId;
-use iota_types::transaction::{SenderSignedDataAPI, TransactionDataAPI};
+use iota_types::transaction::TransactionDataAPI;
 
 use crate::types::{
     iota_address::IotaAddress,
@@ -59,7 +59,7 @@ impl Filter<StoredTransaction> for SubscriptionTransactionFilter {
             Kind(kind) => transaction.transaction_kind == IotaTransactionKind::from(kind) as i16,
             SigningAddress(address) => transaction
                 .try_into_sender_signed_data()
-                .map(|data| data.transaction_data().sender() == (*address).into())
+                .map(|data| data.transaction().sender() == (*address).into())
                 .unwrap_or_default(),
             Function(name) => {
                 let move_call = MoveCall::from(name);
@@ -67,7 +67,7 @@ impl Filter<StoredTransaction> for SubscriptionTransactionFilter {
                 transaction
                     .try_into_sender_signed_data()
                     .map(|data| {
-                        data.transaction_data()
+                        data.transaction()
                             .move_calls()
                             .iter()
                             .any(|(p, m, f)| move_call.matches_transaction_move_call(p, m, f))

@@ -73,7 +73,7 @@ async fn test_handle_transfer_transaction_bad_signature() {
             let (_unknown_address, unknown_key): (_, AccountKeyPair) = get_key_pair();
             let data = mut_tx.data_mut_for_testing();
             let signature = Signature::new_secure(
-                &IntentMessage::new(Intent::iota_transaction(), data.transaction_data()),
+                &IntentMessage::new(Intent::iota_transaction(), data.transaction()),
                 &unknown_key,
             );
             *data.tx_signatures_mut_for_testing() = vec![signature.into()];
@@ -792,7 +792,7 @@ async fn test_handle_certificate_errors() {
     let (_unknown_address, unknown_key): (_, AccountKeyPair) = get_key_pair();
     let data = absent_sig_tx.data_mut_for_testing();
     let signature = Signature::new_secure(
-        &IntentMessage::new(Intent::iota_transaction(), data.transaction_data()),
+        &IntentMessage::new(Intent::iota_transaction(), data.transaction()),
         &unknown_key,
     );
     *data.tx_signatures_mut_for_testing() = vec![signature.into()];

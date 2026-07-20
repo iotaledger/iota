@@ -27,7 +27,6 @@ use iota_sdk_types::TransactionDigest;
 use iota_types::{
     effects::TransactionEffectsAPI,
     quorum_driver_types::{ExecuteTransactionRequestV1, ExecuteTransactionResponseV1},
-    transaction::SenderSignedDataAPI,
     transaction_executor::TransactionExecutor,
 };
 use prost_types::FieldMask;
@@ -686,8 +685,8 @@ async fn execute_single_transaction(
     let digest = *effects.effects.transaction_digest();
 
     // Build the merged response
-    let sdk_transaction: iota_sdk_types::Transaction = transaction.transaction_data().clone();
-    let signatures = transaction.tx_signatures().to_owned();
+    let sdk_transaction: iota_sdk_types::Transaction = transaction.transaction().clone();
+    let signatures = transaction.signatures().to_owned();
 
     // Keep a pre-parsed copy for the rebuild-from-cache path so it doesn't
     // have to re-parse the proto request. Only materialised when the response

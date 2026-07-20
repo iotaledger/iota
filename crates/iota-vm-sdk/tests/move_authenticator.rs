@@ -20,7 +20,7 @@ use fastcrypto::encoding::{Base64, Encoding};
 use iota_types::{
     object::Object,
     signature::UserSignature,
-    transaction::{SenderSignedData, SenderSignedDataAPI, TransactionData, TransactionDataAPI},
+    transaction::{SenderSignedData, TransactionData, TransactionDataAPI},
 };
 use iota_vm_sdk::{
     Chain, ChainContext, ExecuteOptions, ExecutionResult, InMemoryStore, LocalVm, ProtocolVersion,

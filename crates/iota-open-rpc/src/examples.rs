@@ -44,10 +44,7 @@ use iota_types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::ExecuteTransactionRequestType,
     signature::UserSignature,
-    transaction::{
-        CallArg, SenderSignedDataAPI, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionData,
-        TransactionDataAPI,
-    },
+    transaction::{CallArg, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionData, TransactionDataAPI},
     utils::to_sender_signed_transaction,
 };
 use move_core_types::{
@@ -696,7 +693,7 @@ impl RpcExampleProvider {
         let data2 = data.clone();
 
         let tx = to_sender_signed_transaction(data, &kp);
-        let signatures = tx.data().tx_signatures().to_vec();
+        let signatures = tx.data().signatures().to_vec();
         let raw_transaction = bcs::to_bytes(tx.data()).unwrap();
 
         let tx_digest = tx.digest();

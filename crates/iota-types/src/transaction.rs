@@ -1846,11 +1846,6 @@ pub fn merge_authenticator_input_objects<'a>(
 /// transaction participants. A non-participant signature must not be present,
 /// and the signature order does not matter.
 pub trait SenderSignedDataAPI {
-    /// Creates a new [`SenderSignedData`] from transaction data and
-    /// signatures.
-    #[allow(clippy::new_ret_no_self)]
-    fn new(tx_data: TransactionData, tx_signatures: Vec<UserSignature>) -> SenderSignedData;
-
     /// Creates a new [`SenderSignedData`] with a single sender signature.
     fn new_from_sender_signature(
         tx_data: TransactionData,
@@ -1864,12 +1859,6 @@ pub trait SenderSignedDataAPI {
     /// Returns a mapping from the address each signature commits to, to the
     /// signature itself.
     fn get_signer_sig_mapping(&self) -> IotaResult<BTreeMap<Address, &UserSignature>>;
-
-    /// Returns a reference to the transaction data.
-    fn transaction_data(&self) -> &TransactionData;
-
-    /// Returns the signatures of all transaction participants.
-    fn tx_signatures(&self) -> &[UserSignature];
 
     /// Returns `true` if any signature is a multisig.
     fn has_upgraded_multisig(&self) -> bool;
@@ -1960,14 +1949,6 @@ pub trait SenderSignedDataAPI {
 }
 
 impl SenderSignedDataAPI for SenderSignedData {
-    fn new(tx_data: TransactionData, tx_signatures: Vec<UserSignature>) -> SenderSignedData {
-        iota_sdk_types::SignedTransaction {
-            transaction: tx_data,
-            signatures: tx_signatures,
-        }
-        .into()
-    }
-
     fn new_from_sender_signature(
         tx_data: TransactionData,
         tx_signature: Signature,
@@ -1988,16 +1969,8 @@ impl SenderSignedDataAPI for SenderSignedData {
         Ok(mapping)
     }
 
-    fn transaction_data(&self) -> &TransactionData {
-        &self.0.transaction
-    }
-
-    fn tx_signatures(&self) -> &[UserSignature] {
-        &self.0.signatures
-    }
-
     fn has_upgraded_multisig(&self) -> bool {
-        self.tx_signatures().iter().any(|sig| sig.is_multisig())
+        self.signatures().iter().any(|sig| sig.is_multisig())
     }
 
     fn transaction_data_mut_for_testing(&mut self) -> &mut TransactionData {
@@ -2028,7 +2001,7 @@ impl SenderSignedDataAPI for SenderSignedData {
 
         // CRITICAL!!
         // Users cannot send system transactions.
-        let tx_data = self.transaction_data();
+        let tx_data = self.transaction();
         fp_ensure!(
             !tx_data.is_system_tx(),
             IotaError::UserInput {
@@ -2074,7 +2047,7 @@ impl SenderSignedDataAPI for SenderSignedData {
     }
 
     fn move_authenticators(&self) -> Vec<&MoveAuthenticator> {
-        self.tx_signatures()
+        self.signatures()
             .iter()
             .filter_map(|sig| {
                 if let UserSignature::MoveAuthenticator(move_authenticator) = sig {
@@ -2087,7 +2060,7 @@ impl SenderSignedDataAPI for SenderSignedData {
     }
 
     fn sender_move_authenticator(&self) -> Option<&MoveAuthenticator> {
-        let sender = self.transaction_data().sender();
+        let sender = self.transaction().sender();
 
         self.move_authenticators()
             .into_iter()
@@ -2095,7 +2068,7 @@ impl SenderSignedDataAPI for SenderSignedData {
     }
 
     fn sponsor_move_authenticator(&self) -> Option<&MoveAuthenticator> {
-        let tx_data = self.transaction_data();
+        let tx_data = self.transaction();
 
         if tx_data.is_sponsored_tx() {
             let gas_owner = tx_data.gas_owner();
@@ -2109,10 +2082,10 @@ impl SenderSignedDataAPI for SenderSignedData {
     }
 
     fn compute_auth_digests(&self) -> IotaResult<(Digest, Option<Digest>)> {
-        let tx_data = self.transaction_data();
+        let tx_data = self.transaction();
 
         let digest_for_address = |address: Address| {
-            self.tx_signatures()
+            self.signatures()
                 .iter()
                 .find(|sig| sig.derive_address() == address)
                 .ok_or_else(|| IotaError::InvalidSignature {
@@ -2133,7 +2106,7 @@ impl SenderSignedDataAPI for SenderSignedData {
 
     fn collect_all_input_object_kind_for_reading(&self) -> IotaResult<Vec<InputObjectKind>> {
         let mut input_objects_set = self
-            .transaction_data()
+            .transaction()
             .input_objects()?
             .into_iter()
             .collect::<HashSet<_>>();
@@ -2157,7 +2130,7 @@ impl SenderSignedDataAPI for SenderSignedData {
             .collect::<HashMap<_, _>>();
 
         let tx_input_objects = self
-            .transaction_data()
+            .transaction()
             .input_objects()?
             .iter()
             .map(|k| {
@@ -2220,7 +2193,7 @@ impl SenderSignedDataAPI for SenderSignedData {
 
     fn shared_input_objects(&self) -> Vec<SharedObjectReference> {
         // Vector is used to preserve the order of input objects.
-        let mut input_objects = self.transaction_data().shared_input_objects();
+        let mut input_objects = self.transaction().shared_input_objects();
 
         // Add Move authenticator shared objects if any.
         self.move_authenticators()
@@ -2247,7 +2220,7 @@ impl SenderSignedDataAPI for SenderSignedData {
     fn input_objects(&self) -> IotaResult<Vec<InputObjectKind>> {
         // Can contain duplicates in case of using the same IOTA coin as an input and as
         // a gas coin.
-        let mut input_objects = self.transaction_data().input_objects()?;
+        let mut input_objects = self.transaction().input_objects()?;
 
         // Add the `MoveAuthenticator` shared objects if any.
         merge_authenticator_input_objects(self.move_authenticators(), &mut input_objects)?;
@@ -2266,7 +2239,7 @@ fn check_user_signature_protocol_compatibility(
     data: &SenderSignedData,
     config: &ProtocolConfig,
 ) -> IotaResult {
-    for sig in data.tx_signatures() {
+    for sig in data.signatures() {
         match sig {
             UserSignature::PasskeyAuthenticator(_) => {
                 if !config.passkey_auth() {
@@ -2310,7 +2283,7 @@ fn move_authenticators_validity_check(
     // Additional checks when `MoveAuthenticators` are present.
     let authenticators_num = authenticators.len();
     if authenticators_num > 0 {
-        let tx_data = data.transaction_data();
+        let tx_data = data.transaction();
 
         fp_ensure!(
             tx_data.kind().is_programmable(),
@@ -2384,22 +2357,22 @@ impl Message for SenderSignedData {
     /// Computes the tx digest that encodes the Rust type prefix from Signable
     /// trait.
     fn digest(&self) -> Self::DigestType {
-        self.transaction_data().digest()
+        self.transaction().digest()
     }
 }
 
 impl<S> Envelope<SenderSignedData, S> {
     pub fn sender_address(&self) -> Address {
-        self.data().transaction_data().sender()
+        self.data().transaction().sender()
     }
 
     pub fn gas(&self) -> &[ObjectReference] {
-        self.data().transaction_data().gas()
+        self.data().transaction().gas()
     }
 
     // Returns the primary key for this transaction.
     pub fn key(&self) -> TransactionKey {
-        match &self.data().transaction_data().kind() {
+        match &self.data().transaction().kind() {
             TransactionKind::RandomnessStateUpdate(rsu) => {
                 TransactionKey::RandomnessRound(rsu.epoch, rsu.randomness_round)
             }
@@ -2412,7 +2385,7 @@ impl<S> Envelope<SenderSignedData, S> {
     // At the moment this returns a single Option for efficiency, but if more key
     // types are added, the return type could change to Vec<TransactionKey>.
     pub fn non_digest_key(&self) -> Option<TransactionKey> {
-        match &self.data().transaction_data().kind() {
+        match &self.data().transaction().kind() {
             TransactionKind::RandomnessStateUpdate(rsu) => Some(TransactionKey::RandomnessRound(
                 rsu.epoch,
                 rsu.randomness_round,
@@ -2422,11 +2395,11 @@ impl<S> Envelope<SenderSignedData, S> {
     }
 
     pub fn is_system_tx(&self) -> bool {
-        self.data().transaction_data().is_system_tx()
+        self.data().transaction().is_system_tx()
     }
 
     pub fn is_sponsored_tx(&self) -> bool {
-        self.data().transaction_data().is_sponsored_tx()
+        self.data().transaction().is_sponsored_tx()
     }
 }
 
@@ -2467,9 +2440,9 @@ impl Transaction {
     /// and a list of Base64 encoded [`UserSignature`].
     pub fn to_tx_bytes_and_signatures(&self) -> (Base64, Vec<Base64>) {
         (
-            Base64::from_bytes(&bcs::to_bytes(self.data().transaction_data()).unwrap()),
+            Base64::from_bytes(&bcs::to_bytes(self.data().transaction()).unwrap()),
             self.data()
-                .tx_signatures()
+                .signatures()
                 .iter()
                 .map(|s| Base64::from_bytes(&s.to_bytes()))
                 .collect(),
@@ -2579,7 +2552,7 @@ impl Transaction {
     }
 
     pub fn gas_price(&self) -> u64 {
-        self.data().transaction_data().gas_price()
+        self.data().transaction().gas_price()
     }
 }
 
@@ -2619,7 +2592,7 @@ impl CertifiedTransaction {
     }
 
     pub fn gas_price(&self) -> u64 {
-        self.data().transaction_data().gas_price()
+        self.data().transaction().gas_price()
     }
 
     // TODO: Eventually we should remove all calls to verify_signature
@@ -3302,7 +3275,7 @@ impl Display for CertifiedTransaction {
             "Signed Authorities Bitmap : {:?}",
             self.auth_sig().signers_map
         )?;
-        write!(writer, "{}", self.data().transaction_data().kind())?;
+        write!(writer, "{}", self.data().transaction().kind())?;
         write!(f, "{writer}")
     }
 }

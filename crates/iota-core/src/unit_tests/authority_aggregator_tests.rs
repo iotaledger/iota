@@ -46,7 +46,7 @@ use iota_types::{
     object::Object,
     supported_protocol_versions::SupportedProtocolVersions,
     transaction::{
-        CallArg, CertifiedTransaction, SenderSignedData, SenderSignedDataAPI, SignedTransaction,
+        CallArg, CertifiedTransaction, SenderSignedData, SignedTransaction,
         TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS,
         Transaction, TransactionData, TransactionDataAPI, VerifiedTransaction,
     },
@@ -228,10 +228,7 @@ where
                 let (data, sig) = signed.into_data_and_sig();
                 votes.push(sig);
                 if let Some(inner_transaction) = tx_data {
-                    assert_eq!(
-                        inner_transaction.transaction_data(),
-                        data.transaction_data()
-                    );
+                    assert_eq!(inner_transaction.transaction(), data.transaction());
                 }
                 tx_data = Some(data);
             }

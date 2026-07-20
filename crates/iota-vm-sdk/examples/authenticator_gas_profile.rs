@@ -22,7 +22,7 @@ use iota_types::{
     effects::TransactionEffectsAPI,
     object::Object,
     signature::UserSignature,
-    transaction::{SenderSignedData, SenderSignedDataAPI, TransactionData, TransactionDataAPI},
+    transaction::{SenderSignedData, TransactionData, TransactionDataAPI},
 };
 use iota_vm_sdk::{
     Chain, ChainContext, DebugConfig, ExecuteOptions, InMemoryStore, LocalVm, ProfileOutput,
@@ -34,7 +34,7 @@ fn main() -> Result<()> {
     let out_path = PathBuf::from("authenticator_gas_profile.speedscope.json");
 
     let signed = example_signed_transaction()?;
-    let sender = signed.transaction_data().sender();
+    let sender = signed.transaction().sender();
 
     // Store: framework packages plus every object the run touches.
     let f = fixture()?;

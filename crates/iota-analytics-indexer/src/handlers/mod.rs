@@ -88,7 +88,7 @@ impl InputObjectTracker {
             .into_iter()
             .map(|shared_io| shared_io.object_id)
             .collect();
-        let tx_data = txn.transaction_data();
+        let tx_data = txn.transaction();
         let coins: BTreeSet<ObjectId> = tx_data
             .gas()
             .iter()

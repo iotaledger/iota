@@ -27,8 +27,8 @@ use crate::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     signature::UserSignature,
     transaction::{
-        SenderSignedData, SenderSignedDataAPI, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, Transaction,
-        TransactionData, TransactionDataAPI,
+        SenderSignedData, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, Transaction, TransactionData,
+        TransactionDataAPI,
     },
 };
 
@@ -194,15 +194,15 @@ pub fn make_upgraded_multisig_tx() -> Transaction {
     let addr = Address::from(&multisig_pk);
     let tx = make_transaction(addr, &SimpleKeypair::from(kp1.clone()));
 
-    let msg = IntentMessage::new(Intent::iota_transaction(), tx.transaction_data().clone())
-        .signing_digest();
+    let msg =
+        IntentMessage::new(Intent::iota_transaction(), tx.transaction().clone()).signing_digest();
     let sig1: SimpleSignature = kp1.sign(&*msg);
     let sig2: SimpleSignature = kp2.sign(&*msg);
 
     // Any 2 of 3 signatures verifies ok.
     let multi_sig1 = MultiSig::new(vec![sig1.into(), sig2.into()], multisig_pk).unwrap();
     Transaction::new(SenderSignedData::new(
-        tx.transaction_data().clone(),
+        tx.transaction().clone(),
         vec![UserSignature::Multisig(multi_sig1)],
     ))
 }
@@ -233,7 +233,7 @@ mod move_authenticator {
         crypto::DefaultHash,
         object::OBJECT_START_VERSION,
         signature::UserSignature,
-        transaction::{SenderSignedData, SenderSignedDataAPI, Transaction},
+        transaction::{SenderSignedData, Transaction},
         utils::{make_sponsored_transaction_data, make_transaction_data},
     };
 

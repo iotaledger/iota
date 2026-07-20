@@ -25,7 +25,7 @@ use iota_types::{
         CheckpointSequenceNumber,
     },
     object::Object,
-    transaction::{SenderSignedDataAPI, TransactionData, TransactionDataAPI},
+    transaction::{TransactionData, TransactionDataAPI},
 };
 use itertools::Itertools;
 use tracing::{info, warn};
@@ -397,7 +397,7 @@ impl PrimaryWorker {
         } = tx;
 
         let tx_digest = sender_signed_data.digest();
-        let tx = sender_signed_data.transaction_data();
+        let tx = sender_signed_data.transaction();
         let events = events.clone().unwrap_or_default();
 
         let transaction_kind = IotaTransactionKind::from(tx.kind());
@@ -508,7 +508,7 @@ impl PrimaryWorker {
         metrics: &IndexerMetrics,
     ) -> IndexerResult<IndexedTransaction> {
         let tx_digest = tx.transaction.digest();
-        let tx_data = tx.transaction.transaction_data();
+        let tx_data = tx.transaction.transaction();
 
         let events = tx
             .events

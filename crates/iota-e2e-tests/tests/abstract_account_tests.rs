@@ -44,8 +44,8 @@ use iota_types::{
     signature::UserSignature,
     storage::WriteKind,
     transaction::{
-        CallArg, SenderSignedDataAPI, TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE,
-        Transaction, TransactionData, TransactionDataAPI,
+        CallArg, TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, Transaction, TransactionData,
+        TransactionDataAPI,
     },
 };
 use move_command_line_common::error_bitset::ErrorBitset;
@@ -2146,7 +2146,7 @@ impl TestEnvironment {
             .test_cluster
             .iota_client()
             .read_api()
-            .dry_run_transaction_block(transaction.transaction_data().clone())
+            .dry_run_transaction_block(transaction.transaction().clone())
             .await?;
 
         Ok((dry_run_res, transaction))

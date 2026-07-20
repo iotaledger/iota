@@ -22,7 +22,7 @@ use iota_types::{
     base_types::VersionNumber,
     digests::ChainIdentifier,
     object::Object,
-    transaction::{SenderSignedData, SenderSignedDataAPI, TransactionDataAPI},
+    transaction::{SenderSignedData, TransactionDataAPI},
 };
 use lru::LruCache;
 use parking_lot::RwLock;
@@ -548,7 +548,7 @@ impl DataFetcher for RemoteFetcher {
         let tx_info = self.get_transaction(&epoch_change_tx).await?;
 
         let orig_tx: SenderSignedData = bcs::from_bytes(&tx_info.raw_transaction).unwrap();
-        let tx_kind_orig = orig_tx.transaction_data().kind();
+        let tx_kind_orig = orig_tx.transaction().kind();
 
         if let TransactionKind::EndOfEpoch(kinds) = tx_kind_orig {
             if let Some(kind) = kinds.iter().next() {

@@ -884,7 +884,7 @@ impl CheckpointExecutor {
                                 &*self.transaction_cache_reader,
                             );
                             None
-                        } else if txn.transaction_data().is_end_of_epoch_tx() {
+                        } else if txn.transaction().is_end_of_epoch_tx() {
                             None
                         } else {
                             Some((tx_digest, (txn.clone(), *expected_fx_digest), effects))
@@ -922,7 +922,7 @@ impl CheckpointExecutor {
             change_epoch_fx.transaction_digest()
         );
         assert!(
-            change_epoch_tx.transaction_data().is_end_of_epoch_tx(),
+            change_epoch_tx.transaction().is_end_of_epoch_tx(),
             "final txn must be an end of epoch txn"
         );
 
@@ -1075,7 +1075,7 @@ impl CheckpointExecutor {
                     )
                 );
                 if let TransactionKind::RandomnessStateUpdate(rsu) =
-                    maybe_randomness_tx.data().transaction_data().kind()
+                    maybe_randomness_tx.data().transaction().kind()
                 {
                     vec![rsu.randomness_round]
                 } else {

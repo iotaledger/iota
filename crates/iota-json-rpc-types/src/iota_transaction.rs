@@ -33,8 +33,7 @@ use iota_types::{
     signature::UserSignature,
     storage::{DeleteKind, WriteKind},
     transaction::{
-        CallArg, InputObjectKind, SenderSignedData, SenderSignedDataAPI, TransactionData,
-        TransactionDataAPI,
+        CallArg, InputObjectKind, SenderSignedData, TransactionData, TransactionDataAPI,
     },
 };
 use move_binary_format::CompiledModule;
@@ -1782,11 +1781,11 @@ impl IotaTransactionBlock {
     ) -> Result<Self, anyhow::Error> {
         Ok(Self {
             data: IotaTransactionBlockData::try_from_with_module_cache(
-                data.transaction_data().clone(),
+                data.transaction().clone(),
                 module_cache,
                 tx_digest,
             )?,
-            tx_signatures: data.tx_signatures().to_vec(),
+            tx_signatures: data.signatures().to_vec(),
         })
     }
 
@@ -1800,12 +1799,12 @@ impl IotaTransactionBlock {
     ) -> Result<Self, anyhow::Error> {
         Ok(Self {
             data: IotaTransactionBlockData::try_from_with_package_resolver(
-                data.transaction_data().clone(),
+                data.transaction().clone(),
                 package_resolver,
                 tx_digest,
             )
             .await?,
-            tx_signatures: data.tx_signatures().to_vec(),
+            tx_signatures: data.signatures().to_vec(),
         })
     }
 }

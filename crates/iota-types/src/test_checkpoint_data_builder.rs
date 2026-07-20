@@ -27,10 +27,7 @@ use crate::{
     },
     object::{GAS_VALUE_FOR_TESTING, MoveObject, MoveObjectExt, Object},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{
-        CallArg, SenderSignedData, SenderSignedDataAPI, Transaction, TransactionData,
-        TransactionDataAPI,
-    },
+    transaction::{CallArg, SenderSignedData, Transaction, TransactionData, TransactionDataAPI},
 };
 
 /// A builder for creating test checkpoint data.
@@ -748,7 +745,7 @@ mod tests {
         let senders: Vec<_> = checkpoint
             .transactions
             .iter()
-            .map(|tx| tx.transaction.transaction_data().sender())
+            .map(|tx| tx.transaction.transaction().sender())
             .collect();
         assert_eq!(
             senders,
@@ -1052,7 +1049,7 @@ mod tests {
         // Verify the transaction has a move call matching the arguments provided.
         assert!(
             tx.transaction
-                .transaction_data()
+                .transaction()
                 .kind()
                 .iter_commands()
                 .any(|cmd| {

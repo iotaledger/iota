@@ -189,7 +189,7 @@ impl LocalVm {
             signed.move_authenticators().into_iter().cloned().collect();
         // The deny checks inspect the signatures (e.g. `move_authenticator_disabled`,
         // deprecated zkLogin), so they must survive `signed` being consumed.
-        let tx_signatures = signed.tx_signatures().to_vec();
+        let tx_signatures = signed.signatures().to_vec();
         // The auth digests must be computed from the signed data before it is
         // consumed; the `MoveAuthenticator` execution path needs them in its
         // `AuthContextData`.
@@ -481,7 +481,7 @@ fn pre_consensus_authenticator_addresses(
 ) -> Vec<Address> {
     let selected: Vec<&MoveAuthenticator> = if protocol_config
         .pre_consensus_sponsor_only_move_authentication()
-        && signed.transaction_data().is_sponsored_tx()
+        && signed.transaction().is_sponsored_tx()
     {
         signed.sponsor_move_authenticator().into_iter().collect()
     } else {

@@ -542,7 +542,7 @@ pub fn transaction_non_shared_input_object_keys(
 }
 
 pub fn transaction_receiving_object_keys(tx: &SenderSignedData) -> Vec<ObjectKey> {
-    tx.transaction_data()
+    tx.transaction()
         .receiving_objects()
         .into_iter()
         .map(|oref| oref.into())

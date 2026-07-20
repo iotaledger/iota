@@ -15,7 +15,7 @@ use iota_types::{
     messages_checkpoint::CheckpointTimestamp,
     metrics::LimitsMetrics,
     object::Object,
-    transaction::{CheckedInputObjects, SenderSignedDataAPI, Transaction, TransactionDataAPI},
+    transaction::{CheckedInputObjects, Transaction, TransactionDataAPI},
 };
 use prometheus_filtered::Registry;
 
@@ -60,7 +60,7 @@ pub fn execute_genesis_transaction(
 ) -> (TransactionEffects, TransactionEvents, Vec<Object>) {
     assert!(
         matches!(
-            genesis_transaction.transaction_data().kind(),
+            genesis_transaction.transaction().kind(),
             TransactionKind::Genesis(_)
         ),
         "wrong transaction type to execute"
@@ -74,7 +74,7 @@ pub fn execute_genesis_transaction(
 
     let expensive_checks = false;
     let certificate_deny_set = HashSet::new();
-    let transaction_data = &genesis_transaction.data().transaction_data();
+    let transaction_data = &genesis_transaction.data().transaction();
     let (kind, signer, mut gas_data) = transaction_data.execution_parts();
     gas_data.objects = vec![];
     let input_objects = CheckedInputObjects::new_for_genesis(vec![]);

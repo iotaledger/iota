@@ -14,7 +14,7 @@ use iota_types::{
     },
     inner_temporary_store::{InnerTemporaryStore, WrittenObjects},
     storage::{MarkerValue, ObjectKey},
-    transaction::{SenderSignedDataAPI, TransactionDataAPI, VerifiedTransaction},
+    transaction::{TransactionDataAPI, VerifiedTransaction},
 };
 
 /// TransactionOutputs
@@ -57,7 +57,7 @@ impl TransactionOutputs {
         // Get the actual set of objects that have been received -- any received
         // object will show up in the modified-at set.
         let modified_at: HashSet<_> = effects.modified_at_versions().into_iter().collect();
-        let possible_to_receive = transaction.transaction_data().receiving_objects();
+        let possible_to_receive = transaction.transaction().receiving_objects();
         let received_objects = possible_to_receive
             .into_iter()
             .filter(|obj_ref| modified_at.contains(&(obj_ref.object_id, obj_ref.version)));

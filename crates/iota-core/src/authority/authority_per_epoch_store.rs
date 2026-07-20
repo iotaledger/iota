@@ -2773,13 +2773,13 @@ impl AuthorityPerEpochStore {
             let signatures = if let Some(signatures) = signatures {
                 signatures
             } else if matches!(
-                transaction.inner().transaction_data().kind(),
+                transaction.inner().transaction().kind(),
                 TransactionKind::RandomnessStateUpdate(_)
             ) {
                 // RandomnessStateUpdate transactions don't go through consensus, but
                 // have system-generated signatures that are guaranteed to be the same,
                 // so we can just pull it from the transaction.
-                transaction.tx_signatures().to_vec()
+                transaction.signatures().to_vec()
             } else {
                 return Err(IotaError::from(
                     format!(
@@ -3020,7 +3020,7 @@ impl AuthorityPerEpochStore {
         transactions: impl Iterator<Item = &'a VerifiedExecutableTransaction>,
     ) {
         let sigs: Vec<_> = transactions
-            .map(|transaction| (*transaction.digest(), transaction.tx_signatures().to_vec()))
+            .map(|transaction| (*transaction.digest(), transaction.signatures().to_vec()))
             .collect();
 
         let mut user_sigs = self
@@ -4949,7 +4949,7 @@ impl AuthorityPerEpochStore {
                                     {congested_objects:?}: actual gas price: {}, suggested gas \
                                     price: {suggested_gas_price:?}",
                                 verified_executable_tx.digest(),
-                                verified_executable_tx.transaction_data().gas_price(),
+                                verified_executable_tx.transaction().gas_price(),
                             );
 
                             ConsensusTransactionResult::Cancelled((

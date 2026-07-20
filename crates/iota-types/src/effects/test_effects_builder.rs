@@ -16,7 +16,7 @@ use crate::{
     },
     execution::SharedInput,
     message_envelope::Message,
-    transaction::{InputObjectKind, SenderSignedData, SenderSignedDataAPI, TransactionDataAPI},
+    transaction::{InputObjectKind, SenderSignedData, TransactionDataAPI},
 };
 
 pub struct TestEffectsBuilder {
@@ -129,11 +129,11 @@ impl TestEffectsBuilder {
             })
             .collect();
         let epoch = 0;
-        let sender = self.transaction.transaction_data().sender();
+        let sender = self.transaction.transaction().sender();
         // TODO: Include receiving objects in the object changes as well.
         let changed_objects = self
             .transaction
-            .transaction_data()
+            .transaction()
             .input_objects()
             .unwrap()
             .iter()
@@ -269,7 +269,7 @@ impl TestEffectsBuilder {
                 )
             }))
             .collect();
-        let gas_object_id = self.transaction.transaction_data().gas()[0].object_id;
+        let gas_object_id = self.transaction.transaction().gas()[0].object_id;
         let event_digest = self.events_digest;
         let dependencies = vec![];
 
@@ -291,14 +291,14 @@ impl TestEffectsBuilder {
     fn get_lamport_version(&self) -> Version {
         Version::lamport_increment(
             self.transaction
-                .transaction_data()
+                .transaction()
                 .input_objects()
                 .unwrap()
                 .iter()
                 .filter_map(|kind| kind.version())
                 .chain(
                     self.transaction
-                        .transaction_data()
+                        .transaction()
                         .receiving_objects()
                         .iter()
                         .map(|oref| oref.version),

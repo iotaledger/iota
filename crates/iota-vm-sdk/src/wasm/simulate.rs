@@ -11,7 +11,7 @@ use iota_types::{
     effects::TransactionEffectsAPI,
     object::Object,
     signature::UserSignature,
-    transaction::{SenderSignedData, SenderSignedDataAPI, TransactionData},
+    transaction::{SenderSignedData, TransactionData},
 };
 use wasm_bindgen::prelude::*;
 

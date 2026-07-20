@@ -90,7 +90,7 @@ impl TransactionHandler {
         state: &mut State,
     ) -> Result<()> {
         let transaction = &checkpoint_transaction.transaction;
-        let txn_data = transaction.transaction_data();
+        let txn_data = transaction.transaction();
         let gas_object = effects.gas_object();
         let gas_summary = effects.gas_cost_summary();
         let move_calls_vec = txn_data.move_calls();
@@ -208,7 +208,7 @@ mod tests {
     use fastcrypto::encoding::{Base64, Encoding};
     use iota_data_ingestion_core::Worker;
     use iota_sdk_types::Address;
-    use iota_types::{storage::ReadStore, transaction::SenderSignedDataAPI};
+    use iota_types::storage::ReadStore;
     use simulacrum::Simulacrum;
 
     use crate::handlers::transaction_handler::TransactionHandler;
@@ -243,7 +243,7 @@ mod tests {
         assert_eq!(db_txn.transaction_digest, transaction.digest().to_string());
         assert_eq!(
             db_txn.raw_transaction,
-            Base64::encode(bcs::to_bytes(&transaction.transaction_data()).unwrap())
+            Base64::encode(bcs::to_bytes(&transaction.transaction()).unwrap())
         );
         assert_eq!(db_txn.epoch, checkpoint.epoch);
         assert_eq!(db_txn.timestamp_ms, checkpoint.timestamp_ms);

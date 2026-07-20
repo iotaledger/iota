@@ -4,7 +4,7 @@
 
 use iota_metrics::monitored_scope;
 use iota_protocol_config::ConsensusTransactionOrdering;
-use iota_types::transaction::{SenderSignedDataAPI, TransactionDataAPI};
+use iota_types::transaction::TransactionDataAPI;
 
 use crate::consensus_handler::{
     SequencedConsensusTransactionKind, VerifiedSequencedConsensusTransaction,
@@ -39,7 +39,7 @@ impl PostConsensusTxReorder {
                 }
                 SequencedConsensusTransactionKind::System(_) => None,
             }
-            .map(|data| data.transaction_data().gas_price())
+            .map(|data| data.transaction().gas_price())
             .unwrap_or(u64::MAX);
 
             std::cmp::Reverse(gas_price)

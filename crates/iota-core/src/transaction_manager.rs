@@ -500,7 +500,7 @@ impl TransactionManager {
                         error!("Duplicated input objects: {:?}", input_object_kinds);
                     }
 
-                    let receiving_object_entries = tx.data().transaction_data().receiving_objects();
+                    let receiving_object_entries = tx.data().transaction().receiving_objects();
                     for entry in receiving_object_entries {
                         let key = InputKey::VersionedObject {
                             id: entry.object_id,

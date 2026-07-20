@@ -17,8 +17,7 @@ use crate::{
     },
     object::Object,
     transaction::{
-        SenderSignedDataAPI, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, Transaction, TransactionData,
-        TransactionDataAPI,
+        TEST_ONLY_GAS_UNIT_FOR_TRANSFER, Transaction, TransactionData, TransactionDataAPI,
     },
 };
 
@@ -88,7 +87,7 @@ fn test_authority_signature_intent() {
     );
 
     // Create an intent with signed data.
-    let intent_message = IntentMessage::new(Intent::iota_transaction(), tx1.transaction_data());
+    let intent_message = IntentMessage::new(Intent::iota_transaction(), tx1.transaction());
     let intent_bcs = bcs::to_bytes(&intent_message).unwrap();
 
     // Check that the first 3 bytes are the domain separation information.
@@ -102,7 +101,7 @@ fn test_authority_signature_intent() {
     );
 
     // Check that intent's last bytes match the signed_data's bsc bytes.
-    let signed_data_bcs = bcs::to_bytes(&tx1.data().transaction_data()).unwrap();
+    let signed_data_bcs = bcs::to_bytes(&tx1.data().transaction()).unwrap();
     assert_eq!(&intent_bcs[3..], signed_data_bcs);
 
     // Let's ensure we can sign and verify intents.

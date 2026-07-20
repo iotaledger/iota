@@ -11,10 +11,8 @@ use async_trait::async_trait;
 use iota_data_ingestion_core::Worker;
 use iota_sdk_types::{Address, Owner, TransactionDigest};
 use iota_types::{
-    effects::TransactionEffectsExt,
-    full_checkpoint_content::CheckpointData,
-    messages_checkpoint::CheckpointContentsExt,
-    transaction::{SenderSignedDataAPI, TransactionDataAPI},
+    effects::TransactionEffectsExt, full_checkpoint_content::CheckpointData,
+    messages_checkpoint::CheckpointContentsExt, transaction::TransactionDataAPI,
 };
 use strum::IntoEnumIterator;
 
@@ -205,7 +203,7 @@ pub fn transactions_by_address<'a>(
         .enumerate_transactions(&checkpoint.checkpoint_summary)
         .zip(&checkpoint.transactions)
         .flat_map(|((seq, exec_digest), tx)| {
-            let tx_data = tx.transaction.transaction_data();
+            let tx_data = tx.transaction.transaction();
             let affected: HashSet<Address> =
                 std::iter::once(tx_data.sender())
                     .chain(std::iter::once(tx_data.gas_owner()))

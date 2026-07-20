@@ -21,8 +21,7 @@ use crate::{
         get_module_by_id, load_package_object_from_object_store,
     },
     transaction::{
-        InputObjectKind, InputObjects, ObjectReadResult, SenderSignedDataAPI, Transaction,
-        TransactionDataAPI,
+        InputObjectKind, InputObjects, ObjectReadResult, Transaction, TransactionDataAPI,
     },
 };
 
@@ -167,7 +166,7 @@ impl InMemoryStorage {
 
     pub fn read_input_objects_for_transaction(&self, transaction: &Transaction) -> InputObjects {
         let mut input_objects = Vec::new();
-        for kind in transaction.transaction_data().input_objects().unwrap() {
+        for kind in transaction.transaction().input_objects().unwrap() {
             let id = match kind {
                 InputObjectKind::MovePackage(id) | InputObjectKind::SharedMoveObject { id, .. } => {
                     id

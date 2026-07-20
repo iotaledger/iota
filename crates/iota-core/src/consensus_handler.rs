@@ -1303,7 +1303,7 @@ mod tests {
                     format!("cap({})", cap.generation)
                 }
                 ConsensusTransactionKind::CertifiedTransaction(txn) => {
-                    format!("user({})", txn.transaction_data().gas_price())
+                    format!("user({})", txn.transaction().gas_price())
                 }
                 _ => unreachable!(),
             },
