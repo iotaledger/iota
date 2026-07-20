@@ -10,7 +10,7 @@ use object_store::{
 };
 use url::Url;
 
-use crate::{IngestionError, IngestionResult};
+use crate::IngestionResult;
 
 /// Creates a remote store client *without* any retry mechanism.
 ///
@@ -22,18 +22,17 @@ use crate::{IngestionError, IngestionResult};
 ///
 /// # Arguments
 ///
-/// * `url`: The URL of the remote store. The scheme selects the backend:
-///     * `http://` or `https://`: HTTP-based object store.
+/// * `url`: The URL of the remote store. The scheme of the URL determines the
+///   storage provider:
+///     * `http://` or `https://`: HTTP-based store.
 ///     * `gs://`: Google Cloud Storage.
-///     * `s3://`: Amazon S3 (or an S3-compatible endpoint addressed with the
-///       `s3` scheme).
-///     * `file://`: local filesystem.
-///     * any other scheme returns [`IngestionError::Unsupported`].
+///     * `s3://` or other AWS S3-compatible URL: Amazon S3.
 /// * `remote_store_options`: A vector of key-value pairs representing
 ///   provider-specific options.
 ///     * For GCS: See [`object_store::gcp::GoogleConfigKey`] for valid keys.
 ///     * For S3: See [`object_store::aws::AmazonS3ConfigKey`] for valid keys.
-///     * For `http`/`https` and `file`: options are ignored.
+///     * For HTTP: No options are currently supported. This parameter should be
+///       empty.
 /// * `request_timeout_secs`: The timeout duration (in seconds) for individual
 ///   requests. This timeout is used to set a slightly longer retry timeout
 ///   (request_timeout_secs + 1) internally, even though retries are disabled.
@@ -100,25 +99,24 @@ pub fn create_remote_store_client(
 
 /// Creates a remote store client with configurable retry behavior and options.
 ///
-/// This function constructs a remote store client for HTTP, Google Cloud
-/// Storage, Amazon S3, or the local filesystem based on the provided URL and
-/// options. It allows configuring retry behavior through the `retry_config`
+/// This function constructs a remote store client for various cloud storage
+/// providers (HTTP, Google Cloud Storage, Amazon S3) based on the provided URL
+/// and options. It allows configuring retry behavior through the `retry_config`
 /// argument.
 ///
 /// # Arguments
 ///
-/// * `url`: The URL of the remote store. The scheme selects the backend:
-///     * `http://` or `https://`: HTTP-based object store.
+/// * `url`: The URL of the remote store.  The scheme of the URL determines the
+///   storage provider:
+///     * `http://` or `https://`:  HTTP-based store.
 ///     * `gs://`: Google Cloud Storage.
-///     * `s3://`: Amazon S3 (or an S3-compatible endpoint addressed with the
-///       `s3` scheme).
-///     * `file://`: local filesystem.
-///     * any other scheme returns [`IngestionError::Unsupported`].
+///     * `s3://` or other AWS S3-compatible URL: Amazon S3.
 /// * `remote_store_options`: A vector of key-value pairs representing
 ///   provider-specific options.
-///     * For GCS: See [`object_store::gcp::GoogleConfigKey`] for valid keys.
+///     * For GCS:  See [`object_store::gcp::GoogleConfigKey`] for valid keys.
 ///     * For S3: See [`object_store::aws::AmazonS3ConfigKey`] for valid keys.
-///     * For `http`/`https` and `file`: options are ignored.
+///     * For HTTP: No options are currently supported. This parameter should be
+///       empty.
 /// * `request_timeout_secs`: The timeout duration (in seconds) for individual
 ///   requests.
 /// * `retry_config`: A [`RetryConfig`] struct defining the retry strategy. This
@@ -181,43 +179,33 @@ pub fn create_remote_store_client_with_ops(
     let client_options = ClientOptions::new()
         .with_timeout(Duration::from_secs(request_timeout_secs))
         .with_allow_http(true);
-    let url = Url::parse(&url)?;
-    match url.scheme() {
-        "http" | "https" => {
-            let http_store = object_store::http::HttpBuilder::new()
-                .with_url(url)
-                .with_client_options(client_options)
-                .with_retry(retry_config)
-                .build()?;
-            Ok(Box::new(http_store))
+    if remote_store_options.is_empty() {
+        let http_store = object_store::http::HttpBuilder::new()
+            .with_url(url)
+            .with_client_options(client_options)
+            .with_retry(retry_config)
+            .build()?;
+        Ok(Box::new(http_store))
+    } else if Url::parse(&url)?.scheme() == "gs" {
+        let url = Url::parse(&url)?;
+        let mut builder = object_store::gcp::GoogleCloudStorageBuilder::new()
+            .with_url(url.as_str())
+            .with_retry(retry_config)
+            .with_client_options(client_options);
+        for (key, value) in remote_store_options {
+            builder = builder.with_config(GoogleConfigKey::from_str(&key)?, value);
         }
-        "gs" => {
-            let mut builder = object_store::gcp::GoogleCloudStorageBuilder::new()
-                .with_url(url.as_str())
-                .with_retry(retry_config)
-                .with_client_options(client_options);
-            for (key, value) in remote_store_options {
-                builder = builder.with_config(GoogleConfigKey::from_str(&key)?, value);
-            }
-            Ok(Box::new(builder.build()?))
+        Ok(Box::new(builder.build()?))
+    } else {
+        let url = Url::parse(&url)?;
+        let mut builder = object_store::aws::AmazonS3Builder::new()
+            .with_url(url.as_str())
+            .with_retry(retry_config)
+            .with_client_options(client_options);
+        for (key, value) in remote_store_options {
+            builder = builder.with_config(AmazonS3ConfigKey::from_str(&key)?, value);
         }
-        "s3" => {
-            let mut builder = object_store::aws::AmazonS3Builder::new()
-                .with_url(url.as_str())
-                .with_retry(retry_config)
-                .with_client_options(client_options);
-            for (key, value) in remote_store_options {
-                builder = builder.with_config(AmazonS3ConfigKey::from_str(&key)?, value);
-            }
-            Ok(Box::new(builder.build()?))
-        }
-        "file" => Ok(Box::new(
-            object_store::local::LocalFileSystem::new_with_prefix(url.path())?,
-        )),
-        _ => Err(IngestionError::Unsupported(format!(
-            "Unsupported URL scheme: {}",
-            url.scheme()
-        ))),
+        Ok(Box::new(builder.build()?))
     }
 }
 

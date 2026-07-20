@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{num::NonZeroUsize, ops::RangeInclusive, sync::Arc};
+use std::{ops::RangeInclusive, sync::Arc};
 
 use dashmap::DashMap;
 use iota_data_ingestion_core::{
@@ -57,8 +57,7 @@ impl<T: IngestionBackfill + 'static> IngestionBackfillTask<T> {
         };
 
         let reader_options = ReaderOptions {
-            download_concurrency: NonZeroUsize::new(config.checkpoint_download_queue_size)
-                .expect("checkpoint-download-queue-size must be non-zero"),
+            batch_size: config.checkpoint_download_queue_size,
             timeout_secs: config.checkpoint_download_timeout,
             data_limit: config.checkpoint_download_queue_size_bytes,
             ..Default::default()

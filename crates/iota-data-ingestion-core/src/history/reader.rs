@@ -33,7 +33,7 @@ use crate::{
 
 #[derive(Clone)]
 pub struct HistoricalReader {
-    concurrency: NonZeroUsize,
+    concurrency: usize,
     #[expect(dead_code)]
     /// We store this to get dropped along with the
     /// reader and hence terminate the manifest sync
@@ -45,16 +45,16 @@ pub struct HistoricalReader {
 
 #[derive(Debug, Clone)]
 pub struct HistoricalReaderConfig {
-    pub object_store_config: ObjectStoreConfig,
+    pub remote_store_config: ObjectStoreConfig,
     pub download_concurrency: NonZeroUsize,
 }
 
 impl HistoricalReader {
     pub fn new(config: HistoricalReaderConfig) -> Result<Self> {
-        let remote_object_store = if config.object_store_config.no_sign_request {
-            config.object_store_config.make_http()?
+        let remote_object_store = if config.remote_store_config.no_sign_request {
+            config.remote_store_config.make_http()?
         } else {
-            config.object_store_config.make().map(Arc::new)?
+            config.remote_store_config.make().map(Arc::new)?
         };
         let (sender, recv) = oneshot::channel();
         let manifest = Arc::new(Mutex::new(Manifest::new(0)));
@@ -64,7 +64,7 @@ impl HistoricalReader {
             manifest,
             sender: Arc::new(sender),
             remote_object_store,
-            concurrency: config.download_concurrency,
+            concurrency: config.download_concurrency.get(),
         })
     }
 
@@ -108,7 +108,7 @@ impl HistoricalReader {
                 }
             })
             .boxed()
-            .buffer_unordered(self.concurrency.into())
+            .buffer_unordered(self.concurrency)
             .try_for_each(|(checkpoint_data, metadata)| {
                 let checksum = compute_sha3_checksum_for_bytes(checkpoint_data).map_err(Into::into);
                 let result = checksum.and_then(|checksum| {
@@ -165,7 +165,7 @@ impl HistoricalReader {
                 let file_path = metadata.file_path();
                 Ok(get(&remote_object_store, &file_path).await?)
             })
-            .buffered(self.concurrency.into()))
+            .buffered(self.concurrency))
     }
 
     /// Construct an [`Iterator`] over [`CheckpointData`] for the specified

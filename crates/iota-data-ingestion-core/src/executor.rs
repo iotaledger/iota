@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{pin::Pin, sync::Arc, time::Duration};
+use std::{pin::Pin, sync::Arc};
 
 use futures::Future;
 use iota_metrics::spawn_monitored_task;
@@ -11,13 +11,9 @@ use iota_types::{
     messages_checkpoint::CheckpointSequenceNumber,
 };
 use prometheus_filtered::Registry;
-use tokio::{
-    sync::mpsc,
-    task::JoinHandle,
-    time::{Instant, sleep_until},
-};
+use tokio::{sync::mpsc, task::JoinHandle};
 use tokio_util::sync::CancellationToken;
-use tracing::{info, warn};
+use tracing::info;
 
 use crate::{
     DataIngestionMetrics, IngestionError, IngestionResult, ReaderOptions, Worker,
@@ -270,11 +266,10 @@ impl<P: ProgressStore> IndexerExecutor<P> {
         config: impl Into<CheckpointReaderConfigExt>,
     ) -> IngestionResult<ExecutorProgress> {
         let reader_checkpoint_number = self.progress_store.min_watermark()?;
-        let config = config.into();
-        let stall_timeout = config.base.reader_options.stall_timeout;
-        let checkpoint_reader = CheckpointReader::new(reader_checkpoint_number, config).await?;
+        let checkpoint_reader =
+            CheckpointReader::new(reader_checkpoint_number, config.into()).await?;
 
-        self.run_executor_loop(reader_checkpoint_number, checkpoint_reader, stall_timeout)
+        self.run_executor_loop(reader_checkpoint_number, checkpoint_reader)
             .await
     }
 
@@ -283,7 +278,6 @@ impl<P: ProgressStore> IndexerExecutor<P> {
         &mut self,
         mut reader_checkpoint_number: u64,
         mut checkpoint_reader: CheckpointReader,
-        stall_timeout: Option<Duration>,
     ) -> IngestionResult<ExecutorProgress> {
         let worker_pools = std::mem::take(&mut self.pools)
             .into_iter()
@@ -292,10 +286,6 @@ impl<P: ProgressStore> IndexerExecutor<P> {
 
         let mut worker_pools_shutdown_signals = vec![];
         let mut checkpoint_limit_reached = None;
-        // Deadline for the stall guard, refreshed on every checkpoint received or
-        // worker-progress event. When `stall_timeout` is `None` the guard is off.
-        let mut stall_deadline = stall_timeout.map(|d| Instant::now() + d);
-        let mut stalled = false;
 
         loop {
             // the min watermark represents the lowest watermark that
@@ -318,7 +308,6 @@ impl<P: ProgressStore> IndexerExecutor<P> {
                 Some(worker_pool_progress_msg) = self.pool_status_receiver.recv() => {
                     match worker_pool_progress_msg {
                         WorkerPoolStatus::Running((task_name, watermark)) => {
-                            stall_deadline = stall_timeout.map(|d| Instant::now() + d);
                             self.progress_store.save(task_name.clone(), watermark).await
                                 .map_err(|err| IngestionError::ProgressStore(err.to_string()))?;
                             let seq_number = self.progress_store.min_watermark()?;
@@ -336,7 +325,6 @@ impl<P: ProgressStore> IndexerExecutor<P> {
                     }
                 }
                 Some(checkpoint) = checkpoint_reader.checkpoint(), if !self.token.is_cancelled() => {
-                    stall_deadline = stall_timeout.map(|d| Instant::now() + d);
                     // once upper limit reached skip sending new checkpoints to workers.
                     if self.should_shutdown(&checkpoint, &mut checkpoint_limit_reached) {
                         continue;
@@ -349,20 +337,6 @@ impl<P: ProgressStore> IndexerExecutor<P> {
                             )
                         })?;
                     }
-                }
-                // Stall guard: fires only when `stall_timeout` is set and no
-                // progress was made before the deadline. Cancels the executor so
-                // the pools drain, then the loop returns `IngestionError::Stalled`.
-                () = async move { match stall_deadline {
-                    Some(deadline) => sleep_until(deadline).await,
-                    None => std::future::pending().await,
-                } }, if !self.token.is_cancelled() => {
-                    warn!(
-                        "ingestion stalled: no checkpoint processed within {:?}, shutting down",
-                        stall_timeout,
-                    );
-                    stalled = true;
-                    self.token.cancel();
                 }
             }
 
@@ -380,9 +354,6 @@ impl<P: ProgressStore> IndexerExecutor<P> {
             }
         }
 
-        if stalled {
-            return Err(IngestionError::Stalled);
-        }
         Ok(self.progress_store.stats())
     }
 
@@ -473,7 +444,6 @@ impl<P: ProgressStore> IndexerExecutor<P> {
 ///         0,                                                    // initial checkpoint number.
 ///         5,                                                    // concurrency.
 ///         None,                                                 // extra reader options.
-///         None,                                                 // ingestion limit.
 ///     )
 ///     .await
 ///     .unwrap();

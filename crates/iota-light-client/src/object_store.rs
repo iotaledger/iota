@@ -22,12 +22,12 @@ pub struct CheckpointStore {
 
 impl CheckpointStore {
     pub fn new(config: &Config) -> Result<Self> {
-        let Some(object_store_config) = config.checkpoint_store_config.clone() else {
+        let Some(remote_store_config) = config.checkpoint_store_config.clone() else {
             bail!("missing checkpoint store config");
         };
 
         let config = HistoricalReaderConfig {
-            object_store_config,
+            remote_store_config,
             download_concurrency: NonZeroUsize::new(5).unwrap(),
         };
 

@@ -180,12 +180,12 @@ pub async fn write_manifest<S: ObjectStorePutExt>(
 }
 
 pub async fn verify_historical_checkpoints_with_checksums(
-    object_store_config: ObjectStoreConfig,
-    download_concurrency: NonZeroUsize,
+    remote_store_config: ObjectStoreConfig,
+    concurrency: usize,
 ) -> Result<()> {
     let config = HistoricalReaderConfig {
-        object_store_config,
-        download_concurrency,
+        remote_store_config,
+        download_concurrency: NonZeroUsize::new(concurrency).unwrap(),
     };
     // Gets the Manifest from the remote store.
     let reader = HistoricalReader::new(config)?;

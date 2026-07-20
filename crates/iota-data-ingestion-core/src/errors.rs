@@ -72,9 +72,6 @@ pub enum IngestionError {
 
     #[error("unsupported operation: `{0}`")]
     Unsupported(String),
-
-    #[error("ingestion stalled: no checkpoint processed within the configured stall timeout")]
-    Stalled,
 }
 
 impl From<iota_grpc_types::proto::TryFromProtoError> for IngestionError {

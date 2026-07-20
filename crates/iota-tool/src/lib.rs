@@ -664,7 +664,7 @@ pub(crate) async fn backfill_checkpoint_summaries(
     // Read the checkpoint archive through the HistoricalReader — the batched,
     // MANIFEST-indexed layout the archive is actually written in.
     let reader = HistoricalReader::new(HistoricalReaderConfig {
-        object_store_config: checkpoint_archive_object_store_config(&ingestion_url),
+        remote_store_config: checkpoint_archive_object_store_config(&ingestion_url),
         download_concurrency: num_parallel_downloads,
     })?;
     reader.sync_manifest_once().await?;

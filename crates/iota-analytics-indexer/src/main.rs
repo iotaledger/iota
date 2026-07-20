@@ -2,8 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::num::NonZeroUsize;
-
 use anyhow::Result;
 use clap::*;
 use iota_analytics_indexer::{
@@ -41,7 +39,7 @@ async fn main() -> Result<()> {
     let watermark = processor.last_committed_checkpoint().unwrap_or_default() + 1;
 
     let reader_options = ReaderOptions {
-        download_concurrency: NonZeroUsize::new(10).unwrap(),
+        batch_size: 10,
         ..Default::default()
     };
     let (executor, token) = setup_single_workflow(

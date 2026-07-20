@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::BTreeSet, env, num::NonZeroUsize, path::PathBuf, time::Duration};
+use std::{collections::BTreeSet, env, path::PathBuf, time::Duration};
 
 use anyhow::Result;
 use iota_data_ingestion::{
@@ -295,8 +295,7 @@ async fn main() -> Result<()> {
     }
 
     let reader_options = ReaderOptions {
-        download_concurrency: NonZeroUsize::new(config.remote_read_batch_size)
-            .expect("remote-read-batch-size must be non-zero"),
+        batch_size: config.remote_read_batch_size,
         timeout_secs: config.remote_read_timeout_secs,
         ..Default::default()
     };

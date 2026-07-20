@@ -1323,9 +1323,7 @@ async fn sync_checkpoint_contents_from_checkpoint_archive_iteration<S>(
         let ingestion_limit =
             lowest_checkpoint_on_peers.map(|end| IngestionLimit::MaxCheckpoint(end - 1));
         let reader_options = ReaderOptions {
-            download_concurrency: NonZeroUsize::new(checkpoint_archive_config.download_concurrency)
-                .expect("checkpoint-archive-config.download-concurrency must be non-zero"),
-            stall_timeout: Some(Duration::from_secs(60)),
+            batch_size: checkpoint_archive_config.download_concurrency,
             ..Default::default()
         };
         // Keep a clone for the final log; the original is moved into StateSyncWorker.
