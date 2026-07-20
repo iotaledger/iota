@@ -10,7 +10,8 @@ publish = false
 # external dependencies
 anyhow.workspace = true
 bcs.workspace = true
-indexmap.workspace = true
+indexmap = { workspace = true, features = ["serde"] }
+serde.workspace = true
 
 # internal dependencies
 move-binary-format.workspace = true
