@@ -1657,4 +1657,24 @@ mod tests {
         assert_eq!(recovered_table.good_nodes, live_table_window_2.good_nodes);
         assert_eq!(recovered_table.bad_nodes, live_table_window_2.bad_nodes);
     }
+
+    #[test]
+    fn test_leader_schedule_window_invariant_for_all_protocol_configs() {
+        use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
+
+        // The getter assert enforcing this only fires once consensus starts at
+        // the adopting epoch; check every defined config here so that a
+        // misconfigured version fails CI, which runs this without msim and so
+        // compares the real, unclamped values.
+        for chain in [Chain::Unknown, Chain::Mainnet, Chain::Testnet] {
+            for version in ProtocolVersion::MIN.as_u64()..=ProtocolVersion::MAX.as_u64() {
+                let config = ProtocolConfig::get_for_version(ProtocolVersion::new(version), chain);
+                assert!(
+                    !config.consensus_enable_sliding_window_leader_schedule()
+                        || config.leader_schedule_window_size() >= config.commits_per_schedule(),
+                    "{chain:?} v{version}: leader_schedule_window_size must be >= commits_per_schedule"
+                );
+            }
+        }
+    }
 }
