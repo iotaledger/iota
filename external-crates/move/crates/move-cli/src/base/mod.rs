@@ -9,6 +9,7 @@ pub mod docgen;
 pub mod info;
 pub mod migrate;
 pub mod new;
+pub mod summary;
 pub mod test;
 
 use std::path::{Path, PathBuf};

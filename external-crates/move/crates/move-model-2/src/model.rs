@@ -211,8 +211,8 @@ impl<K: SourceKind> Model<K> {
 
     pub fn summary(&self) -> &summary::Packages {
         match self.kind() {
-            Kind::WithSource(model) => model.summary(),
-            Kind::WithoutSource(model) => model.summary(),
+            Kind::WithSource(model) => model.summary_with_source(),
+            Kind::WithoutSource(model) => model.summary_without_source(),
         }
     }
 
