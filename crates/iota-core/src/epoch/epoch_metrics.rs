@@ -136,7 +136,8 @@ impl EpochMetrics {
             current_voting_right: register_int_gauge_with_registry!(
                 "current_voting_right",
                 "Current voting right of the validator",
-                registry
+                registry;
+                MetricLevel::Warn,
             )
             .unwrap(),
             epoch_checkpoint_count: register_int_gauge_with_registry!(
