@@ -1186,11 +1186,7 @@ mod tests {
         };
 
         fn transaction_ref(round: Round) -> GenericTransactionRef {
-            GenericTransactionRef::TransactionRef(TransactionRef {
-                round,
-                author: AuthorityIndex::new_for_test(0),
-                transactions_commitment: TransactionsCommitment::MIN,
-            })
+            GenericTransactionRef::TransactionRef(plain_ref(round))
         }
 
         fn commit(
