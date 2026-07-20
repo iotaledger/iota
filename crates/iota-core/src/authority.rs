@@ -955,11 +955,35 @@ impl AuthorityState {
     /// Runs deny list, input object validation, gas checks, coin deny list, and
     /// MoveAuthenticator checks. Returns the owned object refs for optional
     /// version validation. Does NOT acquire locks or sign the transaction.
+    ///
+    /// `epoch_gated_coin_deny_list` selects how the coin deny list is read:
+    /// `false` reads the latest value, so denials apply immediately - for
+    /// validator-local admission (signing); `true` reads the value settled
+    /// before the current epoch, which is deterministic across validators
+    /// regardless of each validator's execution progress - required
+    /// post-consensus, where the verdict decides whether the transaction
+    /// stays in the committed set. The two read modes intentionally disagree
+    /// about deny-list changes made in the current epoch, in both directions:
+    /// - An entry added this epoch is enforced at admission right away, while
+    ///   the epoch-gated layers enforce it only from the next epoch. Since
+    ///   execution and post-consensus must read epoch-gated to stay
+    ///   deterministic, admission is the only layer that can react to a new
+    ///   denial or global pause before the epoch boundary.
+    /// - An entry removed this epoch is admitted right away but still denied by
+    ///   the epoch-gated post-consensus read, so such transactions are
+    ///   sequenced by consensus and then deterministically dropped (no
+    ///   execution, no gas charged) until the removal settles at the next epoch
+    ///   boundary. The wasted consensus slot is accepted: post-consensus must
+    ///   handle deterministic drops regardless (owned-object double-spend
+    ///   losers, for example), and validators that skip admission can put such
+    ///   transactions into their blocks anyway, so no admission policy can
+    ///   limit how many deterministically-dropped transactions reach consensus.
     #[instrument(level = "trace", skip_all, fields(tx_digest = ?transaction.digest()))]
     pub(crate) async fn handle_transaction_validation_checks(
         &self,
         transaction: &VerifiedTransaction,
         epoch_store: &Arc<AuthorityPerEpochStore>,
+        epoch_gated_coin_deny_list: bool,
     ) -> IotaResult<Vec<ObjectReference>> {
         let protocol_config = epoch_store.protocol_config();
         let reference_gas_price = epoch_store.reference_gas_price();
@@ -1021,6 +1045,7 @@ impl AuthorityState {
             &tx_receiving_objects,
             &per_authenticator_checked_input_objects,
             &self.get_object_store(),
+            epoch_gated_coin_deny_list.then_some(epoch),
         )?;
 
         let (kind, signer, gas_data) = tx_data.execution_parts();
@@ -1143,7 +1168,15 @@ impl AuthorityState {
         let _execution_lock = self.execution_lock_for_signing()?;
 
         let owned_objects = self
-            .handle_transaction_validation_checks(&transaction, epoch_store)
+            .handle_transaction_validation_checks(
+                &transaction,
+                epoch_store,
+                // Latest-value coin deny-list read: admission is validator-local,
+                // and denials should take effect immediately. Unlike the P-COOL
+                // submission path, no post-consensus re-check follows - this is
+                // the only sender-side coin deny check in the certificate flow.
+                false,
+            )
             .await?;
 
         let epoch = epoch_store.epoch();

@@ -27,8 +27,8 @@ use iota_types::{
     base_types::{ExecutionData, ExecutionDigests},
     crypto::{
         AccountKeyPair, AggregateAuthoritySignature, AuthorityKeyPair, AuthorityPublicKeyBytes,
-        AuthorityQuorumSignInfo, AuthoritySignature, AuthorityStrongQuorumSignInfo, IotaKeyPair,
-        KeypairTraits, Signature, Signer, get_key_pair,
+        AuthorityQuorumSignInfo, AuthoritySignature, AuthorityStrongQuorumSignInfo, KeypairTraits,
+        Signature, Signer, get_key_pair,
     },
     effects::{
         IDOperation, ObjectIn, ObjectOut, TransactionEffects, TransactionEffectsExtForTesting,
@@ -174,14 +174,14 @@ fn get_registry() -> Result<Registry> {
     // include the PubKey ...
     let sig: AuthoritySignature = Signer::sign(&kp, b"hello world");
     tracer.trace_value(&mut samples, &sig).unwrap();
-    // ... and the user signature which does
-
-    let sig: Signature = IotaKeyPair::from(s_kp).sign(b"hello world");
-    tracer.trace_value(&mut samples, &sig).unwrap();
 
     let kp1 = Ed25519PrivateKey::generate(StdRng::from_seed([0; 32]));
     let kp2 = Secp256k1PrivateKey::generate(StdRng::from_seed([0; 32]));
     let kp3 = Secp256r1PrivateKey::generate(StdRng::from_seed([0; 32]));
+
+    // ... and the user signature which does
+    let sig: Signature = kp1.sign(b"hello world");
+    tracer.trace_value(&mut samples, &sig).unwrap();
 
     let multisig_pk = MultiSigPublicKey::new(
         vec![

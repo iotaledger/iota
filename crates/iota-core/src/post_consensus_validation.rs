@@ -262,7 +262,14 @@ pub async fn validate_and_resolve_conflicts(
         // diverging from other honest validators.
         let verified_tx = VerifiedTransaction::new_from_verified((*transaction).clone());
         if let Err(e) = authority_state
-            .handle_transaction_validation_checks(&verified_tx, epoch_store)
+            .handle_transaction_validation_checks(
+                &verified_tx,
+                epoch_store,
+                // Epoch-gated coin deny-list read: the verdict here decides whether
+                // the transaction stays in the committed set, so it must not depend
+                // on this validator's execution progress.
+                true,
+            )
             .await
         {
             if e.is_storage_or_epoch_error() {

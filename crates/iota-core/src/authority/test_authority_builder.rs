@@ -406,7 +406,7 @@ impl<'a> TestAuthorityBuilder<'a> {
             &keypair,
         )
         .await;
-        if let Some(randomness_manager) = randomness_manager {
+        if let Ok(randomness_manager) = randomness_manager {
             // Randomness might fail if test configuration does not permit DKG init.
             // In that case, skip setting it up.
             epoch_store

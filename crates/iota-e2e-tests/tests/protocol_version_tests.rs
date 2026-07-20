@@ -807,6 +807,7 @@ mod sim_only_tests {
         assert!(system_state.epoch_start_timestamp_ms() >= genesis_epoch_start_time + 20000);
 
         // We are getting out of safe mode soon.
+        test_cluster.wait_for_epoch_all_nodes(1).await;
         test_cluster.set_safe_mode_expected(false);
 
         // This epoch change should execute successfully without any upgrade and get us
