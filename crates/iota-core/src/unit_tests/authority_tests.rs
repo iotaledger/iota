@@ -3496,6 +3496,68 @@ async fn test_jsonrpc_index_rebuild_on_open() {
     assert_eq!(balance.num_coins, 1);
 }
 
+/// History replay must not reach below the object pruner's watermark: pruned
+/// nodes no longer hold the input objects of old transactions, even where the
+/// checkpoint data itself is still retained.
+#[tokio::test]
+async fn test_jsonrpc_index_rebuild_skips_object_pruned_checkpoints() {
+    let authority_state = TestAuthorityBuilder::new()
+        .insert_genesis_checkpoint()
+        .build()
+        .await;
+
+    let owner = dbg_addr(1);
+    let gas_object = Object::with_id_owner_for_testing(ObjectId::random(), owner);
+    authority_state.insert_genesis_objects(std::slice::from_ref(&gas_object));
+
+    let checkpoint_store = &authority_state.checkpoint_store;
+    let genesis_checkpoint = checkpoint_store
+        .get_checkpoint_by_sequence_number(0)
+        .unwrap()
+        .unwrap();
+    checkpoint_store
+        .update_highest_executed_checkpoint(&genesis_checkpoint)
+        .unwrap();
+
+    // The object pruner has advanced past the genesis checkpoint; the
+    // checkpoint-contents watermark is untouched.
+    authority_state
+        .database_for_testing()
+        .perpetual_tables
+        .set_highest_pruned_checkpoint_without_wb(0)
+        .unwrap();
+
+    let index_dir = iota_common::tempdir();
+    let index_store = crate::jsonrpc_index::IndexStore::new(
+        index_dir.path().to_path_buf(),
+        &prometheus_filtered::Registry::default(),
+        Some(128),
+        &authority_state.database_for_testing(),
+        checkpoint_store,
+        &authority_state.epoch_store_for_testing(),
+        authority_state.get_backing_package_store().clone(),
+    )
+    .await;
+
+    // The genesis transaction is below the object watermark — not replayed.
+    let genesis_contents = checkpoint_store
+        .get_checkpoint_contents(&genesis_checkpoint.content_digest)
+        .unwrap()
+        .unwrap();
+    let genesis_tx_digest = genesis_contents.iter().next().unwrap().transaction;
+    assert_eq!(
+        index_store.get_transaction_seq(&genesis_tx_digest).unwrap(),
+        None
+    );
+
+    // The live-object scan still populates the live-state tables.
+    let owned: Vec<_> = index_store
+        .get_owner_objects(owner, None, 10, None)
+        .unwrap();
+    assert_eq!(owned.len(), 1);
+    assert_eq!(owned[0].object_id, gas_object.id());
+}
+
 /// Runs an executed transaction through the per-checkpoint JSON-RPC indexing
 /// path, as the checkpoint executor does after executing a checkpoint.
 fn jsonrpc_index_transaction(
