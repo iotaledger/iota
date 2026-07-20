@@ -500,11 +500,8 @@ impl KeyToolCommand {
                 };
                 let decoded = match signature {
                     UserSignature::Simple(s) => {
-                        let pk = PublicKey::try_from_bytes(
-                            s.scheme(),
-                            s.to_public_key().as_ref(),
-                        )
-                        .map_err(|e| anyhow!("Invalid public key bytes: {e}"))?;
+                        let pk = PublicKey::try_from_bytes(s.scheme(), s.to_public_key().as_ref())
+                            .map_err(|e| anyhow!("Invalid public key bytes: {e}"))?;
                         let address = Address::from(&pk);
                         let public_key_base64 = pk.encode_base64();
                         let signature_hex = format!("0x{}", Hex::encode(s.signature_bytes()));

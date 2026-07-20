@@ -738,7 +738,6 @@ pub trait IotaPublicKey: VerifyingKey {
 /// (`iota_sdk_types::SimpleSignature`): construction from a signer and
 /// intent-message verification.
 pub trait IotaSignature: Sized {
-
     /// Signs a message that is already in hashed form.
     fn new_hashed(hashed_msg: &[u8], secret: impl Into<IotaKeyPair>) -> Signature {
         Signer::sign(&secret.into(), hashed_msg)

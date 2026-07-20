@@ -55,15 +55,9 @@ fn test_signatures() {
     let bar = IntentMessage::new(Intent::iota_transaction(), Bar("hello".into()));
 
     let s = Signature::new_secure(&foo, &sec1);
-    assert!(
-        s.verify_secure(&foo, addr1).is_ok()
-    );
-    assert!(
-        s.verify_secure(&foo, addr2).is_err()
-    );
-    assert!(
-        s.verify_secure(&foox, addr1).is_err()
-    );
+    assert!(s.verify_secure(&foo, addr1).is_ok());
+    assert!(s.verify_secure(&foo, addr2).is_err());
+    assert!(s.verify_secure(&foox, addr1).is_err());
     assert!(
         s.verify_secure(
             &IntentMessage::new(
@@ -76,9 +70,7 @@ fn test_signatures() {
     );
 
     // The struct type is different, but the serialization is the same.
-    assert!(
-        s.verify_secure(&bar, addr1).is_ok()
-    );
+    assert!(s.verify_secure(&bar, addr1).is_ok());
 }
 
 #[test]
