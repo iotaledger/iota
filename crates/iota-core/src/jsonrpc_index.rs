@@ -142,7 +142,13 @@ pub struct CoinInfo {
 }
 
 impl CoinInfo {
+    /// Returns coin metadata when `object` is a `Coin<T>`, `None` otherwise.
     pub fn from_object(object: &Object) -> Option<CoinInfo> {
+        // Check the type before parsing: any struct whose BCS layout matches
+        // `Coin`'s `{UID, u64}` would otherwise deserialize successfully.
+        if !object.is_coin() {
+            return None;
+        }
         object.as_coin_maybe().map(|coin| CoinInfo {
             version: object.version(),
             digest: object.digest(),
@@ -2623,6 +2629,38 @@ mod tests {
         checkpoint_store
             .update_highest_executed_checkpoint(&checkpoint)
             .unwrap();
+    }
+
+    /// `CoinInfo::from_object` must reject non-coin objects even when their
+    /// BCS contents happen to match `Coin`'s `{UID, u64}` layout.
+    #[test]
+    fn test_coin_info_from_object_requires_coin_type() {
+        use iota_sdk_types::{Address, Owner, TransactionDigest, Version};
+        use iota_types::object::{MoveObject, MoveObjectExt, Object};
+
+        let owner = Owner::Address(Address::ZERO);
+        let id = ObjectId::random();
+        let contents = iota_types::coin::Coin::new(id, 42).to_bcs_bytes();
+
+        let coin = Object::new_move(
+            MoveObject::new_coin(GAS::type_tag(), Version::MIN_VALID_INCL, id, 42),
+            owner,
+            TransactionDigest::ZERO,
+        );
+        assert_eq!(super::CoinInfo::from_object(&coin).unwrap().balance, 42);
+
+        let fake = Object::new_move(
+            MoveObject::new_from_execution_with_limit(
+                "0x2::not_coin::NotCoin".parse::<StructTag>().unwrap(),
+                Version::MIN_VALID_INCL,
+                contents,
+                256,
+            )
+            .unwrap(),
+            owner,
+            TransactionDigest::ZERO,
+        );
+        assert_eq!(super::CoinInfo::from_object(&fake), None);
     }
 
     /// A brand-new store is seeded with `meta` and needs no rebuild; once the
