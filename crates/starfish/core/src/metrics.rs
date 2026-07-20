@@ -1281,7 +1281,8 @@ impl NodeMetrics {
                 "peer_responsiveness_expected_latency_ms",
                 "Expected per-fetch latency (ms) over measured peers per fetch kind under uniform vs responsiveness-weighted selection; their ratio is the improvement the ranking buys",
                 &["kind", "selection"],
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             faulty_blocks_provable_by_authority: register_int_gauge_vec_with_registry!(
                 "faulty_blocks_provable_by_authority",
