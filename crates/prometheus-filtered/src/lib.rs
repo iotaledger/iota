@@ -44,431 +44,23 @@ use std::{
 /// directly on the `prometheus` crate.
 #[doc(hidden)]
 pub use prometheus;
-// Re-export prometheus primitives that require no wrapping.
+// ---------------------------------------------------------------------------
+// prometheus re-exports
+// ---------------------------------------------------------------------------
+
+// Filtering is enforced by registry membership (see `Registry::record_collector`
+// and `Registry::reconcile`), so the metric types need no wrapping: re-export
+// prometheus's own types and generic primitives directly.
+pub use prometheus::{
+    Counter, CounterVec, Gauge, GaugeVec, Histogram, HistogramTimer, HistogramVec, IntCounter,
+    IntCounterVec, IntGauge, IntGaugeVec, core,
+};
+// Re-export the prometheus items callers reach for through this crate.
 pub use prometheus::{
     DEFAULT_BUCKETS, Encoder, Error, HistogramOpts, Opts, PROTOBUF_FORMAT, ProtobufEncoder, Result,
     TextEncoder, exponential_buckets, gather, histogram_opts, linear_buckets, opts, proto,
 };
 use tracing::warn;
-
-// ---------------------------------------------------------------------------
-// core sub-module
-// ---------------------------------------------------------------------------
-
-/// Mirrors `prometheus::core` and provides `GenericGauge`/`GenericCounter`
-/// wrappers compatible with prometheus's own generic types.
-///
-/// `crate::IntGauge`, `crate::Gauge`, `crate::IntCounter`, and
-/// `crate::Counter` are type aliases for concrete instantiations of these
-/// types, so `Option<IntGauge>` and `Option<GenericGauge<AtomicI64>>` are
-/// the same type.
-pub mod core {
-    use std::mem::ManuallyDrop;
-
-    pub use prometheus::core::{
-        Atomic, AtomicF64, AtomicI64, AtomicU64, Collector, Desc, Describer, Metric,
-        MetricVecBuilder, Number,
-    };
-
-    macro_rules! impl_generic_metric_traits {
-        ($T:ident) => {
-            impl<P: Atomic> Clone for $T<P> {
-                fn clone(&self) -> Self {
-                    Self(self.0.clone())
-                }
-            }
-
-            impl<P: Atomic> std::fmt::Debug for $T<P> {
-                fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                    write!(f, "{}", stringify!($T))?;
-                    if self.0.is_none() {
-                        write!(f, "(disabled)")?;
-                    }
-                    Ok(())
-                }
-            }
-
-            impl<P: Atomic> prometheus::core::Collector for $T<P> {
-                fn desc(&self) -> Vec<&Desc> {
-                    self.0
-                        .as_ref()
-                        .map(|inner| inner.desc())
-                        .unwrap_or_default()
-                }
-
-                fn collect(&self) -> Vec<prometheus::proto::MetricFamily> {
-                    self.0
-                        .as_ref()
-                        .map(|inner| inner.collect())
-                        .unwrap_or_default()
-                }
-            }
-        };
-    }
-
-    macro_rules! impl_metric_traits {
-        ($T:ident) => {
-            impl Clone for $T {
-                fn clone(&self) -> Self {
-                    Self(self.0.clone())
-                }
-            }
-
-            impl std::fmt::Debug for $T {
-                fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                    write!(f, "{}", stringify!($T))?;
-                    if self.0.is_none() {
-                        write!(f, "(disabled)")?;
-                    }
-                    Ok(())
-                }
-            }
-
-            impl prometheus::core::Collector for $T {
-                fn desc(&self) -> Vec<&Desc> {
-                    self.0
-                        .as_ref()
-                        .map(|inner| inner.desc())
-                        .unwrap_or_default()
-                }
-
-                fn collect(&self) -> Vec<prometheus::proto::MetricFamily> {
-                    self.0
-                        .as_ref()
-                        .map(|inner| inner.collect())
-                        .unwrap_or_default()
-                }
-            }
-        };
-    }
-
-    macro_rules! impl_generic_metric_vec {
-        ($T:ident, $M:ident) => {
-            impl<P: Atomic> $T<P> {
-                pub fn new_some(inner: prometheus::core::$T<P>) -> Self {
-                    Self(Some(inner))
-                }
-
-                pub fn new_none() -> Self {
-                    Self(None)
-                }
-
-                #[inline]
-                pub fn with_label_values<V>(&self, vals: &[V]) -> $M<P>
-                where
-                    V: AsRef<str> + std::fmt::Debug,
-                {
-                    $M::<P>(self.0.as_ref().map(|inner| inner.with_label_values(vals)))
-                }
-
-                #[inline]
-                pub fn remove_label_values<V>(&self, vals: &[V]) -> super::Result<()>
-                where
-                    V: AsRef<str> + std::fmt::Debug,
-                {
-                    self.0
-                        .as_ref()
-                        .map(|inner| inner.remove_label_values(vals))
-                        .unwrap_or(Ok(()))
-                }
-
-                #[inline]
-                pub fn get_metric_with<V, S: std::hash::BuildHasher>(
-                    &self,
-                    labels: &std::collections::HashMap<&str, V, S>,
-                ) -> super::Result<$M<P>>
-                where
-                    V: AsRef<str> + std::fmt::Debug,
-                {
-                    self.0
-                        .as_ref()
-                        .map(|inner| inner.get_metric_with(labels).map($M::<P>::new_some))
-                        .unwrap_or(Ok($M::<P>::new_none()))
-                }
-
-                #[inline]
-                pub fn get_metric_with_label_values<V>(&self, vals: &[V]) -> super::Result<$M<P>>
-                where
-                    V: AsRef<str> + std::fmt::Debug,
-                {
-                    self.0
-                        .as_ref()
-                        .map(|inner| {
-                            inner
-                                .get_metric_with_label_values(vals)
-                                .map($M::<P>::new_some)
-                        })
-                        .unwrap_or(Ok($M::<P>::new_none()))
-                }
-
-                #[inline]
-                pub fn reset(&self) {
-                    if let Some(v) = &self.0 {
-                        v.reset();
-                    }
-                }
-            }
-        };
-    }
-
-    pub struct GenericCounter<P: Atomic>(Option<prometheus::core::GenericCounter<P>>);
-
-    impl<P: Atomic> GenericCounter<P> {
-        pub fn new_some(inner: prometheus::core::GenericCounter<P>) -> Self {
-            Self(Some(inner))
-        }
-
-        pub fn new_none() -> Self {
-            Self(None)
-        }
-
-        pub fn new(name: &str, help: &str) -> prometheus::Result<Self> {
-            prometheus::core::GenericCounter::new(name, help).map(Self::new_some)
-        }
-
-        pub fn with_opts(opts: super::Opts) -> super::Result<Self> {
-            prometheus::core::GenericCounter::with_opts(opts).map(Self::new_some)
-        }
-
-        #[inline]
-        pub fn get(&self) -> P::T {
-            self.0
-                .as_ref()
-                .map(|inner| inner.get())
-                .unwrap_or(<P::T>::from_i64(0))
-        }
-
-        #[inline]
-        pub fn inc(&self) {
-            if let Some(inner) = &self.0 {
-                inner.inc();
-            }
-        }
-
-        #[inline]
-        pub fn inc_by(&self, v: <P as Atomic>::T) {
-            if let Some(inner) = &self.0 {
-                inner.inc_by(v);
-            }
-        }
-
-        #[inline]
-        pub fn reset(&self) {
-            if let Some(inner) = &self.0 {
-                inner.reset();
-            }
-        }
-    }
-
-    impl_generic_metric_traits!(GenericCounter);
-
-    pub struct GenericGauge<P: Atomic>(Option<prometheus::core::GenericGauge<P>>);
-
-    impl<P: Atomic> GenericGauge<P> {
-        pub fn new_some(inner: prometheus::core::GenericGauge<P>) -> Self {
-            Self(Some(inner))
-        }
-
-        pub fn new_none() -> Self {
-            Self(None)
-        }
-
-        pub fn new(name: &str, help: &str) -> super::Result<Self> {
-            prometheus::core::GenericGauge::new(name, help).map(Self::new_some)
-        }
-
-        pub fn with_opts(opts: super::Opts) -> super::Result<Self> {
-            prometheus::core::GenericGauge::with_opts(opts).map(Self::new_some)
-        }
-
-        #[inline]
-        pub fn get(&self) -> P::T {
-            self.0
-                .as_ref()
-                .map(|inner| inner.get())
-                .unwrap_or(<P::T>::from_i64(0))
-        }
-
-        #[inline]
-        pub fn set(&self, v: P::T) {
-            if let Some(inner) = &self.0 {
-                inner.set(v);
-            }
-        }
-
-        #[inline]
-        pub fn inc(&self) {
-            if let Some(inner) = &self.0 {
-                inner.inc();
-            }
-        }
-
-        #[inline]
-        pub fn dec(&self) {
-            if let Some(inner) = &self.0 {
-                inner.dec();
-            }
-        }
-
-        #[inline]
-        pub fn add(&self, v: P::T) {
-            if let Some(inner) = &self.0 {
-                inner.add(v);
-            }
-        }
-
-        #[inline]
-        pub fn sub(&self, v: P::T) {
-            if let Some(inner) = &self.0 {
-                inner.sub(v);
-            }
-        }
-    }
-
-    impl_generic_metric_traits!(GenericGauge);
-
-    pub struct GenericCounterVec<P: Atomic>(Option<prometheus::core::GenericCounterVec<P>>);
-
-    impl_generic_metric_traits!(GenericCounterVec);
-    impl_generic_metric_vec!(GenericCounterVec, GenericCounter);
-
-    pub struct GenericGaugeVec<P: Atomic>(Option<prometheus::core::GenericGaugeVec<P>>);
-
-    impl_generic_metric_traits!(GenericGaugeVec);
-    impl_generic_metric_vec!(GenericGaugeVec, GenericGauge);
-
-    pub struct Histogram(Option<prometheus::Histogram>);
-
-    impl_metric_traits!(Histogram);
-
-    impl Histogram {
-        pub fn new_some(inner: prometheus::Histogram) -> Self {
-            Self(Some(inner))
-        }
-
-        pub fn new_none() -> Self {
-            Self(None)
-        }
-
-        pub fn with_opts(opts: prometheus::HistogramOpts) -> prometheus::Result<Self> {
-            prometheus::Histogram::with_opts(opts).map(|h| Self(Some(h)))
-        }
-
-        #[inline]
-        pub fn observe(&self, v: f64) {
-            if let Some(h) = &self.0 {
-                h.observe(v);
-            }
-        }
-
-        #[inline]
-        pub fn start_timer(&self) -> HistogramTimer {
-            HistogramTimer(self.0.as_ref().map(|h| h.start_timer()))
-        }
-
-        #[inline]
-        pub fn get_sample_count(&self) -> u64 {
-            self.0.as_ref().map_or(0, |h| h.get_sample_count())
-        }
-
-        #[inline]
-        pub fn get_sample_sum(&self) -> f64 {
-            self.0.as_ref().map_or(0.0, |h| h.get_sample_sum())
-        }
-    }
-
-    pub struct HistogramTimer(Option<prometheus::HistogramTimer>);
-
-    impl std::fmt::Debug for HistogramTimer {
-        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            write!(f, "HistogramTimer")?;
-            if self.0.is_none() {
-                write!(f, "(disabled)")?;
-            }
-            Ok(())
-        }
-    }
-
-    impl Drop for HistogramTimer {
-        fn drop(&mut self) {
-            // Dropping the inner prometheus::HistogramTimer records the observation.
-            drop(self.0.take());
-        }
-    }
-
-    impl HistogramTimer {
-        /// Records the elapsed time and returns it; prevents the `Drop` impl
-        /// from recording a second time.
-        #[inline]
-        pub fn stop_and_record(self) -> f64 {
-            // ManuallyDrop prevents our Drop impl from running, so the inner timer
-            // can be consumed by its own stop_and_record without double-recording.
-            let mut wrapper = ManuallyDrop::new(self);
-            wrapper
-                .0
-                .take()
-                .map(|t| t.stop_and_record())
-                .unwrap_or_default()
-        }
-
-        /// Records the duration; provided for compatibility with older
-        /// prometheus APIs.
-        #[inline]
-        pub fn observe_duration(self) {
-            let _ = self.stop_and_record();
-        }
-
-        /// Discards the timer without recording; returns the elapsed seconds.
-        #[inline]
-        pub fn stop_and_discard(self) -> f64 {
-            let mut wrapper = ManuallyDrop::new(self);
-            wrapper
-                .0
-                .take()
-                .map(|t| t.stop_and_discard())
-                .unwrap_or_default()
-        }
-    }
-
-    pub struct HistogramVec(Option<prometheus::HistogramVec>);
-
-    impl_metric_traits!(HistogramVec);
-
-    impl HistogramVec {
-        pub fn new_some(inner: prometheus::HistogramVec) -> Self {
-            Self(Some(inner))
-        }
-
-        pub fn new_none() -> Self {
-            Self(None)
-        }
-
-        #[inline]
-        pub fn with_label_values(&self, vals: &[&str]) -> Histogram {
-            Histogram(self.0.as_ref().map(|v| v.with_label_values(vals)))
-        }
-
-        #[inline]
-        pub fn remove_label_values(&self, vals: &[&str]) -> prometheus::Result<()> {
-            match &self.0 {
-                Some(v) => v.remove_label_values(vals),
-                None => Ok(()),
-            }
-        }
-    }
-}
-
-pub type Counter = core::GenericCounter<prometheus::core::AtomicF64>;
-pub type IntCounter = core::GenericCounter<prometheus::core::AtomicU64>;
-pub type Gauge = core::GenericGauge<prometheus::core::AtomicF64>;
-pub type IntGauge = core::GenericGauge<prometheus::core::AtomicI64>;
-
-pub type CounterVec = core::GenericCounterVec<prometheus::core::AtomicF64>;
-pub type IntCounterVec = core::GenericCounterVec<prometheus::core::AtomicU64>;
-pub type GaugeVec = core::GenericGaugeVec<prometheus::core::AtomicF64>;
-pub type IntGaugeVec = core::GenericGaugeVec<prometheus::core::AtomicI64>;
-
-pub use core::{Histogram, HistogramTimer, HistogramVec};
 
 // ---------------------------------------------------------------------------
 // Filter
@@ -940,9 +532,9 @@ pub fn default_registry() -> &'static Registry {
 // Each macro captures `module_path!()` at the call site so the filter can
 // match by subsystem in addition to metric name.
 //
-// The `$registry` must be a `prometheus_filtered::Registry`. On success the
-// macro always returns `Ok(WrappedType(Some(...)))` or `Ok(WrappedType(None))`
-// — never `Err` from the filtering logic itself.
+// The `$registry` must be a `prometheus_filtered::Registry`. Each macro returns
+// the prometheus metric type directly; the filter never turns a successful
+// registration into an `Err`.
 //
 // `$crate::prometheus::` is used for inner prometheus macro calls so that
 // callers don't need a direct `prometheus` crate dependency.
@@ -973,7 +565,6 @@ macro_rules! register_int_counter_with_registry {
                     ($registry).inner()
                 ),
             )
-            .map($crate::core::GenericCounter::new_some)
     }};
 }
 
@@ -1001,7 +592,6 @@ macro_rules! register_int_counter_vec_with_registry {
                     ($registry).inner()
                 ),
             )
-            .map($crate::IntCounterVec::new_some)
     }};
 }
 
@@ -1028,7 +618,6 @@ macro_rules! register_int_gauge_with_registry {
                     ($registry).inner()
                 ),
             )
-            .map($crate::core::GenericGauge::new_some)
     }};
 }
 
@@ -1056,7 +645,6 @@ macro_rules! register_int_gauge_vec_with_registry {
                     ($registry).inner()
                 ),
             )
-            .map($crate::IntGaugeVec::new_some)
     }};
 }
 
@@ -1087,7 +675,6 @@ macro_rules! register_histogram_with_registry {
                     ($registry).inner()
                 ),
             )
-            .map($crate::Histogram::new_some)
     }};
     ($name:expr, $help:expr, $buckets:expr, $registry:expr ; $level:expr $(,)?) => {{
         let _n = $name;
@@ -1105,7 +692,6 @@ macro_rules! register_histogram_with_registry {
                     ($registry).inner()
                 ),
             )
-            .map($crate::Histogram::new_some)
     }};
 }
 
@@ -1139,7 +725,6 @@ macro_rules! register_histogram_vec_with_registry {
                     ($registry).inner()
                 ),
             )
-            .map($crate::HistogramVec::new_some)
     }};
     ($name:expr, $help:expr, $labels:expr, $buckets:expr, $registry:expr ; $level:expr $(,)?) => {{
         let _n = $name;
@@ -1158,7 +743,6 @@ macro_rules! register_histogram_vec_with_registry {
                     ($registry).inner()
                 ),
             )
-            .map($crate::HistogramVec::new_some)
     }};
 }
 
@@ -1186,7 +770,6 @@ macro_rules! register_gauge_vec_with_registry {
                     ($registry).inner()
                 ),
             )
-            .map($crate::core::GenericGaugeVec::new_some)
     }};
 }
 
@@ -1211,7 +794,6 @@ macro_rules! register_gauge_with_registry {
                     ($registry).inner()
                 ),
             )
-            .map($crate::core::GenericGauge::new_some)
     }};
 }
 
@@ -1232,7 +814,6 @@ macro_rules! register_counter {
                 $level,
                 $crate::prometheus::register_counter!(name, $help),
             )
-            .map($crate::core::GenericCounter::new_some)
     }};
 }
 
@@ -1259,7 +840,6 @@ macro_rules! register_counter_with_registry {
                     ($registry).inner()
                 ),
             )
-            .map($crate::core::GenericCounter::new_some)
     }};
 }
 
@@ -1287,7 +867,6 @@ macro_rules! register_counter_vec_with_registry {
                     ($registry).inner()
                 ),
             )
-            .map($crate::core::GenericCounterVec::new_some)
     }};
 }
 
@@ -1308,7 +887,6 @@ macro_rules! register_counter_vec {
                 $level,
                 $crate::prometheus::register_counter_vec!(name, $help, $labels),
             )
-            .map($crate::core::GenericCounterVec::new_some)
     }};
 }
 
@@ -1338,7 +916,6 @@ macro_rules! register_histogram_vec {
                 $level,
                 $crate::prometheus::register_histogram_vec!(opts, $labels),
             )
-            .map($crate::HistogramVec::new_some)
     }};
     ($name:expr, $help:expr, $labels:expr ; $level:expr $(,)?) => {{
         let _n = $name;
@@ -1351,7 +928,6 @@ macro_rules! register_histogram_vec {
                 $level,
                 $crate::prometheus::register_histogram_vec!(name, $help, $labels),
             )
-            .map($crate::HistogramVec::new_some)
     }};
     ($name:expr, $help:expr, $labels:expr, $buckets:expr ; $level:expr $(,)?) => {{
         let _n = $name;
@@ -1364,7 +940,6 @@ macro_rules! register_histogram_vec {
                 $level,
                 $crate::prometheus::register_histogram_vec!(name, $help, $labels, $buckets),
             )
-            .map($crate::HistogramVec::new_some)
     }};
 }
 
@@ -1613,7 +1188,6 @@ mod gather_filter_tests {
         // The metric handle is live and keeps collecting through the caller's
         // copy, even though the filter unregistered it from the inner registry,
         // so it is absent from gather output.
-        assert_eq!(format!("{g:?}"), "GenericGauge");
         g.set(9);
         assert_eq!(g.get(), 9);
         assert_eq!(gathered_names(&reg), Vec::<String>::new());
