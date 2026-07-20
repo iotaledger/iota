@@ -8276,7 +8276,6 @@ dependencies = [
  "indexmap 2.11.0",
  "iota-macros",
  "iota-network-stack",
- "iota-proc-macros",
  "iota-protocol-config",
  "iota-sdk-crypto 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=6f0664a9363ce7736e6261511b9302196b2b040f)",
  "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=6f0664a9363ce7736e6261511b9302196b2b040f)",
