@@ -156,8 +156,9 @@ pub struct Parameters {
     /// Prefer more responsive peers when the transactions synchronizer selects
     /// peers to fetch from. Ranking is a preference within the already-eligible
     /// candidate set, not a change of eligibility, so it cannot affect safety.
-    /// Enabled by default; disabling it selects peers in a uniform random
-    /// order with no demotion of recently failed peers.
+    /// Enabled by default; disabling it restores the previous selection: a
+    /// uniform random order that excludes the most recently failed peers (up
+    /// to less than f+1 by stake).
     #[serde(default = "Parameters::default_enable_peer_responsiveness_ranking")]
     pub enable_peer_responsiveness_ranking: bool,
 
