@@ -145,6 +145,17 @@ impl ShardAccumulator {
         self.number_shards >= info_length
     }
 
+    /// Indices of the shards collected so far. A shard at index `i` is
+    /// authenticated as authority `i`'s (its Merkle proof is verified at
+    /// position `i`, which is the relaying peer's index), so a collected
+    /// shard identifies the peer that relayed it.
+    fn collected_shard_indices(&self) -> impl Iterator<Item = usize> + '_ {
+        self.collected_shards
+            .iter()
+            .enumerate()
+            .filter_map(|(i, shard)| shard.as_ref().map(|_| i))
+    }
+
     /// We use Codec to decode the transaction data from collected shards. Once
     /// reconstructed, we encode and verify that the transaction commitment
     /// was computed correctly
@@ -347,6 +358,7 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
             let ready_rx = Arc::clone(&self.ready_to_reconstruct_receiver);
             let result_tx = self.reconstructed_transactions_sender.clone();
             let context = self.context.clone();
+            let dag_state = self.dag_state.clone();
             let block_verifier = self.block_verifier.clone();
             let misbehavior_store = self.misbehavior_store.clone();
             tokio::spawn(async move {
@@ -380,11 +392,39 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
                                             }
                                         }
                                         Err(err) => {
-                                            // The recomputed commitment matches the author-signed
-                                            // one, so the invalid payload is provably the author's.
-                                            // The shards came from relayers, so no sending peer is
-                                            // charged.
-                                            let author = shard_accumulator.transaction_ref.author;
+                                            // A peer must hold the full payload to erasure-code its
+                                            // shard, so every peer that contributed a shard could
+                                            // have verified the transactions and is charged an
+                                            // unprovable fault for relaying invalid bytes. The
+                                            // commitment here is peer-supplied, so without a
+                                            // verified author-signed header for this ref a
+                                            // coalition
+                                            // of peers could reconstruct invalid transactions under
+                                            // a
+                                            // fabricated commitment to frame the author; charge the
+                                            // author a provable fault only when such a header
+                                            // exists,
+                                            // as he then committed to the invalid transactions.
+                                            //
+                                            // Attribution is one-shot: a header arriving only after
+                                            // this failure does not retroactively charge the author
+                                            // (the failed ref stays in the reconstruction queue and
+                                            // is not revisited). Such an author is instead charged
+                                            // on the direct primary-block route, where the full
+                                            // payload is verified against the author.
+                                            let tx_ref = shard_accumulator.transaction_ref;
+                                            let author = tx_ref.author;
+                                            let authored = dag_state
+                                                .read()
+                                                .contains_verified_block_headers_for_transaction_refs(
+                                                    &[tx_ref],
+                                                )[0];
+                                            let relayers: Vec<_> = shard_accumulator
+                                                .collected_shard_indices()
+                                                .filter_map(|i| {
+                                                    context.committee.to_authority_index(i)
+                                                })
+                                                .collect();
                                             metrics
                                                 .node_metrics
                                                 .invalid_transactions
@@ -394,8 +434,9 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
                                                     err.name(),
                                                 ])
                                                 .inc();
-                                            misbehavior_store
-                                                .record_faulty_block_header(author, author, &err);
+                                            misbehavior_store.record_faulty_transactions(
+                                                author, authored, relayers,
+                                            );
                                             warn!(
                                                 "Reconstructed transactions for {:?} failed verification: {:?}",
                                                 shard_accumulator.transaction_ref, err
@@ -1267,12 +1308,14 @@ mod tests {
         );
     }
 
-    /// A reconstructed payload must pass the same per-transaction limit and
-    /// `verify_batch` checks the direct route enforces before it can reach
-    /// Core. Otherwise it could be acknowledged and become committable while
-    /// diverging from nodes that received the same payload directly.
-    #[tokio::test]
-    async fn test_reconstruction_rejects_transactions_failing_verification() {
+    /// Reconstructs a payload that fails verification from a full set of shards
+    /// and returns the resulting misbehavior snapshot, the payload author, and
+    /// the info length. When `accept_header` is set, a verified block header
+    /// committing to the reconstructed payload is accepted into the dag state
+    /// first, so the invalid payload is provably the author's.
+    async fn reconstruct_failing_payload(
+        accept_header: bool,
+    ) -> (Vec<MisbehaviorCounts>, AuthorityIndex, usize) {
         telemetry_subscribers::init_for_testing();
 
         // GIVEN a harness whose block_verifier rejects transactions shorter
@@ -1298,9 +1341,21 @@ mod tests {
         )
         .unwrap();
 
-        let header = VerifiedBlockHeader::new_for_test(TestBlockHeader::new(5, 1).build());
+        let header = VerifiedBlockHeader::new_for_test(
+            TestBlockHeader::new(5, 1)
+                .set_commitment(commitment)
+                .build(),
+        );
         let block_ref = header.reference();
         let author = block_ref.author;
+
+        // The author is charged only when a verified header ties the commitment
+        // to them; accept one for that case.
+        if accept_header {
+            h.dag_state
+                .write()
+                .accept_block_header(header, DataSource::BlockBundleStream);
+        }
 
         let info_length = context.committee.info_length();
         let parity_length = context.committee.parity_length();
@@ -1333,15 +1388,61 @@ mod tests {
         );
 
         let counts = h.dag_state.read().misbehavior_store().snapshot_totals();
-        let MisbehaviorCounts::V1(author_counts) = &counts[author.value()];
-        assert_eq!(
-            author_counts.faulty_blocks_provable, 1,
-            "The author should be charged for the provably invalid payload"
-        );
-
         h.handle
             .stop()
             .await
             .expect("We should expect graceful shutdown");
+        (counts, author, info_length)
+    }
+
+    /// A reconstructed payload must pass the same per-transaction limit and
+    /// `verify_batch` checks the direct route enforces before it can reach
+    /// Core. Otherwise it could be acknowledged and become committable while
+    /// diverging from nodes that received the same payload directly.
+    ///
+    /// Without a verified header tying the peer-supplied commitment to the
+    /// author, the author must not be charged (a coalition of peers could
+    /// otherwise frame them); every peer that relayed a shard is charged an
+    /// unprovable fault.
+    #[tokio::test]
+    async fn test_reconstruction_rejects_transactions_failing_verification() {
+        let (counts, author, info_length) = reconstruct_failing_payload(false).await;
+
+        let MisbehaviorCounts::V1(author_counts) = &counts[author.value()];
+        assert_eq!(
+            author_counts.faulty_blocks_provable, 0,
+            "The author must not be charged without a verified header tying the commitment to them"
+        );
+        for counts in counts.iter().take(info_length) {
+            let MisbehaviorCounts::V1(peer_counts) = counts;
+            assert_eq!(
+                peer_counts.faulty_blocks_unprovable, 1,
+                "Each peer that relayed a shard of the invalid payload must be charged unprovably"
+            );
+        }
+    }
+
+    /// When a verified header commits to the reconstructed payload, the invalid
+    /// transactions are provably the author's, so the author is charged a
+    /// provable fault while the relaying peers are still charged unprovably.
+    #[tokio::test]
+    async fn test_reconstruction_charges_author_when_header_present() {
+        let (counts, author, info_length) = reconstruct_failing_payload(true).await;
+
+        let MisbehaviorCounts::V1(author_counts) = &counts[author.value()];
+        assert_eq!(
+            author_counts.faulty_blocks_provable, 1,
+            "The author must be charged provably when a verified header commits to the payload"
+        );
+        for (i, counts) in counts.iter().enumerate().take(info_length) {
+            if i == author.value() {
+                continue;
+            }
+            let MisbehaviorCounts::V1(peer_counts) = counts;
+            assert_eq!(
+                peer_counts.faulty_blocks_unprovable, 1,
+                "Each relaying peer other than the author must still be charged unprovably"
+            );
+        }
     }
 }

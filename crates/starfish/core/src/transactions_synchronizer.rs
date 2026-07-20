@@ -1061,8 +1061,6 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
                 peer_index,
             ));
         }
-        let requested_transaction_refs = requested_transactions_guard.transactions_refs.clone();
-
         let metrics = &context.metrics.node_metrics;
         let peer_hostname = &context.committee.authority(peer_index).hostname;
 
@@ -1083,7 +1081,15 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
                     let committed_transaction_ref = GenericTransactionRef::TransactionRef(
                         serialized_transactions.transaction_ref,
                     );
-                    if !requested_transaction_refs.contains(&committed_transaction_ref) {
+                    // The commitment check below only proves each payload matches
+                    // its own claimed ref; it does not tie the ref to anything we
+                    // asked for. Reject a ref outside the requested set so a peer
+                    // cannot serve correctly-committed transactions we never
+                    // requested (which need not correspond to any real header).
+                    if !requested_transactions_guard
+                        .transactions_refs
+                        .contains(&committed_transaction_ref)
+                    {
                         return Err(ConsensusError::UnrequestedTransactionFetched {
                             peer: peer_index,
                             transaction_ref: serialized_transactions.transaction_ref,
@@ -1145,11 +1151,12 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
                         err.name(),
                     ])
                     .inc();
-                // The recomputed commitment (checked above) already ties this
-                // payload to the author's signed transactions_commitment, so
-                // the invalid payload is provably the author's. `peer_index`
-                // only relayed it and is not charged.
-                misbehavior_store.record_faulty_block_header(author, author, &err);
+                // The recomputed commitment (checked above) ties this payload to
+                // the author's signed transactions_commitment, so the invalid
+                // payload is provably the author's. `peer_index` served a full
+                // payload it could have verified before relaying, so it is also
+                // charged an unprovable fault.
+                misbehavior_store.record_faulty_transactions(author, true, [peer_index]);
                 return Err(err);
             }
         }
@@ -1228,6 +1235,7 @@ mod tests {
         misbehavior_store::MisbehaviorCounts,
         network::{BlockBundleStream, NetworkClient},
         storage::mem_store::MemStore,
+        transaction_ref::TransactionRef,
     };
 
     #[tokio::test]
@@ -2047,6 +2055,104 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn live_syncing_rejects_unrequested_transactions() {
+        telemetry_subscribers::init_for_testing();
+        // GIVEN a synchronizer requesting transactions from a single peer.
+        let (context, _) = Context::new_for_test(4);
+        let context = Arc::new(context);
+        let core_dispatcher = Arc::new(MockCoreThreadDispatcher::new());
+        let network_client = Arc::new(MockNetworkClient::new());
+        let store = Arc::new(MemStore::new());
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
+
+        let handle = TransactionsSynchronizer::start(
+            network_client.clone(),
+            context.clone(),
+            core_dispatcher.clone(),
+            dag_state.clone(),
+            Arc::new(NoopBlockVerifier),
+        );
+        let mut encoder = create_encoder(&context);
+        let mut rng = thread_rng();
+
+        // The refs we actually request, backed by accepted headers.
+        let requested: Vec<(Round, u8)> = vec![(1, 0), (2, 1), (3, 2)];
+        let mut block_headers = Vec::new();
+        let mut missing_transactions = BTreeMap::new();
+        for (round, author) in requested {
+            let txs = vec![Transaction::new((0..32).map(|_| rng.gen()).collect())];
+            let serialized = Bytes::from(bcs::to_bytes(&txs).unwrap());
+            let commitment = TransactionsCommitment::compute_transactions_commitment(
+                &serialized,
+                &context,
+                &mut encoder,
+            )
+            .unwrap();
+            let header = VerifiedBlockHeader::new_for_test(
+                TestBlockHeader::new(round, author)
+                    .set_commitment(commitment)
+                    .build(),
+            );
+            let mut authorities = BTreeSet::new();
+            authorities.insert(AuthorityIndex::new_for_test(1));
+            missing_transactions.insert(
+                GenericTransactionRef::from(header.transaction_ref()),
+                authorities,
+            );
+            block_headers.push(header);
+        }
+
+        // The peer instead returns a self-consistent payload for a ref we never
+        // requested (round 9, author 3).
+        let unrequested_txs = vec![Transaction::new((0..32).map(|_| rng.gen()).collect())];
+        let unrequested_serialized = Bytes::from(bcs::to_bytes(&unrequested_txs).unwrap());
+        let unrequested_commitment = TransactionsCommitment::compute_transactions_commitment(
+            &unrequested_serialized,
+            &context,
+            &mut encoder,
+        )
+        .unwrap();
+        let unrequested_transaction = VerifiedTransactions::new(
+            unrequested_txs,
+            TransactionRef {
+                round: 9,
+                author: AuthorityIndex::new_for_test(3),
+                transactions_commitment: unrequested_commitment,
+            },
+            None,
+            unrequested_serialized,
+        );
+        network_client
+            .stub_unrequested_transactions(
+                vec![unrequested_transaction],
+                AuthorityIndex::new_for_test(1),
+            )
+            .await;
+
+        core_dispatcher
+            .stub_missing_transactions(missing_transactions.clone())
+            .await;
+        dag_state
+            .write()
+            .accept_block_headers(block_headers, DataSource::Test);
+
+        // WHEN the peer returns the unrequested payload.
+        let result = handle.fetch_transactions(missing_transactions).await;
+        assert!(result.is_ok());
+        sleep(Duration::from_millis(100)).await;
+
+        // THEN the payload is rejected and nothing reaches the core, even though
+        // it was internally self-consistent.
+        let fetched_transactions = core_dispatcher.get_and_drain_transactions().await;
+        assert!(
+            fetched_transactions.is_empty(),
+            "A self-consistent but unrequested transaction must not be added to the core"
+        );
+
+        handle.stop().await.unwrap();
+    }
+
+    #[tokio::test]
     async fn live_syncing_with_unrequested_transactions_peer() {
         telemetry_subscribers::init_for_testing();
         // GIVEN
@@ -2063,6 +2169,7 @@ mod tests {
             context.clone(),
             core_dispatcher.clone(),
             dag_state.clone(),
+            Arc::new(NoopBlockVerifier),
         );
         let mut encoder = create_encoder(&context);
 
@@ -2277,6 +2384,7 @@ mod tests {
             context.clone(),
             core_dispatcher.clone(),
             dag_state.clone(),
+            Arc::new(NoopBlockVerifier),
         );
         let mut encoder = create_encoder(&context);
 
