@@ -5,7 +5,6 @@
 #[cfg(not(target_arch = "wasm32"))]
 use std::hash::Hash;
 
-use iota_sdk_types::crypto::{Intent, IntentMessage};
 #[cfg(not(target_arch = "wasm32"))]
 use lru::LruCache;
 use nonempty::NonEmpty;
@@ -152,7 +151,7 @@ pub fn verify_sender_signed_data_message_signatures(
     }
 
     // 4. Every signature must be valid.
-    let intent_message = IntentMessage::new(Intent::iota_transaction(), tx_data);
+    let intent_message = txn.intent_message();
     for (signer, signature) in present_sigs {
         signature.verify_claims(&intent_message, signer, verify_params)?;
     }

@@ -466,7 +466,7 @@ impl KeyToolCommand {
                     let tx_data: TransactionData = bcs::from_bytes(&tx_bytes)?;
                     let s = UserSignature::Multisig(multisig);
                     let res = s.verify_claims(
-                        &IntentMessage::new(Intent::iota_transaction(), tx_data),
+                        &tx_data.intent_message(),
                         address,
                         &VerifyParams::default(),
                     );
@@ -579,7 +579,7 @@ impl KeyToolCommand {
                     }),
                     Some(s) => {
                         let res = s.verify_claims(
-                            &IntentMessage::new(Intent::iota_transaction(), tx_data.clone()),
+                            &tx_data.intent_message(),
                             tx_data.sender(),
                             &VerifyParams::default(),
                         );

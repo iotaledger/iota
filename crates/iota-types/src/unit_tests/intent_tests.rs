@@ -75,10 +75,7 @@ fn test_authority_signature_intent() {
         gas_price * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
         gas_price,
     );
-    let signature = Signature::new_secure(
-        &IntentMessage::new(Intent::iota_transaction(), data.clone()),
-        &sender_key,
-    );
+    let signature = Signature::new_secure(&data.intent_message(), &sender_key);
     let tx = Transaction::from_data(data, vec![signature]);
     let tx1 = tx.clone();
     assert!(
@@ -87,7 +84,7 @@ fn test_authority_signature_intent() {
     );
 
     // Create an intent with signed data.
-    let intent_message = IntentMessage::new(Intent::iota_transaction(), tx1.transaction());
+    let intent_message = tx1.intent_message();
     let intent_bcs = bcs::to_bytes(&intent_message).unwrap();
 
     // Check that the first 3 bytes are the domain separation information.

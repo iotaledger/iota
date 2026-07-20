@@ -30,7 +30,6 @@ use iota_sdk_types::{
     GasPayment, Identifier, MoveStruct, ObjectData, ObjectDigest, ObjectId, ObjectReference, Owner,
     ProgrammableTransaction, SharedObjectReference, StructTag, TransactionDigest, TransactionKind,
     TypeTag, Version, VersionAssignment,
-    crypto::{Intent, IntentMessage},
 };
 use iota_types::{
     base_types::{AuthorityName, TxContext, dbg_addr, dbg_object_id, random_object_ref},
@@ -1186,14 +1185,7 @@ async fn test_handle_transfer_transaction_bad_signature() {
     *bad_signature_transfer_transaction
         .data_mut_for_testing()
         .tx_signatures_mut_for_testing() = vec![
-        Signature::new_secure(
-            &IntentMessage::new(
-                Intent::iota_transaction(),
-                transfer_transaction.data().transaction(),
-            ),
-            &unknown_key,
-        )
-        .into(),
+        Signature::new_secure(&transfer_transaction.data().intent_message(), &unknown_key).into(),
     ];
 
     assert!(

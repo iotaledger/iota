@@ -18,7 +18,7 @@ use iota_sdk_transaction_builder::{PTBArgumentList, TransactionBuilder};
 use iota_sdk_types::{
     Address, Identifier, Input, ObjectId, ObjectReference, Owner, ProgrammableTransaction,
     SharedObjectReference, StructTag, TransactionDigest, TransactionKind, TypeTag, Version,
-    crypto::{Intent, IntentMessage, SimpleSignature},
+    crypto::SimpleSignature,
 };
 use iota_types::{
     crypto::{AccountKeyPair, IotaKeyPair, get_key_pair},
@@ -421,8 +421,8 @@ impl TestTransactionBuilder {
         bitmap: BitmapUnit,
     ) -> Transaction {
         let data = self.build();
-        let digest = IntentMessage::new(Intent::iota_transaction(), data.clone()).signing_digest();
-        let signatures = signers.iter().map(|s| s.sign(&*digest).into()).collect();
+        let digest = data.signing_digest();
+        let signatures = signers.iter().map(|s| s.sign(&digest).into()).collect();
         let multisig =
             UserSignature::Multisig(MultiSig::new_unchecked(signatures, bitmap, multisig_pk));
 

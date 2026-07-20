@@ -2409,7 +2409,7 @@ impl Transaction {
         signers: Vec<impl Into<IotaKeyPair>>,
     ) -> Self {
         let signatures = {
-            let intent_msg = IntentMessage::new(Intent::iota_transaction(), &data);
+            let intent_msg = data.intent_message();
             signers
                 .into_iter()
                 .map(|s| Signature::new_secure(&intent_msg, s))
