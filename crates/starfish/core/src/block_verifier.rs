@@ -444,7 +444,12 @@ pub(crate) mod test {
 
     #[tokio::test]
     async fn test_verify_block() {
-        let (context, keypairs) = Context::new_for_test(4);
+        // Test headers are V1, which flag-on verification rejects; run with
+        // StarfishSpeed off.
+        let (mut context, keypairs) = Context::new_for_test(4);
+        context
+            .protocol_config
+            .set_consensus_starfish_speed_for_testing(false);
         let context = Arc::new(context);
         let authority_2_protocol_keypair = &keypairs[2].1;
         let verifier = SignedBlockVerifier::new(context, Arc::new(TxnSizeVerifier {}));
@@ -703,6 +708,11 @@ pub(crate) mod test {
         context
             .protocol_config
             .set_consensus_gc_depth_for_testing(5);
+        // Test headers are V1, which flag-on verification rejects; run with
+        // StarfishSpeed off.
+        context
+            .protocol_config
+            .set_consensus_starfish_speed_for_testing(false);
         let context = Arc::new(context);
         let authority_2_protocol_keypair = &keypairs[2].1;
         let verifier = SignedBlockVerifier::new(context, Arc::new(TxnSizeVerifier {}));
@@ -816,7 +826,10 @@ pub(crate) mod test {
 
         // V2 block reaching a flag-off receiver -> WrongBlockHeaderVersionForFlag.
         {
-            let (context, keypairs) = Context::new_for_test(4);
+            let (mut context, keypairs) = Context::new_for_test(4);
+            context
+                .protocol_config
+                .set_consensus_starfish_speed_for_testing(false);
             let context = Arc::new(context);
             let verifier = SignedBlockVerifier::new(context, Arc::new(TxnSizeVerifier {}));
 

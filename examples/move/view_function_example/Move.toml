@@ -1,0 +1,9 @@
+[package]
+name = "view_function_example"
+edition = "2024"
+
+[dependencies]
+Iota = { local = "../../../crates/iota-framework/packages/iota-framework" }
+
+[addresses]
+view_function_example = "0x0"

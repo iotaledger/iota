@@ -181,11 +181,11 @@ impl std::fmt::Display for Storage {
             writeln!(f, "{}: {:?}", id, obj.object_ref())?;
         }
         writeln!(f, "Object version cache")?;
-        for (id, _) in self
+        for id in self
             .object_version_cache
             .lock()
             .expect("Unable to lock")
-            .iter()
+            .keys()
         {
             writeln!(f, "{}: {}", id.0, id.1)?;
         }

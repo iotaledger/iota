@@ -593,7 +593,7 @@ fn test_from_str() {
     assert_eq!(object_id, test.0.as_str().unwrap());
 
     // test id with quotes
-    let test = IotaJsonValue::from_str(&format!("\"{}\"", &object_id)).unwrap();
+    let test = IotaJsonValue::from_str(&format!("\"{object_id}\"")).unwrap();
     assert!(test.0.is_string());
     assert_eq!(object_id, test.0.as_str().unwrap());
 

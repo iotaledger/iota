@@ -63,7 +63,7 @@
                     }
                 },
                 "tx_signatures": [
-                    "AKaUK8p3f+UCOKVB7rYRC+bUhDOJ8zFeZzOvz0QaDsDUDimtsGuZAz5Gvpf8pny/6pJbmXaZRHAqoUms+TdY0gzyOAC8LLmxqzAAkzFFBpTa1/hyEMyoFJs26KlYv7Jpag=="
+                    {"scheme": "ed25519", "signature": "ppQrynd/5QI4pUHuthEL5tSEM4nzMV5nM6/PRBoOwNQOKa2wa5kDPka+l/ymfL/qkluZdplEcCqhSaz5N1jSDA==", "public_key": "8jgAvCy5saswAJMxRQaU2tf4chDMqBSbNuipWL+yaWo="}
                 ]
             }
         ],

@@ -3,8 +3,6 @@ tags: [move-sc]
 teams:
   - iotaledger/vm-language
 ---
-import Quiz from '@site/src/components/Quiz';
-import questions from '/json/developer/iota-101/move-overview/strings.json';
 
 # Strings
 
@@ -34,15 +32,12 @@ Although the standard library includes two types of strings, the `string` module
 
 The `String` type in the `std::string` module is defined as follows:
 
-
 ```move file=<rootDir>/crates/iota-framework/packages/move-stdlib/sources/string.move#L18-L20
 ```
-
 
 ### Creating a String
 
 To create a new UTF-8 `String` instance, you can use the `string::utf8` method.
-
 
 ```move file=<rootDir>/docs/examples/move/move-overview/string.move#L49-L57
 ```
@@ -80,5 +75,3 @@ Functions that start with `try_*` typically return an `Option` with the expected
 The `string` module does not provide a way to access individual characters in a string. This limitation arises because UTF-8 is a variable-length encoding, and the length of a character can range from 1 to 4 bytes. Similarly, the `length()` method returns the number of bytes in the string, not the number of characters.
 
 However, methods like `sub_string` and `insert` ensure character boundaries are respected and will abort if the index is in the middle of a character.
-
-<Quiz questions={questions} />

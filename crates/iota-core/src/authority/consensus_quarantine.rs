@@ -15,7 +15,7 @@ use iota_types::{
     error::IotaResult,
     messages_checkpoint::{CheckpointContents, CheckpointContentsExt, CheckpointSequenceNumber},
     messages_consensus::VersionedDkgConfirmation,
-    signature::GenericSignature,
+    signature::UserSignature,
 };
 use moka::{policy::EvictionPolicy, sync::SegmentedCache as MokaCache};
 use parking_lot::Mutex;
@@ -397,7 +397,7 @@ pub(crate) struct ConsensusOutputCache {
     // checkpoint builder The critical sections are small in both cases so a DashMap is
     // probably not helpful.
     pub(super) user_signatures_for_checkpoints:
-        Mutex<HashMap<TransactionDigest, Vec<GenericSignature>>>,
+        Mutex<HashMap<TransactionDigest, Vec<UserSignature>>>,
 
     executed_in_epoch: RwLock<DashMap<TransactionDigest, ()>>,
     executed_in_epoch_cache: MokaCache<TransactionDigest, ()>,
@@ -1015,28 +1015,20 @@ impl ConsensusOutputQuarantine {
         };
         let mut shared_input_object_ids: Vec<_> = transactions
             .iter()
+            // Only user transactions carry shared inputs to preload; which kinds
+            // those are lives in `as_sender_signed_data`. System transactions contribute
+            // none.
             .filter_map(|tx| match &tx.0.transaction {
-                SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                    kind: ConsensusTransactionKind::CertifiedTransaction(tx),
-                    ..
-                }) => Some(
-                    tx.shared_input_objects()
-                        .into_iter()
-                        .map(|obj| obj.object_id)
-                        .collect::<Vec<_>>(),
-                ),
-                SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                    kind: ConsensusTransactionKind::UserTransactionV1(tx),
-                    ..
-                }) => Some(
-                    tx.shared_input_objects()
-                        .into_iter()
-                        .map(|obj| obj.object_id)
-                        .collect::<Vec<_>>(),
-                ),
-                _ => None,
+                SequencedConsensusTransactionKind::External(ext) => {
+                    ext.kind.as_sender_signed_data()
+                }
+                SequencedConsensusTransactionKind::System(_) => None,
             })
-            .flatten()
+            .flat_map(|data| {
+                data.shared_input_objects()
+                    .into_iter()
+                    .map(|obj| obj.object_id)
+            })
             .collect();
         shared_input_object_ids.sort();
         shared_input_object_ids.dedup();

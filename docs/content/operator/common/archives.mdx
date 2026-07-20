@@ -1,5 +1,3 @@
-import Quiz from '@site/src/components/Quiz';
-import questions from '/json/node-operators/archives.json';
 
 An IOTA archive instance stores the full IOTA transaction history since genesis in a database agnostic format. This includes information about transactions (with client authentication), effects, events, and checkpoints. As such, archival storage can be used for data auditing and for replaying historic transactions.
 
@@ -81,7 +79,6 @@ To enable your node to fallback to an archive in case of lag, add this to your `
   </TabItem>
 </Tabs>
 
-
 <!-- ### Configure AWS IAM Permissions for Archive Access
 
 To securely access the public archive buckets while following AWS best practices, you need to configure proper IAM permissions. Even though the archive buckets are publicly readable, it's recommended to create a specific IAM policy with the minimum required permissions.
@@ -134,5 +131,3 @@ This policy should be attached to the IAM user or role that your node uses to ac
   </TabItem>
 </Tabs>
 -->
-
-<Quiz questions={questions} />

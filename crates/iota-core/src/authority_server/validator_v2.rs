@@ -221,7 +221,15 @@ impl ValidatorService {
 
         // Content validation: deny checks + owned object version validation.
         let owned_objects = match state
-            .handle_transaction_validation_checks(&verified_tx, epoch_store)
+            .handle_transaction_validation_checks(
+                &verified_tx,
+                epoch_store,
+                // Latest-value coin deny-list read: admission is validator-local,
+                // and denials should take effect immediately. This deliberately
+                // differs from the epoch-gated post-consensus read; see the
+                // read-mode notes on `handle_transaction_validation_checks`.
+                false,
+            )
             .await
         {
             Ok(objs) => objs,

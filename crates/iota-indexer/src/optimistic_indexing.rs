@@ -4,14 +4,14 @@ use std::{collections::BTreeMap, time::Duration};
 
 use diesel::{PgConnection, RunQueryDsl, result::DatabaseErrorKind, sql_query, sql_types};
 use downcast::Any;
-use fastcrypto::{encoding::Base64, error::FastCryptoError};
+use fastcrypto::encoding::Base64;
 use iota_grpc_client::{Client as GrpcClient, ReadMask, read_mask_fields::TransactionField};
 use iota_grpc_types::v1::transaction::ExecutedTransaction;
 use iota_sdk_types::{ObjectId, TransactionDigest, Version};
 use iota_types::{
     effects::TransactionEffectsAPI,
     full_checkpoint_content::CheckpointTransaction,
-    signature::GenericSignature,
+    signature::UserSignature,
     transaction::{Transaction, TransactionData},
 };
 
@@ -264,10 +264,13 @@ impl OptimisticTransactionExecutor {
         let tx_data: TransactionData = bcs::from_bytes(&tx_bytes.to_vec()?)?;
         let sigs = signatures
             .into_iter()
-            .map(|sig| GenericSignature::from_bytes(&sig.to_vec()?))
-            .collect::<Result<Vec<_>, FastCryptoError>>()?;
+            .map(|sig| {
+                UserSignature::from_bytes(sig.to_vec()?)
+                    .map_err(|e| IndexerError::InvalidArgument(e.to_string()))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
 
-        let transaction = Transaction::from_generic_sig_data(tx_data, sigs);
+        let transaction = Transaction::from_user_sig_data(tx_data, sigs);
         let tx_digest = *transaction.digest();
 
         let executed_transaction = self.execute_transaction(transaction.clone()).await?;

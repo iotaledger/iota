@@ -1,6 +1,4 @@
-import Quiz from '@site/src/components/Quiz';
 import FormalSnapshotPicker from '@site/src/components/FormalSnapshotPicker';
-import questions from '/json/node-operators/snapshots.json';
 
 Snapshots provide a point-in-time view of a database's store. In IOTA, the database snapshot captures a running database's view of the IOTA network from a particular node at the end of an epoch. 
 
@@ -188,7 +186,6 @@ For example, if `db-path` is `/opt/iota/db` and epoch_10 directory locates in `/
 
 6. **Start your IOTA node**.
 
-
 ### Restoring from Formal snapshots
 
 To restore from a Formal snapshot, use the `iota-tool` binary. `iota-tool` can be downloaded along with other iota binaries.
@@ -248,5 +245,3 @@ The IOTA Foundation provides the public snapshot access:
 </TabItem>
 
 </Tabs>
-
-<Quiz questions={questions} />

@@ -6,11 +6,8 @@ teams:
   - iotaledger/vm-language
   - iotaledger/tooling
 ---
-import Quiz from '@site/src/components/Quiz';
-import questions from '/json/developer/iota-101/transactions/sign-and-send-transactions.json';
 
 # Signing and Submitting Transactions
-
 
 In Move-based blockchains, transactions are the primary means to interact with the network, such as invoking smart contract functions or transferring assets. 
 
@@ -53,7 +50,6 @@ If you wish to specify a particular gas coin, locate the gas coin object ID that
 :::
 
 ## Examples
-
 
 Below are examples demonstrating how to sign and submit transactions using Rust, TypeScript, or the Move CLI.
 
@@ -226,10 +222,10 @@ Finally, submit the transaction with the signature.
     let transaction_response = iota_client
 .quorum_driver_api()
 .execute_transaction_block(
-            iota_types::transaction::Transaction::from_generic_sig_data(
+            iota_types::transaction::Transaction::from_user_sig_data(
 intent_msg.value,
                 Intent::iota_transaction(),
-                vec![GenericSignature::Signature(iota_sig)],
+                vec![UserSignature::Simple(iota_sig)],
 ),
             IOTATransactionResponseOptions::default(),
 None,
@@ -292,5 +288,3 @@ iota client execute-signed-tx --tx-bytes $UNSIGNED_TX_BYTES --signatures $SERIAL
 2. If you implement your own signing mechanism, consult the [Signatures](../../cryptography/transaction-auth/signatures.mdx) documentation for accepted specifications.
 3. The 'flag' is a byte that differentiates signature schemes. See [Signatures](../../cryptography/transaction-auth/signatures.mdx) for supported schemes and their flags.
 4. The `execute_transaction_block` endpoint accepts a list of signatures, typically requiring only one user signature unless using sponsored transactions. For more information, see [Sponsored Transactions](sponsored-transactions/about-sponsored-transactions.mdx).
-
-<Quiz questions={questions} />

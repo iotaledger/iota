@@ -55,7 +55,7 @@ use iota_types::{
     },
     object::{GAS_VALUE_FOR_TESTING, MoveObjectExt, Object, bounded_visitor::BoundedVisitor},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    signature::GenericSignature,
+    signature::UserSignature,
     storage::{ObjectStore, ReadStore},
     transaction::{CallArg, Transaction, TransactionData, TransactionDataAPI, VerifiedTransaction},
     utils::{
@@ -753,7 +753,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
 
                         self.stabilize_str(format!(
                             "Owner: {}\nVersion: {}\nContents: {:#}",
-                            &obj.owner,
+                            obj.owner,
                             obj.version(),
                             move_struct
                         ))
@@ -1411,7 +1411,7 @@ impl IotaTestAdapter {
         &mut self,
         authenticator_inputs: Vec<ParsedValue<IotaExtraValueArgs>>,
         account: ParsedValue<IotaExtraValueArgs>,
-    ) -> anyhow::Result<(ObjectId, GenericSignature)> {
+    ) -> anyhow::Result<(ObjectId, UserSignature)> {
         // Resolve authenticator inputs
         let auth_inputs_resolved = self.compiled_state().resolve_args(authenticator_inputs)?;
         let auth_inputs: Vec<CallArg> = auth_inputs_resolved
@@ -1430,7 +1430,7 @@ impl IotaTestAdapter {
         match &aa_call_arg {
             CallArg::ImmutableOrOwned(obj_ref) => Ok((
                 obj_ref.object_id,
-                GenericSignature::MoveAuthenticator(
+                UserSignature::MoveAuthenticator(
                     MoveAuthenticatorV1::new_with_immutable_account_object(
                         auth_inputs,
                         vec![],
@@ -1441,7 +1441,7 @@ impl IotaTestAdapter {
             )),
             CallArg::Shared(shared) => Ok((
                 shared.object_id,
-                GenericSignature::MoveAuthenticator(
+                UserSignature::MoveAuthenticator(
                     MoveAuthenticatorV1::new_with_shared_account_object(
                         auth_inputs,
                         vec![],
@@ -1464,7 +1464,7 @@ impl IotaTestAdapter {
             .compiled_state
             .named_address_mapping
             .iter()
-            .map(|(name, addr)| (name.clone(), format!("{addr:#02x}")));
+            .map(|(name, addr)| (name.clone(), format!("{addr:#04x}")));
 
         for (name, addr) in named_addrs {
             let addr = addr.to_string();
@@ -1717,7 +1717,7 @@ impl IotaTestAdapter {
         sender: &TestAccount,
         sponsor: Option<String>,
         payment: Vec<FakeID>,
-        aa_sig: Option<GenericSignature>,
+        aa_sig: Option<UserSignature>,
         txn_data: impl FnOnce(
             // sender
             Address,

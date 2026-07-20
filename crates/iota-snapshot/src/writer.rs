@@ -376,15 +376,13 @@ impl StateSnapshotWriterV1 {
         });
         // Awaits the object and reference files to be written to the local staging
         // directory and informs the upload loop
-        write_handler.await?.context(format!(
-            "Failed to write state snapshot for epoch: {}",
-            &epoch
-        ))?;
+        write_handler
+            .await?
+            .context(format!("Failed to write state snapshot for epoch: {epoch}"))?;
 
         // Awaits the upload loop to finish
         upload_handle.await?.context(format!(
-            "Failed to upload state snapshot for epoch: {}",
-            &epoch
+            "Failed to upload state snapshot for epoch: {epoch}"
         ))?;
 
         // Syncs the manifest file to the remote store

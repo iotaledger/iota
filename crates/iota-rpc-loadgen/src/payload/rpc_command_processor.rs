@@ -196,7 +196,7 @@ impl RpcCommandProcessor {
             debug!("dumping transaction digests to file {:?}", digests.len());
             write_data_to_file(
                 &digests,
-                &format!("{}/{}", &self.data_dir, CacheType::TransactionDigest),
+                &format!("{}/{}", self.data_dir, CacheType::TransactionDigest),
             )
             .unwrap();
         }
@@ -206,7 +206,7 @@ impl RpcCommandProcessor {
             debug!("dumping addresses to file {:?}", addresses.len());
             write_data_to_file(
                 &addresses,
-                &format!("{}/{}", &self.data_dir, CacheType::Address),
+                &format!("{}/{}", self.data_dir, CacheType::Address),
             )
             .unwrap();
         }
@@ -223,7 +223,7 @@ impl RpcCommandProcessor {
             debug!("dumping object_ids to file {:?}", object_ids.len());
             write_data_to_file(
                 &object_ids,
-                &format!("{}/{}", &self.data_dir, CacheType::ObjectId),
+                &format!("{}/{}", self.data_dir, CacheType::ObjectId),
             )
             .unwrap();
         }
@@ -815,14 +815,14 @@ pub(crate) async fn sign_and_execute(
             if let IotaExecutionStatus::Failure { error } = effects.status() {
                 panic!(
                     "transaction {} failed with error: {}. Transaction Response: {:?}",
-                    transaction_response.digest, error, &transaction_response
+                    transaction_response.digest, error, transaction_response
                 );
             }
         }
         None => {
             panic!(
                 "transaction {} has no effects. Response {:?}",
-                transaction_response.digest, &transaction_response
+                transaction_response.digest, transaction_response
             );
         }
     };

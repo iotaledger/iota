@@ -42,7 +42,6 @@ use iota_common::fatal;
 use iota_sdk_types::{ObjectReference, TransactionDigest};
 use iota_types::{
     error::{IotaError, IotaResult},
-    messages_consensus::{ConsensusTransaction, ConsensusTransactionKind},
     transaction::{InputObjectKind, VerifiedTransaction},
 };
 use tracing::{debug, warn};
@@ -120,14 +119,12 @@ pub async fn validate_and_resolve_conflicts(
             continue;
         }
 
-        // Only validate UserTransactionV1; pass everything else through
-        // unchanged.
-        let transaction = match &tx.0.transaction {
-            SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                kind: ConsensusTransactionKind::UserTransactionV1(t),
-                ..
-            }) => t,
-            _ => continue,
+        // Only validate UserTransactionV1; pass everything else through unchanged.
+        let Some(transaction) = (match &tx.0.transaction {
+            SequencedConsensusTransactionKind::External(ext) => ext.kind.as_user_transaction(),
+            SequencedConsensusTransactionKind::System(_) => None,
+        }) else {
+            continue;
         };
 
         let digest = *transaction.digest();
@@ -263,9 +260,16 @@ pub async fn validate_and_resolve_conflicts(
         // (2f+1 Byzantine/buggy validators), not something we can recover from
         // by rejecting the transaction post-consensus. Doing so would also risk
         // diverging from other honest validators.
-        let verified_tx = VerifiedTransaction::new_from_verified((**transaction).clone());
+        let verified_tx = VerifiedTransaction::new_from_verified((*transaction).clone());
         if let Err(e) = authority_state
-            .handle_transaction_validation_checks(&verified_tx, epoch_store)
+            .handle_transaction_validation_checks(
+                &verified_tx,
+                epoch_store,
+                // Epoch-gated coin deny-list read: the verdict here decides whether
+                // the transaction stays in the committed set, so it must not depend
+                // on this validator's execution progress.
+                true,
+            )
             .await
         {
             if e.is_storage_or_epoch_error() {
@@ -348,16 +352,15 @@ fn find_existing_lock(
 fn extract_owned_input_objects(
     tx: &VerifiedSequencedConsensusTransaction,
 ) -> IotaResult<Vec<ObjectReference>> {
-    let transaction_data = match &tx.0.transaction {
-        SequencedConsensusTransactionKind::External(ConsensusTransaction {
-            kind: ConsensusTransactionKind::UserTransactionV1(transaction),
-            ..
-        }) => transaction.data(),
-        _ => {
-            return Err(IotaError::GenericAuthority {
-                error: "Expected UserTransactionV1 in extract_owned_input_objects".to_string(),
-            });
+    let Some(transaction_data) = (match &tx.0.transaction {
+        SequencedConsensusTransactionKind::External(ext) => {
+            ext.kind.as_user_transaction().map(|t| t.data())
         }
+        SequencedConsensusTransactionKind::System(_) => None,
+    }) else {
+        return Err(IotaError::GenericAuthority {
+            error: "Expected UserTransactionV1 in extract_owned_input_objects".to_string(),
+        });
     };
 
     // Use SenderSignedData::input_objects() rather than
