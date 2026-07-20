@@ -84,9 +84,8 @@ use crate::IotaNode;
 //
 // Set the runtime override for the metrics the /metrics endpoint exposes.
 // Patterns may be group names from the `metrics.groups` config section
-// (`default` included) or raw METRICS_FILTER-style patterns; the `hardware`
-// group is rejected, its collector being only registered at startup. Where
-// an override directive matches a metric it takes precedence over the
+// (`default` and `hardware` included) or raw METRICS_FILTER-style patterns.
+// Where an override directive matches a metric it takes precedence over the
 // startup configuration; metrics matched by no override directive keep
 // their startup exposure. A bare level (e.g. `trace`) matches everything.
 //

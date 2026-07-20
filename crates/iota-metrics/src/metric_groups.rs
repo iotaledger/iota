@@ -130,9 +130,9 @@ pub struct MetricGroups {
     /// Modules: `iota_metrics` (except the `hardware` and `p2p` group
     /// submodules), `telemetry_subscribers`.
     pub runtime: MetricLevel,
-    /// Host hardware metrics (CPU / memory / disk). Registered as a collector,
-    /// so individual metrics cannot be level-filtered: `off` skips the whole
-    /// group and every other level registers it, at startup only.
+    /// Host hardware metrics (CPU / memory / disk). One collector, so the level
+    /// applies to the whole group rather than individual metrics: `off` hides
+    /// it and every other level exposes it.
     ///
     /// Rendered as an `iota_metrics::hardware_metrics` directive, the module
     /// where the collector is registered.
@@ -286,26 +286,23 @@ impl MetricGroups {
 
     /// Expands group names in a `pattern=LEVEL` directive string into the
     /// groups' filter patterns; other directives pass through unchanged.
-    /// The first invalid directive rejects the whole string. The hardware
-    /// group is rejected too, since it is registered once at startup and
-    /// cannot be changed at runtime.
+    /// The first invalid directive rejects the whole string.
     pub fn expand_directives(filter: &str) -> Result<String, String> {
         let mut directives = Vec::new();
         for part in prometheus_filtered::directive_parts(filter) {
-            directives.extend(Self::expand_directive(part, true)?);
+            directives.extend(Self::expand_directive(part)?);
         }
         Ok(directives.join(","))
     }
 
-    /// Like [`Self::expand_directives`], but for startup use: the hardware
-    /// group is allowed, and an invalid
+    /// Like [`Self::expand_directives`], but for startup use: an invalid
     /// directive is dropped instead of rejecting the whole string, its error
     /// message returned alongside the expanded directives.
     pub fn expand_startup_directives(filter: &str) -> (String, Vec<String>) {
         let mut directives = Vec::new();
         let mut errors = Vec::new();
         for part in prometheus_filtered::directive_parts(filter) {
-            match Self::expand_directive(part, false) {
+            match Self::expand_directive(part) {
                 Ok(expanded) => directives.extend(expanded),
                 Err(err) => errors.push(err),
             }
@@ -313,17 +310,9 @@ impl MetricGroups {
         (directives.join(","), errors)
     }
 
-    fn expand_directive(part: &str, reject_hardware: bool) -> Result<Vec<String>, String> {
+    fn expand_directive(part: &str) -> Result<Vec<String>, String> {
         prometheus_filtered::validate_directive(part)?;
         let (pattern, level) = prometheus_filtered::split_directive(part);
-        if reject_hardware && (pattern == "hardware" || pattern == "iota_metrics::hardware_metrics")
-        {
-            return Err(
-                "the hardware group is registered once at startup and cannot be \
-                        changed at runtime"
-                    .into(),
-            );
-        }
         if pattern == "default" {
             return Ok(vec![level.to_owned()]);
         }
@@ -464,21 +453,29 @@ mod tests {
 
     #[test]
     fn metric_groups_renders_hardware_directive() {
-        use crate::hardware_metrics::hardware_metrics_enabled;
-
         let groups = MetricGroups {
             hardware: MetricLevel::Off,
             ..all_trace()
         };
-        // `hardware` is gated at registration, via the rendered directive.
+        // The hardware group renders a directive for its collector's module,
+        // hiding it when `off`.
         let filter_string = groups.to_filter_string();
         assert!(filter_string.contains("iota_metrics::hardware_metrics=off"));
-        assert!(!hardware_metrics_enabled(&Filter::parse(&filter_string)));
+        let filter = Filter::parse(&filter_string);
+        assert!(!filter.is_exposed(
+            "hw_cpu_core_count",
+            "iota_metrics::hardware_metrics",
+            MetricLevel::Warn
+        ));
         // A later directive with the same pattern overrides the rendered one.
         let overridden = Filter::parse(&format!(
             "{filter_string},iota_metrics::hardware_metrics=warn"
         ));
-        assert!(hardware_metrics_enabled(&overridden));
+        assert!(overridden.is_exposed(
+            "hw_cpu_core_count",
+            "iota_metrics::hardware_metrics",
+            MetricLevel::Warn
+        ));
     }
 
     #[test]
@@ -535,13 +532,7 @@ mod tests {
     }
 
     #[test]
-    fn expand_startup_directives_allows_hardware_and_drops_bad_directives() {
-        // At startup the hardware collector is not registered yet, so its
-        // group may be set — e.g. via the `METRICS_FILTER` env var.
-        assert_eq!(
-            MetricGroups::expand_startup_directives("hardware=off"),
-            ("iota_metrics::hardware_metrics=off".to_owned(), vec![])
-        );
+    fn expand_startup_directives_drops_bad_directives() {
         // An invalid directive is dropped and reported; the rest still expand.
         let (expanded, errors) =
             MetricGroups::expand_startup_directives("consensus=bogus,traffic-control=off");
@@ -555,18 +546,22 @@ mod tests {
             "unexpected error: {}",
             errors[0]
         );
-        // The runtime variant keeps rejecting the group: the registration
-        // decision cannot be revisited.
-        MetricGroups::expand_directives("hardware=off").unwrap_err();
+    }
+
+    #[test]
+    fn expand_directives_expands_hardware_group() {
+        assert_eq!(
+            MetricGroups::expand_directives("hardware=off").unwrap(),
+            "iota_metrics::hardware_metrics=off"
+        );
+        assert_eq!(
+            MetricGroups::expand_directives("iota_metrics::hardware_metrics=warn").unwrap(),
+            "iota_metrics::hardware_metrics=warn"
+        );
     }
 
     #[test]
     fn expand_directives_rejects_invalid_input() {
-        // The hardware group is rejected under both the group name and its
-        // module path: the collector is registered once at startup, so the
-        // directive would be a no-op.
-        MetricGroups::expand_directives("consensus=off,hardware=off").unwrap_err();
-        MetricGroups::expand_directives("iota_metrics::hardware_metrics=off").unwrap_err();
         // An invalid level fails up front, citing the directive as the
         // caller wrote it — not its expansion.
         let err = MetricGroups::expand_directives("consensus=bogus").unwrap_err();
