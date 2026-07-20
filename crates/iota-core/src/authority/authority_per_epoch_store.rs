@@ -104,7 +104,8 @@ use crate::{
         epoch_start_configuration::EpochStartConfiguration,
         shared_object_congestion_tracker::{CongestionPerObjectDebt, CongestionWorkerDebt},
         shared_object_version_manager::{
-            AssignedTxAndVersions, ConsensusSharedObjVerAssignment, SharedObjVerManager,
+            AssignedTxAndVersions, AssignedVersions, ConsensusSharedObjVerAssignment, Schedulable,
+            SharedObjVerManager,
         },
         suggested_gas_price_calculator::SuggestedGasPriceCalculator,
     },
@@ -125,7 +126,7 @@ use crate::{
         },
         reconfiguration::ReconfigState,
     },
-    execution_cache::{ObjectCacheRead, TransactionCacheRead, cache_types::CacheResult},
+    execution_cache::{ObjectCacheRead, cache_types::CacheResult},
     fallback_fetch::do_fallback_lookup,
     module_cache_metrics::ResolverMetrics,
     overload_monitor::should_reject_tx,
@@ -1272,7 +1273,7 @@ impl AuthorityPerEpochStore {
             protocol_config.additional_multisig_checks(),
         );
 
-        let consensus_output_cache = ConsensusOutputCache::new(&tables, metrics.clone());
+        let consensus_output_cache = ConsensusOutputCache::new(&tables);
 
         // Seed the quarantine's in-memory overload-notification cache from the
         // persisted table. This is the only point we iterate the table; all
@@ -1682,36 +1683,44 @@ impl AuthorityPerEpochStore {
             .insert(tx_digest, cert_sig)?)
     }
 
+    /// Record that a transaction has been executed in the current epoch.
+    /// Used by checkpoint builder to cull dependencies from previous epochs.
     #[instrument(level = "trace", skip_all)]
-    pub fn insert_tx_key_and_digest(
-        &self,
-        tx_key: &TransactionKey,
-        tx_digest: &TransactionDigest,
-    ) -> IotaResult {
-        let _metrics_scope = iota_metrics::monitored_scope("AuthorityPerEpochStore::insert_tx_key");
-        let tables = self.tables()?;
-
+    pub fn insert_executed_in_epoch(&self, tx_digest: &TransactionDigest) {
         self.consensus_output_cache
             .insert_executed_in_epoch(*tx_digest);
+    }
 
-        if !matches!(tx_key, TransactionKey::Digest(_)) {
-            tables.transaction_key_to_digest.insert(tx_key, tx_digest)?;
-            self.executed_digests_notify_read.notify(tx_key, tx_digest);
+    /// Record a mapping from a transaction key (such as
+    /// TransactionKey::RandomnessRound) to its digest.
+    pub(crate) fn insert_tx_key(
+        &self,
+        tx_key: TransactionKey,
+        tx_digest: TransactionDigest,
+    ) -> IotaResult {
+        let _metrics_scope = iota_metrics::monitored_scope("AuthorityPerEpochStore::insert_tx_key");
+
+        if matches!(tx_key, TransactionKey::Digest(_)) {
+            debug_fatal!("useless to insert a digest key");
+            return Ok(());
         }
 
+        let tables = self.tables()?;
+        tables
+            .transaction_key_to_digest
+            .insert(&tx_key, &tx_digest)?;
+        self.executed_digests_notify_read
+            .notify(&tx_key, &tx_digest);
         Ok(())
     }
 
-    pub(crate) fn remove_shared_version_assignments(
-        &self,
-        keys: impl IntoIterator<Item = TransactionKey>,
-    ) {
-        self.consensus_output_cache
-            .remove_shared_object_assignments(keys);
-    }
-
-    pub fn num_shared_version_assignments(&self) -> usize {
-        self.consensus_output_cache.num_shared_version_assignments()
+    pub fn tx_key_to_digest(&self, key: &TransactionKey) -> IotaResult<Option<TransactionDigest>> {
+        let tables = self.tables()?;
+        if let TransactionKey::Digest(digest) = key {
+            Ok(Some(*digest))
+        } else {
+            Ok(tables.transaction_key_to_digest.get(key).expect("db error"))
+        }
     }
 
     pub fn revert_executed_transaction(&self, tx_digest: &TransactionDigest) -> IotaResult {
@@ -1826,29 +1835,23 @@ impl AuthorityPerEpochStore {
 
     /// Resolves InputObjectKinds into InputKeys, by consulting the shared
     /// object version assignment table.
+    /// Resolves InputObjectKinds into InputKeys. `assigned_versions` is used to
+    /// map shared inputs to specific object versions.
     pub(crate) fn get_input_object_keys(
         &self,
         key: &TransactionKey,
         objects: &[InputObjectKind],
-    ) -> IotaResult<BTreeSet<InputKey>> {
-        let assigned_shared_versions =
-            once_cell::unsync::OnceCell::<Option<HashMap<ObjectId, Version>>>::new();
+        assigned_versions: &AssignedVersions,
+    ) -> BTreeSet<InputKey> {
+        let assigned_shared_versions: BTreeMap<ObjectId, Version> = assigned_versions
+            .iter()
+            .map(|assignment| (assignment.object_id, assignment.version))
+            .collect();
         objects
             .iter()
             .map(|kind| {
-                Ok(match kind {
+                match kind {
                     InputObjectKind::SharedMoveObject { id, .. } => {
-                        let assigned_shared_versions = assigned_shared_versions
-                            .get_or_init(|| {
-                                self.get_assigned_shared_object_versions(key)
-                                    .map(|versions| versions.into_iter().map(|v| (v.object_id, v.version)).collect())
-                            })
-                            .as_ref()
-                            // Shared version assignments could have been deleted if the tx just
-                            // finished executing concurrently.
-                            .ok_or(IotaError::GenericAuthority {
-                                error: "no assigned shared versions".to_string(),
-                            })?;
                         // If we found assigned versions, but they are missing the assignment for
                         // this object, it indicates a serious inconsistency!
                         let Some(version) = assigned_shared_versions.get(id) else {
@@ -1867,7 +1870,7 @@ impl AuthorityPerEpochStore {
                         id: objref.object_id,
                         version: objref.version,
                     },
-                })
+                }
             })
             .collect()
     }
@@ -2022,17 +2025,6 @@ impl AuthorityPerEpochStore {
             .unwrap()
     }
 
-    pub fn set_shared_object_versions_for_testing(
-        &self,
-        tx_digest: &TransactionDigest,
-        assigned_versions: &[VersionAssignment],
-    ) -> IotaResult {
-        self.consensus_output_cache
-            .set_shared_object_versions_for_testing(tx_digest, assigned_versions);
-
-        Ok(())
-    }
-
     pub fn insert_finalized_transactions(
         &self,
         digests: &[TransactionDigest],
@@ -2185,19 +2177,6 @@ impl AuthorityPerEpochStore {
         Ok(ret)
     }
 
-    pub fn get_assigned_shared_object_versions(
-        &self,
-        key: &TransactionKey,
-    ) -> Option<Vec<VersionAssignment>> {
-        self.consensus_output_cache
-            .get_assigned_shared_object_versions(key)
-    }
-
-    fn set_assigned_shared_object_versions(&self, versions: AssignedTxAndVersions) {
-        self.consensus_output_cache
-            .insert_shared_object_assignments(&versions);
-    }
-
     /// Given list of transactions, assign versions for all shared objects used
     /// in them. We start with the current next_shared_object_versions table
     /// for each object, and build up the versions based on the dependencies
@@ -2206,20 +2185,18 @@ impl AuthorityPerEpochStore {
     /// idempotent. We should call this function when we are assigning shared
     /// object versions outside of consensus and do not want to taint the
     /// next_shared_object_versions table.
-    pub fn assign_shared_object_versions_idempotent(
+    pub fn assign_shared_object_versions_idempotent<'a>(
         &self,
         cache_reader: &dyn ObjectCacheRead,
-        transactions: &[VerifiedExecutableTransaction],
-    ) -> IotaResult {
-        let assigned_versions = SharedObjVerManager::assign_versions_from_consensus(
+        assignables: impl Iterator<Item = &'a Schedulable<&'a VerifiedExecutableTransaction>> + Clone,
+    ) -> IotaResult<AssignedTxAndVersions> {
+        Ok(SharedObjVerManager::assign_versions_from_consensus(
             self,
             cache_reader,
-            transactions.iter(),
+            assignables,
             &BTreeMap::new(),
         )?
-        .assigned_versions;
-        self.set_assigned_shared_object_versions(assigned_versions);
-        Ok(())
+        .assigned_versions)
     }
 
     fn load_deferred_transactions_for_randomness(
@@ -2484,14 +2461,14 @@ impl AuthorityPerEpochStore {
         transaction: &VerifiedExecutableTransaction,
         effects: &TransactionEffects,
         cache_reader: &dyn ObjectCacheRead,
-    ) -> IotaResult {
-        let versions = SharedObjVerManager::assign_versions_from_effects(
+    ) -> IotaResult<AssignedVersions> {
+        let assigned_versions = SharedObjVerManager::assign_versions_from_effects(
             &[(transaction, effects)],
             self,
             cache_reader,
         );
-        self.set_assigned_shared_object_versions(versions);
-        Ok(())
+        let (_, assigned_versions) = assigned_versions.0.into_iter().next().unwrap();
+        Ok(assigned_versions)
     }
 
     /// Insert transactions that will be submitted to consensus into
@@ -2819,7 +2796,7 @@ impl AuthorityPerEpochStore {
 
     // Converts transaction keys to digests, waiting for digests to become available
     // for any non-digest keys.
-    pub async fn notify_read_executed_digests(
+    pub async fn notify_read_tx_key_to_digest(
         &self,
         keys: &[TransactionKey],
     ) -> IotaResult<Vec<TransactionDigest>> {
@@ -3354,12 +3331,14 @@ impl AuthorityPerEpochStore {
             .apply_cached_deny_rule_proposal_for_test(proposal);
     }
 
-    fn process_user_signatures<'a>(
-        &self,
-        transactions: impl Iterator<Item = &'a VerifiedExecutableTransaction>,
-    ) {
+    fn process_user_signatures<'a>(&self, transactions: impl Iterator<Item = &'a Schedulable>) {
         let sigs: Vec<_> = transactions
-            .map(|transaction| (*transaction.digest(), transaction.signatures().to_vec()))
+            .filter_map(|schedulable| match schedulable {
+                Schedulable::Transaction(transaction) => {
+                    Some((*transaction.digest(), transaction.signatures().to_vec()))
+                }
+                Schedulable::RandomnessStateUpdate(_, _) => None,
+            })
             .collect();
 
         let mut user_sigs = self
@@ -3688,11 +3667,10 @@ impl AuthorityPerEpochStore {
         consensus_stats: &ExecutionIndicesWithStats,
         checkpoint_service: &Arc<C>,
         cache_reader: &dyn ObjectCacheRead,
-        tx_reader: &dyn TransactionCacheRead,
         consensus_commit_info: &ConsensusCommitInfo,
         authority_metrics: &Arc<AuthorityMetrics>,
         authority_state: &AuthorityState,
-    ) -> IotaResult<Vec<VerifiedExecutableTransaction>> {
+    ) -> IotaResult<(Vec<Schedulable>, AssignedTxAndVersions)> {
         // Split transactions into different types for processing.
         let verified_transactions: Vec<_> = transactions
             .into_iter()
@@ -4066,11 +4044,12 @@ impl AuthorityPerEpochStore {
 
         let (
             verified_non_randomness_transactions,
-            mut verified_randomness_transactions,
+            verified_randomness_transactions,
             notifications,
             lock,
             final_round,
             consensus_commit_prologue_root,
+            assigned_versions,
         ) = self
             .process_consensus_transactions(
                 &mut output,
@@ -4137,24 +4116,10 @@ impl AuthorityPerEpochStore {
             non_randomness_roots.extend(roots.into_iter());
 
             if let Some(randomness_round) = randomness_round {
-                let key = TransactionKey::RandomnessRound(self.epoch(), randomness_round);
-
-                // During crash recovery, the randomness update transaction may already have
-                // been created and executed before the crash. If it is
-                // available locally, we need to ensure it is executed.
-                if let Some(digest) = self.tables()?.transaction_key_to_digest.get(&key)? {
-                    if let Some(tx) = tx_reader.get_transaction_block(&digest) {
-                        info!(
-                            "Randomness update transaction {:?} already exists, scheduling for execution",
-                            digest
-                        );
-                        let tx =
-                            VerifiedExecutableTransaction::new_system((*tx).clone(), self.epoch());
-                        verified_randomness_transactions.push(tx);
-                    }
-                }
-
-                randomness_roots.insert(key);
+                randomness_roots.insert(TransactionKey::RandomnessRound(
+                    self.epoch(),
+                    randomness_round,
+                ));
             }
 
             // Determine whether to write pending checkpoint for user tx with randomness.
@@ -4269,11 +4234,13 @@ impl AuthorityPerEpochStore {
             self.record_end_of_message_quorum_time_metric();
         }
 
-        Ok([
+        let all_txns = [
             verified_non_randomness_transactions,
             verified_randomness_transactions,
         ]
-        .concat())
+        .concat();
+
+        Ok((all_txns, assigned_versions))
     }
 
     fn calculate_pending_checkpoint_height(&self, consensus_round: u64) -> u64 {
@@ -4399,7 +4366,7 @@ impl AuthorityPerEpochStore {
     fn add_consensus_commit_prologue_transaction(
         &self,
         output: &mut ConsensusCommitOutput,
-        transactions: &mut VecDeque<VerifiedExecutableTransaction>,
+        transactions: &mut VecDeque<Schedulable>,
         consensus_commit_info: &ConsensusCommitInfo,
         cancelled_txns: &BTreeMap<TransactionDigest, CancelConsensusTransactionReason>,
     ) -> IotaResult<Option<TransactionKey>> {
@@ -4413,10 +4380,12 @@ impl AuthorityPerEpochStore {
 
         let mut shared_input_next_version = HashMap::new();
         for txn in transactions.iter() {
-            match cancelled_txns.get(txn.digest()) {
+            let key = txn.key();
+            match key.as_digest().and_then(|d| cancelled_txns.get(d)) {
                 Some(CancelConsensusTransactionReason::Congested { .. })
                 | Some(CancelConsensusTransactionReason::DkgFailed) => {
                     let version_assignments = SharedObjVerManager::assign_versions_for_transaction(
+                        self,
                         txn,
                         &mut shared_input_next_version,
                         cancelled_txns,
@@ -4424,7 +4393,7 @@ impl AuthorityPerEpochStore {
                             .congestion_control_gas_price_feedback_mechanism(),
                     );
                     cancelled_transactions.push(CanceledTransaction {
-                        digest: *txn.digest(),
+                        digest: *key.unwrap_digest(),
                         version_assignments,
                     });
                 }
@@ -4448,7 +4417,7 @@ impl AuthorityPerEpochStore {
                 transaction,
                 start_time: _,
             } => {
-                transactions.push_front(transaction.clone());
+                transactions.push_front(Schedulable::Transaction(transaction.clone()));
                 Some(transaction.key())
             }
             ConsensusTransactionResult::IgnoredSystem => None,
@@ -4463,43 +4432,22 @@ impl AuthorityPerEpochStore {
         Ok(consensus_commit_prologue_root)
     }
 
-    // Assigns shared object versions to transactions and updates the shared object
-    // version state. Shared object versions in cancelled transactions are
-    // assigned to special versions that will cause the transactions to be
+    // Assigns shared object versions to transactions and updates the next shared
+    // object version state. Shared object versions in cancelled transactions
+    // are assigned to special versions that will cause the transactions to be
     // cancelled in execution engine.
     fn process_consensus_transaction_shared_object_versions(
         &self,
         cache_reader: &dyn ObjectCacheRead,
-        non_randomness_transactions: &[VerifiedExecutableTransaction],
-        randomness_transactions: &[VerifiedExecutableTransaction],
-        randomness_round: Option<RandomnessRound>,
+        non_randomness_transactions: &[Schedulable],
+        randomness_transactions: &[Schedulable],
         cancelled_txns: &BTreeMap<TransactionDigest, CancelConsensusTransactionReason>,
         output: &mut ConsensusCommitOutput,
-    ) -> IotaResult {
-        // If randomness_round is set, we know that eventually there will be a
-        // randomness state update transaction. We create a placeholder
-        // transaction so that the SharedObjVerManager can update the version of
-        // the randomness state object and use that version for randomness transactions.
-        let randomness_state_update = randomness_round.map(|round| {
-            VerifiedExecutableTransaction::new_system(
-                VerifiedTransaction::new_randomness_state_update(
-                    self.epoch(),
-                    round,
-                    // This is placeholder bytes, since this transaction does not exist yet.
-                    vec![],
-                    self.epoch_start_config()
-                        .randomness_obj_initial_shared_version(),
-                ),
-                self.epoch(),
-            )
-        });
+    ) -> IotaResult<AssignedTxAndVersions> {
         let all_certs = non_randomness_transactions
             .iter()
-            // randomness_state_update must be before randomness_transactions to make sure the
-            // version of the randomness state object is updated before it is used in
-            // randomness transactions.
-            .chain(randomness_state_update.iter())
             .chain(randomness_transactions.iter());
+
         let ConsensusSharedObjVerAssignment {
             shared_input_next_versions,
             assigned_versions,
@@ -4510,11 +4458,8 @@ impl AuthorityPerEpochStore {
             cancelled_txns,
         )?;
 
-        self.consensus_output_cache
-            .insert_shared_object_assignments(&assigned_versions);
-
         output.set_next_shared_object_versions(shared_input_next_versions);
-        Ok(())
+        Ok(assigned_versions)
     }
 
     pub fn get_highest_pending_checkpoint_height(&self) -> CheckpointHeight {
@@ -4533,17 +4478,15 @@ impl AuthorityPerEpochStore {
         transactions: Vec<SequencedConsensusTransaction>,
         checkpoint_service: &Arc<C>,
         cache_reader: &dyn ObjectCacheRead,
-        tx_reader: &dyn TransactionCacheRead,
         authority_metrics: &Arc<AuthorityMetrics>,
         skip_consensus_commit_prologue_in_test: bool,
         authority_state: &AuthorityState,
-    ) -> IotaResult<Vec<VerifiedExecutableTransaction>> {
+    ) -> IotaResult<(Vec<Schedulable>, AssignedTxAndVersions)> {
         self.process_consensus_transactions_and_commit_boundary(
             transactions,
             &ExecutionIndicesWithStats::default(),
             checkpoint_service,
             cache_reader,
-            tx_reader,
             &ConsensusCommitInfo::new_for_test(
                 self.get_highest_pending_checkpoint_height() / 2 + 1,
                 0,
@@ -4559,13 +4502,17 @@ impl AuthorityPerEpochStore {
         self: &Arc<Self>,
         cache_reader: &dyn ObjectCacheRead,
         transactions: &[VerifiedExecutableTransaction],
-    ) -> IotaResult {
+    ) -> IotaResult<AssignedTxAndVersions> {
         let mut output = ConsensusCommitOutput::new(0);
-        self.process_consensus_transaction_shared_object_versions(
+        let transactions: Vec<_> = transactions
+            .iter()
+            .cloned()
+            .map(Schedulable::Transaction)
+            .collect();
+        let assigned_versions = self.process_consensus_transaction_shared_object_versions(
             cache_reader,
-            transactions,
+            &transactions,
             &[],
-            None,
             &BTreeMap::new(),
             &mut output,
         )?;
@@ -4573,7 +4520,7 @@ impl AuthorityPerEpochStore {
         output.set_default_commit_stats_for_testing();
         output.write_to_batch(self, &mut batch)?;
         batch.write()?;
-        Ok(())
+        Ok(assigned_versions)
     }
 
     fn process_notifications(
@@ -4623,12 +4570,13 @@ impl AuthorityPerEpochStore {
             SharedObjectCongestionTracker,
         >,
     ) -> IotaResult<(
-        Vec<VerifiedExecutableTransaction>, // non-randomness transactions to schedule
-        Vec<VerifiedExecutableTransaction>, // randomness transactions to schedule
+        Vec<Schedulable>,                      // non-randomness transactions to schedule
+        Vec<Schedulable>,                      // randomness transactions to schedule
         Vec<SequencedConsensusTransactionKey>, // keys to notify as complete
         Option<RwLockWriteGuard<'_, ReconfigState>>,
         bool,                   // true if final round
         Option<TransactionKey>, // consensus commit prologue root
+        AssignedTxAndVersions,
     )> {
         if randomness_round.is_some() {
             assert!(!dkg_failed); // invariant check
@@ -4813,11 +4761,22 @@ impl AuthorityPerEpochStore {
         sequenced_non_randomness.sort_by_key(|(_, start_time)| *start_time);
         let mut verified_non_randomness_transactions: VecDeque<_> = sequenced_non_randomness
             .into_iter()
-            .map(|(tx, _)| tx)
+            .map(|(tx, _)| Schedulable::Transaction(tx))
             .collect();
         sequenced_randomness.sort_by_key(|(_, start_time)| *start_time);
-        let verified_randomness_transactions: VecDeque<_> =
-            sequenced_randomness.into_iter().map(|(tx, _)| tx).collect();
+        let mut verified_randomness_transactions: VecDeque<_> = sequenced_randomness
+            .into_iter()
+            .map(|(tx, _)| Schedulable::Transaction(tx))
+            .collect();
+
+        // If randomness is being generated for this commit, the randomness state
+        // update transaction will eventually exist for it. Schedule it by its
+        // key so that the version of the randomness state object is updated
+        // before it is used by the randomness-using transactions below.
+        if let Some(round) = randomness_round {
+            verified_randomness_transactions
+                .push_front(Schedulable::RandomnessStateUpdate(self.epoch(), round));
+        }
         let commit_has_deferred_txns = !deferred_txns.is_empty();
         let mut total_deferred_txns = 0;
         {
@@ -4942,11 +4901,10 @@ impl AuthorityPerEpochStore {
             verified_non_randomness_transactions.into();
         let verified_randomness_transactions: Vec<_> = verified_randomness_transactions.into();
 
-        self.process_consensus_transaction_shared_object_versions(
+        let assigned_tx_and_versions = self.process_consensus_transaction_shared_object_versions(
             cache_reader,
             &verified_non_randomness_transactions,
             &verified_randomness_transactions,
-            randomness_round,
             &cancelled_txns,
             output,
         )?;
@@ -4964,6 +4922,7 @@ impl AuthorityPerEpochStore {
             lock,
             final_round,
             consensus_commit_prologue_root,
+            assigned_tx_and_versions,
         ))
     }
 

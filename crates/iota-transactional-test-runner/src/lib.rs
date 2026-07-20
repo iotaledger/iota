@@ -16,6 +16,7 @@ use std::{path::Path, sync::Arc};
 use iota_core::authority::{
     AuthorityState, authority_per_epoch_store::TxLockGuard,
     authority_test_utils::send_and_confirm_transaction_with_execution_error,
+    shared_object_version_manager::AssignedVersions,
 };
 use iota_json_rpc::authority_state::StateRead;
 use iota_json_rpc_types::EventFilter;
@@ -74,6 +75,7 @@ pub trait TransactionalAdapter: Send + Sync + ReadStore {
     async fn read_input_objects(
         &self,
         transaction: TransactionEnvelope,
+        assigned_versions: AssignedVersions,
     ) -> IotaResult<InputObjects>;
 
     fn prepare_txn(
@@ -138,6 +140,7 @@ impl TransactionalAdapter for ValidatorWithFullnode {
     async fn read_input_objects(
         &self,
         transaction: TransactionEnvelope,
+        assigned_versions: AssignedVersions,
     ) -> IotaResult<InputObjects> {
         let tx = VerifiedExecutableTransaction::new_unchecked(
             ExecutableTransaction::new_from_data_and_sig(
@@ -148,7 +151,12 @@ impl TransactionalAdapter for ValidatorWithFullnode {
 
         let epoch_store = self.validator.load_epoch_store_one_call_per_task().clone();
         self.validator
-            .read_objects_for_execution(&TxLockGuard::guard_for_tests(), &tx, &epoch_store)
+            .read_objects_for_execution(
+                &TxLockGuard::guard_for_tests(),
+                &tx,
+                assigned_versions,
+                &epoch_store,
+            )
             .map(|(tx_input_objects, _)| tx_input_objects)
     }
 
@@ -412,6 +420,7 @@ impl TransactionalAdapter for Simulacrum<StdRng, PersistedStore> {
     async fn read_input_objects(
         &self,
         _transaction: TransactionEnvelope,
+        _assigned_versions: AssignedVersions,
     ) -> IotaResult<InputObjects> {
         unimplemented!("read_input_objects not supported in simulator mode")
     }

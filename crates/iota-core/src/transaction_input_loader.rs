@@ -2,9 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::BTreeMap, sync::Arc};
 
-use iota_common::fatal;
 use iota_sdk_types::{ObjectReference, TransactionDigest};
 use iota_types::{
     base_types::EpochId,
@@ -16,11 +15,12 @@ use iota_types::{
     },
 };
 use itertools::izip;
-use once_cell::unsync::OnceCell;
 use tracing::instrument;
 
 use crate::{
-    authority::authority_per_epoch_store::{AuthorityPerEpochStore, TxLockGuard},
+    authority::{
+        authority_per_epoch_store::TxLockGuard, shared_object_version_manager::AssignedVersions,
+    },
     execution_cache::ObjectCacheRead,
 };
 
@@ -122,7 +122,8 @@ impl TransactionInputLoader {
 
     /// Read the inputs for a transaction that is ready to be executed.
     ///
-    /// epoch_store is used to resolve the versions of any shared input objects.
+    /// `assigned_shared_object_versions` is used to resolve the versions of any
+    /// shared input objects.
     ///
     /// This function panics if any inputs are not available, as
     /// TransactionManager should already have verified that the transaction
@@ -140,16 +141,19 @@ impl TransactionInputLoader {
     #[instrument(level = "trace", skip_all)]
     pub fn read_objects_for_execution(
         &self,
-        epoch_store: &Arc<AuthorityPerEpochStore>,
         tx_key: &TransactionKey,
         // Important to hold the _tx_lock, otherwise it would be possible for a concurrent
         // execution of the same tx to enter this point after the first execution has
         // finished and the shared locks have been deleted.
         _tx_lock: &TxLockGuard,
         input_object_kinds: &[InputObjectKind],
+        assigned_shared_object_versions: &AssignedVersions,
         epoch_id: EpochId,
     ) -> IotaResult<InputObjects> {
-        let assigned_shared_versions_cell: OnceCell<Option<HashMap<_, _>>> = OnceCell::new();
+        let assigned_shared_versions: BTreeMap<_, _> = assigned_shared_object_versions
+            .iter()
+            .map(|assignment| (assignment.object_id, assignment.version))
+            .collect();
 
         let mut results = vec![None; input_object_kinds.len()];
         let mut object_keys = Vec::with_capacity(input_object_kinds.len());
@@ -218,27 +222,6 @@ impl TransactionInputLoader {
                     fetches.push((i, input));
                 }
                 InputObjectKind::SharedMoveObject { id, .. } => {
-                    let assigned_shared_versions = assigned_shared_versions_cell
-                        .get_or_init(|| {
-                            epoch_store.get_assigned_shared_object_versions(tx_key).map(
-                                |versions| {
-                                    versions
-                                        .into_iter()
-                                        .map(|v| (v.object_id, v.version))
-                                        .collect()
-                                },
-                            )
-                        })
-                        .as_ref()
-                        .unwrap_or_else(|| {
-                            // Important to hold the _tx_lock here - otherwise it would be possible
-                            // for a concurrent execution of the same tx to enter this point after
-                            // the first execution has finished and the assigned shared versions
-                            // have been deleted.
-                            fatal!(
-                                "Failed to get assigned shared versions for transaction {tx_key:?}"
-                            );
-                        });
                     // If we find a set of assigned versions but an object is missing, it indicates
                     // a serious inconsistency:
                     let version = assigned_shared_versions.get(id).unwrap_or_else(|| {

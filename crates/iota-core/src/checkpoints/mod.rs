@@ -1434,7 +1434,7 @@ impl CheckpointBuilder {
 
             let root_digests = self
                 .epoch_store
-                .notify_read_executed_digests(roots)
+                .notify_read_tx_key_to_digest(roots)
                 .in_monitored_scope("CheckpointNotifyDigests")
                 .await?;
             let root_effects = self
@@ -3888,8 +3888,6 @@ mod tests {
         let epoch_store = state.epoch_store_for_testing();
         let effects = e(digest, dependencies, gas_cost_summary);
         store.insert(digest, effects);
-        epoch_store
-            .insert_tx_key_and_digest(&TransactionKey::Digest(digest), &digest)
-            .expect("Inserting cert fx and sigs should not fail");
+        epoch_store.insert_executed_in_epoch(&digest);
     }
 }

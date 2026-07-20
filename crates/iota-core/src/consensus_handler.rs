@@ -30,12 +30,13 @@ use tracing::{debug, info, instrument, trace_span, warn};
 
 use crate::{
     authority::{
-        AuthorityMetrics, AuthorityState,
+        AuthorityMetrics, AuthorityState, ExecutionEnv,
         authority_per_epoch_store::{
             AuthorityPerEpochStore, ConsensusStats, ConsensusStatsAPI, ExecutionIndices,
             ExecutionIndicesWithStats,
         },
         backpressure::{BackpressureManager, BackpressureSubscriber},
+        shared_object_version_manager::{AssignedTxAndVersions, Schedulable},
     },
     checkpoints::{CheckpointService, CheckpointServiceNotify},
     consensus_types::{
@@ -43,7 +44,7 @@ use crate::{
         consensus_output_api::{ConsensusOutputAPI, ConsensusOutputTransactions},
     },
     epoch_start_consensus_committee::get_consensus_committee,
-    execution_cache::{ObjectCacheRead, TransactionCacheRead},
+    execution_cache::ObjectCacheRead,
     execution_scheduler::{ExecutionSchedulerAPI, ExecutionSchedulerWrapper},
     scoring_decision::update_low_scoring_authorities,
 };
@@ -97,7 +98,6 @@ impl ConsensusHandlerInitializer {
             self.checkpoint_service.clone(),
             self.state.execution_scheduler().clone(),
             self.state.get_object_cache_reader().clone(),
-            self.state.get_transaction_cache_reader().clone(),
             self.low_scoring_authorities.clone(),
             consensus_committee,
             self.state.metrics.clone(),
@@ -122,8 +122,6 @@ pub struct ConsensusHandler<C> {
     /// cache reader is needed when determining the next version to assign for
     /// shared objects.
     cache_reader: Arc<dyn ObjectCacheRead>,
-    /// used to read randomness transactions during crash recovery
-    tx_reader: Arc<dyn TransactionCacheRead>,
     /// Reputation scores used by consensus adapter that we update, forwarded
     /// from consensus
     low_scoring_authorities: Arc<ArcSwap<HashMap<AuthorityName, u64>>>,
@@ -149,7 +147,6 @@ impl<C> ConsensusHandler<C> {
         checkpoint_service: Arc<C>,
         execution_scheduler: Arc<ExecutionSchedulerWrapper>,
         cache_reader: Arc<dyn ObjectCacheRead>,
-        tx_reader: Arc<dyn TransactionCacheRead>,
         low_scoring_authorities: Arc<ArcSwap<HashMap<AuthorityName, u64>>>,
         committee: ConsensusCommittee,
         metrics: Arc<AuthorityMetrics>,
@@ -176,7 +173,6 @@ impl<C> ConsensusHandler<C> {
             last_consensus_stats,
             checkpoint_service,
             cache_reader,
-            tx_reader,
             low_scoring_authorities,
             committee,
             metrics,
@@ -413,14 +409,13 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
             }
         }
 
-        let transactions_to_schedule = self
+        let (transactions_to_schedule, assigned_versions) = self
             .epoch_store
             .process_consensus_transactions_and_commit_boundary(
                 all_transactions,
                 &self.last_consensus_stats,
                 &self.checkpoint_service,
                 self.cache_reader.as_ref(),
-                self.tx_reader.as_ref(),
                 &ConsensusCommitInfo::new(&consensus_output),
                 &self.metrics,
                 &self.state,
@@ -440,7 +435,7 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
         fail_point!("crash"); // for tests that produce random crashes
 
         self.transaction_scheduler
-            .schedule(transactions_to_schedule)
+            .schedule(transactions_to_schedule, assigned_versions)
             .await;
     }
 }
@@ -472,7 +467,7 @@ fn publish_scoring_gauges(
 }
 
 struct AsyncTransactionScheduler {
-    sender: tokio::sync::mpsc::Sender<Vec<VerifiedExecutableTransaction>>,
+    sender: tokio::sync::mpsc::Sender<(Vec<Schedulable>, AssignedTxAndVersions)>,
 }
 
 impl AsyncTransactionScheduler {
@@ -485,19 +480,39 @@ impl AsyncTransactionScheduler {
         Self { sender }
     }
 
-    pub async fn schedule(&self, transactions: Vec<VerifiedExecutableTransaction>) {
+    pub async fn schedule(
+        &self,
+        transactions: Vec<Schedulable>,
+        assigned_versions: AssignedTxAndVersions,
+    ) {
         tracing::trace_span!("transaction_scheduler_enqueue");
-        self.sender.send(transactions).await.ok();
+        self.sender
+            .send((transactions, assigned_versions))
+            .await
+            .ok();
     }
 
     pub async fn run(
-        mut recv: tokio::sync::mpsc::Receiver<Vec<VerifiedExecutableTransaction>>,
+        mut recv: tokio::sync::mpsc::Receiver<(Vec<Schedulable>, AssignedTxAndVersions)>,
         execution_scheduler: Arc<ExecutionSchedulerWrapper>,
         epoch_store: Arc<AuthorityPerEpochStore>,
     ) {
-        while let Some(transactions) = recv.recv().await {
+        while let Some((transactions, assigned_versions)) = recv.recv().await {
             let _guard = monitored_scope("ConsensusHandler::enqueue");
-            execution_scheduler.enqueue(transactions, &epoch_store);
+            let assigned_versions = assigned_versions.into_map();
+            let txns = transactions
+                .into_iter()
+                .map(|txn| {
+                    let key = txn.key();
+                    (
+                        txn,
+                        ExecutionEnv::new().with_assigned_versions(
+                            assigned_versions.get(&key).cloned().unwrap_or_default(),
+                        ),
+                    )
+                })
+                .collect();
+            execution_scheduler.enqueue(txns, &epoch_store);
         }
     }
 }
@@ -984,7 +999,6 @@ mod tests {
             Arc::new(CheckpointServiceNoop {}),
             state.execution_scheduler().clone(),
             state.get_object_cache_reader().clone(),
-            state.get_transaction_cache_reader().clone(),
             Arc::new(ArcSwap::default()),
             consensus_committee.clone(),
             metrics,
@@ -1135,7 +1149,6 @@ mod tests {
             Arc::new(CheckpointServiceNoop {}),
             state.execution_scheduler().clone(),
             state.get_object_cache_reader().clone(),
-            state.get_transaction_cache_reader().clone(),
             Arc::new(ArcSwap::default()),
             consensus_committee.clone(),
             metrics,

@@ -17,6 +17,7 @@ use iota_types::{
     crypto::AuthorityKeyPair,
     effects::TransactionEffectsAPI,
     error::{IotaError, IotaResult},
+    executable_transaction::VerifiedExecutableTransaction,
     iota_system_state::IotaSystemState,
     messages_checkpoint::{CheckpointRequest, CheckpointResponse},
     messages_grpc::{
@@ -32,10 +33,14 @@ use iota_types::{
 use tracing::info;
 
 use crate::{
-    authority::{AuthorityState, test_authority_builder::TestAuthorityBuilder},
+    authority::{
+        AuthorityState, ExecutionEnv, shared_object_version_manager::Schedulable,
+        test_authority_builder::TestAuthorityBuilder,
+    },
     authority_client::{
         validator::ValidatorAPI, validator_peer::ValidatorPeerAPI, validator_v2::ValidatorV2API,
     },
+    execution_scheduler::ExecutionSchedulerAPI,
 };
 
 #[derive(Clone, Copy, Default)]
@@ -254,22 +259,31 @@ impl LocalAuthorityClient {
         // finalized from previous epochs.
         let tx_digest = *request.certificate.digest();
         let epoch_store = state.epoch_store_for_testing();
-        let signed_effects = match state
-            .get_signed_effects_and_maybe_resign(&tx_digest, &epoch_store)
-        {
-            Ok(Some(effects)) => effects,
-            _ => {
-                let certificate = epoch_store
-                    .signature_verifier
-                    .verify_cert(request.certificate)
-                    .await?;
-                // let certificate = certificate.verify(epoch_store.committee())?;
-                state.enqueue_certificates_for_execution(vec![certificate.clone()], &epoch_store);
-                let effects = state.notify_read_effects("", &certificate).await?;
-                state.sign_effects(effects, &epoch_store)?
+        let signed_effects =
+            match state.get_signed_effects_and_maybe_resign(&tx_digest, &epoch_store) {
+                Ok(Some(effects)) => effects,
+                _ => {
+                    let certificate = epoch_store
+                        .signature_verifier
+                        .verify_cert(request.certificate)
+                        .await?;
+                    // let certificate = certificate.verify(epoch_store.committee())?;
+                    state.execution_scheduler().enqueue(
+                        vec![(
+                            Schedulable::Transaction(
+                                VerifiedExecutableTransaction::new_from_certificate(
+                                    certificate.clone(),
+                                ),
+                            ),
+                            ExecutionEnv::new(),
+                        )],
+                        &epoch_store,
+                    );
+                    let effects = state.notify_read_effects("", &certificate).await?;
+                    state.sign_effects(effects, &epoch_store)?
+                }
             }
-        }
-        .into_inner();
+            .into_inner();
 
         let events = if request.include_events {
             if signed_effects.events_digest().is_some() {

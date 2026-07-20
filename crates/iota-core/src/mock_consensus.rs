@@ -6,6 +6,7 @@ use std::sync::{Arc, Weak};
 
 use iota_types::{
     error::{IotaError, IotaResult},
+    executable_transaction::VerifiedExecutableTransaction,
     messages_consensus::{ConsensusTransaction, ConsensusTransactionKind},
     transaction::{SenderSignedTransactionAPI, VerifiedCertificate},
 };
@@ -19,11 +20,14 @@ use tracing::debug;
 
 use crate::{
     authority::{
-        AuthorityMetrics, AuthorityState, authority_per_epoch_store::AuthorityPerEpochStore,
+        AuthorityMetrics, AuthorityState, ExecutionEnv,
+        authority_per_epoch_store::AuthorityPerEpochStore,
+        shared_object_version_manager::Schedulable,
     },
     checkpoints::CheckpointServiceNoop,
     consensus_adapter::{BlockStatusReceiver, ConsensusClient, SubmitToConsensus},
     consensus_handler::SequencedConsensusTransaction,
+    execution_scheduler::ExecutionSchedulerAPI,
 };
 pub struct MockConsensusClient {
     tx_sender: mpsc::Sender<ConsensusTransaction>,
@@ -68,27 +72,40 @@ impl MockConsensusClient {
                 return;
             };
             let epoch_store = validator.epoch_store_for_testing();
-            match consensus_mode {
-                ConsensusMode::Noop => {}
+            let env = match consensus_mode {
+                ConsensusMode::Noop => ExecutionEnv::new(),
                 ConsensusMode::DirectSequencing => {
-                    epoch_store
+                    let (_, assigned_versions) = epoch_store
                         .process_consensus_transactions_for_tests(
                             vec![SequencedConsensusTransaction::new_test(tx.clone())],
                             &checkpoint_service,
                             validator.get_object_cache_reader().as_ref(),
-                            validator.get_transaction_cache_reader().as_ref(),
                             &authority_metrics,
                             true,
                             validator.as_ref(),
                         )
                         .await
                         .unwrap();
+                    let assigned_versions = assigned_versions
+                        .0
+                        .into_iter()
+                        .next()
+                        .map(|(_, v)| v)
+                        .unwrap_or_default();
+                    ExecutionEnv::new().with_assigned_versions(assigned_versions)
                 }
-            }
+            };
             if let ConsensusTransactionKind::CertifiedTransaction(tx) = tx.kind {
                 if tx.contains_shared_object() {
-                    validator.enqueue_certificates_for_execution(
-                        vec![VerifiedCertificate::new_unchecked(*tx)],
+                    validator.execution_scheduler().enqueue(
+                        vec![(
+                            Schedulable::Transaction(
+                                VerifiedExecutableTransaction::new_from_certificate(
+                                    VerifiedCertificate::new_unchecked(*tx),
+                                ),
+                            ),
+                            env,
+                        )],
                         &epoch_store,
                     );
                 }

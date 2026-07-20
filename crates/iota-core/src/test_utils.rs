@@ -28,7 +28,10 @@ use move_core_types::account_address::AccountAddress;
 use tokio::time::timeout;
 use tracing::{info, warn};
 
-use crate::{authority::AuthorityState, global_state_hasher::GlobalStateHasher};
+use crate::{
+    authority::{AuthorityState, ExecutionEnv},
+    global_state_hasher::GlobalStateHasher,
+};
 
 const WAIT_FOR_TX_TIMEOUT: Duration = Duration::from_secs(15);
 
@@ -63,7 +66,8 @@ pub async fn send_and_confirm_transaction(
     let state_acc =
         GlobalStateHasher::new_for_tests(authority.get_global_state_hash_store().clone());
     let mut state = state_acc.accumulate_cached_live_object_set_for_testing();
-    let (result, _execution_error_opt) = authority.try_execute_for_test(&certificate)?;
+    let (result, _execution_error_opt) =
+        authority.try_execute_for_test(&certificate, ExecutionEnv::new())?;
     let state_after = state_acc.accumulate_cached_live_object_set_for_testing();
     let effects_acc = state_acc.accumulate_effects(&[result.inner().data().clone()]);
     state.union(&effects_acc);
@@ -71,7 +75,7 @@ pub async fn send_and_confirm_transaction(
     assert_eq!(state_after.digest(), state.digest());
 
     if let Some(fullnode) = fullnode {
-        fullnode.try_execute_for_test(&certificate)?;
+        fullnode.try_execute_for_test(&certificate, ExecutionEnv::new())?;
     }
     Ok((certificate.into_inner(), result.into_inner()))
 }

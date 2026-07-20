@@ -26,10 +26,15 @@ use iota_types::{
     utils::to_sender_signed_transaction,
 };
 
-use super::test_authority_builder::TestAuthorityBuilder;
+use super::{
+    shared_object_version_manager::{AssignedTxAndVersions, AssignedVersions, Schedulable},
+    test_authority_builder::TestAuthorityBuilder,
+};
 use crate::{
-    authority::AuthorityState, checkpoints::CheckpointServiceNoop,
-    consensus_handler::SequencedConsensusTransaction, execution_scheduler::ExecutionSchedulerAPI,
+    authority::{AuthorityState, ExecutionEnv},
+    checkpoints::CheckpointServiceNoop,
+    consensus_handler::SequencedConsensusTransaction,
+    execution_scheduler::ExecutionSchedulerAPI,
     global_state_hasher::GlobalStateHasher,
 };
 
@@ -108,12 +113,13 @@ pub async fn execute_certificate_with_execution_error(
         GlobalStateHasher::new_for_tests(authority.get_global_state_hash_store().clone());
     let mut state = state_acc.accumulate_cached_live_object_set_for_testing();
 
-    if with_shared {
+    let assigned_versions = if with_shared {
         if fake_consensus {
-            send_consensus(authority, &certificate).await;
+            send_consensus(authority, &certificate).await
         } else {
-            // Just set object locks directly if send_consensus is not requested.
-            authority
+            // Just assign shared object versions directly if send_consensus is not
+            // requested.
+            let assigned_versions = authority
                 .epoch_store_for_testing()
                 .assign_shared_object_versions_for_tests(
                     authority.get_object_cache_reader().as_ref(),
@@ -121,24 +127,24 @@ pub async fn execute_certificate_with_execution_error(
                         certificate.clone(),
                     )],
                 )?;
+            assigned_versions
+                .into_map()
+                .get(&certificate.key())
+                .cloned()
+                .unwrap()
         }
-        if let Some(fullnode) = fullnode {
-            fullnode
-                .epoch_store_for_testing()
-                .assign_shared_object_versions_for_tests(
-                    fullnode.get_object_cache_reader().as_ref(),
-                    &[VerifiedExecutableTransaction::new_from_certificate(
-                        certificate.clone(),
-                    )],
-                )?;
-        }
-    }
+    } else {
+        vec![]
+    };
 
     // Submit the confirmation. *Now* execution actually happens, and it should fail
     // when we try to look up our dummy module. we unfortunately don't get a
     // very descriptive error message, but we can at least see that something went
     // wrong inside the VM
-    let (result, execution_error_opt) = authority.try_execute_for_test(&certificate)?;
+    let (result, execution_error_opt) = authority.try_execute_for_test(
+        &certificate,
+        ExecutionEnv::new().with_assigned_versions(assigned_versions.clone()),
+    )?;
     let state_after = state_acc.accumulate_cached_live_object_set_for_testing();
     let effects_acc = state_acc.accumulate_effects(&[result.inner().data().clone()]);
     state.union(&effects_acc);
@@ -146,7 +152,10 @@ pub async fn execute_certificate_with_execution_error(
     assert_eq!(state_after.digest(), state.digest());
 
     if let Some(fullnode) = fullnode {
-        fullnode.try_execute_for_test(&certificate)?;
+        fullnode.try_execute_for_test(
+            &certificate,
+            ExecutionEnv::new().with_assigned_versions(assigned_versions),
+        )?;
     }
     Ok((
         certificate.into_inner(),
@@ -348,7 +357,7 @@ pub fn init_certified_transaction(
 pub async fn certify_shared_obj_transaction_no_execution(
     authority: &AuthorityState,
     transaction: TransactionEnvelope,
-) -> Result<VerifiedCertificate, IotaError> {
+) -> Result<(VerifiedCertificate, AssignedVersions), IotaError> {
     let epoch_store = authority.load_epoch_store_one_call_per_task();
     let transaction = epoch_store.verify_transaction(transaction).unwrap();
     let response = authority
@@ -364,21 +373,29 @@ pub async fn certify_shared_obj_transaction_no_execution(
             .try_into_verified_for_testing(&committee, &Default::default())
             .unwrap();
 
-    send_consensus_no_execution(authority, &certificate).await;
+    let assigned_versions = send_consensus_no_execution(authority, &certificate).await;
 
-    Ok(certificate)
+    Ok((certificate, assigned_versions))
 }
 
 pub async fn enqueue_all_and_execute_all(
     authority: &AuthorityState,
-    certificates: Vec<VerifiedCertificate>,
+    certificates: Vec<(VerifiedCertificate, ExecutionEnv)>,
 ) -> Result<Vec<TransactionEffects>, IotaError> {
-    authority.enqueue_certificates_for_execution(
-        certificates.clone(),
+    authority.execution_scheduler().enqueue(
+        certificates
+            .iter()
+            .map(|(cert, env)| {
+                (
+                    VerifiedExecutableTransaction::new_from_certificate(cert.clone()).into(),
+                    env.clone(),
+                )
+            })
+            .collect(),
         &authority.epoch_store_for_testing(),
     );
     let mut output = Vec::new();
-    for cert in certificates {
+    for (cert, _) in certificates {
         let effects = authority.notify_read_effects("", &cert).await?;
         output.push(effects);
     }
@@ -388,29 +405,36 @@ pub async fn enqueue_all_and_execute_all(
 pub async fn execute_sequenced_certificate_to_effects(
     authority: &AuthorityState,
     certificate: VerifiedCertificate,
+    assigned_versions: AssignedVersions,
 ) -> Result<(TransactionEffects, Option<ExecutionError>), IotaError> {
-    authority.enqueue_certificates_for_execution(
-        vec![certificate.clone()],
+    let env = ExecutionEnv::new().with_assigned_versions(assigned_versions);
+    authority.execution_scheduler().enqueue(
+        vec![(
+            VerifiedExecutableTransaction::new_from_certificate(certificate.clone()).into(),
+            env.clone(),
+        )],
         &authority.epoch_store_for_testing(),
     );
 
-    let (result, execution_error_opt) = authority.try_execute_for_test(&certificate)?;
+    let (result, execution_error_opt) = authority.try_execute_for_test(&certificate, env)?;
     let effects = result.inner().data().clone();
     Ok((effects, execution_error_opt))
 }
 
-pub async fn send_consensus(authority: &AuthorityState, cert: &VerifiedCertificate) {
+pub async fn send_consensus(
+    authority: &AuthorityState,
+    cert: &VerifiedCertificate,
+) -> AssignedVersions {
     let transaction = SequencedConsensusTransaction::new_test(
         ConsensusTransaction::new_certificate_message(&authority.name, cert.clone().into_inner()),
     );
 
-    let certs = authority
+    let (_, assigned_versions) = authority
         .epoch_store_for_testing()
         .process_consensus_transactions_for_tests(
             vec![transaction],
             &Arc::new(CheckpointServiceNoop {}),
             authority.get_object_cache_reader().as_ref(),
-            authority.get_transaction_cache_reader().as_ref(),
             &authority.metrics,
             true,
             authority,
@@ -418,12 +442,31 @@ pub async fn send_consensus(authority: &AuthorityState, cert: &VerifiedCertifica
         .await
         .unwrap();
 
+    let assigned_versions = assigned_versions
+        .0
+        .into_iter()
+        .next()
+        .map(|(_, v)| v)
+        .unwrap_or_default();
+
+    let certs = vec![(
+        Schedulable::Transaction(VerifiedExecutableTransaction::new_from_certificate(
+            cert.clone(),
+        )),
+        ExecutionEnv::new().with_assigned_versions(assigned_versions.clone()),
+    )];
+
     authority
         .execution_scheduler()
         .enqueue(certs, &authority.epoch_store_for_testing());
+
+    assigned_versions
 }
 
-pub async fn send_consensus_no_execution(authority: &AuthorityState, cert: &VerifiedCertificate) {
+pub async fn send_consensus_no_execution(
+    authority: &AuthorityState,
+    cert: &VerifiedCertificate,
+) -> AssignedVersions {
     let transaction = SequencedConsensusTransaction::new_test(
         ConsensusTransaction::new_certificate_message(&authority.name, cert.clone().into_inner()),
     );
@@ -431,26 +474,27 @@ pub async fn send_consensus_no_execution(authority: &AuthorityState, cert: &Veri
     // Call process_consensus_transaction() instead of
     // handle_consensus_transaction(), to avoid actually executing cert.
     // This allows testing cert execution independently.
-    authority
+    let (_, assigned_versions) = authority
         .epoch_store_for_testing()
         .process_consensus_transactions_for_tests(
             vec![transaction],
             &Arc::new(CheckpointServiceNoop {}),
             authority.get_object_cache_reader().as_ref(),
-            authority.get_transaction_cache_reader().as_ref(),
             &authority.metrics,
             true,
             authority,
         )
         .await
         .unwrap();
+    assert_eq!(assigned_versions.0.len(), 1);
+    assigned_versions.0.into_iter().next().unwrap().1
 }
 
 pub async fn send_batch_consensus_no_execution(
     authority: &AuthorityState,
     certificates: &[VerifiedCertificate],
     skip_consensus_commit_prologue_in_test: bool,
-) -> Vec<VerifiedExecutableTransaction> {
+) -> (Vec<Schedulable>, AssignedTxAndVersions) {
     let transactions = certificates
         .iter()
         .map(|cert| {
@@ -470,7 +514,6 @@ pub async fn send_batch_consensus_no_execution(
             transactions,
             &Arc::new(CheckpointServiceNoop {}),
             authority.get_object_cache_reader().as_ref(),
-            authority.get_transaction_cache_reader().as_ref(),
             &authority.metrics,
             skip_consensus_commit_prologue_in_test,
             authority,

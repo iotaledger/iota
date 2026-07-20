@@ -122,8 +122,6 @@ pub struct EpochMetrics {
     /// The number of consensus output items in the quarantine.
     pub consensus_quarantine_queue_size: IntGauge,
 
-    /// The number of shared object assignments in the quarantine.
-    pub shared_object_assignments_size: IntGauge,
 
     /// The number of consensus commits that injected deny-rule update
     /// transactions.
@@ -272,12 +270,6 @@ impl EpochMetrics {
                 "The number of consensus output items in the quarantine",
                 registry;
                 MetricLevel::Warn,
-            )
-            .unwrap(),
-            shared_object_assignments_size: register_int_gauge_with_registry!(
-                "shared_object_assignments_size",
-                "The number of shared object assignments in the quarantine",
-                registry
             )
             .unwrap(),
             deny_rule_updates_injected: register_int_counter_with_registry!(

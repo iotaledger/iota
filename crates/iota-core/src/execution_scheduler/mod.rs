@@ -7,17 +7,19 @@ use std::{collections::BTreeSet, sync::Arc};
 use enum_dispatch::enum_dispatch;
 use execution_scheduler_impl::ExecutionScheduler;
 use iota_config::node::AuthorityOverloadConfig;
-use iota_sdk_types::{SenderSignedTransaction, TransactionEffectsDigest};
+use iota_sdk_types::SenderSignedTransaction;
 use iota_types::{
     error::IotaResult, executable_transaction::VerifiedExecutableTransaction, storage::InputKey,
-    transaction::VerifiedCertificate,
 };
 use prometheus_filtered::IntGauge;
 use tokio::{sync::mpsc::UnboundedSender, time::Instant};
 use transaction_manager::TransactionManager;
 
 use crate::{
-    authority::{AuthorityMetrics, authority_per_epoch_store::AuthorityPerEpochStore},
+    authority::{
+        AuthorityMetrics, ExecutionEnv, authority_per_epoch_store::AuthorityPerEpochStore,
+        shared_object_version_manager::Schedulable,
+    },
     execution_cache::{ObjectCacheRead, TransactionCacheRead},
 };
 
@@ -30,89 +32,55 @@ pub(crate) mod transaction_manager;
 /// Tracks when a transaction was enqueued and when it became ready for
 /// execution; used for latency metrics.
 #[derive(Clone, Debug)]
-pub(crate) struct PendingTransactionStats {
+pub struct PendingTransactionStats {
     /// The time this transaction enters the execution scheduler.
     #[cfg(test)]
-    pub(crate) enqueue_time: Instant,
+    pub enqueue_time: Instant,
     /// The time this transaction becomes ready for execution.
-    pub(crate) ready_time: Option<Instant>,
+    pub ready_time: Option<Instant>,
 }
 
 /// A transaction that is waiting in the execution scheduler for its input
 /// objects to become available before it can be sent to the execution driver.
 #[derive(Debug)]
-pub(crate) struct PendingTransaction {
+pub struct PendingTransaction {
     /// The transaction to be executed.
-    pub(crate) transaction: VerifiedExecutableTransaction,
-    /// When executing from checkpoint, the certified effects digest is
-    /// provided, so that forks can be detected prior to committing the
-    /// transaction.
-    pub(crate) expected_effects_digest: Option<TransactionEffectsDigest>,
+    pub transaction: VerifiedExecutableTransaction,
+    /// Environment in which the transaction will be executed.
+    pub execution_env: ExecutionEnv,
     /// The input objects this transaction is waiting for to become available in
     /// order to be executed. Only used by `TransactionManager`.
-    pub(crate) waiting_input_objects: BTreeSet<InputKey>,
+    pub waiting_input_objects: BTreeSet<InputKey>,
     /// Stats about this transaction.
-    pub(crate) stats: PendingTransactionStats,
+    pub stats: PendingTransactionStats,
     /// Held while the transaction is executing, to keep the
     /// executing-certificates gauge accurate. Only set by
     /// `ExecutionScheduler`.
-    pub(crate) executing_guard: Option<ExecutingGuard>,
+    pub executing_guard: Option<ExecutingGuard>,
 }
 
 #[derive(Debug)]
-pub(crate) struct ExecutingGuard {
+pub struct ExecutingGuard {
     num_executing_certificates: IntGauge,
 }
 
 #[enum_dispatch]
-pub(crate) trait ExecutionSchedulerAPI {
-    fn enqueue_impl(
+pub trait ExecutionSchedulerAPI {
+    /// Enqueues transactions (or schedulable keys that later resolve to
+    /// transactions, such as a randomness state update round) for execution.
+    /// Once all of the input objects are available locally for a transaction,
+    /// it will be sent to the execution driver.
+    fn enqueue(
         &self,
-        transactions: Vec<(
-            VerifiedExecutableTransaction,
-            Option<TransactionEffectsDigest>,
-        )>,
+        transactions: Vec<(Schedulable, ExecutionEnv)>,
         epoch_store: &Arc<AuthorityPerEpochStore>,
     );
 
-    fn enqueue(
+    fn enqueue_transactions(
         &self,
-        transactions: Vec<VerifiedExecutableTransaction>,
+        transactions: Vec<(VerifiedExecutableTransaction, ExecutionEnv)>,
         epoch_store: &Arc<AuthorityPerEpochStore>,
-    ) {
-        let transactions = transactions.into_iter().map(|txn| (txn, None)).collect();
-        self.enqueue_impl(transactions, epoch_store)
-    }
-
-    fn enqueue_with_expected_effects_digest(
-        &self,
-        transactions: Vec<(VerifiedExecutableTransaction, TransactionEffectsDigest)>,
-        epoch_store: &Arc<AuthorityPerEpochStore>,
-    ) {
-        let transactions = transactions
-            .into_iter()
-            .map(|(txn, fx)| (txn, Some(fx)))
-            .collect();
-        self.enqueue_impl(transactions, epoch_store)
-    }
-
-    /// Enqueues certificates / verified transactions. Once all of the input
-    /// objects are available locally for a certificate, the certified
-    /// transaction will be sent to the execution driver.
-    ///
-    /// REQUIRED: Shared object locks must be taken before enqueueing
-    /// transactions with shared objects!
-    fn enqueue_certificates(
-        &self,
-        certs: Vec<VerifiedCertificate>,
-        epoch_store: &Arc<AuthorityPerEpochStore>,
-    ) {
-        let executable_txns = certs
-            .into_iter()
-            .map(VerifiedExecutableTransaction::new_from_certificate)
-            .collect();
-        self.enqueue(executable_txns, epoch_store)
-    }
+    );
 
     fn check_execution_overload(
         &self,
@@ -130,7 +98,7 @@ pub(crate) trait ExecutionSchedulerAPI {
 // unboxed layout and silence the lint rather than boxing `Inner`.
 #[allow(clippy::large_enum_variant)]
 #[enum_dispatch(ExecutionSchedulerAPI)]
-pub(crate) enum ExecutionSchedulerWrapper {
+pub enum ExecutionSchedulerWrapper {
     ExecutionScheduler(ExecutionScheduler),
     TransactionManager(TransactionManager),
 }
@@ -141,7 +109,7 @@ pub(crate) enum ExecutionSchedulerWrapper {
 pub(crate) const DEFAULT_USE_EXECUTION_SCHEDULER: bool = false;
 
 impl ExecutionSchedulerWrapper {
-    pub(crate) fn new(
+    pub fn new(
         object_cache_read: Arc<dyn ObjectCacheRead>,
         transaction_cache_read: Arc<dyn TransactionCacheRead>,
         tx_ready_transactions: UnboundedSender<PendingTransaction>,
@@ -188,13 +156,13 @@ impl ExecutionSchedulerWrapper {
 
     /// Whether the new `ExecutionScheduler` is in use (vs
     /// `TransactionManager`).
-    pub(crate) fn uses_execution_scheduler(&self) -> bool {
+    pub fn uses_execution_scheduler(&self) -> bool {
         matches!(self, Self::ExecutionScheduler(_))
     }
 }
 
 impl ExecutingGuard {
-    pub(crate) fn new(num_executing_certificates: IntGauge) -> Self {
+    pub fn new(num_executing_certificates: IntGauge) -> Self {
         num_executing_certificates.inc();
         Self {
             num_executing_certificates,

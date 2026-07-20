@@ -324,7 +324,7 @@ mod tests {
     };
 
     use crate::{
-        authority::{AuthorityState, test_authority_builder::TestAuthorityBuilder},
+        authority::{AuthorityState, ExecutionEnv, test_authority_builder::TestAuthorityBuilder},
         authority_aggregator::{AuthorityAggregator, AuthorityAggregatorBuilder},
         authority_client::{
             validator::ValidatorAPI, validator_peer::ValidatorPeerAPI, validator_v2::ValidatorV2API,
@@ -406,7 +406,7 @@ mod tests {
                 &VerifiedExecutableTransaction::new_from_certificate(
                     VerifiedCertificate::new_unchecked(request.certificate),
                 ),
-                None,
+                ExecutionEnv::new(),
                 &epoch_store,
             )?;
             let events = if effects.events_digest().is_some() {

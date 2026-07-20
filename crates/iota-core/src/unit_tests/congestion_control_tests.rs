@@ -32,7 +32,7 @@ use iota_types::{
 
 use crate::{
     authority::{
-        AuthorityState,
+        AuthorityState, ExecutionEnv,
         authority_per_epoch_store::{
             CongestionControlParameters, PreviouslyDeferredTransactions,
             consensus_quarantine::ConsensusCommitOutput,
@@ -487,10 +487,10 @@ async fn congestion_control_execution_cancellation(use_execution_scheduler: bool
 
     // Run the same transaction in `authority_state_2`, but using the above effects
     // for the execution.
-    let cert = certify_shared_obj_transaction_no_execution(&authority_state_2, congested_tx)
+    let (cert, _) = certify_shared_obj_transaction_no_execution(&authority_state_2, congested_tx)
         .await
         .unwrap();
-    authority_state_2
+    let assigned_versions = authority_state_2
         .epoch_store_for_testing()
         .acquire_shared_version_assignments_from_effects(
             &VerifiedExecutableTransaction::new_from_certificate(cert.clone()),
@@ -498,7 +498,10 @@ async fn congestion_control_execution_cancellation(use_execution_scheduler: bool
             authority_state_2.get_object_cache_reader().as_ref(),
         )
         .unwrap();
-    let (effects_2, execution_error) = authority_state_2.execute_for_test(&cert);
+    let (effects_2, execution_error) = authority_state_2.execute_for_test(
+        &cert,
+        ExecutionEnv::new().with_assigned_versions(assigned_versions),
+    );
 
     // Should result in the same cancellation.
     assert_eq!(

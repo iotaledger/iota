@@ -37,7 +37,7 @@ use tokio::{
 };
 
 use crate::{
-    authority::{AuthorityState, authority_tests::init_state_with_objects},
+    authority::{AuthorityState, ExecutionEnv, authority_tests::init_state_with_objects},
     execution_scheduler::{
         ExecutionSchedulerAPI, PendingTransaction, execution_scheduler_impl::ExecutionScheduler,
         transaction_manager::TransactionManager,
@@ -120,7 +120,10 @@ async fn execution_scheduler_waits_for_missing_owned_input() {
     owned_ref.version = awaited_version;
     let transaction = make_transaction(gas_object, vec![CallArg::ImmutableOrOwned(owned_ref)]);
 
-    execution_scheduler.enqueue(vec![transaction.clone()], &state.epoch_store_for_testing());
+    execution_scheduler.enqueue_transactions(
+        vec![(transaction.clone(), ExecutionEnv::new())],
+        &state.epoch_store_for_testing(),
+    );
 
     // The scheduler must NOT release the transaction while its input is missing.
     sleep(Duration::from_secs(1)).await;
@@ -186,9 +189,13 @@ async fn assert_awaits_authenticator_input(
     scheduler: &dyn ExecutionSchedulerAPI,
     rx_ready_transactions: &mut UnboundedReceiver<PendingTransaction>,
     transaction: &VerifiedExecutableTransaction,
+    env: ExecutionEnv,
     make_shared_input_available: impl FnOnce(),
 ) {
-    scheduler.enqueue(vec![transaction.clone()], &state.epoch_store_for_testing());
+    scheduler.enqueue_transactions(
+        vec![(transaction.clone(), env)],
+        &state.epoch_store_for_testing(),
+    );
 
     sleep(Duration::from_secs(1)).await;
     assert!(
@@ -228,13 +235,10 @@ async fn schedulers_wait_for_authenticator_inputs() {
         let (scheduler, mut rx_ready_transactions) = make_execution_scheduler(&state);
 
         let transaction = make_shared_authenticator_transaction(&gas_object, &shared_object);
-        state
-            .epoch_store_for_testing()
-            .set_shared_object_versions_for_testing(
-                transaction.digest(),
-                &[VersionAssignment::new(shared_object.id(), shared_version)],
-            )
-            .unwrap();
+        let env = ExecutionEnv::new().with_assigned_versions(vec![VersionAssignment::new(
+            shared_object.id(),
+            shared_version,
+        )]);
 
         assert_awaits_authenticator_input(
             "ExecutionScheduler",
@@ -242,6 +246,7 @@ async fn schedulers_wait_for_authenticator_inputs() {
             &scheduler,
             &mut rx_ready_transactions,
             &transaction,
+            env,
             || {
                 state.get_cache_writer().write_object_entry_for_test(
                     Object::with_id_owner_version_for_testing(
@@ -264,13 +269,10 @@ async fn schedulers_wait_for_authenticator_inputs() {
         let (scheduler, mut rx_ready_transactions) = make_transaction_manager(&state);
 
         let transaction = make_shared_authenticator_transaction(&gas_object, &shared_object);
-        state
-            .epoch_store_for_testing()
-            .set_shared_object_versions_for_testing(
-                transaction.digest(),
-                &[VersionAssignment::new(shared_object.id(), shared_version)],
-            )
-            .unwrap();
+        let env = ExecutionEnv::new().with_assigned_versions(vec![VersionAssignment::new(
+            shared_object.id(),
+            shared_version,
+        )]);
 
         assert_awaits_authenticator_input(
             "TransactionManager",
@@ -278,6 +280,7 @@ async fn schedulers_wait_for_authenticator_inputs() {
             &scheduler,
             &mut rx_ready_transactions,
             &transaction,
+            env,
             || {
                 scheduler.objects_available(
                     vec![InputKey::VersionedObject {
@@ -321,14 +324,12 @@ async fn execution_scheduler_releases_all_waiters_on_one_object() {
     let mut txns = Vec::new();
     for gas in &gas_objects {
         let txn = make_transaction(gas.clone(), vec![shared_arg.clone()]);
-        state
-            .epoch_store_for_testing()
-            .set_shared_object_versions_for_testing(
-                txn.digest(),
-                &[VersionAssignment::new(shared_object.id(), shared_version)],
-            )
-            .unwrap();
-        execution_scheduler.enqueue(vec![txn.clone()], &state.epoch_store_for_testing());
+        let env = ExecutionEnv::new().with_assigned_versions(vec![VersionAssignment::new(
+            shared_object.id(),
+            shared_version,
+        )]);
+        execution_scheduler
+            .enqueue_transactions(vec![(txn.clone(), env)], &state.epoch_store_for_testing());
         txns.push(txn);
     }
 
@@ -380,14 +381,17 @@ async fn scheduler_propagates_expected_effects_digest_fast_path() {
     // takes the fast path in `schedule_transaction`.
     let transaction = make_transaction(gas_object, vec![]);
     let expected = TransactionEffectsDigest::new([7; 32]);
-    execution_scheduler.enqueue_with_expected_effects_digest(
-        vec![(transaction.clone(), expected)],
+    execution_scheduler.enqueue_transactions(
+        vec![(
+            transaction.clone(),
+            ExecutionEnv::new().with_expected_effects_digest(expected),
+        )],
         &state.epoch_store_for_testing(),
     );
 
     let ready = rx_ready_transactions.recv().await.unwrap();
     assert_eq!(ready.transaction.digest(), transaction.digest());
-    assert_eq!(ready.expected_effects_digest, Some(expected));
+    assert_eq!(ready.execution_env.expected_effects_digest, Some(expected));
 }
 
 /// The certified `expected_effects_digest` must also survive the `notify_read`
@@ -408,8 +412,11 @@ async fn scheduler_propagates_expected_effects_digest_wait_path() {
     let transaction = make_transaction(gas_object, vec![CallArg::ImmutableOrOwned(owned_ref)]);
 
     let expected = TransactionEffectsDigest::new([9; 32]);
-    execution_scheduler.enqueue_with_expected_effects_digest(
-        vec![(transaction.clone(), expected)],
+    execution_scheduler.enqueue_transactions(
+        vec![(
+            transaction.clone(),
+            ExecutionEnv::new().with_expected_effects_digest(expected),
+        )],
         &state.epoch_store_for_testing(),
     );
 
@@ -428,7 +435,7 @@ async fn scheduler_propagates_expected_effects_digest_wait_path() {
 
     let ready = rx_ready_transactions.recv().await.unwrap();
     assert_eq!(ready.transaction.digest(), transaction.digest());
-    assert_eq!(ready.expected_effects_digest, Some(expected));
+    assert_eq!(ready.execution_env.expected_effects_digest, Some(expected));
 }
 
 /// A transaction with several missing inputs must wait for ALL of them, not
@@ -461,7 +468,10 @@ async fn execution_scheduler_awaits_all_missing_inputs() {
             CallArg::ImmutableOrOwned(ref_b),
         ],
     );
-    execution_scheduler.enqueue(vec![transaction.clone()], &state.epoch_store_for_testing());
+    execution_scheduler.enqueue_transactions(
+        vec![(transaction.clone(), ExecutionEnv::new())],
+        &state.epoch_store_for_testing(),
+    );
 
     sleep(Duration::from_secs(1)).await;
     assert!(rx_ready_transactions.try_recv().is_err());
@@ -516,7 +526,8 @@ async fn enqueue_wrong_epoch_transaction_is_dropped() {
     assert_eq!(epoch_store.epoch(), 0);
     let transaction = make_transaction_for_epoch(gas_object, vec![], 1);
 
-    execution_scheduler.enqueue(vec![transaction], &epoch_store);
+    execution_scheduler
+        .enqueue_transactions(vec![(transaction, ExecutionEnv::new())], &epoch_store);
 
     // A same-epoch transaction with these inputs would be ready immediately; this
     // one must be filtered out and leave no pending or ready work behind.
@@ -557,14 +568,12 @@ async fn execution_scheduler_reconfigure_clears_pending_and_overload() {
     let mut txns = Vec::new();
     for gas in &gas_objects {
         let txn = make_transaction(gas.clone(), vec![shared_arg.clone()]);
-        state
-            .epoch_store_for_testing()
-            .set_shared_object_versions_for_testing(
-                txn.digest(),
-                &[VersionAssignment::new(shared_object.id(), shared_version)],
-            )
-            .unwrap();
-        execution_scheduler.enqueue(vec![txn.clone()], &state.epoch_store_for_testing());
+        let env = ExecutionEnv::new().with_assigned_versions(vec![VersionAssignment::new(
+            shared_object.id(),
+            shared_version,
+        )]);
+        execution_scheduler
+            .enqueue_transactions(vec![(txn.clone(), env)], &state.epoch_store_for_testing());
         txns.push(txn);
     }
 
@@ -621,7 +630,10 @@ async fn schedulers_record_ready_transaction_accounting() {
         let num_ready_before = state.metrics.transaction_manager_num_ready.get();
         let dispatch_queue_before = state.metrics.execution_driver_dispatch_queue.get();
 
-        scheduler.enqueue(vec![transaction.clone()], &state.epoch_store_for_testing());
+        scheduler.enqueue_transactions(
+            vec![(transaction.clone(), ExecutionEnv::new())],
+            &state.epoch_store_for_testing(),
+        );
         let ready = rx_ready_transactions.recv().await.unwrap();
         assert_eq!(ready.transaction.digest(), transaction.digest());
 
