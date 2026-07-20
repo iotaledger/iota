@@ -58,7 +58,7 @@ use iota_types::{
     signature::UserSignature,
     storage::{ObjectStore, ReadStore},
     transaction::{
-        CallArg, SenderSignedDataAPI, Transaction, TransactionData, TransactionDataAPI,
+        CallArg, SenderSignedTransactionAPI, Transaction, TransactionData, TransactionDataAPI,
         VerifiedTransaction,
     },
     utils::{

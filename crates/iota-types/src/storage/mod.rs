@@ -43,7 +43,7 @@ use crate::{
     iota_sdk_types_conversions::identifier_core_to_sdk,
     object::Object,
     storage::error::Error as StorageError,
-    transaction::{SenderSignedData, SenderSignedDataAPI, TransactionDataAPI},
+    transaction::{SenderSignedData, SenderSignedTransactionAPI, TransactionDataAPI},
 };
 
 /// A potential input to a transaction.

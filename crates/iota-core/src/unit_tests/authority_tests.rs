@@ -54,7 +54,7 @@ use iota_types::{
     randomness_state::get_randomness_state_obj_initial_shared_version,
     supported_protocol_versions::{SupportedProtocolVersions, SupportedProtocolVersionsWithHashes},
     transaction::{
-        CallArg, SenderSignedDataAPI, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS,
+        CallArg, SenderSignedTransactionAPI, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS,
         TEST_ONLY_GAS_UNIT_FOR_PUBLISH, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, Transaction,
         TransactionData, TransactionDataAPI, VerifiedCertificate, VerifiedTransaction,
     },

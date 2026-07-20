@@ -17,7 +17,7 @@ use iota_types::{
     messages_grpc::HandleTransactionResponse,
     mock_checkpoint_builder::ValidatorKeypairProvider,
     transaction::{
-        CertifiedTransaction, SenderSignedDataAPI, SignedTransaction, Transaction,
+        CertifiedTransaction, SenderSignedTransactionAPI, SignedTransaction, Transaction,
         VerifiedTransaction,
     },
 };

@@ -31,7 +31,7 @@ use crate::{
         get_key_pair,
     },
     effects::{SignedTransactionEffects, TestEffectsBuilder, TransactionEffectsAPIForTesting},
-    transaction::SenderSignedDataAPI,
+    transaction::SenderSignedTransactionAPI,
     utils::{
         blake2b256_of_sig, make_move_authenticator_sig, make_move_authenticator_tx,
         make_passkey_authenticator_sig, make_sponsored_move_authenticator_tx,

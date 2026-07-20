@@ -16,7 +16,7 @@ use iota_types::{
     messages_checkpoint::{CheckpointContents, CheckpointContentsExt, CheckpointSequenceNumber},
     messages_consensus::VersionedDkgConfirmation,
     signature::UserSignature,
-    transaction::SenderSignedDataAPI,
+    transaction::SenderSignedTransactionAPI,
 };
 use moka::{policy::EvictionPolicy, sync::SegmentedCache as MokaCache};
 use parking_lot::Mutex;

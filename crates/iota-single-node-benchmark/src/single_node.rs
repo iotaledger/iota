@@ -33,7 +33,7 @@ use iota_types::{
     mock_checkpoint_builder::{MockCheckpointBuilder, ValidatorKeypairProvider},
     object::Object,
     transaction::{
-        CertifiedTransaction, DEFAULT_VALIDATOR_GAS_PRICE, SenderSignedDataAPI, Transaction,
+        CertifiedTransaction, DEFAULT_VALIDATOR_GAS_PRICE, SenderSignedTransactionAPI, Transaction,
         TransactionDataAPI, VerifiedCertificate, VerifiedTransaction,
     },
 };

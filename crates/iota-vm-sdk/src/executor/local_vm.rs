@@ -15,7 +15,9 @@ use iota_types::{
     move_authenticator::MoveAuthenticator,
     signature::VerifyParams,
     signature_verification::verify_sender_signed_data_message_signatures,
-    transaction::{SenderSignedData, SenderSignedDataAPI, TransactionData, TransactionDataAPI},
+    transaction::{
+        SenderSignedData, SenderSignedTransactionAPI, TransactionData, TransactionDataAPI,
+    },
     transaction_executor::SimulateTransactionResult,
 };
 use move_bytecode_utils::{layout::TypeLayoutBuilder, module_cache::GetModule};

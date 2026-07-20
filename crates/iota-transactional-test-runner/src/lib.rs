@@ -37,7 +37,7 @@ use iota_types::{
     messages_checkpoint::VerifiedCheckpoint,
     object::Object,
     storage::{ObjectStore, ReadStore},
-    transaction::{InputObjects, SenderSignedDataAPI, Transaction, TransactionData},
+    transaction::{InputObjects, SenderSignedTransactionAPI, Transaction, TransactionData},
 };
 pub use move_transactional_test_runner::framework::{
     create_adapter, run_tasks_with_adapter, run_test_impl,

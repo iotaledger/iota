@@ -135,7 +135,7 @@ use iota_types::{
     messages_grpc::HandleCapabilityNotificationRequestV1,
     quorum_driver_types::QuorumDriverEffectsQueueResult,
     supported_protocol_versions::SupportedProtocolVersions,
-    transaction::{SenderSignedDataAPI, Transaction, VerifiedCertificate},
+    transaction::{SenderSignedTransactionAPI, Transaction, VerifiedCertificate},
 };
 use prometheus_filtered::Registry;
 #[cfg(msim)]

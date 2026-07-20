@@ -29,7 +29,7 @@ use iota_types::{
         ExecuteTransactionRequestV1, QuorumDriverEffectsQueueResult, QuorumDriverError,
         QuorumDriverResponse, QuorumDriverResult,
     },
-    transaction::{CertifiedTransaction, SenderSignedDataAPI, Transaction},
+    transaction::{CertifiedTransaction, SenderSignedTransactionAPI, Transaction},
 };
 use tap::TapFallible;
 use tokio::{

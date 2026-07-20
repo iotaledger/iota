@@ -266,7 +266,7 @@ mod tests {
         },
         object::Object,
         signature::UserSignature,
-        transaction::SenderSignedDataAPI,
+        transaction::SenderSignedTransactionAPI,
     };
     use starfish_core::TransactionVerifier as _;
 

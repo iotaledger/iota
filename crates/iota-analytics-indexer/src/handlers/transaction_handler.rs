@@ -11,7 +11,7 @@ use iota_sdk_types::{Command, TransactionKind};
 use iota_types::{
     effects::{TransactionEffects, TransactionEffectsAPI},
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
-    transaction::{SenderSignedDataAPI, TransactionDataAPI, TransactionKindExt},
+    transaction::{SenderSignedTransactionAPI, TransactionDataAPI, TransactionKindExt},
 };
 use tokio::sync::Mutex;
 use tracing::error;

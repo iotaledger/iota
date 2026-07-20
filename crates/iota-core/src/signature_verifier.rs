@@ -20,7 +20,7 @@ use iota_types::{
     signature::VerifyParams,
     signature_verification::{VerifiedDigestCache, verify_sender_signed_data_message_signatures},
     transaction::{
-        CertifiedTransaction, SenderSignedData, SenderSignedDataAPI, VerifiedCertificate,
+        CertifiedTransaction, SenderSignedData, SenderSignedTransactionAPI, VerifiedCertificate,
     },
 };
 use itertools::{Itertools as _, izip};

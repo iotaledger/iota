@@ -8,7 +8,7 @@ use iota_sdk_types::{ObjectId, SharedObjectReference};
 use iota_types::{
     base_types::CommitRound,
     executable_transaction::VerifiedExecutableTransaction,
-    transaction::{SenderSignedDataAPI, TransactionDataAPI},
+    transaction::{SenderSignedTransactionAPI, TransactionDataAPI},
 };
 use serde::{Deserialize, Serialize};
 use tracing::instrument;

@@ -1845,7 +1845,7 @@ pub fn merge_authenticator_input_objects<'a>(
 /// carries the transaction data together with the signatures of all
 /// transaction participants. A non-participant signature must not be present,
 /// and the signature order does not matter.
-pub trait SenderSignedDataAPI {
+pub trait SenderSignedTransactionAPI {
     /// Creates a new [`SenderSignedData`] with a single sender signature.
     fn new_from_sender_signature(
         tx_data: TransactionData,
@@ -1948,7 +1948,7 @@ pub trait SenderSignedDataAPI {
     fn uses_randomness(&self) -> bool;
 }
 
-impl SenderSignedDataAPI for SenderSignedData {
+impl SenderSignedTransactionAPI for SenderSignedData {
     fn new_from_sender_signature(
         tx_data: TransactionData,
         tx_signature: Signature,
