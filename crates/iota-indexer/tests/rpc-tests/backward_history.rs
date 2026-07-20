@@ -13,11 +13,8 @@ use iota_json_rpc_api::ReadApiClient;
 use iota_json_rpc_types::{
     IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponseOptions, ObjectChange,
 };
-use iota_sdk_types::{Address, ObjectId};
-use iota_types::{
-    base_types::SequenceNumber,
-    crypto::{AccountKeyPair, IotaKeyPair, get_key_pair},
-};
+use iota_sdk_types::{Address, ObjectId, Version};
+use iota_types::crypto::{AccountKeyPair, IotaKeyPair, get_key_pair};
 use jsonrpsee::http_client::HttpClient;
 
 use crate::{
@@ -81,7 +78,7 @@ pub async fn call_test_fn(
 /// response.
 pub fn first_created(
     resp: &iota_json_rpc_types::IotaTransactionBlockResponse,
-) -> (ObjectId, SequenceNumber) {
+) -> (ObjectId, Version) {
     resp.object_changes
         .as_ref()
         .unwrap()
@@ -99,7 +96,7 @@ pub fn first_created(
 fn unwrapped_version(
     resp: &iota_json_rpc_types::IotaTransactionBlockResponse,
     object_id: ObjectId,
-) -> SequenceNumber {
+) -> Version {
     resp.object_changes
         .as_ref()
         .unwrap()
@@ -119,7 +116,7 @@ fn unwrapped_version(
 fn unwrapped_then_deleted_version(
     resp: &iota_json_rpc_types::IotaTransactionBlockResponse,
     object_id: ObjectId,
-) -> SequenceNumber {
+) -> Version {
     resp.effects
         .as_ref()
         .unwrap()

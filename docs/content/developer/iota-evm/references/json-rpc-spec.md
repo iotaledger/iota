@@ -80,7 +80,7 @@ This page deals with the JSON-RPC API used by EVM execution clients.
 | [web3_clientVersion] | _Returns the current client version (Response is always `wasp/evmproxy` on IOTA EVM)_ |   ✅   |
 | [web3_sha]           | _Returns Keccak-256 (not the standardized SHA3-256) of the given data_                |   ✅   |
 
-You can find the complete set of available specs in the [Ethereum API Documentation](https://ethereum.github.io/execution-apis/api-documentation/).
+You can find the complete set of available specs in the [Ethereum API Documentation](https://ethereum.github.io/execution-apis/).
 
 [eth_accounts]: https://ethereum.org/en/developers/docs/apis/json-rpc/#eth_accounts
 [eth_blockNumber]: https://ethereum.org/en/developers/docs/apis/json-rpc/#eth_blocknumber
@@ -92,7 +92,7 @@ You can find the complete set of available specs in the [Ethereum API Documentat
 [eth_getBalance]: https://ethereum.org/en/developers/docs/apis/json-rpc/#eth_getbalance
 [eth_getBlockByHash]: https://ethereum.org/en/developers/docs/apis/json-rpc/#eth_getblockbyhash
 [eth_getBlockByNumber]: https://ethereum.org/en/developers/docs/apis/json-rpc/#eth_getblockbynumber
-[eth_getBlockReceipts]: https://docs.metamask.io/services/reference/ethereum/json-rpc-methods/eth_getblockreceipts
+[eth_getBlockReceipts]: https://docs.infura.io/reference/ethereum/json-rpc-methods/eth_getblockreceipts/
 [eth_getBlockTransactionCountByHash]: https://ethereum.org/en/developers/docs/apis/json-rpc/#eth_getblocktransactioncountbyhash
 [eth_getBlockTransactionCountByNumber]: https://ethereum.org/en/developers/docs/apis/json-rpc/#eth_getblocktransactioncountbynumber
 [eth_getCode]: https://ethereum.org/en/developers/docs/apis/json-rpc/#eth_getcode
@@ -120,16 +120,16 @@ You can find the complete set of available specs in the [Ethereum API Documentat
 [eth_sendTransaction]: https://ethereum.org/en/developers/docs/apis/json-rpc/#eth_sendtransaction
 [eth_sign]: https://ethereum.org/en/developers/docs/apis/json-rpc/#eth_sign
 [eth_signTransaction]: https://ethereum.org/en/developers/docs/apis/json-rpc/#eth_signtransaction
-[eth_subscribe]: https://docs.metamask.io/services/reference/ethereum/json-rpc-methods/subscription-methods/eth_subscribe
+[eth_subscribe]: https://docs.infura.io/reference/ethereum/json-rpc-methods/subscription-methods/eth_subscribe/
 [eth_syncing]: https://ethereum.org/en/developers/docs/apis/json-rpc/#eth_syncing
 [eth_uninstallFilter]: https://ethereum.org/en/developers/docs/apis/json-rpc/#eth_uninstallfilter
 [trace_block]: https://openethereum.github.io/JSONRPC-trace-module#trace_block
 [web3_clientVersion]: https://openethereum.github.io/JSONRPC-web3-module#web3_clientversion
 [web3_sha]: https://openethereum.github.io/JSONRPC-web3-module#web3_sha3
-[debug_traceBlockByNumber]: https://docs.metamask.io/services/reference/mantle/json-rpc-methods/debug/debug_traceblockbynumber
-[debug_traceBlockByHash]: https://docs.metamask.io/services/reference/mantle/json-rpc-methods/debug/debug_traceblockbyhash
-[debug_traceTransaction]: https://docs.metamask.io/services/reference/mantle/json-rpc-methods/debug/debug_tracetransaction
+[debug_traceBlockByNumber]: https://docs.infura.io/reference/mantle/json-rpc-methods/debug/debug_traceblockbynumber/
+[debug_traceBlockByHash]: https://docs.infura.io/reference/mantle/json-rpc-methods/debug/debug_traceblockbyhash/
+[debug_traceTransaction]: https://docs.infura.io/reference/mantle/json-rpc-methods/debug/debug_tracetransaction/
 [debug_getRawBlock]: https://docs.alchemy.com/reference/debug-getrawblock
 [net_listening]: https://openethereum.github.io/JSONRPC-net-module#net_listening
 [net_peerCount]: https://openethereum.github.io/JSONRPC-net-module#net_peercount
-[net_version]: https://docs.metamask.io/services/reference/ethereum/json-rpc-methods/net_version
+[net_version]: https://docs.infura.io/reference/ethereum/json-rpc-methods/net_version/

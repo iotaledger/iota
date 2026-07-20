@@ -31,18 +31,15 @@ use iota_protocol_config::{
     Chain, PerObjectCongestionControlMode, ProtocolConfig, ProtocolVersion,
 };
 use iota_sdk_types::{
-    CancelledTransaction, CheckpointTimestamp, ObjectId, RandomnessRound, TransactionKind,
-    VersionAssignment,
+    CancelledTransaction, CheckpointTimestamp, ObjectId, ObjectReference, RandomnessRound,
+    TransactionDigest, TransactionEffectsDigest, TransactionKind, Version, VersionAssignment,
 };
 use iota_storage::mutex_table::{MutexGuard, MutexTable};
 use iota_types::{
-    base_types::{
-        AuthorityName, CommitRound, ConciseableName, EpochId, ObjectRef, SequenceNumber,
-        TransactionDigest,
-    },
+    base_types::{AuthorityName, CommitRound, ConciseableName, EpochId},
     committee::{Committee, CommitteeTrait, StakeUnit},
     crypto::{AuthoritySignInfo, AuthorityStrongQuorumSignInfo},
-    digests::{ChainIdentifier, TransactionEffectsDigest},
+    digests::ChainIdentifier,
     effects::TransactionEffects,
     error::{IotaError, IotaResult},
     executable_transaction::{
@@ -54,7 +51,8 @@ use iota_types::{
     },
     message_envelope::TrustedEnvelope,
     messages_checkpoint::{
-        CheckpointContents, CheckpointSequenceNumber, CheckpointSignatureMessage, CheckpointSummary,
+        CheckpointContents, CheckpointContentsExt, CheckpointSequenceNumber,
+        CheckpointSignatureMessage, CheckpointSummary,
     },
     messages_consensus::{
         AuthorityCapabilitiesV1, ConsensusTransaction, ConsensusTransactionKey,
@@ -781,9 +779,9 @@ pub struct AuthorityEpochTables {
     signed_transactions:
         DBMap<TransactionDigest, TrustedEnvelope<SenderSignedData, AuthoritySignInfo>>,
 
-    /// Map from ObjectRef to transaction locking that object
+    /// Map from ObjectReference to transaction locking that object
     #[default_options_override_fn = "owned_object_locked_transactions_table_default_config"]
-    owned_object_locked_transactions: DBMap<ObjectRef, LockDetailsWrapper>,
+    owned_object_locked_transactions: DBMap<ObjectReference, LockDetailsWrapper>,
 
     /// Signatures over transaction effects that we have signed and returned to
     /// users. We store this to avoid re-signing the same effects twice.
@@ -804,7 +802,7 @@ pub struct AuthorityEpochTables {
     transaction_cert_signatures: DBMap<TransactionDigest, AuthorityStrongQuorumSignInfo>,
 
     /// Next available shared object versions for each shared object.
-    next_shared_object_versions: DBMap<ObjectId, SequenceNumber>,
+    next_shared_object_versions: DBMap<ObjectId, Version>,
 
     /// Track which transactions have been processed in
     /// handle_consensus_transaction. We must be sure to advance
@@ -1039,7 +1037,10 @@ impl AuthorityEpochTables {
         Ok(self.last_consensus_stats.get(&LAST_CONSENSUS_STATS_ADDR)?)
     }
 
-    pub fn get_locked_transaction(&self, obj_ref: &ObjectRef) -> IotaResult<Option<LockDetails>> {
+    pub fn get_locked_transaction(
+        &self,
+        obj_ref: &ObjectReference,
+    ) -> IotaResult<Option<LockDetails>> {
         Ok(self
             .owned_object_locked_transactions
             .get(obj_ref)?
@@ -1048,7 +1049,7 @@ impl AuthorityEpochTables {
 
     pub fn multi_get_locked_transactions(
         &self,
-        owned_input_objects: &[ObjectRef],
+        owned_input_objects: &[ObjectReference],
     ) -> IotaResult<Vec<Option<LockDetails>>> {
         Ok(self
             .owned_object_locked_transactions
@@ -1061,7 +1062,7 @@ impl AuthorityEpochTables {
     pub fn write_transaction_locks(
         &self,
         transaction: VerifiedSignedTransaction,
-        locks_to_write: impl Iterator<Item = (ObjectRef, LockDetails)>,
+        locks_to_write: impl Iterator<Item = (ObjectReference, LockDetails)>,
     ) -> IotaResult {
         let mut batch = self.owned_object_locked_transactions.batch();
         batch.insert_batch(
@@ -1561,7 +1562,7 @@ impl AuthorityPerEpochStore {
     }
 
     #[cfg(test)]
-    pub fn delete_object_locks_for_test(&self, objects: &[ObjectRef]) {
+    pub fn delete_object_locks_for_test(&self, objects: &[ObjectReference]) {
         for object in objects {
             self.tables()
                 .expect("test should not cross epoch boundary")
@@ -1726,7 +1727,7 @@ impl AuthorityPerEpochStore {
         objects: &[InputObjectKind],
     ) -> IotaResult<BTreeSet<InputKey>> {
         let assigned_shared_versions =
-            once_cell::unsync::OnceCell::<Option<HashMap<ObjectId, SequenceNumber>>>::new();
+            once_cell::unsync::OnceCell::<Option<HashMap<ObjectId, Version>>>::new();
         objects
             .iter()
             .map(|kind| {
@@ -1875,7 +1876,7 @@ impl AuthorityPerEpochStore {
         // we don't need to worry about equivocating.
         batch.delete_batch(&tables.signed_effects_digests, digests)?;
 
-        let seq = *checkpoint.sequence_number();
+        let seq = checkpoint.sequence_number();
 
         let mut quarantine = self.consensus_quarantine.write();
         quarantine.update_highest_executed_checkpoint(seq, self, &mut batch)?;
@@ -1899,7 +1900,7 @@ impl AuthorityPerEpochStore {
     }
 
     #[cfg(test)]
-    pub fn get_next_object_version(&self, obj: &ObjectId) -> Option<SequenceNumber> {
+    pub fn get_next_object_version(&self, obj: &ObjectId) -> Option<Version> {
         self.tables()
             .expect("test should not cross epoch boundary")
             .next_shared_object_versions
@@ -2002,9 +2003,9 @@ impl AuthorityPerEpochStore {
     // this function completes successfully for each affected object id.
     pub(crate) fn get_or_init_next_object_versions(
         &self,
-        objects_to_init: &[(ObjectId, SequenceNumber)],
+        objects_to_init: &[(ObjectId, Version)],
         cache_reader: &dyn ObjectCacheRead,
-    ) -> IotaResult<HashMap<ObjectId, SequenceNumber>> {
+    ) -> IotaResult<HashMap<ObjectId, Version>> {
         // get_or_init_next_object_versions can be called
         // from consensus or checkpoint executor,
         // so we need to protect version assignment with a critical section
@@ -2018,7 +2019,7 @@ impl AuthorityPerEpochStore {
             .read()
             .get_next_shared_object_versions(&tables, objects_to_init)?;
 
-        let uninitialized_objects: Vec<(ObjectId, SequenceNumber)> = next_versions
+        let uninitialized_objects: Vec<(ObjectId, Version)> = next_versions
             .iter()
             .zip(objects_to_init)
             .filter_map(|(next_version, id_and_version)| match next_version {
@@ -2942,7 +2943,10 @@ impl AuthorityPerEpochStore {
         0
     }
 
-    pub fn get_quarantined_owned_object_lock(&self, obj_ref: &ObjectRef) -> Option<LockDetails> {
+    pub fn get_quarantined_owned_object_lock(
+        &self,
+        obj_ref: &ObjectReference,
+    ) -> Option<LockDetails> {
         self.consensus_quarantine
             .read()
             .get_owned_object_lock(obj_ref)
@@ -5114,7 +5118,7 @@ impl AuthorityPerEpochStore {
         };
         self.tables()?
             .builder_checkpoint_summary
-            .insert(summary.sequence_number(), &builder_summary)?;
+            .insert(&summary.sequence_number(), &builder_summary)?;
         Ok(())
     }
 
@@ -5140,7 +5144,7 @@ impl AuthorityPerEpochStore {
         if let Some(BuilderCheckpointSummary { summary, .. }) =
             self.consensus_quarantine.read().last_built_summary()
         {
-            let seq = *summary.sequence_number();
+            let seq = summary.sequence_number();
             debug!(
                 "returning last_built_summary from consensus quarantine: {:?}",
                 seq

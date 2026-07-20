@@ -4,12 +4,13 @@
 
 use std::collections::HashMap;
 
-use iota_sdk_types::{Address, Identifier, ObjectId};
+use iota_sdk_types::{
+    Address, Identifier, ObjectId, ObjectReference, SharedObjectReference, Version,
+};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::{ObjectRef, SequenceNumber},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{CallArg, DEFAULT_VALIDATOR_GAS_PRICE, SharedObjectRef, Transaction},
+    transaction::{CallArg, DEFAULT_VALIDATOR_GAS_PRICE, Transaction},
 };
 
 use crate::{mock_account::Account, tx_generator::TxGenerator};
@@ -19,8 +20,8 @@ pub struct MoveTxGenerator {
     num_transfers: u64,
     use_native_transfer: bool,
     computation: u8,
-    root_objects: HashMap<Address, ObjectRef>,
-    shared_objects: Vec<(ObjectId, SequenceNumber)>,
+    root_objects: HashMap<Address, ObjectReference>,
+    shared_objects: Vec<(ObjectId, Version)>,
     num_mints: u16,
     nft_size: u16,
     use_batch_mint: bool,
@@ -32,8 +33,8 @@ impl MoveTxGenerator {
         num_transfers: u64,
         use_native_transfer: bool,
         computation: u8,
-        root_objects: HashMap<Address, ObjectRef>,
-        shared_objects: Vec<(ObjectId, SequenceNumber)>,
+        root_objects: HashMap<Address, ObjectReference>,
+        shared_objects: Vec<(ObjectId, Version)>,
         num_mints: u16,
         nft_size: u16,
         use_batch_mint: bool,
@@ -82,7 +83,7 @@ impl TxGenerator for MoveTxGenerator {
                         Identifier::from_static("benchmark"),
                         Identifier::from_static("increment_shared_counter"),
                         vec![],
-                        vec![CallArg::Shared(SharedObjectRef::new(
+                        vec![CallArg::Shared(SharedObjectReference::new(
                             shared_object.0,
                             shared_object.1,
                             true,

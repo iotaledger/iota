@@ -22,9 +22,10 @@ use futures::{
     stream::FuturesUnordered,
 };
 use iota_metrics::{GaugeGuard, InflightGuardFutureExt, LATENCY_SEC_BUCKETS, spawn_monitored_task};
+use iota_sdk_types::TransactionDigest;
 use iota_simulator::anemo::PeerId;
 use iota_types::{
-    base_types::{AuthorityName, TransactionDigest},
+    base_types::AuthorityName,
     committee::Committee,
     error::{IotaError, IotaResult},
     fp_ensure,
@@ -33,7 +34,7 @@ use iota_types::{
 use itertools::Itertools;
 use parking_lot::RwLockReadGuard;
 use prometheus_filtered::{
-    Histogram, HistogramVec, IntCounterVec, IntGauge, IntGaugeVec, Registry,
+    Histogram, HistogramVec, IntCounterVec, IntGauge, IntGaugeVec, MetricLevel, Registry,
     register_histogram_vec_with_registry, register_histogram_with_registry,
     register_int_counter_vec_with_registry, register_int_gauge_vec_with_registry,
     register_int_gauge_with_registry,
@@ -118,7 +119,8 @@ impl ConsensusAdapterMetrics {
                 "sequencing_certificate_inflight",
                 "The inflight requests to sequence certificates.",
                 &["tx_type"],
-                registry,
+                registry;
+                MetricLevel::Warn,
             )
             .unwrap(),
             sequencing_acknowledge_latency: register_histogram_vec_with_registry!(
@@ -134,7 +136,8 @@ impl ConsensusAdapterMetrics {
                 "The latency for sequencing a certificate.",
                 &["position", "tx_type", "processed_method"],
                 LATENCY_SEC_BUCKETS.to_vec(),
-                registry,
+                registry;
+                MetricLevel::Warn,
             )
             .unwrap(),
             sequencing_certificate_authority_position: register_histogram_with_registry!(
@@ -1501,8 +1504,8 @@ mod adapter_tests {
     use std::{sync::Arc, time::Duration};
 
     use fastcrypto::traits::KeyPair;
+    use iota_sdk_types::TransactionDigest;
     use iota_types::{
-        base_types::TransactionDigest,
         committee::Committee,
         crypto::{AuthorityKeyPair, AuthorityPublicKeyBytes, get_key_pair_from_rng},
     };

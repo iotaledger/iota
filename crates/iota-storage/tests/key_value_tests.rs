@@ -7,19 +7,18 @@ use std::{collections::HashMap, sync::Arc};
 use async_trait::async_trait;
 use futures::FutureExt;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::ObjectId;
+use iota_sdk_types::{CheckpointContentsDigest, CheckpointDigest, ObjectId, TransactionDigest};
 use iota_storage::{key_value_store::*, key_value_store_metrics::KeyValueStoreMetrics};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     base_types::{ExecutionDigests, VersionNumber, random_object_ref},
     committee::Committee,
     crypto::{AccountKeyPair, KeypairTraits, get_key_pair},
-    digests::{CheckpointContentsDigest, CheckpointDigest, TransactionDigest},
     effects::{TestEffectsBuilder, TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     error::IotaResult,
     messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointContents, CheckpointSequenceNumber,
-        CheckpointSummary, SignedCheckpointSummary,
+        CertifiedCheckpointSummary, CheckpointContents, CheckpointContentsExt,
+        CheckpointSequenceNumber, CheckpointSummary, CheckpointSummaryExt, SignedCheckpointSummary,
     },
     object::Object,
     storage::ObjectKey,
@@ -86,7 +85,7 @@ impl MockTxStore {
         self.next_seq_number += 1;
 
         let (committee, keys) = Committee::new_simple_test_committee_of_size(1);
-        let summary = CheckpointSummary::new(
+        let summary = CheckpointSummary::new_with_protocol_config(
             &ProtocolConfig::get_for_max_version_UNSAFE(),
             committee.epoch,
             next_seq,
@@ -117,7 +116,7 @@ impl MockTxStore {
         self.checkpoint_summaries_by_digest
             .insert(*certified.digest(), certified.clone());
         self.checkpoint_contents_by_digest
-            .insert(*contents.digest(), contents.clone());
+            .insert(contents.digest(), contents.clone());
         (certified, contents)
     }
 }

@@ -13,7 +13,10 @@ use fastcrypto::{
     traits::{AggregateAuthenticator, KeyPair},
 };
 use iota_sdk_crypto::simple::SimpleKeypair;
-use iota_sdk_types::{Address, ExecutionStatus, Owner, StructTag, gas::GasCostSummary};
+use iota_sdk_types::{
+    Address, ExecutionStatus, GasPayment, Owner, SharedObjectReference, StructTag,
+    TransactionEventsDigest, gas::GasCostSummary,
+};
 use roaring::RoaringBitmap;
 
 use super::*;
@@ -22,12 +25,11 @@ use crate::{
     committee::Committee,
     crypto::{
         AccountKeyPair, AuthorityKeyPair, AuthorityPublicKeyBytes, AuthoritySignInfoTrait,
-        IotaAuthoritySignature, IotaKeyPair, IotaSignature, IotaSignatureInner,
-        Secp256k1IotaSignature, VerificationObligation,
+        IotaAuthoritySignature, IotaKeyPair, IotaSignature, SignatureScheme,
+        VerificationObligation,
         bcs_signable_test::{Foo, get_obligation_input},
         get_key_pair,
     },
-    digests::TransactionEventsDigest,
     effects::{SignedTransactionEffects, TestEffectsBuilder, TransactionEffectsAPIForTesting},
     signature::ZkLoginAuthenticatorDeprecated,
     utils::{
@@ -714,7 +716,7 @@ fn test_user_signature_committed_in_signed_transactions() {
 fn signature_from_signer(
     data: TransactionData,
     intent: Intent,
-    signer: &dyn Signer<Signature>,
+    signer: impl Into<IotaKeyPair>,
 ) -> Signature {
     let intent_msg = IntentMessage::new(intent, data);
     Signature::new_secure(&intent_msg, signer)
@@ -736,7 +738,7 @@ fn test_sponsored_transaction_message() {
     let gas_price = 10;
     let kind = TransactionKind::new_programmable(pt);
     let gas_obj_ref = random_object_ref();
-    let gas_data = GasData {
+    let gas_data = GasPayment {
         objects: vec![gas_obj_ref],
         owner: sponsor,
         price: gas_price,
@@ -826,7 +828,7 @@ fn test_sponsored_transaction_validity_check() {
     // This is a sponsored transaction
     let gas_price = 10;
     assert_ne!(sender, sponsor);
-    let gas_data = GasData {
+    let gas_data = GasPayment {
         objects: vec![random_object_ref()],
         owner: sponsor,
         price: gas_price,
@@ -980,7 +982,10 @@ fn verify_sender_signature_correctly_with_flag() {
         _ => panic!("invalid"),
     };
     // signature contains the correct Secp256k1 flag
-    assert_eq!(s.scheme().flag(), Secp256k1IotaSignature::SCHEME.flag());
+    assert_eq!(
+        s.signature_scheme().flag(),
+        SignatureScheme::Secp256k1.flag()
+    );
 
     // authority accepts signs tx after verification
     assert!(
@@ -1010,7 +1015,7 @@ fn verify_sender_signature_correctly_with_flag() {
     };
 
     // signature contains the correct Ed25519 flag
-    assert_eq!(s.scheme().flag(), Ed25519IotaSignature::SCHEME.flag());
+    assert_eq!(s.signature_scheme().flag(), SignatureScheme::ED25519.flag());
 
     // signature verified
     assert!(
@@ -1078,7 +1083,7 @@ fn test_consensus_commit_prologue_v1_transaction() {
     assert!(tx.contains_shared_object());
     assert_eq!(
         tx.shared_input_objects().into_iter().next().unwrap(),
-        SharedObjectRef::new(ObjectId::CLOCK, IOTA_CLOCK_OBJECT_SHARED_VERSION, true,),
+        SharedObjectReference::new(ObjectId::CLOCK, IOTA_CLOCK_OBJECT_SHARED_VERSION, true,),
     );
     assert!(tx.is_system_tx());
     assert_eq!(
@@ -1128,7 +1133,7 @@ fn test_move_input_objects() {
             ])
             .unwrap(),
         builder
-            .input(CallArg::Shared(SharedObjectRef::new(
+            .input(CallArg::Shared(SharedObjectReference::new(
                 shared.object_id,
                 shared.version,
                 true,
@@ -1217,7 +1222,7 @@ fn test_unique_input_objects() {
     ];
     let args_2 = vec![
         builder
-            .input(CallArg::Shared(SharedObjectRef::new(
+            .input(CallArg::Shared(SharedObjectReference::new(
                 shared.object_id,
                 shared.version,
                 true,
@@ -1229,7 +1234,7 @@ fn test_unique_input_objects() {
     let sender = (&sender_kp.public()).into();
     let gas_price = 10;
     let gas_object_ref = random_object_ref();
-    let gas_data = GasData {
+    let gas_data = GasPayment {
         objects: vec![gas_object_ref],
         owner: sender,
         price: gas_price,
@@ -1366,7 +1371,7 @@ fn check_approx_effects_components_size() {
         "Update APPROX_SIZE_OF_OPT_TX_EVENTS_DIGEST constant"
     );
     assert!(
-        size_of::<ObjectRef>() < APPROX_SIZE_OF_OBJECT_REF,
+        size_of::<ObjectReference>() < APPROX_SIZE_OF_OBJECT_REF,
         "Update APPROX_SIZE_OF_OBJECT_REF constant"
     );
     assert!(

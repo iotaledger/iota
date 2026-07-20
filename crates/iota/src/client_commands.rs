@@ -33,9 +33,9 @@ use iota_json_rpc_types::{
 use iota_keys::keystore::{AccountKeystore, StoredKey};
 use iota_move::manage_package::resolve_lock_file_path;
 use iota_move_build::{
-    BuildConfig, CompiledPackage, build_from_resolution_graph, check_conflicting_addresses,
-    check_invalid_dependencies, check_unpublished_dependencies, gather_published_ids,
-    implicit_deps,
+    BuildConfig, CompiledPackage, ProtocolBuildConfig, build_from_resolution_graph,
+    check_conflicting_addresses, check_invalid_dependencies, check_unpublished_dependencies,
+    gather_published_ids, implicit_deps,
 };
 use iota_package_management::{
     LockCommand, PublishedAtError,
@@ -51,7 +51,8 @@ use iota_sdk::{
     wallet_context::WalletContext,
 };
 use iota_sdk_types::{
-    Address, Identifier, ObjectId, Owner, SharedObjectReference, TransactionKind, TypeTag,
+    Address, Identifier, ObjectId, ObjectReference, Owner, SharedObjectReference,
+    TransactionDigest, TransactionKind, TypeTag, Version,
     crypto::{Intent, IntentMessage},
     gas::GasCostSummary,
     move_package::MovePackage,
@@ -59,12 +60,14 @@ use iota_sdk_types::{
 use iota_source_validation::{BytecodeSourceVerifier, ValidationMode};
 use iota_types::{
     account_abstraction::{
-        account::AuthenticatorFunctionRefV1Key, authenticator_function::AuthenticatorFunctionRefV1,
+        account::AuthenticatorFunctionRefV1Key,
+        authenticator_function::{
+            AuthenticatorFunctionRefV1, derive_authenticator_function_ref_v1_dynamic_field_id,
+        },
     },
-    base_types::{ObjectRef, SequenceNumber},
     crypto::{EmptySignInfo, SignatureScheme},
-    digests::{ChainIdentifier, TransactionDigest},
-    dynamic_field::{self, DynamicFieldInfo, Field},
+    digests::ChainIdentifier,
+    dynamic_field::{DynamicFieldInfo, Field},
     error::IotaError,
     gas::get_gas_balance,
     gas_coin::GasCoin,
@@ -306,6 +309,9 @@ pub enum IotaClientCommands {
         /// Optional WebSocket Url, for example ws://127.0.0.1:9000.
         #[arg(long, value_hint = ValueHint::Url)]
         ws: Option<String>,
+        /// Optional gRPC Url, for example http://127.0.0.1:9000.
+        #[arg(long, value_hint = ValueHint::Url)]
+        grpc: Option<String>,
         #[arg(long, help = "Basic auth in the format of username:password")]
         basic_auth: Option<String>,
         /// Optional faucet Url, for example http://127.0.0.1:9123/v1/gas.
@@ -1182,6 +1188,7 @@ impl IotaClientCommands {
                     protocol_version.map_or(ProtocolVersion::MAX, ProtocolVersion::new);
                 let protocol_config =
                     ProtocolConfig::get_for_version(protocol_version, Chain::Unknown);
+                let protocol_build_config = ProtocolBuildConfig::from(&protocol_config);
 
                 let registry = &Registry::new();
                 let bytecode_verifier_metrics = Arc::new(BytecodeVerifierMetrics::new(registry));
@@ -1205,9 +1212,14 @@ impl IotaClientCommands {
 
                     (_, package_path) => {
                         let package_path = package_path.unwrap_or_else(|| PathBuf::from("."));
-                        let package =
-                            compile_package_simple(read_api, build_config, &package_path, None)
-                                .await?;
+                        let package = compile_package_simple(
+                            read_api,
+                            build_config,
+                            &package_path,
+                            None,
+                            &protocol_build_config,
+                        )
+                        .await?;
                         let name = package
                             .package
                             .compiled_package_info
@@ -1922,6 +1934,7 @@ impl IotaClientCommands {
                 rpc,
                 graphql,
                 ws,
+                grpc,
                 basic_auth,
                 faucet,
             } => {
@@ -1931,6 +1944,7 @@ impl IotaClientCommands {
                 let env = IotaEnv::new(alias, rpc)
                     .with_graphql(graphql)
                     .with_ws(ws)
+                    .with_grpc(grpc)
                     .with_basic_auth(basic_auth)
                     .with_faucet(faucet);
 
@@ -1968,17 +1982,15 @@ impl IotaClientCommands {
 
                 build_config.implicit_dependencies = implicit_deps(latest_system_packages());
                 let build_config = resolve_lock_file_path(build_config, Some(&package_path))?;
-                let chain_id = context
-                    .get_client()
-                    .await?
-                    .read_api()
-                    .get_chain_identifier()
-                    .await?;
+                let client = context.get_client().await?;
+                let chain_id = client.read_api().get_chain_identifier().await?;
+                let protocol_config = client.read_api().get_protocol_config(None).await?;
                 let compiled_package = BuildConfig {
                     config: build_config,
                     run_bytecode_verifier: true,
                     print_diags_to_stderr: true,
                     chain_id: Some(chain_id),
+                    protocol_build_config: ProtocolBuildConfig::from(&protocol_config),
                 }
                 .build(&package_path)?;
 
@@ -2051,6 +2063,7 @@ async fn compile_package_simple(
     mut build_config: MoveBuildConfig,
     package_path: &Path,
     chain_id: Option<String>,
+    protocol_build_config: &ProtocolBuildConfig,
 ) -> Result<CompiledPackage, anyhow::Error> {
     build_config.implicit_dependencies = implicit_deps(latest_system_packages());
     let config = BuildConfig {
@@ -2058,10 +2071,16 @@ async fn compile_package_simple(
         run_bytecode_verifier: false,
         print_diags_to_stderr: false,
         chain_id: chain_id.clone(),
+        protocol_build_config: *protocol_build_config,
     };
     let resolution_graph = config.resolution_graph(package_path, chain_id.clone())?;
-    let mut compiled_package =
-        build_from_resolution_graph(resolution_graph, false, false, chain_id)?;
+    let mut compiled_package = build_from_resolution_graph(
+        resolution_graph,
+        false,
+        false,
+        chain_id,
+        protocol_build_config,
+    )?;
     pkg_tree_shake(read_api, false, &mut compiled_package).await?;
 
     Ok(compiled_package)
@@ -2150,6 +2169,7 @@ pub(crate) async fn compile_package(
     skip_dependency_verification: bool,
 ) -> Result<CompiledPackage, anyhow::Error> {
     let protocol_config = read_api.get_protocol_config(None).await?;
+    let protocol_build_config = ProtocolBuildConfig::from(&protocol_config);
 
     build_config.implicit_dependencies =
         implicit_deps_for_protocol_version(protocol_config.protocol_version)?;
@@ -2162,6 +2182,7 @@ pub(crate) async fn compile_package(
         run_bytecode_verifier,
         print_diags_to_stderr,
         chain_id: chain_id.clone(),
+        protocol_build_config,
     };
     let resolution_graph = config.resolution_graph(package_path, chain_id.clone())?;
     let (_, dependencies) = gather_published_ids(&resolution_graph, chain_id.clone());
@@ -2177,6 +2198,7 @@ pub(crate) async fn compile_package(
         run_bytecode_verifier,
         print_diags_to_stderr,
         chain_id,
+        &protocol_build_config,
     )?;
 
     pkg_tree_shake(
@@ -2850,7 +2872,7 @@ pub struct NewAddressOutput {
 #[serde(rename_all = "camelCase")]
 pub struct ObjectOutput {
     pub object_id: ObjectId,
-    pub version: SequenceNumber,
+    pub version: Version,
     pub digest: String,
     pub obj_type: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -2904,7 +2926,7 @@ impl From<&GasCoin> for GasCoinOutput {
 #[serde(rename_all = "camelCase")]
 pub struct ObjectsOutput {
     pub object_id: ObjectId,
-    pub version: SequenceNumber,
+    pub version: Version,
     pub digest: String,
     pub object_type: String,
 }
@@ -3189,7 +3211,7 @@ pub async fn execute_dry_run(
     kind: TransactionKind,
     gas_budget: Option<u64>,
     gas_price: u64,
-    gas_payment: Vec<ObjectRef>,
+    gas_payment: Vec<ObjectReference>,
     sponsor: Option<Address>,
 ) -> Result<IotaClientCommandResult, anyhow::Error> {
     let client = context.get_client().await?;
@@ -3264,7 +3286,7 @@ pub async fn estimate_gas_budget(
     signer: Address,
     kind: TransactionKind,
     gas_price: u64,
-    gas_payment: Vec<ObjectRef>,
+    gas_payment: Vec<ObjectReference>,
     sponsor: Option<Address>,
 ) -> Result<u64, anyhow::Error> {
     let client = context.get_client().await?;
@@ -3317,7 +3339,7 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
     signer: Address,
     tx_kind: TransactionKind,
     context: &mut WalletContext,
-    gas_payment: Vec<ObjectRef>,
+    gas_payment: Vec<ObjectReference>,
     gas_data: GasDataArgs,
     processing: TxProcessingArgs,
 ) -> Result<IotaClientCommandResult, anyhow::Error> {
@@ -3516,7 +3538,7 @@ async fn execute_dev_inspect(
     tx_kind: TransactionKind,
     gas_budget: Option<u64>,
     gas_price: u64,
-    gas_objects: Vec<ObjectRef>,
+    gas_objects: Vec<ObjectReference>,
     gas_sponsor: Option<Address>,
     skip_checks: Option<bool>,
 ) -> Result<IotaClientCommandResult, anyhow::Error> {
@@ -3808,11 +3830,8 @@ pub(crate) async fn fetch_auth_info(
     client: &IotaClient,
     signer: Address,
 ) -> Result<Field<AuthenticatorFunctionRefV1Key, AuthenticatorFunctionRefV1>, anyhow::Error> {
-    let authenticator_function_ref_id = dynamic_field::derive_dynamic_field_id(
-        signer,
-        &AuthenticatorFunctionRefV1Key::tag().into(),
-        &AuthenticatorFunctionRefV1Key::default().to_bcs_bytes(),
-    )?;
+    let authenticator_function_ref_id =
+        derive_authenticator_function_ref_v1_dynamic_field_id(signer)?;
 
     let response = client
         .read_api()

@@ -535,16 +535,26 @@ impl TonicParameters {
         64 << 20
     }
 
-    /// Overrides only the inbound resource bounds with the protective preset
-    /// (sized for ~100-validator committees), preserving any
-    /// operator-configured transport settings (keepalive, buffers,
-    /// `message_size_limit`). `default()` stays inert, so the bounds never
-    /// change behaviour unless explicitly enabled.
+    /// Fills the inbound resource bounds that are still at their inert
+    /// defaults with the protective preset (sized for ~100-validator
+    /// committees). Bounds an operator configured explicitly are kept, as are
+    /// the transport settings the preset does not cover (keepalive, buffers,
+    /// `message_size_limit`). A bound explicitly configured to its inert value
+    /// still receives the preset; running without a bound requires disabling
+    /// the preset itself (`CONSENSUS_GRPC_PROTECTIVE_LIMITS=0`).
     pub fn apply_protective(&mut self) {
-        self.max_concurrent_streams = 64;
-        self.request_timeout = Duration::from_secs(120);
-        self.max_inbound_message_size = 1 << 20;
-        self.admission = AdmissionParameters::protective();
+        if self.max_concurrent_streams == 0 {
+            self.max_concurrent_streams = 64;
+        }
+        if self.request_timeout.is_zero() {
+            self.request_timeout = Duration::from_secs(120);
+        }
+        if self.max_inbound_message_size == 0 {
+            self.max_inbound_message_size = 1 << 20;
+        }
+        if self.admission.is_inert() {
+            self.admission = AdmissionParameters::protective();
+        }
     }
 
     /// The inert defaults with the protective bounds applied.
@@ -578,11 +588,13 @@ impl Default for TonicParameters {
 /// non-protocol parameters — heterogeneous values across authorities are safe,
 /// so they can be rolled out and tuned per node.
 ///
-/// `0` (the default for every cap) disables admission for that group, leaving
-/// the mechanism inert until an operator opts in. Recommended values for the
-/// opt-in protective preset, sized for ~100-validator committees and the local
-/// synchronizer fan-out toward one server: subscriptions 2, header fetches 32,
-/// transaction fetches 16, commit fetches `commit_sync_parallel_fetches` (8).
+/// `0` (the default for every cap) disables admission for that group. At node
+/// start the protective preset fills the caps when all of them are left at
+/// `0`; a caps block with any explicitly configured value is kept as-is, and
+/// `CONSENSUS_GRPC_PROTECTIVE_LIMITS=0` disables the preset entirely. Preset
+/// values, sized for ~100-validator committees and the local synchronizer
+/// fan-out toward one server: subscriptions 2, header fetches 32, transaction
+/// fetches 16, commit fetches `commit_sync_parallel_fetches` (8).
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub struct AdmissionParameters {
     /// Max concurrent block-subscription streams per peer.
@@ -605,8 +617,8 @@ pub struct AdmissionParameters {
 }
 
 impl AdmissionParameters {
-    /// Opt-in preset sized for ~100-validator committees and the local
-    /// synchronizer fan-out toward one server.
+    /// Preset sized for ~100-validator committees and the local synchronizer
+    /// fan-out toward one server.
     pub fn protective() -> Self {
         Self {
             max_subscriptions_per_peer: 2,
@@ -614,5 +626,13 @@ impl AdmissionParameters {
             max_transaction_fetches_per_peer: 16,
             max_commit_fetches_per_peer: Parameters::default_commit_sync_parallel_fetches() as u32,
         }
+    }
+
+    /// True when every cap is `0`, i.e. admission control is disabled.
+    pub fn is_inert(&self) -> bool {
+        self.max_subscriptions_per_peer == 0
+            && self.max_header_fetches_per_peer == 0
+            && self.max_transaction_fetches_per_peer == 0
+            && self.max_commit_fetches_per_peer == 0
     }
 }

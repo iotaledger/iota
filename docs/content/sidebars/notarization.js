@@ -127,6 +127,7 @@ const notarization = [
                 items: [
                     'developer/iota-notarization/audit-trails/how-tos/create-audit-trails',
                     'developer/iota-notarization/audit-trails/how-tos/add-and-read-records',
+                    'developer/iota-notarization/audit-trails/how-tos/correct-records',
                     'developer/iota-notarization/audit-trails/how-tos/update-metadata',
                     'developer/iota-notarization/audit-trails/how-tos/configure-locking',
                     'developer/iota-notarization/audit-trails/how-tos/manage-access-control',

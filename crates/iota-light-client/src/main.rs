@@ -20,15 +20,10 @@ use iota_light_client::{
 };
 use iota_package_resolver::Resolver;
 use iota_sdk::IotaClientBuilder;
-use iota_sdk_types::{ObjectData, ObjectId};
+use iota_sdk_types::{CheckpointDigest, ObjectData, ObjectId, ObjectReference, TransactionDigest};
 use iota_types::{
-    base_types::ObjectRef,
-    committee::Committee,
-    digests::{CheckpointDigest, TransactionDigest},
-    effects::TransactionEffectsExt,
-    event::EventID,
-    full_checkpoint_content::CheckpointData,
-    object::bounded_visitor::BoundedVisitor,
+    committee::Committee, effects::TransactionEffectsExt, event::EventID,
+    full_checkpoint_content::CheckpointData, object::bounded_visitor::BoundedVisitor,
 };
 use tracing::{debug, error, info};
 
@@ -157,7 +152,7 @@ pub async fn main() -> Result<()> {
                     BoundedVisitor::deserialize_value(move_object.contents(), &type_layout)
                         .context("Failed to deserialize object")?;
 
-                let ObjectRef {
+                let ObjectReference {
                     object_id,
                     version,
                     digest: hash,

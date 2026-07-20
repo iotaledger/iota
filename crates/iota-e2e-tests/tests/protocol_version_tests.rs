@@ -67,12 +67,11 @@ mod sim_only_tests {
     use iota_move_build::{BuildConfig, CompiledPackage};
     use iota_protocol_config::Chain;
     use iota_sdk_types::{
-        Address, Command, Identifier, MoveCall, ObjectId, Owner, ProgrammableTransaction,
-        TransactionKind,
+        Address, Command, Identifier, MoveCall, ObjectId, ObjectReference, Owner,
+        ProgrammableTransaction, TransactionDigest, TransactionKind, Version,
     };
     use iota_types::{
-        base_types::{ConciseableName, ObjectRef, SequenceNumber},
-        digests::TransactionDigest,
+        base_types::ConciseableName,
         effects::{TransactionEffects, TransactionEffectsAPI},
         id::ID,
         iota_system_state::{
@@ -314,8 +313,8 @@ mod sim_only_tests {
         assert_eq!(call_canary(&cluster).await, 43);
 
         let (modified_at, mutated_to) = get_framework_upgrade_versions(&cluster).await;
-        assert_eq!(Some(SequenceNumber::from(1)), modified_at);
-        assert_eq!(Some(SequenceNumber::from(2)), mutated_to);
+        assert_eq!(Some(Version::from(1)), modified_at);
+        assert_eq!(Some(Version::from(2)), mutated_to);
     }
 
     #[sim_test]
@@ -486,7 +485,7 @@ mod sim_only_tests {
         .await
     }
 
-    async fn create_obj(cluster: &TestCluster) -> ObjectRef {
+    async fn create_obj(cluster: &TestCluster) -> ObjectReference {
         *execute_creating(cluster, {
             let mut builder = ProgrammableTransactionBuilder::new();
             builder
@@ -507,7 +506,7 @@ mod sim_only_tests {
         .unwrap()
     }
 
-    async fn wrap_obj(cluster: &TestCluster, obj: ObjectRef) -> ObjectRef {
+    async fn wrap_obj(cluster: &TestCluster, obj: ObjectReference) -> ObjectReference {
         *execute_creating(cluster, {
             let mut builder = ProgrammableTransactionBuilder::new();
             builder
@@ -527,7 +526,11 @@ mod sim_only_tests {
         .unwrap()
     }
 
-    async fn transfer_obj(cluster: &TestCluster, recipient: Address, obj: ObjectRef) -> ObjectRef {
+    async fn transfer_obj(
+        cluster: &TestCluster,
+        recipient: Address,
+        obj: ObjectReference,
+    ) -> ObjectReference {
         execute(cluster, {
             let mut builder = ProgrammableTransactionBuilder::new();
             builder.transfer_object(recipient, obj).unwrap();
@@ -575,7 +578,7 @@ mod sim_only_tests {
     async fn execute_creating(
         cluster: &TestCluster,
         ptb: ProgrammableTransaction,
-    ) -> Vec<ObjectRef> {
+    ) -> Vec<ObjectReference> {
         execute(cluster, ptb)
             .await
             .created()
@@ -617,7 +620,7 @@ mod sim_only_tests {
 
     async fn get_framework_upgrade_versions(
         cluster: &TestCluster,
-    ) -> (Option<SequenceNumber>, Option<SequenceNumber>) {
+    ) -> (Option<Version>, Option<Version>) {
         let effects = get_framework_upgrade_effects(cluster, &ObjectId::SYSTEM).await;
 
         let modified_at = effects

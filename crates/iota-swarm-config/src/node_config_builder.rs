@@ -17,6 +17,7 @@ use iota_config::{
         ExecutionCacheConfig, ExpensiveSafetyCheckConfig, Genesis, GrpcApiConfig, KeyPairWithPath,
         RunWithRange, StateArchiveConfig, StateSnapshotConfig, default_enable_index_processing,
         default_end_of_epoch_broadcast_channel_capacity,
+        default_full_checkpoint_contents_cache_size_mb,
     },
     p2p::{DiscoveryConfig, P2pConfig, SeedPeer, StateSyncConfig},
     verifier_signing_config::VerifierSigningConfig,
@@ -227,6 +228,8 @@ impl ValidatorConfigBuilder {
             transaction_kv_store_write_config: None,
             authority_overload_config: self.authority_overload_config.unwrap_or_default(),
             execution_cache_config: self.execution_cache_config.unwrap_or_default(),
+            full_checkpoint_contents_cache_size_mb: default_full_checkpoint_contents_cache_size_mb(
+            ),
             run_with_range: None,
             jsonrpc_server_type: None,
             policy_config: self.policy_config,
@@ -582,6 +585,8 @@ impl FullnodeConfigBuilder {
             policy_config: self.policy_config,
             firewall_config: self.fw_config,
             execution_cache_config: ExecutionCacheConfig::default(),
+            full_checkpoint_contents_cache_size_mb: default_full_checkpoint_contents_cache_size_mb(
+            ),
             // This is a validator specific feature.
             enable_validator_tx_finalizer: false,
             // No effect on a fullnode (soft-locking runs only in the validator

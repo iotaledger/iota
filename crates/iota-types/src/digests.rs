@@ -6,11 +6,7 @@ use std::{env, fmt};
 
 use fastcrypto::encoding::{Base58, Encoding, Hex};
 use iota_protocol_config::Chain;
-pub use iota_sdk_types::{
-    CertificateDigest, CheckpointContentsDigest, CheckpointDigest, ConsensusCommitDigest, Digest,
-    EffectsAuxDataDigest, MisbehaviorReportDigest, MoveAuthenticatorDigest, ObjectDigest,
-    SenderSignedDataDigest, TransactionDigest, TransactionEffectsDigest, TransactionEventsDigest,
-};
+use iota_sdk_types::CheckpointDigest;
 use once_cell::sync::{Lazy, OnceCell};
 use serde::{Deserialize, Serialize};
 use tracing::info;
@@ -119,31 +115,6 @@ pub fn get_testnet_chain_identifier() -> ChainIdentifier {
                 .expect("testnet genesis checkpoint digest literal is invalid")
                 .try_into()
                 .expect("Testnet genesis checkpoint digest literal has incorrect length"),
-        );
-        ChainIdentifier::from(digest)
-    });
-    *digest
-}
-
-/// Genesis chain identifier of the **current** devnet. Unlike mainnet/testnet,
-/// devnet has no stable identity — it is wiped and re-genesised periodically —
-/// so this literal is only valid until the next reset. It exists solely as a
-/// one-time aid for backfilling the `epoch_info` chain from the devnet formal
-/// snapshot and should be removed (together with that backfill) one release
-/// after it ships. A stale value simply stops matching, degrading to
-/// best-effort rather than causing any error.
-///
-/// TODO: <https://github.com/iotaledger/iota/issues/12028>
-const DEVNET_CHAIN_IDENTIFIER_BASE58: &str = "Fjn7QQx49eH2kafFSfD1dPehZ89ps36wZpMPeALrByay";
-static DEVNET_CHAIN_IDENTIFIER: OnceCell<ChainIdentifier> = OnceCell::new();
-
-pub fn get_devnet_chain_identifier() -> ChainIdentifier {
-    let digest = DEVNET_CHAIN_IDENTIFIER.get_or_init(|| {
-        let digest = CheckpointDigest::new(
-            Base58::decode(DEVNET_CHAIN_IDENTIFIER_BASE58)
-                .expect("devnet genesis checkpoint digest literal is invalid")
-                .try_into()
-                .expect("devnet genesis checkpoint digest literal has incorrect length"),
         );
         ChainIdentifier::from(digest)
     });

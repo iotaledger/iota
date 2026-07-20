@@ -12,12 +12,12 @@ use iota_macros::sim_test;
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_sdk_types::{
     Address, ConsensusCommitPrologueV1, ConsensusDeterminedVersionAssignments, GenesisTransaction,
-    Identifier, TransactionKind,
+    Identifier, SharedObjectReference, TransactionKind,
     crypto::{Intent, IntentScope},
 };
 use iota_types::{
     base_types::{dbg_addr, random_object_ref},
-    crypto::{AccountKeyPair, Signature, get_key_pair},
+    crypto::{AccountKeyPair, IotaSignature, Signature, get_key_pair},
     error::{IotaError, UserInputError},
     messages_grpc::HandleSoftBundleCertificatesRequestV1,
     transaction::TransactionDataAPI,
@@ -50,8 +50,9 @@ macro_rules! assert_matches {
 }
 
 use fastcrypto::traits::AggregateAuthenticator;
+use iota_sdk_types::ConsensusCommitDigest;
 use iota_types::{
-    digests::ConsensusCommitDigest, messages_grpc::HandleCertificateRequestV1,
+    messages_grpc::HandleCertificateRequestV1,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
 };
 
@@ -263,8 +264,8 @@ pub fn init_transfer_transaction(
     sender: Address,
     secret: &AccountKeyPair,
     recipient: Address,
-    object_ref: ObjectRef,
-    gas_object_ref: ObjectRef,
+    object_ref: ObjectReference,
+    gas_object_ref: ObjectReference,
     gas_budget: u64,
     gas_price: u64,
 ) -> Transaction {
@@ -284,7 +285,7 @@ pub fn init_move_call_transaction(
     pre_sign_mutations: impl Fn(&mut TransactionData),
     sender: Address,
     secret: &AccountKeyPair,
-    gas_object_ref: ObjectRef,
+    gas_object_ref: ObjectReference,
     gas_budget: u64,
     gas_price: u64,
 ) -> Transaction {
@@ -918,7 +919,7 @@ async fn test_handle_soft_bundle_certificates() {
                 gas_object_ref,
                 // args
                 vec![
-                    CallArg::Shared(SharedObjectRef::new(
+                    CallArg::Shared(SharedObjectReference::new(
                         shared_object.id(),
                         initial_shared_version,
                         true,
@@ -1188,7 +1189,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
                 gas_object_ref,
                 // args
                 vec![
-                    CallArg::Shared(SharedObjectRef::new(
+                    CallArg::Shared(SharedObjectReference::new(
                         shared_object.id(),
                         initial_shared_version,
                         true,
@@ -1217,7 +1218,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
                 gas_object_ref,
                 // args
                 vec![
-                    CallArg::Shared(SharedObjectRef::new(
+                    CallArg::Shared(SharedObjectReference::new(
                         shared_object.id(),
                         initial_shared_version,
                         true,
@@ -1272,7 +1273,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
                 gas_object_ref,
                 // args
                 vec![
-                    CallArg::Shared(SharedObjectRef::new(
+                    CallArg::Shared(SharedObjectReference::new(
                         shared_object.id(),
                         initial_shared_version,
                         true,
@@ -1301,7 +1302,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
                 gas_object_ref,
                 // args
                 vec![
-                    CallArg::Shared(SharedObjectRef::new(
+                    CallArg::Shared(SharedObjectReference::new(
                         shared_object.id(),
                         initial_shared_version,
                         true,

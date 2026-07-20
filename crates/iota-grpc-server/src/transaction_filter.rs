@@ -317,12 +317,12 @@ impl TryFrom<proto_filter::TransactionFilter> for TransactionFilter {
 
 fn is_system_transaction(transaction_kind: &TransactionKind) -> bool {
     match transaction_kind {
-        TransactionKind::Genesis
+        TransactionKind::System
+        | TransactionKind::Genesis
         | TransactionKind::ConsensusCommitPrologueV1
         | TransactionKind::EndOfEpoch
         | TransactionKind::RandomnessStateUpdate => true,
         TransactionKind::Programmable => false,
-        _ => panic!("Unhandled transaction kind"),
     }
 }
 
@@ -846,5 +846,22 @@ mod tests {
             error: iota_sdk_types::ExecutionError::ExecutionCancelledDueToRandomnessUnavailable,
             command: None,
         }));
+    }
+
+    #[test]
+    fn test_is_system_transaction_classifies_every_kind() {
+        // The abstract `System` marker is produced by `From` for concrete
+        // system kinds (e.g. AuthenticatorStateUpdateV1), so it must classify
+        // as a system transaction rather than fall through to a panic.
+        assert!(is_system_transaction(&TransactionKind::System));
+        assert!(is_system_transaction(&TransactionKind::Genesis));
+        assert!(is_system_transaction(
+            &TransactionKind::ConsensusCommitPrologueV1
+        ));
+        assert!(is_system_transaction(&TransactionKind::EndOfEpoch));
+        assert!(is_system_transaction(
+            &TransactionKind::RandomnessStateUpdate
+        ));
+        assert!(!is_system_transaction(&TransactionKind::Programmable));
     }
 }

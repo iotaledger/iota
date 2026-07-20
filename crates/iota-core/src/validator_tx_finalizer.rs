@@ -8,10 +8,8 @@ use std::{cmp::min, ops::Add, sync::Arc, time::Duration};
 
 use arc_swap::ArcSwap;
 use iota_metrics::LATENCY_SEC_BUCKETS;
-use iota_types::{
-    base_types::{AuthorityName, TransactionDigest},
-    transaction::VerifiedSignedTransaction,
-};
+use iota_sdk_types::TransactionDigest;
+use iota_types::{base_types::AuthorityName, transaction::VerifiedSignedTransaction};
 use prometheus_filtered::{
     Histogram, IntCounter, Registry, register_histogram_with_registry,
     register_int_counter_with_registry,
@@ -293,11 +291,11 @@ mod tests {
     use arc_swap::ArcSwap;
     use async_trait::async_trait;
     use iota_macros::sim_test;
-    use iota_sdk_types::{Address, ObjectId};
+    use iota_sdk_types::{Address, ObjectId, TransactionDigest};
     use iota_swarm_config::network_config_builder::ConfigBuilder;
     use iota_test_transaction_builder::TestTransactionBuilder;
     use iota_types::{
-        base_types::{AuthorityName, TransactionDigest},
+        base_types::AuthorityName,
         committee::{CommitteeTrait, StakeUnit},
         crypto::{AccountKeyPair, get_account_key_pair},
         effects::{TransactionEffectsAPI, TransactionEvents},

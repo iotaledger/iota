@@ -17,17 +17,16 @@ use anyhow::bail;
 use fastcrypto::{encoding::Base64, hash::HashFunction};
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    Address, Argument, CancelledTransaction, Command, ConsensusCommitPrologueV1,
-    ConsensusDeterminedVersionAssignments, Digest, EndOfEpochTransactionKind, Event, GenesisObject,
-    GenesisTransaction, Identifier, Input, MakeMoveVector, MergeCoins, MoveCall, ObjectId, Owner,
-    ProgrammableTransaction, Publish, RandomnessRound, RandomnessStateUpdate, SplitCoins,
-    TransactionExpiration, TransactionKind, TransferObjects, TypeTag, Upgrade,
+    Address, Argument, CancelledTransaction, CertificateDigest, Command, ConsensusCommitDigest,
+    ConsensusCommitPrologueV1, ConsensusDeterminedVersionAssignments, Digest,
+    EndOfEpochTransactionKind, Event, GasPayment, GenesisObject, GenesisTransaction, Identifier,
+    Input, MakeMoveVector, MergeCoins, MoveCall, ObjectDigest, ObjectId, ObjectReference, Owner,
+    ProgrammableTransaction, Publish, RandomnessRound, RandomnessStateUpdate,
+    SenderSignedDataDigest, SharedObjectReference, SplitCoins, TransactionDigest,
+    TransactionExpiration, TransactionKind, TransferObjects, TypeTag, Upgrade, Version,
     crypto::{Intent, IntentMessage, IntentScope},
 };
-pub use iota_sdk_types::{
-    GasPayment as GasData, SharedObjectReference as SharedObjectRef, SystemPackage,
-    Transaction as TransactionData, TransactionV1 as TransactionDataV1,
-};
+pub use iota_sdk_types::{Transaction as TransactionData, TransactionV1 as TransactionDataV1};
 use itertools::Either;
 use nonempty::{NonEmpty, nonempty};
 use serde::{Deserialize, Serialize};
@@ -40,10 +39,9 @@ use crate::{
     committee::{Committee, EpochId},
     crypto::{
         AuthoritySignInfo, AuthoritySignInfoTrait, AuthoritySignature,
-        AuthorityStrongQuorumSignInfo, DefaultHash, Ed25519IotaSignature, EmptySignInfo,
-        IotaSignatureInner, Signature, Signer, ToFromBytes,
+        AuthorityStrongQuorumSignInfo, DefaultHash, EmptySignInfo, IotaKeyPair, IotaSignature,
+        Signature, Signer, zero_ed25519_signature,
     },
-    digests::{CertificateDigest, ConsensusCommitDigest, SenderSignedDataDigest},
     execution::SharedInput,
     message_envelope::{Envelope, Message, TrustedEnvelope, VerifiedEnvelope},
     messages_checkpoint::CheckpointTimestamp,
@@ -278,7 +276,7 @@ impl CallArgExt for CallArg {
             CallArg::ImmutableOrOwned(object_ref) => {
                 Some(InputObjectKind::ImmOrOwnedMoveObject(*object_ref))
             }
-            CallArg::Shared(SharedObjectRef {
+            CallArg::Shared(SharedObjectReference {
                 object_id,
                 initial_shared_version,
                 mutable,
@@ -569,9 +567,9 @@ mod programmable_transaction_ext {
 
 pub trait ProgrammableTransactionExt: Sized + programmable_transaction_ext::Sealed {
     fn input_objects(&self) -> UserInputResult<Vec<InputObjectKind>>;
-    fn receiving_objects(&self) -> Vec<ObjectRef>;
+    fn receiving_objects(&self) -> Vec<ObjectReference>;
     fn validity_check(&self, config: &ProtocolConfig) -> UserInputResult;
-    fn shared_input_objects(&self) -> impl Iterator<Item = SharedObjectRef>;
+    fn shared_input_objects(&self) -> impl Iterator<Item = SharedObjectReference>;
     fn move_calls(&self) -> Vec<(&ObjectId, &str, &str)>;
     fn non_system_packages_to_be_published(&self) -> impl Iterator<Item = &Vec<Vec<u8>>>;
 }
@@ -599,7 +597,7 @@ impl ProgrammableTransactionExt for ProgrammableTransaction {
             .collect())
     }
 
-    fn receiving_objects(&self) -> Vec<ObjectRef> {
+    fn receiving_objects(&self) -> Vec<ObjectReference> {
         let ProgrammableTransaction { inputs, .. } = self;
         inputs
             .iter()
@@ -648,7 +646,7 @@ impl ProgrammableTransactionExt for ProgrammableTransaction {
         // A command that uses Random can only be followed by TransferObjects or
         // MergeCoins.
         if let Some(random_index) = inputs.iter().position(|obj| {
-            matches!(obj, CallArg::Shared(SharedObjectRef { object_id, .. }) if *object_id == ObjectId::RANDOMNESS_STATE)
+            matches!(obj, CallArg::Shared(SharedObjectReference { object_id, .. }) if *object_id == ObjectId::RANDOMNESS_STATE)
         }) {
             let mut used_random_object = false;
             let random_index = random_index.try_into().unwrap();
@@ -667,7 +665,7 @@ impl ProgrammableTransactionExt for ProgrammableTransaction {
         Ok(())
     }
 
-    fn shared_input_objects(&self) -> impl Iterator<Item = SharedObjectRef> {
+    fn shared_input_objects(&self) -> impl Iterator<Item = SharedObjectReference> {
         self.inputs.iter().filter_map(|arg| match arg {
             CallArg::Shared(shared) => Some(*shared),
             CallArg::Pure(_) | CallArg::Receiving(_) | CallArg::ImmutableOrOwned(_) => None,
@@ -696,8 +694,8 @@ impl ProgrammableTransactionExt for ProgrammableTransaction {
 /// If there is a conflict in mutability, the resulting object will be
 /// mutable. Errors if the id or initial_shared_version do not match.
 fn left_union_shared_input_objects(
-    this: &mut SharedObjectRef,
-    other: &SharedObjectRef,
+    this: &mut SharedObjectReference,
+    other: &SharedObjectReference,
 ) -> UserInputResult<()> {
     fp_ensure!(
         this.object_id == other.object_id,
@@ -729,12 +727,12 @@ pub trait TransactionKindExt: Sized + transaction_kind_ext::Sealed {
     fn contains_shared_object(&self) -> bool;
     /// Returns an iterator of all shared input objects used by this
     /// transaction.
-    fn shared_input_objects(&self) -> impl Iterator<Item = SharedObjectRef> + '_;
+    fn shared_input_objects(&self) -> impl Iterator<Item = SharedObjectReference> + '_;
     /// Returns the move calls made by this transaction as a list of
     /// (package, module, function) tuples.
     fn move_calls(&self) -> Vec<(&ObjectId, &str, &str)>;
     /// Returns the objects received by this transaction.
-    fn receiving_objects(&self) -> Vec<ObjectRef>;
+    fn receiving_objects(&self) -> Vec<ObjectReference>;
     /// Return the metadata of each of the input objects for the transaction.
     /// For a Move object, we attach the object reference;
     /// for a Move package, we provide the object id only since they never
@@ -779,10 +777,10 @@ impl TransactionKindExt for TransactionKind {
         self.shared_input_objects().next().is_some()
     }
 
-    fn shared_input_objects(&self) -> impl Iterator<Item = SharedObjectRef> + '_ {
+    fn shared_input_objects(&self) -> impl Iterator<Item = SharedObjectReference> + '_ {
         match &self {
             Self::ConsensusCommitPrologueV1(_) => Either::Left(Either::Left(iter::once(
-                SharedObjectRef::new(ObjectId::CLOCK, IOTA_CLOCK_OBJECT_SHARED_VERSION, true),
+                SharedObjectReference::new(ObjectId::CLOCK, IOTA_CLOCK_OBJECT_SHARED_VERSION, true),
             ))),
             #[allow(deprecated)]
             Self::AuthenticatorStateUpdateV1Deprecated => {
@@ -792,7 +790,7 @@ impl TransactionKindExt for TransactionKind {
                 Either::Right(Either::Right(iter::empty()))
             }
             Self::RandomnessStateUpdate(update) => {
-                Either::Left(Either::Left(iter::once(SharedObjectRef::new(
+                Either::Left(Either::Left(iter::once(SharedObjectReference::new(
                     ObjectId::RANDOMNESS_STATE,
                     update.randomness_obj_initial_shared_version,
                     true,
@@ -813,7 +811,7 @@ impl TransactionKindExt for TransactionKind {
         }
     }
 
-    fn receiving_objects(&self) -> Vec<ObjectRef> {
+    fn receiving_objects(&self) -> Vec<ObjectReference> {
         match &self {
             #[allow(deprecated)]
             TransactionKind::Genesis(_)
@@ -972,13 +970,13 @@ pub trait TransactionDataAPI {
 
     /// Returns a reference to the gas data (owner, payment objects, price,
     /// budget).
-    fn gas_data(&self) -> &GasData;
+    fn gas_data(&self) -> &GasPayment;
 
     /// Returns the address that owns the gas payment objects.
     fn gas_owner(&self) -> Address;
 
     /// Returns the gas payment object references.
-    fn gas(&self) -> &[ObjectRef];
+    fn gas(&self) -> &[ObjectReference];
 
     /// Returns the gas price for this transaction.
     fn gas_price(&self) -> u64;
@@ -994,7 +992,7 @@ pub trait TransactionDataAPI {
     /// IMPORTANT: This function does not return shared objects associated with
     /// `MoveAuthenticator` signatures. To check those objects as well, use the
     /// corresponding function from `SenderSignedData`.
-    fn shared_input_objects(&self) -> Vec<SharedObjectRef>;
+    fn shared_input_objects(&self) -> Vec<SharedObjectReference>;
 
     /// Returns a list of Move calls as `(package_id, module_name,
     /// function_name)` tuples.
@@ -1005,7 +1003,7 @@ pub trait TransactionDataAPI {
 
     /// Returns object references for all objects being received in this
     /// transaction.
-    fn receiving_objects(&self) -> Vec<ObjectRef>;
+    fn receiving_objects(&self) -> Vec<ObjectReference>;
 
     /// Validates the transaction data against the given protocol config,
     /// including gas checks.
@@ -1034,7 +1032,7 @@ pub trait TransactionDataAPI {
     fn sender_mut_for_testing(&mut self) -> &mut Address;
 
     /// Returns a mutable reference to the gas data.
-    fn gas_data_mut(&mut self) -> &mut GasData;
+    fn gas_data_mut(&mut self) -> &mut GasPayment;
 
     /// Returns a mutable reference to the expiration. **Testing only.**
     fn expiration_mut_for_testing(&mut self) -> &mut TransactionExpiration;
@@ -1049,7 +1047,7 @@ pub trait TransactionDataAPI {
     fn new(
         kind: TransactionKind,
         sender: Address,
-        gas_payment: ObjectRef,
+        gas_payment: ObjectReference,
         gas_budget: u64,
         gas_price: u64,
     ) -> TransactionData;
@@ -1059,7 +1057,7 @@ pub trait TransactionDataAPI {
     fn new_with_gas_coins(
         kind: TransactionKind,
         sender: Address,
-        gas_payment: Vec<ObjectRef>,
+        gas_payment: Vec<ObjectReference>,
         gas_budget: u64,
         gas_price: u64,
     ) -> TransactionData;
@@ -1070,17 +1068,17 @@ pub trait TransactionDataAPI {
     fn new_with_gas_coins_allow_sponsor(
         kind: TransactionKind,
         sender: Address,
-        gas_payment: Vec<ObjectRef>,
+        gas_payment: Vec<ObjectReference>,
         gas_budget: u64,
         gas_price: u64,
         gas_sponsor: Address,
     ) -> TransactionData;
 
-    /// Creates a new transaction from a pre-built [`GasData`] struct.
+    /// Creates a new transaction from a pre-built [`GasPayment`] struct.
     fn new_with_gas_data(
         kind: TransactionKind,
         sender: Address,
-        gas_data: GasData,
+        gas_data: GasPayment,
     ) -> TransactionData;
 
     /// Creates a transaction that calls a single Move function with a single
@@ -1091,7 +1089,7 @@ pub trait TransactionDataAPI {
         module: Identifier,
         function: Identifier,
         type_arguments: Vec<TypeTag>,
-        gas_payment: ObjectRef,
+        gas_payment: ObjectReference,
         arguments: Vec<CallArg>,
         gas_budget: u64,
         gas_price: u64,
@@ -1105,7 +1103,7 @@ pub trait TransactionDataAPI {
         module: Identifier,
         function: Identifier,
         type_arguments: Vec<TypeTag>,
-        gas_payment: Vec<ObjectRef>,
+        gas_payment: Vec<ObjectReference>,
         arguments: Vec<CallArg>,
         gas_budget: u64,
         gas_price: u64,
@@ -1114,9 +1112,9 @@ pub trait TransactionDataAPI {
     /// Creates a transaction that transfers an object to a recipient.
     fn new_transfer(
         recipient: Address,
-        object_ref: ObjectRef,
+        object_ref: ObjectReference,
         sender: Address,
-        gas_payment: ObjectRef,
+        gas_payment: ObjectReference,
         gas_budget: u64,
         gas_price: u64,
     ) -> TransactionData;
@@ -1128,7 +1126,7 @@ pub trait TransactionDataAPI {
         recipient: Address,
         sender: Address,
         amount: Option<u64>,
-        gas_payment: ObjectRef,
+        gas_payment: ObjectReference,
         gas_budget: u64,
         gas_price: u64,
     ) -> TransactionData;
@@ -1140,7 +1138,7 @@ pub trait TransactionDataAPI {
         recipient: Address,
         sender: Address,
         amount: Option<u64>,
-        gas_payment: ObjectRef,
+        gas_payment: ObjectReference,
         gas_budget: u64,
         gas_price: u64,
         gas_sponsor: Address,
@@ -1151,10 +1149,10 @@ pub trait TransactionDataAPI {
     /// specified amounts.
     fn new_pay(
         sender: Address,
-        coins: Vec<ObjectRef>,
+        coins: Vec<ObjectReference>,
         recipients: Vec<Address>,
         amounts: Vec<u64>,
-        gas_payment: ObjectRef,
+        gas_payment: ObjectReference,
         gas_budget: u64,
         gas_price: u64,
     ) -> anyhow::Result<TransactionData>;
@@ -1164,10 +1162,10 @@ pub trait TransactionDataAPI {
     /// input coin.
     fn new_pay_iota(
         sender: Address,
-        coins: Vec<ObjectRef>,
+        coins: Vec<ObjectReference>,
         recipients: Vec<Address>,
         amounts: Vec<u64>,
-        gas_payment: ObjectRef,
+        gas_payment: ObjectReference,
         gas_budget: u64,
         gas_price: u64,
     ) -> anyhow::Result<TransactionData>;
@@ -1176,9 +1174,9 @@ pub trait TransactionDataAPI {
     /// single recipient. The gas coin is included as an input coin.
     fn new_pay_all_iota(
         sender: Address,
-        coins: Vec<ObjectRef>,
+        coins: Vec<ObjectReference>,
         recipient: Address,
-        gas_payment: ObjectRef,
+        gas_payment: ObjectReference,
         gas_budget: u64,
         gas_price: u64,
     ) -> TransactionData;
@@ -1187,9 +1185,9 @@ pub trait TransactionDataAPI {
     /// specified amounts.
     fn new_split_coin(
         sender: Address,
-        coin: ObjectRef,
+        coin: ObjectReference,
         amounts: Vec<u64>,
-        gas_payment: ObjectRef,
+        gas_payment: ObjectReference,
         gas_budget: u64,
         gas_price: u64,
     ) -> TransactionData;
@@ -1197,7 +1195,7 @@ pub trait TransactionDataAPI {
     /// Creates a transaction that publishes new Move modules.
     fn new_module(
         sender: Address,
-        gas_payment: ObjectRef,
+        gas_payment: ObjectReference,
         modules: Vec<Vec<u8>>,
         dep_ids: Vec<ObjectId>,
         gas_budget: u64,
@@ -1208,11 +1206,11 @@ pub trait TransactionDataAPI {
     /// Requires the upgrade capability object and the upgrade policy.
     fn new_upgrade(
         sender: Address,
-        gas_payment: ObjectRef,
+        gas_payment: ObjectReference,
         package_id: ObjectId,
         modules: Vec<Vec<u8>>,
         dep_ids: Vec<ObjectId>,
-        upgrade_capability_and_owner: (ObjectRef, Owner),
+        upgrade_capability_and_owner: (ObjectReference, Owner),
         upgrade_policy: u8,
         digest: Vec<u8>,
         gas_budget: u64,
@@ -1223,7 +1221,7 @@ pub trait TransactionDataAPI {
     /// The sender is also the gas owner.
     fn new_programmable(
         sender: Address,
-        gas_payment: Vec<ObjectRef>,
+        gas_payment: Vec<ObjectReference>,
         pt: ProgrammableTransaction,
         gas_budget: u64,
         gas_price: u64,
@@ -1233,7 +1231,7 @@ pub trait TransactionDataAPI {
     /// and a separate gas sponsor.
     fn new_programmable_allow_sponsor(
         sender: Address,
-        gas_payment: Vec<ObjectRef>,
+        gas_payment: Vec<ObjectReference>,
         pt: ProgrammableTransaction,
         gas_budget: u64,
         gas_price: u64,
@@ -1245,7 +1243,7 @@ pub trait TransactionDataAPI {
 
     /// Consumes self and returns the transaction kind, sender address, and
     /// gas payment object references as a tuple.
-    fn execution_parts(&self) -> (TransactionKind, Address, GasData);
+    fn execution_parts(&self) -> (TransactionKind, Address, GasPayment);
 }
 
 impl TransactionDataAPI for TransactionData {
@@ -1285,7 +1283,7 @@ impl TransactionDataAPI for TransactionData {
         signers
     }
 
-    fn gas_data(&self) -> &GasData {
+    fn gas_data(&self) -> &GasPayment {
         match self {
             Self::V1(v1) => &v1.gas_payment,
             _ => unimplemented!("a new Transaction enum variant was added and needs to be handled"),
@@ -1296,7 +1294,7 @@ impl TransactionDataAPI for TransactionData {
         self.gas_data().owner
     }
 
-    fn gas(&self) -> &[ObjectRef] {
+    fn gas(&self) -> &[ObjectReference] {
         &self.gas_data().objects
     }
 
@@ -1315,7 +1313,7 @@ impl TransactionDataAPI for TransactionData {
         }
     }
 
-    fn shared_input_objects(&self) -> Vec<SharedObjectRef> {
+    fn shared_input_objects(&self) -> Vec<SharedObjectReference> {
         self.kind().shared_input_objects().collect()
     }
 
@@ -1336,7 +1334,7 @@ impl TransactionDataAPI for TransactionData {
         Ok(inputs)
     }
 
-    fn receiving_objects(&self) -> Vec<ObjectRef> {
+    fn receiving_objects(&self) -> Vec<ObjectReference> {
         self.kind().receiving_objects()
     }
 
@@ -1391,7 +1389,7 @@ impl TransactionDataAPI for TransactionData {
         }
     }
 
-    fn gas_data_mut(&mut self) -> &mut GasData {
+    fn gas_data_mut(&mut self) -> &mut GasPayment {
         match self {
             Self::V1(v1) => &mut v1.gas_payment,
             _ => unimplemented!("a new Transaction enum variant was added and needs to be handled"),
@@ -1411,12 +1409,12 @@ impl TransactionDataAPI for TransactionData {
         TransactionData::V1(TransactionDataV1 {
             kind,
             sender,
-            gas_payment: GasData {
+            gas_payment: GasPayment {
                 price: GAS_PRICE_FOR_SYSTEM_TX,
                 owner: sender,
-                objects: vec![ObjectRef::new(
+                objects: vec![ObjectReference::new(
                     ObjectId::ZERO,
-                    SequenceNumber::default(),
+                    Version::default(),
                     ObjectDigest::MIN,
                 )],
                 budget: 0,
@@ -1428,14 +1426,14 @@ impl TransactionDataAPI for TransactionData {
     fn new(
         kind: TransactionKind,
         sender: Address,
-        gas_payment: ObjectRef,
+        gas_payment: ObjectReference,
         gas_budget: u64,
         gas_price: u64,
     ) -> TransactionData {
         TransactionData::V1(TransactionDataV1 {
             kind,
             sender,
-            gas_payment: GasData {
+            gas_payment: GasPayment {
                 price: gas_price,
                 owner: sender,
                 objects: vec![gas_payment],
@@ -1448,7 +1446,7 @@ impl TransactionDataAPI for TransactionData {
     fn new_with_gas_coins(
         kind: TransactionKind,
         sender: Address,
-        gas_payment: Vec<ObjectRef>,
+        gas_payment: Vec<ObjectReference>,
         gas_budget: u64,
         gas_price: u64,
     ) -> TransactionData {
@@ -1465,7 +1463,7 @@ impl TransactionDataAPI for TransactionData {
     fn new_with_gas_coins_allow_sponsor(
         kind: TransactionKind,
         sender: Address,
-        gas_payment: Vec<ObjectRef>,
+        gas_payment: Vec<ObjectReference>,
         gas_budget: u64,
         gas_price: u64,
         gas_sponsor: Address,
@@ -1473,7 +1471,7 @@ impl TransactionDataAPI for TransactionData {
         TransactionData::V1(TransactionDataV1 {
             kind,
             sender,
-            gas_payment: GasData {
+            gas_payment: GasPayment {
                 price: gas_price,
                 owner: gas_sponsor,
                 objects: gas_payment,
@@ -1486,7 +1484,7 @@ impl TransactionDataAPI for TransactionData {
     fn new_with_gas_data(
         kind: TransactionKind,
         sender: Address,
-        gas_data: GasData,
+        gas_data: GasPayment,
     ) -> TransactionData {
         TransactionData::V1(TransactionDataV1 {
             kind,
@@ -1502,7 +1500,7 @@ impl TransactionDataAPI for TransactionData {
         module: Identifier,
         function: Identifier,
         type_arguments: Vec<TypeTag>,
-        gas_payment: ObjectRef,
+        gas_payment: ObjectReference,
         arguments: Vec<CallArg>,
         gas_budget: u64,
         gas_price: u64,
@@ -1526,7 +1524,7 @@ impl TransactionDataAPI for TransactionData {
         module: Identifier,
         function: Identifier,
         type_arguments: Vec<TypeTag>,
-        gas_payment: Vec<ObjectRef>,
+        gas_payment: Vec<ObjectReference>,
         arguments: Vec<CallArg>,
         gas_budget: u64,
         gas_price: u64,
@@ -1547,9 +1545,9 @@ impl TransactionDataAPI for TransactionData {
 
     fn new_transfer(
         recipient: Address,
-        object_ref: ObjectRef,
+        object_ref: ObjectReference,
         sender: Address,
-        gas_payment: ObjectRef,
+        gas_payment: ObjectReference,
         gas_budget: u64,
         gas_price: u64,
     ) -> TransactionData {
@@ -1565,7 +1563,7 @@ impl TransactionDataAPI for TransactionData {
         recipient: Address,
         sender: Address,
         amount: Option<u64>,
-        gas_payment: ObjectRef,
+        gas_payment: ObjectReference,
         gas_budget: u64,
         gas_price: u64,
     ) -> TransactionData {
@@ -1584,7 +1582,7 @@ impl TransactionDataAPI for TransactionData {
         recipient: Address,
         sender: Address,
         amount: Option<u64>,
-        gas_payment: ObjectRef,
+        gas_payment: ObjectReference,
         gas_budget: u64,
         gas_price: u64,
         gas_sponsor: Address,
@@ -1606,10 +1604,10 @@ impl TransactionDataAPI for TransactionData {
 
     fn new_pay(
         sender: Address,
-        coins: Vec<ObjectRef>,
+        coins: Vec<ObjectReference>,
         recipients: Vec<Address>,
         amounts: Vec<u64>,
-        gas_payment: ObjectRef,
+        gas_payment: ObjectReference,
         gas_budget: u64,
         gas_price: u64,
     ) -> anyhow::Result<TransactionData> {
@@ -1629,10 +1627,10 @@ impl TransactionDataAPI for TransactionData {
 
     fn new_pay_iota(
         sender: Address,
-        mut coins: Vec<ObjectRef>,
+        mut coins: Vec<ObjectReference>,
         recipients: Vec<Address>,
         amounts: Vec<u64>,
-        gas_payment: ObjectRef,
+        gas_payment: ObjectReference,
         gas_budget: u64,
         gas_price: u64,
     ) -> anyhow::Result<TransactionData> {
@@ -1649,9 +1647,9 @@ impl TransactionDataAPI for TransactionData {
 
     fn new_pay_all_iota(
         sender: Address,
-        mut coins: Vec<ObjectRef>,
+        mut coins: Vec<ObjectReference>,
         recipient: Address,
-        gas_payment: ObjectRef,
+        gas_payment: ObjectReference,
         gas_budget: u64,
         gas_price: u64,
     ) -> TransactionData {
@@ -1666,9 +1664,9 @@ impl TransactionDataAPI for TransactionData {
 
     fn new_split_coin(
         sender: Address,
-        coin: ObjectRef,
+        coin: ObjectReference,
         amounts: Vec<u64>,
-        gas_payment: ObjectRef,
+        gas_payment: ObjectReference,
         gas_budget: u64,
         gas_price: u64,
     ) -> TransactionData {
@@ -1682,7 +1680,7 @@ impl TransactionDataAPI for TransactionData {
 
     fn new_module(
         sender: Address,
-        gas_payment: ObjectRef,
+        gas_payment: ObjectReference,
         modules: Vec<Vec<u8>>,
         dep_ids: Vec<ObjectId>,
         gas_budget: u64,
@@ -1699,11 +1697,11 @@ impl TransactionDataAPI for TransactionData {
 
     fn new_upgrade(
         sender: Address,
-        gas_payment: ObjectRef,
+        gas_payment: ObjectReference,
         package_id: ObjectId,
         modules: Vec<Vec<u8>>,
         dep_ids: Vec<ObjectId>,
-        (upgrade_capability, capability_owner): (ObjectRef, Owner),
+        (upgrade_capability, capability_owner): (ObjectReference, Owner),
         upgrade_policy: u8,
         digest: Vec<u8>,
         gas_budget: u64,
@@ -1713,11 +1711,13 @@ impl TransactionDataAPI for TransactionData {
             let mut builder = ProgrammableTransactionBuilder::new();
             let capability_arg = match capability_owner {
                 Owner::Address(_) => CallArg::ImmutableOrOwned(upgrade_capability),
-                Owner::Shared(initial_shared_version) => CallArg::Shared(SharedObjectRef::new(
-                    upgrade_capability.object_id,
-                    initial_shared_version,
-                    true,
-                )),
+                Owner::Shared(initial_shared_version) => {
+                    CallArg::Shared(SharedObjectReference::new(
+                        upgrade_capability.object_id,
+                        initial_shared_version,
+                        true,
+                    ))
+                }
                 Owner::Immutable => {
                     bail!("Upgrade capability is stored immutably and cannot be used for upgrades");
                 }
@@ -1759,7 +1759,7 @@ impl TransactionDataAPI for TransactionData {
 
     fn new_programmable(
         sender: Address,
-        gas_payment: Vec<ObjectRef>,
+        gas_payment: Vec<ObjectReference>,
         pt: ProgrammableTransaction,
         gas_budget: u64,
         gas_price: u64,
@@ -1776,7 +1776,7 @@ impl TransactionDataAPI for TransactionData {
 
     fn new_programmable_allow_sponsor(
         sender: Address,
-        gas_payment: Vec<ObjectRef>,
+        gas_payment: Vec<ObjectReference>,
         pt: ProgrammableTransaction,
         gas_budget: u64,
         gas_price: u64,
@@ -1800,7 +1800,7 @@ impl TransactionDataAPI for TransactionData {
         }
     }
 
-    fn execution_parts(&self) -> (TransactionKind, Address, GasData) {
+    fn execution_parts(&self) -> (TransactionKind, Address, GasPayment) {
         (self.kind().clone(), self.sender(), self.gas_data().clone())
     }
 }
@@ -1889,6 +1889,31 @@ impl SenderSignedTransaction {
     pub fn intent_message(&self) -> &IntentMessage<TransactionData> {
         &self.intent_message
     }
+}
+
+/// Merge every [`MoveAuthenticator`]'s input objects into `input_objects`.
+///
+/// Objects not yet present are appended; for an object that appears in both
+/// sets the kinds are checked for consistency and unioned via
+/// [`InputObjectKind::left_union_with_checks`] (in particular, a shared object
+/// may differ in mutability but not in initial shared version).
+pub fn merge_authenticator_input_objects<'a>(
+    move_authenticators: impl IntoIterator<Item = &'a MoveAuthenticator>,
+    input_objects: &mut Vec<InputObjectKind>,
+) -> UserInputResult<()> {
+    for move_authenticator in move_authenticators {
+        for auth_object in move_authenticator.input_objects() {
+            let entry = input_objects
+                .iter_mut()
+                .find(|o| o.object_id() == auth_object.object_id());
+
+            match entry {
+                None => input_objects.push(auth_object),
+                Some(existing) => existing.left_union_with_checks(&auth_object)?,
+            }
+        }
+    }
+    Ok(())
 }
 
 impl SenderSignedData {
@@ -2233,7 +2258,7 @@ impl SenderSignedData {
     ///
     /// Panics if there are shared objects with the same ID but different
     /// initial versions.
-    pub fn shared_input_objects(&self) -> Vec<SharedObjectRef> {
+    pub fn shared_input_objects(&self) -> Vec<SharedObjectReference> {
         // Vector is used to preserve the order of input objects.
         let mut input_objects = self.transaction_data().shared_input_objects();
 
@@ -2276,21 +2301,7 @@ impl SenderSignedData {
         let mut input_objects = self.transaction_data().input_objects()?;
 
         // Add the `MoveAuthenticator` shared objects if any.
-        self.move_authenticators().into_iter().try_for_each(
-            |move_authenticator| -> IotaResult<()> {
-                for auth_object in move_authenticator.input_objects() {
-                    let entry = input_objects
-                        .iter_mut()
-                        .find(|o| o.object_id() == auth_object.object_id());
-
-                    match entry {
-                        None => input_objects.push(auth_object),
-                        Some(existing) => existing.left_union_with_checks(&auth_object)?,
-                    }
-                }
-                Ok(())
-            },
-        )?;
+        merge_authenticator_input_objects(self.move_authenticators(), &mut input_objects)?;
 
         Ok(input_objects)
     }
@@ -2402,7 +2413,7 @@ impl<S> Envelope<SenderSignedData, S> {
         self.data().intent_message().value.sender()
     }
 
-    pub fn gas(&self) -> &[ObjectRef] {
+    pub fn gas(&self) -> &[ObjectReference] {
         self.data().intent_message().value.gas()
     }
 
@@ -2442,7 +2453,7 @@ impl<S> Envelope<SenderSignedData, S> {
 impl Transaction {
     pub fn from_data_and_signer(
         data: TransactionData,
-        signers: Vec<&dyn Signer<Signature>>,
+        signers: Vec<impl Into<IotaKeyPair>>,
     ) -> Self {
         let signatures = {
             let intent_msg = IntentMessage::new(Intent::iota_transaction(), &data);
@@ -2462,7 +2473,7 @@ impl Transaction {
     pub fn signature_from_signer(
         data: TransactionData,
         intent: Intent,
-        signer: &dyn Signer<Signature>,
+        signer: impl Into<IotaKeyPair>,
     ) -> Signature {
         let intent_msg = IntentMessage::new(intent, data);
         Signature::new_secure(&intent_msg, signer)
@@ -2521,7 +2532,7 @@ impl VerifiedTransaction {
         epoch: u64,
         randomness_round: RandomnessRound,
         random_bytes: Vec<u8>,
-        randomness_obj_initial_shared_version: SequenceNumber,
+        randomness_obj_initial_shared_version: Version,
     ) -> Self {
         RandomnessStateUpdate {
             epoch,
@@ -2541,12 +2552,7 @@ impl VerifiedTransaction {
         system_transaction
             .pipe(TransactionData::new_system_transaction)
             .pipe(|data| {
-                SenderSignedData::new_from_sender_signature(
-                    data,
-                    Ed25519IotaSignature::from_bytes(&[0; Ed25519IotaSignature::LENGTH])
-                        .unwrap()
-                        .into(),
-                )
+                SenderSignedData::new_from_sender_signature(data, zero_ed25519_signature())
             })
             .pipe(Transaction::new)
             .pipe(Self::new_from_verified)
@@ -2679,11 +2685,11 @@ pub enum InputObjectKind {
     // A Move package, must be immutable.
     MovePackage(ObjectId),
     // A Move object, either immutable, or owned mutable.
-    ImmOrOwnedMoveObject(ObjectRef),
+    ImmOrOwnedMoveObject(ObjectReference),
     // A Move object that's shared and mutable.
     SharedMoveObject {
         id: ObjectId,
-        initial_shared_version: SequenceNumber,
+        initial_shared_version: Version,
         mutable: bool,
     },
 }
@@ -2697,7 +2703,7 @@ impl InputObjectKind {
         }
     }
 
-    pub fn version(&self) -> Option<SequenceNumber> {
+    pub fn version(&self) -> Option<Version> {
         match self {
             Self::MovePackage(..) => None,
             Self::ImmOrOwnedMoveObject(object_ref) => Some(object_ref.version),
@@ -2838,9 +2844,9 @@ pub enum ObjectReadResultKind {
     Object(Object),
     // The version of the object that the transaction intended to read, and the digest of the tx
     // that deleted it.
-    DeletedSharedObject(SequenceNumber, TransactionDigest),
+    DeletedSharedObject(Version, TransactionDigest),
     // A shared object in a cancelled transaction. The sequence number embeds cancellation reason.
-    CancelledTransactionSharedObject(SequenceNumber),
+    CancelledTransactionSharedObject(Version),
 }
 
 impl std::fmt::Debug for ObjectReadResultKind {
@@ -2935,7 +2941,7 @@ impl ObjectReadResult {
         self.deletion_info().is_some()
     }
 
-    pub fn deletion_info(&self) -> Option<(SequenceNumber, TransactionDigest)> {
+    pub fn deletion_info(&self) -> Option<(Version, TransactionDigest)> {
         match &self.object {
             ObjectReadResultKind::DeletedSharedObject(v, tx) => Some((*v, *tx)),
             _ => None,
@@ -2944,7 +2950,7 @@ impl ObjectReadResult {
 
     /// Return the object ref iff the object is an owned object (i.e. not
     /// shared, not immutable).
-    pub fn get_owned_objref(&self) -> Option<ObjectRef> {
+    pub fn get_owned_objref(&self) -> Option<ObjectReference> {
         match (&self.input_object_kind, &self.object) {
             (InputObjectKind::MovePackage(_), _) => None,
             (
@@ -3070,14 +3076,14 @@ impl InputObjects {
 
     // Returns IDs of objects responsible for a transaction being cancelled, and the
     // corresponding reason for cancellation.
-    pub fn get_cancelled_objects(&self) -> Option<(Vec<ObjectId>, SequenceNumber)> {
+    pub fn get_cancelled_objects(&self) -> Option<(Vec<ObjectId>, Version)> {
         let mut contains_cancelled = false;
         let mut cancel_reason = None;
         let mut cancelled_objects = Vec::new();
         for obj in &self.objects {
             if let ObjectReadResultKind::CancelledTransactionSharedObject(version) = obj.object {
                 contains_cancelled = true;
-                if version.is_congested() || version == SequenceNumber::RANDOMNESS_UNAVAILABLE {
+                if version.is_congested() || version == Version::RANDOMNESS_UNAVAILABLE {
                     // Verify we don't have multiple cancellation reasons.
                     assert!(cancel_reason.is_none() || cancel_reason == Some(version));
                     cancel_reason = Some(version);
@@ -3098,7 +3104,7 @@ impl InputObjects {
         }
     }
 
-    pub fn filter_owned_objects(&self) -> Vec<ObjectRef> {
+    pub fn filter_owned_objects(&self) -> Vec<ObjectReference> {
         let owned_objects: Vec<_> = self
             .objects
             .iter()
@@ -3192,7 +3198,7 @@ impl InputObjects {
     /// The version to set on objects created by the computation that `self` is
     /// input to. Guaranteed to be strictly greater than the versions of all
     /// input objects and objects received in the transaction.
-    pub fn lamport_timestamp(&self, receiving_objects: &[ObjectRef]) -> SequenceNumber {
+    pub fn lamport_timestamp(&self, receiving_objects: &[ObjectReference]) -> Version {
         let input_versions = self
             .objects
             .iter()
@@ -3209,7 +3215,7 @@ impl InputObjects {
                     .map(|object_ref| object_ref.version),
             );
 
-        SequenceNumber::lamport_increment(input_versions).unwrap()
+        Version::lamport_increment(input_versions).unwrap()
     }
 
     pub fn object_kinds(&self) -> impl Iterator<Item = &InputObjectKind> {
@@ -3265,12 +3271,12 @@ impl ReceivingObjectReadResultKind {
 }
 
 pub struct ReceivingObjectReadResult {
-    pub object_ref: ObjectRef,
+    pub object_ref: ObjectReference,
     pub object: ReceivingObjectReadResultKind,
 }
 
 impl ReceivingObjectReadResult {
-    pub fn new(object_ref: ObjectRef, object: ReceivingObjectReadResultKind) -> Self {
+    pub fn new(object_ref: ObjectReference, object: ReceivingObjectReadResultKind) -> Self {
         Self { object_ref, object }
     }
 
@@ -3317,7 +3323,7 @@ impl Display for CertifiedTransaction {
             "Signed Authorities Bitmap : {:?}",
             self.auth_sig().signers_map
         )?;
-        write!(writer, "{}", &self.data().intent_message().value.kind())?;
+        write!(writer, "{}", self.data().intent_message().value.kind())?;
         write!(f, "{writer}")
     }
 }

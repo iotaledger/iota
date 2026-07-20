@@ -10,10 +10,10 @@ use std::{
 
 use futures::{StreamExt as _, future::BoxFuture, stream::FuturesUnordered};
 use iota_common::{backoff::ExponentialBackoff, debug_fatal};
+use iota_sdk_types::{ObjectReference, TransactionDigest, TransactionEffectsDigest};
 use iota_types::{
-    base_types::{AuthorityName, ConciseableName as _, ObjectRef},
+    base_types::{AuthorityName, ConciseableName as _},
     committee::StakeUnit,
-    digests::{TransactionDigest, TransactionEffectsDigest},
     effects::{TransactionEffectsAPI as _, TransactionEffectsExt as _},
     error::{IotaError, IotaResult},
     messages_grpc::{ExecutedData, GetTxStatusRequest, TxStatusQuery, TxStatusUpdate},
@@ -1057,7 +1057,7 @@ fn verify_executed_data(
 /// message.
 fn verify_objects_recorded(
     objects: &[Object],
-    expected_refs: HashSet<ObjectRef>,
+    expected_refs: HashSet<ObjectReference>,
     object_kind: &str,
 ) -> Result<(), String> {
     for object in objects {
@@ -1079,11 +1079,11 @@ mod tests {
     };
 
     use async_trait::async_trait;
-    use iota_sdk_types::{Address, ExecutionStatus, GasCostSummary, ObjectId, Owner};
+    use iota_sdk_types::{
+        Address, ExecutionStatus, GasCostSummary, ObjectId, Owner, TransactionDigest, Version,
+    };
     use iota_types::{
-        base_types::SequenceNumber,
         committee::Committee,
-        digests::TransactionDigest,
         effects::{
             EffectsObjectChange, IDOperation, ObjectIn, ObjectOut, TransactionEffects,
             TransactionEffectsExt as _, TransactionEvents,
@@ -1620,16 +1620,10 @@ mod tests {
         // it (output, at the lamport version 2).
         let object_id = ObjectId::random();
         let owner = Owner::Address(Address::ZERO);
-        let input_object = Object::with_id_owner_version_for_testing(
-            object_id,
-            SequenceNumber::from_u64(1),
-            owner,
-        );
-        let output_object = Object::with_id_owner_version_for_testing(
-            object_id,
-            SequenceNumber::from_u64(2),
-            owner,
-        );
+        let input_object =
+            Object::with_id_owner_version_for_testing(object_id, Version::from_u64(1), owner);
+        let output_object =
+            Object::with_id_owner_version_for_testing(object_id, Version::from_u64(2), owner);
         let input_ref = input_object.object_ref();
         let output_ref = output_object.object_ref();
         let effects = TransactionEffects::new_from_execution_v1(

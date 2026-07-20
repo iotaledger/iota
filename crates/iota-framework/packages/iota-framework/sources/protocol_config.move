@@ -52,3 +52,27 @@ public(package) native fun is_feature_enabled(feature_flag_name: vector<u8>): bo
 /// let max_args: u32 = protocol_config::get_attr<u32>(b"max_arguments");
 /// ```
 public(package) native fun get_attr<T: copy + drop + store>(param_name: vector<u8>): T;
+
+/// Overrides a feature flag for the duration of the current unit test, so tests
+/// can exercise both the enabled and disabled paths of feature-flagged code. The
+/// override is read back by `is_feature_enabled` and reset between tests.
+///
+/// Aborts if `feature_flag_name` is not valid UTF-8 or does not name a flag in
+/// the current protocol config.
+#[test_only]
+public(package) native fun set_feature_enabled_for_testing(
+    feature_flag_name: vector<u8>,
+    value: bool,
+);
+
+/// Overrides a config parameter for the duration of the current unit test, so
+/// tests can exercise differently-valued paths. The override is read back by
+/// `get_attr` and reset between tests.
+///
+/// Aborts if `param_name` is not valid UTF-8, is absent in the current protocol
+/// version, or `T` does not match the parameter's type.
+#[test_only]
+public(package) native fun set_attr_for_testing<T: copy + drop + store>(
+    param_name: vector<u8>,
+    value: T,
+);

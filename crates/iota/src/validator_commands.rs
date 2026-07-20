@@ -32,11 +32,10 @@ use iota_keys::{
 };
 use iota_sdk::{IotaClient, PagedFn, wallet_context::WalletContext};
 use iota_sdk_types::{
-    Address, Identifier, ObjectId, Owner, TypeTag,
+    Address, Identifier, ObjectId, ObjectReference, Owner, TypeTag,
     crypto::{Intent, IntentMessage, IntentScope},
 };
 use iota_types::{
-    base_types::ObjectRef,
     crypto::{
         AuthorityKeyPair, AuthorityPublicKey, AuthorityPublicKeyBytes, DEFAULT_EPOCH_ID,
         IotaKeyPair, NetworkKeyPair, NetworkPublicKey, Signable, SignatureScheme,
@@ -449,7 +448,7 @@ impl IotaValidatorCommand {
 async fn get_cap_object_ref(
     context: &mut WalletContext,
     operation_cap_id: Option<ObjectId>,
-) -> Result<(ValidatorStatus, IotaValidatorSummary, ObjectRef)> {
+) -> Result<(ValidatorStatus, IotaValidatorSummary, ObjectReference)> {
     let iota_client = context.get_client().await?;
     if let Some(operation_cap_id) = operation_cap_id {
         let (status, summary) =
@@ -463,7 +462,7 @@ async fn get_cap_object_ref(
             .await?
             .object_ref_if_exists()
             .ok_or_else(|| anyhow!("OperationCap {operation_cap_id} does not exist"))?;
-        Ok::<(ValidatorStatus, IotaValidatorSummary, ObjectRef), anyhow::Error>((
+        Ok::<(ValidatorStatus, IotaValidatorSummary, ObjectReference), anyhow::Error>((
             status,
             summary,
             cap_obj_ref,
@@ -1094,7 +1093,7 @@ async fn get_gas_obj_ref(
     iota_address: Address,
     iota_client: &IotaClient,
     minimal_gas_balance: u64,
-) -> anyhow::Result<ObjectRef> {
+) -> anyhow::Result<ObjectReference> {
     let coins = iota_client
         .coin_read_api()
         .get_coins(iota_address, Some("0x2::iota::IOTA".into()), None, None)

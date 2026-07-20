@@ -5,6 +5,7 @@
 use std::collections::HashSet;
 
 use iota_sdk_types::{Address, ObjectId};
+use iota_types::deny_rule_governance::DenyRuleConfig;
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 
@@ -176,5 +177,99 @@ impl TransactionDenyConfigBuilder {
     pub fn disable_move_authenticator(mut self) -> Self {
         self.config.move_authenticator_disabled = true;
         self
+    }
+}
+
+impl DenyRuleConfig for TransactionDenyConfig {
+    fn is_address_denied(&self, address: &Address) -> bool {
+        self.get_address_deny_set().contains(address)
+    }
+
+    fn is_object_denied(&self, id: &ObjectId) -> bool {
+        self.get_object_deny_set().contains(id)
+    }
+
+    fn is_package_denied(&self, id: &ObjectId) -> bool {
+        self.get_package_deny_set().contains(id)
+    }
+
+    fn has_denied_addresses(&self) -> bool {
+        !self.address_deny_list.is_empty()
+    }
+
+    fn has_denied_objects(&self) -> bool {
+        !self.object_deny_list.is_empty()
+    }
+
+    fn has_denied_packages(&self) -> bool {
+        !self.package_deny_list.is_empty()
+    }
+
+    fn package_publish_disabled(&self) -> bool {
+        self.package_publish_disabled
+    }
+
+    fn package_upgrade_disabled(&self) -> bool {
+        self.package_upgrade_disabled
+    }
+
+    fn shared_object_disabled(&self) -> bool {
+        self.shared_object_disabled
+    }
+
+    fn user_transaction_disabled(&self) -> bool {
+        self.user_transaction_disabled
+    }
+
+    fn receiving_objects_disabled(&self) -> bool {
+        self.receiving_objects_disabled
+    }
+
+    fn move_authenticator_disabled(&self) -> bool {
+        self.move_authenticator_disabled
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use iota_sdk_types::{Address, ObjectId};
+
+    use super::{DenyRuleConfig, TransactionDenyConfig, TransactionDenyConfigBuilder};
+
+    #[test]
+    fn trait_impl_reflects_config() {
+        let addr = Address::new([1u8; 32]);
+        let obj = ObjectId::new([2u8; 32]);
+        let pkg = ObjectId::new([3u8; 32]);
+        let config = TransactionDenyConfigBuilder::new()
+            .add_denied_address(addr)
+            .add_denied_object(obj)
+            .add_denied_package(pkg)
+            .disable_user_transaction()
+            .disable_shared_object_transaction()
+            .disable_move_authenticator()
+            .build();
+
+        // Exercise the trait via dynamic dispatch, exactly as the deny checks do.
+        let deny: &dyn DenyRuleConfig = &config;
+        assert!(deny.is_address_denied(&addr));
+        assert!(!deny.is_address_denied(&Address::new([9u8; 32])));
+        assert!(deny.is_object_denied(&obj));
+        assert!(!deny.is_object_denied(&ObjectId::new([9u8; 32])));
+        assert!(deny.is_package_denied(&pkg));
+        assert!(deny.has_denied_addresses());
+        assert!(deny.has_denied_objects());
+        assert!(deny.has_denied_packages());
+        assert!(deny.user_transaction_disabled());
+        assert!(deny.shared_object_disabled());
+        assert!(deny.move_authenticator_disabled());
+        assert!(!deny.package_publish_disabled());
+        assert!(!deny.package_upgrade_disabled());
+        assert!(!deny.receiving_objects_disabled());
+
+        let empty: &dyn DenyRuleConfig = &TransactionDenyConfig::default();
+        assert!(!empty.has_denied_addresses());
+        assert!(!empty.has_denied_objects());
+        assert!(!empty.has_denied_packages());
     }
 }

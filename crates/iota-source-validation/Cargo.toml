@@ -46,7 +46,6 @@ tracing.workspace = true
 
 # internal dependencies
 iota-common.workspace = true
-iota-grpc-client.workspace = true
 iota-sdk-transaction-builder.workspace = true
 iota-test-transaction-builder.workspace = true
 test-cluster.workspace = true

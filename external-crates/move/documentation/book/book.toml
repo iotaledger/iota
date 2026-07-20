@@ -1,7 +1,7 @@
 [book]
 title = "The Move Book"
 description = "Move book maintained by the Move core team."
-authors = ["The Move Contributors"]
+authors = ["IOTA Foundation <info@iota.org>"]
 language = "en"
 multilingual = false
 src = "src"

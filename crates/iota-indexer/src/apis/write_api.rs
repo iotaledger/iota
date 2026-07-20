@@ -24,25 +24,22 @@ use iota_json_rpc_types::{
 };
 use iota_open_rpc::Module;
 use iota_package_resolver::{PackageStore, Resolver};
-use iota_protocol_config::Chain;
-use iota_sdk_types::{Address, ObjectId, TransactionExpiration, TransactionKind};
+use iota_sdk_types::{
+    Address, GasPayment, ObjectId, TransactionDigest, TransactionExpiration, TransactionKind,
+    Version,
+};
 use iota_transaction_builder::TransactionBuilder;
 use iota_types::{
-    base_types::SequenceNumber,
-    digests::TransactionDigest,
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
     error::ExecutionError,
     iota_serde::BigInt,
     object::{Object, PastObjectRead},
     signature::GenericSignature,
-    transaction::{
-        GasData, SenderSignedData, TransactionData, TransactionDataAPI, TransactionDataV1,
-    },
+    transaction::{SenderSignedData, TransactionData, TransactionDataAPI, TransactionDataV1},
 };
 use jsonrpsee::{RpcModule, core::RpcResult};
 
 use crate::{
-    apis::error::Error as ApiError,
     errors::{IndexerError, IndexerResult},
     ingestion::primary::prepare::InMemObjectCache,
     models::transactions::{StoredTransaction, tx_events_to_iota_tx_events},
@@ -227,7 +224,7 @@ impl WriteApi {
         let transaction_data = TransactionData::V1(TransactionDataV1 {
             kind,
             sender: sender_address,
-            gas_payment: GasData {
+            gas_payment: GasPayment {
                 objects: payment,
                 owner,
                 price,
@@ -487,20 +484,6 @@ impl WriteApiServer for OptimisticWriteApi {
         type_args: Option<Vec<IotaTypeTag>>,
         arguments: Vec<IotaJsonValue>,
     ) -> RpcResult<IotaMoveViewCallResults> {
-        let chain = self
-            .optimistic_tx_executor
-            .read
-            .get_chain_identifier_in_blocking_task()
-            .await?
-            .chain();
-        if !matches!(chain, Chain::Unknown) {
-            return Err(ApiError::UnsupportedFeature(format!(
-                "View calls are not yet supported on {}",
-                chain.as_str()
-            ))
-            .into());
-        }
-
         self.write_api
             .view_function_call(function_name, type_args, arguments)
             .await
@@ -552,7 +535,7 @@ impl TxObjectResolver {
     async fn get_past_object_read_with_retry(
         &self,
         id: ObjectId,
-        version: SequenceNumber,
+        version: Version,
     ) -> IndexerResult<PastObjectRead> {
         let backoff = backoff::ExponentialBackoff {
             initial_interval: Duration::from_millis(100),
@@ -607,11 +590,7 @@ impl TxObjectResolver {
 impl ObjectProvider for TxObjectResolver {
     type Error = IndexerError;
 
-    async fn get_object(
-        &self,
-        id: &ObjectId,
-        version: &SequenceNumber,
-    ) -> Result<Object, Self::Error> {
+    async fn get_object(&self, id: &ObjectId, version: &Version) -> Result<Object, Self::Error> {
         // try in-memory cache first
         if let Some(o) = self.object_cache.get(id, Some(version)) {
             return Ok(o.clone());
@@ -629,7 +608,7 @@ impl ObjectProvider for TxObjectResolver {
     async fn find_object_lt_or_eq_version(
         &self,
         id: &ObjectId,
-        version: &SequenceNumber,
+        version: &Version,
     ) -> Result<Option<Object>, Self::Error> {
         // try exact version in cache
         if let Some(o) = self.object_cache.get(id, Some(version)) {

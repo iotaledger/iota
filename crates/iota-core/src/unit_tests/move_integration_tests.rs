@@ -13,6 +13,7 @@ use iota_sdk_types::{
 use iota_types::{
     base_types::{RESOLVED_ASCII_STR, RESOLVED_STD_OPTION, RESOLVED_UTF8_STR},
     crypto::{AccountKeyPair, get_key_pair},
+    effects::ObjectOut,
     error::{ExecutionErrorKind, IotaError},
     move_package::UpgradeCap,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
@@ -46,7 +47,7 @@ async fn test_object_wrapping_unwrapping() {
     .await;
 
     let gas_version = authority.get_object(&gas).unwrap().version();
-    let create_child_version = SequenceNumber::lamport_increment([gas_version]).unwrap();
+    let create_child_version = Version::lamport_increment([gas_version]).unwrap();
 
     // Create a Child object.
     let effects = call_move(
@@ -67,18 +68,16 @@ async fn test_object_wrapping_unwrapping() {
         "{:?}",
         effects.status()
     );
-    let ObjectRef {
+    let ObjectReference {
         object_id: child_object_ref_id,
         version: child_object_ref_version,
         ..
     } = effects.created()[0].0;
     assert_eq!(child_object_ref_version, create_child_version);
 
-    let wrapped_version = SequenceNumber::lamport_increment([
-        child_object_ref_version,
-        effects.gas_object().0.version,
-    ])
-    .unwrap();
+    let wrapped_version =
+        Version::lamport_increment([child_object_ref_version, effects.gas_object().0.version])
+            .unwrap();
 
     // Create a Parent object, by wrapping the child object.
     let effects = call_move(
@@ -110,7 +109,7 @@ async fn test_object_wrapping_unwrapping() {
         (1, 0, 0, 1)
     );
     let new_child_object_ref = effects.wrapped()[0];
-    let expected_child_object_ref = ObjectRef::new(
+    let expected_child_object_ref = ObjectReference::new(
         child_object_ref_id,
         wrapped_version,
         ObjectDigest::OBJECT_WRAPPED,
@@ -119,18 +118,16 @@ async fn test_object_wrapping_unwrapping() {
     assert_eq!(new_child_object_ref, expected_child_object_ref);
     check_latest_object_ref(&authority, &expected_child_object_ref, true).await;
 
-    let ObjectRef {
+    let ObjectReference {
         object_id: parent_object_ref_id,
         version: parent_object_ref_version,
         ..
     } = effects.created()[0].0;
     assert_eq!(parent_object_ref_version, wrapped_version);
 
-    let unwrapped_version = SequenceNumber::lamport_increment([
-        parent_object_ref_version,
-        effects.gas_object().0.version,
-    ])
-    .unwrap();
+    let unwrapped_version =
+        Version::lamport_increment([parent_object_ref_version, effects.gas_object().0.version])
+            .unwrap();
 
     // Extract the child out of the parent.
     let effects = call_move(
@@ -166,7 +163,7 @@ async fn test_object_wrapping_unwrapping() {
     check_latest_object_ref(&authority, &effects.unwrapped()[0].0, false).await;
     let child_object_ref = effects.unwrapped()[0].0;
 
-    let rewrap_version = SequenceNumber::lamport_increment([
+    let rewrap_version = Version::lamport_increment([
         parent_object_ref_version,
         child_object_ref.version,
         effects.gas_object().0.version,
@@ -198,7 +195,7 @@ async fn test_object_wrapping_unwrapping() {
     // Check that child object showed up in wrapped.
     // mutated contains parent and gas.
     assert_eq!((effects.mutated().len(), effects.wrapped().len()), (2, 1));
-    let expected_child_object_ref = ObjectRef::new(
+    let expected_child_object_ref = ObjectReference::new(
         child_object_ref.object_id,
         rewrap_version,
         ObjectDigest::OBJECT_WRAPPED,
@@ -208,11 +205,9 @@ async fn test_object_wrapping_unwrapping() {
     let child_object_ref = effects.wrapped()[0];
     let parent_object_ref = effects.mutated_excluding_gas().first().unwrap().0;
 
-    let deleted_version = SequenceNumber::lamport_increment([
-        parent_object_ref.version,
-        effects.gas_object().0.version,
-    ])
-    .unwrap();
+    let deleted_version =
+        Version::lamport_increment([parent_object_ref.version, effects.gas_object().0.version])
+            .unwrap();
 
     // Now delete the parent object, which will in turn delete the child object.
     let effects = call_move(
@@ -236,7 +231,7 @@ async fn test_object_wrapping_unwrapping() {
     assert_eq!(effects.deleted().len(), 1);
     assert_eq!(effects.unwrapped_then_deleted().len(), 1);
     // Check that both objects are marked as deleted in the authority.
-    let expected_child_object_ref = ObjectRef::new(
+    let expected_child_object_ref = ObjectReference::new(
         child_object_ref.object_id,
         deleted_version,
         ObjectDigest::OBJECT_DELETED,
@@ -247,7 +242,7 @@ async fn test_object_wrapping_unwrapping() {
             .contains(&expected_child_object_ref)
     );
     check_latest_object_ref(&authority, &expected_child_object_ref, true).await;
-    let expected_parent_object_ref = ObjectRef::new(
+    let expected_parent_object_ref = ObjectReference::new(
         parent_object_ref.object_id,
         deleted_version,
         ObjectDigest::OBJECT_DELETED,
@@ -289,7 +284,7 @@ async fn test_object_owning_another_object() {
     .await
     .unwrap();
     assert!(effects.status().is_success());
-    let ObjectRef {
+    let ObjectReference {
         object_id: parent_id,
         ..
     } = effects.created()[0].0;
@@ -310,7 +305,7 @@ async fn test_object_owning_another_object() {
     .unwrap();
 
     assert!(effects.status().is_success());
-    let ObjectRef {
+    let ObjectReference {
         object_id: child_id,
         ..
     } = effects.created()[0].0;
@@ -410,7 +405,7 @@ async fn test_object_owning_another_object() {
     .unwrap();
 
     assert!(effects.status().is_success());
-    let ObjectRef {
+    let ObjectReference {
         object_id: new_parent_id,
         ..
     } = effects.created()[0].0;
@@ -738,7 +733,7 @@ async fn test_create_then_delete_parent_child_wrap_separate() {
     .unwrap();
 
     assert!(effects.status().is_success());
-    let ObjectRef {
+    let ObjectReference {
         object_id: parent_id,
         ..
     } = effects.created()[0].0;
@@ -759,7 +754,7 @@ async fn test_create_then_delete_parent_child_wrap_separate() {
     .unwrap();
 
     assert!(effects.status().is_success());
-    let ObjectRef {
+    let ObjectReference {
         object_id: child_id,
         ..
     } = effects.created()[0].0;
@@ -1035,7 +1030,7 @@ async fn test_entry_point_vector() {
         "{:?}",
         effects.status()
     );
-    let ObjectRef {
+    let ObjectReference {
         object_id: obj_id, ..
     } = effects.created()[0].0;
     // call a function with a vector containing one owned object
@@ -1078,7 +1073,7 @@ async fn test_entry_point_vector() {
         "{:?}",
         effects.status()
     );
-    let ObjectRef {
+    let ObjectReference {
         object_id: parent_id,
         ..
     } = effects.created()[0].0;
@@ -1103,7 +1098,7 @@ async fn test_entry_point_vector() {
         "{:?}",
         effects.status()
     );
-    let ObjectRef {
+    let ObjectReference {
         object_id: child_id,
         ..
     } = effects.created()[0].0;
@@ -1165,7 +1160,7 @@ async fn test_entry_point_vector_error() {
         "{:?}",
         effects.status()
     );
-    let ObjectRef {
+    let ObjectReference {
         object_id: obj_id, ..
     } = effects.created()[0].0;
     // call a function with a vector containing one owned object
@@ -1208,7 +1203,7 @@ async fn test_entry_point_vector_error() {
         "{:?}",
         effects.status()
     );
-    let ObjectRef {
+    let ObjectReference {
         object_id: wrong_obj_id,
         ..
     } = effects.created()[0].0;
@@ -1230,7 +1225,7 @@ async fn test_entry_point_vector_error() {
         "{:?}",
         effects.status()
     );
-    let ObjectRef {
+    let ObjectReference {
         object_id: correct_obj_id,
         ..
     } = effects.created()[0].0;
@@ -1275,7 +1270,7 @@ async fn test_entry_point_vector_error() {
         "{:?}",
         effects.status()
     );
-    let ObjectRef {
+    let ObjectReference {
         object_id: shared_obj_id,
         ..
     } = effects.created()[0].0;
@@ -1321,7 +1316,7 @@ async fn test_entry_point_vector_error() {
         "{:?}",
         effects.status()
     );
-    let ObjectRef {
+    let ObjectReference {
         object_id: obj_id, ..
     } = effects.created()[0].0;
     // call a function with a vector containing the same owned object as another one
@@ -1373,7 +1368,7 @@ async fn test_entry_point_vector_error() {
         "{:?}",
         effects.status()
     );
-    let ObjectRef {
+    let ObjectReference {
         object_id: obj_id, ..
     } = effects.created()[0].0;
     // call a function with a vector containing the same owned object as another one
@@ -1448,7 +1443,7 @@ async fn test_entry_point_vector_any() {
         "{:?}",
         effects.status()
     );
-    let ObjectRef {
+    let ObjectReference {
         object_id: obj_id, ..
     } = effects.created()[0].0;
     // call a function with a vector containing one owned object
@@ -1491,7 +1486,7 @@ async fn test_entry_point_vector_any() {
         "{:?}",
         effects.status()
     );
-    let ObjectRef {
+    let ObjectReference {
         object_id: parent_id,
         ..
     } = effects.created()[0].0;
@@ -1516,7 +1511,7 @@ async fn test_entry_point_vector_any() {
         "{:?}",
         effects.status()
     );
-    let ObjectRef {
+    let ObjectReference {
         object_id: child_id,
         ..
     } = effects.created()[0].0;
@@ -1582,7 +1577,7 @@ async fn test_entry_point_vector_any_error() {
         "{:?}",
         effects.status()
     );
-    let ObjectRef {
+    let ObjectReference {
         object_id: obj_id, ..
     } = effects.created()[0].0;
     // call a function with a vector containing one owned object
@@ -1625,7 +1620,7 @@ async fn test_entry_point_vector_any_error() {
         "{:?}",
         effects.status()
     );
-    let ObjectRef {
+    let ObjectReference {
         object_id: wrong_obj_id,
         ..
     } = effects.created()[0].0;
@@ -1647,7 +1642,7 @@ async fn test_entry_point_vector_any_error() {
         "{:?}",
         effects.status()
     );
-    let ObjectRef {
+    let ObjectReference {
         object_id: correct_obj_id,
         ..
     } = effects.created()[0].0;
@@ -1692,7 +1687,7 @@ async fn test_entry_point_vector_any_error() {
         "{:?}",
         effects.status()
     );
-    let ObjectRef {
+    let ObjectReference {
         object_id: shared_obj_id,
         ..
     } = effects.created()[0].0;
@@ -1738,7 +1733,7 @@ async fn test_entry_point_vector_any_error() {
         "{:?}",
         effects.status()
     );
-    let ObjectRef {
+    let ObjectReference {
         object_id: obj_id, ..
     } = effects.created()[0].0;
     // call a function with a vector containing the same owned object as another one
@@ -1790,7 +1785,7 @@ async fn test_entry_point_vector_any_error() {
         "{:?}",
         effects.status()
     );
-    let ObjectRef {
+    let ObjectReference {
         object_id: obj_id, ..
     } = effects.created()[0].0;
     // call a function with a vector containing the same owned object as another one
@@ -2932,7 +2927,10 @@ pub async fn build_and_try_publish_test_package(
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     path.extend(["src", "unit_tests", "data", test_dir]);
 
-    let compiled_package = BuildConfig::new_for_testing().build(&path).unwrap();
+    let compiled_package = BuildConfig::new_for_testing()
+        .with_allow_view_function()
+        .build(&path)
+        .unwrap();
     let all_module_bytes = compiled_package.get_package_bytes(with_unpublished_deps);
     let dependencies = compiled_package.get_dependency_storage_package_ids();
 
@@ -2965,7 +2963,7 @@ pub async fn build_and_publish_test_package(
     gas_object_id: &ObjectId,
     test_dir: &str,
     with_unpublished_deps: bool,
-) -> ObjectRef {
+) -> ObjectReference {
     build_and_publish_test_package_with_upgrade_cap(
         authority,
         sender,
@@ -2978,6 +2976,26 @@ pub async fn build_and_publish_test_package(
     .0
 }
 
+/// Returns the package object created (or upgraded) by a transaction.
+///
+/// A publish or upgrade can create more than one immutable object: packages
+/// carrying view or authenticator metadata also get a frozen `PackageMetadata`
+/// object. The package is therefore identified through its `PackageWrite`
+/// change in the effects.
+pub fn created_package_ref(effects: &TransactionEffects) -> ObjectReference {
+    effects
+        .as_v1()
+        .changed_objects
+        .iter()
+        .find_map(|change| match &change.output_state {
+            ObjectOut::PackageWrite { version, digest } => {
+                Some(ObjectReference::new(change.object_id, *version, *digest))
+            }
+            _ => None,
+        })
+        .expect("transaction did not write a package object")
+}
+
 pub async fn build_and_publish_test_package_with_upgrade_cap(
     authority: &AuthorityState,
     sender: &Address,
@@ -2985,7 +3003,7 @@ pub async fn build_and_publish_test_package_with_upgrade_cap(
     gas_object_id: &ObjectId,
     test_dir: &str,
     with_unpublished_deps: bool,
-) -> (ObjectRef, ObjectRef) {
+) -> (ObjectReference, ObjectReference) {
     let gas_price = authority.reference_gas_price_for_testing().unwrap();
     let gas_budget = TEST_ONLY_GAS_UNIT_FOR_PUBLISH * gas_price;
     let effects = build_and_try_publish_test_package(
@@ -3007,24 +3025,20 @@ pub async fn build_and_publish_test_package_with_upgrade_cap(
         effects.status()
     );
 
-    let package = effects
-        .created()
-        .into_iter()
-        .find(|(_, owner)| matches!(owner, Owner::Immutable))
-        .unwrap();
+    let package = created_package_ref(&effects);
     let upgrade_cap = effects
         .created()
         .into_iter()
         .find(|(_, owner)| matches!(owner, Owner::Address(_)))
         .unwrap();
 
-    (package.0, upgrade_cap.0)
+    (package, upgrade_cap.0)
 }
 
 pub async fn collect_packages_and_upgrade_caps(
     authority: &AuthorityState,
     effects: &TransactionEffects,
-) -> HashMap<ObjectId, ObjectRef> {
+) -> HashMap<ObjectId, ObjectReference> {
     let packages: HashMap<_, _> = effects
         .created()
         .into_iter()
@@ -3080,7 +3094,7 @@ pub fn build_multi_publish_txns(
 
 pub struct UpgradeData {
     pub package_id: ObjectId,
-    pub upgrade_cap: ObjectRef,
+    pub upgrade_cap: ObjectReference,
     pub policy: u8,
     pub digest: Vec<u8>,
     pub dep_ids: Vec<ObjectId>,
@@ -3124,7 +3138,7 @@ pub fn build_multi_upgrade_txns(
 
 async fn check_latest_object_ref(
     authority: &AuthorityState,
-    object_ref: &ObjectRef,
+    object_ref: &ObjectReference,
     expect_not_found: bool,
 ) {
     let response = authority

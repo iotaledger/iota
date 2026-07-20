@@ -11,10 +11,13 @@ use std::{
 #[cfg(not(target_arch = "wasm32"))]
 use iota_metrics::monitored_scope;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{Address, ExecutionStatus, ObjectData, ObjectId, Owner, gas::GasCostSummary};
+use iota_sdk_types::{
+    Address, ExecutionStatus, ObjectData, ObjectId, ObjectReference, Owner, TransactionDigest,
+    Version, gas::GasCostSummary,
+};
 use iota_types::{
     auth_context::AuthContext,
-    base_types::{ObjectRef, SequenceNumber, TransactionDigest, VersionDigest},
+    base_types::VersionDigest,
     committee::EpochId,
     deny_list_v1::check_coin_deny_list_v1_during_execution,
     effects::{
@@ -60,7 +63,7 @@ pub struct TemporaryStore<'backing> {
     input_objects: BTreeMap<ObjectId, Object>,
     /// The version to assign to all objects written by the transaction using
     /// this store.
-    lamport_timestamp: SequenceNumber,
+    lamport_timestamp: Version,
     mutable_input_refs: BTreeMap<ObjectId, (VersionDigest, Owner)>, // Inputs that are mutable
     execution_results: ExecutionResultsV1,
     /// Objects that were loaded during execution (dynamic fields + received
@@ -77,7 +80,7 @@ pub struct TemporaryStore<'backing> {
 
     /// The set of objects that we may receive during execution. Not guaranteed
     /// to receive all, or any of the objects referenced in this set.
-    receiving_objects: Vec<ObjectRef>,
+    receiving_objects: Vec<ObjectReference>,
 
     // TODO: Now that we track epoch here, there are a few places we don't need to pass it around.
     /// The current epoch.
@@ -98,7 +101,7 @@ impl<'backing> TemporaryStore<'backing> {
     pub fn new(
         store: &'backing dyn BackingStore,
         input_objects: InputObjects,
-        receiving_objects: Vec<ObjectRef>,
+        receiving_objects: Vec<ObjectReference>,
         tx_digest: TransactionDigest,
         protocol_config: &'backing ProtocolConfig,
         cur_epoch: EpochId,
@@ -213,28 +216,25 @@ impl<'backing> TemporaryStore<'backing> {
     /// Returns the [`EffectsObjectChange`] for `id`, gathered from the
     /// execution results.
     fn object_change_for_id(&self, id: &ObjectId) -> EffectsObjectChange {
-        let modified_at = self
-            .get_object_modified_at(id)
-            .map(|metadata| ((metadata.version, metadata.digest), metadata.owner));
         let results = &self.execution_results;
-        let written = results.written_objects.get(id);
         let id_created = results.created_object_ids.contains(id);
         let id_deleted = results.deleted_object_ids.contains(id);
-
         debug_assert!(
             !id_created || !id_deleted,
             "Object ID can't be created and deleted at the same time."
         );
-        EffectsObjectChange {
-            object_id: *id,
-            input_state: modified_at.map_or(ObjectIn::Missing, |((version, digest), owner)| {
-                ObjectIn::Data {
-                    version,
-                    digest,
-                    owner,
-                }
-            }),
-            output_state: written.map_or(ObjectOut::Missing, |o| {
+
+        let input_state = self
+            .get_object_modified_at(id)
+            .map_or(ObjectIn::Missing, |m| ObjectIn::Data {
+                version: m.version,
+                digest: m.digest,
+                owner: m.owner,
+            });
+        let output_state = results
+            .written_objects
+            .get(id)
+            .map_or(ObjectOut::Missing, |o| {
                 if o.is_package() {
                     ObjectOut::PackageWrite {
                         version: o.version(),
@@ -246,14 +246,20 @@ impl<'backing> TemporaryStore<'backing> {
                         owner: o.owner,
                     }
                 }
-            }),
-            id_operation: if id_created {
-                IDOperation::Created
-            } else if id_deleted {
-                IDOperation::Deleted
-            } else {
-                IDOperation::None
-            },
+            });
+        let id_operation = if id_created {
+            IDOperation::Created
+        } else if id_deleted {
+            IDOperation::Deleted
+        } else {
+            IDOperation::None
+        };
+
+        EffectsObjectChange {
+            object_id: *id,
+            input_state,
+            output_state,
+            id_operation,
         }
     }
 
@@ -414,7 +420,7 @@ impl<'backing> TemporaryStore<'backing> {
         // transaction's lamport timestamp is strictly greater than all versions
         // witnessed by the transaction).
         debug_assert!(
-            object.is_immutable() || object.version() == SequenceNumber::MIN_VALID_INCL,
+            object.is_immutable() || object.version() == Version::MIN_VALID_INCL,
             "Created mutable objects should not have a version set",
         );
         let id = object.id();
@@ -668,7 +674,7 @@ impl TemporaryStore<'_> {
                         Failed to load object {to_authenticate:?}. \n\
                         If it cannot be loaded, \
                         we would expect it to be in the wrapped object map: {:?}",
-                        &self.wrapped_object_containers
+                        self.wrapped_object_containers
                     )
                 };
                 match &old_obj.owner {
@@ -844,7 +850,7 @@ impl TemporaryStore<'_> {
     fn get_input_iota(
         &self,
         id: &ObjectId,
-        expected_version: SequenceNumber,
+        expected_version: Version,
         layout_resolver: &mut impl LayoutResolver,
     ) -> Result<u64, ExecutionError> {
         if let Some(obj) = self.input_objects.get(id) {
@@ -1054,7 +1060,7 @@ impl ChildObjectResolver for TemporaryStore<'_> {
         &self,
         parent: &ObjectId,
         child: &ObjectId,
-        child_version_upper_bound: SequenceNumber,
+        child_version_upper_bound: Version,
     ) -> IotaResult<Option<Object>> {
         let obj_opt = self.execution_results.written_objects.get(child);
         if obj_opt.is_some() {
@@ -1070,7 +1076,7 @@ impl ChildObjectResolver for TemporaryStore<'_> {
         &self,
         owner: &ObjectId,
         receiving_object_id: &ObjectId,
-        receive_object_at_version: SequenceNumber,
+        receive_object_at_version: Version,
         epoch_id: EpochId,
     ) -> IotaResult<Option<Object>> {
         // You should never be able to try and receive an object after deleting it or

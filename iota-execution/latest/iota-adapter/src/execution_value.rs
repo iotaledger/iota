@@ -2,9 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::{Address, CommandArgumentError, ObjectId, Owner};
+use iota_sdk_types::{Address, CommandArgumentError, ObjectId, Owner, Version};
 use iota_types::{
-    base_types::SequenceNumber,
     coin::Coin,
     error::{ExecutionError, ExecutionErrorKind, IotaError},
     storage::{BackingPackageStore, ChildObjectResolver, StorageView},
@@ -53,13 +52,13 @@ where
 pub enum InputObjectMetadata {
     Receiving {
         id: ObjectId,
-        version: SequenceNumber,
+        version: Version,
     },
     InputObject {
         id: ObjectId,
         is_mutable_input: bool,
         owner: Owner,
-        version: SequenceNumber,
+        version: Version,
     },
 }
 
@@ -105,7 +104,7 @@ pub struct ResultValue {
 pub enum Value {
     Object(ObjectValue),
     Raw(RawValueType, Vec<u8>),
-    Receiving(ObjectId, SequenceNumber, Option<Type>),
+    Receiving(ObjectId, Version, Option<Type>),
 }
 
 #[derive(Debug, Clone)]
@@ -143,7 +142,7 @@ impl InputObjectMetadata {
         }
     }
 
-    pub fn version(&self) -> SequenceNumber {
+    pub fn version(&self) -> Version {
         match self {
             InputObjectMetadata::Receiving { version, .. } => *version,
             InputObjectMetadata::InputObject { version, .. } => *version,
@@ -166,7 +165,7 @@ impl InputValue {
         }
     }
 
-    pub fn new_receiving_object(id: ObjectId, version: SequenceNumber) -> Self {
+    pub fn new_receiving_object(id: ObjectId, version: Version) -> Self {
         InputValue {
             object_metadata: Some(InputObjectMetadata::Receiving { id, version }),
             inner: ResultValue::new(Value::Receiving(id, version, None)),

@@ -18,7 +18,7 @@ use iota_move_build::CompiledPackage;
 use iota_move_natives_latest::all_natives;
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_sdk_types::{
-    Address, Command, Identifier, ObjectId, ProgrammableTransaction,
+    Address, Command, Identifier, ObjectId, ObjectReference, ProgrammableTransaction, Version,
     move_package::{MovePackage, TypeOrigin},
 };
 use iota_stardust_types::block::output::{
@@ -27,7 +27,7 @@ use iota_stardust_types::block::output::{
 };
 use iota_types::{
     balance::Balance,
-    base_types::{ObjectRef, SequenceNumber, TxContext},
+    base_types::TxContext,
     coin_manager::CoinManagerTreasuryCap,
     collection_types::Bag,
     dynamic_field::Field,
@@ -169,7 +169,7 @@ impl Executor {
     /// input while executing a transaction
     pub(crate) fn load_input_objects(
         &self,
-        object_refs: impl IntoIterator<Item = ObjectRef> + 'static,
+        object_refs: impl IntoIterator<Item = ObjectReference> + 'static,
     ) -> impl Iterator<Item = ObjectReadResult> + '_ {
         object_refs.into_iter().filter_map(|object_ref| {
             Some(ObjectReadResult::new(
@@ -405,7 +405,7 @@ impl Executor {
     pub(crate) fn create_bag_with_pt(
         &mut self,
         native_tokens: &NativeTokens,
-    ) -> Result<(Bag, SequenceNumber, Vec<ObjectId>)> {
+    ) -> Result<(Bag, Version, Vec<ObjectId>)> {
         let mut object_deps = Vec::with_capacity(native_tokens.len());
         let mut foundry_package_deps = Vec::with_capacity(native_tokens.len());
         let pt = {
@@ -769,7 +769,7 @@ mod pt {
 
     pub fn coin_balance_split(
         builder: &mut ProgrammableTransactionBuilder,
-        foundry_coin_ref: ObjectRef,
+        foundry_coin_ref: ObjectReference,
         token_type_tag: TypeTag,
         amount: u64,
     ) -> Result<Argument> {

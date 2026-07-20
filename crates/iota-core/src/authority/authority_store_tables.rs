@@ -4,9 +4,8 @@
 
 use std::path::Path;
 
+use iota_sdk_types::{TransactionEventsDigest, Version};
 use iota_types::{
-    base_types::SequenceNumber,
-    digests::TransactionEventsDigest,
     effects::{TransactionEffects, TransactionEvents},
     global_state_hash::GlobalStateHash,
     storage::MarkerValue,
@@ -77,7 +76,7 @@ pub struct AuthorityPerpetualTables {
     pub(crate) objects: DBMap<ObjectKey, StoreObjectWrapper>,
 
     /// Object references of currently active objects that can be mutated.
-    pub(crate) live_owned_object_markers: DBMap<ObjectRef, ()>,
+    pub(crate) live_owned_object_markers: DBMap<ObjectReference, ()>,
 
     /// This is a map between the transaction digest and the corresponding
     /// transaction that's known to be executable. This means that it may
@@ -158,7 +157,7 @@ pub struct AuthorityPerpetualTables {
 
 #[derive(DBMapUtils)]
 pub struct AuthorityPrunerTables {
-    pub(crate) object_tombstones: DBMap<ObjectId, SequenceNumber>,
+    pub(crate) object_tombstones: DBMap<ObjectId, Version>,
 }
 
 impl AuthorityPrunerTables {
@@ -245,7 +244,7 @@ impl AuthorityPerpetualTables {
     pub fn find_object_lt_or_eq_version(
         &self,
         object_id: ObjectId,
-        version: SequenceNumber,
+        version: Version,
     ) -> IotaResult<Option<Object>> {
         let mut iter = self.objects.safe_range_iter_reversed(
             ObjectKey::min_for_id(&object_id)..=ObjectKey(object_id, version),
@@ -282,14 +281,14 @@ impl AuthorityPerpetualTables {
         &self,
         object_key: &ObjectKey,
         store_object: StoreObjectWrapper,
-    ) -> Result<ObjectRef, IotaError> {
+    ) -> Result<ObjectReference, IotaError> {
         let obj_ref = match store_object.migrate().into_inner() {
             StoreObject::Value(object) => self.construct_object(object_key, *object)?.object_ref(),
             StoreObject::Deleted => {
-                ObjectRef::new(object_key.0, object_key.1, ObjectDigest::OBJECT_DELETED)
+                ObjectReference::new(object_key.0, object_key.1, ObjectDigest::OBJECT_DELETED)
             }
             StoreObject::Wrapped => {
-                ObjectRef::new(object_key.0, object_key.1, ObjectDigest::OBJECT_WRAPPED)
+                ObjectReference::new(object_key.0, object_key.1, ObjectDigest::OBJECT_WRAPPED)
             }
         };
         Ok(obj_ref)
@@ -299,14 +298,14 @@ impl AuthorityPerpetualTables {
         &self,
         object_key: &ObjectKey,
         store_object: &StoreObjectWrapper,
-    ) -> Result<Option<ObjectRef>, IotaError> {
+    ) -> Result<Option<ObjectReference>, IotaError> {
         let obj_ref = match store_object.inner() {
-            StoreObject::Deleted => Some(ObjectRef::new(
+            StoreObject::Deleted => Some(ObjectReference::new(
                 object_key.0,
                 object_key.1,
                 ObjectDigest::OBJECT_DELETED,
             )),
-            StoreObject::Wrapped => Some(ObjectRef::new(
+            StoreObject::Wrapped => Some(ObjectReference::new(
                 object_key.0,
                 object_key.1,
                 ObjectDigest::OBJECT_WRAPPED,
@@ -319,7 +318,7 @@ impl AuthorityPerpetualTables {
     pub fn get_latest_object_ref_or_tombstone(
         &self,
         object_id: ObjectId,
-    ) -> Result<Option<ObjectRef>, IotaError> {
+    ) -> Result<Option<ObjectReference>, IotaError> {
         let mut iterator = self.objects.safe_iter_with_prefix_reversed(&object_id);
 
         if let Some(Ok((object_key, value))) = iterator.next() {
@@ -412,7 +411,7 @@ impl AuthorityPerpetualTables {
 
     pub fn get_newer_object_keys(
         &self,
-        object: &(ObjectId, SequenceNumber),
+        object: &(ObjectId, Version),
     ) -> IotaResult<Vec<ObjectKey>> {
         let mut objects = vec![];
         for result in self
@@ -582,11 +581,11 @@ impl LiveObject {
         self.object.id()
     }
 
-    pub fn version(&self) -> SequenceNumber {
+    pub fn version(&self) -> Version {
         self.object.version()
     }
 
-    pub fn object_reference(&self) -> ObjectRef {
+    pub fn object_reference(&self) -> ObjectReference {
         self.object.object_ref()
     }
 }
@@ -755,7 +754,7 @@ mod tests {
             .unwrap();
 
         let mut wb = perpetual_db.objects.batch();
-        let wrapped_key = ObjectKey(wrapped_id, SequenceNumber::from_u64(1));
+        let wrapped_key = ObjectKey(wrapped_id, Version::from_u64(1));
         wb.insert_batch(
             &perpetual_db.objects,
             std::iter::once::<(ObjectKey, StoreObjectWrapper)>((
@@ -764,7 +763,7 @@ mod tests {
             )),
         )
         .unwrap();
-        let deleted_key = ObjectKey(deleted_id, SequenceNumber::from_u64(1));
+        let deleted_key = ObjectKey(deleted_id, Version::from_u64(1));
         wb.insert_batch(
             &perpetual_db.objects,
             std::iter::once::<(ObjectKey, StoreObjectWrapper)>((

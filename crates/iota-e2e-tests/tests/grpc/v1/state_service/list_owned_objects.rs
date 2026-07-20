@@ -703,7 +703,7 @@ async fn list_owned_objects_filter_by_type() {
         .into_inner();
     assert_eq!(treasury_cap_filtered.objects.len(), 1);
 
-    // Look up the TreasuryCap's ObjectRef so we can pass it to `mint`.
+    // Look up the TreasuryCap's ObjectReference so we can pass it to `mint`.
     let owned = test_cluster
         .get_owned_objects(sender, Some(IotaObjectDataOptions::full_content()))
         .await

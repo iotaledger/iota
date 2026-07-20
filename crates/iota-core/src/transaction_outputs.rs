@@ -7,8 +7,8 @@ use std::{
     sync::Arc,
 };
 
+use iota_sdk_types::ObjectReference;
 use iota_types::{
-    base_types::ObjectRef,
     effects::{
         TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt, TransactionEvents,
     },
@@ -26,8 +26,8 @@ pub struct TransactionOutputs {
     pub markers: Vec<(ObjectKey, MarkerValue)>,
     pub wrapped: Vec<ObjectKey>,
     pub deleted: Vec<ObjectKey>,
-    pub live_object_markers_to_delete: Vec<ObjectRef>,
-    pub new_live_object_markers_to_init: Vec<ObjectRef>,
+    pub live_object_markers_to_delete: Vec<ObjectReference>,
+    pub new_live_object_markers_to_init: Vec<ObjectReference>,
     pub written: WrittenObjects,
 }
 
@@ -103,7 +103,7 @@ impl TransactionOutputs {
             .filter_map(|(id, ((version, digest), owner))| {
                 owner
                     .is_address()
-                    .then_some(ObjectRef::new(id, version, digest))
+                    .then_some(ObjectReference::new(id, version, digest))
             })
             .chain(received_objects)
             .collect();

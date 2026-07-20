@@ -28,5 +28,4 @@ iota-types.workspace = true
 
 [dev-dependencies]
 anyhow.workspace = true
-base64.workspace = true
 clap.workspace = true

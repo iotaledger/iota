@@ -13,8 +13,8 @@ use iota_move::manage_package::resolve_lock_file_path;
 use iota_move_build::CompiledPackage;
 use iota_sdk::apis::ReadApi;
 use iota_sdk_types::{
-    Address, Argument, Command, Identifier, ObjectId, Owner, ProgrammableTransaction, TypeTag,
-    move_package::MovePackage,
+    Address, Argument, Command, Identifier, ObjectId, Owner, ProgrammableTransaction,
+    SharedObjectReference, TypeTag, move_package::MovePackage,
 };
 use iota_types::{
     base_types::{TxContext, TxContextKind, is_primitive_type_tag},
@@ -22,7 +22,7 @@ use iota_types::{
     move_package::MovePackageExt,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     resolve_address,
-    transaction::{CallArg, SharedObjectRef},
+    transaction::CallArg,
 };
 use miette::Severity;
 use move_binary_format::{
@@ -136,7 +136,7 @@ impl<'a> Resolver<'a> for ToObject {
         let obj_arg = match owner {
             Owner::Address(_) if self.is_receiving => CallArg::Receiving(object_ref),
             Owner::Immutable | Owner::Address(_) => CallArg::ImmutableOrOwned(object_ref),
-            Owner::Shared(initial_shared_version) => CallArg::Shared(SharedObjectRef::new(
+            Owner::Shared(initial_shared_version) => CallArg::Shared(SharedObjectReference::new(
                 object_ref.object_id,
                 initial_shared_version,
                 self.is_mut,

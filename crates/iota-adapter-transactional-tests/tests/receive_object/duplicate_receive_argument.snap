@@ -26,7 +26,7 @@ task 4, lines 40-43:
 //# programmable --inputs object(2,0) receiving(2,1) receiving(2,1)
 //> tto::M1::send_back(Input(0), Input(1))
 // Invalid signature for the receiving object since we try to use it as a normal input
-Error: Error checking transaction input objects: The transaction inputs contain duplicated ObjectRef's
+Error: Error checking transaction input objects: The transaction inputs contain duplicated ObjectReference's
 
 task 5, lines 44-45:
 //# programmable --inputs object(2,1) receiving(2,1)

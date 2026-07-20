@@ -25,13 +25,13 @@ use iota_core::{
     checkpoints::CheckpointStore,
     global_state_hasher::GlobalStateHasher,
 };
-use iota_sdk_types::ObjectId;
+use iota_sdk_types::{ObjectId, ObjectReference};
 use iota_storage::{
     blob::{BLOB_ENCODING_BYTES, Blob, BlobEncoding},
     object_store::util::{copy_file, delete_recursively, path_to_filesystem},
 };
 use iota_types::{
-    base_types::ObjectRef, digests::ChainIdentifier, global_state_hash::GlobalStateHash,
+    digests::ChainIdentifier, global_state_hash::GlobalStateHash,
     messages_checkpoint::ECMHLiveObjectSetDigest,
 };
 use object_store::{DynObjectStore, path::Path};
@@ -253,7 +253,7 @@ impl LiveObjectSetWriterV1 {
     }
 
     /// Writes an object reference to the reference file.
-    fn write_object_ref(&mut self, object_ref: &ObjectRef) -> Result<()> {
+    fn write_object_ref(&mut self, object_ref: &ObjectReference) -> Result<()> {
         let mut buf = [0u8; OBJECT_REF_BYTES];
         buf[0..ObjectId::LENGTH].copy_from_slice(object_ref.object_id.as_ref());
         BigEndian::write_u64(
@@ -376,15 +376,13 @@ impl StateSnapshotWriterV1 {
         });
         // Awaits the object and reference files to be written to the local staging
         // directory and informs the upload loop
-        write_handler.await?.context(format!(
-            "Failed to write state snapshot for epoch: {}",
-            &epoch
-        ))?;
+        write_handler
+            .await?
+            .context(format!("Failed to write state snapshot for epoch: {epoch}"))?;
 
         // Awaits the upload loop to finish
         upload_handle.await?.context(format!(
-            "Failed to upload state snapshot for epoch: {}",
-            &epoch
+            "Failed to upload state snapshot for epoch: {epoch}"
         ))?;
 
         // Syncs the manifest file to the remote store
@@ -507,14 +505,14 @@ impl StateSnapshotWriterV1 {
             None => Err(anyhow!(
                 "Snapshot V2 writer: the epoch_info completeness watermark is \
                  absent — no epoch_info rows have been finalized on this node \
-                 yet. Run the epoch_info backfill before publishing the first \
-                 V2 snapshot, or wait until at least epoch 0 closes under live \
-                 indexing."
+                 yet. Wait until at least epoch 0 closes under live indexing, \
+                 or restore this node from a formal snapshot."
             )),
             Some(h) if h < epoch => Err(anyhow!(
                 "Snapshot V2 writer: the epoch_info completeness watermark is at \
-                 epoch {h}, but snapshot_epoch is {epoch}. Run the epoch_info \
-                 backfill on this node before publishing."
+                 epoch {h}, but snapshot_epoch is {epoch}. The chain is \
+                 incomplete; restore this node from a formal snapshot or resync \
+                 it from genesis before publishing."
             )),
             Some(_) => Ok(()),
         }

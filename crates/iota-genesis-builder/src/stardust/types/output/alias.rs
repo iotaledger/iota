@@ -5,11 +5,11 @@
 //! during migration.
 
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{Address, ObjectData, ObjectId, Owner};
+use iota_sdk_types::{Address, ObjectData, ObjectId, Owner, Version};
 use iota_stardust_types::block::output::AliasOutput as StardustAlias;
 use iota_types::{
     balance::Balance,
-    base_types::{SequenceNumber, TxContext},
+    base_types::TxContext,
     collection_types::Bag,
     id::UID,
     object::{MoveObject, MoveObjectExt, Object},
@@ -33,7 +33,7 @@ pub trait AliasExt {
         owner: Owner,
         protocol_config: &ProtocolConfig,
         tx_context: &TxContext,
-        version: SequenceNumber,
+        version: Version,
     ) -> anyhow::Result<Object>;
 }
 
@@ -87,7 +87,7 @@ impl AliasExt for Alias {
         owner: Owner,
         protocol_config: &ProtocolConfig,
         tx_context: &TxContext,
-        version: SequenceNumber,
+        version: Version,
     ) -> anyhow::Result<Object> {
         // Construct the Alias object.
         let move_alias_object = {
@@ -127,7 +127,7 @@ pub trait AliasOutputExt {
         owner: Owner,
         protocol_config: &ProtocolConfig,
         tx_context: &TxContext,
-        version: SequenceNumber,
+        version: Version,
         coin_type: CoinType,
     ) -> anyhow::Result<Object>;
 }
@@ -150,7 +150,7 @@ impl AliasOutputExt for AliasOutput {
         owner: Owner,
         protocol_config: &ProtocolConfig,
         tx_context: &TxContext,
-        version: SequenceNumber,
+        version: Version,
         coin_type: CoinType,
     ) -> anyhow::Result<Object> {
         // Construct the Alias Output object.

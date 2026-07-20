@@ -44,4 +44,5 @@ prometheus-filtered.workspace = true
 [dev-dependencies]
 iota-grpc-client.workspace = true
 iota-test-transaction-builder.workspace = true
+move-binary-format.workspace = true
 typed-store-error.workspace = true

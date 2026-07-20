@@ -13,12 +13,11 @@ use futures::StreamExt;
 use iota_sdk::{
     rpc_types::ObjectChange,
     types::{
-        base_types::ObjectRef,
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         transaction::{CallArg, TransactionData, TransactionDataAPI},
     },
 };
-use iota_sdk_types::{Argument, Command, TransactionKind};
+use iota_sdk_types::{Argument, Command, ObjectReference, TransactionKind};
 use utils::{setup_for_write, sign_and_execute_transaction};
 
 #[tokio::main]
@@ -88,7 +87,7 @@ async fn main() -> Result<(), anyhow::Error> {
                 ..
             } = object_change
             {
-                gas_coin_ref.replace(ObjectRef::new(object_id, version, digest));
+                gas_coin_ref.replace(ObjectReference::new(object_id, version, digest));
             }
         }
     }

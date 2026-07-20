@@ -175,7 +175,7 @@ mod checked {
         cost_table: IotaCostTable,
         /// Gas budget for this gas status instance.
         /// Typically the gas budget as defined in the
-        /// `TransactionData::GasData`
+        /// `TransactionData::GasPayment`
         gas_budget: u64,
         /// Computation cost after execution. This is the result of the gas used
         /// by the `GasStatus` properly bucketized.

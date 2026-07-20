@@ -487,7 +487,7 @@ public fun pool_exchange_rates(
     pool_id: &ID,
 ): &Table<u64, PoolTokenExchangeRate> {
     let self = load_system_state_mut(wrapper);
-    self.pool_exchange_rates(pool_id)
+    self.pool_exchange_rates(*pool_id)
 }
 
 /// Getter returning addresses of the currently active validators.
@@ -532,7 +532,7 @@ fun advance_epoch(
     epoch_start_timestamp_ms: u64, // Timestamp of the epoch start
     max_committee_members_count: u64,
     eligible_active_validators: vector<u64>,
-    scores : vector<u64>,
+    scores: vector<u64>,
     adjust_rewards_by_score: bool,
     ctx: &mut TxContext,
 ): Balance<IOTA> {
@@ -653,12 +653,19 @@ public fun validators(wrapper: &mut IotaSystemState): &ValidatorSetV2 {
 }
 
 #[test_only]
+/// Return a mutable reference to the validator set
+public fun validators_mut(wrapper: &mut IotaSystemState): &mut ValidatorSetV2 {
+    let self = load_system_state_mut(wrapper);
+    self.validators_mut()
+}
+
+#[test_only]
 /// Return the currently active validator by address
 public fun active_validator_by_address(
     self: &mut IotaSystemState,
     validator_address: address,
 ): &ValidatorV1 {
-    validators(self).get_active_validator_ref_inner(validator_address)
+    validators(self).active_validator(validator_address)
 }
 
 #[test_only]
@@ -667,7 +674,7 @@ public fun pending_validator_by_address(
     self: &mut IotaSystemState,
     validator_address: address,
 ): &ValidatorV1 {
-    validators(self).get_pending_validator_ref_inner(validator_address)
+    validators(self).pending_validator(validator_address)
 }
 
 #[test_only]
@@ -676,7 +683,7 @@ public fun candidate_validator_by_address(
     self: &mut IotaSystemState,
     validator_address: address,
 ): &ValidatorV1 {
-    validators(self).get_candidate_validator_ref(validator_address)
+    validators_mut(self).candidate_validator(validator_address)
 }
 
 #[test_only]
@@ -769,7 +776,7 @@ public(package) fun advance_epoch_for_testing(
     epoch_start_timestamp_ms: u64,
     max_committee_members_count: u64,
     eligible_active_validators: vector<u64>,
-    scores : vector<u64>,
+    scores: vector<u64>,
     adjust_rewards_by_score: bool,
     ctx: &mut TxContext,
 ): Balance<IOTA> {

@@ -5,11 +5,9 @@
 use std::collections::BTreeMap;
 
 use iota_config::genesis;
-use iota_sdk_types::{Address, ObjectId};
+use iota_sdk_types::{Address, ObjectId, ObjectReference, TransactionDigest, Version};
 use iota_types::{
-    base_types::{ObjectRef, SequenceNumber},
     committee::{Committee, EpochId},
-    digests::TransactionDigest,
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     error::{IotaResult, UserInputError},
     messages_checkpoint::{CheckpointContents, CheckpointSequenceNumber, VerifiedCheckpoint},
@@ -55,7 +53,7 @@ pub trait SimulatorStore:
 
     fn get_object(&self, id: &ObjectId) -> Option<Object>;
 
-    fn get_object_at_version(&self, id: &ObjectId, version: SequenceNumber) -> Option<Object>;
+    fn get_object_at_version(&self, id: &ObjectId, version: Version) -> Option<Object>;
 
     fn get_system_state(&self) -> iota_types::iota_system_state::IotaSystemState;
 
@@ -93,7 +91,7 @@ pub trait SimulatorStore:
     fn update_objects(
         &mut self,
         written_objects: BTreeMap<ObjectId, Object>,
-        deleted_objects: Vec<ObjectRef>,
+        deleted_objects: Vec<ObjectReference>,
     );
 
     fn backing_store(&self) -> &dyn BackingStore;
@@ -113,7 +111,7 @@ pub trait SimulatorStore:
         &self,
         _tx_digest: &TransactionDigest,
         input_object_kinds: &[InputObjectKind],
-        receiving_object_refs: &[ObjectRef],
+        receiving_object_refs: &[ObjectReference],
     ) -> IotaResult<(InputObjects, ReceivingObjects)> {
         let mut input_objects = Vec::new();
         for kind in input_object_kinds {

@@ -13,16 +13,17 @@ use std::{
 use iota_config::{local_ip_utils, node::GrpcApiConfig};
 use iota_grpc_server::{GrpcReader, GrpcServerHandle, start_grpc_server};
 use iota_node_storage::GrpcStateReader;
-use iota_sdk_types::{Address, ObjectId, StructTag};
+use iota_sdk_types::{
+    Address, CheckpointContentsDigest, CheckpointDigest, ObjectId, StructTag, TransactionDigest,
+    Version,
+};
 use iota_types::{
-    base_types::SequenceNumber,
     crypto::AuthorityStrongQuorumSignInfo,
-    digests::TransactionDigest,
     effects::{TransactionEffects, TransactionEvents},
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointContents, CheckpointSequenceNumber,
-        CheckpointSummary, VerifiedCheckpoint,
+        CertifiedCheckpointSummary, CheckpointContents, CheckpointContentsExt,
+        CheckpointSequenceNumber, CheckpointSummary, VerifiedCheckpoint,
     },
     object::Object,
     storage::error::Result as StorageResult,
@@ -61,7 +62,7 @@ pub fn mock_summary(
         epoch: 0,
         sequence_number,
         network_total_transactions: 0,
-        content_digest: *contents.digest(),
+        content_digest: contents.digest(),
         previous_digest: None,
         epoch_rolling_gas_cost_summary: Default::default(),
         timestamp_ms: 0,
@@ -171,7 +172,7 @@ impl iota_types::storage::ObjectStore for MockGrpcStateReader {
     fn try_get_object_by_key(
         &self,
         object_id: &ObjectId,
-        _version: SequenceNumber,
+        _version: Version,
     ) -> StorageResult<Option<Object>> {
         Ok(self.objects.get(object_id).cloned())
     }
@@ -222,7 +223,7 @@ impl iota_types::storage::ReadStore for MockGrpcStateReader {
 
     fn try_get_checkpoint_by_digest(
         &self,
-        _digest: &iota_types::digests::CheckpointDigest,
+        _digest: &CheckpointDigest,
     ) -> StorageResult<Option<VerifiedCheckpoint>> {
         Ok(None)
     }
@@ -256,7 +257,7 @@ impl iota_types::storage::ReadStore for MockGrpcStateReader {
 
     fn try_get_checkpoint_contents_by_digest(
         &self,
-        _digest: &iota_types::messages_checkpoint::CheckpointContentsDigest,
+        _digest: &CheckpointContentsDigest,
     ) -> StorageResult<Option<CheckpointContents>> {
         unimplemented!()
     }
@@ -303,7 +304,7 @@ impl iota_types::storage::ReadStore for MockGrpcStateReader {
 
     fn try_get_full_checkpoint_contents(
         &self,
-        _digest: &iota_types::messages_checkpoint::CheckpointContentsDigest,
+        _digest: &CheckpointContentsDigest,
     ) -> StorageResult<Option<iota_types::messages_checkpoint::FullCheckpointContents>> {
         unimplemented!()
     }
