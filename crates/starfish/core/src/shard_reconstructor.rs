@@ -190,6 +190,53 @@ impl ShardAccumulator {
     }
 }
 
+/// Attributes a reconstructed payload that failed verification.
+///
+/// A peer must hold the full payload to erasure-code its shard, so every peer
+/// that contributed a shard could have verified the transactions and is charged
+/// an unprovable fault for relaying invalid bytes. The commitment here is
+/// peer-supplied, so without a verified author-signed header for this ref a
+/// coalition of peers could reconstruct invalid transactions under a fabricated
+/// commitment to frame the author; charge the author a provable fault only when
+/// such a header exists, as he then committed to the invalid transactions.
+///
+/// Attribution is one-shot: a header arriving only after this failure does not
+/// retroactively charge the author (the failed ref stays in the reconstruction
+/// queue and is not revisited). Such an author is instead charged on the direct
+/// primary-block route, where the full payload is verified against the author.
+fn record_reconstruction_verification_failure(
+    context: &Context,
+    dag_state: &RwLock<DagState>,
+    misbehavior_store: &MisbehaviorStore,
+    shard_accumulator: &ShardAccumulator,
+    err: &ConsensusError,
+) {
+    let tx_ref = shard_accumulator.transaction_ref;
+    let author = tx_ref.author;
+    let authored = dag_state
+        .read()
+        .contains_verified_block_headers_for_transaction_refs(&[tx_ref])[0];
+    let relayers: Vec<_> = shard_accumulator
+        .collected_shard_indices()
+        .filter_map(|i| context.committee.to_authority_index(i))
+        .collect();
+    context
+        .metrics
+        .node_metrics
+        .invalid_transactions
+        .with_label_values(&[
+            context.authority_hostname(author),
+            "shard_reconstructor",
+            err.name(),
+        ])
+        .inc();
+    misbehavior_store.record_faulty_transactions(author, authored, relayers);
+    warn!(
+        "Reconstructed transactions for {:?} failed verification: {:?}",
+        tx_ref, err
+    );
+}
+
 /// Data structure containing both encoder and decoder
 pub struct Codec {
     pub encoder: Box<dyn ShardEncoder + Send + Sync>,
@@ -363,102 +410,43 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
             let misbehavior_store = self.misbehavior_store.clone();
             tokio::spawn(async move {
                 let metrics = &context.metrics;
-                loop {
-                    // Receive a job from the ready to reconstruct channel
-                    let job = {
-                        let mut rx = ready_rx.lock().await;
-                        rx.recv().await
-                    };
-
-                    match job {
-                        Some(shard_accumulator) => {
-                            metrics.node_metrics.reconstruction_jobs_started.inc();
-                            match shard_accumulator.decode_by_codec(&mut codec) {
-                                Ok(verified_transactions) => {
-                                    match block_verifier.check_and_verify_transactions(
-                                        &verified_transactions.transactions(),
-                                    ) {
-                                        Ok(()) => {
-                                            debug!(
-                                                "Successfully reconstructed transactions for {:?}",
-                                                shard_accumulator.transaction_ref
-                                            );
-                                            if let Err(err) =
-                                                result_tx.send(verified_transactions).await
-                                            {
-                                                warn!(
-                                                    "Failed to send the result to shard accumulator {err}"
-                                                );
-                                            }
-                                        }
-                                        Err(err) => {
-                                            // A peer must hold the full payload to erasure-code its
-                                            // shard, so every peer that contributed a shard could
-                                            // have verified the transactions and is charged an
-                                            // unprovable fault for relaying invalid bytes. The
-                                            // commitment here is peer-supplied, so without a
-                                            // verified author-signed header for this ref a
-                                            // coalition
-                                            // of peers could reconstruct invalid transactions under
-                                            // a
-                                            // fabricated commitment to frame the author; charge the
-                                            // author a provable fault only when such a header
-                                            // exists,
-                                            // as he then committed to the invalid transactions.
-                                            //
-                                            // Attribution is one-shot: a header arriving only after
-                                            // this failure does not retroactively charge the author
-                                            // (the failed ref stays in the reconstruction queue and
-                                            // is not revisited). Such an author is instead charged
-                                            // on the direct primary-block route, where the full
-                                            // payload is verified against the author.
-                                            let tx_ref = shard_accumulator.transaction_ref;
-                                            let author = tx_ref.author;
-                                            let authored = dag_state
-                                                .read()
-                                                .contains_verified_block_headers_for_transaction_refs(
-                                                    &[tx_ref],
-                                                )[0];
-                                            let relayers: Vec<_> = shard_accumulator
-                                                .collected_shard_indices()
-                                                .filter_map(|i| {
-                                                    context.committee.to_authority_index(i)
-                                                })
-                                                .collect();
-                                            metrics
-                                                .node_metrics
-                                                .invalid_transactions
-                                                .with_label_values(&[
-                                                    context.authority_hostname(author),
-                                                    "shard_reconstructor",
-                                                    err.name(),
-                                                ])
-                                                .inc();
-                                            misbehavior_store.record_faulty_transactions(
-                                                author, authored, relayers,
-                                            );
-                                            warn!(
-                                                "Reconstructed transactions for {:?} failed verification: {:?}",
-                                                shard_accumulator.transaction_ref, err
-                                            );
-                                        }
-                                    }
-                                }
-                                Err(err) => {
-                                    warn!(
-                                        "Failed to reconstruct transactions for {:?}: {:?}",
-                                        shard_accumulator.transaction_ref, err
-                                    );
+                // Receive a job from the ready to reconstruct channel until it closes.
+                while let Some(shard_accumulator) = {
+                    let mut rx = ready_rx.lock().await;
+                    rx.recv().await
+                } {
+                    metrics.node_metrics.reconstruction_jobs_started.inc();
+                    match shard_accumulator.decode_by_codec(&mut codec) {
+                        Err(err) => {
+                            warn!(
+                                "Failed to reconstruct transactions for {:?}: {:?}",
+                                shard_accumulator.transaction_ref, err
+                            );
+                        }
+                        Ok(verified_transactions) => match block_verifier
+                            .check_and_verify_transactions(&verified_transactions.transactions())
+                        {
+                            Ok(()) => {
+                                debug!(
+                                    "Successfully reconstructed transactions for {:?}",
+                                    shard_accumulator.transaction_ref
+                                );
+                                if let Err(err) = result_tx.send(verified_transactions).await {
+                                    warn!("Failed to send the result to shard accumulator {err}");
                                 }
                             }
-                            metrics.node_metrics.reconstruction_jobs_finished.inc();
-                        }
-                        None => {
-                            debug!("Ready to reconstruct channel closed, workers exiting");
-                            break;
-                        }
+                            Err(err) => record_reconstruction_verification_failure(
+                                &context,
+                                &dag_state,
+                                &misbehavior_store,
+                                &shard_accumulator,
+                                &err,
+                            ),
+                        },
                     }
+                    metrics.node_metrics.reconstruction_jobs_finished.inc();
                 }
+                debug!("Ready to reconstruct channel closed, workers exiting");
             });
         }
     }
