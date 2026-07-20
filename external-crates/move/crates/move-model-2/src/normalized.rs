@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use move_binary_format::{normalized, CompiledModule};
+use move_binary_format::{CompiledModule, normalized};
 use move_core_types::{account_address::AccountAddress, identifier::IdentStr};
 use move_symbol_pool::Symbol;
 use std::collections::BTreeMap;
