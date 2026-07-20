@@ -44,6 +44,17 @@
 pub use prometheus_filtered::MetricLevel;
 use serde::{Deserialize, Serialize};
 
+/// The `METRICS_FILTER` token for a level.
+fn level_string(level: MetricLevel) -> &'static str {
+    match level {
+        MetricLevel::Off => "off",
+        MetricLevel::Warn => "warn",
+        MetricLevel::Info => "info",
+        MetricLevel::Debug => "debug",
+        MetricLevel::Trace => "trace",
+    }
+}
+
 /// Per-group verbosity levels for the node's predefined Prometheus metric
 /// groups.
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -231,13 +242,8 @@ impl MetricGroups {
         })
     }
 
-    /// Maps each group's configured level to the filter patterns it covers.
-    ///
-    /// Directive order does not matter: where one group's module prefix also
-    /// matches another group's submodules (e.g. `runtime`'s `iota_metrics`
-    /// covers the `p2p` and `hardware` groups'), the more specific pattern
-    /// wins.
-    fn group_modules(&self) -> [(MetricLevel, &'static [&'static str]); 13] {
+    /// The predefined groups paired with their configured levels.
+    fn group_levels(&self) -> [(&'static str, MetricLevel); 13] {
         [
             ("runtime", self.runtime),
             ("consensus", self.consensus),
@@ -253,7 +259,16 @@ impl MetricGroups {
             ("epoch", self.epoch),
             ("hardware", self.hardware),
         ]
-        .map(|(group, level)| {
+    }
+
+    /// Maps each group's configured level to the filter patterns it covers.
+    ///
+    /// Directive order does not matter: where one group's module prefix also
+    /// matches another group's submodules (e.g. `runtime`'s `iota_metrics`
+    /// covers the `p2p` and `hardware` groups'), the more specific pattern
+    /// wins.
+    fn group_modules(&self) -> [(MetricLevel, &'static [&'static str]); 13] {
+        self.group_levels().map(|(group, level)| {
             (
                 level,
                 Self::modules_for_group(group).expect("group has modules"),
@@ -266,21 +281,24 @@ impl MetricGroups {
     /// group module (including the hardware group's). The group levels
     /// override the catch-all for their modules, being more specific.
     pub fn to_filter_string(&self) -> String {
-        fn token(level: MetricLevel) -> &'static str {
-            match level {
-                MetricLevel::Off => "off",
-                MetricLevel::Warn => "warn",
-                MetricLevel::Info => "info",
-                MetricLevel::Debug => "debug",
-                MetricLevel::Trace => "trace",
-            }
-        }
-        let mut directives = vec![token(self.default).to_owned()];
+        let mut directives = vec![level_string(self.default).to_owned()];
         for (level, modules) in self.group_modules() {
             for module in modules {
-                directives.push(format!("{module}={}", token(level)));
+                directives.push(format!("{module}={}", level_string(level)));
             }
         }
+        directives.join(",") 
+    }
+
+    /// Renders the levels into a group-form directive string.
+    /// Keyed by group name rather than expanded
+    /// to module paths, so the admin endpoint can echo the config compactly.
+    pub fn to_display_string(&self) -> String {
+        let mut directives = vec![format!("default={}", level_string(self.default))];
+        for (group, level) in self.group_levels() {
+            directives.push(format!("{group}={}", level_string(level)));
+        }
+        directives.extend(self.override_directives());
         directives.join(",")
     }
 
@@ -369,6 +387,24 @@ mod tests {
         assert!(!filter.is_exposed("x", "starfish_core::metrics", MetricLevel::Info));
         assert!(filter.is_exposed("x", "iota_node::some_module", MetricLevel::Info));
         assert!(!filter.is_exposed("x", "iota_node::some_module", MetricLevel::Debug));
+    }
+
+    #[test]
+    fn to_display_string_keys_by_group_name() {
+        // The display form keeps group names rather than expanding to modules.
+        let display = MetricGroups {
+            consensus: MetricLevel::Off,
+            storage: MetricLevel::Trace,
+            ..MetricGroups::default()
+        }
+        .to_display_string();
+        assert!(display.starts_with("default=info,"));
+        assert!(display.contains("consensus=off"));
+        assert!(display.contains("storage=trace"));
+        assert!(display.contains("hardware=warn"));
+        // No module paths leak into the display form.
+        assert!(!display.contains("::"));
+        assert!(!display.contains("starfish_core"));
     }
 
     #[test]
