@@ -48,7 +48,7 @@ pub use prometheus;
 // prometheus re-exports
 // ---------------------------------------------------------------------------
 
-// Filtering is enforced by registry membership (see `Registry::record_collector`
+// Filtering is enforced by registry membership (see `Registry::register_filtered`
 // and `Registry::reconcile`), so the metric types need no wrapping: re-export
 // prometheus's own types and generic primitives directly.
 pub use prometheus::{
@@ -406,49 +406,40 @@ impl Registry {
         }
     }
 
-    /// Used by the wrapper macros: on a successful registration, retains a
-    /// handle to the metric with its module path and level, and immediately
-    /// `unregister`s it from the inner registry if the current filter disables
-    /// it.
+    /// Used by the wrapper macros: Registers `collector` and records a
+    /// handle so the filter can toggle its exposure later. The collector joins
+    /// the inner registry only if the current filter exposes it.
     #[inline]
-    pub fn record_collector<C>(
+    pub fn register_filtered<C>(
         &self,
         name: &str,
         module: &str,
         level: MetricLevel,
-        result: prometheus::Result<C>,
+        collector: C,
     ) -> prometheus::Result<C>
     where
         C: prometheus::core::Collector + Clone + 'static,
     {
-        let Ok(collector) = &result else {
-            return result;
-        };
-        let collector: Box<dyn CloneableCollector> = Box::new(collector.clone());
         let exposed_name = self.exposed_name(name);
-
         let mut registered = self.registered.write().unwrap();
+        // Reject duplicate registration of the same metric name.
         if registered.contains_key(&exposed_name) {
-            // The inner registry rejects a duplicate metric name, but only for names
-            // it still holds — a name the filter disabled has been `unregister`ed, so
-            // a second registration of it would slip through. This re-checks the
-            // recorded set to keep rejecting duplicates regardless of filter state.
-            // Check test `duplicate_name_is_rejected_even_when_filtered_out`
-            let _ = self.inner.unregister(collector);
             return Err(prometheus::Error::AlreadyReg);
         }
-        if !self.filter.is_exposed(&exposed_name, module, level) {
-            let _ = self.inner.unregister(collector.clone_box());
+
+        let cloneable_collector: Box<dyn CloneableCollector> = Box::new(collector.clone());
+        if self.filter.is_exposed(&exposed_name, module, level) {
+            self.inner.register(cloneable_collector.clone_box())?;
         }
         registered.insert(
             exposed_name,
             RecordedMetric {
                 module: module.to_owned(),
                 level,
-                collector,
+                collector: cloneable_collector,
             },
         );
-        result
+        Ok(collector)
     }
 
     /// Re-evaluates every recorded metric against the current filter. Call
@@ -469,13 +460,6 @@ impl Registry {
                 let _ = self.unregister(recorded.collector.clone_box());
             }
         }
-    }
-
-    /// Returns the underlying `prometheus::Registry` for use inside wrapper
-    /// macros.
-    #[inline]
-    pub fn inner(&self) -> &prometheus::Registry {
-        &self.inner
     }
 
     pub fn register(&self, c: Box<dyn prometheus::core::Collector>) -> prometheus::Result<()> {
@@ -532,12 +516,13 @@ pub fn default_registry() -> &'static Registry {
 // Each macro captures `module_path!()` at the call site so the filter can
 // match by subsystem in addition to metric name.
 //
-// The `$registry` must be a `prometheus_filtered::Registry`. Each macro returns
-// the prometheus metric type directly; the filter never turns a successful
-// registration into an `Err`.
+// The `$registry` must be a `prometheus_filtered::Registry`. Each macro builds
+// the prometheus metric unregistered, then hands it to
+// [`Registry::register_filtered`], which owns registration and returns the
+// metric. The filter never turns a successful construction into an `Err`.
 //
-// `$crate::prometheus::` is used for inner prometheus macro calls so that
-// callers don't need a direct `prometheus` crate dependency.
+// `$crate::prometheus::` names the metric constructors so callers don't need a
+// direct `prometheus` crate dependency.
 //
 // `let _n = $name; let name: &str = &*_n;` handles both `&str` literals and
 // `format!(...)` String expressions uniformly.
@@ -554,17 +539,8 @@ macro_rules! register_int_counter_with_registry {
         let _n = $name;
         let name: &str = &*_n;
         let module: &str = module_path!();
-        ($registry)
-            .record_collector(
-                name,
-                module,
-                $level,
-                $crate::prometheus::register_int_counter_with_registry!(
-                    name,
-                    $help,
-                    ($registry).inner()
-                ),
-            )
+        $crate::prometheus::IntCounter::new(name, $help)
+            .and_then(|metric| ($registry).register_filtered(name, module, $level, metric))
     }};
 }
 
@@ -580,18 +556,8 @@ macro_rules! register_int_counter_vec_with_registry {
         let _n = $name;
         let name: &str = &*_n;
         let module: &str = module_path!();
-        ($registry)
-            .record_collector(
-                name,
-                module,
-                $level,
-                $crate::prometheus::register_int_counter_vec_with_registry!(
-                    name,
-                    $help,
-                    $labels,
-                    ($registry).inner()
-                ),
-            )
+        $crate::prometheus::IntCounterVec::new($crate::prometheus::Opts::new(name, $help), $labels)
+            .and_then(|metric| ($registry).register_filtered(name, module, $level, metric))
     }};
 }
 
@@ -607,17 +573,8 @@ macro_rules! register_int_gauge_with_registry {
         let _n = $name;
         let name: &str = &*_n;
         let module: &str = module_path!();
-        ($registry)
-            .record_collector(
-                name,
-                module,
-                $level,
-                $crate::prometheus::register_int_gauge_with_registry!(
-                    name,
-                    $help,
-                    ($registry).inner()
-                ),
-            )
+        $crate::prometheus::IntGauge::new(name, $help)
+            .and_then(|metric| ($registry).register_filtered(name, module, $level, metric))
     }};
 }
 
@@ -633,18 +590,8 @@ macro_rules! register_int_gauge_vec_with_registry {
         let _n = $name;
         let name: &str = &*_n;
         let module: &str = module_path!();
-        ($registry)
-            .record_collector(
-                name,
-                module,
-                $level,
-                $crate::prometheus::register_int_gauge_vec_with_registry!(
-                    name,
-                    $help,
-                    $labels,
-                    ($registry).inner()
-                ),
-            )
+        $crate::prometheus::IntGaugeVec::new($crate::prometheus::Opts::new(name, $help), $labels)
+            .and_then(|metric| ($registry).register_filtered(name, module, $level, metric))
     }};
 }
 
@@ -664,34 +611,17 @@ macro_rules! register_histogram_with_registry {
         let _n = $name;
         let name: &str = &*_n;
         let module: &str = module_path!();
-        ($registry)
-            .record_collector(
-                name,
-                module,
-                $level,
-                $crate::prometheus::register_histogram_with_registry!(
-                    name,
-                    $help,
-                    ($registry).inner()
-                ),
-            )
+        $crate::prometheus::Histogram::with_opts($crate::prometheus::HistogramOpts::new(name, $help))
+            .and_then(|metric| ($registry).register_filtered(name, module, $level, metric))
     }};
     ($name:expr, $help:expr, $buckets:expr, $registry:expr ; $level:expr $(,)?) => {{
         let _n = $name;
         let name: &str = &*_n;
         let module: &str = module_path!();
-        ($registry)
-            .record_collector(
-                name,
-                module,
-                $level,
-                $crate::prometheus::register_histogram_with_registry!(
-                    name,
-                    $help,
-                    $buckets,
-                    ($registry).inner()
-                ),
-            )
+        $crate::prometheus::Histogram::with_opts(
+            $crate::prometheus::HistogramOpts::new(name, $help).buckets($buckets),
+        )
+        .and_then(|metric| ($registry).register_filtered(name, module, $level, metric))
     }};
 }
 
@@ -713,36 +643,21 @@ macro_rules! register_histogram_vec_with_registry {
         let _n = $name;
         let name: &str = &*_n;
         let module: &str = module_path!();
-        ($registry)
-            .record_collector(
-                name,
-                module,
-                $level,
-                $crate::prometheus::register_histogram_vec_with_registry!(
-                    name,
-                    $help,
-                    $labels,
-                    ($registry).inner()
-                ),
-            )
+        $crate::prometheus::HistogramVec::new(
+            $crate::prometheus::HistogramOpts::new(name, $help),
+            $labels,
+        )
+        .and_then(|metric| ($registry).register_filtered(name, module, $level, metric))
     }};
     ($name:expr, $help:expr, $labels:expr, $buckets:expr, $registry:expr ; $level:expr $(,)?) => {{
         let _n = $name;
         let name: &str = &*_n;
         let module: &str = module_path!();
-        ($registry)
-            .record_collector(
-                name,
-                module,
-                $level,
-                $crate::prometheus::register_histogram_vec_with_registry!(
-                    name,
-                    $help,
-                    $labels,
-                    $buckets,
-                    ($registry).inner()
-                ),
-            )
+        $crate::prometheus::HistogramVec::new(
+            $crate::prometheus::HistogramOpts::new(name, $help).buckets($buckets),
+            $labels,
+        )
+        .and_then(|metric| ($registry).register_filtered(name, module, $level, metric))
     }};
 }
 
@@ -758,18 +673,8 @@ macro_rules! register_gauge_vec_with_registry {
         let _n = $name;
         let name: &str = &*_n;
         let module: &str = module_path!();
-        ($registry)
-            .record_collector(
-                name,
-                module,
-                $level,
-                $crate::prometheus::register_gauge_vec_with_registry!(
-                    name,
-                    $help,
-                    $labels,
-                    ($registry).inner()
-                ),
-            )
+        $crate::prometheus::GaugeVec::new($crate::prometheus::Opts::new(name, $help), $labels)
+            .and_then(|metric| ($registry).register_filtered(name, module, $level, metric))
     }};
 }
 
@@ -783,17 +688,8 @@ macro_rules! register_gauge_with_registry {
         let _n = $name;
         let name: &str = &*_n;
         let module: &str = module_path!();
-        ($registry)
-            .record_collector(
-                name,
-                module,
-                $level,
-                $crate::prometheus::register_gauge_with_registry!(
-                    name,
-                    $help,
-                    ($registry).inner()
-                ),
-            )
+        $crate::prometheus::Gauge::new(name, $help)
+            .and_then(|metric| ($registry).register_filtered(name, module, $level, metric))
     }};
 }
 
@@ -807,13 +703,9 @@ macro_rules! register_counter {
         let _n = $name;
         let name: &str = &*_n;
         let module: &str = module_path!();
-        $crate::default_registry()
-            .record_collector(
-                name,
-                module,
-                $level,
-                $crate::prometheus::register_counter!(name, $help),
-            )
+        $crate::prometheus::Counter::new(name, $help).and_then(|metric| {
+            $crate::default_registry().register_filtered(name, module, $level, metric)
+        })
     }};
 }
 
@@ -829,17 +721,8 @@ macro_rules! register_counter_with_registry {
         let _n = $name;
         let name: &str = &*_n;
         let module: &str = module_path!();
-        ($registry)
-            .record_collector(
-                name,
-                module,
-                $level,
-                $crate::prometheus::register_counter_with_registry!(
-                    name,
-                    $help,
-                    ($registry).inner()
-                ),
-            )
+        $crate::prometheus::Counter::new(name, $help)
+            .and_then(|metric| ($registry).register_filtered(name, module, $level, metric))
     }};
 }
 
@@ -855,18 +738,10 @@ macro_rules! register_counter_vec_with_registry {
         let _n = $name;
         let name: &str = &*_n;
         let module: &str = module_path!();
-        ($registry)
-            .record_collector(
-                name,
-                module,
-                $level,
-                $crate::prometheus::register_counter_vec_with_registry!(
-                    name,
-                    $help,
-                    $labels,
-                    ($registry).inner()
-                ),
-            )
+        $crate::prometheus::CounterVec::new($crate::prometheus::Opts::new(name, $help), $labels)
+            .and_then(|metric| {
+                ($registry).register_filtered(name, module, $level, metric)
+            })
     }};
 }
 
@@ -880,13 +755,10 @@ macro_rules! register_counter_vec {
         let _n = $name;
         let name: &str = &*_n;
         let module: &str = module_path!();
-        $crate::default_registry()
-            .record_collector(
-                name,
-                module,
-                $level,
-                $crate::prometheus::register_counter_vec!(name, $help, $labels),
-            )
+        $crate::prometheus::CounterVec::new($crate::prometheus::Opts::new(name, $help), $labels)
+            .and_then(|metric| {
+                $crate::default_registry().register_filtered(name, module, $level, metric)
+            })
     }};
 }
 
@@ -907,39 +779,36 @@ macro_rules! register_histogram_vec {
     };
     ($opts:expr, $labels:expr ; $level:expr $(,)?) => {{
         let opts = $opts;
-        let name: &str = &opts.common_opts.name;
+        let name = opts.common_opts.name.clone();
+        let name: &str = &name;
         let module: &str = module_path!();
-        $crate::default_registry()
-            .record_collector(
-                name,
-                module,
-                $level,
-                $crate::prometheus::register_histogram_vec!(opts, $labels),
-            )
+        $crate::prometheus::HistogramVec::new(opts, $labels).and_then(|metric| {
+            $crate::default_registry().register_filtered(name, module, $level, metric)
+        })
     }};
     ($name:expr, $help:expr, $labels:expr ; $level:expr $(,)?) => {{
         let _n = $name;
         let name: &str = &*_n;
         let module: &str = module_path!();
-        $crate::default_registry()
-            .record_collector(
-                name,
-                module,
-                $level,
-                $crate::prometheus::register_histogram_vec!(name, $help, $labels),
-            )
+        $crate::prometheus::HistogramVec::new(
+            $crate::prometheus::HistogramOpts::new(name, $help),
+            $labels,
+        )
+        .and_then(|metric| {
+            $crate::default_registry().register_filtered(name, module, $level, metric)
+        })
     }};
     ($name:expr, $help:expr, $labels:expr, $buckets:expr ; $level:expr $(,)?) => {{
         let _n = $name;
         let name: &str = &*_n;
         let module: &str = module_path!();
-        $crate::default_registry()
-            .record_collector(
-                name,
-                module,
-                $level,
-                $crate::prometheus::register_histogram_vec!(name, $help, $labels, $buckets),
-            )
+        $crate::prometheus::HistogramVec::new(
+            $crate::prometheus::HistogramOpts::new(name, $help).buckets($buckets),
+            $labels,
+        )
+        .and_then(|metric| {
+            $crate::default_registry().register_filtered(name, module, $level, metric)
+        })
     }};
 }
 
