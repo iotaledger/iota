@@ -1091,6 +1091,21 @@ mod tests {
             num_transactions as u64
         );
 
+        // AND the certificates execute. The consensus handler built each
+        // transaction's `ExecutionEnv` from the commit's version assignments;
+        // a missing or mismatched assignment would leave the transaction
+        // waiting forever (or executing on the wrong versions), so bound the
+        // wait to fail clearly instead of hanging.
+        let digests: Vec<_> = transactions.iter().map(|tx| *tx.digest()).collect();
+        tokio::time::timeout(
+            Duration::from_secs(60),
+            state
+                .get_transaction_cache_reader()
+                .notify_read_executed_effects_for_testing("", &digests),
+        )
+        .await
+        .expect("consensus-scheduled certificates did not execute");
+
         // WHEN processing the same output multiple times
         // THEN the consensus stats do not update
         for _ in 0..2 {

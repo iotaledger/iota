@@ -682,6 +682,80 @@ mod tests {
         );
     }
 
+    /// The virtual `Schedulable::RandomnessStateUpdate` (no transaction exists
+    /// yet) must be assigned the current randomness object version under its
+    /// `TransactionKey::RandomnessRound`, and — because its shared input is
+    /// mutable — bump the version that subsequent randomness-using
+    /// transactions are assigned.
+    #[tokio::test]
+    async fn test_assign_versions_from_consensus_with_virtual_randomness_schedulable() {
+        let authority = TestAuthorityBuilder::new().build().await;
+        let epoch_store = authority.epoch_store_for_testing();
+        let randomness_obj_version = epoch_store
+            .epoch_start_config()
+            .randomness_obj_initial_shared_version();
+        let round = RandomnessRound::new(1);
+        let transactions = [
+            generate_shared_objs_tx_with_gas_version(
+                &[(ObjectId::RANDOMNESS_STATE, randomness_obj_version, false)],
+                3,
+            ),
+            generate_shared_objs_tx_with_gas_version(
+                &[(ObjectId::RANDOMNESS_STATE, randomness_obj_version, false)],
+                5,
+            ),
+        ];
+        let mut assignables: Vec<Schedulable<&VerifiedExecutableTransaction>> =
+            vec![Schedulable::RandomnessStateUpdate(
+                epoch_store.epoch(),
+                round,
+            )];
+        assignables.extend(transactions.iter().map(Schedulable::Transaction));
+
+        let ConsensusSharedObjVerAssignment {
+            shared_input_next_versions,
+            assigned_versions,
+        } = SharedObjVerManager::assign_versions_from_consensus(
+            &epoch_store,
+            authority.get_object_cache_reader().as_ref(),
+            assignables.iter(),
+            &BTreeMap::new(),
+        )
+        .unwrap();
+
+        let next_randomness_obj_version = randomness_obj_version.next().unwrap();
+        assert_eq!(
+            shared_input_next_versions,
+            HashMap::from([(ObjectId::RANDOMNESS_STATE, next_randomness_obj_version)])
+        );
+        assert_eq!(
+            assigned_versions.0,
+            vec![
+                (
+                    TransactionKey::RandomnessRound(epoch_store.epoch(), round),
+                    vec![VersionAssignment::new(
+                        ObjectId::RANDOMNESS_STATE,
+                        randomness_obj_version
+                    )]
+                ),
+                (
+                    transactions[0].key(),
+                    vec![VersionAssignment::new(
+                        ObjectId::RANDOMNESS_STATE,
+                        next_randomness_obj_version
+                    )]
+                ),
+                (
+                    transactions[1].key(),
+                    vec![VersionAssignment::new(
+                        ObjectId::RANDOMNESS_STATE,
+                        next_randomness_obj_version
+                    )]
+                ),
+            ]
+        );
+    }
+
     // Tests shared object version assignment for cancelled transaction.
     #[tokio::test]
     async fn test_assign_versions_from_consensus_with_cancellation() {

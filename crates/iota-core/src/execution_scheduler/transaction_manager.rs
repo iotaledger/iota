@@ -892,6 +892,11 @@ impl TransactionManager {
             "Executing transactions: {:?}",
             inner.executing_transactions
         );
+        assert!(
+            inner.pending_transaction_keys.is_empty(),
+            "Pending transaction keys: {:?}",
+            inner.pending_transaction_keys.keys().collect::<Vec<_>>()
+        );
     }
 }
 

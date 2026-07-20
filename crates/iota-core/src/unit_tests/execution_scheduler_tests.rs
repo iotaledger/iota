@@ -19,7 +19,7 @@ use std::{time::Duration, vec};
 
 use iota_config::node::AuthorityOverloadConfig;
 use iota_sdk_types::{
-    MoveAuthenticatorV1, ObjectId, SenderSignedTransaction, SharedObjectReference,
+    MoveAuthenticatorV1, ObjectId, RandomnessRound, SenderSignedTransaction, SharedObjectReference,
     TransactionEffectsDigest, UserSignature, VersionAssignment,
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
@@ -29,7 +29,7 @@ use iota_types::{
     executable_transaction::VerifiedExecutableTransaction,
     object::Object,
     storage::InputKey,
-    transaction::{CallArg, TransactionEnvelope, VerifiedTransaction},
+    transaction::{CallArg, TransactionEnvelope, TransactionKey, VerifiedTransaction},
 };
 use tokio::{
     sync::mpsc::{UnboundedReceiver, unbounded_channel},
@@ -37,7 +37,11 @@ use tokio::{
 };
 
 use crate::{
-    authority::{AuthorityState, ExecutionEnv, authority_tests::init_state_with_objects},
+    authority::{
+        AuthorityState, ExecutionEnv, authority_per_epoch_store::AuthorityPerEpochStore,
+        authority_tests::init_state_with_objects, epoch_start_configuration::EpochStartConfigTrait,
+        shared_object_version_manager::Schedulable,
+    },
     execution_scheduler::{
         ExecutionSchedulerAPI, PendingTransaction, execution_scheduler_impl::ExecutionScheduler,
         transaction_manager::TransactionManager,
@@ -682,4 +686,164 @@ async fn schedulers_record_ready_transaction_accounting() {
         &transaction,
     )
     .await;
+}
+
+/// A randomness state update transaction for `round`, as
+/// `RandomnessRoundReceiver` would build it.
+fn make_randomness_state_update(
+    epoch_store: &AuthorityPerEpochStore,
+    round: u64,
+) -> VerifiedExecutableTransaction {
+    VerifiedExecutableTransaction::new_system(
+        VerifiedTransaction::new_randomness_state_update(
+            epoch_store.epoch(),
+            RandomnessRound::new(round),
+            vec![round as u8],
+            epoch_store
+                .epoch_start_config()
+                .randomness_obj_initial_shared_version(),
+        ),
+        epoch_store.epoch(),
+    )
+}
+
+fn randomness_assigned_versions(epoch_store: &AuthorityPerEpochStore) -> Vec<VersionAssignment> {
+    vec![VersionAssignment::new(
+        ObjectId::RANDOMNESS_STATE,
+        epoch_store
+            .epoch_start_config()
+            .randomness_obj_initial_shared_version(),
+    )]
+}
+
+/// Keyed schedulables wait for their key's digest and each must be released
+/// with ITS OWN env: two rounds enqueued together must not have their envs
+/// cross-wired when `notify_read_tx_key_to_digest` resolves them, since the
+/// digests are zipped positionally with the pending envs.
+#[tokio::test(flavor = "current_thread", start_paused = true)]
+async fn execution_scheduler_resolves_keyed_schedulables_with_matching_envs() {
+    let state = init_state_with_objects(vec![]).await;
+    let epoch_store = state.epoch_store_for_testing();
+    let (execution_scheduler, mut rx_ready_transactions) = make_execution_scheduler(&state);
+
+    let expected_1 = TransactionEffectsDigest::new([1; 32]);
+    let expected_2 = TransactionEffectsDigest::new([2; 32]);
+    execution_scheduler.enqueue(
+        vec![
+            (
+                Schedulable::RandomnessStateUpdate(epoch_store.epoch(), RandomnessRound::new(1)),
+                ExecutionEnv::new()
+                    .with_assigned_versions(randomness_assigned_versions(&epoch_store))
+                    .with_expected_effects_digest(expected_1),
+            ),
+            (
+                Schedulable::RandomnessStateUpdate(epoch_store.epoch(), RandomnessRound::new(2)),
+                ExecutionEnv::new()
+                    .with_assigned_versions(randomness_assigned_versions(&epoch_store))
+                    .with_expected_effects_digest(expected_2),
+            ),
+        ],
+        &epoch_store,
+    );
+
+    // Neither transaction exists yet: nothing must be dispatched.
+    sleep(Duration::from_secs(1)).await;
+    assert!(rx_ready_transactions.try_recv().is_err());
+
+    let transaction_1 = make_randomness_state_update(&epoch_store, 1);
+    let transaction_2 = make_randomness_state_update(&epoch_store, 2);
+    for (transaction, round) in [(&transaction_1, 1), (&transaction_2, 2)] {
+        state.get_cache_commit().persist_transaction(transaction);
+        epoch_store
+            .insert_tx_key(
+                TransactionKey::RandomnessRound(epoch_store.epoch(), RandomnessRound::new(round)),
+                *transaction.digest(),
+            )
+            .unwrap();
+    }
+
+    let first = rx_ready_transactions.recv().await.unwrap();
+    let second = rx_ready_transactions.recv().await.unwrap();
+    for pending in [first, second] {
+        let expected = if pending.transaction.digest() == transaction_1.digest() {
+            expected_1
+        } else {
+            assert_eq!(pending.transaction.digest(), transaction_2.digest());
+            expected_2
+        };
+        assert_eq!(
+            pending.execution_env.expected_effects_digest,
+            Some(expected),
+            "keyed schedulable released with another schedulable's env"
+        );
+    }
+}
+
+/// A key that already resolves to a digest at enqueue time (crash recovery:
+/// the persistent `transaction_key_to_digest` table survived a restart) must
+/// be scheduled immediately with its env.
+#[tokio::test(flavor = "current_thread", start_paused = true)]
+async fn execution_scheduler_schedules_already_resolved_randomness_key() {
+    let state = init_state_with_objects(vec![]).await;
+    let epoch_store = state.epoch_store_for_testing();
+    let (execution_scheduler, mut rx_ready_transactions) = make_execution_scheduler(&state);
+
+    let round = RandomnessRound::new(3);
+    let transaction = make_randomness_state_update(&epoch_store, 3);
+    let digest = *transaction.digest();
+    state.get_cache_commit().persist_transaction(&transaction);
+    epoch_store
+        .insert_tx_key(
+            TransactionKey::RandomnessRound(epoch_store.epoch(), round),
+            digest,
+        )
+        .unwrap();
+
+    let assigned_versions = randomness_assigned_versions(&epoch_store);
+    execution_scheduler.enqueue(
+        vec![(
+            Schedulable::RandomnessStateUpdate(epoch_store.epoch(), round),
+            ExecutionEnv::new().with_assigned_versions(assigned_versions.clone()),
+        )],
+        &epoch_store,
+    );
+
+    let pending = rx_ready_transactions.recv().await.unwrap();
+    assert_eq!(pending.transaction.digest(), &digest);
+    assert_eq!(pending.execution_env.assigned_versions, assigned_versions);
+}
+
+/// The task waiting on a keyed schedulable runs under `within_alive_epoch`:
+/// terminating the epoch must cancel it, so a key resolved after the epoch
+/// ended dispatches nothing.
+#[tokio::test(flavor = "current_thread", start_paused = true)]
+async fn execution_scheduler_drops_keyed_schedulable_on_epoch_termination() {
+    let state = init_state_with_objects(vec![]).await;
+    let epoch_store = state.epoch_store_for_testing();
+    let (execution_scheduler, mut rx_ready_transactions) = make_execution_scheduler(&state);
+
+    let round = RandomnessRound::new(4);
+    execution_scheduler.enqueue(
+        vec![(
+            Schedulable::RandomnessStateUpdate(epoch_store.epoch(), round),
+            ExecutionEnv::new().with_assigned_versions(randomness_assigned_versions(&epoch_store)),
+        )],
+        &epoch_store,
+    );
+    sleep(Duration::from_secs(1)).await;
+    assert!(rx_ready_transactions.try_recv().is_err());
+
+    epoch_store.epoch_terminated().await;
+
+    // Resolving the key after the epoch ended must not dispatch anything.
+    let transaction = make_randomness_state_update(&epoch_store, 4);
+    state.get_cache_commit().persist_transaction(&transaction);
+    epoch_store
+        .insert_tx_key(
+            TransactionKey::RandomnessRound(epoch_store.epoch(), round),
+            *transaction.digest(),
+        )
+        .unwrap();
+    sleep(Duration::from_secs(1)).await;
+    assert!(rx_ready_transactions.try_recv().is_err());
 }

@@ -4,14 +4,17 @@
 
 use std::{time::Duration, vec};
 
-use iota_sdk_types::{ObjectId, Owner, SharedObjectReference, Version, VersionAssignment};
+use iota_sdk_types::{
+    ObjectId, Owner, RandomnessRound, SharedObjectReference, TransactionEffectsDigest, Version,
+    VersionAssignment,
+};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     crypto::deterministic_random_account_private_key,
     executable_transaction::VerifiedExecutableTransaction,
     object::Object,
     storage::InputKey,
-    transaction::{CallArg, VerifiedTransaction},
+    transaction::{CallArg, TransactionKey, VerifiedTransaction},
 };
 use tokio::{
     sync::mpsc::{UnboundedReceiver, error::TryRecvError, unbounded_channel},
@@ -19,7 +22,11 @@ use tokio::{
 };
 
 use crate::{
-    authority::{AuthorityState, ExecutionEnv, authority_tests::init_state_with_objects},
+    authority::{
+        AuthorityState, ExecutionEnv, authority_per_epoch_store::AuthorityPerEpochStore,
+        authority_tests::init_state_with_objects, epoch_start_configuration::EpochStartConfigTrait,
+        shared_object_version_manager::Schedulable,
+    },
     execution_scheduler::{
         ExecutionSchedulerAPI, PendingTransaction, transaction_manager::TransactionManager,
     },
@@ -100,11 +107,32 @@ async fn transaction_manager_reconfigure_drops_all_pending_and_executing_state()
     );
     sleep(Duration::from_secs(1)).await;
 
-    // Both are inflight: one executing, one pending.
+    // A keyed schedulable whose transaction does not exist yet parks in
+    // `pending_transaction_keys`.
+    let round = RandomnessRound::new(1);
+    let key = TransactionKey::RandomnessRound(0, round);
+    transaction_manager.enqueue(
+        vec![(
+            Schedulable::RandomnessStateUpdate(0, round),
+            ExecutionEnv::new(),
+        )],
+        &state.epoch_store_for_testing(),
+    );
+
+    // Both transactions are inflight: one executing, one pending.
     assert_eq!(transaction_manager.inflight_queue_len(), 2);
 
-    // Reconfiguration replaces the inner state wholesale, dropping both.
+    // Reconfiguration replaces the inner state wholesale, dropping all three.
     transaction_manager.reconfigure(1);
+
+    // A late key notification for the old epoch's round must deliver nothing.
+    transaction_manager.notify_transaction_key(
+        &state.epoch_store_for_testing(),
+        key,
+        *executing_tx.digest(),
+    );
+    sleep(Duration::from_secs(1)).await;
+    assert!(rx_ready_transactions.try_recv().is_err());
 
     transaction_manager.check_empty_for_testing();
     // Both count surfaces must read 0: the internal queue length and the trait
@@ -871,4 +899,164 @@ async fn transaction_manager_with_cancelled_transactions() {
     assert_eq!(transaction_manager.inflight_queue_len(), 0);
 
     transaction_manager.check_empty_for_testing();
+}
+
+/// A randomness state update transaction for `round`, as
+/// `RandomnessRoundReceiver` would build it.
+fn make_randomness_state_update(
+    epoch_store: &AuthorityPerEpochStore,
+    round: u64,
+) -> VerifiedExecutableTransaction {
+    VerifiedExecutableTransaction::new_system(
+        VerifiedTransaction::new_randomness_state_update(
+            epoch_store.epoch(),
+            RandomnessRound::new(round),
+            vec![round as u8],
+            epoch_store
+                .epoch_start_config()
+                .randomness_obj_initial_shared_version(),
+        ),
+        epoch_store.epoch(),
+    )
+}
+
+/// A `Schedulable::RandomnessStateUpdate` enqueued before its transaction
+/// exists must be parked under its key with its `ExecutionEnv`, and
+/// `notify_transaction_key` must release exactly that transaction with the
+/// parked env. Losing the env would schedule the update with no assigned
+/// version and panic in `get_input_object_keys`.
+#[tokio::test(flavor = "current_thread", start_paused = true)]
+async fn transaction_manager_parks_randomness_schedulable_until_key_resolves() {
+    let state = init_state_with_objects(vec![]).await;
+    let epoch_store = state.epoch_store_for_testing();
+    let (transaction_manager, mut rx_ready_transactions) = make_transaction_manager(&state);
+
+    let round = RandomnessRound::new(1);
+    let key = TransactionKey::RandomnessRound(epoch_store.epoch(), round);
+    let assigned_versions = vec![VersionAssignment::new(
+        ObjectId::RANDOMNESS_STATE,
+        epoch_store
+            .epoch_start_config()
+            .randomness_obj_initial_shared_version(),
+    )];
+    transaction_manager.enqueue(
+        vec![(
+            Schedulable::RandomnessStateUpdate(epoch_store.epoch(), round),
+            ExecutionEnv::new().with_assigned_versions(assigned_versions.clone()),
+        )],
+        &epoch_store,
+    );
+
+    // The transaction for the round does not exist yet: nothing must be emitted.
+    sleep(Duration::from_secs(1)).await;
+    assert!(rx_ready_transactions.try_recv().is_err());
+
+    // Create and persist the randomness state update, then resolve the key the
+    // way `RandomnessRoundReceiver` does.
+    let transaction = make_randomness_state_update(&epoch_store, 1);
+    let digest = *transaction.digest();
+    state.get_cache_commit().persist_transaction(&transaction);
+    epoch_store.insert_tx_key(key, digest).unwrap();
+    transaction_manager.notify_transaction_key(&epoch_store, key, digest);
+
+    let pending = rx_ready_transactions.recv().await.unwrap();
+    assert_eq!(pending.transaction.digest(), &digest);
+    assert_eq!(pending.execution_env.assigned_versions, assigned_versions);
+
+    sleep(Duration::from_secs(1)).await;
+    assert!(rx_ready_transactions.try_recv().is_err());
+}
+
+/// A key that already resolves to a digest at enqueue time (crash recovery:
+/// the persistent `transaction_key_to_digest` table survived a restart while
+/// the in-memory parking map did not) must be scheduled immediately, without
+/// a `notify_transaction_key` that will never come again for that round.
+#[tokio::test(flavor = "current_thread", start_paused = true)]
+async fn transaction_manager_schedules_already_resolved_randomness_key() {
+    let state = init_state_with_objects(vec![]).await;
+    let epoch_store = state.epoch_store_for_testing();
+    let (transaction_manager, mut rx_ready_transactions) = make_transaction_manager(&state);
+
+    let round = RandomnessRound::new(2);
+    let key = TransactionKey::RandomnessRound(epoch_store.epoch(), round);
+    let transaction = make_randomness_state_update(&epoch_store, 2);
+    let digest = *transaction.digest();
+    state.get_cache_commit().persist_transaction(&transaction);
+    epoch_store.insert_tx_key(key, digest).unwrap();
+
+    let assigned_versions = vec![VersionAssignment::new(
+        ObjectId::RANDOMNESS_STATE,
+        epoch_store
+            .epoch_start_config()
+            .randomness_obj_initial_shared_version(),
+    )];
+    transaction_manager.enqueue(
+        vec![(
+            Schedulable::RandomnessStateUpdate(epoch_store.epoch(), round),
+            ExecutionEnv::new().with_assigned_versions(assigned_versions.clone()),
+        )],
+        &epoch_store,
+    );
+
+    let pending = rx_ready_transactions.recv().await.unwrap();
+    assert_eq!(pending.transaction.digest(), &digest);
+    assert_eq!(pending.execution_env.assigned_versions, assigned_versions);
+}
+
+/// The `ExecutionEnv` handed to `enqueue_transactions` must come out verbatim
+/// on the emitted `PendingTransaction`, on both the immediately-ready path and
+/// the parked-then-released path. Losing the expected effects digest silently
+/// disables fork detection; losing assigned versions panics execution.
+#[tokio::test(flavor = "current_thread", start_paused = true)]
+async fn transaction_manager_propagates_execution_env() {
+    let (owner, _keypair) = deterministic_random_account_key();
+    let gas_object = Object::with_id_owner_for_testing(ObjectId::random(), owner);
+    let state = init_state_with_objects(vec![gas_object.clone()]).await;
+    let (transaction_manager, mut rx_ready_transactions) = make_transaction_manager(&state);
+
+    // Immediately-ready path: the gas object is available.
+    let ready_tx = make_transaction(gas_object, vec![]);
+    let ready_digest = TransactionEffectsDigest::new([5; 32]);
+    transaction_manager.enqueue_transactions(
+        vec![(
+            ready_tx.clone(),
+            ExecutionEnv::new().with_expected_effects_digest(ready_digest),
+        )],
+        &state.epoch_store_for_testing(),
+    );
+    let pending = rx_ready_transactions.recv().await.unwrap();
+    assert_eq!(pending.transaction.digest(), ready_tx.digest());
+    assert_eq!(
+        pending.execution_env.expected_effects_digest,
+        Some(ready_digest)
+    );
+
+    // Parked path: the gas object version is not available yet.
+    let missing_gas = Object::with_id_owner_version_for_testing(
+        ObjectId::random(),
+        0.into(),
+        Owner::Address(owner),
+    );
+    let parked_tx = make_transaction(missing_gas.clone(), vec![]);
+    let parked_digest = TransactionEffectsDigest::new([6; 32]);
+    transaction_manager.enqueue_transactions(
+        vec![(
+            parked_tx.clone(),
+            ExecutionEnv::new().with_expected_effects_digest(parked_digest),
+        )],
+        &state.epoch_store_for_testing(),
+    );
+    sleep(Duration::from_secs(1)).await;
+    assert!(rx_ready_transactions.try_recv().is_err());
+
+    transaction_manager.objects_available(
+        get_input_keys(&[missing_gas]),
+        &state.epoch_store_for_testing(),
+    );
+    let pending = rx_ready_transactions.recv().await.unwrap();
+    assert_eq!(pending.transaction.digest(), parked_tx.digest());
+    assert_eq!(
+        pending.execution_env.expected_effects_digest,
+        Some(parked_digest)
+    );
 }
