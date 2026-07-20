@@ -80,25 +80,53 @@ impl BaseCommitter {
         // non-votes for that leader (which ensure there will never be a
         // certificate for that leader).
         let voting_round = leader.round + 1;
-        if self.enough_leader_blame(voting_round, leader.authority) {
+        let voting_blocks = self
+            .dag_state
+            .read()
+            .get_block_headers_at_round_above_last_commit(voting_round);
+        if self.enough_leader_blame(voting_round, &voting_blocks, leader.authority) {
             return LeaderStatus::Skip(leader);
         }
 
         // Check whether the leader(s) has enough support. That is, whether there are
         // 2f+1 certificates over the leader. Note that there could be more than
         // one leader block (created by Byzantine leaders).
-        let wave = self.wave_number(leader.round);
-        let certifying_round = self.certifying_round(wave);
         let leader_blocks = self
             .dag_state
             .read()
             .get_block_headers_at_slot_above_last_commit(leader);
+        if leader_blocks.is_empty() {
+            return LeaderStatus::Undecided(leader);
+        }
+
+        let wave = self.wave_number(leader.round);
+        let certifying_round = self.certifying_round(wave);
+        let decision_blocks = self
+            .dag_state
+            .read()
+            .get_block_headers_at_round_above_last_commit(certifying_round);
+
+        // Quickly reject if there isn't enough stake at the certifying round to
+        // support any leader block.
+        let total_stake: Stake = decision_blocks
+            .iter()
+            .map(|b| self.context.committee.stake(b.author()))
+            .sum();
+        if !self.context.committee.reached_quorum(total_stake) {
+            tracing::trace!(
+                "Not enough support for {leader}. Stake not enough: {total_stake} < {}",
+                self.context.committee.quorum_threshold()
+            );
+            return LeaderStatus::Undecided(leader);
+        }
+
         let mut leaders_with_enough_support: Vec<_> = leader_blocks
             .into_iter()
-            .filter(|l| self.enough_leader_support(certifying_round, l))
-            .map(|leader_block| {
-                let (metastate, strong_voters) = self.determine_metastate_direct(&leader_block);
-                LeaderStatus::Commit(leader_block, metastate, strong_voters)
+            .filter_map(|leader_block| {
+                self.direct_decide_leader_block(&leader_block, &voting_blocks, &decision_blocks)
+                    .map(|(metastate, strong_voters)| {
+                        LeaderStatus::Commit(leader_block, metastate, strong_voters)
+                    })
             })
             .collect();
 
@@ -188,15 +216,16 @@ impl BaseCommitter {
             .contains(&leader_block.reference())
     }
 
-    /// Return the set of refs of blocks at `leader_block.round() + 1` that
-    /// directly include `leader_block` as an ancestor — i.e. the set of votes
-    /// for this specific leader block.
-    fn vote_refs_for_leader(&self, leader_block: &VerifiedBlockHeader) -> HashSet<BlockRef> {
-        let voting_round = leader_block.round() + 1;
-        self.dag_state
-            .read()
-            .get_block_headers_at_round_above_last_commit(voting_round)
-            .into_iter()
+    /// Return the refs of the given voting-round (`leader_block.round() + 1`)
+    /// blocks that directly include `leader_block` as an ancestor — i.e. the
+    /// set of votes for this specific leader block.
+    fn vote_refs_for_leader(
+        &self,
+        leader_block: &VerifiedBlockHeader,
+        voting_blocks: &[VerifiedBlockHeader],
+    ) -> HashSet<BlockRef> {
+        voting_blocks
+            .iter()
             .filter(|voting_block| self.is_vote(voting_block, leader_block))
             .map(|voting_block| voting_block.reference())
             .collect()
@@ -235,6 +264,9 @@ impl BaseCommitter {
             .dag_state
             .read()
             .get_block_headers_at_slot_above_last_commit(leader_slot);
+        if leader_blocks.is_empty() {
+            return LeaderStatus::Skip(leader_slot);
+        }
 
         // TODO: Re-evaluate this check once we have a better way to handle/track
         // byzantine authorities.
@@ -260,6 +292,10 @@ impl BaseCommitter {
         // classify the metastate in the same walk. When the flag is off we
         // stick to the cheap regular-certificate-only check.
         let starfish_speed = self.context.protocol_config.consensus_starfish_speed();
+        let voting_blocks = self
+            .dag_state
+            .read()
+            .get_block_headers_at_round_above_last_commit(leader_slot.round + 1);
         let mut certified_leader_blocks: Vec<(
             VerifiedBlockHeader,
             Option<CommitMetastate>,
@@ -268,7 +304,7 @@ impl BaseCommitter {
         for leader_block in leader_blocks {
             let (any_cert, metastate, strong_voters) = if starfish_speed {
                 let (vote_refs, strong_vote_refs) =
-                    self.vote_and_strong_vote_refs_for_leader(&leader_block);
+                    self.vote_and_strong_vote_refs_for_leader(&leader_block, &voting_blocks);
                 let mut any_cert = false;
                 let mut any_strong = false;
                 for potential_certificate in &potential_certificates {
@@ -299,7 +335,7 @@ impl BaseCommitter {
                 };
                 (any_cert, metastate, strong_voters)
             } else {
-                let vote_refs = self.vote_refs_for_leader(&leader_block);
+                let vote_refs = self.vote_refs_for_leader(&leader_block, &voting_blocks);
                 let any_cert = potential_certificates.iter().any(|potential_certificate| {
                     self.is_certificate(potential_certificate, &vote_refs)
                 });
@@ -324,16 +360,16 @@ impl BaseCommitter {
         }
     }
 
-    /// Check whether the specified leader has 2f+1 non-votes (blames) to be
-    /// directly skipped.
-    fn enough_leader_blame(&self, voting_round: Round, leader: AuthorityIndex) -> bool {
-        let voting_blocks = self
-            .dag_state
-            .read()
-            .get_block_headers_at_round_above_last_commit(voting_round);
-
+    /// Check whether the specified leader has 2f+1 non-votes (blames) among
+    /// the given voting-round blocks to be directly skipped.
+    fn enough_leader_blame(
+        &self,
+        voting_round: Round,
+        voting_blocks: &[VerifiedBlockHeader],
+        leader: AuthorityIndex,
+    ) -> bool {
         let mut blame_stake_aggregator = StakeAggregator::<QuorumThreshold>::new();
-        for voting_block in &voting_blocks {
+        for voting_block in voting_blocks {
             let voter = voting_block.reference().author;
             if voting_block
                 .ancestors()
@@ -357,87 +393,86 @@ impl BaseCommitter {
         false
     }
 
-    /// Check whether the specified leader has 2f+1 certificates to be directly
-    /// committed.
-    fn enough_leader_support(
+    /// Apply the direct decision rule to one leader block using the given
+    /// voting-round (r+1) and certifying-round (r+2) blocks. Returns
+    /// `Some((metastate, strong_voters))` when 2f+1 certifying blocks carry a
+    /// certificate for the leader block, `None` otherwise.
+    ///
+    /// When StarfishSpeed is enabled, regular and strong certificates are
+    /// classified in a single walk over the certifying blocks, and the
+    /// metastate follows the direct rule: StrongQC quorum → `Optimistic`
+    /// (with the leader's strong-voter authorities, used by the linearizer
+    /// to seed the per-ref ack tracker), strong-blame quorum → `Standard`,
+    /// else `Pending`. When the flag is off the metastate is `None`.
+    fn direct_decide_leader_block(
         &self,
-        certifying_round: Round,
         leader_block: &VerifiedBlockHeader,
-    ) -> bool {
-        let decision_blocks = self
-            .dag_state
-            .read()
-            .get_block_headers_at_round_above_last_commit(certifying_round);
-
-        // Quickly reject if there isn't enough stake to support the leader from
-        // the potential certificates.
-        let total_stake: Stake = decision_blocks
-            .iter()
-            .map(|b| self.context.committee.stake(b.author()))
-            .sum();
-        if !self.context.committee.reached_quorum(total_stake) {
-            tracing::trace!(
-                "Not enough support for {leader_block}. Stake not enough: {total_stake} < {}",
-                self.context.committee.quorum_threshold()
-            );
-            return false;
+        voting_blocks: &[VerifiedBlockHeader],
+        decision_blocks: &[VerifiedBlockHeader],
+    ) -> Option<(Option<CommitMetastate>, Vec<AuthorityIndex>)> {
+        if !self.context.protocol_config.consensus_starfish_speed() {
+            let vote_refs = self.vote_refs_for_leader(leader_block, voting_blocks);
+            let mut certificate_stake_aggregator = StakeAggregator::<QuorumThreshold>::new();
+            for decision_block in decision_blocks {
+                let authority = decision_block.reference().author;
+                if self.is_certificate(decision_block, &vote_refs)
+                    && certificate_stake_aggregator.add(authority, &self.context.committee)
+                {
+                    return Some((None, Vec::new()));
+                }
+            }
+            return None;
         }
+
+        let (vote_refs, strong_vote_refs) =
+            self.vote_and_strong_vote_refs_for_leader(leader_block, voting_blocks);
 
         let mut certificate_stake_aggregator = StakeAggregator::<QuorumThreshold>::new();
-        let vote_refs = self.vote_refs_for_leader(leader_block);
-        for decision_block in &decision_blocks {
+        let mut strong_qc_stake_aggregator = StakeAggregator::<QuorumThreshold>::new();
+        let mut enough_support = false;
+        let mut strong_qc_quorum = false;
+        for decision_block in decision_blocks {
+            let (is_cert, is_strong) =
+                self.classify_certificate(decision_block, &vote_refs, &strong_vote_refs);
             let authority = decision_block.reference().author;
-            if self.is_certificate(decision_block, &vote_refs)
-                && certificate_stake_aggregator.add(authority, &self.context.committee)
-            {
-                return true;
+            if is_cert && certificate_stake_aggregator.add(authority, &self.context.committee) {
+                enough_support = true;
+            }
+            if is_strong && strong_qc_stake_aggregator.add(authority, &self.context.committee) {
+                strong_qc_quorum = true;
+            }
+            if enough_support && strong_qc_quorum {
+                break;
             }
         }
-        false
+
+        if !enough_support {
+            return None;
+        }
+        if strong_qc_quorum {
+            let strong_voters = strong_vote_refs.iter().map(|r| r.author).collect();
+            return Some((Some(CommitMetastate::Optimistic), strong_voters));
+        }
+        if self.has_strong_blame_quorum(leader_block, voting_blocks) {
+            return Some((Some(CommitMetastate::Standard), Vec::new()));
+        }
+        Some((Some(CommitMetastate::Pending), Vec::new()))
     }
 
-    /// Direct-commit metastate: StrongQC quorum → `Optimistic`, strong-blame
-    /// quorum → `Standard`, else `Pending`. `None` when the flag is off.
-    /// The returned `Vec<AuthorityIndex>` carries the leader's strong-voter
-    /// authorities for the Optimistic case (used by the linearizer to seed
-    /// the per-ref ack tracker); empty otherwise.
-    fn determine_metastate_direct(
-        &self,
-        leader_block: &VerifiedBlockHeader,
-    ) -> (Option<CommitMetastate>, Vec<AuthorityIndex>) {
-        if !self.context.protocol_config.consensus_starfish_speed() {
-            return (None, Vec::new());
-        }
-
-        if let Some(strong_voters) = self.strong_qc_quorum(leader_block) {
-            return (Some(CommitMetastate::Optimistic), strong_voters);
-        }
-
-        if self.has_strong_blame_quorum(leader_block) {
-            return (Some(CommitMetastate::Standard), Vec::new());
-        }
-
-        (Some(CommitMetastate::Pending), Vec::new())
-    }
-
-    /// `(vote_refs, strong_vote_refs)` at r+1 for `leader_block`, built in a
-    /// single pass. Strong votes are a subset of votes; the strong-vote filter
-    /// also requires the voter's pinned leader (`strong_vote_leader`) to
-    /// match `leader_block.author()` — strong votes computed against a
-    /// different leader (e.g. before a schedule rotation) don't count toward
-    /// this leader's quorum.
+    /// `(vote_refs, strong_vote_refs)` for `leader_block` among the given
+    /// voting-round (r+1) blocks, built in a single pass. Strong votes are a
+    /// subset of votes; the strong-vote filter also requires the voter's
+    /// pinned leader (`strong_vote_leader`) to match `leader_block.author()`
+    /// — strong votes computed against a different leader (e.g. before a
+    /// schedule rotation) don't count toward this leader's quorum.
     fn vote_and_strong_vote_refs_for_leader(
         &self,
         leader_block: &VerifiedBlockHeader,
+        voting_blocks: &[VerifiedBlockHeader],
     ) -> (HashSet<BlockRef>, HashSet<BlockRef>) {
-        let voting_round = leader_block.round() + 1;
-        let voters = self
-            .dag_state
-            .read()
-            .get_block_headers_at_round_above_last_commit(voting_round);
         let mut vote_refs = HashSet::new();
         let mut strong_vote_refs = HashSet::new();
-        for voter in &voters {
+        for voter in voting_blocks {
             if self.is_vote(voter, leader_block) {
                 let r = voter.reference();
                 vote_refs.insert(r);
@@ -447,58 +482,6 @@ impl BaseCommitter {
             }
         }
         (vote_refs, strong_vote_refs)
-    }
-
-    /// `Some(strong-voter authorities)` when 2f+1 StrongQCs exist at `r+2`
-    /// for `leader_block`; `None` otherwise.
-    fn strong_qc_quorum(&self, leader_block: &VerifiedBlockHeader) -> Option<Vec<AuthorityIndex>> {
-        let voting_round = leader_block.round() + 1;
-        let certifying_round = leader_block.round() + 2;
-
-        let (voters, decision_blocks) = {
-            let dag_state = self.dag_state.read();
-            (
-                dag_state.get_block_headers_at_round_above_last_commit(voting_round),
-                dag_state.get_block_headers_at_round_above_last_commit(certifying_round),
-            )
-        };
-
-        let strong_vote_refs: HashSet<BlockRef> = voters
-            .into_iter()
-            .filter(|b| {
-                b.is_strong_vote_for(leader_block.author()) && self.is_vote(b, leader_block)
-            })
-            .map(|b| b.reference())
-            .collect();
-
-        let mut strong_qc_stake_aggregator = StakeAggregator::<QuorumThreshold>::new();
-        for decision_block in &decision_blocks {
-            let authority = decision_block.reference().author;
-            if self.is_strong_certificate(decision_block, &strong_vote_refs)
-                && strong_qc_stake_aggregator.add(authority, &self.context.committee)
-            {
-                return Some(strong_vote_refs.iter().map(|r| r.author).collect());
-            }
-        }
-        None
-    }
-
-    /// True if `potential_certificate` carries a StrongQC for the leader
-    /// whose strong votes are pre-filtered in `strong_vote_refs`.
-    fn is_strong_certificate(
-        &self,
-        potential_certificate: &VerifiedBlockHeader,
-        strong_vote_refs: &HashSet<BlockRef>,
-    ) -> bool {
-        let mut strong_votes_stake_aggregator = StakeAggregator::<QuorumThreshold>::new();
-        for reference in potential_certificate.ancestors() {
-            if strong_vote_refs.contains(reference)
-                && strong_votes_stake_aggregator.add(reference.author, &self.context.committee)
-            {
-                return true;
-            }
-        }
-        false
     }
 
     /// Single-walk `(is_certificate, is_strong_certificate)` classifier.
@@ -534,19 +517,18 @@ impl BaseCommitter {
         (is_cert, is_strong)
     }
 
-    /// Check whether 2f+1 blocks at `r+1` vote for `leader_block`, pin their
-    /// strong-blame to `leader_block.author()`, and carry
-    /// `is_strong_blame() == true`. Strong blames whose pinned leader doesn't
-    /// match are ignored — same misattribution rule as for strong votes.
-    fn has_strong_blame_quorum(&self, leader_block: &VerifiedBlockHeader) -> bool {
-        let voting_round = leader_block.round() + 1;
-        let voting_blocks = self
-            .dag_state
-            .read()
-            .get_block_headers_at_round_above_last_commit(voting_round);
-
+    /// Check whether 2f+1 of the given voting-round (r+1) blocks vote for
+    /// `leader_block`, pin their strong-blame to `leader_block.author()`, and
+    /// carry `is_strong_blame() == true`. Strong blames whose pinned leader
+    /// doesn't match are ignored — same misattribution rule as for strong
+    /// votes.
+    fn has_strong_blame_quorum(
+        &self,
+        leader_block: &VerifiedBlockHeader,
+        voting_blocks: &[VerifiedBlockHeader],
+    ) -> bool {
         let mut strong_blame_stake_aggregator = StakeAggregator::<QuorumThreshold>::new();
-        for voting_block in &voting_blocks {
+        for voting_block in voting_blocks {
             if !voting_block.is_strong_blame_for(leader_block.author()) {
                 continue;
             }
