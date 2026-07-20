@@ -538,7 +538,7 @@ async fn test_full_node_cold_sync_execution_scheduler() -> Result<(), anyhow::Er
     fullnode
         .state()
         .get_transaction_cache_reader()
-        .notify_read_executed_effects(&[digest])
+        .notify_read_executed_effects_for_testing(&[digest])
         .await;
 
     let info = fullnode

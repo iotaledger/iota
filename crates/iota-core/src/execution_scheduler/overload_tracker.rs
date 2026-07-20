@@ -9,9 +9,8 @@ use std::{
 };
 
 use iota_config::node::AuthorityOverloadConfig;
-use iota_sdk_types::ObjectId;
+use iota_sdk_types::{ObjectId, TransactionDigest};
 use iota_types::{
-    digests::TransactionDigest,
     error::{IotaError, IotaResult},
     fp_bail, fp_ensure,
     message_envelope::Message,

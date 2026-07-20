@@ -7,8 +7,8 @@ use std::{collections::BTreeSet, sync::Arc};
 use enum_dispatch::enum_dispatch;
 use execution_scheduler_impl::ExecutionScheduler;
 use iota_config::node::AuthorityOverloadConfig;
+use iota_sdk_types::TransactionEffectsDigest;
 use iota_types::{
-    digests::TransactionEffectsDigest,
     error::IotaResult,
     executable_transaction::VerifiedExecutableTransaction,
     storage::InputKey,

@@ -311,7 +311,7 @@ async fn test_writeback_receiving_object_higher_version() {
 async fn notify_read_resolves_received_then_deleted_owned_input() {
     let cache = create_writeback_cache().await;
     let object_id = ObjectId::random();
-    let version = SequenceNumber::from(1);
+    let version = Version::from(1);
     let epoch_id = 0;
 
     // The owned object was received and then deleted at `version`; only a marker
@@ -369,7 +369,7 @@ async fn cache_only_availability_ignores_store_but_full_path_falls_back() {
 
     // An object written straight to the store, never through the cache.
     let store_only_id = ObjectId::random();
-    let version = SequenceNumber::from(1);
+    let version = Version::from(1);
     let store_only =
         Object::with_id_owner_version_for_testing(store_only_id, version, Owner::Immutable);
     store.bulk_insert_genesis_objects(&[store_only]).unwrap();
@@ -413,7 +413,7 @@ async fn cache_only_availability_ignores_store_but_full_path_falls_back() {
     // A cancelled sentinel version short-circuits to available.
     let cancelled_key = InputKey::VersionedObject {
         id: ObjectId::random(),
-        version: SequenceNumber::CANCELLED_READ,
+        version: Version::CANCELLED_READ,
     };
     assert_eq!(
         cache.multi_input_objects_available_cache_only(&[cancelled_key]),

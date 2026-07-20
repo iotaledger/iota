@@ -2302,7 +2302,7 @@ async fn try_execute_immediately_panics_on_effects_digest_mismatch() {
     );
 
     // A certified effects digest that cannot match what this transfer produces.
-    let bogus_effects_digest = iota_types::digests::TransactionEffectsDigest::new([255; 32]);
+    let bogus_effects_digest = iota_sdk_types::TransactionEffectsDigest::new([255; 32]);
     let executable =
         VerifiedExecutableTransaction::new_from_certificate(certified_transfer_transaction);
     let _ = authority_state.try_execute_immediately(
@@ -2346,7 +2346,7 @@ async fn try_execute_immediately_panics_on_already_executed_digest_mismatch() {
             &authority_state.epoch_store_for_testing(),
         )
         .unwrap();
-    let bogus_effects_digest = iota_types::digests::TransactionEffectsDigest::new([255; 32]);
+    let bogus_effects_digest = iota_sdk_types::TransactionEffectsDigest::new([255; 32]);
     let _ = authority_state.try_execute_immediately(
         &executable,
         Some(bogus_effects_digest),

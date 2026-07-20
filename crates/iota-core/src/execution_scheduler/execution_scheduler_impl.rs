@@ -9,8 +9,8 @@ use std::{
 
 use iota_config::node::AuthorityOverloadConfig;
 use iota_metrics::spawn_monitored_task;
+use iota_sdk_types::TransactionEffectsDigest;
 use iota_types::{
-    digests::TransactionEffectsDigest,
     error::IotaResult,
     executable_transaction::VerifiedExecutableTransaction,
     storage::InputKey,

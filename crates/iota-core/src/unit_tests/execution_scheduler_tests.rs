@@ -18,18 +18,19 @@
 use std::{time::Duration, vec};
 
 use iota_config::node::AuthorityOverloadConfig;
-use iota_sdk_types::{ObjectId, VersionAssignment};
+use iota_sdk_types::{
+    ObjectId, SharedObjectReference, TransactionEffectsDigest, VersionAssignment,
+};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     crypto::deterministic_random_account_key,
-    digests::TransactionEffectsDigest,
     error::IotaError,
     executable_transaction::VerifiedExecutableTransaction,
     move_authenticator::MoveAuthenticatorV1,
     object::Object,
-    signature::GenericSignature,
+    signature::UserSignature,
     storage::InputKey,
-    transaction::{CallArg, SharedObjectRef, Transaction, VerifiedTransaction},
+    transaction::{CallArg, SenderSignedData, Transaction, VerifiedTransaction},
 };
 use tokio::{
     sync::mpsc::{UnboundedReceiver, unbounded_channel},
@@ -168,12 +169,12 @@ fn make_shared_authenticator_transaction(
     let authenticator = MoveAuthenticatorV1::new_with_shared_account_object(
         vec![],
         vec![],
-        SharedObjectRef::new(shared_object.id(), 0.into(), false),
+        SharedObjectReference::new(shared_object.id(), 0.into(), false),
     );
-    let signed = Transaction::from_generic_sig_data(
+    let signed = Transaction::new(SenderSignedData::new(
         tx_data,
-        vec![GenericSignature::MoveAuthenticator(authenticator.into())],
-    );
+        vec![UserSignature::MoveAuthenticator(authenticator.into())],
+    ));
     VerifiedExecutableTransaction::new_system(VerifiedTransaction::new_unchecked(signed), 0)
 }
 
@@ -313,7 +314,7 @@ async fn execution_scheduler_releases_all_waiters_on_one_object() {
     // Three read-only transactions, each waiting on the same shared object at a
     // consensus-assigned version that is not yet available in the cache.
     let shared_version = 1000.into();
-    let shared_arg = CallArg::Shared(SharedObjectRef::new(
+    let shared_arg = CallArg::Shared(SharedObjectReference::new(
         shared_object.id(),
         initial_shared_version,
         false,
@@ -549,7 +550,7 @@ async fn execution_scheduler_reconfigure_clears_pending_and_overload() {
     // consensus-assigned version that is not yet available — the overload tracker
     // only counts mutable shared inputs.
     let shared_version = 1000.into();
-    let shared_arg = CallArg::Shared(SharedObjectRef::new(
+    let shared_arg = CallArg::Shared(SharedObjectReference::new(
         shared_object.id(),
         initial_shared_version,
         true,
