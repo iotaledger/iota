@@ -281,7 +281,7 @@ pub enum IotaClientCommands {
     /// derivation path which defaults to m/44'/4218'/0'/0'/0' for ed25519,
     /// m/54'/4218'/0'/0/0 for secp256k1 or m/74'/4218'/0'/0/0 for secp256r1.
     NewAddress {
-        #[arg(long, default_value_t = SignatureScheme::ED25519)]
+        #[arg(long, default_value_t = SignatureScheme::Ed25519)]
         key_scheme: SignatureScheme,
         /// The alias must start with a letter and can contain only letters,
         /// digits, hyphens (-), or underscores (_).
@@ -1603,7 +1603,7 @@ impl IotaClientCommands {
                     address,
                     public_base64_key: key.public_base64_key.unwrap(),
                     public_base64_key_with_flag: key.public_base64_key_with_flag.unwrap(),
-                    key_scheme: scheme,
+                    key_scheme: scheme.to_string(),
                     recovery_phrase: phrase,
                 })
             }
@@ -2471,10 +2471,7 @@ impl Display for IotaClientCommandResult {
                     "publicBase64KeyWithFlag",
                     new_address.public_base64_key_with_flag.as_str(),
                 ]);
-                builder.push_record(vec![
-                    "keyScheme",
-                    new_address.key_scheme.to_string().as_str(),
-                ]);
+                builder.push_record(vec!["keyScheme", new_address.key_scheme.as_str()]);
                 builder.push_record(vec![
                     "recoveryPhrase",
                     new_address.recovery_phrase.to_string().as_str(),
@@ -2861,7 +2858,7 @@ pub struct NewAddressOutput {
     pub address: Address,
     pub public_base64_key: String,
     pub public_base64_key_with_flag: String,
-    pub key_scheme: SignatureScheme,
+    pub key_scheme: String,
     pub recovery_phrase: String,
 }
 

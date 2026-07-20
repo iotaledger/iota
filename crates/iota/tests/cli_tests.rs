@@ -3277,7 +3277,7 @@ async fn test_switch_command() -> Result<(), anyhow::Error> {
 
     // Create a new address
     let os = IotaClientCommands::NewAddress {
-        key_scheme: SignatureScheme::ED25519,
+        key_scheme: SignatureScheme::Ed25519,
         alias: None,
         derivation_path: None,
         word_length: None,
@@ -3324,7 +3324,7 @@ async fn test_new_address_command_by_flag() -> Result<(), anyhow::Error> {
             .keystore()
             .keys()
             .iter()
-            .filter(|k| k.public().flag() == SignatureScheme::ED25519.flag())
+            .filter(|k| k.public().flag() == SignatureScheme::Ed25519.to_u8())
             .count(),
         5
     );
@@ -3345,7 +3345,7 @@ async fn test_new_address_command_by_flag() -> Result<(), anyhow::Error> {
             .keystore()
             .keys()
             .iter()
-            .filter(|k| k.public().flag() == SignatureScheme::Secp256k1.flag())
+            .filter(|k| k.public().flag() == SignatureScheme::Secp256k1.to_u8())
             .count(),
         1
     );
@@ -3900,20 +3900,16 @@ async fn test_split_coin() -> Result<(), anyhow::Error> {
 
 #[sim_test]
 async fn test_signature_flag() -> Result<(), anyhow::Error> {
-    let res = SignatureScheme::from_flag("0");
-    assert!(res.is_ok());
-    assert_eq!(res.unwrap().flag(), SignatureScheme::ED25519.flag());
-
-    let res = SignatureScheme::from_flag("1");
-    assert!(res.is_ok());
-    assert_eq!(res.unwrap().flag(), SignatureScheme::Secp256k1.flag());
-
-    let res = SignatureScheme::from_flag("2");
-    assert!(res.is_ok());
-    assert_eq!(res.unwrap().flag(), SignatureScheme::Secp256r1.flag());
-
-    let res = SignatureScheme::from_flag("something");
-    assert!(res.is_err());
+    assert_eq!(SignatureScheme::from_byte(0), Ok(SignatureScheme::Ed25519));
+    assert_eq!(
+        SignatureScheme::from_byte(1),
+        Ok(SignatureScheme::Secp256k1)
+    );
+    assert_eq!(
+        SignatureScheme::from_byte(2),
+        Ok(SignatureScheme::Secp256r1)
+    );
+    assert!(SignatureScheme::from_byte(0x05).is_err());
     Ok(())
 }
 

@@ -13,7 +13,7 @@ use crate::{
     committee::EpochId,
     crypto::{
         AccountKeyPair, AuthorityKeyPair, AuthoritySignature, IotaAuthoritySignature,
-        IotaSignature, Signature, SignatureScheme, get_key_pair,
+        IotaSignature, Signature, get_key_pair,
     },
     object::Object,
     transaction::{
@@ -48,11 +48,7 @@ fn test_personal_message_intent() {
 
     // Let's ensure we can sign and verify intents.
     let s = Signature::new_secure(&IntentMessage::new(intent, p_message), &sec1);
-    let verification = s.verify_secure(
-        &IntentMessage::new(intent, p_message_2),
-        addr1,
-        SignatureScheme::ED25519,
-    );
+    let verification = s.verify_secure(&IntentMessage::new(intent, p_message_2), addr1);
     assert!(verification.is_ok())
 }
 

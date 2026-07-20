@@ -981,10 +981,7 @@ fn verify_sender_signature_correctly_with_flag() {
         _ => panic!("invalid"),
     };
     // signature contains the correct Secp256k1 flag
-    assert_eq!(
-        s.signature_scheme().flag(),
-        SignatureScheme::Secp256k1.flag()
-    );
+    assert_eq!(s.scheme(), SignatureScheme::Secp256k1);
 
     // authority accepts signs tx after verification
     assert!(
@@ -1014,7 +1011,7 @@ fn verify_sender_signature_correctly_with_flag() {
     };
 
     // signature contains the correct Ed25519 flag
-    assert_eq!(s.signature_scheme().flag(), SignatureScheme::ED25519.flag());
+    assert_eq!(s.scheme(), SignatureScheme::Ed25519);
 
     // signature verified
     assert!(

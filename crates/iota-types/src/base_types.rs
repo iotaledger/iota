@@ -29,7 +29,7 @@ use serde::{
 pub use crate::committee::EpochId;
 use crate::{
     MOVE_STDLIB_ADDRESS,
-    crypto::{AuthorityPublicKeyBytes, DefaultHash, IotaPublicKey, PublicKey},
+    crypto::{AuthorityPublicKeyBytes, DefaultHash, IotaPublicKey, PublicKey, SignatureScheme},
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
     epoch_data::EpochData,
     error::{ExecutionError, ExecutionErrorKind},
@@ -213,9 +213,17 @@ impl From<&ObjectInfo> for ObjectReference {
 
 pub const IOTA_ADDRESS_LENGTH: usize = ObjectId::LENGTH;
 
+/// Updates the hasher with the scheme's flag byte, except for Ed25519 whose
+/// addresses are derived from the bare public key.
+fn update_hasher_with_flag(hasher: &mut DefaultHash, scheme: SignatureScheme) {
+    if scheme != SignatureScheme::Ed25519 {
+        hasher.update([scheme.to_u8()]);
+    }
+}
+
 pub fn address_from_iota_pub_key<T: IotaPublicKey>(pk: &T) -> Address {
     let mut hasher = DefaultHash::default();
-    T::SIGNATURE_SCHEME.update_hasher_with_flag(&mut hasher);
+    update_hasher_with_flag(&mut hasher, T::SIGNATURE_SCHEME);
     hasher.update(pk);
     let g_arr = hasher.finalize();
     Address::new(g_arr.digest)
@@ -224,7 +232,7 @@ pub fn address_from_iota_pub_key<T: IotaPublicKey>(pk: &T) -> Address {
 impl From<&PublicKey> for Address {
     fn from(pk: &PublicKey) -> Self {
         let mut hasher = DefaultHash::default();
-        pk.scheme().update_hasher_with_flag(&mut hasher);
+        update_hasher_with_flag(&mut hasher, pk.scheme());
         hasher.update(pk);
         let g_arr = hasher.finalize();
         Address::new(g_arr.digest)

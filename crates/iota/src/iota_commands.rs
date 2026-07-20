@@ -441,12 +441,16 @@ fn prompt_if_no_config(
             config = config.with_active_address(*existing_address);
         } else if generate_address {
             let key_scheme = if accept_defaults {
-                SignatureScheme::ED25519
+                SignatureScheme::Ed25519
             } else {
                 print!(
                     "Select key scheme to generate keypair (0 for ed25519, 1 for secp256k1, 2: for secp256r1): "
                 );
-                match SignatureScheme::from_flag(read_line()?.trim()) {
+                let flag = match read_line()?.trim().parse::<u8>() {
+                    Ok(flag) => flag,
+                    Err(e) => bail!("Invalid key scheme: {e}"),
+                };
+                match SignatureScheme::from_byte(flag) {
                     Ok(s) => s,
                     Err(e) => bail!("{e}"),
                 }

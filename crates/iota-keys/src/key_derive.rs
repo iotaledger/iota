@@ -36,7 +36,7 @@ pub fn derive_key_pair_from_path(
 ) -> Result<(Address, IotaKeyPair), IotaError> {
     let path = validate_path(key_scheme, derivation_path)?;
     match key_scheme {
-        SignatureScheme::ED25519 => {
+        SignatureScheme::Ed25519 => {
             let indexes = path.into_iter().map(|i| i.into()).collect::<Vec<_>>();
             let derived = derive_ed25519_private_key(seed, &indexes);
             let sk = Ed25519PrivateKey::from_bytes(&derived)
@@ -71,12 +71,7 @@ pub fn derive_key_pair_from_path(
                 IotaKeyPair::Secp256r1(kp),
             ))
         }
-        #[allow(deprecated)]
-        SignatureScheme::BLS12381
-        | SignatureScheme::MultiSig
-        | SignatureScheme::ZkLoginAuthenticatorDeprecated
-        | SignatureScheme::PasskeyAuthenticator
-        | SignatureScheme::MoveAuthenticator => Err(IotaError::UnsupportedFeature {
+        _ => Err(IotaError::UnsupportedFeature {
             error: format!("key derivation not supported {key_scheme:?}"),
         }),
     }
@@ -87,7 +82,7 @@ pub fn validate_path(
     path: Option<DerivationPath>,
 ) -> Result<DerivationPath, IotaError> {
     match key_scheme {
-        SignatureScheme::ED25519 => {
+        SignatureScheme::Ed25519 => {
             match path {
                 Some(p) => {
                     // The derivation path must be hardened at all levels with purpose = 44,
@@ -174,12 +169,7 @@ pub fn validate_path(
                 .map_err(|_| IotaError::SignatureKeyGen("Cannot parse path".to_string()))?),
             }
         }
-        #[allow(deprecated)]
-        SignatureScheme::BLS12381
-        | SignatureScheme::MultiSig
-        | SignatureScheme::ZkLoginAuthenticatorDeprecated
-        | SignatureScheme::PasskeyAuthenticator
-        | SignatureScheme::MoveAuthenticator => Err(IotaError::UnsupportedFeature {
+        _ => Err(IotaError::UnsupportedFeature {
             error: format!("key derivation not supported {key_scheme:?}"),
         }),
     }

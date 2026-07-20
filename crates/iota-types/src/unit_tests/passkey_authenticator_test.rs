@@ -160,7 +160,7 @@ async fn create_credential_and_sign_test_tx(
     let client_data_json = authenticated_cred.response.client_data_json.as_slice();
 
     // Prepare flag || sig || pk.
-    let mut user_sig_bytes = vec![SignatureScheme::Secp256r1.flag()];
+    let mut user_sig_bytes = vec![SignatureScheme::Secp256r1.to_u8()];
     user_sig_bytes.extend_from_slice(&sig_bytes);
     user_sig_bytes.extend_from_slice(&pk_bytes);
 
