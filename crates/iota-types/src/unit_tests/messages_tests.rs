@@ -12,7 +12,7 @@ use fastcrypto::{
     ed25519::Ed25519KeyPair,
     traits::{AggregateAuthenticator, KeyPair},
 };
-use iota_sdk_crypto::simple::SimpleKeypair;
+use iota_sdk_crypto::{ed25519::Ed25519PrivateKey, simple::SimpleKeypair};
 use iota_sdk_types::{
     Address, ExecutionStatus, GasPayment, Owner, SharedObjectReference, StructTag,
     TransactionEventsDigest, gas::GasCostSummary,
@@ -1396,9 +1396,8 @@ fn auth_digest_for_move_authenticator_equals_authenticator_digest() {
 
 #[test]
 fn auth_digest_for_regular_signature_is_hash_of_sig_bytes() {
-    let (sender, kp): (_, AccountKeyPair) = get_key_pair();
-    // TODO remove conversion https://github.com/iotaledger/iota/issues/11590
-    let kp = SimpleKeypair::from_bytes(IotaKeyPair::Ed25519(kp).to_bytes()).unwrap();
+    let kp = SimpleKeypair::from(Ed25519PrivateKey::generate(rand::thread_rng()));
+    let sender = kp.public_key().derive_address();
     let tx = make_transaction(sender, &kp);
     let sig = tx.tx_signatures().first().unwrap();
     assert_eq!(auth_digest_for_sig(sig).unwrap(), blake2b256_of_sig(sig));
@@ -1429,9 +1428,8 @@ fn compute_auth_digests_non_sponsored_move_authenticator() {
 
 #[test]
 fn compute_auth_digests_non_sponsored_regular_signature() {
-    let (sender, kp): (_, AccountKeyPair) = get_key_pair();
-    // TODO remove conversion https://github.com/iotaledger/iota/issues/11590
-    let kp = SimpleKeypair::from_bytes(IotaKeyPair::Ed25519(kp).to_bytes()).unwrap();
+    let kp = SimpleKeypair::from(Ed25519PrivateKey::generate(rand::thread_rng()));
+    let sender = kp.public_key().derive_address();
     let tx = make_transaction(sender, &kp);
     let sig = tx.tx_signatures().first().unwrap();
     let (sender_digest, sponsor_digest) = tx.data().compute_auth_digests().unwrap();
