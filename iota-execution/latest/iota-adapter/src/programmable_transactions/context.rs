@@ -19,7 +19,7 @@ mod checked {
     };
     use iota_protocol_config::ProtocolConfig;
     use iota_sdk_types::{
-        Address, Argument, CommandArgumentError, Event, ObjectData, ObjectId, Owner,
+        Address, Argument, CommandArgumentError, Event, MoveStruct, ObjectData, ObjectId, Owner,
         SharedObjectReference, StructTag, TypeTag, move_package::MovePackage,
     };
     use iota_types::{
@@ -34,7 +34,7 @@ mod checked {
         },
         metrics::LimitsMetrics,
         move_package::{MovePackageExt, derive_package_metadata_id},
-        object::{MoveObject, MoveObjectExt, Object, ObjectInner},
+        object::{MoveStructExt, Object, ObjectInner},
         storage::{BackingPackageStore, DenyListResult, PackageObject},
         transaction::CallArg,
     };
@@ -1655,7 +1655,7 @@ mod checked {
         Ok(())
     }
 
-    /// Generate an MoveObject given an updated/written object
+    /// Generate an MoveStruct given an updated/written object
     fn create_written_object(
         vm: &MoveVM,
         linkage_view: &LinkageView,
@@ -1664,7 +1664,7 @@ mod checked {
         id: ObjectId,
         type_: Type,
         contents: Vec<u8>,
-    ) -> Result<MoveObject, ExecutionError> {
+    ) -> Result<MoveStruct, ExecutionError> {
         debug_assert_eq!(
             id,
             ObjectId::from_bytes(&contents[..ObjectId::LENGTH])
@@ -1684,7 +1684,7 @@ mod checked {
             TypeTag::Struct(inner) => *inner,
             _ => invariant_violation!("Non struct type for object"),
         };
-        MoveObject::new_from_execution(
+        MoveStruct::new_from_execution(
             struct_tag,
             old_obj_ver.unwrap_or_default(),
             contents,

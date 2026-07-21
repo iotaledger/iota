@@ -6,8 +6,8 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    Address, EndOfEpochTransactionKind, Event, Identifier, ObjectId, ObjectReference, Owner,
-    SharedObjectReference, StructTag, TransactionDigest, TransactionKind, TypeTag, Version,
+    Address, EndOfEpochTransactionKind, Event, Identifier, MoveStruct, ObjectId, ObjectReference,
+    Owner, SharedObjectReference, StructTag, TransactionDigest, TransactionKind, TypeTag, Version,
 };
 use tap::Pipe;
 
@@ -25,7 +25,7 @@ use crate::{
         CertifiedCheckpointSummary, CheckpointContents, CheckpointContentsExt, CheckpointSummary,
         CheckpointSummaryExt, EndOfEpochData,
     },
-    object::{GAS_VALUE_FOR_TESTING, MoveObject, MoveObjectExt, Object},
+    object::{GAS_VALUE_FOR_TESTING, MoveStructExt, Object},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{CallArg, SenderSignedData, Transaction, TransactionData, TransactionDataAPI},
 };
@@ -219,7 +219,7 @@ impl TestCheckpointDataBuilder {
             !self.live_objects.contains_key(&object_id),
             "Object already exists: {object_id}. Please use a different object index.",
         );
-        let move_object = MoveObject::new_coin(
+        let move_object = MoveStruct::new_coin(
             coin_type,
             // version doesn't matter since we will set it to the lamport version when we finalize
             // the transaction

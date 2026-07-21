@@ -46,9 +46,9 @@ use iota_metrics::{
 };
 use iota_sdk_types::{
     Address, CheckpointContentsDigest, CheckpointDigest, Digest, EndOfEpochTransactionKind, Event,
-    ExecutionStatus, GasPayment, ObjectDigest, ObjectId, ObjectReference, Owner, RandomnessRound,
-    StructTag, SystemPackage, TransactionDigest, TransactionEffectsDigest, TransactionExpiration,
-    TransactionKind, TypeTag, Version,
+    ExecutionStatus, GasPayment, MoveStruct, ObjectDigest, ObjectId, ObjectReference, Owner,
+    RandomnessRound, StructTag, SystemPackage, TransactionDigest, TransactionEffectsDigest,
+    TransactionExpiration, TransactionKind, TypeTag, Version,
     crypto::{Intent, IntentAppId, IntentMessage, IntentScope, IntentVersion},
     gas::GasCostSummary,
 };
@@ -110,7 +110,7 @@ use iota_types::{
     metrics::{BytecodeVerifierMetrics, LimitsMetrics},
     move_authenticator::{MoveAuthenticator, MoveAuthenticatorExt},
     object::{
-        MoveObject, MoveObjectExt, OBJECT_START_VERSION, Object, ObjectRead, PastObjectRead,
+        MoveStructExt, OBJECT_START_VERSION, Object, ObjectRead, PastObjectRead,
         bounded_visitor::BoundedVisitor,
     },
     storage::{
@@ -2195,7 +2195,7 @@ impl AuthorityState {
             let sender = transaction.gas_owner();
             let gas_object_id = ObjectId::random();
             let gas_object = Object::new_move(
-                MoveObject::new_gas_coin(
+                MoveStruct::new_gas_coin(
                     OBJECT_START_VERSION,
                     gas_object_id,
                     SIMULATION_GAS_COIN_VALUE,

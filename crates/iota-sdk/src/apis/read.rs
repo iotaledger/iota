@@ -445,7 +445,7 @@ impl ReadApi {
         // unwrap: requested bcs data
         let move_object = resp.bcs.unwrap();
         let raw_move_obj = move_object.try_into_move().ok_or(Error::Data(format!(
-            "Object {object_id} is not a MoveObject"
+            "Object {object_id} is not a MoveStruct"
         )))?;
         Ok(raw_move_obj.bcs_bytes)
     }

@@ -39,7 +39,7 @@ use iota_types::{
     error::IotaError,
     iota_serde::BigInt,
     messages_checkpoint::{CheckpointSequenceNumber, CheckpointTimestamp},
-    object::{MoveObjectExt, Object, ObjectRead, PastObjectRead},
+    object::{MoveStructExt, Object, ObjectRead, PastObjectRead},
     transaction::{Transaction, TransactionDataAPI},
 };
 use itertools::Itertools;
@@ -1121,7 +1121,7 @@ pub enum ObjectDisplayError {
     Layout,
 
     #[error("Failed to extract Move object")]
-    MoveObject,
+    MoveStruct,
 
     #[error(transparent)]
     Deserialization(#[from] IotaError),
@@ -1203,7 +1203,7 @@ fn get_move_struct(
     let layout = layout.as_ref().ok_or_else(|| ObjectDisplayError::Layout)?;
     Ok(o.data
         .as_opt_struct()
-        .ok_or_else(|| ObjectDisplayError::MoveObject)?
+        .ok_or_else(|| ObjectDisplayError::MoveStruct)?
         .to_move_struct(layout)?)
 }
 

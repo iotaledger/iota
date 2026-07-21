@@ -20,10 +20,11 @@ use iota_sdk_types::{
     Address, Argument, CancelledTransaction, CertificateDigest, Command, ConsensusCommitDigest,
     ConsensusCommitPrologueV1, ConsensusDeterminedVersionAssignments, Digest,
     EndOfEpochTransactionKind, Event, GasPayment, GenesisObject, GenesisTransaction, Identifier,
-    Input, MakeMoveVector, MergeCoins, MoveCall, ObjectDigest, ObjectId, ObjectReference, Owner,
-    ProgrammableTransaction, Publish, RandomnessRound, RandomnessStateUpdate,
-    SenderSignedDataDigest, SharedObjectReference, SplitCoins, TransactionDigest,
-    TransactionExpiration, TransactionKind, TransferObjects, TypeTag, Upgrade, Version,
+    Input, MakeMoveVector, MergeCoins, MoveCall, MoveStruct, ObjectDigest, ObjectId,
+    ObjectReference, Owner, ProgrammableTransaction, Publish, RandomnessRound,
+    RandomnessStateUpdate, SenderSignedDataDigest, SharedObjectReference, SplitCoins,
+    TransactionDigest, TransactionExpiration, TransactionKind, TransferObjects, TypeTag, Upgrade,
+    Version,
     crypto::{Intent, IntentMessage, IntentScope},
 };
 pub use iota_sdk_types::{Transaction as TransactionData, TransactionV1 as TransactionDataV1};
@@ -46,7 +47,7 @@ use crate::{
     message_envelope::{Envelope, Message, TrustedEnvelope, VerifiedEnvelope},
     messages_checkpoint::CheckpointTimestamp,
     move_authenticator::{MoveAuthenticator, MoveAuthenticatorExt},
-    object::{MoveObject, Object},
+    object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     signature::{UserSignature, VerifyParams},
     signature_verification::verify_sender_signed_data_message_signatures,
@@ -3195,7 +3196,7 @@ impl InputObjects {
             .iter()
             .filter_map(|object| match &object.object {
                 ObjectReadResultKind::Object(object) => {
-                    object.data.as_opt_struct().map(MoveObject::version)
+                    object.data.as_opt_struct().map(MoveStruct::version)
                 }
                 ObjectReadResultKind::DeletedSharedObject(v, _) => Some(*v),
                 ObjectReadResultKind::CancelledTransactionSharedObject(_) => None,
