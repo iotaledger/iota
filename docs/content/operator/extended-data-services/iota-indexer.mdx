@@ -13,6 +13,8 @@ The `iota-indexer` binary in writer mode ingests checkpoints from an IOTA checkp
 
 The `iota-indexer` binary also has a `run-backfill` subcommand — a one-off maintenance tool for filling specific tables over a historical range, typically after a schema change. Not part of normal operation.
 
+It also has a `restore` subcommand. This is a one-off tool that bootstraps the database from a formal snapshot instead of replaying every checkpoint from genesis. See [Restoring from a formal snapshot](#restoring-from-a-formal-snapshot).
+
 ## Scope
 
 The writer:
@@ -236,6 +238,71 @@ Tables not listed here are never pruned by the indexer.
 ### Non-prunable tables
 
 Several tables hold data that is retained for the full lifetime of the database. They are not affected by any retention setting and will not shrink when pruning is enabled. The largest contributors are `objects_version`, `objects_snapshot`, and `objects`.
+
+## Restoring from a formal snapshot
+
+The IOTA Indexer has the ability to initialize the database from a [formal snapshot](../common/snapshots.mdx#formal-snapshots) of the network instead of ingesting every checkpoint from genesis. A formal snapshot is a minimal, cryptographically verifiable capture of the end-of-epoch object state. Full nodes bootstrap from the same snapshots (see [formal-snapshot restore](../common/snapshots.mdx#restoring-from-formal-snapshots)).
+
+For a target epoch, restoring the Indexer involves downloading the snapshot, verifying it against the committee chain, and writing the live object state plus the epoch, protocol, and other data derived from it (display, packages, object-version mapping). It leaves the database at that epoch's final checkpoint. Then the writer should be started to catch up to the chain tip.
+
+This is feasible through the `restore` command that exposes two subcommands, `run` and `available-epochs`:
+
+```text
+iota-indexer restore --network <mainnet|testnet|devnet> run [OPTIONS]
+      --staging-path <STAGING_PATH>   Local directory to stage the downloaded MANIFEST and .ref files
+      --genesis-path <GENESIS_PATH>   Path to the genesis blob used to verify the snapshot
+      --epoch <EPOCH>                 Epoch to download [default: latest available]
+      --num-parallel-downloads <N>    Parallel downloads [default: host available parallelism]
+
+iota-indexer restore --network <mainnet|testnet|devnet> available-epochs
+      Print the epochs for which a formal snapshot is available (no database needed)
+```
+
+`--genesis-path` is the network's [genesis blob](../common/genesis.mdx). It is the trusted resource the committee chain is verified against. The snapshot is in turn verified against that committee chain.
+
+The formal snapshot store keeps a limited set of epochs: the latest epoch, plus the epoch at the start of every month back to genesis (the epoch that ended on the first day of that month). `available-epochs` returns them ordered newest first, so index `0` is the latest epoch, index `1` is the start of the current month, index `2` the month before, and so on back to genesis.
+
+One caveat when selecting the target epoch and configuring a retention policy is that the restore epoch must sit at least a full window behind the tip of the network. That is because all prunable history tables start populating from the checkpoints that follow the restore point. To keep the recommended [30 epochs of retention](#sizing-and-retention), restore from the start of the previous month (index `2`), roughly 30 to 60 days back.
+
+The following example selects that epoch, restores the database, and then starts the writer with pruning enabled to catch up. Omit `--epoch` to take the latest instead.
+
+```sh
+DATABASE_URL="postgres://iota_indexer:iota_indexer@localhost:5432/iota_indexer"
+NETWORK="mainnet"
+GENESIS_PATH="/path/to/genesis.blob"
+PRUNING_TOML_PATH="/path/to/pruning.toml"
+
+# available-epochs is ordered newest first:
+#     index 0 = latest epoch,
+#     index 1 = start of the current month,
+#     index 2 = the month before, ... back to genesis.
+#
+# Restore a month behind so catch-up covers the ~30-epoch retention window.
+EPOCH="$(iota-indexer restore --network "$NETWORK" available-epochs | jq '.[2]')"
+# Without jq:
+# EPOCH="$(iota-indexer restore --network "$NETWORK" available-epochs | python3 -c 'import json, sys; print(json.load(sys.stdin)[2])')"
+
+# 1. Bootstrap the database from the selected snapshot.
+iota-indexer --db-url "$DATABASE_URL" restore --network "$NETWORK" run \
+  --staging-path /tmp/indexer-restore \
+  --genesis-path "$GENESIS_PATH" \
+  --num-parallel-downloads 20 \
+  --epoch "$EPOCH"
+
+# 2. Catch up to the chain tip, with pruning enabled (see Pruning).
+iota-indexer --db-url "$DATABASE_URL" indexer \
+  --remote-store-url "https://checkpoints.$NETWORK.iota.cafe/ingestion/historical" \
+  --live-checkpoints-store-url "https://checkpoints.$NETWORK.iota.cafe/ingestion/live" \
+  --pruning-config-path "$PRUNING_TOML_PATH"
+```
+
+The snapshots are served from the public endpoints listed under [IOTA Foundation managed snapshots](../common/snapshots.mdx#iota-foundation-managed-snapshots).
+
+:::warning Destructive operation
+
+Like [`--reset-db`](#resetting-the-database), `restore` drops every table and re-applies all migrations before restoring. Run it only against a database you intend to rebuild or initialize, since it affects any reader sharing the same database.
+
+:::
 
 ## Appendix: PostgreSQL configuration
 
