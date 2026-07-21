@@ -12,6 +12,7 @@ use iota_sdk_types::{
 };
 use iota_types::{
     base_types::AuthorityName,
+    deny_rule_governance::DenyRuleProposal,
     error::IotaResult,
     messages_checkpoint::{CheckpointContents, CheckpointContentsExt, CheckpointSequenceNumber},
     messages_consensus::VersionedDkgConfirmation,
@@ -95,6 +96,11 @@ pub(crate) struct ConsensusCommitOutput {
     // `authority_overload_notifications` atomically with `last_consensus_stats`
     // so a partial pre-flush state can never be observed on disk.
     overload_notifications: BTreeMap<AuthorityName, u8>,
+
+    // Newest deny rule proposal from each authority received during this
+    // commit. Flushed to `deny_rule_proposals` atomically with
+    // `last_consensus_stats`.
+    deny_rule_proposals: BTreeMap<AuthorityName, DenyRuleProposal>,
 }
 
 impl ConsensusCommitOutput {
@@ -239,6 +245,21 @@ impl ConsensusCommitOutput {
         self.overload_notifications.insert(authority, percentage);
     }
 
+    /// Records `proposal`, keeping the newest generation per authority.
+    // TODO(#10749): remove cfg(test) once the consensus handler records
+    // proposals.
+    #[cfg(test)]
+    pub fn record_deny_rule_proposal(&mut self, proposal: DenyRuleProposal) {
+        if self
+            .deny_rule_proposals
+            .get(&proposal.authority)
+            .is_none_or(|existing| existing.generation < proposal.generation)
+        {
+            self.deny_rule_proposals
+                .insert(proposal.authority, proposal);
+        }
+    }
+
     pub fn write_to_batch(
         self,
         epoch_store: &AuthorityPerEpochStore,
@@ -367,6 +388,8 @@ impl ConsensusCommitOutput {
             &tables.authority_overload_notifications,
             self.overload_notifications,
         )?;
+
+        batch.insert_batch(&tables.deny_rule_proposals, self.deny_rule_proposals)?;
 
         Ok(())
     }
@@ -575,6 +598,12 @@ pub(crate) struct ConsensusOutputQuarantine {
     // `current_overload_notifications`.
     cached_overload_notifications: HashMap<AuthorityName, u8>,
 
+    // In-memory cache of the `deny_rule_proposals` table, maintained exactly
+    // like `cached_overload_notifications`: seeded at construction, advanced
+    // as commits are flushed, overlaid with queued commits by
+    // `current_deny_rule_proposals`.
+    cached_deny_rule_proposals: BTreeMap<AuthorityName, DenyRuleProposal>,
+
     metrics: Arc<EpochMetrics>,
 }
 
@@ -582,6 +611,7 @@ impl ConsensusOutputQuarantine {
     pub(super) fn new(
         highest_executed_checkpoint: CheckpointSequenceNumber,
         cached_overload_notifications: HashMap<AuthorityName, u8>,
+        cached_deny_rule_proposals: BTreeMap<AuthorityName, DenyRuleProposal>,
         authority_metrics: Arc<EpochMetrics>,
     ) -> Self {
         Self {
@@ -596,6 +626,7 @@ impl ConsensusOutputQuarantine {
             processed_consensus_messages: RefCountedHashMap::new(),
             owned_object_locks: HashMap::new(),
             cached_overload_notifications,
+            cached_deny_rule_proposals,
             metrics: authority_metrics,
         }
     }
@@ -752,11 +783,13 @@ impl ConsensusOutputQuarantine {
                 self.remove_processed_consensus_messages(&output);
                 self.remove_congestion_control_debts(&output);
                 self.remove_owned_object_locks(&output);
-                // Advance the in-memory cache in lockstep with the table write
-                // below, so it stays equal to the persisted state once this
-                // commit leaves the queue.
+                // Advance the in-memory caches in lockstep with the table
+                // writes below, so they stay equal to the persisted state once
+                // this commit leaves the queue.
                 self.cached_overload_notifications
                     .extend(&output.overload_notifications);
+                self.cached_deny_rule_proposals
+                    .extend(output.deny_rule_proposals.clone());
                 epoch_store.remove_shared_version_assignments(
                     output
                         .pending_checkpoints
@@ -978,6 +1011,37 @@ impl ConsensusOutputQuarantine {
     ) {
         self.cached_overload_notifications
             .insert(authority, percentage);
+    }
+
+    /// Returns the current deny rule proposals keyed by authority: the
+    /// in-memory cache of the persisted table with every queued
+    /// (processed-but-not-yet-flushed) commit's proposals layered on top.
+    pub(super) fn current_deny_rule_proposals(&self) -> BTreeMap<AuthorityName, DenyRuleProposal> {
+        let mut proposals = self.cached_deny_rule_proposals.clone();
+        for output in &self.output_queue {
+            for (authority, proposal) in &output.deny_rule_proposals {
+                proposals.insert(*authority, proposal.clone());
+            }
+        }
+        proposals
+    }
+
+    /// Returns the generation of `authority`'s newest recorded proposal, if
+    /// any. The record path keeps generations monotonic, so the newest queued
+    /// entry (or, failing that, the flushed one) is the maximum.
+    pub(super) fn deny_rule_proposal_generation(&self, authority: &AuthorityName) -> Option<u64> {
+        self.output_queue
+            .iter()
+            .rev()
+            .find_map(|output| output.deny_rule_proposals.get(authority))
+            .or_else(|| self.cached_deny_rule_proposals.get(authority))
+            .map(|proposal| proposal.generation)
+    }
+
+    #[cfg(test)]
+    pub(super) fn apply_cached_deny_rule_proposal_for_test(&mut self, proposal: DenyRuleProposal) {
+        self.cached_deny_rule_proposals
+            .insert(proposal.authority, proposal);
     }
 
     pub(super) fn get_randomness_last_round_timestamp(&self) -> Option<CheckpointTimestamp> {
