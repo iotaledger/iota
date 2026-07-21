@@ -71,7 +71,11 @@ pub fn derive_key_pair_from_path(
                 IotaKeyPair::Secp256r1(kp),
             ))
         }
-        _ => Err(IotaError::UnsupportedFeature {
+        SignatureScheme::Bls12381
+        | SignatureScheme::Multisig
+        | SignatureScheme::PasskeyAuthenticator
+        | SignatureScheme::MoveAuthenticator
+        | _ => Err(IotaError::UnsupportedFeature {
             error: format!("key derivation not supported {key_scheme:?}"),
         }),
     }
@@ -169,7 +173,11 @@ pub fn validate_path(
                 .map_err(|_| IotaError::SignatureKeyGen("Cannot parse path".to_string()))?),
             }
         }
-        _ => Err(IotaError::UnsupportedFeature {
+        SignatureScheme::Bls12381
+        | SignatureScheme::Multisig
+        | SignatureScheme::PasskeyAuthenticator
+        | SignatureScheme::MoveAuthenticator
+        | _ => Err(IotaError::UnsupportedFeature {
             error: format!("key derivation not supported {key_scheme:?}"),
         }),
     }
