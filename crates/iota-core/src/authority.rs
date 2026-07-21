@@ -1946,7 +1946,9 @@ impl AuthorityState {
                             auth_account_object_id,
                             auth_account_object_seq_number,
                             auth_account_object_digest,
-                        ) = move_authenticator.object_to_authenticate_components().expect("Object to authenticate cannot be invalid reaching this stage of execution");
+                        ) = move_authenticator
+                            .object_to_authenticate_components()
+                            .expect("the object to authenticate is validated before consensus and cannot be invalid during execution");
 
                         let signer = move_authenticator.address();
 
@@ -5651,9 +5653,13 @@ impl AuthorityState {
         Ok(new_epoch_store)
     }
 
-    /// Run right before execution the checks for the move account. Checks if
-    /// `authenticator` unlocks a valid Move account and returns the
-    /// account-related `AuthenticatorFunctionRef` object.
+    /// Resolves the account's `AuthenticatorFunctionRef` on the execution path,
+    /// where the certificate has already passed validation before consensus.
+    ///
+    /// A deleted or cancelled account object is not an error here: its version
+    /// is returned so execution can proceed and surface the proper effect
+    /// (e.g. `InputObjectDeleted` or a shared-object congestion cancellation).
+    /// Any other failure is a broken invariant and panics.
     fn check_move_account_for_execution(
         &self,
         auth_account_object_id: ObjectId,
@@ -5670,12 +5676,12 @@ impl AuthorityState {
             signer,
             true,
         )
-        .expect("The move account checks must not fail pre-execution")
+        .expect("move account checks cannot fail during execution")
     }
 
-    /// Run during validation the checks for the move account. Checks if
-    /// `authenticator` unlocks a valid Move account and returns the
-    /// account-related `AuthenticatorFunctionRef` object.
+    /// Resolves the account's `AuthenticatorFunctionRef` on the validation
+    /// (signing) path, rejecting the transaction when the account object was
+    /// deleted or belongs to a cancelled transaction.
     fn check_move_account_for_validation(
         &self,
         auth_account_object_id: ObjectId,
@@ -5694,8 +5700,12 @@ impl AuthorityState {
         )
     }
 
-    /// Checks if `authenticator` unlocks a valid Move account and returns the
-    /// account-related `AuthenticatorFunctionRef` object.
+    /// Checks whether `authenticator` unlocks a valid Move account and returns
+    /// the account-related `AuthenticatorFunctionRef`. When `is_execution` is
+    /// set, a deleted or cancelled account object yields its version instead of
+    /// an error, so execution can proceed to the proper effect. Prefer the
+    /// `check_move_account_for_execution` / `check_move_account_for_validation`
+    /// wrappers over calling this directly.
     fn check_move_account(
         &self,
         auth_account_object_id: ObjectId,

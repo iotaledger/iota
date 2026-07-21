@@ -502,14 +502,6 @@ async fn test_abstract_account_post_consensus_deletion_failure() -> Result<(), a
         .await?;
     let aa_ref = test_env.aa_ref.unwrap();
     let rgp = test_env.test_cluster.get_reference_gas_price().await;
-
-    // Retrieve the keystore and setup an account for rotating owner key
-    let keystore = test_env.test_cluster.wallet.config_mut().keystore_mut();
-    let new_aa_owner = keystore
-        .generate_and_add_new_key(SignatureScheme::ED25519, None, None, None)
-        .expect("ED25519 key generation should not fail")
-        .0;
-    assert!(new_aa_owner != test_env.owner.unwrap());
     let aa_sender = aa_ref.object_id.into();
 
     // Step 1: create an AA TX and ask the validators to sign it
@@ -535,8 +527,8 @@ async fn test_abstract_account_post_consensus_deletion_failure() -> Result<(), a
         .await
         .unwrap();
 
-    // Step 2: tamper with the certificate to make it invalid post-consensus; this
-    // means creating a second transaction altering the AA shared object state
+    // Step 2: tamper with the AA shared object state by deleting it, so the
+    // original certificate becomes invalid post-consensus
     let aa_gas2 = test_env
         .test_cluster
         .fund_address_and_return_gas(rgp, Some(20000000000), aa_sender)
@@ -551,14 +543,11 @@ async fn test_abstract_account_post_consensus_deletion_failure() -> Result<(), a
     // Create the MoveAuthenticator for the Ed25519 signature authenticator
     let signatures2 = vec![test_env.create_move_authenticator_for_ed25519(&tx_digest2)?];
     // Create the TX envelope and send it for validators signing
-    let aa_rotate_tx = Transaction::from_user_sig_data(tx_data2, signatures2);
+    let aa_delete_tx = Transaction::from_user_sig_data(tx_data2, signatures2);
     // Should succeed
     test_env
-        .execute_and_check_tx_correctness(aa_rotate_tx)
+        .execute_and_check_tx_correctness(aa_delete_tx)
         .await?;
-    // Update the test environment with the new owner (this is just for
-    // completeness, not needed for this test)
-    test_env.owner = Some(new_aa_owner);
 
     // Step 3: submit the original certificate which should now fail
     let QuorumDriverResponse { effects_cert, .. } = test_env
@@ -602,16 +591,16 @@ async fn test_abstract_account_post_consensus_deletion_failure() -> Result<(), a
 /// post-consensus when the (shared) AA object it touches is congested.
 ///
 /// Shared-object congestion control is forced on via protocol-config overrides:
-/// with `TotalGasBudget` accounting the transaction's gas budget alone overflows
-/// a per-object commit limit of 1, so it is deferred, and with zero allowed
-/// deferral rounds the first deferral is turned into a cancellation. Validators
-/// originally sign the transaction (authentication runs pre-consensus and
-/// passes), but post-consensus the AA object is read as a cancelled shared
-/// object and the transaction fails with
+/// with `TotalGasBudget` accounting the transaction's gas budget alone
+/// overflows a per-object commit limit of 1, so it is deferred, and with zero
+/// allowed deferral rounds the first deferral is turned into a cancellation.
+/// Validators originally sign the transaction (authentication runs
+/// pre-consensus and passes), but post-consensus the AA object is read as a
+/// cancelled shared object and the transaction fails with
 /// `ExecutionCancelledDueToSharedObjectCongestionV2`.
 #[sim_test]
-async fn test_abstract_account_shared_object_congestion_cancellation()
--> Result<(), anyhow::Error> {
+async fn test_abstract_account_shared_object_congestion_cancellation() -> Result<(), anyhow::Error>
+{
     telemetry_subscribers::init_for_testing();
     let client_ip = SocketAddr::new([127, 0, 0, 1].into(), 0);
 
@@ -685,8 +674,9 @@ async fn test_abstract_account_shared_object_congestion_cancellation()
         command.is_none(),
         "Expected the congestion cancellation to carry no command index",
     );
-    let ExecutionError::ExecutionCancelledDueToSharedObjectCongestionV2 { congested_objects, .. } =
-        &error
+    let ExecutionError::ExecutionCancelledDueToSharedObjectCongestionV2 {
+        congested_objects, ..
+    } = &error
     else {
         panic!("Expected an ExecutionCancelledDueToSharedObjectCongestionV2 error, got: {error:?}");
     };
@@ -2534,7 +2524,7 @@ impl TestEnvironment {
 
         let mut builder = ProgrammableTransactionBuilder::new();
 
-        // rotate the key in the abstract account.
+        // Delete the abstract account shared object.
         let arguments = vec![builder.obj(CallArg::Shared(SharedObjectReference::new(
             aa_ref.object_id,
             aa_ref.version,
