@@ -19,7 +19,7 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 34;
+pub const MAX_PROTOCOL_VERSION: u64 = 35;
 
 /// Protocol version that IIP8 took effect.
 pub const PROTOCOL_VERSION_IIP8: u64 = 20;
@@ -213,6 +213,8 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             Stop locking immutable objects in post-consensus conflict
 //             resolution.
 //             Disable Move-based sponsor account authentication on mainnet.
+// Version 35: Rebuild the framework binaries to add the Move stdlib `bool`
+//             module and vector sorting functions.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -3372,6 +3374,11 @@ impl ProtocolConfig {
                         cfg.feature_flags
                             .pre_consensus_sponsor_only_move_authentication = false;
                     }
+                }
+                35 => {
+                    // Rebuild the framework binaries to add the Move stdlib
+                    // `bool` module and vector sorting functions. The change is
+                    // additive to the framework and needs no config flags.
                 }
                 // Use this template when making changes:
                 //
