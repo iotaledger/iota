@@ -1596,8 +1596,11 @@ mod tests {
             PathBuf::from("protocol.key"),
         )
         .unwrap();
-        write_keypair_to_file(&network_key_pair.copy().into(), PathBuf::from("network.key"))
-            .unwrap();
+        write_keypair_to_file(
+            &network_key_pair.copy().into(),
+            PathBuf::from("network.key"),
+        )
+        .unwrap();
 
         const TEMPLATE: &str = include_str!("../data/fullnode-template-with-path.yaml");
         let template: NodeConfig = serde_yaml::from_str(TEMPLATE).unwrap();
