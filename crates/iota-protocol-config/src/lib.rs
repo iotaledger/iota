@@ -19,7 +19,7 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 32;
+pub const MAX_PROTOCOL_VERSION: u64 = 33;
 
 /// Protocol version that IIP8 took effect.
 pub const PROTOCOL_VERSION_IIP8: u64 = 20;
@@ -200,6 +200,8 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             Only sponsor Move authentication is performed pre-consensus on
 //             mainnet.
 //             Enable the P-COOL flow on devnet.
+// Version 33: Rebuild the framework binaries to add the Move stdlib `bool`
+//             module and vector sorting functions.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -3203,6 +3205,11 @@ impl ProtocolConfig {
                         // and conflicts are resolved after consensus.
                         cfg.feature_flags.enable_pcool_flow = true;
                     }
+                }
+                33 => {
+                    // Rebuild the framework binaries to add the Move stdlib
+                    // `bool` module and vector sorting functions. The change is
+                    // additive to the framework and needs no config flags.
                 }
                 // Use this template when making changes:
                 //
