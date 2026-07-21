@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    collections::{BTreeMap, HashSet},
+    collections::{BTreeMap, HashMap, HashSet},
     fmt::Debug,
     sync::Arc,
 };
@@ -316,34 +316,34 @@ pub(crate) fn compute_per_commit_contribution(
         }
     }
 
-    // Round-(r+2) certifying blocks, with their ancestor lists.
-    let mut certifying_blocks: Vec<(AuthorityIndex, &[BlockRef])> = Vec::new();
+    // Voting-block ref → author, for authors with exactly one voting block.
+    // Equivocation in the lookback window → excluded, zero contribution.
+    let mut voting_author_by_ref: HashMap<BlockRef, AuthorityIndex> = HashMap::new();
+    for (author, voting_refs) in &voting_blocks_by_author {
+        if let [voting_ref] = voting_refs.as_slice() {
+            voting_author_by_ref.insert(*voting_ref, *author);
+        }
+    }
+
+    // One pass over the round-(r+2) blocks' ancestors. The aggregator dedups
+    // by certifier so an equivocating certifier's stake counts once per author.
+    let mut certifying_stake: Vec<StakeAggregator<QuorumThreshold>> = (0..committee.size())
+        .map(|_| StakeAggregator::new())
+        .collect();
     for commit in [c_minus_2, c_minus_1, c] {
         for header in &commit.headers {
-            if header.round() == certify_round {
-                certifying_blocks.push((header.author(), header.ancestors()));
+            if header.round() != certify_round {
+                continue;
+            }
+            for ancestor in header.ancestors() {
+                if let Some(author) = voting_author_by_ref.get(ancestor) {
+                    certifying_stake[author.value()].add(header.author(), committee);
+                }
             }
         }
     }
 
-    let mut scores = vec![0u64; committee.size()];
-    for (author, voting_refs) in &voting_blocks_by_author {
-        // Equivocation in the lookback window → zero contribution.
-        if voting_refs.len() != 1 {
-            continue;
-        }
-        let voting_ref = voting_refs[0];
-        // Dedup by certifier so an equivocating certifier's stake counts once.
-        let mut certifying_stake = StakeAggregator::<QuorumThreshold>::new();
-        for (cert_author, cert_ancestors) in &certifying_blocks {
-            if cert_ancestors.contains(&voting_ref) {
-                certifying_stake.add(*cert_author, committee);
-            }
-        }
-        scores[author.value()] = certifying_stake.stake();
-    }
-
-    scores
+    certifying_stake.iter().map(|agg| agg.stake()).collect()
 }
 
 #[cfg(test)]
@@ -558,6 +558,87 @@ mod tests {
         assert_eq!(
             scores, expected,
             "equivocating certifier's stake must be counted once, not per block"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_compute_per_commit_contribution_attributes_partial_certification() {
+        // Each voting author is certified by a different subset of round-(r+2)
+        // blocks, so every authority expects a distinct score and any
+        // misattribution is visible.
+        let context = Arc::new(Context::new_for_test(4).0);
+        let committee = &context.committee;
+        let r: Round = 10;
+
+        let subdag = |leader_round: Round, headers: Vec<VerifiedBlockHeader>| SubDagBase {
+            leader: BlockRef::new(
+                leader_round,
+                AuthorityIndex::new_for_test(0),
+                BlockHeaderDigest::MIN,
+            ),
+            headers,
+            committed_header_refs: vec![],
+            timestamp_ms: 0,
+            commit_ref: CommitRef::new(0, CommitDigest::MIN),
+            reputation_scores_desc: vec![],
+        };
+
+        let c_minus_3 = subdag(r, vec![]);
+
+        // Authorities 0, 1, 2 vote for the leader at round r+1; authority 3's
+        // round-(r+1) block does not link the leader, so it is not a vote.
+        let vote = |author: u8| {
+            VerifiedBlockHeader::new_for_test(
+                TestBlockHeader::new(r + 1, author)
+                    .set_ancestors(vec![c_minus_3.leader])
+                    .build(),
+            )
+        };
+        let vote_0 = vote(0);
+        let vote_1 = vote(1);
+        let vote_2 = vote(2);
+        let non_vote_3 = VerifiedBlockHeader::new_for_test(TestBlockHeader::new(r + 1, 3).build());
+
+        // Certifiers at round r+2: authority 0 links all round-(r+1) blocks
+        // (including the non-vote, which must credit no one), authority 1
+        // links votes {0, 1}, authority 2 links vote {0} only.
+        let cert = |author: u8, ancestors: Vec<BlockRef>| {
+            VerifiedBlockHeader::new_for_test(
+                TestBlockHeader::new(r + 2, author)
+                    .set_ancestors(ancestors)
+                    .build(),
+            )
+        };
+        let cert_0 = cert(
+            0,
+            vec![
+                vote_0.reference(),
+                vote_1.reference(),
+                vote_2.reference(),
+                non_vote_3.reference(),
+            ],
+        );
+        let cert_1 = cert(1, vec![vote_0.reference(), vote_1.reference()]);
+        let cert_2 = cert(2, vec![vote_0.reference()]);
+
+        // Spread the blocks across the three commits following `c_minus_3`.
+        let c_minus_2 = subdag(r + 1, vec![vote_0, vote_1, vote_2, non_vote_3]);
+        let c_minus_1 = subdag(r + 2, vec![cert_0, cert_1]);
+        let c = subdag(r + 3, vec![cert_2]);
+
+        let scores =
+            compute_per_commit_contribution(&context, &c_minus_3, &c_minus_2, &c_minus_1, &c);
+
+        let stake = |index: u8| committee.stake(AuthorityIndex::new_for_test(index));
+        let expected = vec![
+            stake(0) + stake(1) + stake(2),
+            stake(0) + stake(1),
+            stake(0),
+            0,
+        ];
+        assert_eq!(
+            scores, expected,
+            "each voting author must be credited exactly its own certifiers' stake"
         );
     }
 
