@@ -40,6 +40,8 @@
 //! level exposes the collector (`off` hides it, any other level exposes it),
 //! and — like the other groups — it can be changed at runtime.
 
+use std::collections::BTreeMap;
+
 pub use prometheus_filtered::MetricLevel;
 use serde::{Deserialize, Serialize};
 
@@ -147,6 +149,10 @@ pub struct MetricGroups {
     /// Rendered as an `iota_metrics::hardware_metrics` directive, the module
     /// where the collector is registered.
     pub hardware: MetricLevel,
+    /// Free-form overrides for module paths or metric names not covered by the
+    /// named groups.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub overrides: BTreeMap<String, MetricLevel>,
 }
 
 impl Default for MetricGroups {
@@ -166,6 +172,7 @@ impl Default for MetricGroups {
             epoch: MetricLevel::Warn,
             runtime: MetricLevel::Warn,
             hardware: MetricLevel::Warn,
+            overrides: BTreeMap::new(),
         }
     }
 }
@@ -286,6 +293,7 @@ impl MetricGroups {
                 directives.push(format!("{module}={}", level_string(level)));
             }
         }
+        directives.extend(self.override_directives());
         directives.join(",")
     }
 
@@ -297,6 +305,7 @@ impl MetricGroups {
         for (group, level) in self.group_levels() {
             directives.push(format!("{group}={}", level_string(level)));
         }
+        directives.extend(self.override_directives());
         directives.join(",")
     }
 
@@ -342,10 +351,19 @@ impl MetricGroups {
             None => vec![part.to_owned()],
         })
     }
+
+    /// Renders the free-form overrides as `pattern=LEVEL` directives.
+    fn override_directives(&self) -> impl Iterator<Item = String> + '_ {
+        self.overrides
+            .iter()
+            .map(|(pattern, level)| format!("{pattern}={}", level_string(*level)))
+    }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeMap;
+
     use prometheus_filtered::Filter;
 
     use super::{MetricGroups, MetricLevel};
@@ -366,6 +384,7 @@ mod tests {
             epoch: MetricLevel::Trace,
             runtime: MetricLevel::Trace,
             hardware: MetricLevel::Trace,
+            overrides: BTreeMap::new(),
         }
     }
 
@@ -642,5 +661,26 @@ mod tests {
         // leaving the intended group at its default.
         assert!(serde_yaml::from_str::<MetricGroups>("traffic_control: off").is_err());
         assert!(serde_yaml::from_str::<MetricGroups>("bogus: warn").is_err());
+    }
+
+    #[test]
+    fn metric_groups_config_allows_free_overrides() {
+        // Module- and metric-level directives that no named group covers go in
+        // the `overrides` map, keeping group-name typo protection intact.
+        let groups: MetricGroups = serde_yaml::from_str(
+            "consensus: off\n\
+             overrides:\n  \"iota_core::authority::foo\": trace\n  bespoke_metric: off",
+        )
+        .unwrap();
+        assert_eq!(groups.consensus, MetricLevel::Off);
+
+        let filter_string = groups.to_filter_string();
+        assert!(filter_string.contains("iota_core::authority::foo=trace"));
+        assert!(filter_string.contains("bespoke_metric=off"));
+
+        let filter = Filter::parse(&filter_string);
+        // The longer override pattern wins over the `authority` group directive.
+        assert!(filter.is_exposed("x", "iota_core::authority::foo", MetricLevel::Trace));
+        assert!(!filter.is_exposed("bespoke_metric_total", "somewhere", MetricLevel::Warn));
     }
 }
