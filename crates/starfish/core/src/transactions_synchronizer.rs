@@ -1129,10 +1129,18 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
         {
             Ok(transactions) => transactions,
             Err(err) => {
-                // A commitment/deserialization failure is unprovable against the
-                // author (the bytes don't match a committed payload), so charge
-                // only the serving peer. This is not an `invalid_transactions`
-                // event, which counts payloads a block author produced.
+                // The serving peer relayed a payload whose bytes don't match a
+                // committed payload; count it against that peer and charge it an
+                // unprovable fault. The mismatch can't be proven against the
+                // author, whose commitment the peer may have forged.
+                metrics
+                    .invalid_transactions
+                    .with_label_values(&[
+                        peer_hostname.as_str(),
+                        "transaction_synchronizer",
+                        err.name(),
+                    ])
+                    .inc();
                 misbehavior_store.record_faulty_transactions(peer_index, false, [peer_index]);
                 return Err(err);
             }
@@ -1156,7 +1164,7 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
                 metrics
                     .invalid_transactions
                     .with_label_values(&[
-                        context.authority_hostname(author),
+                        peer_hostname.as_str(),
                         "transaction_synchronizer",
                         err.name(),
                     ])

@@ -220,21 +220,6 @@ fn record_reconstruction_verification_failure(
         .collected_shard_indices()
         .filter_map(|i| context.committee.to_authority_index(i))
         .collect();
-    // `invalid_transactions` counts payloads a block author provably produced,
-    // so only record it when a verified header ties this ref to the author;
-    // otherwise the ref may be fabricated by peers to frame an honest author.
-    if authored {
-        context
-            .metrics
-            .node_metrics
-            .invalid_transactions
-            .with_label_values(&[
-                context.authority_hostname(author),
-                "shard_reconstructor",
-                err.name(),
-            ])
-            .inc();
-    }
     misbehavior_store.record_faulty_transactions(author, authored, relayers);
     warn!(
         "Reconstructed transactions for {:?} failed verification: {:?}",
