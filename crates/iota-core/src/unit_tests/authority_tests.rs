@@ -4043,6 +4043,94 @@ async fn test_dynamic_object_field_address_name_parsing() {
     assert_eq!(json!(sender), fields[0].name.value);
 }
 
+/// A dynamic object field's child is looked up at the wrapper's version, but
+/// on a pruned node that historic child version may be gone — the lookup must
+/// fall back to the child's latest live version instead of failing.
+#[tokio::test]
+async fn test_dynamic_object_field_child_lookup_falls_back_to_latest() {
+    use iota_sdk_types::ObjectData;
+    use iota_types::object::MoveObjectExt;
+
+    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let gas_object_id = ObjectId::random();
+    let (authority_state, object_basics) =
+        init_state_with_ids_and_object_basics(vec![(sender, gas_object_id)]).await;
+
+    let rgp = authority_state.reference_gas_price_for_testing().unwrap();
+    let create_outer_effects = create_move_object(
+        &object_basics.object_id,
+        &authority_state,
+        &gas_object_id,
+        &sender,
+        &sender_key,
+    )
+    .await
+    .unwrap();
+    let create_inner_effects = create_move_object(
+        &object_basics.object_id,
+        &authority_state,
+        &gas_object_id,
+        &sender,
+        &sender_key,
+    )
+    .await
+    .unwrap();
+    let outer_v0 = create_outer_effects.created()[0].0;
+    let inner_v0 = create_inner_effects.created()[0].0;
+
+    let add_txn = to_sender_signed_transaction(
+        TransactionData::new_move_call(
+            sender,
+            object_basics.object_id,
+            Identifier::from_static("object_basics"),
+            Identifier::from_static("add_ofield"),
+            vec![],
+            create_inner_effects.gas_object().0,
+            vec![
+                CallArg::ImmutableOrOwned(outer_v0),
+                CallArg::ImmutableOrOwned(inner_v0),
+            ],
+            TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS * rgp,
+            rgp,
+        )
+        .unwrap(),
+        &sender_key,
+    );
+    let add_cert = init_certified_transaction(add_txn, &authority_state);
+    let add_effects = authority_state.execute_for_test(&add_cert).0.into_message();
+    assert!(add_effects.status().is_success());
+
+    // Bump the wrapper's version past the add transaction: the child then has
+    // no row at the wrapper's version, exactly as after the child's historic
+    // version was pruned.
+    let mut wrapper = authority_state
+        .get_object(&add_effects.created()[0].0.object_id)
+        .unwrap();
+    let child = authority_state.get_object(&inner_v0.object_id).unwrap();
+    let bumped = wrapper.version().next().unwrap();
+    match &mut wrapper.data {
+        ObjectData::Struct(move_object) => move_object.increment_version_to(bumped),
+        ObjectData::Package(_) => panic!("wrapper must be a move object"),
+    }
+
+    let epoch_store = authority_state.epoch_store_for_testing();
+    let mut layout_resolver = epoch_store.executor().type_layout_resolver(Box::new(
+        authority_state.get_backing_package_store().clone(),
+    ));
+    let info = crate::jsonrpc_index::try_create_dynamic_field_info(
+        &wrapper,
+        &std::collections::BTreeMap::new(),
+        authority_state.get_object_store().as_ref(),
+        layout_resolver.as_mut(),
+    )
+    .unwrap()
+    .unwrap();
+
+    assert!(matches!(info.type_, DynamicFieldType::DynamicObject));
+    assert_eq!(info.object_id, inner_v0.object_id);
+    assert_eq!(info.version, child.version());
+}
+
 #[tokio::test]
 async fn test_store_revert_add_ofield() {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
