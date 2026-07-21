@@ -565,7 +565,7 @@ mod tests {
     async fn test_compute_per_commit_contribution_attributes_partial_certification() {
         // Each voting author is certified by a different subset of round-(r+2)
         // blocks, so every authority expects a distinct score and any
-        // mis-attribution is visible.
+        // misattribution is visible.
         let context = Arc::new(Context::new_for_test(4).0);
         let committee = &context.committee;
         let r: Round = 10;
