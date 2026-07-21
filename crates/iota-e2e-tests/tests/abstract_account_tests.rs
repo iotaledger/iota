@@ -481,6 +481,123 @@ async fn test_abstract_account_post_consensus_failure() -> Result<(), anyhow::Er
     Ok(())
 }
 
+/// Test in 3 steps the failure of an Abstract Account transaction
+/// post-consensus:
+/// 1) Create a TX certificate signed by the validators where the authentication
+///    is successful
+/// 2) Tamper with the AA shared object state by creating a second TX altering
+///    the state by deleting the AA shared object
+/// 3) Submit the original certificate which should now fail during
+///    post-consensus, even though validators originally run the authenticate
+///    and it passed
+#[sim_test]
+async fn test_abstract_account_post_consensus_deletion_failure() -> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
+    let client_ip = SocketAddr::new([127, 0, 0, 1].into(), 0);
+
+    // Build a test environment and create an abstract account
+    let mut test_env = TestEnvironment::new().await;
+    test_env
+        .setup_abstract_account(AA_AUTHENTICATE_FN_NAME_ED25519)
+        .await?;
+    let aa_ref = test_env.aa_ref.unwrap();
+    let rgp = test_env.test_cluster.get_reference_gas_price().await;
+
+    // Retrieve the keystore and setup an account for rotating owner key
+    let keystore = test_env.test_cluster.wallet.config_mut().keystore_mut();
+    let new_aa_owner = keystore
+        .generate_and_add_new_key(SignatureScheme::ED25519, None, None, None)
+        .expect("ED25519 key generation should not fail")
+        .0;
+    assert!(new_aa_owner != test_env.owner.unwrap());
+    let aa_sender = aa_ref.object_id.into();
+
+    // Step 1: create an AA TX and ask the validators to sign it
+    // Create a simple transaction from the IOTA account
+    let aa_gas = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20000000000), aa_sender)
+        .await;
+    let pt = test_env.craft_aa_simple_ptb(AA_MODULE_NAME)?;
+    let tx_data = test_env
+        .craft_tx_from_pt(
+            pt, aa_gas, aa_sender, None, // No sponsor
+        )
+        .await?;
+    let tx_digest = tx_data.digest().into_inner();
+    // Create the MoveAuthenticator for the Ed25519 signature authenticator
+    let signatures = vec![test_env.create_move_authenticator_for_ed25519(&tx_digest)?];
+    // Create the TX envelope and send it for validators signing
+    let aa_simple_tx = Transaction::from_user_sig_data(tx_data, signatures);
+    let cert = test_env
+        .test_cluster
+        .create_certificate(aa_simple_tx, Some(client_ip))
+        .await
+        .unwrap();
+
+    // Step 2: tamper with the certificate to make it invalid post-consensus; this
+    // means creating a second transaction altering the AA shared object state
+    let aa_gas2 = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20000000000), aa_sender)
+        .await;
+    let pt2 = test_env.craft_aa_delete_object_ptb()?;
+    let tx_data2 = test_env
+        .craft_tx_from_pt(
+            pt2, aa_gas2, aa_sender, None, // No sponsor
+        )
+        .await?;
+    let tx_digest2 = tx_data2.digest().into_inner();
+    // Create the MoveAuthenticator for the Ed25519 signature authenticator
+    let signatures2 = vec![test_env.create_move_authenticator_for_ed25519(&tx_digest2)?];
+    // Create the TX envelope and send it for validators signing
+    let aa_rotate_tx = Transaction::from_user_sig_data(tx_data2, signatures2);
+    // Should succeed
+    test_env
+        .execute_and_check_tx_correctness(aa_rotate_tx)
+        .await?;
+    // Update the test environment with the new owner (this is just for
+    // completeness, not needed for this test)
+    test_env.owner = Some(new_aa_owner);
+
+    // Step 3: submit the original certificate which should now fail
+    let QuorumDriverResponse { effects_cert, .. } = test_env
+        .test_cluster
+        .authority_aggregator()
+        .process_certificate(
+            HandleCertificateRequestV1::new(cert).with_events(),
+            Some(client_ip),
+        )
+        .await
+        .unwrap();
+    let summary = effects_cert.summary_for_debug();
+
+    assert!(
+        summary.status.is_failure(),
+        "Expected the TX execution to fail"
+    );
+    assert!(
+        summary.gas_cost_summary.gas_used() == 1980400
+            && summary.mutated_object_count == 1
+            && summary.created_object_count == 0
+            && summary.unwrapped_object_count == 0
+            && summary.deleted_object_count == 0
+            && summary.wrapped_object_count == 0,
+        "Expected gas to be used in the failed transaction and that only the gas object was mutated",
+    );
+
+    let (error, command) = summary.status.unwrap_err();
+    assert!(
+        command.is_none(),
+        "Expected the authentication failure to carry no command index",
+    );
+    let ExecutionError::InputObjectDeleted = &error else {
+        panic!("Expected an InputObjectDeleted error, got: {error:?}");
+    };
+
+    Ok(())
+}
+
 /// Same scenario as [`test_abstract_account_post_consensus_failure`], but with
 /// `report_move_authentication_error` disabled: the authenticator abort
 /// surfaces as a bare Move abort attributed to the authenticator's own command
@@ -2307,6 +2424,29 @@ impl TestEnvironment {
                 arguments,
             );
         }
+        Ok(builder.finish())
+    }
+
+    fn craft_aa_delete_object_ptb(&mut self) -> anyhow::Result<ProgrammableTransaction> {
+        let (Some(aa_ref), Some(aa_package_id)) = (self.aa_ref, self.aa_package_id) else {
+            anyhow::bail!("Abstract account not created yet");
+        };
+
+        let mut builder = ProgrammableTransactionBuilder::new();
+
+        // rotate the key in the abstract account.
+        let arguments = vec![builder.obj(CallArg::Shared(SharedObjectReference::new(
+            aa_ref.object_id,
+            aa_ref.version,
+            true,
+        )))?];
+        builder.programmable_move_call(
+            aa_package_id,
+            Identifier::from_static(AA_MODULE_NAME),
+            Identifier::from_static("delete_account"),
+            vec![],
+            arguments,
+        );
         Ok(builder.finish())
     }
 
