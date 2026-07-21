@@ -6,8 +6,7 @@ use iota_keys::keystore::AccountKeystore;
 use iota_sdk::{IotaClient, IotaClientBuilder, wallet_context::WalletContext};
 use iota_sdk_types::{Address, crypto::Intent};
 use iota_types::{
-    base_types::address_from_iota_pub_key,
-    crypto::{KeypairTraits, Signature},
+    crypto::{IotaKeyPair, Signature},
     transaction::TransactionData,
 };
 use tracing::{Instrument, info, info_span};
@@ -25,7 +24,7 @@ pub struct WalletClient {
 impl WalletClient {
     pub async fn new_from_cluster(cluster: &(dyn Cluster + Sync + Send)) -> Self {
         let key = cluster.user_key();
-        let address = address_from_iota_pub_key(key.public());
+        let address = IotaKeyPair::Ed25519(key.clone()).address();
         let wallet_context = new_wallet_context_from_cluster(cluster, key)
             .instrument(info_span!("init_wallet_context_for_test_user"));
 

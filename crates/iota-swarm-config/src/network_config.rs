@@ -9,12 +9,41 @@ use iota_types::{
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
+/// Serialize account keys the way the previous fastcrypto keypairs did: as
+/// base64 strings of the raw 32-byte ed25519 private key.
+mod account_keys_base64 {
+    use fastcrypto::encoding::{Base64, Encoding};
+    use iota_sdk_crypto::ToFromBytes as _;
+    use serde::{Deserialize, Deserializer, Serializer, ser::SerializeSeq};
+
+    use super::AccountKeyPair;
+
+    pub fn serialize<S: Serializer>(keys: &[AccountKeyPair], s: S) -> Result<S::Ok, S::Error> {
+        let mut seq = s.serialize_seq(Some(keys.len()))?;
+        for key in keys {
+            seq.serialize_element(&Base64::encode(key.to_bytes()))?;
+        }
+        seq.end()
+    }
+
+    pub fn deserialize<'de, D: Deserializer<'de>>(d: D) -> Result<Vec<AccountKeyPair>, D::Error> {
+        Vec::<String>::deserialize(d)?
+            .into_iter()
+            .map(|s| {
+                let bytes = Base64::decode(&s).map_err(serde::de::Error::custom)?;
+                AccountKeyPair::from_bytes(&bytes).map_err(serde::de::Error::custom)
+            })
+            .collect()
+    }
+}
+
 /// This is a config that is used for testing or local use as it contains the
 /// config and keys for all validators
 #[serde_as]
 #[derive(Debug, Deserialize, Serialize)]
 pub struct NetworkConfig {
     pub validator_configs: Vec<NodeConfig>,
+    #[serde(with = "account_keys_base64")]
     pub account_keys: Vec<AccountKeyPair>,
     pub genesis: genesis::Genesis,
 }
@@ -59,6 +88,7 @@ impl NetworkConfig {
 #[derive(Debug, Deserialize, Serialize)]
 pub struct NetworkConfigLight {
     pub validator_configs: Vec<NodeConfig>,
+    #[serde(with = "account_keys_base64")]
     pub account_keys: Vec<AccountKeyPair>,
     pub committee_with_network: CommitteeWithNetworkMetadata,
 }

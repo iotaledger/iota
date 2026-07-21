@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 
 use fastcrypto::traits::KeyPair as KeypairTraits;
 use iota_sdk_crypto::{
-    Signer as _, ToFromBytes as _, ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey,
+    Signer as _, ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey,
     secp256r1::Secp256r1PrivateKey, simple::SimpleKeypair,
 };
 use iota_sdk_types::{Address, ObjectId, SimpleSignature, TransactionKind, crypto::Intent};
@@ -126,7 +126,7 @@ pub fn make_transaction(sender: Address, kp: &SimpleKeypair) -> Transaction {
 // This is used to sign transaction with signer using default Intent.
 pub fn to_sender_signed_transaction(
     data: TransactionData,
-    signer: impl Into<IotaKeyPair>,
+    signer: &impl iota_sdk_crypto::Signer<SimpleSignature>,
 ) -> Transaction {
     to_sender_signed_transaction_with_multi_signers(data, vec![signer])
 }
@@ -134,7 +134,7 @@ pub fn to_sender_signed_transaction(
 pub fn to_sender_signed_transaction_with_optional_sponsor(
     data: TransactionData,
     sender_signature: UserSignature,
-    sponsor_signer_opt: Option<impl Into<IotaKeyPair>>,
+    sponsor_signer_opt: Option<&impl iota_sdk_crypto::Signer<SimpleSignature>>,
 ) -> Transaction {
     let mut signatures = vec![sender_signature];
     if let Some(sponsor) = sponsor_signer_opt {
@@ -149,25 +149,21 @@ pub fn to_sender_signed_transaction_with_optional_sponsor(
 
 pub fn to_sender_signed_transaction_with_multi_signers(
     data: TransactionData,
-    signers: Vec<impl Into<IotaKeyPair>>,
+    signers: Vec<&impl iota_sdk_crypto::Signer<SimpleSignature>>,
 ) -> Transaction {
     Transaction::from_data_and_signer(data, signers)
 }
 
 pub fn keys() -> Vec<IotaKeyPair> {
-    let mut seed = StdRng::from_seed([0; 32]);
-    let kp1: IotaKeyPair = IotaKeyPair::Ed25519(get_key_pair_from_rng(&mut seed).1);
-    let kp2: IotaKeyPair = IotaKeyPair::Secp256k1(get_key_pair_from_rng(&mut seed).1);
-    let kp3: IotaKeyPair = IotaKeyPair::Secp256r1(get_key_pair_from_rng(&mut seed).1);
-
-    vec![kp1, kp2, kp3]
+    let (kp1, kp2, kp3) = multisig_keys();
+    vec![kp1.into(), kp2.into(), kp3.into()]
 }
 
 pub fn multisig_keys() -> (Ed25519PrivateKey, Secp256k1PrivateKey, Secp256r1PrivateKey) {
-    let keys = keys();
-    let kp1 = Ed25519PrivateKey::from_bytes(keys[0].to_bytes_no_flag()).unwrap();
-    let kp2 = Secp256k1PrivateKey::from_bytes(keys[1].to_bytes_no_flag()).unwrap();
-    let kp3 = Secp256r1PrivateKey::from_bytes(keys[2].to_bytes_no_flag()).unwrap();
+    let mut seed = StdRng::from_seed([0; 32]);
+    let kp1 = get_key_pair_from_rng::<Ed25519PrivateKey, _>(&mut seed).1;
+    let kp2 = get_key_pair_from_rng::<Secp256k1PrivateKey, _>(&mut seed).1;
+    let kp3 = get_key_pair_from_rng::<Secp256r1PrivateKey, _>(&mut seed).1;
 
     (kp1, kp2, kp3)
 }

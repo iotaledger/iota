@@ -1817,12 +1817,9 @@ mod test {
         node::{DEFAULT_COMMISSION_RATE, DEFAULT_VALIDATOR_GAS_PRICE},
     };
     use iota_sdk_types::Address;
-    use iota_types::{
-        base_types::address_from_iota_pub_key,
-        crypto::{
-            AccountKeyPair, AuthorityKeyPair, NetworkKeyPair, generate_proof_of_possession,
-            get_key_pair_from_rng,
-        },
+    use iota_types::crypto::{
+        AccountKeyPair, AuthorityKeyPair, IotaKeyPair, NetworkKeyPair,
+        generate_proof_of_possession, get_key_pair_from_rng,
     };
 
     use crate::{Builder, validator_info::ValidatorInfo};
@@ -1852,12 +1849,13 @@ mod test {
         let authority_key: AuthorityKeyPair = get_key_pair_from_rng(&mut rand::rngs::OsRng).1;
         let protocol_key: NetworkKeyPair = get_key_pair_from_rng(&mut rand::rngs::OsRng).1;
         let account_key: AccountKeyPair = get_key_pair_from_rng(&mut rand::rngs::OsRng).1;
+        let account_address = IotaKeyPair::Ed25519(account_key).address();
         let network_key: NetworkKeyPair = get_key_pair_from_rng(&mut rand::rngs::OsRng).1;
         let validator = ValidatorInfo {
             name: "0".into(),
             authority_key: authority_key.public().into(),
             protocol_key: protocol_key.public().clone(),
-            account_address: address_from_iota_pub_key(account_key.public()),
+            account_address,
             network_key: network_key.public().clone(),
             gas_price: DEFAULT_VALIDATOR_GAS_PRICE,
             commission_rate: DEFAULT_COMMISSION_RATE,
@@ -1868,10 +1866,7 @@ mod test {
             image_url: String::new(),
             project_url: String::new(),
         };
-        let pop = generate_proof_of_possession(
-            &authority_key,
-            address_from_iota_pub_key(account_key.public()),
-        );
+        let pop = generate_proof_of_possession(&authority_key, account_address);
         let mut builder = Builder::new().add_validator(validator, pop);
 
         let genesis = builder.get_or_build_unsigned_genesis();

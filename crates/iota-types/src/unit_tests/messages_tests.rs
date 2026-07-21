@@ -8,10 +8,7 @@ use std::{
     hash::Hasher,
 };
 
-use fastcrypto::{
-    ed25519::Ed25519KeyPair,
-    traits::{AggregateAuthenticator, KeyPair},
-};
+use fastcrypto::traits::{AggregateAuthenticator, KeyPair};
 use iota_sdk_crypto::{ed25519::Ed25519PrivateKey, simple::SimpleKeypair};
 use iota_sdk_types::{
     Address, ExecutionStatus, GasPayment, Owner, SharedObjectReference, StructTag,
@@ -715,7 +712,7 @@ fn test_user_signature_committed_in_signed_transactions() {
 fn signature_from_signer(
     data: TransactionData,
     intent: Intent,
-    signer: impl Into<IotaKeyPair>,
+    signer: &impl iota_sdk_crypto::Signer<Signature>,
 ) -> Signature {
     let intent_msg = IntentMessage::new(intent, data);
     Signature::new_secure(&intent_msg, signer)
@@ -1265,7 +1262,7 @@ fn test_certificate_digest() {
     let (sender2, sender2_sec): (_, AccountKeyPair) = get_key_pair();
 
     let gas_price = 10;
-    let make_tx = |sender, sender_sec: Ed25519KeyPair| {
+    let make_tx = |sender, sender_sec: AccountKeyPair| {
         Transaction::from_data_and_signer(
             TransactionData::new_transfer(
                 receiver,

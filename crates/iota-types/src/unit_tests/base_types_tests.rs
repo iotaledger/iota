@@ -12,6 +12,7 @@ use fastcrypto::{
     traits::EncodeDecodeBase64,
 };
 use iota_protocol_config::ProtocolConfig;
+use iota_sdk_crypto::ToFromBytes as _;
 use iota_sdk_types::{
     Digest, Owner, TransactionDigest,
     crypto::{Intent, IntentMessage, IntentScope},
@@ -22,10 +23,10 @@ use super::*;
 use crate::{
     base_types::TypeTag,
     crypto::{
-        AccountKeyPair, AuthorityKeyPair, AuthoritySignature, IotaAuthoritySignature,
+        AccountKeyPair, AuthorityKeyPair, AuthoritySignature, IotaAuthoritySignature, IotaKeyPair,
         IotaSignature, Signature,
         bcs_signable_test::{Bar, Foo},
-        get_key_pair, get_key_pair_from_bytes,
+        get_key_pair,
     },
     dynamic_field::DynamicFieldInfo,
     gas_coin::GasCoin,
@@ -375,16 +376,15 @@ const SAMPLE_ADDRESS_VEC: [u8; 32] = [
     139, 168, 58, 57, 59, 186, 167, 215, 238, 210, 8, 42,
 ];
 
-// Derive a sample address and public key tuple from KeyPair bytes.
+// Derive a sample address and public key tuple from private key bytes.
 fn derive_sample_address() -> (Address, AccountKeyPair) {
-    let (address, pub_key) = get_key_pair_from_bytes(&[
+    let key_pair = AccountKeyPair::from_bytes([
         10, 112, 5, 142, 174, 127, 187, 146, 251, 68, 22, 191, 128, 68, 84, 13, 102, 71, 77, 57,
-        92, 154, 128, 240, 158, 45, 13, 123, 57, 21, 194, 214, 189, 215, 127, 86, 129, 189, 1, 4,
-        90, 106, 17, 10, 123, 200, 40, 18, 34, 173, 240, 91, 213, 72, 183, 249, 213, 210, 39, 181,
-        105, 254, 59, 163,
+        92, 154, 128, 240, 158, 45, 13, 123, 57, 21, 194, 214,
     ])
     .unwrap();
-    (address, pub_key)
+    let address = IotaKeyPair::from(key_pair.clone()).address();
+    (address, key_pair)
 }
 
 // Required to capture address derivation algorithm updates that break some

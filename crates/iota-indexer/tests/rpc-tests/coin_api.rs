@@ -784,7 +784,7 @@ async fn create_trusted_coins(
 pub async fn execute_move_call(
     client: &HttpClient,
     address: Address,
-    account_keypair: impl Into<IotaKeyPair>,
+    account_keypair: &impl iota_sdk_crypto::Signer<Signature>,
     package_object_id: ObjectId,
     module: String,
     function: String,

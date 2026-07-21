@@ -44,7 +44,7 @@ use iota_swarm_config::{
 use iota_types::{
     base_types::{AuthorityName, VersionNumber},
     committee::Committee,
-    crypto::{AuthoritySignature, KeypairTraits},
+    crypto::AuthoritySignature,
     effects::TransactionEffects,
     error::ExecutionError,
     gas_coin::{GasCoin, NANOS_PER_IOTA},
@@ -437,7 +437,7 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
                 .accounts()
                 .next()
                 .ok_or_else(|| anyhow!("no accounts available in keystore"))?;
-            Ok((*s, k.copy()))
+            Ok((*s, k.clone()))
         })?;
 
         let object = self
@@ -872,7 +872,7 @@ impl Simulacrum {
     pub fn transfer_txn(&self, recipient: Address) -> (Transaction, u64) {
         let (sender, key) = self.with_keystore(|keystore| {
             let (s, k) = keystore.accounts().next().unwrap();
-            (*s, k.copy())
+            (*s, k.clone())
         });
 
         let (object, gas_coin_value) = self.with_store(|store| {

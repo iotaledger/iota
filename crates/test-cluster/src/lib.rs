@@ -54,7 +54,7 @@ use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     base_types::{AuthorityName, ConciseableName},
     committee::{Committee, CommitteeTrait, EpochId},
-    crypto::{AccountKeyPair, IotaKeyPair, KeypairTraits, get_key_pair},
+    crypto::{AccountKeyPair, IotaKeyPair, get_key_pair},
     effects::{TransactionEffects, TransactionEvents},
     error::IotaResult,
     governance::MIN_VALIDATOR_JOINING_STAKE_NANOS,
@@ -1433,7 +1433,7 @@ impl TestClusterBuilder {
         let account_keys = network_config
             .account_keys
             .iter()
-            .map(|kp| kp.copy())
+            .map(|kp| kp.clone())
             .collect();
         let network_config_light = NetworkConfigLight::new(
             network_config.validator_configs.clone(),
@@ -1444,7 +1444,7 @@ impl TestClusterBuilder {
 
         let mut keystore = Keystore::from(FileBasedKeystore::new(&keystore_path)?);
         for key in &swarm.config().account_keys {
-            keystore.add_key(None, IotaKeyPair::Ed25519(key.copy()))?;
+            keystore.add_key(None, IotaKeyPair::Ed25519(key.clone()))?;
         }
 
         let active_address = keystore.addresses().first().cloned();

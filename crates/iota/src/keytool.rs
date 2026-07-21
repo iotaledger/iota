@@ -21,11 +21,10 @@ use aws_sdk_kms::{
 use bip32::DerivationPath;
 use clap::*;
 use fastcrypto::{
-    ed25519::Ed25519KeyPair,
     encoding::{Base64, Encoding, Hex},
     hash::HashFunction,
     secp256k1::recoverable::Secp256k1Sig,
-    traits::{KeyPair, Signer, ToFromBytes},
+    traits::KeyPair,
 };
 use iota_keys::{
     key_derive::generate_new_key,
@@ -36,6 +35,7 @@ use iota_keys::{
     keystore::{AccountKeystore, Keystore, StoredKey},
 };
 use iota_ledger::Ledger;
+use iota_sdk_crypto::{Signer as _, ToFromBytes as _, ed25519::Ed25519PrivateKey};
 use iota_sdk_types::{
     Address, SenderSignedTransaction, Transaction,
     crypto::{Intent, IntentMessage, PublicKey as SdkPublicKey, UserSignature},
@@ -43,7 +43,7 @@ use iota_sdk_types::{
 use iota_types::{
     base_types::address_from_iota_pub_key,
     crypto::{
-        DefaultHash, EncodeDecodeBase64, IotaKeyPair, PublicKey, SignatureScheme,
+        DefaultHash, EncodeDecodeBase64, IotaKeyPair, PublicKey, Signature, SignatureScheme,
         get_authority_key_pair,
     },
     error::IotaResult,
@@ -842,7 +842,7 @@ impl KeyToolCommand {
                     StoredKey::KeyPair(kp) => kp,
                     _ => bail!("Not a keypair"),
                 };
-                let signature = ikp.sign(&bytes);
+                let signature: Signature = ikp.sign(&bytes);
                 let iota_signature = signature.to_base64();
                 let public_key = ikp.public().encode_base64();
                 let public_key_hex = Hex::encode_with_format(ikp.public().as_ref());
@@ -1191,13 +1191,16 @@ fn convert_private_key_to_bech32(value: String) -> Result<ConvertOutput, anyhow:
                         decoded.len()
                     );
                 }
-                IotaKeyPair::Ed25519(Ed25519KeyPair::from_bytes(&decoded)?)
+                IotaKeyPair::Ed25519(Ed25519PrivateKey::from_bytes(&decoded)?)
             }
             Err(_) => match IotaKeyPair::decode_base64(&value) {
                 Ok(ikp) => ikp,
-                Err(_) => match Ed25519KeyPair::decode_base64(&value) {
-                    Ok(kp) => IotaKeyPair::Ed25519(kp),
-                    Err(_) => bail!("Invalid private key encoding"),
+                Err(_) => match Base64::decode(&value)
+                    .ok()
+                    .and_then(|bytes| Ed25519PrivateKey::from_bytes(&bytes).ok())
+                {
+                    Some(kp) => IotaKeyPair::Ed25519(kp),
+                    None => bail!("Invalid private key encoding"),
                 },
             },
         },

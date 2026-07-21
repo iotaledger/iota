@@ -6,11 +6,12 @@ use std::str::FromStr;
 
 use anyhow::Ok;
 use fastcrypto::{
-    ed25519::{Ed25519KeyPair, Ed25519PublicKey, Ed25519Signature},
+    ed25519::{Ed25519PublicKey, Ed25519Signature},
     encoding::{Base64, Encoding, Hex},
     traits::{ToFromBytes, VerifyingKey},
 };
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore, InMemKeystore, Keystore, StoredKey};
+use iota_sdk_crypto::{ToFromBytes as _, ed25519::Ed25519PrivateKey};
 use iota_sdk_types::{
     Address, ObjectDigest, ObjectId, ObjectReference, Version,
     crypto::{Intent, IntentScope, PublicKey, UserSignature},
@@ -210,7 +211,7 @@ async fn test_private_keys_import_export() -> Result<(), anyhow::Error> {
         .await?;
         let kp = IotaKeyPair::decode(private_key).unwrap();
         let kp_from_hex = IotaKeyPair::Ed25519(
-            Ed25519KeyPair::from_bytes(&Hex::decode(private_key_hex).unwrap()).unwrap(),
+            Ed25519PrivateKey::from_bytes(Hex::decode(private_key_hex).unwrap()).unwrap(),
         );
         assert_eq!(kp, kp_from_hex);
 

@@ -24,10 +24,7 @@ use iota_swarm_config::{
     genesis_config::GenesisConfig,
     network_config::{NetworkConfig, NetworkConfigLight},
 };
-use iota_types::{
-    base_types::address_from_iota_pub_key,
-    crypto::{AccountKeyPair, IotaKeyPair, KeypairTraits, get_key_pair},
-};
+use iota_types::crypto::{AccountKeyPair, IotaKeyPair, get_key_pair};
 use tempfile::tempdir;
 use test_cluster::{TestCluster, TestClusterBuilder};
 use tracing::info;
@@ -245,7 +242,7 @@ impl Cluster for LocalNewCluster {
 
         // Use the wealthy account for faucet
         let faucet_key = test_cluster.swarm.config_mut().account_keys.swap_remove(0);
-        let faucet_address = address_from_iota_pub_key(faucet_key.public());
+        let faucet_address = IotaKeyPair::Ed25519(faucet_key.clone()).address();
         info!(?faucet_address, "faucet_address");
 
         // This cluster has fullnode handle, safe to unwrap
@@ -391,10 +388,9 @@ pub fn new_wallet_context_from_cluster(
     info!("Use RPC: {fullnode_url}");
     let keystore_path = config_dir.join(IOTA_KEYSTORE_FILENAME);
     let mut keystore = Keystore::from(FileBasedKeystore::new(&keystore_path).unwrap());
-    let address = address_from_iota_pub_key(key_pair.public());
-    keystore
-        .add_key(None, IotaKeyPair::Ed25519(key_pair))
-        .unwrap();
+    let key_pair = IotaKeyPair::Ed25519(key_pair);
+    let address = key_pair.address();
+    keystore.add_key(None, key_pair).unwrap();
     IotaClientConfig::new(keystore)
         .with_envs([IotaEnv::new("localnet", fullnode_url)])
         .with_active_address(address)

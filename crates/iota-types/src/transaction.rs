@@ -42,8 +42,8 @@ use crate::{
     committee::{Committee, EpochId},
     crypto::{
         AuthoritySignInfo, AuthoritySignInfoTrait, AuthoritySignature,
-        AuthorityStrongQuorumSignInfo, DefaultHash, EmptySignInfo, IotaKeyPair, IotaSignature,
-        Signature, Signer, zero_ed25519_signature,
+        AuthorityStrongQuorumSignInfo, DefaultHash, EmptySignInfo, IotaSignature, Signature,
+        Signer, zero_ed25519_signature,
     },
     execution::SharedInput,
     message_envelope::{Envelope, Message, TrustedEnvelope, VerifiedEnvelope},
@@ -2323,7 +2323,7 @@ impl<S> Envelope<SenderSignedData, S> {
 impl Transaction {
     pub fn from_data_and_signer(
         data: TransactionData,
-        signers: Vec<impl Into<IotaKeyPair>>,
+        signers: Vec<&impl iota_sdk_crypto::Signer<Signature>>,
     ) -> Self {
         let signatures = {
             let intent_msg = data.intent_message();
@@ -2343,7 +2343,7 @@ impl Transaction {
     pub fn signature_from_signer(
         data: TransactionData,
         intent: Intent,
-        signer: impl Into<IotaKeyPair>,
+        signer: &impl iota_sdk_crypto::Signer<Signature>,
     ) -> Signature {
         let intent_msg = IntentMessage::new(intent, data);
         Signature::new_secure(&intent_msg, signer)

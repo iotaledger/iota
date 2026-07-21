@@ -440,7 +440,7 @@ impl GenesisConfig {
     pub fn benchmark_gas_keys(n: usize) -> Vec<IotaKeyPair> {
         let mut rng = StdRng::seed_from_u64(Self::BENCHMARKS_RNG_SEED);
         (0..n)
-            .map(|_| IotaKeyPair::Ed25519(NetworkKeyPair::generate(&mut rng)))
+            .map(|_| IotaKeyPair::Ed25519(AccountKeyPair::generate(&mut rng)))
             .collect()
     }
 

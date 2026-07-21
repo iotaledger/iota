@@ -109,7 +109,7 @@ pub fn set_local_client_config(
 
 pub fn create_object_move_transaction(
     src: Address,
-    secret: impl Into<IotaKeyPair>,
+    secret: &impl iota_sdk_crypto::Signer<Signature>,
     dest: Address,
     value: u64,
     package_id: ObjectId,
@@ -142,7 +142,7 @@ pub fn create_object_move_transaction(
 
 pub fn delete_object_move_transaction(
     src: Address,
-    secret: impl Into<IotaKeyPair>,
+    secret: &impl iota_sdk_crypto::Signer<Signature>,
     object_ref: ObjectReference,
     framework_obj_id: ObjectId,
     gas_object_ref: ObjectReference,
@@ -167,7 +167,7 @@ pub fn delete_object_move_transaction(
 
 pub fn set_object_move_transaction(
     src: Address,
-    secret: impl Into<IotaKeyPair>,
+    secret: &impl iota_sdk_crypto::Signer<Signature>,
     object_ref: ObjectReference,
     value: u64,
     framework_obj_id: ObjectId,

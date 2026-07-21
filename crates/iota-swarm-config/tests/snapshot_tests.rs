@@ -31,7 +31,6 @@ use iota_genesis_builder::{
 use iota_sdk_types::Address;
 use iota_swarm_config::genesis_config::GenesisConfig;
 use iota_types::{
-    base_types::address_from_iota_pub_key,
     crypto::{
         AccountKeyPair, AuthorityKeyPair, IotaKeyPair, NetworkKeyPair,
         generate_proof_of_possession, get_key_pair_from_rng,
@@ -66,11 +65,12 @@ fn populated_genesis_snapshot_matches() {
     let protocol_key: NetworkKeyPair = get_key_pair_from_rng(&mut rng).1;
     let network_key: NetworkKeyPair = get_key_pair_from_rng(&mut rng).1;
     let account_key: AccountKeyPair = get_key_pair_from_rng(&mut rng).1;
+    let account_address = IotaKeyPair::Ed25519(account_key).address();
     let validator = ValidatorInfo {
         name: "0".into(),
         authority_key: authority_key.public().into(),
         protocol_key: protocol_key.public().clone(),
-        account_address: address_from_iota_pub_key(account_key.public()),
+        account_address,
         network_key: network_key.public().clone(),
         gas_price: DEFAULT_VALIDATOR_GAS_PRICE,
         commission_rate: DEFAULT_COMMISSION_RATE,
@@ -81,10 +81,7 @@ fn populated_genesis_snapshot_matches() {
         image_url: String::new(),
         project_url: String::new(),
     };
-    let pop = generate_proof_of_possession(
-        &authority_key,
-        address_from_iota_pub_key(account_key.public()),
-    );
+    let pop = generate_proof_of_possession(&authority_key, account_address);
 
     let token_distribution_schedule = {
         let mut builder = TokenDistributionScheduleBuilder::new();

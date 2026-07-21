@@ -18,11 +18,7 @@ use anyhow::{Context, anyhow, bail};
 use async_trait::async_trait;
 use bimap::btree::BiBTreeMap;
 use criterion::Criterion;
-use fastcrypto::{
-    ed25519::Ed25519KeyPair,
-    encoding::{Base64, Encoding},
-    traits::ToFromBytes,
-};
+use fastcrypto::encoding::{Base64, Encoding};
 use iota_core::authority::{AuthorityState, test_authority_builder::TestAuthorityBuilder};
 use iota_framework::DEFAULT_FRAMEWORK_PATH;
 use iota_json_rpc_api::QUERY_MAX_RESULT_LIMIT;
@@ -2679,12 +2675,9 @@ async fn init_sim_executor(
     let (mut validator_addr, mut validator_key, mut key_copy) = (None, None, None);
     if custom_validator_account {
         // Make a validator account with a gas object
-        let (a, b): (Address, Ed25519KeyPair) = get_key_pair_from_rng(&mut rng);
+        let (a, b): (Address, AccountKeyPair) = get_key_pair_from_rng(&mut rng);
 
-        key_copy = Some(
-            Ed25519KeyPair::from_bytes(b.as_bytes())
-                .expect("FATAL: recovering key from bytes failed"),
-        );
+        key_copy = Some(b.clone());
         validator_addr = Some(a);
         validator_key = Some(b);
     }
