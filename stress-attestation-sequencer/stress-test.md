@@ -7,6 +7,60 @@ All commands are run from the `iota` monorepo root unless noted.
 
 ---
 
+## TL;DR
+
+Attestation's cost is a **pre-consensus execution dry-run plus the scheduling
+around it**. The dry-run itself tracks the real execution latency — a heavy
+attested transaction is executed twice, roughly doubling the validator's work
+(≈+30 % busy cores on `n4`). At light load, that is the whole story
+(sub-millisecond overhead); under load, the pool wait and async resume around
+the dry-run grow to dominate the attestation time (findings 1, 7). Compute-unit
+accounting is exact, and actual execution, post-consensus validation, and
+throughput at normal load are untouched (findings 1, 2, 5, 8).
+
+On `n4`, the costs surface under heavy compute. The client pays the full
+attestation span on every fullnode submit, and end-to-end latency —
+receipt→execution and settlement finality — roughly doubles; on the fullnode
+path, throughput also dips (B/A ≈ 0.78–0.81) and the execution backlog deepens
+(findings 3, 6, 9). But attestation also *relocates* load: by slowing
+admission it moves the backlog from after consensus to before it — checkpoint
+lag on the direct paths is far smaller with attestation on, while
+`num_inflight` grows until the heaviest pinned configuration reaches the submit
+semaphore and pre-consensus shedding fires (findings 4, 11). The strength of
+that shift follows how concentrated the attestation is (pinned strongest,
+spread-direct weaker, fullnode weakest), and the fullnode itself acts as an
+admission buffer: with attestation off, the direct paths — spread or pinned —
+build several times its post-consensus backlog (finding 4). One observation
+deserves follow-up: the fullnode-path throughput dip is unexplained (finding
+8). With the temporary post-consensus fixes in place, there are no validation
+drops or checkpoint forks on either path or network size (finding 8, H4 PASS).
+
+The 48-validator campaign was run to test the spreading argument directly: each
+transaction is attested by one validator, so the more validators share the
+stream, the smaller each one's share of the overhead. On the validator side,
+the data confirms it. On the spread paths, the busiest validator attests ≈70/s
+of a ≈600 TPS stream (its 1/48th share plus imbalance), CPU B/A drops to
+0.99–1.13 (from 1.04–1.30 on `n4`), the `n4` fullnode throughput dip
+disappears, and B behaves like A after consensus — same checkpoint lag, same
+shedding (findings 4, 7, 8, 10). Concentrating the same stream on one
+validator shows the opposite pole: +134 % CPU on the attesting host and
+continuous pre-consensus shedding against the 12×-smaller submit semaphore —
+on `n48`, the admission throttle, not the dry-run, dominates every pinned-path
+comparison (findings 2, 4, 5, 9, 11).
+
+What `n48` cannot show is a client-visible gain. 48 validators replicate every
+execution on the same 96 hardware threads, so the machine saturates below the
+target rate (≈600 of 1000 TPS at `slow0`) and every client-side latency is
+backlog-shaped on A and B alike — the `n4` doubling washes out into B/A ≈ 1.0
+without saying anything about attestation (findings 3, 6). The
+per-transaction attestation span also stays in the submit path regardless of
+committee size: spreading divides the validators' aggregate load, not the
+individual transaction's added wait. Measuring the client-side effect of a
+large committee needs a deployment where 48 validators do not share one
+machine.
+
+---
+
 ## H1 — attestation overhead (W4: slow owned-object; V1 vs V2)
 
 **Goal:** measure what validator attestation costs. Attestation (the
@@ -70,6 +124,25 @@ validators. Differences from the 4-validator campaign:
 Its results land in `results/summary_table_n48.{md,csv}` and
 `results/summary_plots_n48/` (`--net 48` on the tooling below).
 
+Two host-bound effects shape every `n48` result:
+
+- **The machine saturates.** All 48 validators execute every transaction on
+  the same 96 hardware threads, so the host runs out of CPU below the target
+  rate (≈600 of a requested 1000 tx/s finalized at `slow0`). Latencies gain a
+  floor already at `slow0` and, at the heavy sizes, pile up to ≈30 s p50 —
+  half the 60 s measurement window, pure backlog — on A and B alike, while
+  each validator's CPU sits at its ≈2-core share of the machine. Client-side
+  A vs B comparisons on `n48` therefore mostly measure the shared backlog,
+  not attestation.
+- **The pinned path throttles its own intake.** The submit semaphore scales
+  down with committee size (10000 permits on `n4`, 833 on `n48` — finding 11),
+  so the one validator receiving the whole stream rejects transactions
+  continuously before consensus — on A as well as B, with B rejecting more
+  because each attested submission holds its permit through the dry-run.
+  Wherever B's `v1` numbers look *better* than A's downstream of admission
+  (execution wall clock, commit sizes, queues, checkpoint lag, post-consensus
+  shedding), that is less load being admitted, not a cheaper pipeline.
+
 Unless stated otherwise, every table and figure below shows the `qps1000`
 rate. All three rates were run; the effects barely depend on the rate, so one
 representative rate keeps the tables and figures readable. Where a result does
@@ -131,7 +204,7 @@ configurations of each campaign.
 ---
 
 **1. Attestation is a full execution dry-run, plus scheduling overhead that
-grows with load.**
+grows with load; compute-unit accounting is exact.**
 
 <details>
 <summary>Metric descriptions</summary>
@@ -144,6 +217,8 @@ grows with load.**
 | `validator_attestation_async_resume_latency` | Time from the dry-run finishing on the blocking pool until the awaiting async task resumes (`spawn_blocking` join). Grows when the async runtime is saturated; full latency = queue wait + execution + this | histogram; p50/p95/p99 (`histogram_quantile`) over buckets combined across validators; averaged over all seconds of all iterations |
 | `authority_state_internal_execution_latency` | Latency of actual certificate executions | histogram; p50/p95/p99 (`histogram_quantile`) over buckets combined across validators; averaged over all seconds of all iterations |
 | `actual_computation_units` | Actual computation cost in gas units (CU) of attested transactions (`computation_cost` / `gas_price`), observed after execution | histogram; per-tx mean `rate(_sum)/rate(_count)` combined across validators (exact, not a quantile); averaged over all seconds of all iterations |
+| `attested_computation_units` | Attestor's pre-consensus estimate of the computation cost in gas units (CU), for transactions that arrived as `UserTransactionV2` | histogram; per-tx mean `rate(_sum)/rate(_count)` combined across validators; averaged over all seconds of all iterations |
+| `actual_to_attested_computation_units_ratio` | Ratio actual / attested computation units for attested transactions | histogram; per-tx mean `rate(_sum)/rate(_count)` combined across validators; averaged over all seconds of all iterations |
 
 </details>
 
@@ -222,7 +297,7 @@ once for real — so it costs the validator roughly double.
 ![Attestation computation units and dry-run execution latency, n4](h1/results/summary_plots_n4/attestation_latency_exec.png)
 
 *Computation units, attestation dry-run execution latency (p50/p95), and actual
-execution latency (p95) — findings 1–3, `n4` campaign. CUs sit at the gas floor
+execution latency (p95) — findings 1–2, `n4` campaign. CUs sit at the gas floor
 for `slow0` and `slow50` and step up from `slow100`; the dry-run tracks actual
 execution latency across the sweep.*
 
@@ -390,14 +465,19 @@ throughout.*
 
 </details>
 
+Compute-unit accounting is also exact: attested computation units equal actual
+computation units for every owned-object configuration of both campaigns,
+`n4` and `n48` (`actual_to_attested_computation_units_ratio` = 1.0), confirming
+attestation predicts the computation cost precisely for these transactions
+regardless of the committee size. CUs are reported as the exact per-transaction
+mean (`_sum`/`_count`), not a p50: the workload is deterministic, so every
+transaction is identical and the mean is the exact cost. A p50 would instead
+interpolate between histogram bucket edges and land on impossible values
+(e.g., 850 for `slow0`, below the 1000-unit `gas_rounding_step` floor).
+
 ---
 
 **2. Internal execution latency: unchanged by attestation.**
-
-> [!NOTE]
-> The title holds as stated on `n4`. On `n48`, the pinned path deviates
-> one-sidedly — B's executions run faster than A's — through an admission
-> side effect, not an execution cost; see the `n48` paragraph below.
 
 > [!TIP]
 > Both metrics of this finding — `authority_state_internal_execution_latency`
@@ -445,54 +525,17 @@ Direct-to-all-validators path (`v4` / `v48`):
 | 200 | 207.40 ms ∣ **1.785 s** | 221.61 ms ∣ **1.769 s** | 1.07 ∣ **0.99** | 128k  |
 | 500 | 970.22 ms ∣ **7.678 s** |   1.478 s    ∣ **7.933 s** | 1.52 ∣ **1.03** | 1.37M |
 
-On `n48`, the picture splits by path. On `f1` and `v48`, the claim holds as
-on `n4`: the B/A p95 median is 1.01 and 1.00 (ranges 0.99–1.17 and 0.92–1.14,
-respectively). On `v1`, it turns one-sided: median 0.75, down to 0.24 at
-`slow500-qps1000` — B's executions are systematically faster than A's. That is
-not attestation speeding anything up: on the pinned path B's attestation and
-the submit semaphore throttle admission on the single entry validator (finding
-14), so fewer transactions execute concurrently and each takes less wall clock
-on the shared cores. The execution path itself is still untouched by
-attestation — the deviation is an upstream admission effect, visible only
-because this metric measures wall clock under CPU contention.
+On `n48`, `f1` and `v48` hold as on `n4` (B/A p95 medians 1.01 and 1.00). On
+`v1`, B runs systematically faster (median 0.75, down to 0.24 at
+`slow500-qps1000`) — the pinned path's throttled intake (see the `n48`
+campaign notes; finding 11): fewer transactions are admitted, so fewer execute
+concurrently and each takes less wall clock on the shared cores. The execution
+path itself is untouched.
 
 ---
 
-**3. Compute-unit accounting is exact.**
-
-<details>
-<summary>Metric descriptions</summary>
-
-| metric | codebase description | aggregation |
-| --- | --- | --- |
-| `attested_computation_units` | Attestor's pre-consensus estimate of the computation cost in gas units (CU), for transactions that arrived as `UserTransactionV2` | histogram; per-tx mean `rate(_sum)/rate(_count)` combined across validators; averaged over all seconds of all iterations |
-| `actual_to_attested_computation_units_ratio` | Ratio actual / attested computation units for attested transactions | histogram; per-tx mean `rate(_sum)/rate(_count)` combined across validators; averaged over all seconds of all iterations |
-
-</details>
-
-> [!TIP]
-> `actual_computation_units` — the other metric of this finding — is described
-> in finding 1's metric table.
-
-Attested computation units equal actual computation units for every
-owned-object configuration of both campaigns, `n4` and `n48` (ratio = 1.0),
-confirming attestation predicts the computation cost precisely for these
-transactions regardless of the committee size. CUs are reported as the
-exact per-transaction mean (`_sum`/`_count`), not a p50: the
-workload is deterministic, so every transaction is identical and the mean is
-the exact cost. A p50 would instead interpolate between histogram bucket edges
-and land on impossible values (e.g., 850 for `slow0`, below the 1000-unit
-`gas_rounding_step` floor).
-
----
-
-**4. Receipt → execution latency: roughly doubles under heavy load.**
-
-> [!NOTE]
-> The title describes `n4`. On `n48`, the doubling moves to the moderate
-> sizes on the pinned path (B/A ≈2.6–2.9) and washes out at heavy compute,
-> where every path sits at the backlog ceiling; see the `n48` paragraph
-> below.
+**3. Receipt → execution latency: roughly doubles under heavy load — and the
+client sees the same doubling in settlement finality.**
 
 <details>
 <summary>Metric descriptions</summary>
@@ -500,6 +543,7 @@ and land on impossible values (e.g., 850 for `slow0`, below the 1000-unit
 | metric | codebase description | aggregation |
 | --- | --- | --- |
 | `validator_transaction_execution_latency` | Validator-internal latency from receiving a transaction via `submit_tx` until it finished executing (pre-consensus check, consensus, post-consensus validation, sequencing incl. deferral, execution); excludes client/fullnode time | histogram; p50/p95/p99 (`histogram_quantile`) per validator, then max across validators (busiest); averaged over all seconds of all iterations |
+| `transaction_driver_settlement_finality_latency` | Settlement finality latency observed from transaction driver | histogram; p50/p95/p99 (`histogram_quantile`), fullnode client series only; averaged over all seconds of all iterations |
 
 </details>
 
@@ -551,15 +595,13 @@ side. And B's relative cost shrinks as attestation spreads: B/A at `slow500`
 is 1.99 on `f1`, 1.66 on `v1`, 1.18 on `v4`, where each validator attests
 only a quarter of the load.
 
-On `n48`, the shape changes. The floor is ≈0.7–1.0 s already at `slow0`
-(consensus and execution share a saturated machine), and the heavy end hits
-a ceiling: at `slow500` every path sits at ≈30 s p50 for A and B alike —
-half the 60 s run window, pure backlog — so the doubling washes out (B/A
-0.66–1.00, with `v1`'s 0.66 the admission-throttling effect from finding 2).
-The attestation cost instead shows at the moderate sizes on the pinned path
-— B/A 2.92 at `slow50-v1` and 2.58 at `slow100-v1`, where B's transactions
-queue behind the one attesting validator's dry-runs and starved runtime
-(finding 1) — while the spread paths stay at 1.06–1.15 throughout.
+On `n48`, the saturated machine sets the shape (see the `n48` campaign
+notes): the floor is ≈0.7–1.0 s already at `slow0`, every path sits at ≈30 s
+p50 at `slow500`, and the doubling washes out (B/A 0.66–1.00, the 0.66 being
+`v1`'s throttled intake). The attestation cost shows instead at the moderate
+sizes on the pinned path — B/A 2.92 at `slow50-v1` and 2.58 at `slow100-v1`,
+where B's transactions queue behind the pinned validator's dry-runs and
+starved runtime (finding 1) — while `f1` and `v48` stay at 1.06–1.15.
 
 ![Receipt → execution latency, n4](h1/results/summary_plots_n4/receipt_to_exec_latency.png)
 
@@ -577,15 +619,61 @@ validator-internal pipeline, with no client/fullnode time.*
 
 </details>
 
+The client sees the same picture: `settlement_finality_latency` is the
+client's submit→finality time (fullnode path only). It's the end-to-end view
+of the internal pipeline above plus network and finality, so it moves the same
+way. Fullnode path, each cell `n4` ∣ `n48`:
+
+| slow_size | p50 A | p50 B | p50 B/A |
+| :---: | --- | --- | --- |
+| 0   | 253 ms ∣ **1.84 s** | 252 ms ∣ **1.82 s** | 1.00 ∣ **0.99** |
+| 50  | 259 ms ∣ **2.35 s** | 258 ms ∣ **2.46 s** | 1.00 ∣ **1.04** |
+| 100 | 264 ms ∣ **4.83 s** | 270 ms ∣ **5.03 s** | 1.02 ∣ **1.04** |
+| 200 | 804 ms ∣ **12.57 s** | 1.25 s  ∣ **14.81 s** | 1.56 ∣ **1.18** |
+| 500 | 4.26 s  ∣ **16.86 s** | 7.53 s  ∣ **16.24 s** | 1.77 ∣ **0.96** |
+
+<details>
+<summary>The same latency at p95</summary>
+
+| slow_size | p95 A | p95 B | p95 B/A |
+| :---: | --- | --- | --- |
+| 0   | 367 ms ∣ **3.38 s** | 374 ms ∣ **3.32 s** | 1.02 ∣ **0.98** |
+| 50  | 359 ms ∣ **3.26 s** | 351 ms ∣ **3.43 s** | 0.98 ∣ **1.05** |
+| 100 | 373 ms ∣ **6.51 s** | 390 ms ∣ **6.84 s** | 1.05 ∣ **1.05** |
+| 200 | 1.20 s  ∣ **18.32 s** | 2.00 s  ∣ **20.97 s** | 1.67 ∣ **1.14** |
+| 500 | 7.08 s  ∣ **20.88 s** | 11.65 s ∣ **20.08 s** | 1.65 ∣ **0.96** |
+
+</details>
+
+On `n4`, at light load B≈A (≈250 ms, dominated by consensus/finality;
+attestation is negligible). At heavy compute, B runs ≈1.6–1.8× A (`slow500`
+4.26 s → 7.53 s p50), the doubling above carried through to what the client
+observes.
+
+On `n48`, the client sees the saturated machine's backlog instead (`n48`
+campaign notes): the floor is already ≈1.8 s at `slow0`, both sides climb
+together to ≈16–21 s at `slow500`, and B/A stays 0.96–1.18 throughout — the
+only visible bump is at `slow200` (1.14–1.18), matching the pipeline's 1.12
+there.
+
+![Settlement finality latency, n4](h1/results/summary_plots_n4/settlement_finality_latency.png)
+
+*Client settlement-finality latency, fullnode path only, `n4` campaign.*
+
+<details>
+<summary>The same figure for the <code>n48</code> campaign</summary>
+
+![Settlement finality latency, n48](h1/results/summary_plots_n48/settlement_finality_latency.png)
+
+*Client settlement-finality latency, `n48` campaign — A and B climb together
+to the backlog ceiling.*
+
+</details>
+
 ---
 
-**5. Checkpoint creation lag: attestation moves the backlog ahead of
+**4. Checkpoint creation lag: attestation moves the backlog ahead of
 consensus.**
-
-> [!NOTE]
-> The title holds on both networks, but on `n48`, the shift is all-or-nothing:
-> total on the pinned path (B/A ≈0.07 at `slow500`), absent on the spread
-> paths (≈1.0); see the `n48` paragraph below.
 
 <details>
 <summary>Metric descriptions</summary>
@@ -651,24 +739,22 @@ validator attests a quarter and the shift is half-hearted (B/A 0.77–0.81). On
 backlog, so B lags slightly more than A (1.2–1.4×). Without attestation, the
 load goes straight into consensus and the backlog piles up after it — exactly
 where checkpoints wait; with attestation, each transaction first spends time
-in the dry-run while the client holds a bounded number in flight (finding 4's
+in the dry-run while the client holds a bounded number in flight (finding 3's
 receipt→execution shows that side: B ≈1.7× A on `v1`, ≈1.2× on `v4`).
 Attestation does not shrink the total backlog — it moves it from after
 consensus, where checkpoints wait on it, to before consensus, and the more
 concentrated the attestation, the stronger the move.
 
-On `n48`, the gradient sharpens into all-or-nothing. On `v1`, the shift is
-total: B/A p95 falls from 0.67 at `slow50` to 0.07 at `slow500` (p50:
-21.49 s → 514 ms) — the pinned validator's attestation pacing and continuous
-pre-consensus shedding (finding 14) keep the post-consensus backlog nearly
-empty. On `v48`, each validator attests 1/48th of the load and the shift
-vanishes (B/A 0.99–1.11); `f1` sits mildly above one (1.10–1.13, 0.93 at
-`slow500`). The A-side contrast from `n4` also dissolves: at `slow500`, every
-path hits the same ≈30–35 s ceiling — when execution itself is the
-bottleneck, the fullnode's pacing buys nothing — and at `slow200` the
-ordering flips: `v48`-A (30.0 s) doubles `f1`-A (15.7 s), while `v1`-A is
-lowest (13.6 s), capped by its own pre-consensus shedding rather than by any
-buffering.
+On `n48`, the shift is all-or-nothing. On `v1`, the throttled intake (`n48`
+campaign notes; finding 11) keeps the post-consensus backlog nearly empty:
+B/A p95 falls from 0.67 at `slow50` to 0.07 at `slow500` (p50: 21.49 s →
+514 ms). On `f1` and `v48`, where each validator attests only a small share,
+the shift vanishes (B/A 0.93–1.13). The A-side contrast from `n4` dissolves
+on the saturated machine: at `slow500` every path hits the same ≈30–35 s —
+when execution itself is the bottleneck, the fullnode's pacing buys nothing —
+and at `slow200` the ordering flips: `v48`-A (30.0 s) doubles `f1`-A
+(15.7 s), while `v1`-A is lowest (13.6 s), capped by its own pre-consensus
+rejections rather than by any buffering.
 
 ![Checkpoint creation lag, n4](h1/results/summary_plots_n4/checkpoint_creation_latency.png)
 
@@ -689,12 +775,7 @@ collapse (the relocation at full strength); the spread paths show none.*
 
 ---
 
-**6. Post-consensus validation latency: unaffected by attestation.**
-
-> [!NOTE]
-> The title holds as stated on `n4`. On `n48`, the pinned path's B runs the
-> pass far below A (B/A 0.02–0.26) — near-empty consensus commits under
-> throttled admission, not cheaper validation; see the `n48` paragraph below.
+**5. Post-consensus validation latency: unaffected by attestation.**
 
 <details>
 <summary>Metric descriptions</summary>
@@ -784,15 +865,14 @@ rises under load (≈5 ms → 12–69 ms) on both A and B, from contention on th
 pass. Attestation's Check #3 is lost in the noise; its cost is pre-consensus
 (finding 1), not here.
 
-On `n48`, the absolute pass times inflate with everything else (p95 tens to
-hundreds of ms) and the spread paths stay A≈B (B/A mostly 0.78–1.07). The
-pinned path turns systematic instead of noisy: B runs the pass at a fraction
-of A from `slow50` up (p50 B/A 0.02–0.26 — e.g. 28 ms vs 0.6 ms at
-`slow500`). That is still not Check #3: the pass is timed per consensus
-commit, so its duration tracks how many transactions a commit carries, and
-B's throttled admission on `v1` (finding 14) produces near-empty commits.
-`v48` shows the same commit-size effect once, at `slow500` (p50 222 ms →
-45 ms), where A admits more than B and its commits arrive stuffed.
+On `n48`, the absolute pass times inflate with the saturated machine (p95
+tens to hundreds of ms) and `f1`/`v48` stay A≈B (B/A mostly 0.78–1.07). On
+`v1`, B runs the pass at a fraction of A from `slow50` up (p50 B/A 0.02–0.26
+— e.g. 28 ms vs 0.6 ms at `slow500`); that is commit size, not Check #3: the
+pass is timed per consensus commit, and the pinned path's throttled intake
+(`n48` campaign notes; finding 11) gives B near-empty commits. `v48` shows
+the same commit-size effect once, at `slow500` (p50 222 ms → 45 ms), where A
+admits more than B.
 
 ![Post-consensus validation latency, n4](h1/results/summary_plots_n4/post_consensus_validation_latency.png)
 
@@ -811,7 +891,7 @@ path's B bars collapse (near-empty commits).*
 
 ---
 
-**7. Submit latency (fullnode path): a fixed per-transaction addition.**
+**6. Submit latency (fullnode path): a fixed per-transaction addition.**
 
 <details>
 <summary>Metric descriptions</summary>
@@ -827,7 +907,7 @@ RPC responds only after the transaction passed the overload check, the whole
 attestation span finished (pool wait + dry-run + async resume — the
 attestation payload is needed to build the consensus transaction), and the
 transaction was handed to the consensus adapter. It does not wait for
-consensus sequencing — that time is in settlement finality (finding 8), not
+consensus sequencing — that time is in settlement finality (finding 3), not
 here.
 
 </details>
@@ -893,7 +973,7 @@ rather than add.
 
 ![Submit-transaction latency, n4](h1/results/summary_plots_n4/submit_latency.png)
 
-*Client submit latency, fullnode path only, `n4` campaign — finding 7.*
+*Client submit latency, fullnode path only, `n4` campaign — finding 6.*
 
 <details>
 <summary>The same figure for the <code>n48</code> campaign</summary>
@@ -907,81 +987,7 @@ queueing.*
 
 ---
 
-**8. Settlement finality latency: the client sees the same doubling.**
-
-> [!NOTE]
-> The title describes `n4`. On `n48`, the doubling does not reach the client:
-> both sides sit on the saturated pipeline (finding 4's ceiling) and B/A
-> stays 0.96–1.18; see the `n48` paragraph below.
-
-<details>
-<summary>Metric descriptions</summary>
-
-| metric | codebase description | aggregation |
-| --- | --- | --- |
-| `transaction_driver_settlement_finality_latency` | Settlement finality latency observed from transaction driver | histogram; p50/p95/p99 (`histogram_quantile`), fullnode client series only; averaged over all seconds of all iterations |
-
-</details>
-
-`settlement_finality_latency` is the client's submit→finality time (fullnode
-path only). It's the end-to-end view of the internal pipeline (finding 4) plus
-network and finality, so it moves the same way. Fullnode path, each cell
-`n4` ∣ `n48`:
-
-| slow_size | p50 A | p50 B | p50 B/A |
-| :---: | --- | --- | --- |
-| 0   | 253 ms ∣ **1.84 s** | 252 ms ∣ **1.82 s** | 1.00 ∣ **0.99** |
-| 50  | 259 ms ∣ **2.35 s** | 258 ms ∣ **2.46 s** | 1.00 ∣ **1.04** |
-| 100 | 264 ms ∣ **4.83 s** | 270 ms ∣ **5.03 s** | 1.02 ∣ **1.04** |
-| 200 | 804 ms ∣ **12.57 s** | 1.25 s  ∣ **14.81 s** | 1.56 ∣ **1.18** |
-| 500 | 4.26 s  ∣ **16.86 s** | 7.53 s  ∣ **16.24 s** | 1.77 ∣ **0.96** |
-
-<details>
-<summary>The same latency at p95</summary>
-
-| slow_size | p95 A | p95 B | p95 B/A |
-| :---: | --- | --- | --- |
-| 0   | 367 ms ∣ **3.38 s** | 374 ms ∣ **3.32 s** | 1.02 ∣ **0.98** |
-| 50  | 359 ms ∣ **3.26 s** | 351 ms ∣ **3.43 s** | 0.98 ∣ **1.05** |
-| 100 | 373 ms ∣ **6.51 s** | 390 ms ∣ **6.84 s** | 1.05 ∣ **1.05** |
-| 200 | 1.20 s  ∣ **18.32 s** | 2.00 s  ∣ **20.97 s** | 1.67 ∣ **1.14** |
-| 500 | 7.08 s  ∣ **20.88 s** | 11.65 s ∣ **20.08 s** | 1.65 ∣ **0.96** |
-
-</details>
-
-On `n4`, at light load B≈A (≈250 ms, dominated by consensus/finality;
-attestation is negligible). At heavy compute, B runs ≈1.6–1.8× A (`slow500`
-4.26 s → 7.53 s p50), the doubling from finding 4 carried through to what
-the client observes.
-
-On `n48`, the client sees finding 4's ceiling instead: the floor is already
-≈1.8 s at `slow0` and both sides climb together to ≈16–21 s at `slow500`, so
-B/A stays 0.96–1.18 throughout — the only visible bump is at `slow200`
-(1.14–1.18), matching the pipeline's 1.12 there. What the client observes is
-the saturated backlog, not the attestation span.
-
-![Settlement finality latency, n4](h1/results/summary_plots_n4/settlement_finality_latency.png)
-
-*Client settlement-finality latency, fullnode path only, `n4` campaign.*
-
-<details>
-<summary>The same figure for the <code>n48</code> campaign</summary>
-
-![Settlement finality latency, n48](h1/results/summary_plots_n48/settlement_finality_latency.png)
-
-*Client settlement-finality latency, `n48` campaign — A and B climb together
-to the backlog ceiling.*
-
-</details>
-
----
-
-**9. CPU: attestation adds ≈30 % busy cores.**
-
-> [!NOTE]
-> The ≈30 % is the `n4` median. On `n48`, the overhead follows attestation
-> concentration: ≈0–13 % on the spread paths, up to +134 % on the pinned
-> validator's host; see the `n48` paragraph below.
+**7. CPU: attestation adds ≈30 % busy cores.**
 
 <details>
 <summary>Metric descriptions</summary>
@@ -1037,14 +1043,13 @@ spreading that matters, not the fullnode: submitting directly to all 4 keeps
 the busiest validator at fullnode-path levels (B ≈ 24.7 cores at `slow500`,
 matching `f1` and well below `v1`'s 35.9).
 
-On `n48`, every validator runs at ≈2.0–2.5 cores — 49 containers share the
-96 hardware threads, so the machine, not the workload, sets the level — and
-the B/A ratio becomes the cleanest per-validator view of the overhead. On
-the spread paths, attestation is ≈free: B/A 0.99–1.13 (each validator attests
-≈1/48th of the load). On the pinned path, the one attesting host climbs from
-1.04 at `slow0` to 2.34 at `slow500` (2.2 → 5.0 cores) — it pays the full
-dry-run stream on top of its execution share. Memory moves the same
-direction but barely: `v1`-B up to 1.21, spread paths ≤1.09.
+On `n48`, every validator runs at its ≈2.0–2.5-core machine share (`n48`
+campaign notes), so the B/A ratio becomes the cleanest per-validator view of
+the overhead. On `f1` and `v48`, attestation is ≈free: B/A 0.99–1.13 (each
+validator attests ≈1/48th of the load). The pinned host climbs from 1.04 at
+`slow0` to 2.34 at `slow500` (2.2 → 5.0 cores) — it pays the full dry-run
+stream on top of its execution share. Memory moves the same direction but
+barely: `v1`-B up to 1.21, elsewhere ≤1.09.
 
 <details>
 <summary>Busiest-validator memory RSS (GB), same cell format</summary>
@@ -1088,7 +1093,7 @@ not memory.
 ![CPU and memory, n4](h1/results/summary_plots_n4/resources.png)
 
 *Whole-machine host CPU and busiest-validator CPU / memory (RSS), `n4`
-campaign — finding 9.*
+campaign — finding 7.*
 
 <details>
 <summary>The same figure for the <code>n48</code> campaign</summary>
@@ -1102,14 +1107,8 @@ share on every path except the attesting `v1` host.*
 
 ---
 
-**10. Throughput: no penalty at normal load; a fullnode cost at heavy compute.**
-
-> [!NOTE]
-> The title describes `n4`. On `n48`, the fullnode cost is absent (B/A
-> 0.98–1.00 through `slow200`); instead the pinned path halves B's
-> throughput at moderate sizes (continuous shedding) and multiplies it at
-> `slow500` (B 2.9× A — admission control wins under overload); see the
-> `n48` paragraph below.
+**8. Throughput: no penalty at normal load, a fullnode cost at heavy compute,
+and no post-consensus validation drops.**
 
 <details>
 <summary>Metric descriptions</summary>
@@ -1118,6 +1117,7 @@ share on every path except the attesting `v1` host.*
 | --- | --- | --- |
 | `transactions_included_in_checkpoint` | Transactions included in a checkpoint | counter; `rate()` → finalized TPS, mean across validators (replicated); averaged over all seconds of all iterations |
 | `validator_attestations_total` | Number of attestations performed (dry-runs that completed without panicking) | counter; `rate()` → attestations/s, max across validators (busiest); averaged over all seconds of all iterations |
+| `consensus_handler_validation_dropped_transactions` | Number of `UserTransactionV1`/`UserTransactionV2` transactions dropped by post-consensus validation | counter; `rate()` → drops/s, mean across validators; averaged over all seconds of all iterations |
 
 </details>
 
@@ -1166,16 +1166,14 @@ even though it sends every attestation to a single validator. Why the fullnode
 path pays more is not established here (both sit at ≈76–85/96 host CPU, so it
 is not spare capacity); it needs a dedicated look.
 
-On `n48`, the absolute numbers are saturation-bound before anything else: the
-machine delivers ≈470–600 TPS at `slow0` regardless of the requested 1000/s,
-and the sizes above collapse identically on A and B (`slow100` ≈190,
-`slow200` ≈64, `slow500` single digits). Within that ceiling the `n4` caveat
-inverts. The fullnode dip is gone — `f1` B/A is 0.98–1.00 through `slow200`
-(0.85 at the degenerate `slow500`). The pinned path pays instead: B/A ≈0.50
-at `slow50`/`slow100` — half of B's stream is rejected by the entry
-validator's continuous pre-consensus shedding (finding 14) — and 0.72 at
-`slow200`. At `slow500`, the same throttle wins: B delivers 2.9× A (15 vs
-5 TPS), the load-shedding paradox already visible in findings 2 and 5 —
+On `n48`, throughput is set by the saturated machine (`n48` campaign notes):
+≈470–600 TPS at `slow0` regardless of the requested 1000/s, collapsing
+identically on A and B above that (`slow100` ≈190, `slow200` ≈64, `slow500`
+single digits). Within that ceiling the `n4` caveat inverts: the fullnode dip
+is gone (`f1` B/A 0.98–1.00 through `slow200`, 0.85 at the noisy `slow500`),
+and the pinned path pays for its throttled intake instead (finding 11) — B/A
+≈0.50 at `slow50`/`slow100` and 0.72 at `slow200`. At `slow500`, the same
+throttle wins: B delivers 2.9× A (15 vs 5 TPS) — as in findings 2 and 4,
 admitting less lets the network finish more. `v48` stays at B/A ≈1.0
 throughout (1.67 at the noisy `slow500`).
 
@@ -1199,7 +1197,7 @@ caps its intake.
 ![Throughput, attestation rate, and validation-drop rate, n4](h1/results/summary_plots_n4/TPS.png)
 
 *Finalized TPS, attestations / sec, and post-consensus validation-drops / sec,
-`n4` campaign — findings 10 and 11. TPS is A≈B; no validation drops on either
+`n4` campaign — finding 8. TPS is A≈B; no validation drops on either
 path.*
 
 <details>
@@ -1221,34 +1219,16 @@ attestations / sec by path (busiest validator), each cell `n4` ∣ `n48`:
 | `slow200` | 306 ∣ **15** | 1546 ∣ **81** | 426 ∣ **26** | 5.0× ∣ **5.4×** |
 | `slow500` | 74  ∣ **13** | 516  ∣ **26** | 96  ∣ **17** | 7.0× ∣ **1.9×** |
 
----
-
-**11. No post-consensus validation drops.**
-
-<details>
-<summary>Metric descriptions</summary>
-
-| metric | codebase description | aggregation |
-| --- | --- | --- |
-| `consensus_handler_validation_dropped_transactions` | Number of `UserTransactionV1`/`UserTransactionV2` transactions dropped by post-consensus validation | counter; `rate()` → drops/s, mean across validators; averaged over all seconds of all iterations |
-
-</details>
-
+Post-consensus validation drops stay at zero throughout:
 `consensus_handler_validation_dropped_transactions` is ≈0 on both the attested
 (V2) and unattested (V1) paths, across every configuration of both campaigns
-(`n4` and `n48`) — the counter never moves even where shedding and
-saturation are at their worst. The rates are shown in the throughput figure
-(finding 10).
+(`n4` and `n48`) — the counter never moves even where shedding and saturation
+are at their worst. Its rate is the third panel of the throughput figure
+above.
 
 ---
 
-**12. Execution queues and backpressure: deeper backlog under heavy load.**
-
-> [!NOTE]
-> The title describes `n4`'s fullnode path. On `n48` queue delay tracks
-> saturation, not attestation: the fullnode effect does not reproduce, and
-> the pinned path's B queues far less than A (B/A 0.12 at `slow500`); see
-> the `n48` paragraph below.
+**9. Execution queues and backpressure: deeper backlog under heavy load.**
 
 <details>
 <summary>Metric descriptions</summary>
@@ -1302,18 +1282,18 @@ attestation's extra execution piles onto a busy pipeline. The direct paths
 show no clean effect on queue delay (`v1` B/A 0.92–1.02; `v4` mixed,
 0.93–1.41), but their A sides carry large pending-transactions outliers
 (`slow200` peaks: 1482 pending in A vs 74 in B on `v1`, 2308 vs 131 on `v4`) —
-the same picture as finding 5: without attestation the direct paths' backlog
+the same picture as finding 4: without attestation the direct paths' backlog
 sits after consensus.
 
-On `n48`, queue delay stops tracking attestation and tracks saturation: even
-`slow0` queues 23–381 ms, the delay peaks at `slow200` (up to 9.5 s on
-`v48`-A), and shrinks again at `slow500`, where little is admitted at all.
-The `n4` fullnode effect does not reproduce (`f1` B/A 0.77–1.23, no
-direction). On the pinned path, B queues far less than A at heavy compute
-(258 ms vs 2.10 s at `slow500`, B/A 0.12 — finding 14's admission throttle
-again), and its dispatch-queue peak drops the same way (688 → 177 at
-`slow500`; `v48` 1559 → 776). Pending transactions stay at ≈10–20 on every
-`n48` configuration — the large A-side outliers from `n4` do not reappear.
+On `n48`, queue delay tracks the saturated machine, not attestation (`n48`
+campaign notes): even `slow0` queues 23–381 ms, the delay peaks at `slow200`
+(up to 9.5 s on `v48`-A), and shrinks again at `slow500`, where little is
+admitted at all. The `n4` fullnode effect does not reproduce (`f1` B/A
+0.77–1.23, no direction). On `v1`, the throttled intake (finding 11) drains
+B's queues at heavy compute — 258 ms vs 2.10 s at `slow500` (B/A 0.12), with
+the dispatch-queue peak dropping the same way (688 → 177; `v48` 1559 → 776).
+Pending transactions stay at ≈10–20 on every `n48` configuration — the large
+A-side outliers from `n4` do not reappear.
 
 ![Execution queues and backpressure, n4](h1/results/summary_plots_n4/queues.png)
 
@@ -1332,13 +1312,8 @@ B queues drain below A.*
 
 ---
 
-**13. Post-consensus load shedding: sheds under heavy compute on both
+**10. Post-consensus load shedding: sheds under heavy compute on both
 paths.**
-
-> [!NOTE]
-> The title describes `n4`. On `n48`, shedding fires at the moderate sizes
-> (`slow50`–`slow200`) and not at all at `slow500`, and A ≫ B survives only
-> on the pinned path; see the `n48` paragraph below.
 
 <details>
 <summary>Metric descriptions</summary>
@@ -1376,18 +1351,18 @@ expected — the quorum needs 2f+1 validators to agree), and all drop
 transactions. The paths differ in degree, not kind. On the direct paths, A
 drops far more than B (71.1 vs 3.0 /s at `slow200-v1-q2000`, 25.1 vs 0.7 /s at
 `slow500-v4-q2000`): attestation throttles admission, so less backlog reaches
-the post-consensus dropper (finding 5). How much less follows the attestation
+the post-consensus dropper (finding 4). How much less follows the attestation
 concentration: `v1` throttles hardest and its B drops least (0.9–3.0 /s); on
 `v4`, where each validator attests only a quarter, the throttling is weaker
 and B can still drop heavily (52.3 /s at `slow200-v4-q2000`). On the fullnode
 path, the order can flip outright (1.8 vs 27.1 /s at `slow200-f1-q2000`) —
-there B carries the deeper execution backlog (finding 12), and its shed
+there B carries the deeper execution backlog (finding 9), and its shed
 percentages run higher.
 
 On `n48`, the shedding window moves down the size scale: drops fire at
 `slow50`–`slow200` and vanish entirely at `slow500` — on both sides, at both
 rates — because the heaviest configurations barely admit anything for the
-dropper to act on (finding 10's collapse). The `n48` rows with ≥1 drop/s:
+dropper to act on (finding 8's collapse). The `n48` rows with ≥1 drop/s:
 
 | config | A drops/s | A quorum % | A local % | B drops/s | B quorum % | B local % |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -1404,10 +1379,10 @@ dropper to act on (finding 10's collapse). The `n48` rows with ≥1 drop/s:
 | `slow200-v48-q2000` | 2.4 | 16.0 | 81.1 | 2.2 | 31.5 | 88.4 |
 
 The A ≫ B contrast survives only on the pinned path (11.3 vs 4.1 /s at
-`slow200-v1`, 14.8 vs 1.8 at `slow200-v1-q2000`) — the relocation is total
-there (finding 5). On the spread paths, A ≈ B (44.1 vs 49.0 /s at
-`slow100-v48-q2000`): with no relocation, B's backlog sits after consensus
-exactly like A's, and both shed alike.
+`slow200-v1`, 14.8 vs 1.8 at `slow200-v1-q2000`), where attestation moves the
+whole backlog ahead of consensus (finding 4). On `f1` and `v48`, A ≈ B (44.1
+vs 49.0 /s at `slow100-v48-q2000`): the backlog stays after consensus for B
+exactly as for A, and both shed alike.
 
 ![Post-consensus load shedding, n4](h1/results/summary_plots_n4/load_shedding_post_consensus.png)
 
@@ -1423,19 +1398,14 @@ pinned path; B can dominate on the fullnode path. The largest drops land at
 
 *Post-consensus shedding, `n48` campaign — drops fire at the moderate
 sizes; at `slow500` the locally computed shed % is high but nothing is
-dropped, because almost nothing is admitted (finding 10).*
+dropped, because almost nothing is admitted (finding 8).*
 
 </details>
 
 ---
 
-**14. Pre-consensus load shedding: quiet until the heaviest pinned
+**11. Pre-consensus load shedding: quiet until the heaviest pinned
 configuration hits the submit semaphore.**
-
-> [!NOTE]
-> The title describes `n4`. On `n48`, the semaphore is 12× smaller (833
-> permits) and the pinned path trips it continuously at `qps1000` — on A as
-> well as B; see the `n48` paragraphs below.
 
 <details>
 <summary>Metric descriptions</summary>
@@ -1513,7 +1483,7 @@ restarted, or OOM'd inside any measurement window. The one incident on
 received for 60s") on the saturated `slow500-f1-qps1000` configuration, each
 firing seconds after its measurement window closed, while the network was
 being torn down — a symptom of the extreme checkpoint lag in the degenerate
-regime (finding 5), not a safety event.
+regime (finding 4), not a safety event.
 
 <details>
 <summary>Metric descriptions</summary>
@@ -1542,57 +1512,10 @@ regime (finding 5), not a safety event.
 
 ---
 
-### Takeaway
+### Summary
 
-Attestation's cost is a **pre-consensus execution dry-run plus the scheduling
-around it**. The dry-run itself tracks the real execution latency — a heavy
-attested transaction is executed twice, roughly doubling the validator's work
-(≈+30 % busy cores on `n4`). At light load, that is the whole story
-(sub-millisecond overhead); under load, the pool wait and async resume around
-the dry-run grow to dominate the attestation time (findings 1, 9). Compute-unit
-accounting is exact, and actual execution, post-consensus validation, and
-throughput at normal load are untouched (findings 2, 3, 6, 10).
-
-On `n4`, the costs surface under heavy compute. The client pays the full
-attestation span on every fullnode submit, and end-to-end latency —
-receipt→execution and settlement finality — roughly doubles; on the fullnode
-path, throughput also dips (B/A ≈ 0.78–0.81) and the execution backlog deepens
-(findings 4, 7, 8, 12). But attestation also *relocates* load: by slowing
-admission it moves the backlog from after consensus to before it — checkpoint
-lag on the direct paths is far smaller with attestation on, while
-`num_inflight` grows until the heaviest pinned configuration reaches the submit
-semaphore and pre-consensus shedding fires (findings 5, 14). The strength of
-that shift follows how concentrated the attestation is (pinned strongest,
-spread-direct weaker, fullnode weakest), and the fullnode itself acts as an
-admission buffer: with attestation off, the direct paths — spread or pinned —
-build several times its post-consensus backlog (finding 5). One observation
-deserves follow-up: the fullnode-path throughput dip is unexplained (finding
-10). With the temporary post-consensus fixes in place, there are no validation
-drops or checkpoint forks on either path or network size (finding 11, H4 PASS).
-
-The 48-validator campaign was run to test the spreading argument directly: each
-transaction is attested by one validator, so the more validators share the
-stream, the smaller each one's share of the overhead. On the validator side,
-the data confirms it. On the spread paths, the busiest validator attests ≈70/s
-of a ≈600 TPS stream (its 1/48th share plus imbalance), CPU B/A drops to
-0.99–1.13 (from 1.04–1.30 on `n4`), the `n4` fullnode throughput dip
-disappears, and B behaves like A after consensus — same checkpoint lag, same
-shedding (findings 5, 9, 10, 13). Concentrating the same stream on one
-validator shows the opposite pole: +134 % CPU on the attesting host and
-continuous pre-consensus shedding against the 12×-smaller submit semaphore —
-on `n48`, the admission throttle, not the dry-run, dominates every pinned-path
-comparison (findings 2, 5, 6, 12, 14).
-
-What `n48` cannot show is a client-visible gain. 48 validators replicate every
-execution on the same 96 hardware threads, so the machine saturates below the
-target rate (≈600 of 1000 TPS at `slow0`) and every client-side latency is
-backlog-shaped on A and B alike — the `n4` doubling washes out into B/A ≈ 1.0
-without saying anything about attestation (findings 4, 7, 8). The
-per-transaction attestation span also stays in the submit path regardless of
-committee size: spreading divides the validators' aggregate load, not the
-individual transaction's added wait. Measuring the client-side effect of a
-large committee needs a deployment where 48 validators do not share one
-machine.
+The takeaway of both campaigns is the [TL;DR](#tldr) at the top of this
+document.
 
 Full per-configuration numbers: `h1/results/summary_table_n4.md` and
 `h1/results/summary_table_n48.md`. Figures: `h1/results/summary_plots_n4/` and
