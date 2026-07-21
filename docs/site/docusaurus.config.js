@@ -10,7 +10,7 @@ import codeImport from "remark-code-import";
 
 require("dotenv").config();
 
-const jargonConfig = require('./config/jargon.js');
+const jargonConfig = require("./config/jargon.js");
 
 /** @type {import('@docusaurus/types').Config} */
 const config = {
@@ -20,7 +20,7 @@ const config = {
   favicon: "/icons/favicon.ico",
   url: "https://docs.iota.org",
   baseUrl: "/",
-  
+
   customFields: {
     amplitudeKey: process.env.AMPLITUDE_KEY,
   },
@@ -42,193 +42,204 @@ const config = {
   },
   plugins: [
     [
-      'docusaurus-plugin-llms',
+      "docusaurus-plugin-llms",
       {
-        docsDir: '../content',
+        docsDir: "../content",
         pathTransformation: {
-          ignorePaths: ['docs', '..', 'content']
+          ignorePaths: ["docs", "..", "content"],
         },
         // Ignore everything with an underscore which is docusaurus default behaviour
-        ignoreFiles: [ '**/_**' ],
+        ignoreFiles: ["**/_**"],
         // llms.txt is maintained by the llms-txt plugin at src/plugins/llms-txt
         generateLLMsTxt: false,
         customLLMFiles: [
           {
-            filename: 'llms-full-about.txt',
-            title: 'IOTA Documentation - About IOTA',
-            description: 'Complete About IOTA documentation covering architecture, tokenomics, and programs',
-            includePatterns: ['about-iota/**'],
+            filename: "llms-full-about.txt",
+            title: "IOTA Documentation - About IOTA",
+            description:
+              "Complete About IOTA documentation covering architecture, tokenomics, and programs",
+            includePatterns: ["about-iota/**"],
             fullContent: true,
           },
           {
-            filename: 'llms-full-operator.txt',
-            title: 'IOTA Documentation - Operators',
-            description: 'Complete operator documentation for running full nodes, validators, and infrastructure',
-            includePatterns: ['operator/**'],
+            filename: "llms-full-operator.txt",
+            title: "IOTA Documentation - Operators",
+            description:
+              "Complete operator documentation for running full nodes, validators, and infrastructure",
+            includePatterns: ["operator/**"],
             fullContent: true,
           },
           {
-            filename: 'llms-full-users.txt',
-            title: 'IOTA Documentation - Users',
-            description: 'Complete user documentation for wallets and IOTA applications',
-            includePatterns: ['users/**'],
+            filename: "llms-full-users.txt",
+            title: "IOTA Documentation - Users",
+            description:
+              "Complete user documentation for wallets and IOTA applications",
+            includePatterns: ["users/**"],
             fullContent: true,
           },
           {
-            filename: 'llms-full-workshops.txt',
-            title: 'IOTA Documentation - Workshops',
-            description: 'Workshop materials for hands-on learning with IOTA',
-            includePatterns: ['developer/workshops/**'],
+            filename: "llms-full-workshops.txt",
+            title: "IOTA Documentation - Workshops",
+            description: "Workshop materials for hands-on learning with IOTA",
+            includePatterns: ["developer/workshops/**"],
             fullContent: true,
           },
           {
-            filename: 'llms-full-developer-getting-started.txt',
-            title: 'IOTA Developer Documentation - Getting Started',
-            description: 'Getting started guides including installation, environment setup, and first steps with IOTA development',
+            filename: "llms-full-developer-getting-started.txt",
+            title: "IOTA Developer Documentation - Getting Started",
+            description:
+              "Getting started guides including installation, environment setup, and first steps with IOTA development",
             includePatterns: [
-              'developer/developer.md',
-              'developer/network-overview.md',
-              'developer/getting-started/**',
+              "developer/developer.md",
+              "developer/network-overview.md",
+              "developer/getting-started/**",
             ],
             fullContent: true,
           },
           {
-            filename: 'llms-full-developer-explanations.txt',
-            title: 'IOTA Developer Documentation - Explanations',
-            description: 'Conceptual explanations including cryptography, transaction authentication, and smart contract security',
+            filename: "llms-full-developer-explanations.txt",
+            title: "IOTA Developer Documentation - Explanations",
+            description:
+              "Conceptual explanations including cryptography, transaction authentication, and smart contract security",
+            includePatterns: ["developer/cryptography/**"],
+            fullContent: true,
+          },
+          {
+            filename: "llms-full-developer-how-to.txt",
+            title: "IOTA Developer Documentation - How To",
+            description:
+              "How-to guides for transactions, sponsored transactions, PTBs, and exchange integration",
             includePatterns: [
-              'developer/cryptography/**',
+              "developer/iota-101/transactions/**",
+              "developer/exchange-integration.md",
+              "developer/advanced/custom-indexer.md",
             ],
             fullContent: true,
           },
           {
-            filename: 'llms-full-developer-how-to.txt',
-            title: 'IOTA Developer Documentation - How To',
-            description: 'How-to guides for transactions, sponsored transactions, PTBs, and exchange integration',
+            filename: "llms-full-developer-tutorials.txt",
+            title: "IOTA Developer Documentation - Tutorials",
+            description:
+              "Step-by-step tutorials for building applications on IOTA",
+            includePatterns: ["developer/tutorials/**"],
+            fullContent: true,
+          },
+          {
+            filename: "llms-full-developer-move.txt",
+            title: "IOTA Developer Documentation - Move",
+            description:
+              "Move language documentation including the object model, standards, patterns, framework references, and challenges",
             includePatterns: [
-              'developer/iota-101/transactions/**',
-              'developer/exchange-integration.md',
-              'developer/advanced/custom-indexer.md',
+              "developer/iota-101/objects/**",
+              "developer/iota-101/move-overview/**",
+              "developer/iota-101/create-coin/**",
+              "developer/iota-101/nft/**",
+              "developer/iota-101/using-events.md",
+              "developer/iota-101/access-time.md",
+              "developer/references/framework/**",
+              "developer/references/iota-move.md",
+              "developer/references/move/**",
+              "developer/standards/**",
+              "developer/advanced/introducing-move-2024.md",
+              "developer/advanced/onchain-randomness.md",
+              "developer/advanced/asset-tokenization.md",
+              "developer/iota-move-ctf/**",
+              "developer/evm-to-move/**",
             ],
             fullContent: true,
           },
           {
-            filename: 'llms-full-developer-tutorials.txt',
-            title: 'IOTA Developer Documentation - Tutorials',
-            description: 'Step-by-step tutorials for building applications on IOTA',
+            filename: "llms-full-developer-sdks.txt",
+            title: "IOTA Developer Documentation - SDKs",
+            description:
+              "TypeScript and Rust SDK documentation for building applications on IOTA",
             includePatterns: [
-              'developer/tutorials/**',
+              "developer/ts-sdk/**",
+              "developer/references/rust-sdk.md",
             ],
             fullContent: true,
           },
           {
-            filename: 'llms-full-developer-move.txt',
-            title: 'IOTA Developer Documentation - Move',
-            description: 'Move language documentation including the object model, standards, patterns, framework references, and challenges',
+            filename: "llms-full-developer-graphql.txt",
+            title: "IOTA Developer Documentation - GraphQL",
+            description:
+              "GraphQL API how-to guides and reference documentation",
             includePatterns: [
-              'developer/iota-101/objects/**',
-              'developer/iota-101/move-overview/**',
-              'developer/iota-101/create-coin/**',
-              'developer/iota-101/nft/**',
-              'developer/iota-101/using-events.md',
-              'developer/iota-101/access-time.md',
-              'developer/references/framework/**',
-              'developer/references/iota-move.md',
-              'developer/references/move/**',
-              'developer/standards/**',
-              'developer/advanced/introducing-move-2024.md',
-              'developer/advanced/onchain-randomness.md',
-              'developer/advanced/asset-tokenization.md',
-              'developer/iota-move-ctf/**',
-              'developer/evm-to-move/**',
+              "developer/getting-started/graphql-rpc.md",
+              "developer/graphql-rpc.md",
+              "developer/advanced/graphql-migration.md",
+              "developer/references/iota-graphql.md",
+              "developer/references/iota-api/iota-graphql/**",
             ],
             fullContent: true,
           },
           {
-            filename: 'llms-full-developer-sdks.txt',
-            title: 'IOTA Developer Documentation - SDKs',
-            description: 'TypeScript and Rust SDK documentation for building applications on IOTA',
+            filename: "llms-full-developer-cli.txt",
+            title: "IOTA Developer Documentation - CLI",
+            description:
+              "Complete CLI reference for the IOTA command-line interface",
             includePatterns: [
-              'developer/ts-sdk/**',
-              'developer/references/rust-sdk.md',
+              "developer/references/cli.md",
+              "developer/references/cli/**",
             ],
             fullContent: true,
           },
           {
-            filename: 'llms-full-developer-graphql.txt',
-            title: 'IOTA Developer Documentation - GraphQL',
-            description: 'GraphQL API how-to guides and reference documentation',
+            filename: "llms-full-developer-trust-framework.txt",
+            title: "IOTA Developer Documentation - IOTA Trust Framework",
+            description:
+              "IOTA Trust Framework documentation including Identity, Notarization, and Hierarchies",
             includePatterns: [
-              'developer/getting-started/graphql-rpc.md',
-              'developer/graphql-rpc.md',
-              'developer/advanced/graphql-migration.md',
-              'developer/references/iota-graphql.md',
-              'developer/references/iota-api/iota-graphql/**',
+              "developer/iota-trust-framework.md",
+              "developer/iota-identity/**",
+              "developer/iota-notarization/**",
+              "developer/iota-hierarchies/**",
             ],
             fullContent: true,
           },
           {
-            filename: 'llms-full-developer-cli.txt',
-            title: 'IOTA Developer Documentation - CLI',
-            description: 'Complete CLI reference for the IOTA command-line interface',
+            filename: "llms-full-developer-stardust.txt",
+            title: "IOTA Developer Documentation - Migrating from Stardust",
+            description:
+              "Migration guides and documentation for transitioning from IOTA Stardust to the new IOTA network",
             includePatterns: [
-              'developer/references/cli.md',
-              'developer/references/cli/**',
+              "developer/stardust/**",
+              "developer/dev-cheat-sheet.md",
             ],
             fullContent: true,
           },
           {
-            filename: 'llms-full-developer-trust-framework.txt',
-            title: 'IOTA Developer Documentation - IOTA Trust Framework',
-            description: 'IOTA Trust Framework documentation including Identity, Notarization, and Hierarchies',
+            filename: "llms-full-developer-references.txt",
+            title: "IOTA Developer Documentation - References",
+            description:
+              "API references, execution architecture, research papers, glossary, and contribution guides",
             includePatterns: [
-              'developer/iota-trust-framework.md',
-              'developer/iota-identity/**',
-              'developer/iota-notarization/**',
-              'developer/iota-hierarchies/**',
-            ],
-            fullContent: true,
-          },
-          {
-            filename: 'llms-full-developer-stardust.txt',
-            title: 'IOTA Developer Documentation - Migrating from Stardust',
-            description: 'Migration guides and documentation for transitioning from IOTA Stardust to the new IOTA network',
-            includePatterns: [
-              'developer/stardust/**',
-              'developer/dev-cheat-sheet.md',
-            ],
-            fullContent: true,
-          },
-          {
-            filename: 'llms-full-developer-references.txt',
-            title: 'IOTA Developer Documentation - References',
-            description: 'API references, execution architecture, research papers, glossary, and contribution guides',
-            includePatterns: [
-              'developer/references/references.md',
-              'developer/references/iota-api/**',
-              'developer/references/execution-architecture/**',
-              'developer/references/research-papers.md',
-              'developer/references/iota-glossary.md',
-              'developer/references/contribute/**',
+              "developer/references/references.md",
+              "developer/references/iota-api/**",
+              "developer/references/execution-architecture/**",
+              "developer/references/research-papers.md",
+              "developer/references/iota-glossary.md",
+              "developer/references/contribute/**",
             ],
             fullContent: true,
           },
         ],
-      }
+      },
     ],
-    path.resolve(__dirname, './src/plugins/llms-txt/index.ts'),
+    path.resolve(__dirname, "./src/plugins/llms-txt/index.ts"),
     [
       "@graphql-markdown/docusaurus",
       /** @type {import('@graphql-markdown/types').ConfigOptions} */
       {
-        id:'mainnet',
-        schema: "https://raw.githubusercontent.com/iotaledger/iota/refs/heads/mainnet/crates/iota-graphql-rpc/schema.graphql",
+        id: "mainnet",
+        schema:
+          "https://raw.githubusercontent.com/iotaledger/iota/refs/heads/mainnet/crates/iota-graphql-rpc/schema.graphql",
         rootPath: "../content", // docs will be generated under rootPath/baseURL
         baseURL: "developer/references/iota-api/iota-graphql/reference/",
         loaders: {
           UrlLoader: {
             module: "@graphql-tools/url-loader",
-          }
+          },
         },
       },
     ],
@@ -236,14 +247,16 @@ const config = {
       "@graphql-markdown/docusaurus",
       /** @type {import('@graphql-markdown/types').ConfigOptions} */
       {
-        id:'testnet',
-        schema: "https://raw.githubusercontent.com/iotaledger/iota/refs/heads/testnet/crates/iota-graphql-rpc/schema.graphql",
+        id: "testnet",
+        schema:
+          "https://raw.githubusercontent.com/iotaledger/iota/refs/heads/testnet/crates/iota-graphql-rpc/schema.graphql",
         rootPath: "../content", // docs will be generated under rootPath/baseURL
-        baseURL: "developer/references/iota-api/iota-graphql/reference/Testnet/",
+        baseURL:
+          "developer/references/iota-api/iota-graphql/reference/Testnet/",
         loaders: {
           UrlLoader: {
             module: "@graphql-tools/url-loader",
-          }
+          },
         },
       },
     ],
@@ -251,14 +264,15 @@ const config = {
       "@graphql-markdown/docusaurus",
       /** @type {import('@graphql-markdown/types').ConfigOptions} */
       {
-        id:'devnet',
-        schema: "https://raw.githubusercontent.com/iotaledger/iota/refs/heads/devnet/crates/iota-graphql-rpc/schema.graphql",
+        id: "devnet",
+        schema:
+          "https://raw.githubusercontent.com/iotaledger/iota/refs/heads/devnet/crates/iota-graphql-rpc/schema.graphql",
         rootPath: "../content", // docs will be generated under rootPath/baseURL
         baseURL: "developer/references/iota-api/iota-graphql/reference/Devnet/",
         loaders: {
           UrlLoader: {
             module: "@graphql-tools/url-loader",
-          }
+          },
         },
       },
     ],
@@ -275,77 +289,77 @@ const config = {
     },
     path.resolve(__dirname, `./src/plugins/descriptions`),
     [
-      '@docusaurus/plugin-client-redirects',
+      "@docusaurus/plugin-client-redirects",
       {
         createRedirects(existingPath) {
           const redirects = [
             {
-              from: '/references/ts-sdk',
-              to: '/developer/ts-sdk/typescript',
+              from: "/references/ts-sdk",
+              to: "/developer/ts-sdk/typescript",
             },
             {
-              from: '/references/iota-identity',
-              to: '/developer/iota-identity/references',
+              from: "/references/iota-identity",
+              to: "/developer/iota-identity/references",
             },
             {
-              from: '/references',
-              to: '/developer/references',
+              from: "/references",
+              to: "/developer/references",
             },
             {
-              from: '/iota-evm',
-              to: '/developer/iota-evm',
+              from: "/iota-evm",
+              to: "/developer/iota-evm",
             },
             {
-              from: '/iota-identity',
-              to: '/developer/iota-identity',
+              from: "/iota-identity",
+              to: "/developer/iota-identity",
             },
             {
-              from: '/ts-sdk',
-              to: '/developer/ts-sdk/typescript',
+              from: "/ts-sdk",
+              to: "/developer/ts-sdk/typescript",
             },
             {
-              from: '/developer/ts-sdk',
-              to: '/developer/ts-sdk/typescript',
+              from: "/developer/ts-sdk",
+              to: "/developer/ts-sdk/typescript",
             },
             {
-              from: '/about-iota/wallets',
-              to: '/users/wallets',
+              from: "/about-iota/wallets",
+              to: "/users/wallets",
             },
             {
-              from: '/about-iota/iota-wallet',
-              to: '/users/iota-wallet',
+              from: "/about-iota/iota-wallet",
+              to: "/users/iota-wallet",
             },
             {
-              from: '/about-iota/wallet-dashboard',
-              to: '/users/iota-wallet-dashboard',
+              from: "/about-iota/wallet-dashboard",
+              to: "/users/iota-wallet-dashboard",
             },
             {
-              from: '/about-iota/iota-wallet/how-to/integrate-ledger',
-              to: '/users/iota-wallet/how-to/import/ledger',
+              from: "/about-iota/iota-wallet/how-to/integrate-ledger",
+              to: "/users/iota-wallet/how-to/import/ledger",
             },
             {
-              from: '/developer/iota-notarization/getting-started',
-              to: '/developer/iota-notarization/single-notarization/getting-started',
+              from: "/developer/iota-notarization/getting-started",
+              to: "/developer/iota-notarization/single-notarization/getting-started",
             },
             {
-              from: '/developer/iota-notarization/explanations',
-              to: '/developer/iota-notarization/single-notarization/explanations',
+              from: "/developer/iota-notarization/explanations",
+              to: "/developer/iota-notarization/single-notarization/explanations",
             },
             {
-              from: '/developer/iota-notarization/how-tos',
-              to: '/developer/iota-notarization/single-notarization/how-tos',
+              from: "/developer/iota-notarization/how-tos",
+              to: "/developer/iota-notarization/single-notarization/how-tos",
             },
             {
-              from: '/developer/iota-notarization/references',
-              to: '/developer/iota-notarization/single-notarization/references',
+              from: "/developer/iota-notarization/references",
+              to: "/developer/iota-notarization/single-notarization/references",
             },
             {
-              from: '/developer/iota-notarization/how-tos/real-world',
-              to: '/developer/iota-notarization/single-notarization/real-world-examples',
+              from: "/developer/iota-notarization/how-tos/real-world",
+              to: "/developer/iota-notarization/single-notarization/real-world-examples",
             },
             {
-              from: '/operator/extensions/indexer-functions',
-              to: '/operator/extended-data-services/iota-indexer',
+              from: "/operator/extensions/indexer-functions",
+              to: "/operator/extended-data-services/iota-indexer",
             },
           ];
           let paths = [];
@@ -358,29 +372,28 @@ const config = {
         },
       },
     ],
-    'plugin-image-zoom',
+    "plugin-image-zoom",
     [
-      'docusaurus-plugin-openapi-docs',
+      "docusaurus-plugin-openapi-docs",
       {
-        id: 'openapi',
-        docsPluginId: 'classic',
+        id: "openapi",
+        docsPluginId: "classic",
         config: {
           coreApiV2: {
             specPath:
-              'https://raw.githubusercontent.com/iotaledger/wasp/refs/heads/develop/clients/apiclient/api/openapi.yaml',
-            outputDir: 
-              '../content/developer/iota-evm/references/openapi',
+              "https://raw.githubusercontent.com/iotaledger/wasp/refs/heads/develop/clients/apiclient/api/openapi.yaml",
+            outputDir: "../content/developer/iota-evm/references/openapi",
             sidebarOptions: {
-              groupPathsBy: 'tag',
-            }
-          }
-        }
-      }
+              groupPathsBy: "tag",
+            },
+          },
+        },
+      },
     ],
     [
-      '@docusaurus/plugin-google-gtag',
+      "@docusaurus/plugin-google-gtag",
       {
-        trackingID: 'G-SEE2W8WK21',
+        trackingID: "G-SEE2W8WK21",
         anonymizeIP: true,
       },
     ],
@@ -404,7 +417,10 @@ const config = {
             return defaultSidebarItemsGenerator({
               ...args,
               isCategoryIndex(doc) {
-                if(doc.fileName === 'index' && doc.directories.includes('ts-sdk'))
+                if (
+                  doc.fileName === "index" &&
+                  doc.directories.includes("ts-sdk")
+                )
                   return true;
                 // No doc will be automatically picked as category index
                 return false;
@@ -414,7 +430,7 @@ const config = {
           // the double docs below is a fix for having the path set to ../content
           editUrl: "https://github.com/iotaledger/iota/tree/develop/docs/docs",
           onInlineTags: "throw",
-          
+
           /*disableVersioning: true,
           lastVersion: "current",
           versions: {
@@ -428,7 +444,7 @@ const config = {
             "1.0.0",
           ],*/
           remarkPlugins: [
-            [math,{singleDollarTextMath:false}],
+            [math, { singleDollarTextMath: false }],
             [
               require("@docusaurus/remark-plugin-npm2yarn"),
               { sync: true, converters: ["yarn", "pnpm"] },
@@ -437,7 +453,11 @@ const config = {
           ],
           rehypePlugins: [
             katex,
-            [require('rehype-jargon'), { jargon: jargonConfig}]
+            [require("rehype-jargon"), { jargon: jargonConfig }],
+            [
+              require("./config/rehype-jargon-safe.js"),
+              { jargon: jargonConfig },
+            ],
           ],
         },
         theme: {
@@ -467,18 +487,18 @@ const config = {
     },
   ],
   themes: [
-    '@docusaurus/theme-mermaid',
-    '@saucelabs/theme-github-codeblock', 
-    '@docusaurus/theme-live-codeblock',
-    'docusaurus-theme-openapi-docs',
+    "@docusaurus/theme-mermaid",
+    "@saucelabs/theme-github-codeblock",
+    "@docusaurus/theme-live-codeblock",
+    "docusaurus-theme-openapi-docs",
   ],
   themeConfig:
     /** @type {import('@docusaurus/preset-classic').ThemeConfig} */
     ({
       algolia: {
-        apiKey: '24b141ea7e65db2181463e44dbe564a5',
-        appId: '9PMBZGRP3B',
-        indexName: 'iota',
+        apiKey: "24b141ea7e65db2181463e44dbe564a5",
+        appId: "9PMBZGRP3B",
+        indexName: "iota",
       },
       image: "img/iota-doc-og.png",
       docs: {
@@ -511,32 +531,32 @@ const config = {
           {
             label: "About IOTA",
             to: "about-iota",
-            className: 'navbar-icon-about',
+            className: "navbar-icon-about",
           },
           {
             label: "Developers",
             to: "developer",
-            className: 'navbar-icon-developer',
+            className: "navbar-icon-developer",
           },
           {
             label: "Operators",
             to: "operator",
-            className: 'navbar-icon-operator',
+            className: "navbar-icon-operator",
           },
           {
             label: "Users",
             to: "users",
-            className: 'navbar-icon-users',
+            className: "navbar-icon-users",
           },
           {
             label: "Workshops",
             to: "developer/workshops",
-            className: 'navbar-icon-workshops',
-            position: 'right',
+            className: "navbar-icon-workshops",
+            position: "right",
           },
           {
-            type: 'custom-WalletConnectButton',
-            position: 'right',
+            type: "custom-WalletConnectButton",
+            position: "right",
           },
         ],
       },
@@ -550,14 +570,14 @@ const config = {
                     The documentation on this website is adapted from the <a href='https://docs.sui.io/'>SUI Documentation</a>, © 2024 by <a href='https://sui.io/'>SUI Foundation</a>, licensed under <a href="https://github.com/MystenLabs/sui/blob/main/docs/site/LICENSE">CC BY 4.0</a>.`,
       },
       socials: [
-        'https://www.youtube.com/c/iotafoundation',
-        'https://www.github.com/iotaledger/',
-        'https://discord.gg/iota-builders',
-        'https://discord.iota.org/',
-        'https://www.twitter.com/iota/',
-        'https://www.reddit.com/r/iota/',
-        'https://www.linkedin.com/company/iotafoundation/',
-        'https://www.instagram.com/iotafoundation/',
+        "https://www.youtube.com/c/iotafoundation",
+        "https://www.github.com/iotaledger/",
+        "https://discord.gg/iota-builders",
+        "https://discord.iota.org/",
+        "https://www.twitter.com/iota/",
+        "https://www.reddit.com/r/iota/",
+        "https://www.linkedin.com/company/iotafoundation/",
+        "https://www.instagram.com/iotafoundation/",
       ],
       prism: {
         theme: themes.vsLight,
@@ -565,13 +585,13 @@ const config = {
         additionalLanguages: ["rust", "typescript", "solidity", "move"],
       },
       imageZoom: {
-        selector: '.markdown img',
+        selector: ".markdown img",
         // Optional medium-zoom options
         // see: https://www.npmjs.com/package/medium-zoom#options
         options: {
           background: "var(--iota-imagezoom-options)",
         },
-      }
+      },
     }),
 };
 
