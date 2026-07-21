@@ -864,8 +864,10 @@ impl LocalExec {
                 )
                 .collect::<Result<Vec<_>, ReplayEngineError>>()?;
 
-            let (sender_auth_digest, sponsor_auth_digest) =
-                tx_info.sender_signed_data.compute_auth_digests()?;
+            let (sender_auth_digest, sponsor_auth_digest) = tx_info
+                .sender_signed_data
+                .compute_auth_digests()
+                .map_err(IotaError::from)?;
 
             let (sender_authenticator_function_ref, sponsor_authenticator_function_ref) =
                 extract_auth_fun_refs(tx_info.sender, gas_data.owner, |address| {
@@ -1178,8 +1180,9 @@ impl LocalExec {
                 .collect::<Vec<_>>();
 
             let (kind, signer, gas_data) = executable.transaction().execution_parts();
-            let (sender_auth_digest, sponsor_auth_digest) =
-                sender_signed_data.compute_auth_digests()?;
+            let (sender_auth_digest, sponsor_auth_digest) = sender_signed_data
+                .compute_auth_digests()
+                .map_err(IotaError::from)?;
 
             let (sender_authenticator_function_ref, sponsor_authenticator_function_ref) =
                 extract_auth_fun_refs(signer, gas_data.owner, |address| {

@@ -18,12 +18,12 @@ use fastcrypto::{encoding::Base64, hash::HashFunction};
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
     Address, Argument, CancelledTransaction, CertificateDigest, Command, ConsensusCommitDigest,
-    ConsensusCommitPrologueV1, ConsensusDeterminedVersionAssignments, Digest,
-    EndOfEpochTransactionKind, Event, GasPayment, GenesisObject, GenesisTransaction, Identifier,
-    Input, MakeMoveVector, MergeCoins, MoveCall, ObjectDigest, ObjectId, ObjectReference, Owner,
-    ProgrammableTransaction, Publish, RandomnessRound, RandomnessStateUpdate,
-    SharedObjectReference, SplitCoins, TransactionDigest, TransactionExpiration, TransactionKind,
-    TransferObjects, TypeTag, Upgrade, Version,
+    ConsensusCommitPrologueV1, ConsensusDeterminedVersionAssignments, EndOfEpochTransactionKind,
+    Event, GasPayment, GenesisObject, GenesisTransaction, Identifier, Input, MakeMoveVector,
+    MergeCoins, MoveCall, ObjectDigest, ObjectId, ObjectReference, Owner, ProgrammableTransaction,
+    Publish, RandomnessRound, RandomnessStateUpdate, SharedObjectReference, SplitCoins,
+    TransactionDigest, TransactionExpiration, TransactionKind, TransferObjects, TypeTag, Upgrade,
+    Version,
     crypto::{Intent, IntentMessage, IntentScope},
 };
 pub use iota_sdk_types::{
@@ -1877,20 +1877,6 @@ pub trait SenderSignedTransactionAPI {
     /// Returns the certificate serialised bytes size.
     fn validity_check(&self, context: &TxValidityCheckContext<'_>) -> Result<usize, IotaError>;
 
-    /// Returns all [`MoveAuthenticator`] signatures.
-    fn move_authenticators(&self) -> Vec<&MoveAuthenticator>;
-
-    /// Returns the sender's [`MoveAuthenticator`], if the sender uses one.
-    fn sender_move_authenticator(&self) -> Option<&MoveAuthenticator>;
-
-    /// Returns the sponsor's [`MoveAuthenticator`], if the transaction is
-    /// sponsored and the sponsor uses one.
-    fn sponsor_move_authenticator(&self) -> Option<&MoveAuthenticator>;
-
-    /// Computes the auth digest for the sender and, if sponsored, for the
-    /// sponsor. See [`auth_digest_for_sig`] for the per-signature logic.
-    fn compute_auth_digests(&self) -> IotaResult<(Digest, Option<Digest>)>;
-
     /// Returns all unique input objects including those from
     /// `MoveAuthenticator`s if any for reading.
     ///
@@ -2033,64 +2019,6 @@ impl SenderSignedTransactionAPI for SenderSignedData {
         move_authenticators_validity_check(self, context.config)?;
 
         Ok(tx_size)
-    }
-
-    fn move_authenticators(&self) -> Vec<&MoveAuthenticator> {
-        self.signatures()
-            .iter()
-            .filter_map(|sig| {
-                if let UserSignature::MoveAuthenticator(move_authenticator) = sig {
-                    Some(move_authenticator)
-                } else {
-                    None
-                }
-            })
-            .collect()
-    }
-
-    fn sender_move_authenticator(&self) -> Option<&MoveAuthenticator> {
-        let sender = self.transaction().sender();
-
-        self.move_authenticators()
-            .into_iter()
-            .find(|a| a.address() == sender)
-    }
-
-    fn sponsor_move_authenticator(&self) -> Option<&MoveAuthenticator> {
-        let tx = self.transaction();
-
-        if tx.is_sponsored_tx() {
-            let gas_owner = tx.gas_owner();
-
-            self.move_authenticators()
-                .into_iter()
-                .find(|a| a.address() == gas_owner)
-        } else {
-            None
-        }
-    }
-
-    fn compute_auth_digests(&self) -> IotaResult<(Digest, Option<Digest>)> {
-        let tx = self.transaction();
-
-        let digest_for_address = |address: Address| {
-            self.signatures()
-                .iter()
-                .find(|sig| sig.derive_address() == address)
-                .ok_or_else(|| IotaError::InvalidSignature {
-                    error: format!("no signature found for address {address}"),
-                })
-                .and_then(auth_digest_for_sig)
-        };
-
-        let sender_auth_digest = digest_for_address(tx.sender())?;
-        let sponsor_auth_digest = if tx.is_sponsored_tx() {
-            Some(digest_for_address(tx.gas_owner())?)
-        } else {
-            None
-        };
-
-        Ok((sender_auth_digest, sponsor_auth_digest))
     }
 
     fn collect_all_input_object_kind_for_reading(&self) -> IotaResult<Vec<InputObjectKind>> {
@@ -3285,24 +3213,5 @@ impl TransactionKey {
             TransactionKey::Digest(d) => d,
             _ => panic!("called expect_digest on a non-Digest TransactionKey: {self:?}"),
         }
-    }
-}
-
-/// Computes the auth digest for a single [`UserSignature`].
-///
-/// For [`MoveAuthenticator`] signatures this equals
-/// [`MoveAuthenticator::digest()`]. For all other supported signature types it
-/// is the Blake2b256 of the serialized (flag-prefixed) signature bytes.
-pub fn auth_digest_for_sig(sig: &UserSignature) -> IotaResult<Digest> {
-    match sig {
-        UserSignature::MoveAuthenticator(authenticator) => Ok(authenticator.digest()),
-        UserSignature::Multisig(_)
-        | UserSignature::Simple(_)
-        | UserSignature::PasskeyAuthenticator(_) => {
-            let mut hasher = DefaultHash::default();
-            hasher.update(sig.to_bytes());
-            Ok(Digest::new(hasher.finalize().into()))
-        }
-        _ => unimplemented!("a new UserSignature variant was added and needs to be handled"),
     }
 }

@@ -1383,7 +1383,7 @@ fn check_approx_effects_components_size() {
 fn auth_digest_for_move_authenticator_equals_authenticator_digest() {
     let (sender, _): (_, AccountKeyPair) = get_key_pair();
     let (sig, authenticator) = make_move_authenticator_sig(sender);
-    assert_eq!(auth_digest_for_sig(&sig).unwrap(), authenticator.digest());
+    assert_eq!(sig.auth_digest(), authenticator.digest());
 }
 
 #[test]
@@ -1392,20 +1392,20 @@ fn auth_digest_for_regular_signature_is_hash_of_sig_bytes() {
     let sender = kp.public_key().derive_address();
     let tx = make_transaction(sender, &kp);
     let sig = tx.signatures().first().unwrap();
-    assert_eq!(auth_digest_for_sig(sig).unwrap(), blake2b256_of_sig(sig));
+    assert_eq!(sig.auth_digest(), blake2b256_of_sig(sig));
 }
 
 #[test]
 fn auth_digest_for_multisig_is_hash_of_sig_bytes() {
     let tx = make_upgraded_multisig_tx();
     let sig = tx.signatures().first().unwrap();
-    assert_eq!(auth_digest_for_sig(sig).unwrap(), blake2b256_of_sig(sig));
+    assert_eq!(sig.auth_digest(), blake2b256_of_sig(sig));
 }
 
 #[test]
 fn auth_digest_for_passkey_is_hash_of_sig_bytes() {
     let sig = make_passkey_authenticator_sig();
-    assert_eq!(auth_digest_for_sig(&sig).unwrap(), blake2b256_of_sig(&sig));
+    assert_eq!(sig.auth_digest(), blake2b256_of_sig(&sig));
 }
 
 #[test]

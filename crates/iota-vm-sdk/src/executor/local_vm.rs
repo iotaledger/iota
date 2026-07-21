@@ -15,9 +15,7 @@ use iota_types::{
     move_authenticator::MoveAuthenticator,
     signature::VerifyParams,
     signature_verification::verify_sender_signed_data_message_signatures,
-    transaction::{
-        SenderSignedData, SenderSignedTransactionAPI, TransactionData, TransactionDataAPI,
-    },
+    transaction::{SenderSignedData, TransactionData, TransactionDataAPI},
     transaction_executor::SimulateTransactionResult,
 };
 use move_bytecode_utils::{layout::TypeLayoutBuilder, module_cache::GetModule};
@@ -197,7 +195,7 @@ impl LocalVm {
         // `AuthContextData`.
         let auth_digests = signed
             .compute_auth_digests()
-            .map_err(VmSdkError::SignatureVerification)?;
+            .map_err(|e| VmSdkError::SignatureVerification(e.into()))?;
         let transaction = signed.0.transaction;
 
         // A `MoveAuthenticator` on a protocol version that predates Move
@@ -303,7 +301,7 @@ impl LocalVm {
             pre_consensus_authenticator_addresses(&signed, &self.protocol_config);
         let auth_digests = signed
             .compute_auth_digests()
-            .map_err(VmSdkError::SignatureVerification)?;
+            .map_err(|e| VmSdkError::SignatureVerification(e.into()))?;
         let transaction = signed.0.transaction;
 
         let env = ExecutionEnv::new(self, &DebugConfig::default())?;

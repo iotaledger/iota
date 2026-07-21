@@ -280,7 +280,7 @@ mod move_authenticator {
     /// Compute the Blake2b256 hash of the serialized (flag-prefixed) bytes of a
     /// [`UserSignature`], matching the digest used for
     /// non-[`MoveAuthenticator`] signatures by
-    /// [`crate::transaction::auth_digest_for_sig`].
+    /// [`UserSignature::auth_digest`].
     pub fn blake2b256_of_sig(sig: &UserSignature) -> Digest {
         let mut hasher = DefaultHash::default();
         hasher.update(sig.to_bytes());
