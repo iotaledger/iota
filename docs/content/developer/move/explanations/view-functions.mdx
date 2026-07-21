@@ -23,6 +23,8 @@ The Move View Function closes that gap:
 - **Extends current RPC** by enabling easy access to data structures using custom fields or dynamic fields, e.g., Bag and Table.
 - ** Returned results** are resolved, i.e., the Move types are deserialized.
 
+Given that a view function has no side effects, it can be called off-chain over JSON-RPC or GraphQL, or through an SDK, without submitting a transaction. A view call needs **no gas coin** and **no signature**. The returned values are deserialized to spare callers from decoding raw BCS bytes. See [Call a View Function](../how-tos/call-a-view-function.mdx).
+
 The motivation, design, and on-chain encoding are specified in [IIP-0005](https://github.com/iotaledger/IIPs/blob/main/iips/IIP-0005/iip-0005.md) and [IIP-0011](https://github.com/iotaledger/IIPs/blob/main/iips/IIP-0011/IIP-0011.md).
 
 ## What is a `#[view]` function
