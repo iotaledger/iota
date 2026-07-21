@@ -24,7 +24,7 @@ use iota_types::{
         VerifiedTransaction,
     },
 };
-use tracing::info;
+use tracing::{info, warn};
 
 use crate::{
     command::Component,
@@ -163,6 +163,18 @@ impl BenchmarkContext {
         if num_shared_objects == 0 {
             return shared_objects;
         }
+
+        if matches!(
+            self.benchmark_component,
+            Component::ValidatorWithoutConsensus
+        ) {
+            warn!(
+                "Ignoring num_shared_objects {} parameter for Component::ValidatorWithoutConsensus",
+                num_shared_objects
+            );
+            return shared_objects;
+        }
+
         assert!(num_shared_objects <= self.user_accounts.len());
 
         info!("Preparing shared objects");
