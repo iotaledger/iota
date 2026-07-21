@@ -1196,7 +1196,6 @@ impl DagState {
     /// Checks if verified block headers exist for the given transaction refs.
     /// Checks in-memory data (genesis and recent_block_headers) first, then
     /// falls back to storage for blocks not found in memory.
-    #[cfg_attr(test, expect(dead_code))]
     pub(crate) fn contains_verified_block_headers_for_transaction_refs(
         &self,
         tx_refs: &[TransactionRef],
@@ -2723,7 +2722,7 @@ impl DagState {
         self.pending_acknowledgments = acknowledgments.into_iter().collect::<BTreeSet<_>>();
     }
 
-    pub(crate) fn misbehavior_store(&self) -> &MisbehaviorStore {
+    pub(crate) fn misbehavior_store(&self) -> &Arc<MisbehaviorStore> {
         &self.misbehavior_store
     }
 

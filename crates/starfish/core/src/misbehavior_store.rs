@@ -232,6 +232,33 @@ impl MisbehaviorStore {
             FaultType::Untracked => {}
         }
     }
+
+    /// Attributes a transaction payload that failed verification.
+    ///
+    /// `author` is charged with a provable fault only when `authored` is true,
+    /// i.e. a verified, author-signed block header commits to this payload, so
+    /// the invalid transactions are provably the author's. Each peer in
+    /// `relayers` is charged an unprovable fault for handing us a payload it
+    /// should not have relayed; a relayer that is also the author is not
+    /// double-charged when the author is already charged provably.
+    pub(crate) fn record_faulty_transactions(
+        &self,
+        author: AuthorityIndex,
+        authored: bool,
+        relayers: impl IntoIterator<Item = AuthorityIndex>,
+    ) {
+        let committee_size = self.in_memory.authorities.len();
+        if authored && author.value() < committee_size {
+            self.in_memory.record_block_fault_provable(author.value());
+        }
+        for peer in relayers {
+            let idx = peer.value();
+            if idx >= committee_size || (authored && peer == author) {
+                continue;
+            }
+            self.in_memory.record_block_fault_unprovable(idx);
+        }
+    }
 }
 
 /// Whether a block header fault can be cryptographically proven.
