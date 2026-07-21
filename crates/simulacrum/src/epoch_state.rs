@@ -142,8 +142,8 @@ impl EpochState {
             authenticator_gas_budget,
         )?;
 
-        let transaction_data = transaction.data().transaction();
-        let (kind, signer, gas_data) = transaction_data.execution_parts();
+        let transaction = transaction.data().transaction();
+        let (kind, signer, gas_data) = transaction.execution_parts();
         Ok(self.executor.execute_transaction_to_effects(
             store.backing_store(),
             &self.protocol_config,

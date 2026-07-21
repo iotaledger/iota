@@ -877,7 +877,7 @@ impl LocalExec {
 
             let auth_context_data = AuthContextData {
                 transaction_data_bytes: bcs::to_bytes(tx_info.sender_signed_data.transaction())
-                    .expect("TransactionData serialization cannot fail"),
+                    .expect("Transaction serialization cannot fail"),
                 sender_auth_digest,
                 sponsor_auth_digest,
                 sender_authenticator_function_ref,
@@ -1191,7 +1191,7 @@ impl LocalExec {
 
             let auth_context_data = AuthContextData {
                 transaction_data_bytes: bcs::to_bytes(sender_signed_data.transaction())
-                    .expect("TransactionData serialization cannot fail"),
+                    .expect("Transaction serialization cannot fail"),
                 sender_auth_digest,
                 sponsor_auth_digest,
                 sender_authenticator_function_ref,

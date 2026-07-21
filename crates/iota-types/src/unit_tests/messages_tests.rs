@@ -535,7 +535,7 @@ fn test_digest_caching() {
 
     signed_tx
         .data_mut_for_testing()
-        .transaction_data_mut_for_testing()
+        .transaction_mut_for_testing()
         .gas_data_mut()
         .budget += 1;
 

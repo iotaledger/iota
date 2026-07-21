@@ -1863,8 +1863,8 @@ pub trait SenderSignedTransactionAPI {
     /// Returns `true` if any signature is a multisig.
     fn has_multisig(&self) -> bool;
 
-    /// Returns a mutable reference to the transaction data. **Testing only.**
-    fn transaction_data_mut_for_testing(&mut self) -> &mut TransactionData;
+    /// Returns a mutable reference to the transaction. **Testing only.**
+    fn transaction_mut_for_testing(&mut self) -> &mut TransactionData;
 
     /// Returns a mutable reference to the signatures. **Testing only.**
     fn tx_signatures_mut_for_testing(&mut self) -> &mut Vec<UserSignature>;
@@ -1970,7 +1970,7 @@ impl SenderSignedTransactionAPI for SenderSignedData {
         self.signatures().iter().any(|sig| sig.is_multisig())
     }
 
-    fn transaction_data_mut_for_testing(&mut self) -> &mut TransactionData {
+    fn transaction_mut_for_testing(&mut self) -> &mut TransactionData {
         &mut self.0.transaction
     }
 
