@@ -30,6 +30,7 @@ mod misbehavior_store;
 mod network;
 #[cfg(msim)]
 pub mod network;
+mod peer_responsiveness;
 
 mod header_synchronizer;
 mod stake_aggregator;
