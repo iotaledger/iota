@@ -734,6 +734,14 @@ impl From<ExecutionError> for IotaError {
     }
 }
 
+impl From<iota_sdk_types::hash::MissingSignatureError> for IotaError {
+    fn from(error: iota_sdk_types::hash::MissingSignatureError) -> Self {
+        IotaError::InvalidSignature {
+            error: error.to_string(),
+        }
+    }
+}
+
 #[cfg(not(target_arch = "wasm32"))]
 impl From<Status> for IotaError {
     fn from(status: Status) -> Self {

@@ -1101,10 +1101,7 @@ where
             tx_digest = ?tx_digest,
             "Broadcasting transaction request to authorities"
         );
-        trace!(
-            "Transaction data: {:?}",
-            transaction.data().intent_message().value
-        );
+        trace!("Transaction data: {:?}", transaction.data().transaction());
         let committee = self.committee.clone();
         let state = ProcessTransactionState {
             tx_signatures: StakeAggregator::new(committee.clone()),

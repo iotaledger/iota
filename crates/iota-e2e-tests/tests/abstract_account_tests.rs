@@ -2146,7 +2146,7 @@ impl TestEnvironment {
             .test_cluster
             .iota_client()
             .read_api()
-            .dry_run_transaction_block(transaction.transaction_data().clone())
+            .dry_run_transaction_block(transaction.transaction().clone())
             .await?;
 
         Ok((dry_run_res, transaction))

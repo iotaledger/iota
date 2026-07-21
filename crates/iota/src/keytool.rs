@@ -466,7 +466,7 @@ impl KeyToolCommand {
                     let tx_data: TransactionData = bcs::from_bytes(&tx_bytes)?;
                     let s = UserSignature::Multisig(multisig);
                     let res = s.verify_claims(
-                        &IntentMessage::new(Intent::iota_transaction(), tx_data),
+                        &tx_data.intent_message(),
                         address,
                         &VerifyParams::default(),
                     );
@@ -491,8 +491,7 @@ impl KeyToolCommand {
                         let tx = bcs::from_bytes::<SenderSignedData>(&tx_bytes).map_err(|e| {
                             anyhow!("Failed to decode as signature or transaction: {e}")
                         })?;
-                        tx.into_inner()
-                            .tx_signatures
+                        tx.0.signatures
                             .into_iter()
                             .next()
                             .ok_or_else(|| anyhow!("Transaction has no signatures"))?
@@ -577,7 +576,7 @@ impl KeyToolCommand {
                     }),
                     Some(s) => {
                         let res = s.verify_claims(
-                            &IntentMessage::new(Intent::iota_transaction(), tx_data.clone()),
+                            &tx_data.intent_message(),
                             tx_data.sender(),
                             &VerifyParams::default(),
                         );

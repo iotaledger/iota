@@ -150,7 +150,7 @@ mod checked {
         protocol_config: &ProtocolConfig,
         reference_gas_price: u64,
     ) -> IotaResult<(IotaGasStatus, CheckedInputObjects)> {
-        let transaction = cert.data().transaction_data();
+        let transaction = cert.data().transaction();
         let gas_status = check_transaction_input_inner(
             protocol_config,
             reference_gas_price,
@@ -264,7 +264,7 @@ mod checked {
             .try_for_each(check_move_authenticator_objects)?;
 
         // Check certificate inputs next
-        let transaction = cert.data().transaction_data();
+        let transaction = cert.data().transaction();
         let gas_status = check_transaction_input_inner(
             protocol_config,
             reference_gas_price,

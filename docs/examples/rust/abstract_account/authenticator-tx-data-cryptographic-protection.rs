@@ -229,7 +229,7 @@ pub fn swap_recipient_in_transaction(
     mut transaction: Transaction,
     attacker: Address,
 ) -> Transaction {
-    match &mut transaction.inner_mut().intent_message.value {
+    match &mut transaction.0.transaction {
         TransactionData::V1(data) => match &mut data.kind {
             TransactionKind::Programmable(ptb) => {
                 ptb.inputs[0] = CallArg::Pure(bcs::to_bytes(&attacker).unwrap());

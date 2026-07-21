@@ -77,8 +77,7 @@ impl CheckpointData {
         let transaction = self.transactions.last()?;
         transaction
             .transaction
-            .intent_message()
-            .value
+            .transaction()
             .is_end_of_epoch_tx()
             .then_some(transaction)
     }
@@ -110,7 +109,7 @@ impl CheckpointData {
             // For checkpoint 0, we look for the genesis transaction
             let Some(transaction) = self.transactions.iter().find(|tx| {
                 matches!(
-                    tx.transaction.intent_message().value.kind(),
+                    tx.transaction.transaction().kind(),
                     TransactionKind::Genesis(_)
                 )
             }) else {

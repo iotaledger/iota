@@ -11,7 +11,7 @@ use iota_sdk_types::{Command, TransactionKind};
 use iota_types::{
     effects::{TransactionEffects, TransactionEffectsAPI},
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
-    transaction::{TransactionDataAPI, TransactionKindExt},
+    transaction::{SenderSignedTransactionAPI, TransactionDataAPI, TransactionKindExt},
 };
 use tokio::sync::Mutex;
 use tracing::error;
@@ -90,10 +90,10 @@ impl TransactionHandler {
         state: &mut State,
     ) -> Result<()> {
         let transaction = &checkpoint_transaction.transaction;
-        let txn_data = transaction.transaction_data();
+        let tx = transaction.transaction();
         let gas_object = effects.gas_object();
         let gas_summary = effects.gas_cost_summary();
-        let move_calls_vec = txn_data.move_calls();
+        let move_calls_vec = tx.move_calls();
         let packages: BTreeSet<_> = move_calls_vec
             .iter()
             .map(|(package, _, _)| package.to_canonical_string(/* with_prefix */ false))
@@ -114,11 +114,11 @@ impl TransactionHandler {
         let mut move_calls_count = 0;
         let move_calls = move_calls_vec.len() as u64;
 
-        let is_sponsored_tx = txn_data.is_sponsored_tx();
-        let is_system_txn = txn_data.is_system_tx();
+        let is_sponsored_tx = tx.is_sponsored_tx();
+        let is_system_txn = tx.is_system_tx();
         if !is_system_txn {
-            let kind = txn_data.kind();
-            if let TransactionKind::Programmable(pt) = txn_data.kind() {
+            let kind = tx.kind();
+            if let TransactionKind::Programmable(pt) = tx.kind() {
                 for cmd in &pt.commands {
                     match cmd {
                         Command::MoveCall(_) => move_calls_count += 1,
@@ -149,11 +149,11 @@ impl TransactionHandler {
             epoch,
             timestamp_ms,
 
-            sender: txn_data.sender().to_string(),
-            transaction_kind: txn_data.kind().name().to_owned(),
+            sender: tx.sender().to_string(),
+            transaction_kind: tx.kind().name().to_owned(),
             is_system_txn,
             is_sponsored_tx,
-            transaction_count: txn_data.kind().num_commands() as u64,
+            transaction_count: tx.kind().num_commands() as u64,
             execution_success: effects.status().is_success(),
             // Calculate all objects(transaction + authenticators) amount.
             input: transaction
@@ -161,7 +161,7 @@ impl TransactionHandler {
                 .expect("input objects must be valid")
                 .len() as u64,
             shared_input: transaction.shared_input_objects().len() as u64,
-            gas_coins: txn_data.gas().len() as u64,
+            gas_coins: tx.gas().len() as u64,
             created: effects.created().len() as u64,
             mutated: (effects.mutated().len() + effects.unwrapped().len()) as u64,
             deleted: (effects.deleted().len()
@@ -175,11 +175,11 @@ impl TransactionHandler {
             others,
             move_calls,
             packages,
-            gas_owner: txn_data.gas_owner().to_string(),
+            gas_owner: tx.gas_owner().to_string(),
             gas_object_id: gas_object.0.object_id.to_string(),
             gas_object_sequence: gas_object.0.version.as_u64(),
             gas_object_digest: gas_object.0.digest.to_string(),
-            gas_budget: txn_data.gas_budget(),
+            gas_budget: tx.gas_budget(),
             total_gas_cost: gas_summary.net_gas_usage(),
             computation_cost: gas_summary.computation_cost,
             computation_cost_burned: gas_summary.computation_cost_burned,
@@ -187,12 +187,12 @@ impl TransactionHandler {
             storage_rebate: gas_summary.storage_rebate,
             non_refundable_storage_fee: gas_summary.non_refundable_storage_fee,
 
-            gas_price: txn_data.gas_price(),
+            gas_price: tx.gas_price(),
 
-            raw_transaction: Base64::encode(bcs::to_bytes(&txn_data).unwrap()),
+            raw_transaction: Base64::encode(bcs::to_bytes(&tx).unwrap()),
 
             has_zklogin_sig: false,
-            has_upgraded_multisig: transaction.has_upgraded_multisig(),
+            has_upgraded_multisig: transaction.has_multisig(),
             transaction_json: Some(transaction_json),
             effects_json: Some(effects_json),
         };
@@ -243,7 +243,7 @@ mod tests {
         assert_eq!(db_txn.transaction_digest, transaction.digest().to_string());
         assert_eq!(
             db_txn.raw_transaction,
-            Base64::encode(bcs::to_bytes(&transaction.transaction_data()).unwrap())
+            Base64::encode(bcs::to_bytes(&transaction.transaction()).unwrap())
         );
         assert_eq!(db_txn.epoch, checkpoint.epoch);
         assert_eq!(db_txn.timestamp_ms, checkpoint.timestamp_ms);

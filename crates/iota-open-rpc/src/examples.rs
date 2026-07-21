@@ -693,7 +693,7 @@ impl RpcExampleProvider {
         let data2 = data.clone();
 
         let tx = to_sender_signed_transaction(data, &kp);
-        let signatures = tx.data().tx_signatures().to_vec();
+        let signatures = tx.data().signatures().to_vec();
         let raw_transaction = bcs::to_bytes(tx.data()).unwrap();
 
         let tx_digest = tx.digest();

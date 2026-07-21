@@ -745,7 +745,7 @@ mod tests {
         let senders: Vec<_> = checkpoint
             .transactions
             .iter()
-            .map(|tx| tx.transaction.transaction_data().sender())
+            .map(|tx| tx.transaction.transaction().sender())
             .collect();
         assert_eq!(
             senders,
@@ -1049,7 +1049,7 @@ mod tests {
         // Verify the transaction has a move call matching the arguments provided.
         assert!(
             tx.transaction
-                .transaction_data()
+                .transaction()
                 .kind()
                 .iter_commands()
                 .any(|cmd| {
