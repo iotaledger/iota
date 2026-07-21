@@ -992,16 +992,16 @@ impl AuthorityState {
 
         let epoch = epoch_store.epoch();
 
-        let tx_data = transaction.data().transaction();
+        let tx = transaction.data().transaction();
 
         // Note: the deny checks may do redundant package loads but:
         // - they only load packages when there is an active package deny map
         // - the loads are cached anyway
         iota_transaction_checks::deny::check_transaction_for_validation(
-            tx_data,
+            tx,
             transaction.signatures(),
             &transaction.input_objects()?,
-            &tx_data.receiving_objects(),
+            &tx.receiving_objects(),
             &self.config.transaction_deny_config,
             self.get_backing_package_store().as_ref(),
         )?;
@@ -1024,7 +1024,7 @@ impl AuthorityState {
             .check_transaction_inputs_for_validation(
                 protocol_config,
                 reference_gas_price,
-                tx_data,
+                tx,
                 tx_input_objects,
                 &tx_receiving_objects,
                 &move_authenticators,
@@ -1042,7 +1042,7 @@ impl AuthorityState {
         // objects and the authenticator input objects are in the coin deny
         // list, which would prevent the transaction from being signed.
         check_coin_deny_list_v1(
-            tx_data.sender(),
+            tx.sender(),
             &tx_checked_input_objects,
             &tx_receiving_objects,
             &per_authenticator_checked_input_objects,
@@ -1050,7 +1050,7 @@ impl AuthorityState {
             epoch_gated_coin_deny_list.then_some(epoch),
         )?;
 
-        let (kind, signer, gas_data) = tx_data.execution_parts();
+        let (kind, signer, gas_data) = tx.execution_parts();
 
         let (sender_authenticator_function_ref, sponsor_authenticator_function_ref) =
             extract_auth_fun_refs(signer, gas_data.owner, |address| {
@@ -1113,8 +1113,8 @@ impl AuthorityState {
             // `SenderSignedData::validity_check`.
 
             // Serialize the TransactionData for the auth context before decomposing.
-            let tx_data_bytes =
-                bcs::to_bytes(&tx_data).expect("TransactionData serialization cannot fail");
+            let tx_data_bytes: Vec<u8> =
+                bcs::to_bytes(&tx).expect("TransactionData serialization cannot fail");
 
             let (sender_auth_digest, sponsor_auth_digest) =
                 transaction.data().compute_auth_digests()?;
@@ -1878,10 +1878,10 @@ impl AuthorityState {
 
         // TODO: We need to move this to a more appropriate place to avoid redundant
         // checks.
-        let tx_data = transaction.data().transaction();
-        tx_data.validity_check(protocol_config)?;
+        let tx = transaction.data().transaction();
+        tx.validity_check(protocol_config)?;
 
-        let (kind, signer, gas_data) = tx_data.execution_parts();
+        let (kind, signer, gas_data) = tx.execution_parts();
 
         let move_authenticators = transaction.move_authenticators();
 
@@ -1973,7 +1973,7 @@ impl AuthorityState {
 
             // Serialize the TransactionData for the auth context.
             let tx_data_bytes =
-                bcs::to_bytes(tx_data).expect("TransactionData serialization cannot fail");
+                bcs::to_bytes(tx).expect("TransactionData serialization cannot fail");
 
             let (sender_auth_digest, sponsor_auth_digest) =
                 transaction.data().compute_auth_digests()?;

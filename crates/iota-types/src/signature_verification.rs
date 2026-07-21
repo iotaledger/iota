@@ -120,17 +120,17 @@ pub fn verify_sender_signed_data_message_signatures(
     txn: &SenderSignedData,
     verify_params: &VerifyParams,
 ) -> IotaResult {
-    let tx_data = txn.transaction();
+    let tx = txn.transaction();
 
     // 1. System transactions do not require signatures. User-submitted transactions
     //    are verified not to
     // be system transactions before this point
-    if tx_data.is_system_tx() {
+    if tx.is_system_tx() {
         return Ok(());
     }
 
     // 2. One signature per signer is required.
-    let signers: NonEmpty<_> = tx_data.signers();
+    let signers: NonEmpty<_> = tx.signers();
     fp_ensure!(
         txn.signatures().len() == signers.len(),
         IotaError::SignerSignatureNumberMismatch {

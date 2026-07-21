@@ -245,13 +245,13 @@ async fn test_dry_run_transaction_block() {
     let shared_object_version = fullnode.get_object(&shared_object_id).unwrap().version();
     assert_eq!(shared_object_version, initial_shared_object_version);
 
-    let txn_data = &transaction.data().transaction();
+    let tx = &transaction.data().transaction();
     let txn_data = TransactionData::new_with_gas_coins(
-        txn_data.kind().clone(),
-        txn_data.sender(),
+        tx.kind().clone(),
+        tx.sender(),
         vec![],
-        txn_data.gas_budget(),
-        txn_data.gas_price(),
+        tx.gas_budget(),
+        tx.gas_price(),
     );
     let (response, _, _, _) = fullnode
         .dry_exec_transaction(txn_data, transaction_digest)

@@ -2001,9 +2001,9 @@ impl SenderSignedTransactionAPI for SenderSignedData {
 
         // CRITICAL!!
         // Users cannot send system transactions.
-        let tx_data = self.transaction();
+        let tx = self.transaction();
         fp_ensure!(
-            !tx_data.is_system_tx(),
+            !tx.is_system_tx(),
             IotaError::UserInput {
                 error: UserInputError::Unsupported(
                     "SenderSignedData must not contain system transaction".to_string()
@@ -2012,7 +2012,7 @@ impl SenderSignedTransactionAPI for SenderSignedData {
         );
 
         // Checks to see if the transaction has expired
-        if match &tx_data.expiration() {
+        if match &tx.expiration() {
             TransactionExpiration::None => false,
             TransactionExpiration::Epoch(exp_poch) => *exp_poch < context.epoch,
             _ => unimplemented!(
@@ -2037,8 +2037,7 @@ impl SenderSignedTransactionAPI for SenderSignedData {
             }
         );
 
-        tx_data
-            .validity_check(context.config)
+        tx.validity_check(context.config)
             .map_err(Into::<IotaError>::into)?;
 
         move_authenticators_validity_check(self, context.config)?;
@@ -2068,10 +2067,10 @@ impl SenderSignedTransactionAPI for SenderSignedData {
     }
 
     fn sponsor_move_authenticator(&self) -> Option<&MoveAuthenticator> {
-        let tx_data = self.transaction();
+        let tx = self.transaction();
 
-        if tx_data.is_sponsored_tx() {
-            let gas_owner = tx_data.gas_owner();
+        if tx.is_sponsored_tx() {
+            let gas_owner = tx.gas_owner();
 
             self.move_authenticators()
                 .into_iter()
@@ -2082,7 +2081,7 @@ impl SenderSignedTransactionAPI for SenderSignedData {
     }
 
     fn compute_auth_digests(&self) -> IotaResult<(Digest, Option<Digest>)> {
-        let tx_data = self.transaction();
+        let tx = self.transaction();
 
         let digest_for_address = |address: Address| {
             self.signatures()
@@ -2094,9 +2093,9 @@ impl SenderSignedTransactionAPI for SenderSignedData {
                 .and_then(auth_digest_for_sig)
         };
 
-        let sender_auth_digest = digest_for_address(tx_data.sender())?;
-        let sponsor_auth_digest = if tx_data.is_sponsored_tx() {
-            Some(digest_for_address(tx_data.gas_owner())?)
+        let sender_auth_digest = digest_for_address(tx.sender())?;
+        let sponsor_auth_digest = if tx.is_sponsored_tx() {
+            Some(digest_for_address(tx.gas_owner())?)
         } else {
             None
         };
@@ -2283,10 +2282,10 @@ fn move_authenticators_validity_check(
     // Additional checks when `MoveAuthenticators` are present.
     let authenticators_num = authenticators.len();
     if authenticators_num > 0 {
-        let tx_data = data.transaction();
+        let tx = data.transaction();
 
         fp_ensure!(
-            tx_data.kind().is_programmable(),
+            tx.kind().is_programmable(),
             UserInputError::Unsupported(
                 "SenderSignedData with MoveAuthenticator must be a programmable transaction"
                     .to_string(),
@@ -2313,7 +2312,7 @@ fn move_authenticators_validity_check(
             );
         }
 
-        check_move_authenticators_input_consistency(tx_data, &authenticators)?;
+        check_move_authenticators_input_consistency(tx, &authenticators)?;
     }
 
     Ok(())

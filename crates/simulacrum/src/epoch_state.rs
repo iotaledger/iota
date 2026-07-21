@@ -106,12 +106,12 @@ impl EpochState {
         Result<(), iota_types::error::ExecutionError>,
     )> {
         let tx_digest = *transaction.digest();
-        let tx_data = &transaction.data().transaction();
-        let input_object_kinds = tx_data.input_objects()?;
-        let receiving_object_refs = tx_data.receiving_objects();
+        let tx = &transaction.data().transaction();
+        let input_object_kinds = tx.input_objects()?;
+        let receiving_object_refs = tx.receiving_objects();
 
         iota_transaction_checks::deny::check_transaction_for_validation(
-            tx_data,
+            tx,
             transaction.signatures(),
             &input_object_kinds,
             &receiving_object_refs,
