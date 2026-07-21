@@ -34,7 +34,7 @@ fn main() -> Result<()> {
     let out_path = PathBuf::from("authenticator_gas_profile.speedscope.json");
 
     let signed = example_signed_transaction()?;
-    let sender = signed.transaction_data().sender();
+    let sender = signed.transaction().sender();
 
     // Store: framework packages plus every object the run touches.
     let f = fixture()?;

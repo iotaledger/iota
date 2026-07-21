@@ -214,7 +214,7 @@ async fn get_transactions_derived_changes() {
     let recipient = iota_sdk_types::Address::random();
     let transaction =
         make_transfer_iota_transaction(&test_cluster.wallet, Some(recipient), Some(1000)).await;
-    let sender = transaction.transaction_data().sender();
+    let sender = transaction.transaction().sender();
     let transaction_digest = *transaction.digest();
     test_cluster
         .wallet

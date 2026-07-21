@@ -38,7 +38,7 @@ use iota_types::{
         QuorumDriverEffectsQueueResult, QuorumDriverError, QuorumDriverResponse,
         QuorumDriverResult,
     },
-    transaction::{TransactionData, VerifiedTransaction},
+    transaction::{SenderSignedTransactionAPI, TransactionData, VerifiedTransaction},
     transaction_driver_types::{
         EffectsFinalityInfo as TdEffectsFinalityInfo, FinalizedEffects as TdFinalizedEffects,
     },

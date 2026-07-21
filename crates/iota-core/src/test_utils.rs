@@ -19,8 +19,8 @@ use iota_types::{
     effects::{SignedTransactionEffects, TestEffectsBuilder},
     error::IotaError,
     transaction::{
-        CallArg, CertifiedTransaction, SignedTransaction, TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
-        Transaction, TransactionData, TransactionDataAPI,
+        CallArg, CertifiedTransaction, SenderSignedTransactionAPI, SignedTransaction,
+        TEST_ONLY_GAS_UNIT_FOR_TRANSFER, Transaction, TransactionData, TransactionDataAPI,
     },
     utils::{create_fake_transaction, to_sender_signed_transaction},
 };

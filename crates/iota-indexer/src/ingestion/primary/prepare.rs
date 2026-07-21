@@ -397,7 +397,7 @@ impl PrimaryWorker {
         } = tx;
 
         let tx_digest = sender_signed_data.digest();
-        let tx = sender_signed_data.transaction_data();
+        let tx = sender_signed_data.transaction();
         let events = events.clone().unwrap_or_default();
 
         let transaction_kind = IotaTransactionKind::from(tx.kind());
@@ -508,7 +508,7 @@ impl PrimaryWorker {
         metrics: &IndexerMetrics,
     ) -> IndexerResult<IndexedTransaction> {
         let tx_digest = tx.transaction.digest();
-        let tx_data = tx.transaction.transaction_data();
+        let txn = tx.transaction.transaction();
 
         let events = tx
             .events
@@ -516,7 +516,7 @@ impl PrimaryWorker {
             .map(|TransactionEvents(events)| events.clone())
             .unwrap_or_default();
 
-        let transaction_kind = IotaTransactionKind::from(tx_data.kind());
+        let transaction_kind = IotaTransactionKind::from(txn.kind());
 
         let objects = tx
             .input_objects
@@ -525,7 +525,7 @@ impl PrimaryWorker {
             .collect::<Vec<_>>();
 
         let (balance_change, object_changes) = InMemTxChanges::new(&objects, metrics.clone())
-            .get_changes(tx_data, &tx.effects, tx_digest)
+            .get_changes(txn, &tx.effects, tx_digest)
             .await?;
 
         Ok(IndexedTransaction {
@@ -535,7 +535,7 @@ impl PrimaryWorker {
             timestamp_ms: checkpoint_timestamp_ms,
             sender_signed_data: tx.transaction.data().clone(),
             successful_tx_num: if tx.effects.status().is_success() {
-                tx_data.kind().num_transactions() as u64
+                txn.kind().num_transactions() as u64
             } else {
                 0
             },

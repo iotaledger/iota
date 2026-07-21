@@ -1419,7 +1419,7 @@ impl CheckpointBuilder {
             .try_get_transaction_block(&root_digests[0])?
             .expect("Transaction block must exist");
 
-        Ok(match first_tx.transaction_data().kind() {
+        Ok(match first_tx.transaction().kind() {
             TransactionKind::ConsensusCommitPrologueV1(_) => {
                 assert_eq!(first_tx.digest(), root_effects[0].transaction_digest());
                 Some((*first_tx.digest(), root_effects[0].clone()))
@@ -1641,7 +1641,7 @@ impl CheckpointBuilder {
             {
                 let (transaction, size) = transaction_and_size
                     .unwrap_or_else(|| panic!("Could not find executed transaction {effects:?}"));
-                match transaction.inner().transaction_data().kind() {
+                match transaction.inner().transaction().kind() {
                     #[allow(deprecated)]
                     TransactionKind::ConsensusCommitPrologueV1(_)
                     | TransactionKind::AuthenticatorStateUpdateV1Deprecated => {
@@ -2058,7 +2058,7 @@ impl CheckpointBuilder {
             .filter_map(|tx| {
                 tx.as_ref().filter(|tx| {
                     matches!(
-                        tx.transaction_data().kind(),
+                        tx.transaction().kind(),
                         TransactionKind::ConsensusCommitPrologueV1(_)
                     )
                 })
@@ -2086,7 +2086,7 @@ impl CheckpointBuilder {
             // checkpoint.
             for tx in txs.iter().flatten() {
                 assert!(!matches!(
-                    tx.transaction_data().kind(),
+                    tx.transaction().kind(),
                     TransactionKind::ConsensusCommitPrologueV1(_)
                 ));
             }
@@ -2094,7 +2094,7 @@ impl CheckpointBuilder {
             // If there is one consensus commit prologue, it must be the first one in the
             // checkpoint.
             assert!(matches!(
-                txs[0].as_ref().unwrap().transaction_data().kind(),
+                txs[0].as_ref().unwrap().transaction().kind(),
                 TransactionKind::ConsensusCommitPrologueV1(_)
             ));
 
@@ -2102,7 +2102,7 @@ impl CheckpointBuilder {
 
             for tx in txs.iter().skip(1).flatten() {
                 assert!(!matches!(
-                    tx.transaction_data().kind(),
+                    tx.transaction().kind(),
                     TransactionKind::ConsensusCommitPrologueV1(_)
                 ));
             }

@@ -29,10 +29,7 @@ use iota_sdk::{
         transaction::{TransactionData, TransactionDataAPI},
     },
 };
-use iota_sdk_types::{
-    Address,
-    crypto::{Intent, IntentMessage},
-};
+use iota_sdk_types::Address;
 use rand::{SeedableRng, rngs::StdRng};
 use utils::request_tokens_from_faucet;
 
@@ -135,7 +132,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
     // derive the digest that the keypair should sign on,
     // i.e. the blake2b hash of `intent || tx_data`.
-    let intent_msg = IntentMessage::new(Intent::iota_transaction(), tx_data);
+    let intent_msg = tx_data.intent_message();
     let raw_tx = bcs::to_bytes(&intent_msg).expect("bcs should not fail");
     let mut hasher = iota_types::crypto::DefaultHash::default();
     hasher.update(raw_tx.clone());
@@ -159,7 +156,7 @@ async fn main() -> Result<(), anyhow::Error> {
         .quorum_driver_api()
         .execute_transaction_block(
             iota_types::transaction::Transaction::from_user_sig_data(
-                intent_msg.value,
+                intent_msg.value.clone(),
                 vec![UserSignature::Simple(iota_sig)],
             ),
             IotaTransactionBlockResponseOptions::default(),

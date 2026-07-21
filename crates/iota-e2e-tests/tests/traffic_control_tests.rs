@@ -31,6 +31,7 @@ use iota_types::{
         FreqThresholdConfig, PolicyConfig, PolicyType, RemoteFirewallConfig,
         TrafficControlReconfigParams, Weight,
     },
+    transaction::SenderSignedTransactionAPI,
 };
 use jsonrpsee::{core::client::ClientT, rpc_params};
 use test_cluster::{TestCluster, TestClusterBuilder};

@@ -433,7 +433,7 @@ pub fn swap_blacklist_in_transaction(
         false,
     ));
 
-    let new_sig = match &transaction.inner_mut().tx_signatures[0] {
+    let new_sig = match &transaction.0.signatures[0] {
         UserSignature::MoveAuthenticator(move_authenticator) => {
             let signature_call_arg = move_authenticator.call_args()[0].clone();
 
@@ -460,7 +460,7 @@ pub fn swap_blacklist_in_transaction(
         _ => panic!("Expected MoveAuthenticator signature"),
     };
 
-    transaction.inner_mut().tx_signatures[0] = new_sig;
+    transaction.0.signatures[0] = new_sig;
 
     transaction
 }

@@ -31,6 +31,7 @@ use crate::{
         get_key_pair,
     },
     effects::{SignedTransactionEffects, TestEffectsBuilder, TransactionEffectsAPIForTesting},
+    transaction::SenderSignedTransactionAPI,
     utils::{
         blake2b256_of_sig, make_move_authenticator_sig, make_move_authenticator_tx,
         make_passkey_authenticator_sig, make_sponsored_move_authenticator_tx,
@@ -534,8 +535,7 @@ fn test_digest_caching() {
 
     signed_tx
         .data_mut_for_testing()
-        .intent_message_mut_for_testing()
-        .value
+        .transaction_mut_for_testing()
         .gas_data_mut()
         .budget += 1;
 
@@ -810,7 +810,7 @@ fn test_sponsored_transaction_message() {
         IotaError::SignerSignatureAbsent { .. }
     ));
 
-    let tx = transaction.data().transaction_data();
+    let tx = transaction.data().transaction();
     assert_eq!(tx.gas(), &[gas_obj_ref],);
     assert_eq!(tx.gas_data(), &gas_data,);
     assert_eq!(tx.sender(), sender,);
@@ -976,7 +976,7 @@ fn verify_sender_signature_correctly_with_flag() {
         AuthorityPublicKeyBytes::from(sec1.public()),
     );
 
-    let s = match &transaction.data().tx_signatures()[0] {
+    let s = match &transaction.data().signatures()[0] {
         UserSignature::Simple(s) => s,
         _ => panic!("invalid"),
     };
@@ -1008,7 +1008,7 @@ fn verify_sender_signature_correctly_with_flag() {
         &sec1,
         AuthorityPublicKeyBytes::from(sec1.public()),
     );
-    let s = match &transaction_1.data().tx_signatures()[0] {
+    let s = match &transaction_1.data().signatures()[0] {
         UserSignature::Simple(s) => s,
         _ => panic!("unexpected signature scheme"),
     };
@@ -1085,15 +1085,7 @@ fn test_consensus_commit_prologue_v1_transaction() {
         SharedObjectReference::new(ObjectId::CLOCK, IOTA_CLOCK_OBJECT_SHARED_VERSION, true,),
     );
     assert!(tx.is_system_tx());
-    assert_eq!(
-        tx.data()
-            .intent_message()
-            .value
-            .input_objects()
-            .unwrap()
-            .len(),
-        1
-    );
+    assert_eq!(tx.data().transaction().input_objects().unwrap().len(), 1);
 }
 
 #[test]
@@ -1330,7 +1322,7 @@ fn test_certificate_digest() {
         .data_mut_for_testing()
         .tx_signatures_mut_for_testing()
         .get_mut(0)
-        .unwrap() = t2.tx_signatures()[0].clone();
+        .unwrap() = t2.signatures()[0].clone();
     assert_ne!(digest, cert.certificate_digest());
 
     // mutating signature epoch changes digest
@@ -1391,7 +1383,7 @@ fn check_approx_effects_components_size() {
 fn auth_digest_for_move_authenticator_equals_authenticator_digest() {
     let (sender, _): (_, AccountKeyPair) = get_key_pair();
     let (sig, authenticator) = make_move_authenticator_sig(sender);
-    assert_eq!(auth_digest_for_sig(&sig).unwrap(), authenticator.digest());
+    assert_eq!(sig.auth_digest(), authenticator.digest());
 }
 
 #[test]
@@ -1399,21 +1391,21 @@ fn auth_digest_for_regular_signature_is_hash_of_sig_bytes() {
     let kp = SimpleKeypair::from(Ed25519PrivateKey::generate(rand::thread_rng()));
     let sender = kp.public_key().derive_address();
     let tx = make_transaction(sender, &kp);
-    let sig = tx.tx_signatures().first().unwrap();
-    assert_eq!(auth_digest_for_sig(sig).unwrap(), blake2b256_of_sig(sig));
+    let sig = tx.signatures().first().unwrap();
+    assert_eq!(sig.auth_digest(), blake2b256_of_sig(sig));
 }
 
 #[test]
 fn auth_digest_for_multisig_is_hash_of_sig_bytes() {
     let tx = make_upgraded_multisig_tx();
-    let sig = tx.tx_signatures().first().unwrap();
-    assert_eq!(auth_digest_for_sig(sig).unwrap(), blake2b256_of_sig(sig));
+    let sig = tx.signatures().first().unwrap();
+    assert_eq!(sig.auth_digest(), blake2b256_of_sig(sig));
 }
 
 #[test]
 fn auth_digest_for_passkey_is_hash_of_sig_bytes() {
     let sig = make_passkey_authenticator_sig();
-    assert_eq!(auth_digest_for_sig(&sig).unwrap(), blake2b256_of_sig(&sig));
+    assert_eq!(sig.auth_digest(), blake2b256_of_sig(&sig));
 }
 
 #[test]
@@ -1431,7 +1423,7 @@ fn compute_auth_digests_non_sponsored_regular_signature() {
     let kp = SimpleKeypair::from(Ed25519PrivateKey::generate(rand::thread_rng()));
     let sender = kp.public_key().derive_address();
     let tx = make_transaction(sender, &kp);
-    let sig = tx.tx_signatures().first().unwrap();
+    let sig = tx.signatures().first().unwrap();
     let (sender_digest, sponsor_digest) = tx.data().compute_auth_digests().unwrap();
     assert_eq!(sender_digest, blake2b256_of_sig(sig));
     assert!(sponsor_digest.is_none());
@@ -1452,12 +1444,12 @@ fn compute_auth_digests_sponsored_regular_signatures() {
     let (tx, sender, sponsor) = make_sponsored_regular_sig_tx();
 
     let sender_sig = tx
-        .tx_signatures()
+        .signatures()
         .iter()
         .find(|s| s.derive_address() == sender)
         .unwrap();
     let sponsor_sig = tx
-        .tx_signatures()
+        .signatures()
         .iter()
         .find(|s| s.derive_address() == sponsor)
         .unwrap();

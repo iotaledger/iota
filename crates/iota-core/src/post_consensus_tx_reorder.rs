@@ -39,7 +39,7 @@ impl PostConsensusTxReorder {
                 }
                 SequencedConsensusTransactionKind::System(_) => None,
             }
-            .map(|data| data.transaction_data().gas_price())
+            .map(|data| data.transaction().gas_price())
             .unwrap_or(u64::MAX);
 
             std::cmp::Reverse(gas_price)

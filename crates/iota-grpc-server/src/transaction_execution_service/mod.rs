@@ -648,13 +648,7 @@ async fn execute_single_transaction(
         signatures: sdk_signatures,
     };
 
-    let transaction = iota_types::transaction::Transaction::try_from(sdk_signed_transaction)
-        .map_err(|e| {
-            RpcError::new(
-                tonic::Code::InvalidArgument,
-                format!("failed to convert transaction to internal type: {e}"),
-            )
-        })?;
+    let transaction = iota_types::transaction::Transaction::from(sdk_signed_transaction);
 
     // Determine what to include in the request based on read mask.
     // Balance/object changes are derived from the input/output objects, so the
@@ -691,8 +685,8 @@ async fn execute_single_transaction(
     let digest = *effects.effects.transaction_digest();
 
     // Build the merged response
-    let sdk_transaction: iota_sdk_types::Transaction = transaction.transaction_data().clone();
-    let signatures = transaction.tx_signatures().to_owned();
+    let sdk_transaction: iota_sdk_types::Transaction = transaction.transaction().clone();
+    let signatures = transaction.signatures().to_owned();
 
     // Keep a pre-parsed copy for the rebuild-from-cache path so it doesn't
     // have to re-parse the proto request. Only materialised when the response
