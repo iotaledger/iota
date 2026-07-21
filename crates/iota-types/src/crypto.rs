@@ -39,6 +39,11 @@ use fastcrypto::{
     },
 };
 use iota_sdk_crypto::{Verifier, simple::SimpleVerifier};
+// Signature schemes and their flag bytes. Sourced from the SDK so the node
+// shares a single definition with clients. Flag `0x05` (the removed zkLogin
+// authenticator, never enabled on IOTA) stays reserved: the SDK rejects it in
+// `SignatureScheme::from_byte`.
+pub use iota_sdk_types::SignatureScheme;
 use iota_sdk_types::{
     Address,
     crypto::{Intent, IntentMessage, IntentScope},
@@ -1391,11 +1396,6 @@ pub mod bcs_signable_test {
     }
 }
 
-// Signature schemes and their flag bytes. Sourced from the SDK so the node
-// shares a single definition with clients. Flag `0x05` (the removed zkLogin
-// authenticator, never enabled on IOTA) stays reserved: the SDK rejects it in
-// `SignatureScheme::from_byte`.
-pub use iota_sdk_types::SignatureScheme;
 impl FromStr for PublicKey {
     type Err = eyre::Report;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
