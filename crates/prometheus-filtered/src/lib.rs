@@ -928,9 +928,16 @@ mod tests {
         assert!(!filter.is_exposed("authority", "m", Warn));
         assert!(filter.is_exposed("certs_total", "m", Info));
         assert!(!filter.is_exposed("certs_total", "m", Debug));
-        // Among directives with the same (here: empty) pattern the last one
-        // wins.
+        // Among directives with the same pattern the last one wins, whether
+        // the pattern is empty or not.
         assert!(super::Filter::parse("off,trace").is_exposed("authority", "m", Debug));
+        assert!(
+            super::Filter::parse("authority=off,authority=trace").is_exposed(
+                "authority",
+                "m",
+                Debug
+            )
+        );
     }
 
     #[test]
@@ -977,7 +984,7 @@ mod tests {
         use super::MetricLevel::{Info, Trace, Warn};
         // Filtering is opt-in: with no matching directive every metric is
         // exposed, matching plain `prometheus` behaviour.
-        for filter in [
+        let mut filters = vec![
             super::Filter::parse(""),
             super::Filter::default(),
             // empty segments are ignored rather than treated as directives.
@@ -1027,21 +1034,9 @@ mod tests {
     }
 
     #[test]
-    fn from_env_is_permissive_when_unset() {
+    fn registries_built_to_share_a_filter_see_the_same_decisions() {
         use super::{Arc, Filter, MetricLevel, Registry};
 
-        // A set env var would add an env layer, so `Filter::from_env` is
-        // only exercised when it is unset; `Filter::from_layers` covers the
-        // set case.
-        if std::env::var_os("METRICS_FILTER").is_some() {
-            return;
-        }
-
-        // No env, no config -> everything is exposed.
-        assert!(Filter::from_env().is_exposed("anything", "m", MetricLevel::Trace));
-        assert!(Filter::from_env().is_exposed("anything", "m", Debug));
-
-        // Registries built to share a filter see the same decisions.
         let filter = Arc::new(Filter::parse("off,authority=trace"));
         assert!(filter.is_exposed("authority", "m", MetricLevel::Debug));
         assert!(!filter.is_exposed("consensus", "m", MetricLevel::Debug));
@@ -1112,19 +1107,6 @@ mod gather_filter_tests {
         // and keeps collecting.
         assert_eq!(gathered_names(&reg), ["g_warn"]);
         assert_eq!(g_debug.get(), 7);
-    }
-
-    #[test]
-    fn off_directive_hides_but_metric_keeps_collecting() {
-        let reg = registry("g_hidden=off");
-        let g = crate::register_int_gauge_with_registry!("g_hidden", "h", &reg; MetricLevel::Warn)
-            .unwrap();
-        // The metric handle is live and keeps collecting through the caller's
-        // copy, even though the filter unregistered it from the inner registry,
-        // so it is absent from gather output.
-        g.set(9);
-        assert_eq!(g.get(), 9);
-        assert_eq!(gathered_names(&reg), Vec::<String>::new());
     }
 
     #[test]

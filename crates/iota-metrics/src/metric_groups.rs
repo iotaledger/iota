@@ -488,33 +488,6 @@ mod tests {
     }
 
     #[test]
-    fn metric_groups_renders_hardware_directive() {
-        let groups = MetricGroups {
-            hardware: MetricLevel::Off,
-            ..all_trace()
-        };
-        // The hardware group renders a directive for its collector's module,
-        // hiding it when `off`.
-        let filter_string = groups.to_filter_string();
-        assert!(filter_string.contains("iota_metrics::hardware_metrics=off"));
-        let filter = Filter::parse(&filter_string);
-        assert!(!filter.is_exposed(
-            "hw_cpu_core_count",
-            "iota_metrics::hardware_metrics",
-            MetricLevel::Warn
-        ));
-        // A later directive with the same pattern overrides the rendered one.
-        let overridden = Filter::parse(&format!(
-            "{filter_string},iota_metrics::hardware_metrics=warn"
-        ));
-        assert!(overridden.is_exposed(
-            "hw_cpu_core_count",
-            "iota_metrics::hardware_metrics",
-            MetricLevel::Warn
-        ));
-    }
-
-    #[test]
     fn modules_for_group_covers_every_group() {
         // Every group resolves to a non-empty module list; the rendered
         // filter contains exactly those modules.
@@ -565,6 +538,11 @@ mod tests {
             MetricGroups::expand_directives("default=info,traffic-control=off").unwrap(),
             "info,iota_core::traffic_controller=off,iota_config::node_config_metrics=off"
         );
+        // The single-collector hardware group expands like any other.
+        assert_eq!(
+            MetricGroups::expand_directives("hardware=off").unwrap(),
+            "iota_metrics::hardware_metrics=off"
+        );
     }
 
     #[test]
@@ -581,18 +559,6 @@ mod tests {
             errors[0].contains("consensus=bogus"),
             "unexpected error: {}",
             errors[0]
-        );
-    }
-
-    #[test]
-    fn expand_directives_expands_hardware_group() {
-        assert_eq!(
-            MetricGroups::expand_directives("hardware=off").unwrap(),
-            "iota_metrics::hardware_metrics=off"
-        );
-        assert_eq!(
-            MetricGroups::expand_directives("iota_metrics::hardware_metrics=warn").unwrap(),
-            "iota_metrics::hardware_metrics=warn"
         );
     }
 

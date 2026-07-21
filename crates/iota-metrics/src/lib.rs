@@ -857,4 +857,73 @@ mod tests {
         assert_eq!(metric_1.name(), "iota_counter_2");
         assert_eq!(metric_1.help(), "counter_2_desc");
     }
+
+    #[test]
+    fn set_runtime_filter_reconciles_all_registries() {
+        use std::sync::Arc;
+
+        use prometheus_filtered::{Filter, MetricLevel};
+
+        fn gathered_names(service: &RegistryService) -> Vec<String> {
+            let mut names: Vec<_> = service
+                .gather_all()
+                .iter()
+                .map(|f| f.name().to_owned())
+                .collect();
+            names.sort();
+            names
+        }
+
+        // Both registries share the service's filter, which starts at `warn`
+        // for this module, hiding the default-level (`debug`) gauges.
+        let filter = Arc::new(Filter::parse("iota_metrics=warn"));
+        let default_registry =
+            Registry::new_custom(Some("default".to_string()), None, Some(filter)).unwrap();
+        let registry_service = RegistryService::new(default_registry.clone());
+        let second_registry = registry_service
+            .new_registry_custom(Some("second".to_string()), None)
+            .unwrap();
+        registry_service.add(second_registry.clone());
+
+        for registry in [&default_registry, &second_registry] {
+            prometheus_filtered::register_int_gauge_with_registry!(
+                "g_warn", "h", registry; MetricLevel::Warn
+            )
+            .unwrap();
+            prometheus_filtered::register_int_gauge_with_registry!("g_debug", "h", registry)
+                .unwrap();
+        }
+        assert_eq!(
+            gathered_names(&registry_service),
+            ["default_g_warn", "second_g_warn"]
+        );
+
+        // One runtime update reconciles every registry in the service.
+        registry_service
+            .set_runtime_filter("iota_metrics=debug", "iota_metrics=debug")
+            .unwrap();
+        assert_eq!(
+            gathered_names(&registry_service),
+            [
+                "default_g_debug",
+                "default_g_warn",
+                "second_g_debug",
+                "second_g_warn"
+            ]
+        );
+
+        // An invalid update is rejected without touching the current override.
+        let err = registry_service
+            .set_runtime_filter("bogus=nope", "bogus=nope")
+            .unwrap_err();
+        assert!(err.contains("bogus=nope"), "unexpected error: {err}");
+        assert_eq!(gathered_names(&registry_service).len(), 4);
+
+        // Reset restores the startup exposure across all registries.
+        registry_service.reset_runtime_filter();
+        assert_eq!(
+            gathered_names(&registry_service),
+            ["default_g_warn", "second_g_warn"]
+        );
+    }
 }
