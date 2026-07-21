@@ -393,7 +393,8 @@ pub(crate) struct TransactionsSynchronizer<C: NetworkClient, D: CoreThreadDispat
     /// Applies the same transaction limit and batch verification checks to
     /// fetched payloads as the direct block-bundle route.
     block_verifier: Arc<dyn BlockVerifier>,
-    /// Records the author of fetched payloads that fail verification.
+    /// Charges faults for fetched payloads that fail verification: the author,
+    /// when the payload is provably theirs, and the peer that served it.
     misbehavior_store: Arc<MisbehaviorStore>,
 }
 
