@@ -8,7 +8,7 @@ use anyhow::Result;
 use fastcrypto::traits::KeyPair;
 use iota_config::{
     Config,
-    genesis::{GenesisCeremonyParameters, TokenAllocation},
+    genesis::{GenesisCeremonyParameters, PRE_V32_VALIDATOR_LOW_STAKE_THRESHOLD, TokenAllocation},
     local_ip_utils,
     node::{DEFAULT_COMMISSION_RATE, DEFAULT_VALIDATOR_GAS_PRICE},
 };
@@ -16,8 +16,10 @@ use iota_genesis_builder::{
     SnapshotSource,
     validator_info::{GenesisValidatorInfo, ValidatorInfo},
 };
+use iota_protocol_config::{Chain, ProtocolConfig};
 use iota_sdk_types::Address;
 use iota_types::{
+    committee::ProtocolVersion,
     crypto::{
         AccountKeyPair, AuthorityKeyPair, AuthorityPublicKeyBytes, IotaKeyPair, NetworkKeyPair,
         NetworkPublicKey, PublicKey, generate_proof_of_possession, get_key_pair_from_rng,
@@ -206,7 +208,12 @@ impl ValidatorGenesisConfigBuilder {
             gas_price,
             commission_rate: DEFAULT_COMMISSION_RATE,
             primary_address,
-            stake: iota_types::governance::VALIDATOR_LOW_STAKE_THRESHOLD_NANOS,
+            // A test-wide protocol config override can replace even the MAX lookup
+            // with a pre-version-32 config where the threshold is absent, so fall
+            // back to the historical value.
+            stake: ProtocolConfig::get_for_version(ProtocolVersion::MAX, Chain::Unknown)
+                .validator_low_stake_threshold_as_option()
+                .unwrap_or(PRE_V32_VALIDATOR_LOW_STAKE_THRESHOLD),
             name: None,
         }
     }
@@ -225,6 +232,11 @@ pub struct GenesisConfig {
 impl Config for GenesisConfig {}
 
 impl GenesisConfig {
+    /// The protocol config for the version this genesis will be built at.
+    pub fn protocol_config(&self) -> ProtocolConfig {
+        ProtocolConfig::get_for_version(self.parameters.protocol_version, Chain::Unknown)
+    }
+
     pub fn generate_accounts<R: rand::RngCore + rand::CryptoRng>(
         &self,
         mut rng: R,
@@ -266,7 +278,12 @@ fn default_socket_address() -> SocketAddr {
 }
 
 fn default_stake() -> u64 {
-    iota_types::governance::VALIDATOR_LOW_STAKE_THRESHOLD_NANOS
+    // A test-wide protocol config override can replace even the MAX lookup with a
+    // pre-version-32 config where the threshold is absent, so fall back to the
+    // historical value.
+    ProtocolConfig::get_for_version(ProtocolVersion::MAX, Chain::Unknown)
+        .validator_low_stake_threshold_as_option()
+        .unwrap_or(PRE_V32_VALIDATOR_LOW_STAKE_THRESHOLD)
 }
 
 fn default_bls12381_key_pair() -> AuthorityKeyPair {
