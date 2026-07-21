@@ -1,73 +1,5 @@
 # Stress-test runs and results
 
-Running log of the stress tests from `stress-plan.md`: the exact commands,
-the results of each run, and a brief analysis.
-
-All commands are run from the `iota` monorepo root unless noted.
-
----
-
-## TL;DR
-
-Attestation's cost is a **pre-consensus execution dry-run plus the pool wait
-and async resume around it**. The dry-run itself tracks the real execution
-latency — a heavy attested transaction is executed twice, roughly doubling
-the validator's work (≈+30 % busy cores on `n4`). At light load, that is the
-whole story (sub-millisecond overhead); under load, the pool wait and async
-resume around the dry-run grow to dominate the attestation time (findings 1,
-7). Compute-unit
-accounting is exact, and actual execution, post-consensus validation, and
-throughput at normal load are untouched (findings 1, 2, 5, 8).
-
-On `n4`, the costs surface under heavy compute. The client pays the full
-attestation latency on every fullnode submit, and end-to-end latency —
-receipt→execution and settlement finality — roughly doubles; on the fullnode
-path, throughput also dips (B/A ≈ 0.78–0.81) and the execution backlog deepens
-(findings 3, 6, 9). But attestation also moves the backlog: by slowing
-admission it shifts it from after consensus to before it — checkpoint
-lag on the direct paths is far smaller with attestation on, while
-`num_inflight` grows until the heaviest pinned configuration reaches the submit
-semaphore and pre-consensus shedding fires (findings 4, 11). The strength of
-that shift follows how concentrated the attestation is (pinned strongest,
-direct-to-all weaker, fullnode weakest), and the fullnode's own transaction
-driver queues and paces what enters consensus: with attestation off, the
-direct paths — spread over all validators or pinned to one — build several
-times the fullnode path's post-consensus backlog (finding 4). One observation
-deserves follow-up: the fullnode-path throughput dip is unexplained (finding
-8). With the temporary post-consensus fixes in place, there are no validation
-drops or checkpoint forks on either path or network size (finding 8, H4 PASS).
-
-The 24-validator campaign was run to test the spreading argument directly:
-each transaction is attested by one validator, so the more validators share
-the stream, the smaller each one's share of the overhead. On the validator
-side, the data confirms it. On `f1` and `v24`, the busiest validator attests
-≈150–170/s of a ≈1000 TPS stream (its 1/24th share plus imbalance), CPU B/A
-stays at 1.00–1.06 across the sizes (from 1.04–1.30 on `n4`), and B behaves
-like A after consensus — same checkpoint lag, same shedding (findings 4, 7,
-10). Concentrating the same stream on one validator shows the opposite pole:
-the attesting host doubles its CPU (B/A up to 2.06) and sheds pre-consensus
-from `slow100` on against the smaller submit semaphore (1666 permits) — on
-the pinned path the admission throttle, not the dry-run, shapes every
-comparison from `slow100` up (findings 2, 4, 5, 9, 11).
-
-On the client side, there is nothing for spreading to reduce at normal load:
-in `n24`'s unsaturated regime (`slow0`/`slow50` deliver the full 1000 TPS),
-settlement finality is ≈270–300 ms with B/A = 1.00–1.01 and submit adds
-≈1–3 ms — the same picture as `n4`. The per-transaction attestation latency
-stays in the submit path regardless of committee size: spreading divides the
-validators' aggregate load, not the individual transaction's added wait. The
-regime where `n4` showed a client-visible cost (heavy compute, ≈1.6–2×) is
-the regime a single machine cannot test at committee scale — from `slow100`
-on, 24 replicated executions saturate the host and both sides measure the
-shared backlog (findings 3, 6). A 48-validator campaign was also run; it
-oversaturated the machine outright (≈60 % of the target delivered already at
-`slow0`, the no-attestation control itself semaphore-throttled), so it is
-not presented here — where comparable, it agrees in direction with `n24`
-(e.g. the pinned host's CPU B/A continues 1.56 → 2.06 → 2.34 across
-`n4` → `n24` → `n48`).
-
----
-
 ## H1 — attestation overhead (W4: slow owned-object; V1 vs V2)
 
 **Goal:** measure what validator attestation costs. Attestation (the
@@ -79,6 +11,74 @@ attestation off (all `UserTransactionV1`, the zero-attestation control — "A")
 vs on (all `UserTransactionV2`, attested — "B"). We then compare the two runs to
 see how the metrics differ between them; this is purely a measurement, with no
 pass/fail threshold.
+
+---
+
+## TL;DR
+
+Attestation's cost is a **pre-consensus execution dry-run plus the pool wait
+and async resume around it**. The dry-run itself tracks the real execution
+latency. Every attested transaction — light or heavy — is executed twice:
+the dry-run once, on the validator that attests it, and the real execution
+on every validator. Network-wide that adds one execution to the `N`
+replicated ones (+1/N); for the attesting validator it doubles that
+transaction's execution work. The measured CPU cost follows each
+validator's share of the attestation stream: ≈+30 % busy cores on `n4`'s
+busiest validator (attesting ≈half the stream), ≈nothing on `n24`'s spread
+paths (1/24th shares each), up to +106 % on a pinned attester (finding 7).
+At light load, the latency side is negligible (sub-millisecond); under load,
+the pool wait and async resume around the dry-run grow to dominate the
+attestation time (findings 1, 7). Compute-unit accounting is exact (as
+expected), and actual execution, post-consensus validation, and throughput at
+normal load are untouched (findings 1, 2, 5, 8).
+
+On `n4`, the costs show up under heavy compute. The client waits through the
+full attestation latency on every fullnode submit, and end-to-end latency —
+receipt→execution and settlement finality — roughly doubles; on the fullnode
+path, throughput also dips (B/A ≈ 0.78–0.81) and the execution backlog deepens
+(findings 3, 6, 9). But attestation also moves the backlog: by slowing
+admission, it shifts it from after consensus to before it — checkpoint
+lag on the direct paths is far smaller with attestation on, while
+`num_inflight` grows until the heaviest pinned configuration reaches the submit
+semaphore and pre-consensus shedding fires (findings 4, 11). The strength of
+that shift follows how concentrated the attestation is (pinned strongest,
+direct-to-all weaker, fullnode weakest), and the fullnode's own transaction
+driver queues and paces what enters consensus: with attestation off, the
+direct paths — spread over all validators or pinned to one — build several
+times the fullnode path's post-consensus backlog (finding 4). One observation
+deserves follow-up: the fullnode-path throughput dip is unexplained (finding
+8). With the temporary post-consensus fixes in place, **there are no
+validation drops or checkpoint forks** on either path or network size (finding
+8, H4 PASS).
+
+The 24-validator campaign was run to test the spreading argument directly:
+**each transaction is attested by one validator, so the more validators share
+the stream, the smaller each one's share of the overhead**. The validators'
+measured load confirms it: on `f1` and `v24`, the busiest validator attests
+≈150–170/s of a ≈1000 TPS stream (its 1/24th share plus imbalance), CPU B/A
+stays at 1.00–1.06 across the sizes (from 1.04–1.30 on `n4`), and B behaves
+like A after consensus — same checkpoint lag, same shedding (findings 4, 7,
+10). Concentrating the same stream on one validator shows the opposite pole:
+the attesting host doubles its CPU (B/A up to 2.06) and sheds pre-consensus
+from `slow100` on against the smaller submit semaphore (1666 permits) — on
+the pinned path, the admission throttle — not the dry-run — shapes every
+comparison from `slow100` up (findings 2, 4, 5, 9, 11).
+
+**On the client side, there is nothing for spreading to reduce at normal
+load:** in `n24`'s unsaturated regime (`slow0`/`slow50` deliver the full 1000
+TPS), settlement finality is ≈270–300 ms with B/A = 1.00–1.01 and submit adds
+≈1–3 ms — the same picture as `n4`. The per-transaction attestation latency
+stays in the submit path regardless of committee size: spreading divides the
+validators' aggregate load, not the individual transaction's added wait. The
+regime where `n4` showed a client-visible cost (heavy compute, ≈1.6–2×) is
+the regime a single machine cannot test at committee scale — from `slow100`
+on, 24 replicated executions saturate the host and both sides measure the
+shared backlog (findings 3, 6). A 48-validator campaign was also run; it
+oversaturated the machine outright (≈60 % of the target delivered already at
+`slow0`, the no-attestation control itself semaphore-throttled), so it is
+not presented here — where comparable, it agrees in direction with `n24`
+(e.g., the pinned host's CPU B/A continues 1.56 → 2.06 → 2.34 across
+`n4` → `n24` → `n48`).
 
 ---
 
@@ -134,13 +134,14 @@ Its results land in `results/summary_table_n24.{md,csv}` and
 Two host-bound effects shape the `n24` results from `slow100` up:
 
 - **The machine saturates at the heavier sizes.** At `slow0` and `slow50`
-  the host keeps up (the full 1000 tx/s is delivered), but from `slow100`
-  on, 24 validators executing every transaction on the same 96 hardware
-  threads run out of CPU: delivered TPS collapses (≈320–460 at `slow100`,
-  single digits at `slow500`) and latencies pile up to ≈30 s p50 at the
-  heavy end — half the 60 s measurement window, pure backlog — on A and B
-  alike. Client-side A vs B comparisons above `slow50` therefore mostly
-  measure the shared backlog, not attestation.
+  the host keeps up (the full 1000 tx/s is delivered; `f1` slightly below
+  at `slow0`, ≈900), but from `slow100` on, 24 validators executing every
+  transaction on the same 96 hardware threads run out of CPU: delivered
+  TPS collapses (≈320–460 at `slow100`, ≈10–15 at `slow500`) and latencies
+  pile up to ≈30 s p50 at the heavy end — half the 60 s measurement
+  window, pure backlog — on A and B alike. Client-side A vs B comparisons
+  above `slow50` therefore mostly measure the shared backlog, not
+  attestation.
 - **The pinned path throttles its own intake.** The submit semaphore scales
   down with committee size (10000 permits on `n4`, 1666 on `n24` — finding
   11), so from `slow100` on, the one validator receiving the whole stream
@@ -308,8 +309,11 @@ converge.
 flips: execution p95 ≈0.8 ms, at the ≈1 ms dry-run floor), and the 24×
 replication bites from `slow100` on — execution p95 jumps to ≈150–400 ms
 against ≈20 ms on `n4`.
-- A heavy attested transaction is still executed twice — once for the dry-run,
-once for real — so it costs the validator roughly double.
+- Every attested transaction is still executed twice — the dry-run once, on
+its attesting validator, and the real execution on all validators — so it
+costs its attesting validator roughly double, and the network one extra
+execution out of `N + 1`. Only under heavy compute is that extra execution
+a visible cost.
 
 ![Attestation computation units and dry-run execution latency, n4](h1/results/summary_plots_n4/attestation_latency_exec.png)
 
