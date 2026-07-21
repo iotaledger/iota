@@ -178,7 +178,7 @@ fn fill_list_from_boundaries(
             break;
         };
         checkpoint_list.checkpoints.push(seq);
-        info!("Filled epoch: {epoch}, checkpoint: {seq} from archive");
+        info!("Filled epoch: {epoch}, checkpoint: {seq} from checkpoint archive");
     }
 }
 
