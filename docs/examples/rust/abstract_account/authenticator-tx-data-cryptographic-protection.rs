@@ -13,7 +13,7 @@ use docs_examples::utils::{
 };
 use iota_keys::keystore::{AccountKeystore, InMemKeystore};
 use iota_sdk::{
-    IotaClient, IotaClientBuilder, rpc_types::ObjectChange, types::crypto::SignatureScheme::Ed25519,
+    IotaClient, IotaClientBuilder, rpc_types::ObjectChange, types::crypto::SignatureScheme,
 };
 use iota_sdk_types::{
     Address, Argument, Identifier, ObjectId, ObjectReference, Owner, SharedObjectReference,
@@ -56,7 +56,12 @@ async fn main() -> Result<(), anyhow::Error> {
     let mut keystore = InMemKeystore::new_insecure_for_tests(0);
 
     // Derive the address of the first account and set it as default
-    let publisher = keystore.import_from_mnemonic(MAIN_ADDRESS_MNEMONIC, Ed25519, None, None)?;
+    let publisher = keystore.import_from_mnemonic(
+        MAIN_ADDRESS_MNEMONIC,
+        SignatureScheme::Ed25519,
+        None,
+        None,
+    )?;
 
     println!("Publisher address: {publisher}");
 
