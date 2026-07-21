@@ -1883,7 +1883,7 @@ pub trait SenderSignedTransactionAPI {
     /// Returns all [`MoveAuthenticator`] signatures.
     fn move_authenticators(&self) -> Vec<&MoveAuthenticator>;
 
-    /// Returns the senders's [`MoveAuthenticator`], if the sender uses one.
+    /// Returns the sender's [`MoveAuthenticator`], if the sender uses one.
     fn sender_move_authenticator(&self) -> Option<&MoveAuthenticator>;
 
     /// Returns the sponsor's [`MoveAuthenticator`], if the transaction is

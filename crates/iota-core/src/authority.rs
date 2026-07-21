@@ -1113,8 +1113,8 @@ impl AuthorityState {
             // `SenderSignedData::validity_check`.
 
             // Serialize the TransactionData for the auth context before decomposing.
-            let tx_data_bytes: Vec<u8> =
-                bcs::to_bytes(&tx).expect("TransactionData serialization cannot fail");
+            let tx_data_bytes =
+                bcs::to_bytes(tx).expect("TransactionData serialization cannot fail");
 
             let (sender_auth_digest, sponsor_auth_digest) =
                 transaction.data().compute_auth_digests()?;

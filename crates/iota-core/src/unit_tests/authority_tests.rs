@@ -245,7 +245,7 @@ async fn test_dry_run_transaction_block() {
     let shared_object_version = fullnode.get_object(&shared_object_id).unwrap().version();
     assert_eq!(shared_object_version, initial_shared_object_version);
 
-    let tx = &transaction.data().transaction();
+    let tx = transaction.data().transaction();
     let txn_data = TransactionData::new_with_gas_coins(
         tx.kind().clone(),
         tx.sender(),

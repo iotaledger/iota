@@ -74,7 +74,7 @@ pub fn execute_genesis_transaction(
 
     let expensive_checks = false;
     let certificate_deny_set = HashSet::new();
-    let transaction_data = &genesis_transaction.data().transaction();
+    let transaction_data = genesis_transaction.data().transaction();
     let (kind, signer, mut gas_data) = transaction_data.execution_parts();
     gas_data.objects = vec![];
     let input_objects = CheckedInputObjects::new_for_genesis(vec![]);

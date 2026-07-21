@@ -106,7 +106,7 @@ impl EpochState {
         Result<(), iota_types::error::ExecutionError>,
     )> {
         let tx_digest = *transaction.digest();
-        let tx = &transaction.data().transaction();
+        let tx = transaction.data().transaction();
         let input_object_kinds = tx.input_objects()?;
         let receiving_object_refs = tx.receiving_objects();
 
