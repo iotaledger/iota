@@ -966,7 +966,7 @@ fn process_object_index(
     })
 }
 
-fn try_create_dynamic_field_info(
+pub(crate) fn try_create_dynamic_field_info(
     o: &Object,
     written: &BTreeMap<ObjectId, &Object>,
     object_store: &dyn ObjectStore,
@@ -1046,13 +1046,20 @@ fn try_create_dynamic_field_info(
                     object.data.opt_object_type().unwrap().clone(),
                 )
             } else {
-                // If not found, try to find it in the database.
-                let object = object_store
-                    .try_get_object_by_key(&object_id, o.version())?
-                    .ok_or_else(|| UserInputError::ObjectNotFound {
-                        object_id,
-                        version: Some(o.version()),
-                    })?;
+                // If not found, try to find it in the database. The child is
+                // written at the wrapper's version when the field is added,
+                // but that historic version may since have been pruned; the
+                // child of a live field is itself live, so fall back to its
+                // latest version.
+                let object = match object_store.try_get_object_by_key(&object_id, o.version())? {
+                    Some(object) => object,
+                    None => object_store.try_get_object(&object_id)?.ok_or(
+                        UserInputError::ObjectNotFound {
+                            object_id,
+                            version: None,
+                        },
+                    )?,
+                };
                 let version = object.version();
                 let digest = object.digest();
                 let object_type = object.data.opt_object_type().unwrap().clone();
