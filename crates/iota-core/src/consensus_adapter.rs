@@ -91,7 +91,8 @@ impl ConsensusAdapterMetrics {
                 "sequencing_certificate_attempt",
                 "Counts the number of certificates the validator attempts to sequence.",
                 &["tx_type"],
-                registry,
+                registry;
+                MetricLevel::Warn,
             )
             .unwrap(),
             sequencing_certificate_success: register_int_counter_vec_with_registry!(
@@ -112,7 +113,8 @@ impl ConsensusAdapterMetrics {
                 "sequencing_certificate_status",
                 "The status of the certificate sequencing as reported by consensus. The status can be either sequenced or garbage collected.",
                 &["tx_type", "status"],
-                registry,
+                registry;
+                MetricLevel::Warn,
             )
             .unwrap(),
             sequencing_certificate_inflight: register_int_gauge_vec_with_registry!(
@@ -165,7 +167,8 @@ impl ConsensusAdapterMetrics {
                 "sequencing_certificate_processed",
                 "The number of certificates that have been processed either by consensus or checkpoint.",
                 &["source"],
-                registry
+                registry;
+                MetricLevel::Warn,
             )
             .unwrap(),
             sequencing_in_flight_semaphore_wait: register_int_gauge_with_registry!(
