@@ -1808,7 +1808,7 @@ impl AuthorityState {
         shared_object_count: usize,
     ) {
         // count signature by scheme, for multisig
-        if transaction.has_upgraded_multisig() {
+        if transaction.has_multisig() {
             self.metrics.multisig_sig_count.inc();
         }
 

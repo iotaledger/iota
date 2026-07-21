@@ -192,7 +192,7 @@ impl TransactionHandler {
             raw_transaction: Base64::encode(bcs::to_bytes(&tx).unwrap()),
 
             has_zklogin_sig: false,
-            has_upgraded_multisig: transaction.has_upgraded_multisig(),
+            has_upgraded_multisig: transaction.has_multisig(),
             transaction_json: Some(transaction_json),
             effects_json: Some(effects_json),
         };
