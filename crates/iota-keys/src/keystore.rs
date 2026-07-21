@@ -201,7 +201,6 @@ pub struct Alias {
     pub alias: String,
 }
 
-#[expect(clippy::large_enum_variant)]
 #[serde_as]
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(
