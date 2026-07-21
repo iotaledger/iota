@@ -1057,6 +1057,7 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
         // allowed returned transactions
         if serialized_transactions_vec.len() > requested_transactions_guard.transactions_refs.len()
         {
+            misbehavior_store.record_faulty_transactions(peer_index, false, [peer_index]);
             return Err(ConsensusError::TooManyFetchedTransactionsReturned(
                 peer_index,
             ));
@@ -1077,6 +1078,13 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
                 for serialized_transaction_bytes in &serialized_transactions_vec {
                     let serialized_transactions: SerializedTransactionsV2 =
                         bcs::from_bytes(serialized_transaction_bytes)
+                            .inspect_err(|_| {
+                                misbehavior_store.record_faulty_transactions(
+                                    peer_index,
+                                    false,
+                                    [peer_index],
+                                )
+                            })
                             .map_err(ConsensusError::MalformedTransactions)?;
                     let committed_transaction_ref = GenericTransactionRef::TransactionRef(
                         serialized_transactions.transaction_ref,
@@ -1090,6 +1098,11 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
                         .transactions_refs
                         .contains(&committed_transaction_ref)
                     {
+                        misbehavior_store.record_faulty_transactions(
+                            peer_index,
+                            false,
+                            [peer_index],
+                        );
                         return Err(ConsensusError::UnrequestedTransactionFetched {
                             peer: peer_index,
                             transaction_ref: serialized_transactions.transaction_ref,
@@ -1115,15 +1128,11 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
         {
             Ok(transactions) => transactions,
             Err(err) => {
-                // Update metrics for invalid transactions.
-                metrics
-                    .invalid_transactions
-                    .with_label_values(&[
-                        peer_hostname.as_str(),
-                        "transaction_synchronizer",
-                        err.name(),
-                    ])
-                    .inc();
+                // A commitment/deserialization failure is unprovable against the
+                // author (the bytes don't match a committed payload), so charge
+                // only the serving peer. This is not an `invalid_transactions`
+                // event, which counts payloads a block author produced.
+                misbehavior_store.record_faulty_transactions(peer_index, false, [peer_index]);
                 return Err(err);
             }
         }
@@ -1441,9 +1450,81 @@ mod tests {
             author_counts.faulty_blocks_provable, 1,
             "The author should be charged for the provably invalid payload"
         );
+        assert_eq!(
+            author_counts.faulty_blocks_unprovable, 0,
+            "The peer must not be charged separately when it is also the author"
+        );
 
         // Clean up
         transaction_synchronizer.stop().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn live_syncing_charges_serving_peer_for_too_many_transactions() {
+        telemetry_subscribers::init_for_testing();
+        // GIVEN a synchronizer requesting a single transaction from peer 1.
+        let (context, _) = Context::new_for_test(4);
+        let context = Arc::new(context);
+        let core_dispatcher = Arc::new(MockCoreThreadDispatcher::new());
+        let network_client = Arc::new(MockNetworkClient::new());
+        let store = Arc::new(MemStore::new());
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
+
+        let handle = TransactionsSynchronizer::start(
+            network_client.clone(),
+            context.clone(),
+            core_dispatcher.clone(),
+            dag_state.clone(),
+            Arc::new(NoopBlockVerifier),
+        );
+        // The payload is never deserialized: the wrong-length guard fires
+        // first, so the header only needs to mint a requested ref.
+        let header = VerifiedBlockHeader::new_for_test(TestBlockHeader::new(1, 2).build());
+        let peer = AuthorityIndex::new_for_test(1);
+
+        // The peer returns two payloads for the single requested ref.
+        network_client
+            .stub_oversized_transactions(
+                vec![Bytes::from(vec![0u8; 4]), Bytes::from(vec![0u8; 4])],
+                peer,
+            )
+            .await;
+
+        let mut missing_transactions = BTreeMap::new();
+        let mut authorities = BTreeSet::new();
+        authorities.insert(peer);
+        missing_transactions.insert(
+            GenericTransactionRef::from(header.transaction_ref()),
+            authorities,
+        );
+        core_dispatcher
+            .stub_missing_transactions(missing_transactions.clone())
+            .await;
+        dag_state
+            .write()
+            .accept_block_headers(vec![header], DataSource::Test);
+
+        // WHEN the peer returns more transactions than requested.
+        let result = handle.fetch_transactions(missing_transactions).await;
+        assert!(result.is_ok());
+        sleep(Duration::from_millis(100)).await;
+
+        // THEN nothing reaches the core and the serving peer is charged an
+        // unprovable fault.
+        assert!(
+            core_dispatcher
+                .get_and_drain_transactions()
+                .await
+                .is_empty()
+        );
+        let counts = dag_state.read().misbehavior_store().snapshot_totals();
+        let MisbehaviorCounts::V1(peer_counts) = &counts[peer.value()];
+        assert!(
+            peer_counts.faulty_blocks_unprovable >= 1,
+            "The serving peer must be charged for returning too many transactions"
+        );
+
+        handle.stop().await.unwrap();
     }
 
     #[tokio::test]
@@ -2050,6 +2131,16 @@ mod tests {
             );
         }
 
+        // AND the corrupted peer is charged an unprovable fault for serving
+        // undeserializable bytes. Peers are tried in a stable order in tests, so
+        // peer 1 is always reached before the fetch succeeds from peer 2.
+        let counts = dag_state.read().misbehavior_store().snapshot_totals();
+        let MisbehaviorCounts::V1(peer_counts) = &counts[AuthorityIndex::new_for_test(1).value()];
+        assert!(
+            peer_counts.faulty_blocks_unprovable >= 1,
+            "The corrupted peer must be charged for serving undeserializable bytes"
+        );
+
         // Clean up
         handle.stop().await.unwrap();
     }
@@ -2148,6 +2239,21 @@ mod tests {
             fetched_transactions.is_empty(),
             "A self-consistent but unrequested transaction must not be added to the core"
         );
+
+        // AND the serving peer is charged an unprovable fault for relaying the
+        // unrequested payload, while the author it named is not blamed.
+        let counts = dag_state.read().misbehavior_store().snapshot_totals();
+        let MisbehaviorCounts::V1(peer_counts) = &counts[AuthorityIndex::new_for_test(1).value()];
+        assert!(
+            peer_counts.faulty_blocks_unprovable >= 1,
+            "The serving peer must be charged for the unrequested payload"
+        );
+        let MisbehaviorCounts::V1(framed_author) = &counts[AuthorityIndex::new_for_test(3).value()];
+        assert_eq!(
+            framed_author.faulty_blocks_provable, 0,
+            "The author named by the peer must not be blamed"
+        );
+        assert_eq!(framed_author.faulty_blocks_unprovable, 0);
 
         handle.stop().await.unwrap();
     }
@@ -2633,6 +2739,9 @@ mod tests {
         empty_peers: Arc<Mutex<BTreeSet<AuthorityIndex>>>,
         corrupted_peers: Arc<Mutex<BTreeSet<AuthorityIndex>>>,
         unrequested_transactions: Arc<Mutex<HashMap<AuthorityIndex, Vec<Bytes>>>>,
+        // Peers that return a fixed list of payloads regardless of the request,
+        // used to return more transactions than were requested.
+        oversized_transactions: Arc<Mutex<HashMap<AuthorityIndex, Vec<Bytes>>>>,
     }
 
     impl MockNetworkClient {
@@ -2644,6 +2753,7 @@ mod tests {
                 empty_peers: Arc::new(Mutex::new(BTreeSet::new())),
                 corrupted_peers: Arc::new(Mutex::new(BTreeSet::new())),
                 unrequested_transactions: Arc::new(Mutex::new(HashMap::new())),
+                oversized_transactions: Arc::new(Mutex::new(HashMap::new())),
             }
         }
 
@@ -2706,6 +2816,13 @@ mod tests {
                 let serialized = bcs::to_bytes(&serialized_transactions).unwrap();
                 entry.push(serialized.into());
             }
+        }
+
+        // Set a peer to return a fixed list of payloads regardless of the
+        // request, used to exceed the requested transaction count.
+        async fn stub_oversized_transactions(&self, payloads: Vec<Bytes>, peer: AuthorityIndex) {
+            let mut oversized = self.oversized_transactions.lock().await;
+            oversized.insert(peer, payloads);
         }
     }
 
@@ -2921,6 +3038,12 @@ mod tests {
                     result.push(Bytes::from(vec![0, 1, 2, 3])); // Invalid serialized data
                 }
                 return Ok(result);
+            }
+
+            // Check if this peer is set to return more payloads than requested
+            let oversized = self.oversized_transactions.lock().await;
+            if let Some(payloads) = oversized.get(&peer) {
+                return Ok(payloads.clone());
             }
 
             // Normal case - return transactions from the map
