@@ -237,6 +237,26 @@ fn record_reconstruction_verification_failure(
     );
 }
 
+/// Charges the peers that relayed shards for a reconstructed payload whose
+/// commitment doesn't match the one its ref commits to. The mismatch comes from
+/// the peer-supplied shards, not the author, so no author fault is recorded
+/// even when a verified header for the ref exists.
+fn record_reconstruction_commitment_mismatch(
+    context: &Context,
+    misbehavior_store: &MisbehaviorStore,
+    shard_accumulator: &ShardAccumulator,
+) {
+    let relayers: Vec<_> = shard_accumulator
+        .collected_shard_indices()
+        .filter_map(|i| context.committee.to_authority_index(i))
+        .collect();
+    misbehavior_store.record_faulty_transactions(
+        shard_accumulator.transaction_ref.author,
+        false,
+        relayers,
+    );
+}
+
 /// Data structure containing both encoder and decoder
 pub struct Codec {
     pub encoder: Box<dyn ShardEncoder + Send + Sync>,
@@ -422,6 +442,17 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
                                 "Failed to reconstruct transactions for {:?}: {:?}",
                                 shard_accumulator.transaction_ref, err
                             );
+                            // A commitment mismatch means the reconstructed bytes
+                            // aren't the ones the author committed to; the shards,
+                            // and thus the mismatch, come from peers, so charge
+                            // only the peers that relayed shards, never the author.
+                            if matches!(err, ConsensusError::TransactionCommitmentMismatch { .. }) {
+                                record_reconstruction_commitment_mismatch(
+                                    &context,
+                                    &misbehavior_store,
+                                    &shard_accumulator,
+                                );
+                            }
                         }
                         Ok(verified_transactions) => match block_verifier
                             .check_and_verify_transactions(&verified_transactions.transactions())
@@ -1430,6 +1461,96 @@ mod tests {
             assert_eq!(
                 peer_counts.faulty_blocks_unprovable, 1,
                 "Each relaying peer other than the author must still be charged unprovably"
+            );
+        }
+    }
+
+    /// A reconstructed payload whose commitment doesn't match the ref's is not
+    /// provably the author's — the shards, and thus the mismatch, come from
+    /// peers — so only the relaying peers are charged, even when a verified
+    /// header for the ref exists.
+    #[tokio::test]
+    async fn test_reconstruction_charges_relayers_on_commitment_mismatch() {
+        telemetry_subscribers::init_for_testing();
+
+        let (context, _) = Context::new_for_test(10);
+        let context = Arc::new(context);
+        let h = TestHarness::new_with_block_verifier(context.clone(), Arc::new(NoopBlockVerifier));
+        let transaction_message_sender = h.tx.clone();
+
+        // Shards encode `txs`, but the ref commits to a different payload's
+        // commitment, so the reconstructed bytes won't match it.
+        let txs = vec![Transaction::new(vec![7u8; 8])];
+        let serialized = Transaction::serialize(&txs).unwrap();
+        let mut encoder = create_encoder(&context);
+        let other = Transaction::serialize(&[Transaction::new(vec![9u8; 8])]).unwrap();
+        let wrong_commitment =
+            TransactionsCommitment::compute_transactions_commitment(&other, &context, &mut encoder)
+                .unwrap();
+
+        // Accept a verified header committing to that (wrong) commitment, to
+        // prove the author is still not charged for a peer-produced mismatch.
+        let header = VerifiedBlockHeader::new_for_test(
+            TestBlockHeader::new(5, 1)
+                .set_commitment(wrong_commitment)
+                .build(),
+        );
+        let block_ref = header.reference();
+        let author = block_ref.author;
+        h.dag_state
+            .write()
+            .accept_block_header(header, DataSource::BlockBundleStream);
+
+        let info_length = context.committee.info_length();
+        let parity_length = context.committee.parity_length();
+        let all_shards = encoder
+            .encode_serialized_data(&serialized, info_length, parity_length)
+            .unwrap();
+
+        let batch: Vec<_> = (0..info_length)
+            .map(|i| {
+                TransactionMessage::Shard(ShardMessage {
+                    transaction_ref: TransactionRef::new(block_ref, wrong_commitment),
+                    block_digest: Some(block_ref.digest),
+                    shard: all_shards[i].clone(),
+                    shard_index: i,
+                })
+            })
+            .collect();
+
+        // WHEN enough shards arrive to reconstruct the payload.
+        transaction_message_sender.send(batch).await.unwrap();
+        tokio::time::sleep(Duration::from_millis(600)).await;
+
+        // THEN the payload is dropped instead of being handed to Core.
+        assert!(
+            h.core_dispatcher
+                .get_and_drain_transactions()
+                .await
+                .is_empty(),
+            "A reconstructed payload failing commitment verification must never reach Core"
+        );
+
+        let counts = h.dag_state.read().misbehavior_store().snapshot_totals();
+        h.handle
+            .stop()
+            .await
+            .expect("We should expect graceful shutdown");
+
+        // The author is not charged provably, even though a verified header ties
+        // it to the (wrong) commitment.
+        let MisbehaviorCounts::V1(author_counts) = &counts[author.value()];
+        assert_eq!(
+            author_counts.faulty_blocks_provable, 0,
+            "The author must not be charged for a peer-produced commitment mismatch"
+        );
+        // Every peer that relayed a shard — including the author, as a relayer —
+        // is charged an unprovable fault.
+        for counts in counts.iter().take(info_length) {
+            let MisbehaviorCounts::V1(peer_counts) = counts;
+            assert_eq!(
+                peer_counts.faulty_blocks_unprovable, 1,
+                "Each peer that relayed a shard must be charged unprovably"
             );
         }
     }
