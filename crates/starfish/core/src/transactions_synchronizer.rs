@@ -17,11 +17,7 @@ use iota_metrics::{
 };
 use itertools::Itertools as _;
 use parking_lot::{Mutex, RwLock};
-use rand::{
-    SeedableRng,
-    rngs::{OsRng, StdRng},
-    seq::SliceRandom,
-};
+use rand::{SeedableRng, rngs::StdRng, seq::SliceRandom, thread_rng};
 use starfish_config::AuthorityIndex;
 use tokio::{
     runtime::Handle,
@@ -86,8 +82,18 @@ impl SyncMethod {
     }
 }
 
+/// Outcome of a successful fetch from one authority.
+struct FetchStats {
+    latency: Duration,
+    requested: usize,
+    matched_requested: usize,
+}
+
 /// Records when the transaction synchronizer failed for the last time when
-/// fetching from peers.
+/// fetching from peers. Only consulted when responsiveness ranking is
+/// disabled, to keep the previous peer selection intact as a fallback.
+// TODO: remove once the responsiveness ranking has proven itself in
+// production.
 struct LastFailureByPeer {
     inner: Mutex<Vec<Option<Instant>>>,
     context: Context,
@@ -633,7 +639,7 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
         let commands_sender = self.commands_sender.clone();
         let inflight_transactions_map = self.inflight_transactions_map.clone();
         let active_requests = self.active_requests.clone();
-        let last_failure_by_round = self.last_failure_by_peer.clone();
+        let last_failure_by_peer = self.last_failure_by_peer.clone();
 
         self.fetch_transactions_scheduler_task
             .spawn(monitored_future!(async move {
@@ -652,7 +658,7 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
                     network_client,
                     missing_transactions,
                     core_dispatcher,
-                    last_failure_by_round,
+                    last_failure_by_peer,
                     SyncMethod::Periodic,
                 )
                 .await;
@@ -711,21 +717,36 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
         // synchronizer for too long, as certain peers may take a while to respond.
         // The number of requests to each peer is limited by the parameters.
 
-        // Initialize randomness for shuffling authorities
-        let mut rng = StdRng::from_rng(OsRng).expect("OsRng should be available");
+        // Randomness for ordering the authorities below.
+        let mut rng = StdRng::from_rng(thread_rng()).expect("thread_rng should be available");
 
-        // Create an iterator over authorities with their corresponding block refs
-        // This will allow us to iterate over authorities in a stable (for test) or
-        // random order (for production).
+        // Create an iterator over authorities with their corresponding block refs.
+        // When ranking is enabled, responsive acknowledgers are tried earlier
+        // and a peer whose last fetch failed is ordered behind the healthy
+        // candidates rather than removed from the set. When ranking is
+        // disabled: a stable order under test, otherwise the previous
+        // selection — a uniform shuffle that excludes the most recently failed
+        // peers (up to less than f+1 by stake).
         let iter_authorities: Box<
             dyn Iterator<Item = (AuthorityIndex, BTreeSet<GenericTransactionRef>)>,
-        > = if cfg!(test) {
-            // Stable order for tests
+        > = if context.parameters.enable_peer_responsiveness_ranking {
+            let mut order: Vec<AuthorityIndex> = blocks_by_authority.keys().copied().collect();
+            context.peer_responsiveness.prioritize(
+                DataSource::TransactionSynchronizer,
+                &mut order,
+                &mut rng,
+            );
+            Box::new(order.into_iter().map(move |authority| {
+                let block_refs = blocks_by_authority
+                    .remove(&authority)
+                    .expect("prioritized order is a permutation of the candidate set");
+                (authority, block_refs)
+            }))
+        } else if cfg!(test) {
+            // Stable order for tests.
             Box::new(blocks_by_authority.into_iter())
         } else {
-            // Get less than f+1 excluded authorities by stake
             let excluded_authorities = last_failure_by_peer.get_excluded_authorities_by_stake();
-            // Exclude authorities with latest recorded failures
             let mut vec: Vec<_> = blocks_by_authority
                 .into_iter()
                 .filter(|(authority, _)| !excluded_authorities.contains(authority))
@@ -784,14 +805,45 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
             return;
         }
 
-        // Await all authority requests to complete
+        // Await all authority requests to complete, feeding the per-peer
+        // responsiveness signal. The recorded latency spans fetch and
+        // verification. A successful fetch records that latency scaled up by
+        // the fraction of requested transactions it returned, so unrelated or
+        // partial responses cannot improve a peer's rank. An empty response is
+        // a goodput failure; an error or timeout is recorded the same way, so a
+        // failing peer is demoted to a timeout-scale latency and ordered behind
+        // healthy peers in subsequent selections without ever being dropped
+        // from the set.
         while let Some((peer, result)) = request_futures.next().await {
-            if let Err(err) = result {
-                last_failure_by_peer.update_with_new_instant(peer, Instant::now());
-                warn!(
-                    "[{}] Error when fetching and processing transactions from authority {peer}: {err}",
-                    sync_method.get_string(),
-                );
+            match result {
+                Ok(stats) if stats.matched_requested > 0 => {
+                    let shortfall_factor =
+                        (stats.requested as f64 / stats.matched_requested as f64).max(1.0);
+                    context.peer_responsiveness.record_success(
+                        DataSource::TransactionSynchronizer,
+                        peer,
+                        stats.latency.mul_f64(shortfall_factor),
+                    );
+                }
+                Ok(_) => {
+                    context.peer_responsiveness.record_failure_with_timeout(
+                        DataSource::TransactionSynchronizer,
+                        peer,
+                        FETCH_REQUEST_TIMEOUT,
+                    );
+                }
+                Err(err) => {
+                    context.peer_responsiveness.record_failure_with_timeout(
+                        DataSource::TransactionSynchronizer,
+                        peer,
+                        FETCH_REQUEST_TIMEOUT,
+                    );
+                    last_failure_by_peer.update_with_new_instant(peer, Instant::now());
+                    warn!(
+                        "[{}] Error when fetching and processing transactions from authority {peer}: {err}",
+                        sync_method.get_string(),
+                    );
+                }
             }
         }
     }
@@ -805,7 +857,7 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
         core_dispatcher: Arc<D>,
         sync_method: SyncMethod,
         _active_guard: ActiveRequestGuard,
-    ) -> ConsensusResult<()> {
+    ) -> ConsensusResult<FetchStats> {
         let peer_hostname = &context.committee.authority(peer).hostname;
         let total_requested = transactions_guard.transactions_refs.len();
 
@@ -814,6 +866,9 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
             sync_method.get_string(),
         );
 
+        // Span the whole fetch-and-verify so the responsiveness latency includes
+        // verification time, consistent with the commit syncer.
+        let started = Instant::now();
         let (fetched_serialized_transactions, transactions_guard, peer) =
             Self::fetch_transactions_request(
                 network_client.clone(),
@@ -831,7 +886,7 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
             "Transactions from {total_requested} blocks requested, fetched from {total_fetched} blocks"
         );
 
-        Self::process_fetched_transactions(
+        let matched_requested = Self::process_fetched_transactions(
             fetched_serialized_transactions,
             peer,
             transactions_guard,
@@ -841,7 +896,11 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
         )
         .await?;
 
-        Ok(())
+        Ok(FetchStats {
+            latency: started.elapsed(),
+            requested: total_requested,
+            matched_requested,
+        })
     }
 
     /// Fetches transactions from a peer authority for the given block
@@ -943,7 +1002,8 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
 
     /// Processes the requested raw fetched transactions from peer `peer_index`.
     /// If no error is returned then the verified transactions are
-    /// immediately sent to Core for processing.
+    /// immediately sent to Core for processing. Returns an error if the
+    /// response contains a transaction that was not requested.
     async fn process_fetched_transactions(
         serialized_transactions_vec: Vec<Bytes>,
         peer_index: AuthorityIndex,
@@ -951,7 +1011,7 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
         core_dispatcher: Arc<D>,
         context: Arc<Context>,
         sync_method: SyncMethod,
-    ) -> ConsensusResult<()> {
+    ) -> ConsensusResult<usize> {
         let _s = context
             .metrics
             .node_metrics
@@ -966,6 +1026,7 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
                 peer_index,
             ));
         }
+        let requested_transaction_refs = requested_transactions_guard.transactions_refs.clone();
 
         let metrics = &context.metrics.node_metrics;
         let peer_hostname = &context.committee.authority(peer_index).hostname;
@@ -987,6 +1048,12 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
                     let committed_transaction_ref = GenericTransactionRef::TransactionRef(
                         serialized_transactions.transaction_ref,
                     );
+                    if !requested_transaction_refs.contains(&committed_transaction_ref) {
+                        return Err(ConsensusError::UnrequestedTransactionFetched {
+                            peer: peer_index,
+                            transaction_ref: serialized_transactions.transaction_ref,
+                        });
+                    }
                     serialized_transactions_map.insert(
                         committed_transaction_ref,
                         serialized_transactions.serialized_transactions,
@@ -1046,6 +1113,8 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
                 .join(", "),
         );
 
+        let matched_requested = transactions.len();
+
         // Add the transactions to the core
         core_dispatcher
             .add_transactions(transactions, DataSource::TransactionSynchronizer)
@@ -1056,7 +1125,7 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
         // processed
         drop(requested_transactions_guard);
 
-        Ok(())
+        Ok(matched_requested)
     }
 }
 
@@ -1808,6 +1877,119 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn live_syncing_with_unrequested_transactions_peer() {
+        telemetry_subscribers::init_for_testing();
+        // GIVEN
+        let (context, _) = Context::new_for_test(4);
+        let context = Arc::new(context);
+        let core_dispatcher = Arc::new(MockCoreThreadDispatcher::new());
+        let network_client = Arc::new(MockNetworkClient::new());
+        let store = Arc::new(MemStore::new());
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
+
+        // Start the transactions synchronizer
+        let handle = TransactionsSynchronizer::start(
+            network_client.clone(),
+            context.clone(),
+            core_dispatcher.clone(),
+            dag_state.clone(),
+        );
+        let mut encoder = create_encoder(&context);
+
+        // Create test transactions; the last one is never requested.
+        let block_round_author: Vec<(Round, u8)> = vec![(1, 0), (2, 1), (3, 2), (4, 3)];
+
+        let mut block_headers = Vec::with_capacity(block_round_author.len());
+
+        let mut rng = thread_rng();
+
+        // Create verified transactions
+        let mut transactions = block_round_author
+            .into_iter()
+            .map(|(round, author)| {
+                // Create a dummy transaction
+                let transactions = vec![Transaction::new((0..32).map(|_| rng.gen()).collect())];
+                let serialized = Bytes::from(bcs::to_bytes(&transactions).unwrap());
+                let commitment = TransactionsCommitment::compute_transactions_commitment(
+                    &serialized,
+                    &context,
+                    &mut encoder,
+                )
+                .unwrap();
+
+                // Create a test block header with the correct commitment
+                let header = VerifiedBlockHeader::new_for_test(
+                    TestBlockHeader::new(round, author)
+                        .set_commitment(commitment)
+                        .build(),
+                );
+
+                block_headers.push(header.clone());
+
+                VerifiedTransactions::new(
+                    transactions,
+                    header.transaction_ref(),
+                    Some(header.digest()),
+                    serialized,
+                )
+            })
+            .collect::<Vec<_>>();
+
+        let unrequested_transaction = transactions.pop().unwrap();
+        block_headers.truncate(transactions.len());
+
+        // Peer 1 is the only acknowledger of the requested transactions.
+        let mut missing_transactions = BTreeMap::new();
+        for header in &block_headers {
+            let mut authorities = BTreeSet::new();
+            authorities.insert(AuthorityIndex::new_for_test(1));
+            let gen_ref = GenericTransactionRef::from(header.transaction_ref());
+            missing_transactions.insert(gen_ref, authorities);
+        }
+
+        // Peer 1 returns one of the requested transactions together with a
+        // transaction that was not requested.
+        network_client
+            .stub_fetch_transactions(
+                vec![transactions[0].clone()],
+                AuthorityIndex::new_for_test(1),
+            )
+            .await;
+        network_client
+            .stub_unrequested_transactions(
+                vec![unrequested_transaction],
+                AuthorityIndex::new_for_test(1),
+            )
+            .await;
+
+        // Add block headers to the dag state
+        dag_state
+            .write()
+            .accept_block_headers(block_headers, DataSource::Test);
+
+        // WHEN
+        // Request the transactions
+        let result = handle.fetch_transactions(missing_transactions).await;
+
+        // THEN
+        assert!(result.is_ok());
+
+        // Wait a bit for processing to complete
+        sleep(Duration::from_millis(500)).await;
+
+        // The whole response must be rejected, including the requested
+        // transaction it contained.
+        let fetched_transactions = core_dispatcher.get_and_drain_transactions().await;
+        assert!(
+            fetched_transactions.is_empty(),
+            "Expected the response containing an unrequested transaction to be rejected"
+        );
+
+        // Clean up
+        handle.stop().await.unwrap();
+    }
+
+    #[tokio::test]
     async fn live_syncing_with_all_peers_failing() {
         telemetry_subscribers::init_for_testing();
         // GIVEN
@@ -1904,6 +2086,108 @@ mod tests {
         assert_eq!(fetched_transactions.len(), 0);
 
         // Clean up
+        handle.stop().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn responsiveness_feedback_records_success_and_failure() {
+        telemetry_subscribers::init_for_testing();
+        // GIVEN a synchronizer with responsiveness ranking enabled.
+        let (mut context, _) = Context::new_for_test(4);
+        context.parameters.enable_peer_responsiveness_ranking = true;
+        let context = Arc::new(context);
+        let core_dispatcher = Arc::new(MockCoreThreadDispatcher::new());
+        let network_client = Arc::new(MockNetworkClient::new());
+        let store = Arc::new(MemStore::new());
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
+
+        let handle = TransactionsSynchronizer::start(
+            network_client.clone(),
+            context.clone(),
+            core_dispatcher.clone(),
+            dag_state.clone(),
+        );
+        let mut encoder = create_encoder(&context);
+
+        // Transactions acknowledged by peer 1 (errors) and peer 2 (succeeds).
+        let block_round_author: Vec<(Round, u8)> = vec![(1, 0), (2, 1), (3, 2)];
+        let mut block_headers = Vec::with_capacity(block_round_author.len());
+        let mut rng = thread_rng();
+        let transactions = block_round_author
+            .into_iter()
+            .map(|(round, author)| {
+                let transactions = vec![Transaction::new((0..32).map(|_| rng.gen()).collect())];
+                let serialized = Bytes::from(bcs::to_bytes(&transactions).unwrap());
+                let commitment = TransactionsCommitment::compute_transactions_commitment(
+                    &serialized,
+                    &context,
+                    &mut encoder,
+                )
+                .unwrap();
+                let header = VerifiedBlockHeader::new_for_test(
+                    TestBlockHeader::new(round, author)
+                        .set_commitment(commitment)
+                        .build(),
+                );
+                block_headers.push(header.clone());
+                VerifiedTransactions::new(
+                    transactions,
+                    header.transaction_ref(),
+                    Some(header.digest()),
+                    serialized,
+                )
+            })
+            .collect::<Vec<_>>();
+
+        let mut missing_transactions = BTreeMap::new();
+        for header in &block_headers {
+            let mut authorities = BTreeSet::new();
+            authorities.insert(AuthorityIndex::new_for_test(1)); // errors
+            authorities.insert(AuthorityIndex::new_for_test(2)); // succeeds
+            let gen_ref = GenericTransactionRef::from(header.transaction_ref());
+            missing_transactions.insert(gen_ref, authorities);
+        }
+
+        network_client
+            .set_error_peer(
+                AuthorityIndex::new_for_test(1),
+                ConsensusError::NetworkRequest("boom".to_string()),
+            )
+            .await;
+        for transaction in &transactions {
+            network_client
+                .stub_fetch_transactions(vec![transaction.clone()], AuthorityIndex::new_for_test(2))
+                .await;
+        }
+        dag_state
+            .write()
+            .accept_block_headers(block_headers, DataSource::Test);
+
+        // WHEN
+        handle
+            .fetch_transactions(missing_transactions)
+            .await
+            .unwrap();
+        sleep(Duration::from_millis(500)).await;
+
+        // THEN both peers were fed back, and the error peer ranks slower than the
+        // peer that successfully delivered the transactions.
+        let pr = &context.peer_responsiveness;
+        let failure = pr.effective_latency_ms(
+            DataSource::TransactionSynchronizer,
+            AuthorityIndex::new_for_test(1),
+        );
+        let success = pr.effective_latency_ms(
+            DataSource::TransactionSynchronizer,
+            AuthorityIndex::new_for_test(2),
+        );
+        assert!(failure.is_some(), "error peer must have a recorded score");
+        assert!(success.is_some(), "success peer must have a recorded score");
+        assert!(
+            failure.unwrap() > success.unwrap(),
+            "error peer ({failure:?}) must rank slower than success peer ({success:?})",
+        );
+
         handle.stop().await.unwrap();
     }
 
@@ -2069,6 +2353,7 @@ mod tests {
         timeout_peers: Arc<Mutex<BTreeSet<AuthorityIndex>>>,
         empty_peers: Arc<Mutex<BTreeSet<AuthorityIndex>>>,
         corrupted_peers: Arc<Mutex<BTreeSet<AuthorityIndex>>>,
+        unrequested_transactions: Arc<Mutex<HashMap<AuthorityIndex, Vec<Bytes>>>>,
     }
 
     impl MockNetworkClient {
@@ -2079,6 +2364,7 @@ mod tests {
                 timeout_peers: Arc::new(Mutex::new(BTreeSet::new())),
                 empty_peers: Arc::new(Mutex::new(BTreeSet::new())),
                 corrupted_peers: Arc::new(Mutex::new(BTreeSet::new())),
+                unrequested_transactions: Arc::new(Mutex::new(HashMap::new())),
             }
         }
 
@@ -2122,6 +2408,25 @@ mod tests {
         async fn set_corrupted_peer(&self, peer: AuthorityIndex) {
             let mut corrupted_peers = self.corrupted_peers.lock().await;
             corrupted_peers.insert(peer);
+        }
+
+        // Set a peer to also return the given transactions even though they
+        // are not requested
+        async fn stub_unrequested_transactions(
+            &self,
+            transactions: Vec<VerifiedTransactions>,
+            peer: AuthorityIndex,
+        ) {
+            let mut unrequested = self.unrequested_transactions.lock().await;
+            let entry = unrequested.entry(peer).or_default();
+            for transaction in transactions {
+                let serialized_transactions = SerializedTransactionsV2 {
+                    transaction_ref: transaction.transaction_ref(),
+                    serialized_transactions: transaction.serialized().clone(),
+                };
+                let serialized = bcs::to_bytes(&serialized_transactions).unwrap();
+                entry.push(serialized.into());
+            }
         }
     }
 
@@ -2346,6 +2651,12 @@ mod tests {
                 if let Some(serialized) = transactions_map.get(&(peer, block_ref)) {
                     result.push(serialized.clone());
                 }
+            }
+
+            // Append stubbed transactions that were not requested
+            let unrequested = self.unrequested_transactions.lock().await;
+            if let Some(extra) = unrequested.get(&peer) {
+                result.extend(extra.iter().cloned());
             }
             Ok(result)
         }

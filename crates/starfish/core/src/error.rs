@@ -82,6 +82,12 @@ pub(crate) enum ConsensusError {
     )]
     TooManyFetchedTransactionsReturned(AuthorityIndex),
 
+    #[error("Transaction {transaction_ref} returned from authority {peer} was not requested")]
+    UnrequestedTransactionFetched {
+        peer: AuthorityIndex,
+        transaction_ref: TransactionRef,
+    },
+
     #[error("Too many authorities have been provided from authority {0}")]
     TooManyAuthoritiesProvided(AuthorityIndex),
 
