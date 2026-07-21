@@ -20,7 +20,7 @@ fn mnemonic_test() {
     let imported_address = keystore2
         .import_from_mnemonic(&phrase, SignatureScheme::Ed25519, None, None)
         .unwrap();
-    assert_eq!(scheme.to_u8(), SignatureScheme::Ed25519.to_u8());
+    assert_eq!(scheme, SignatureScheme::Ed25519);
     assert_eq!(address, imported_address);
 }
 

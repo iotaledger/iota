@@ -20,7 +20,7 @@ use iota_sdk::{
         IotaTransactionBlockResponseOptions,
     },
     types::{
-        crypto::SignatureScheme::Ed25519,
+        crypto::SignatureScheme,
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         quorum_driver_types::ExecuteTransactionRequestType,
         transaction::{Transaction, TransactionData, TransactionDataAPI},
@@ -279,12 +279,12 @@ pub fn retrieve_wallet() -> Result<WalletContext, anyhow::Error> {
         *address
     } else {
         keystore
-            .generate_and_add_new_key(Ed25519, None, None, None)?
+            .generate_and_add_new_key(SignatureScheme::Ed25519, None, None, None)?
             .0
     };
 
     if keystore.addresses().len() < 2 {
-        keystore.generate_and_add_new_key(Ed25519, None, None, None)?;
+        keystore.generate_and_add_new_key(SignatureScheme::Ed25519, None, None, None)?;
     }
 
     client_config.set_active_address(default_active_address);
