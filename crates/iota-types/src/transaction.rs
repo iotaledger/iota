@@ -22,7 +22,7 @@ use iota_sdk_types::{
     EndOfEpochTransactionKind, Event, GasPayment, GenesisObject, GenesisTransaction, Identifier,
     Input, MakeMoveVector, MergeCoins, MoveCall, ObjectDigest, ObjectId, ObjectReference, Owner,
     ProgrammableTransaction, Publish, RandomnessRound, RandomnessStateUpdate,
-    SenderSignedDataDigest, SharedObjectReference, SplitCoins, TransactionDigest,
+    SharedObjectReference, SplitCoins, TransactionDigest,
     TransactionExpiration, TransactionKind, TransferObjects, TypeTag, Upgrade, Version,
     crypto::{Intent, IntentMessage, IntentScope},
 };
@@ -1869,9 +1869,6 @@ pub trait SenderSignedTransactionAPI {
     /// Returns a mutable reference to the signatures. **Testing only.**
     fn tx_signatures_mut_for_testing(&mut self) -> &mut Vec<UserSignature>;
 
-    /// Computes the digest of the full message, including the signatures.
-    fn full_message_digest(&self) -> SenderSignedDataDigest;
-
     /// Returns the BCS serialized size in bytes.
     fn serialized_size(&self) -> IotaResult<usize>;
 
@@ -1979,13 +1976,6 @@ impl SenderSignedTransactionAPI for SenderSignedData {
 
     fn tx_signatures_mut_for_testing(&mut self) -> &mut Vec<UserSignature> {
         &mut self.0.signatures
-    }
-
-    fn full_message_digest(&self) -> SenderSignedDataDigest {
-        let mut digest = DefaultHash::default();
-        bcs::serialize_into(&mut digest, self).expect("serialization should not fail");
-        let hash = digest.finalize();
-        SenderSignedDataDigest::new(hash.into())
     }
 
     fn serialized_size(&self) -> IotaResult<usize> {
