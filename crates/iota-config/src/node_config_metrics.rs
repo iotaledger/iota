@@ -16,6 +16,7 @@ pub struct NodeConfigMetrics {
     tx_deny_config_num_denied_objects: IntGauge,
     tx_deny_config_num_denied_packages: IntGauge,
     tx_deny_config_num_denied_addresses: IntGauge,
+    tx_deny_config_move_authenticator_disabled: IntGauge,
 }
 
 impl NodeConfigMetrics {
@@ -70,6 +71,13 @@ impl NodeConfigMetrics {
                 MetricLevel::Warn
             )
             .unwrap(),
+            tx_deny_config_move_authenticator_disabled: register_int_gauge_with_registry!(
+                "tx_deny_config_move_authenticator_disabled",
+                "Whether all move authenticator transactions are disabled",
+                registry;
+                MetricLevel::Warn
+            )
+            .unwrap(),
         };
         Arc::new(this)
     }
@@ -89,5 +97,7 @@ impl NodeConfigMetrics {
             .set(config.transaction_deny_config.get_package_deny_set().len() as i64);
         self.tx_deny_config_num_denied_addresses
             .set(config.transaction_deny_config.get_address_deny_set().len() as i64);
+        self.tx_deny_config_move_authenticator_disabled
+            .set(config.transaction_deny_config.move_authenticator_disabled() as i64);
     }
 }
