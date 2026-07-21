@@ -261,24 +261,19 @@ impl IotaKeyPair {
     }
 
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, eyre::Report> {
-        match SignatureScheme::from_byte(*bytes.first().ok_or_else(|| eyre!("Invalid length"))?) {
-            Ok(x) => match x {
-                SignatureScheme::Ed25519 => Ok(IotaKeyPair::Ed25519(Ed25519KeyPair::from_bytes(
-                    bytes.get(1..).ok_or_else(|| eyre!("Invalid length"))?,
-                )?)),
-                SignatureScheme::Secp256k1 => {
-                    Ok(IotaKeyPair::Secp256k1(Secp256k1KeyPair::from_bytes(
-                        bytes.get(1..).ok_or_else(|| eyre!("Invalid length"))?,
-                    )?))
-                }
-                SignatureScheme::Secp256r1 => {
-                    Ok(IotaKeyPair::Secp256r1(Secp256r1KeyPair::from_bytes(
-                        bytes.get(1..).ok_or_else(|| eyre!("Invalid length"))?,
-                    )?))
-                }
-                _ => Err(eyre!("Invalid flag byte")),
-            },
-            _ => Err(eyre!("Invalid bytes")),
+        let (flag, key_bytes) = bytes.split_first().ok_or_else(|| eyre!("Invalid length"))?;
+        match SignatureScheme::from_byte(*flag) {
+            Ok(SignatureScheme::Ed25519) => {
+                Ok(IotaKeyPair::Ed25519(Ed25519KeyPair::from_bytes(key_bytes)?))
+            }
+            Ok(SignatureScheme::Secp256k1) => Ok(IotaKeyPair::Secp256k1(
+                Secp256k1KeyPair::from_bytes(key_bytes)?,
+            )),
+            Ok(SignatureScheme::Secp256r1) => Ok(IotaKeyPair::Secp256r1(
+                Secp256r1KeyPair::from_bytes(key_bytes)?,
+            )),
+            Ok(_) => Err(eyre!("Invalid flag byte")),
+            Err(_) => Err(eyre!("Invalid bytes")),
         }
     }
 
