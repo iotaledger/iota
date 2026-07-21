@@ -20,7 +20,7 @@ use iota_sdk::{
         IotaTransactionBlockResponseOptions, ObjectChange,
     },
     types::{
-        crypto::SignatureScheme::ED25519,
+        crypto::SignatureScheme::Ed25519,
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         quorum_driver_types::ExecuteTransactionRequestType,
         transaction::{Transaction, TransactionData},
@@ -64,7 +64,7 @@ pub async fn fund_address(
     recipient: Address,
 ) -> Result<(), anyhow::Error> {
     // Derive the address of the sponsor.
-    let sponsor = keystore.import_from_mnemonic(SPONSOR_ADDRESS_MNEMONIC, ED25519, None, None)?;
+    let sponsor = keystore.import_from_mnemonic(SPONSOR_ADDRESS_MNEMONIC, Ed25519, None, None)?;
 
     println!("Sponsor address: {sponsor:?}");
 
