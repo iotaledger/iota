@@ -144,11 +144,7 @@ async fn main() -> Result<(), anyhow::Error> {
     // if you would like to verify the signature locally before submission, use this
     // function. if it fails to verify locally, the transaction will fail to
     // execute in IOTA.
-    let res = iota_sig.verify_secure(
-        &intent_msg,
-        sender,
-        iota_types::crypto::SignatureScheme::ED25519,
-    );
+    let res = iota_sig.verify_secure(&intent_msg, sender);
     assert!(res.is_ok());
 
     // execute the transaction.

@@ -116,8 +116,8 @@ proptest! {
         bytes in collection::vec(any::<u8>(), 0..1024)
     ){
         let _apkb = AuthorityPublicKeyBytes::from_bytes(&bytes);
-        let _pk = PublicKey::try_from_bytes(SignatureScheme::BLS12381, &bytes);
-        let _pk = PublicKey::try_from_bytes(SignatureScheme::ED25519, &bytes);
+        let _pk = PublicKey::try_from_bytes(SignatureScheme::Bls12381, &bytes);
+        let _pk = PublicKey::try_from_bytes(SignatureScheme::Ed25519, &bytes);
         let _pk = PublicKey::try_from_bytes(SignatureScheme::Secp256k1, &bytes);
         let _sig = Signature::from_bytes(&bytes);
     }

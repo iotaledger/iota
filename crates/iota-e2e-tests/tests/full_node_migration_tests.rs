@@ -29,7 +29,7 @@ use iota_sdk::IotaClient;
 use iota_sdk_types::{Address, Argument, Identifier, ObjectId, StructTag, TypeTag, crypto::Intent};
 use iota_types::{
     balance::Balance,
-    crypto::SignatureScheme::ED25519,
+    crypto::SignatureScheme,
     dynamic_field::DynamicFieldName,
     gas_coin::GAS,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
@@ -188,7 +188,7 @@ async fn address_unlock_condition(
     // Derive the address of the first account and set it as default
     let sender = keystore.import_from_mnemonic(
         MAIN_ADDRESS_MNEMONIC,
-        ED25519,
+        SignatureScheme::Ed25519,
         Some(derivation_path),
         None,
     )?;
@@ -411,7 +411,12 @@ pub async fn fund_address(
     recipient: Address,
 ) -> Result<(), anyhow::Error> {
     // Derive the address of the sponsor.
-    let sponsor = keystore.import_from_mnemonic(SPONSOR_ADDRESS_MNEMONIC, ED25519, None, None)?;
+    let sponsor = keystore.import_from_mnemonic(
+        SPONSOR_ADDRESS_MNEMONIC,
+        SignatureScheme::Ed25519,
+        None,
+        None,
+    )?;
 
     // Get a gas coin.
     let gas_coin = iota_client

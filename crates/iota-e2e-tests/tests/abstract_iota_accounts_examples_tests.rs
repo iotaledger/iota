@@ -1051,7 +1051,7 @@ async fn run_lean_imt_account(env: &mut TestEnvironment) -> PackageResult {
         let keystore = env.test_cluster.wallet.config_mut().keystore_mut();
         let addr = match keystore.import_from_mnemonic(
             LEAN_IMT_MNEMONIC,
-            SignatureScheme::ED25519,
+            SignatureScheme::Ed25519,
             Some(path),
             None,
         ) {
