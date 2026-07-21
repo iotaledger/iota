@@ -4,8 +4,8 @@
 module view_functions::auction;
 
 use iota::clock::Clock;
-use std::string::String;
 use iota::dynamic_field;
+use std::string::String;
 
 #[error(code = 0)]
 const EAuctionEnded: vector<u8> = b"The auction has already ended.";

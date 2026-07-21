@@ -578,7 +578,7 @@ const developer = [
                             'developer/references/move/move-lock',
                             'developer/references/move/abilities',
                             'developer/references/move/generics',
-                            'developer/move/references/view-functions',
+                            'developer/references/move/view-functions',
                             {
                                 type: 'link',
                                 label: 'Move Language (GitHub)',

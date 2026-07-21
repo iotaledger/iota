@@ -12,6 +12,7 @@ A _ Move View Function_ is a standardized interface for enabling ergonomic and a
 The attribute marks the function as **read-only**: it may inspect on-chain state but cannot modify it. IOTA enforces this guarantee at both compile time and verifier time, and records it on-chain, so that off-chain consumers can rely on a function being a view without trusting its author.
 
 ## Why view functions exist
+
 Reading data from a Move package has always been possible by simulating a call, but nothing about a function's declaration told a client whether calling it was safe to treat as a pure read. Moreover, one must write a significant amount of custom client-side logic to inspect on-chain data. This often involves multiple layers of fetching object IDs, deserializing raw bytes, and navigating dynamic fields just to reach an information stored within a Move object. 
 
 The Move View Function closes that gap:
