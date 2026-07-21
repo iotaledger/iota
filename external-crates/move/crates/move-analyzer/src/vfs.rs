@@ -20,7 +20,7 @@ use lsp_types::{
 };
 use vfs::VfsPath;
 
-use crate::symbols;
+use crate::symbols::runner::SymbolicatorRunner;
 
 /// A mapping from identifiers (file names, potentially, but not necessarily) to
 /// their contents.
@@ -57,7 +57,7 @@ impl VirtualFileSystem {
 /// notification that was sent.
 pub fn on_text_document_sync_notification(
     ide_files_root: VfsPath,
-    symbolicator_runner: &symbols::SymbolicatorRunner,
+    symbolicator_runner: &SymbolicatorRunner,
     notification: &Notification,
 ) {
     fn vfs_file_create(
