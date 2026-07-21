@@ -9,6 +9,8 @@ teams:
   - iotaledger/infrastructure
 ---
 
+import IndexerRestorePicker from '@site/src/components/IndexerRestorePicker';
+
 The `iota-indexer` binary in writer mode ingests checkpoints from an IOTA checkpoint source, writes them into PostgreSQL tables, and maintains that database over time (migrations on start-up, pruning per retention policy). See the [Extended Data Services overview](./overview.mdx) for how it fits together with the JSON-RPC and GraphQL reader services.
 
 The `iota-indexer` binary also has a `run-backfill` subcommand — a one-off maintenance tool for filling specific tables over a historical range, typically after a schema change. Not part of normal operation.
@@ -260,41 +262,19 @@ iota-indexer restore --network <mainnet|testnet|devnet> available-epochs
 
 `--genesis-path` is the network's [genesis blob](../common/genesis.mdx). It is the trusted resource the committee chain is verified against. The snapshot is in turn verified against that committee chain.
 
-The formal snapshot store keeps a limited set of epochs: the latest epoch, plus the epoch at the start of every month back to genesis (the epoch that ended on the first day of that month). `available-epochs` returns them ordered newest first, so index `0` is the latest epoch, index `1` is the start of the current month, index `2` the month before, and so on back to genesis.
+One caveat when selecting the target epoch and configuring a retention policy is that the restore epoch must sit at least a full window behind the tip of the network. That is because all prunable history tables start populating from the checkpoints that follow the restore point. To keep the recommended [30 epochs of retention](#sizing-and-retention), restore from an epoch about 30 epochs behind the tip.
 
-One caveat when selecting the target epoch and configuring a retention policy is that the restore epoch must sit at least a full window behind the tip of the network. That is because all prunable history tables start populating from the checkpoints that follow the restore point. To keep the recommended [30 epochs of retention](#sizing-and-retention), restore from the start of the previous month (index `2`), roughly 30 to 60 days back.
-
-The following example selects that epoch, restores the database, and then starts the writer with pruning enabled to catch up. Omit `--epoch` to take the latest instead.
+List the epochs that currently have a snapshot with `available-epochs`:
 
 ```sh
-DATABASE_URL="postgres://iota_indexer:iota_indexer@localhost:5432/iota_indexer"
-NETWORK="mainnet"
-GENESIS_PATH="/path/to/genesis.blob"
-PRUNING_TOML_PATH="/path/to/pruning.toml"
-
-# available-epochs is ordered newest first:
-#     index 0 = latest epoch,
-#     index 1 = start of the current month,
-#     index 2 = the month before, ... back to genesis.
-#
-# Restore a month behind so catch-up covers the ~30-epoch retention window.
-EPOCH="$(iota-indexer restore --network "$NETWORK" available-epochs | jq '.[2]')"
-# Without jq:
-# EPOCH="$(iota-indexer restore --network "$NETWORK" available-epochs | python3 -c 'import json, sys; print(json.load(sys.stdin)[2])')"
-
-# 1. Bootstrap the database from the selected snapshot.
-iota-indexer --db-url "$DATABASE_URL" restore --network "$NETWORK" run \
-  --staging-path /tmp/indexer-restore \
-  --genesis-path "$GENESIS_PATH" \
-  --num-parallel-downloads 20 \
-  --epoch "$EPOCH"
-
-# 2. Catch up to the chain tip, with pruning enabled (see Pruning).
-iota-indexer --db-url "$DATABASE_URL" indexer \
-  --remote-store-url "https://checkpoints.$NETWORK.iota.cafe/ingestion/historical" \
-  --live-checkpoints-store-url "https://checkpoints.$NETWORK.iota.cafe/ingestion/live" \
-  --pruning-config-path "$PRUNING_TOML_PATH"
+iota-indexer restore --network mainnet available-epochs
 ```
+
+It prints the available epochs as a JSON array. Pass any of them to `--epoch` when restoring, or omit `--epoch` to take the latest.
+
+For convenience, the picker below generates the restore and catch-up commands. Leave the epoch on **Latest** for the most recent snapshot, and adjust the `DATABASE_URL`, `GENESIS_PATH`, and `PRUNING_TOML_PATH` values for your deployment.
+
+<IndexerRestorePicker />
 
 The snapshots are served from the public endpoints listed under [IOTA Foundation managed snapshots](../common/snapshots.mdx#iota-foundation-managed-snapshots).
 
