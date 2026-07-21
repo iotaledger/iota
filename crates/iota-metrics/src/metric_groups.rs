@@ -35,11 +35,10 @@
 //! `metrics.groups` entirely, so an omitted and an empty section behave the
 //! same.
 //!
-//! The `hw` hardware metrics are registered as a prometheus collector and
-//! so bypass the filtering macros entirely. They cannot be level-filtered
-//! individually: the `hardware` group's level is read once at registration
-//! time — [`MetricLevel::Off`] skips the whole group, any other level
-//! registers it.
+//! The `hw` hardware metrics are one collector rather than macro-registered
+//! metrics, so the whole group shares a single level: the `hardware` group's
+//! level exposes the collector (`off` hides it, any other level exposes it),
+//! and — like the other groups — it can be changed at runtime.
 
 pub use prometheus_filtered::MetricLevel;
 use serde::{Deserialize, Serialize};
@@ -287,7 +286,7 @@ impl MetricGroups {
                 directives.push(format!("{module}={}", level_string(level)));
             }
         }
-        directives.join(",") 
+        directives.join(",")
     }
 
     /// Renders the levels into a group-form directive string.
@@ -298,19 +297,20 @@ impl MetricGroups {
         for (group, level) in self.group_levels() {
             directives.push(format!("{group}={}", level_string(level)));
         }
-        directives.extend(self.override_directives());
         directives.join(",")
     }
 
     /// Expands group names in a `pattern=LEVEL` directive string into the
     /// groups' filter patterns; other directives pass through unchanged.
-    /// The first invalid directive rejects the whole string.
+    /// Any invalid directive rejects the whole string, with every offending
+    /// directive reported.
     pub fn expand_directives(filter: &str) -> Result<String, String> {
-        let mut directives = Vec::new();
-        for part in prometheus_filtered::directive_parts(filter) {
-            directives.extend(Self::expand_directive(part)?);
+        let (directives, errors) = Self::expand_startup_directives(filter);
+        if errors.is_empty() {
+            Ok(directives)
+        } else {
+            Err(errors.join("; "))
         }
-        Ok(directives.join(","))
     }
 
     /// Like [`Self::expand_directives`], but for startup use: an invalid
@@ -598,10 +598,12 @@ mod tests {
 
     #[test]
     fn expand_directives_rejects_invalid_input() {
-        // An invalid level fails up front, citing the directive as the
-        // caller wrote it — not its expansion.
-        let err = MetricGroups::expand_directives("consensus=bogus").unwrap_err();
+        // An invalid level fails the whole string, citing every offending
+        // directive as the caller wrote it — not its expansion.
+        let err =
+            MetricGroups::expand_directives("consensus=bogus,storage=warn,epoch=nah").unwrap_err();
         assert!(err.contains("consensus=bogus"), "unexpected error: {err}");
+        assert!(err.contains("epoch=nah"), "unexpected error: {err}");
     }
 
     #[test]

@@ -78,16 +78,20 @@ use crate::IotaNode;
 //
 //  $ curl 'http://127.0.0.1:1337/traffic-control?error_threshold=100&spam_threshold=100&dry_run=true'
 //
-// View the Prometheus metrics filter layers (runtime override, env, config).
+// View the Prometheus metrics filter: the directives currently in effect and
+// the startup directives (config with the METRICS_FILTER env var merged over
+// it) that a reset restores.
 //
 //   $ curl 'http://127.0.0.1:1337/metrics/filters'
 //
 // Set the runtime override for the metrics the /metrics endpoint exposes.
 // Patterns may be group names from the `metrics.groups` config section
 // (`default` and `hardware` included) or raw METRICS_FILTER-style patterns.
-// Where an override directive matches a metric it takes precedence over the
-// startup configuration; metrics matched by no override directive keep
-// their startup exposure. A bare level (e.g. `trace`) matches everything.
+// The override is merged over the startup directives: an override directive
+// replaces every startup directive whose pattern it prefixes, and metrics it
+// does not shadow keep their startup exposure. A bare level (e.g. `trace`)
+// replaces the whole filter. Each POST starts from the startup directives
+// again rather than stacking on the previous override.
 //
 //   $ curl -X POST 'http://127.0.0.1:1337/metrics/filters' -d 'consensus=off,typed_store=warn'
 //
@@ -607,18 +611,16 @@ async fn traffic_control(
 }
 
 async fn get_metrics_filter(State(state): State<Arc<AppState>>) -> (StatusCode, String) {
-    fn or_none(s: &str) -> &str {
-        if s.is_empty() { "(none)" } else { s }
+    fn or_none(s: String) -> String {
+        if s.is_empty() { "(none)".into() } else { s }
     }
     let filter = state.node.metrics_filter();
-    let runtime = filter.runtime_filter_string().unwrap_or_default();
     (
         StatusCode::OK,
         format!(
-            "runtime: {}\nenv: {}\nconfig: {}\n",
-            or_none(&runtime),
-            or_none(filter.env_filter_string()),
-            or_none(filter.config_filter_string()),
+            "metrics exposure filter:\n\
+             {}\n",
+            or_none(filter.filter_string()),
         ),
     )
 }
@@ -627,16 +629,18 @@ async fn set_metrics_filter(
     State(state): State<Arc<AppState>>,
     new_filter: String,
 ) -> (StatusCode, String) {
-    let expanded = match MetricGroups::expand_directives(&new_filter) {
+    let new_filter = new_filter.trim();
+    let expanded = match MetricGroups::expand_directives(new_filter) {
         Ok(expanded) => expanded,
         Err(err) => return (StatusCode::BAD_REQUEST, format!("{err}\n")),
     };
-    match state.node.set_metrics_runtime_filter(&expanded) {
+
+    match state.node.set_metrics_runtime_filter(&expanded, new_filter) {
         Ok(()) => {
-            info!(filter =% expanded, "Metrics filter updated");
+            info!(filter =% new_filter, "Metrics filter updated");
             (
                 StatusCode::OK,
-                format!("metrics filter set to {expanded:?}\n"),
+                format!("metrics filter set to {new_filter:?}\n"),
             )
         }
         Err(err) => (StatusCode::BAD_REQUEST, format!("{err}\n")),

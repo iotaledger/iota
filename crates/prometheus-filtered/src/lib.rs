@@ -5,21 +5,21 @@
 //! filtering.
 //!
 //! Replace `use prometheus::*` with `use prometheus_filtered::*` to control
-//! which metrics are exposed. The active filter is built from up to three
-//! directive layers: the node config's, the `METRICS_FILTER` environment
-//! variable's, and an optional runtime override set.
-//! A metric is decided by the highest-precedence layer (runtime > env >
-//! config); a layer's directives leave the metrics they do not match to the
-//! layers below.
+//! which metrics are exposed. The active filter is one directive set, built
+//! by merging its inputs in precedence order — the node config's directives,
+//! the `METRICS_FILTER` environment variable's, and an optional runtime
+//! override: a higher-precedence directive replaces every directive whose
+//! pattern it prefixes, and the directives it does not shadow keep their
+//! effect (see [`Filter`]).
 //!
 //! Filter syntax: comma-separated `pattern=LEVEL` directives, where `LEVEL`
 //! is one of `off`, `warn`, `info`, `debug`, `trace`. A bare `LEVEL` token
-//! (no `pattern=`) matches every metric — as an env or runtime layer it is
-//! a full override of the layers below. A pattern matches if it is a
+//! (no `pattern=`) matches every metric — as an env or runtime directive it
+//! replaces the whole filter. A pattern matches if it is a
 //! prefix of the metric name OR is a component/prefix of the calling module
 //! path (e.g. `traffic_controller` matches
-//! `iota_core::traffic_controller::metrics`). When several directives of one
-//! layer match the same metric, the most specific one (longest pattern) wins,
+//! `iota_core::traffic_controller::metrics`). When several directives
+//! match the same metric, the most specific one (longest pattern) wins,
 //! regardless of order; among directives with the same pattern, the last one
 //! wins.
 //!
@@ -30,7 +30,7 @@
 //! The directives act as **exposure**
 //! thresholds deciding which metrics [`Registry::gather`] includes in its
 //! output (`off` exposes none of the matched metrics). Metrics matched by no
-//! layer are exposed unconditionally, so with no filter configured the
+//! directive are exposed unconditionally, so with no filter configured the
 //! crate behaves exactly like plain `prometheus`; use a bare `LEVEL` directive
 //! to set a stricter global default.
 
@@ -106,39 +106,95 @@ struct FilterDirective {
     threshold: u8,
 }
 
-/// Filter holds the directives in three layers — the node config's, the
-/// `METRICS_FILTER` env var's, and an optional runtime override.
+/// Filter holds two directive sets: the immutable startup directives (the
+/// node config's with the `METRICS_FILTER` env var's merged over them) and
+/// the directives currently in effect — the startup directives, with the
+/// runtime override merged over them while one is set.
 #[derive(Default)]
 pub struct Filter {
-    /// The node config's directives, immutable after construction.
-    config: Layer,
-    /// The `METRICS_FILTER` env var's directives, immutable after
-    /// construction.
-    env: Layer,
-    /// Runtime override layer; consulted first while set.
-    runtime: RwLock<Option<Arc<Layer>>>,
+    /// The startup directives; what [`Filter::reset_runtime_filter`] restores.
+    startup: Arc<DirectiveSet>,
+    /// The directives consulted by [`Filter::is_exposed`].
+    runtime: RwLock<Arc<DirectiveSet>>,
 }
 
-#[derive(Default)]
-struct Layer {
-    directives: Vec<FilterDirective>,
-    raw: String,
+/// The source strings for one filter input. `directives` is parsed for
+/// matching; `display` is what [`Filter::filter_string`] and
+/// [`Filter::startup_filter_string`] echo back (e.g. the group-form string a
+/// caller expanded before building the filter). Use [`FilterSource::new`]
+/// when the two are the same string.
+#[derive(Clone, Copy)]
+pub struct FilterSource<'a> {
+    pub directives: &'a str,
+    pub display: &'a str,
 }
 
-impl Layer {
-    fn parse(s: &str) -> Self {
-        let directives: Vec<FilterDirective> = directive_parts(s)
-            .filter_map(|part| {
-                parse_directive(part)
-                    .map_err(|err| warn!("dropping prometheus filter directive: {err}"))
-                    .ok()
-            })
-            .collect();
+impl<'a> FilterSource<'a> {
+    pub fn new(s: &'a str) -> Self {
         Self {
-            raw: render_directives(&directives),
-            directives,
+            directives: s,
+            display: s,
         }
     }
+
+    /// `directives` drive matching; `display` is echoed by the admin
+    /// endpoint.
+    pub fn with_display(directives: &'a str, display: &'a str) -> Self {
+        Self {
+            directives,
+            display,
+        }
+    }
+}
+
+/// One parsed filter input: the matching directives plus the display
+/// directives they are reported as.
+#[derive(Default)]
+struct DirectiveSet {
+    directives: Vec<FilterDirective>,
+    display: Vec<FilterDirective>,
+}
+
+impl DirectiveSet {
+    fn from_source(source: FilterSource<'_>) -> Self {
+        Self {
+            directives: parse_valid_directives(source.directives),
+            display: parse_valid_directives(source.display),
+        }
+    }
+
+    /// Merges `over` on top of `self`: an `over` directive replaces every
+    /// directive whose pattern it prefixes (a bare level replaces
+    /// everything), and directives it does not shadow keep their effect —
+    /// for overlapping unrelated patterns the usual longest-pattern-wins
+    /// matching applies.
+    fn merged(&self, over: &Self) -> Self {
+        Self {
+            directives: merge_directives(&self.directives, &over.directives),
+            display: merge_directives(&self.display, &over.display),
+        }
+    }
+}
+
+/// Appends `over` to `base`, dropping the `base` directives shadowed by an
+/// `over` directive's pattern prefix.
+fn merge_directives(base: &[FilterDirective], over: &[FilterDirective]) -> Vec<FilterDirective> {
+    base.iter()
+        .filter(|dir| !over.iter().any(|o| dir.pattern.starts_with(&o.pattern)))
+        .chain(over.iter())
+        .cloned()
+        .collect()
+}
+
+/// Parses a directive string, dropping invalid directives with a warning.
+fn parse_valid_directives(s: &str) -> Vec<FilterDirective> {
+    directive_parts(s)
+        .filter_map(|part| {
+            parse_directive(part)
+                .map_err(|err| warn!("dropping prometheus filter directive: {err}"))
+                .ok()
+        })
+        .collect()
 }
 
 /// Splits a `METRICS_FILTER`-style string into its non-empty, trimmed
@@ -235,91 +291,82 @@ fn threshold_for(directives: &[FilterDirective], name: &str, module: &str) -> Op
     best.map(|(_, threshold)| threshold)
 }
 
+/// Like [`threshold_for`], but falling back to the permissive default when no
+/// directive matches.
+fn threshold(directives: &[FilterDirective], name: &str, module: &str) -> u8 {
+    threshold_for(directives, name, module).unwrap_or(DEFAULT_THRESHOLD)
+}
+
 impl Filter {
-    /// Parses a config-layer directive string, ignoring the `METRICS_FILTER`
-    /// env var.
+    // Parses a single directive string as the config source, ignoring the
+    // `METRICS_FILTER` env var. Convenience for
+    // `from_sources(FilterSource::new(s), None)`.
     pub fn parse(s: &str) -> Self {
-        Self::from_layers(s, None)
+        Self::from_sources(FilterSource::new(s), None)
     }
 
-    /// Builds a filter with an empty config layer and the env layer read
-    /// from the `METRICS_FILTER` env variable (permissive when unset).
+    /// Builds a filter with an empty config source and the `METRICS_FILTER`
+    /// env variable's directives (permissive when unset).
     pub fn from_env() -> Self {
         let env = std::env::var("METRICS_FILTER").ok();
-        Self::from_layers("", env.as_deref())
+        Self::from_sources(FilterSource::new(""), env.as_deref().map(FilterSource::new))
     }
 
-    /// Builds a filter from the node config's directive string and the
-    /// `METRICS_FILTER` env var's.
-    pub fn from_layers(config: &str, env: Option<&str>) -> Self {
+    /// Builds a filter whose startup directives are the env source merged
+    /// over the config source (see [`DirectiveSet::merged`]).
+    pub fn from_sources(config: FilterSource<'_>, env: Option<FilterSource<'_>>) -> Self {
+        let startup = Arc::new(DirectiveSet::from_source(config).merged(
+            &DirectiveSet::from_source(env.unwrap_or(FilterSource::new(""))),
+        ));
         Self {
-            config: Layer::parse(config),
-            env: Layer::parse(env.unwrap_or("")),
-            runtime: RwLock::new(None),
+            runtime: RwLock::new(startup.clone()),
+            startup,
         }
     }
 
-    /// Returns a snapshot of the runtime override layer, if one is set.
-    fn runtime_layer(&self) -> Option<Arc<Layer>> {
+    /// Returns a snapshot of the directives currently in effect.
+    fn runtime(&self) -> Arc<DirectiveSet> {
         self.runtime.read().unwrap().clone()
     }
 
-    /// Layered evaluation, starting from runtime -> env -> config. Returns the
-    /// threshold for a metric, or the default threshold if no layer has a
-    /// matching directive.
-    fn threshold(&self, runtime: Option<&Layer>, name: &str, module: &str) -> u8 {
-        runtime
-            .and_then(|layer| threshold_for(&layer.directives, name, module))
-            .or_else(|| threshold_for(&self.env.directives, name, module))
-            .or_else(|| threshold_for(&self.config.directives, name, module))
-            .unwrap_or(DEFAULT_THRESHOLD)
-    }
-
     /// Returns `true` if a registered metric named `name` in `module` at
-    /// verbosity `level` should be exposed when gathering, per the layered
-    /// directives currently in effect.
+    /// verbosity `level` should be exposed when gathering, per the directives
+    /// currently in effect.
     #[inline]
     pub fn is_exposed(&self, name: &str, module: &str, level: MetricLevel) -> bool {
-        self.threshold(self.runtime_layer().as_deref(), name, module) >= level.verbosity()
+        threshold(&self.runtime().directives, name, module) >= level.verbosity()
     }
 
-    /// Returns the canonical string of the config layer's directives.
-    pub fn config_filter_string(&self) -> &str {
-        &self.config.raw
+    /// Returns the display string of the directives currently in effect.
+    pub fn filter_string(&self) -> String {
+        render_directives(&self.runtime().display)
     }
 
-    /// Returns the canonical string of the env (`METRICS_FILTER`) layer's
-    /// directives.
-    pub fn env_filter_string(&self) -> &str {
-        &self.env.raw
+    /// Returns the startup directives' display string.
+    pub fn startup_filter_string(&self) -> String {
+        render_directives(&self.startup.display)
     }
 
-    /// Returns the canonical string of the runtime override layer, or `None`
-    /// when no override is set.
-    pub fn runtime_filter_string(&self) -> Option<String> {
-        self.runtime
-            .read()
-            .unwrap()
-            .as_ref()
-            .map(|layer| layer.raw.clone())
-    }
-
-    /// Sets the runtime override layer. Rejects the whole update if
-    /// any directive is invalid.
-    pub fn set_runtime_filter(&self, s: &str) -> std::result::Result<(), String> {
-        let directives = directive_parts(s)
+    /// Replaces the directives in effect with the runtime override merged
+    /// over the startup directives (see [`DirectiveSet::merged`]) — each call
+    /// starts from the startup directives again rather than stacking on the
+    /// previous override. Rejects the whole update if any directive is
+    /// invalid.
+    pub fn set_runtime_filter(&self, source: FilterSource<'_>) -> std::result::Result<(), String> {
+        let directives = directive_parts(source.directives)
             .map(parse_directive)
-            .collect::<std::result::Result<Vec<_>, _>>()?;
-        *self.runtime.write().unwrap() = Some(Arc::new(Layer {
-            raw: render_directives(&directives),
+            .collect::<std::result::Result<Vec<_>, String>>()?;
+        let over = DirectiveSet {
             directives,
-        }));
+            display: parse_valid_directives(source.display),
+        };
+        *self.runtime.write().unwrap() = Arc::new(self.startup.merged(&over));
         Ok(())
     }
 
-    /// Drops the runtime override layer.
+    /// Drops the runtime override, restoring the startup directives.
     pub fn reset_runtime_filter(&self) {
-        *self.runtime.write().unwrap() = None;
+        *self.runtime.write().unwrap() = self.startup.clone();
     }
 }
 
@@ -445,14 +492,12 @@ impl Registry {
     /// Re-evaluates every recorded metric against the current filter. Call
     /// after changing the filter's runtime override.
     pub fn reconcile(&self) {
-        // Snapshot the runtime layer once so the whole pass sees a consistent
-        // filter and avoids re-locking it per metric.
-        let runtime = self.filter.runtime_layer();
+        // Snapshot the directives once so the whole pass sees a consistent
+        // filter and avoids re-locking them per metric.
+        let runtime = self.filter.runtime();
         let registered = self.registered.read().unwrap();
         for (name, recorded) in registered.iter() {
-            let want = self
-                .filter
-                .threshold(runtime.as_deref(), name, &recorded.module)
+            let want = threshold(&runtime.directives, name, &recorded.module)
                 >= recorded.level.verbosity();
             if want {
                 let _ = self.register(recorded.collector.clone_box());
@@ -889,28 +934,41 @@ mod tests {
     }
 
     #[test]
-    fn env_layer_overrides_config_only_where_it_matches() {
+    fn env_directives_merge_over_config_into_one_startup_filter() {
         use super::MetricLevel::{Info, Trace, Warn};
-        // Where an env directive matches, it beats the config layer even if
-        // the config directive is more specific ...
-        let filter = super::Filter::from_layers(
-            "iota_core::authority=off,starfish=warn",
-            Some("iota_core=info"),
+        // An env directive replaces every config directive whose pattern it
+        // prefixes, so it beats the config even where the config directive is
+        // more specific ...
+        let filter = super::Filter::from_sources(
+            super::FilterSource::new("iota_core::authority=off,starfish=warn"),
+            Some(super::FilterSource::new("iota_core=info")),
         );
         assert!(filter.is_exposed("x", "iota_core::authority", Info));
         assert!(!filter.is_exposed("x", "iota_core::authority", Debug));
-        // ... where it does not, the config layer still applies.
+        // ... where it does not, the config directives still apply.
         assert!(filter.is_exposed("x", "starfish::core", Warn));
         assert!(!filter.is_exposed("x", "starfish::core", Info));
+        // The two sources collapse into a single startup string.
+        assert_eq!(
+            filter.startup_filter_string(),
+            "starfish=warn,iota_core=info"
+        );
 
-        // A bare env level matches everything: a full override.
-        let filter = super::Filter::from_layers("info,iota_core=warn", Some("trace"));
+        // A bare env level prefixes everything: a full override.
+        let filter = super::Filter::from_sources(
+            super::FilterSource::new("info,iota_core=warn"),
+            Some(super::FilterSource::new("trace")),
+        );
         assert!(filter.is_exposed("x", "iota_core::authority", Trace));
         assert!(filter.is_exposed("x", "m", Trace));
+        assert_eq!(filter.startup_filter_string(), "trace");
 
-        // A blank env var contributes no directives, so the config layer
-        // still applies.
-        let filter = super::Filter::from_layers("off", Some(" "));
+        // A blank env var contributes no directives, so the config directives
+        // still apply.
+        let filter = super::Filter::from_sources(
+            super::FilterSource::new("off"),
+            Some(super::FilterSource::new(" ")),
+        );
         assert!(!filter.is_exposed("x", "m", Warn));
     }
 
@@ -924,7 +982,14 @@ mod tests {
             super::Filter::default(),
             // empty segments are ignored rather than treated as directives.
             super::Filter::parse(",,"),
-        ] {
+        ];
+        // A set env var would add env directives, so `Filter::from_env` is
+        // only exercised when it is unset; `Filter::from_sources` covers the
+        // set case.
+        if std::env::var_os("METRICS_FILTER").is_none() {
+            filters.push(super::Filter::from_env());
+        }
+        for filter in filters {
             assert!(filter.is_exposed("anything", "any::module", Warn));
             assert!(filter.is_exposed("anything", "any::module", Info));
             assert!(filter.is_exposed("anything", "any::module", Debug));
@@ -1120,7 +1185,7 @@ mod gather_filter_tests {
 
 #[cfg(test)]
 mod runtime_filter_tests {
-    use super::{Filter, MetricLevel, Registry};
+    use super::{Filter, FilterSource, MetricLevel, Registry};
 
     fn registry(filter: &str) -> Registry {
         Registry::new_custom(None, None, Some(std::sync::Arc::new(Filter::parse(filter)))).unwrap()
@@ -1139,7 +1204,10 @@ mod runtime_filter_tests {
     // The node drives this via `RegistryService`; here we exercise the same
     // two steps directly: set the runtime override, then reconcile membership.
     fn set_runtime(registry: &Registry, s: &str) {
-        registry.filter().set_runtime_filter(s).unwrap();
+        registry
+            .filter()
+            .set_runtime_filter(FilterSource::new(s))
+            .unwrap();
         registry.reconcile();
     }
 
@@ -1182,23 +1250,24 @@ mod runtime_filter_tests {
     }
 
     #[test]
-    fn runtime_layer_falls_back_to_startup_where_it_does_not_match() {
+    fn runtime_override_keeps_startup_directives_it_does_not_shadow() {
         let reg = registry("g_a=off");
         crate::register_int_gauge_with_registry!("g_a", "h", &reg; MetricLevel::Warn).unwrap();
         crate::register_int_gauge_with_registry!("g_b", "h", &reg; MetricLevel::Warn).unwrap();
         assert_eq!(gathered_names(&reg), ["g_b"]);
 
-        // The override hides g_b; g_a is matched by no override directive
+        // The override hides g_b; g_a is shadowed by no override directive
         // and keeps its startup exposure (hidden).
         set_runtime(&reg, "g_b=off");
         assert_eq!(gathered_names(&reg), Vec::<String>::new());
 
-        // An empty override matches nothing, leaving the startup directives
-        // fully in effect.
+        // An empty override contributes nothing, leaving the startup
+        // directives fully in effect — and replaces the previous override
+        // rather than accumulating with it.
         set_runtime(&reg, "");
         assert_eq!(gathered_names(&reg), ["g_b"]);
 
-        // A bare level matches everything: a full temporary override.
+        // A bare level prefixes every pattern: a full temporary override.
         set_runtime(&reg, "trace");
         assert_eq!(gathered_names(&reg), ["g_a", "g_b"]);
 
@@ -1207,51 +1276,108 @@ mod runtime_filter_tests {
     }
 
     #[test]
-    fn filter_reports_its_layers() {
-        let filter = Filter::from_layers("authority=off", Some("checkpoints=warn"));
-        assert_eq!(filter.config_filter_string(), "authority=off");
-        assert_eq!(filter.env_filter_string(), "checkpoints=warn");
-        assert_eq!(filter.runtime_filter_string(), None);
+    fn runtime_directives_replace_the_startup_directives_they_shadow() {
+        use MetricLevel::{Debug, Trace, Warn};
+
+        // Same pattern: the override directive replaces the startup one.
+        let filter = Filter::parse("g_a=off,g_b=warn");
+        filter
+            .set_runtime_filter(FilterSource::new("g_b=trace"))
+            .unwrap();
+        assert!(!filter.is_exposed("g_a", "m", Warn));
+        assert!(filter.is_exposed("g_b", "m", Trace));
+        assert_eq!(filter.filter_string(), "g_a=off,g_b=trace");
+        // The startup filter is untouched, ready for reset.
+        assert_eq!(filter.startup_filter_string(), "g_a=off,g_b=warn");
+
+        // Pattern prefix: an override directive claims its whole subtree, so
+        // a more specific startup directive cannot poke through it.
+        let filter = Filter::parse("iota_core=warn,iota_core::authority::sub=off");
+        filter
+            .set_runtime_filter(FilterSource::new("iota_core::authority=trace"))
+            .unwrap();
+        assert!(filter.is_exposed("x", "iota_core::authority::sub", Trace));
+        assert!(!filter.is_exposed("x", "iota_core::checkpoints", Debug));
+        assert_eq!(
+            filter.filter_string(),
+            "iota_core=warn,iota_core::authority=trace"
+        );
+
+        // A bare level shadows everything; more specific directives in the
+        // same override still apply on top of it.
+        let filter = Filter::parse("g_a=off,g_b=warn");
+        filter
+            .set_runtime_filter(FilterSource::new("trace,g_c=off"))
+            .unwrap();
+        assert!(filter.is_exposed("g_a", "m", Trace));
+        assert!(filter.is_exposed("g_b", "m", Trace));
+        assert!(!filter.is_exposed("g_c", "m", Warn));
+        assert_eq!(filter.filter_string(), "trace,g_c=off");
+
+        // Reset restores the startup directives.
+        filter.reset_runtime_filter();
+        assert_eq!(filter.filter_string(), filter.startup_filter_string());
+        assert!(!filter.is_exposed("g_a", "m", Warn));
+    }
+
+    #[test]
+    fn filter_reports_startup_and_current_strings() {
+        // Both directive sets keep the group-form display the caller
+        // supplies, while matching uses the expanded directives.
+        let filter = Filter::from_sources(
+            FilterSource::with_display("iota_core::authority=off", "authority=off"),
+            Some(FilterSource::with_display(
+                "iota_core::checkpoints=warn",
+                "checkpoints=warn",
+            )),
+        );
+        assert_eq!(
+            filter.startup_filter_string(),
+            "authority=off,checkpoints=warn"
+        );
+        assert_eq!(filter.filter_string(), filter.startup_filter_string());
         assert!(!filter.is_exposed("x", "iota_core::authority", MetricLevel::Warn));
 
-        filter.set_runtime_filter("authority=warn").unwrap();
-        assert_eq!(
-            filter.runtime_filter_string().as_deref(),
-            Some("authority=warn")
-        );
+        // An override's display shadows the startup display the same way its
+        // directives shadow the startup directives.
+        filter
+            .set_runtime_filter(FilterSource::with_display(
+                "iota_core::authority=warn",
+                "authority=warn",
+            ))
+            .unwrap();
+        assert_eq!(filter.filter_string(), "checkpoints=warn,authority=warn");
         assert!(filter.is_exposed("x", "iota_core::authority", MetricLevel::Warn));
         assert!(!filter.is_exposed("x", "iota_core::authority", MetricLevel::Debug));
 
         filter.reset_runtime_filter();
-        assert_eq!(filter.runtime_filter_string(), None);
+        assert_eq!(filter.filter_string(), filter.startup_filter_string());
         assert!(!filter.is_exposed("x", "iota_core::authority", MetricLevel::Warn));
     }
 
     #[test]
     fn filter_string_is_canonical_and_round_trips() {
-        // Invalid startup directives are dropped, and the reported config
+        // Invalid startup directives are dropped, and the reported startup
         // string reflects the directives actually in effect — so it can
         // always be POSTed back through the strict runtime setter.
         let filter = Filter::parse("foo=bogus, typed_store=warn ,info");
-        assert_eq!(filter.config_filter_string(), "typed_store=warn,info");
+        let startup = filter.startup_filter_string();
+        assert_eq!(startup, "typed_store=warn,info");
         filter
-            .set_runtime_filter(filter.config_filter_string())
+            .set_runtime_filter(FilterSource::new(&startup))
             .unwrap();
-        assert_eq!(
-            filter.runtime_filter_string().as_deref(),
-            Some("typed_store=warn,info")
-        );
+        assert_eq!(filter.filter_string(), "typed_store=warn,info");
     }
 
     #[test]
     fn set_runtime_filter_rejects_invalid_directives() {
         let filter = Filter::parse("authority=off");
         let err = filter
-            .set_runtime_filter("authority=warn,bogus=nope")
+            .set_runtime_filter(FilterSource::new("authority=warn,bogus=nope"))
             .unwrap_err();
         assert!(err.contains("bogus=nope"), "unexpected error: {err}");
-        // The failed update leaves the runtime layer unset.
-        assert_eq!(filter.runtime_filter_string(), None);
+        // The failed update leaves the startup directives in effect.
+        assert_eq!(filter.filter_string(), filter.startup_filter_string());
         assert!(!filter.is_exposed("x", "iota_core::authority", MetricLevel::Warn));
     }
 }

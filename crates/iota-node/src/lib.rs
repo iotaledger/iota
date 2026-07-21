@@ -2345,8 +2345,16 @@ impl IotaNode {
         self.registry_service.default_registry().filter()
     }
 
-    pub fn set_metrics_runtime_filter(&self, s: &str) -> std::result::Result<(), String> {
-        self.registry_service.set_runtime_filter(s)
+    /// Sets the runtime metrics filter. `directives` drive matching (groups
+    /// already expanded); `display` is the group-form input the admin endpoint
+    /// echoes back.
+    pub fn set_metrics_runtime_filter(
+        &self,
+        directives: &str,
+        display: &str,
+    ) -> std::result::Result<(), String> {
+        self.registry_service
+            .set_runtime_filter(directives, display)
     }
 
     pub fn reset_metrics_runtime_filter(&self) {

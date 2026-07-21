@@ -633,8 +633,17 @@ impl RegistryService {
 
     /// Sets the runtime override on the shared filter and reconciles every
     /// registry. Rejects the whole update if any directive is invalid.
-    pub fn set_runtime_filter(&self, s: &str) -> std::result::Result<(), String> {
-        self.filter.set_runtime_filter(s)?;
+    /// `directives` drive matching; `display` (e.g. the group-form input before
+    /// expansion) is what the admin endpoint echoes back.
+    pub fn set_runtime_filter(
+        &self,
+        directives: &str,
+        display: &str,
+    ) -> std::result::Result<(), String> {
+        self.filter
+            .set_runtime_filter(prometheus_filtered::FilterSource::with_display(
+                directives, display,
+            ))?;
         self.reconcile_all();
         Ok(())
     }
