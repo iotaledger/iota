@@ -2301,7 +2301,6 @@ dependencies = [
  "insta",
  "itertools 0.10.5",
  "move-command-line-common",
- "move-core-types",
  "regex",
  "serde",
  "serde_json",
