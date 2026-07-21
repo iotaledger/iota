@@ -12,7 +12,7 @@ Checkpoint created: 1
 
 task 2, line 13:
 //# advance-epoch
-Epoch advanced: 0
+Epoch advanced: 1
 
 task 3, lines 15-17:
 //# programmable --sender C --inputs 10000000000 @C
@@ -36,7 +36,7 @@ Checkpoint created: 3
 
 task 6, line 23:
 //# advance-epoch
-Epoch advanced: 1
+Epoch advanced: 2
 
 task 7, line 25:
 //# create-checkpoint
@@ -44,7 +44,7 @@ Checkpoint created: 5
 
 task 8, line 27:
 //# advance-epoch
-Epoch advanced: 2
+Epoch advanced: 3
 
 task 9, lines 29-31:
 //# programmable --sender C --inputs 10000000000 @C
@@ -60,7 +60,7 @@ Checkpoint created: 7
 
 task 11, line 35:
 //# advance-epoch
-Epoch advanced: 3
+Epoch advanced: 4
 
 task 12, line 37:
 //# run 0x3::iota_system::request_withdraw_stake --args object(0x5) object(4,0) --sender C
@@ -76,7 +76,7 @@ Checkpoint created: 9
 
 task 14, line 41:
 //# advance-epoch
-Epoch advanced: 4
+Epoch advanced: 5
 
 task 15, lines 43-45:
 //# programmable --sender C --inputs 10000000000 @C
@@ -92,7 +92,7 @@ Checkpoint created: 11
 
 task 17, line 49:
 //# advance-epoch
-Epoch advanced: 5
+Epoch advanced: 6
 
 task 18, lines 51-61:
 //# run-graphql
