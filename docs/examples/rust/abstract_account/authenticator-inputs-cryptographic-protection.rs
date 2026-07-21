@@ -20,7 +20,7 @@ use iota_sdk::{
     IotaClient, IotaClientBuilder,
     rpc_types::{IotaTransactionBlockEffectsAPI, ObjectChange},
     types::{
-        crypto::SignatureScheme::ED25519,
+        crypto::SignatureScheme::Ed25519,
         programmable_transaction_builder::ProgrammableTransactionBuilder, transaction::Transaction,
     },
 };
@@ -67,7 +67,7 @@ async fn main() -> Result<(), anyhow::Error> {
     let mut keystore = InMemKeystore::new_insecure_for_tests(0);
 
     // Derive the address of the first account and set it as default
-    let publisher = keystore.import_from_mnemonic(MAIN_ADDRESS_MNEMONIC, ED25519, None, None)?;
+    let publisher = keystore.import_from_mnemonic(MAIN_ADDRESS_MNEMONIC, Ed25519, None, None)?;
 
     println!("Publisher address: {publisher}");
 

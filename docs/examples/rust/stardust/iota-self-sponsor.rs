@@ -15,7 +15,7 @@ use iota_sdk::{
     IotaClientBuilder,
     rpc_types::{IotaObjectDataOptions, IotaTransactionBlockResponseOptions},
     types::{
-        crypto::SignatureScheme::ED25519,
+        crypto::SignatureScheme::Ed25519,
         gas_coin::GAS,
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         quorum_driver_types::ExecuteTransactionRequestType,
@@ -49,7 +49,7 @@ async fn main() -> Result<(), anyhow::Error> {
     // Derive the address of the sponsor
     let sponsor = keystore.import_from_mnemonic(
         MAIN_ADDRESS_MNEMONIC,
-        ED25519,
+        Ed25519,
         Some(sponsor_derivation_path),
         None,
     )?;
@@ -58,7 +58,7 @@ async fn main() -> Result<(), anyhow::Error> {
     // Derive the address of the sender
     let sender = keystore.import_from_mnemonic(
         MAIN_ADDRESS_MNEMONIC,
-        ED25519,
+        Ed25519,
         Some(sender_derivation_path),
         None,
     )?;

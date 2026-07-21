@@ -18,7 +18,7 @@ use iota_sdk::{
         IotaTransactionBlockResponseOptions,
     },
     types::{
-        crypto::SignatureScheme::ED25519,
+        crypto::SignatureScheme::Ed25519,
         dynamic_field::DynamicFieldName,
         gas_coin::GAS,
         programmable_transaction_builder::ProgrammableTransactionBuilder,
@@ -50,7 +50,7 @@ async fn main() -> Result<(), anyhow::Error> {
     // Derive the address of the first account and set it as default
     let sender = keystore.import_from_mnemonic(
         MAIN_ADDRESS_MNEMONIC,
-        ED25519,
+        Ed25519,
         Some(derivation_path),
         None,
     )?;
