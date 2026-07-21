@@ -247,9 +247,9 @@ pub(crate) async fn populate_remaining_tables(
     let (stored_watermarks, _) = store.get_watermarks().await?;
     let lowest_unpruned_keys = stored_watermarks
         .iter()
-        .map(|watermark| {
-            let table = PrunableTable::from(watermark);
-            (table, table.pruning_strategy().range_end(watermark))
+        .filter_map(|watermark| {
+            let table = PrunableTable::try_from(watermark).ok()?;
+            Some((table, table.pruning_strategy().range_end(watermark)))
         })
         .collect::<Vec<_>>();
     tokio::try_join!(

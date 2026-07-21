@@ -89,13 +89,13 @@ pub enum PrunableTable {
     ObjectsBackwardHistory,
 }
 
-impl From<&StoredWatermark> for PrunableTable {
-    fn from(watermark: &StoredWatermark) -> Self {
-        watermark
-            .entity
-            .as_str()
-            .parse()
-            .expect("stored watermarks should correspond to prunable tables")
+impl TryFrom<&StoredWatermark> for PrunableTable {
+    type Error = IndexerError;
+
+    fn try_from(watermark: &StoredWatermark) -> Result<Self, Self::Error> {
+        watermark.entity.as_str().parse().map_err(|_| {
+            IndexerError::Generic("watermark does not correspond to a prunable table".into())
+        })
     }
 }
 
@@ -366,7 +366,7 @@ impl<'a> TablePruner<'a> {
                         "pruning task for table {} cancelled during delay",
                         self.table.as_ref()
                     );
-                    IndexerError::Generic("Pruning task cancelled".to_string())
+                    IndexerError::Generic("pruning task cancelled".to_string())
                 })?;
         }
 
