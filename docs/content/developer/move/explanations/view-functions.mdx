@@ -29,7 +29,7 @@ The motivation, design, and on-chain encoding are specified in [IIP-0005](https:
 
 ## What is a `#[view]` function
 
-A `#[view]` function cannot take a mutable reference (through which it could mutate state), cannot consume objects by value (which would let it destroy or transfer them), and must return a value. For the exact rules, see the [view functions reference](../references/view-functions.mdx).
+A `#[view]` function cannot take a mutable reference (through which it could mutate state), cannot consume objects by value (which would let it destroy or transfer them), and must return a value. For the exact rules, see the [view functions reference](../../references/move/view-functions.mdx).
 
 This is an example of view function that reads a `Bid` value from an `Auction` object:
 ```move file=<rootDir>/examples/move/view_functions/sources/auction.move#L83-L97
