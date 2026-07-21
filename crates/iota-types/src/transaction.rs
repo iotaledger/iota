@@ -22,8 +22,8 @@ use iota_sdk_types::{
     EndOfEpochTransactionKind, Event, GasPayment, GenesisObject, GenesisTransaction, Identifier,
     Input, MakeMoveVector, MergeCoins, MoveCall, ObjectDigest, ObjectId, ObjectReference, Owner,
     ProgrammableTransaction, Publish, RandomnessRound, RandomnessStateUpdate,
-    SharedObjectReference, SplitCoins, TransactionDigest,
-    TransactionExpiration, TransactionKind, TransferObjects, TypeTag, Upgrade, Version,
+    SharedObjectReference, SplitCoins, TransactionDigest, TransactionExpiration, TransactionKind,
+    TransferObjects, TypeTag, Upgrade, Version,
     crypto::{Intent, IntentMessage, IntentScope},
 };
 pub use iota_sdk_types::{
@@ -1861,7 +1861,7 @@ pub trait SenderSignedTransactionAPI {
     fn get_signer_sig_mapping(&self) -> IotaResult<BTreeMap<Address, &UserSignature>>;
 
     /// Returns `true` if any signature is a multisig.
-    fn has_upgraded_multisig(&self) -> bool;
+    fn has_multisig(&self) -> bool;
 
     /// Returns a mutable reference to the transaction data. **Testing only.**
     fn transaction_data_mut_for_testing(&mut self) -> &mut TransactionData;
@@ -1966,7 +1966,7 @@ impl SenderSignedTransactionAPI for SenderSignedData {
         Ok(mapping)
     }
 
-    fn has_upgraded_multisig(&self) -> bool {
+    fn has_multisig(&self) -> bool {
         self.signatures().iter().any(|sig| sig.is_multisig())
     }
 
