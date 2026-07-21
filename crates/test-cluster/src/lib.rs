@@ -1430,11 +1430,7 @@ impl TestClusterBuilder {
 
         let network_config = swarm.config();
         // Create light config to save
-        let account_keys = network_config
-            .account_keys
-            .iter()
-            .map(|kp| kp.clone())
-            .collect();
+        let account_keys = network_config.account_keys.to_vec();
         let network_config_light = NetworkConfigLight::new(
             network_config.validator_configs.clone(),
             account_keys,

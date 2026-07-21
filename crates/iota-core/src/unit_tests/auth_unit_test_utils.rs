@@ -7,7 +7,7 @@ use std::{collections::BTreeMap, path::Path, sync::Arc};
 use iota_move_build::{BuildConfig, CompiledPackage};
 use iota_sdk_types::{Address, ObjectId, ObjectReference, Owner, TransactionDigest};
 use iota_types::{
-    crypto::IotaKeyPair,
+    crypto::Signature,
     effects::TransactionEffectsAPI,
     error::IotaResult,
     move_package::UpgradePolicy,

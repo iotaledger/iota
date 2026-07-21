@@ -1545,9 +1545,7 @@ mod tests {
 
     use fastcrypto::traits::KeyPair;
     use iota_keys::keypair_file::{write_authority_keypair_to_file, write_keypair_to_file};
-    use iota_types::crypto::{
-        AuthorityKeyPair, IotaKeyPair, NetworkKeyPair, get_key_pair_from_rng,
-    };
+    use iota_types::crypto::{AuthorityKeyPair, NetworkKeyPair, get_key_pair_from_rng};
     use rand::{SeedableRng, rngs::StdRng};
 
     use super::Genesis;

@@ -27,7 +27,7 @@ use iota_types::{
     committee::Committee,
     crypto::{
         AccountKeyPair, AuthorityKeyPair, AuthoritySignInfo, AuthoritySignature,
-        IotaAuthoritySignature, IotaKeyPair, KeypairTraits, Signer, get_key_pair,
+        IotaAuthoritySignature, KeypairTraits, Signature, Signer, get_key_pair,
         get_key_pair_from_rng,
     },
     effects::{
