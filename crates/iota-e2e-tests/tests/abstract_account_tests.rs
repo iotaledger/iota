@@ -520,7 +520,7 @@ async fn test_abstract_account_post_consensus_deletion_failure() -> Result<(), a
     // Create the MoveAuthenticator for the Ed25519 signature authenticator
     let signatures = vec![test_env.create_move_authenticator_for_ed25519(&tx_digest)?];
     // Create the TX envelope and send it for validators signing
-    let aa_simple_tx = Transaction::from_user_sig_data(tx_data, signatures);
+    let aa_simple_tx = Transaction::from_generic_sig_data(tx_data, signatures);
     let cert = test_env
         .test_cluster
         .create_certificate(aa_simple_tx, Some(client_ip))
@@ -543,7 +543,7 @@ async fn test_abstract_account_post_consensus_deletion_failure() -> Result<(), a
     // Create the MoveAuthenticator for the Ed25519 signature authenticator
     let signatures2 = vec![test_env.create_move_authenticator_for_ed25519(&tx_digest2)?];
     // Create the TX envelope and send it for validators signing
-    let aa_delete_tx = Transaction::from_user_sig_data(tx_data2, signatures2);
+    let aa_delete_tx = Transaction::from_generic_sig_data(tx_data2, signatures2);
     // Should succeed
     test_env
         .execute_and_check_tx_correctness(aa_delete_tx)
@@ -644,7 +644,7 @@ async fn test_abstract_account_shared_object_congestion_cancellation() -> Result
     // Create the MoveAuthenticator for the Ed25519 signature authenticator
     let signatures = vec![test_env.create_move_authenticator_for_ed25519(&tx_digest)?];
     // Create the TX envelope and send it for validators signing
-    let aa_simple_tx = Transaction::from_user_sig_data(tx_data, signatures);
+    let aa_simple_tx = Transaction::from_generic_sig_data(tx_data, signatures);
     let cert = test_env
         .test_cluster
         .create_certificate(aa_simple_tx, Some(client_ip))
