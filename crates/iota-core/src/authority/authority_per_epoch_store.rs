@@ -3692,6 +3692,31 @@ impl AuthorityPerEpochStore {
         // after the consensus output is quarantined.
         let mut soft_lock_release_tx_digests = Vec::new();
         if enable_pcool {
+            // Invariant: P-COOL flow categorization funnels all user transactions
+            // (regular + randomness) into `sequenced_transactions`, leaving
+            // `sequenced_randomness_transactions` empty until the partition after
+            // conflict resolution. If it is non-empty here, the partition below
+            // overwrites it and those transactions are silently ignored and never
+            // conflict-resolved, which is a logic bug. Log error in release, panic
+            // in debug/test.
+            if !sequenced_randomness_transactions.is_empty() {
+                error!(
+                    round = consensus_commit_info.round,
+                    count = sequenced_randomness_transactions.len(),
+                    "BUG: P-COOL flow's sequenced_randomness_transactions is non-empty before \
+                        conflict resolution; these transactions will be silently ignored and \
+                        never conflict-resolved"
+                );
+            }
+            debug_assert!(
+                sequenced_randomness_transactions.is_empty(),
+                "P-COOL flow categorization must keep all user transactions (regular + \
+                    randomness) in sequenced_transactions until validate_and_resolve_conflicts \
+                    and the subsequent partition; sequenced_randomness_transactions should be \
+                    empty here, got {} transactions",
+                sequenced_randomness_transactions.len(),
+            );
+
             let (dropped, owned_object_locks, soft_lock_digests) =
                 post_consensus_validation::validate_and_resolve_conflicts(
                     authority_state,
