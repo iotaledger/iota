@@ -32,7 +32,7 @@ The motivation, design, and on-chain encoding are specified in [IIP-0005](https:
 A `#[view]` function cannot take a mutable reference (through which it could mutate state), cannot consume objects by value (which would let it destroy or transfer them), and must return a value. For the exact rules, see the [view functions reference](../../references/move/view-functions.mdx).
 
 This is an example of view function that reads a `Bid` value from an `Auction` object:
-```move file=<rootDir>/examples/move/view_functions/sources/auction.move#L83-L97
+```move file=<rootDir>/examples/move/view_functions/sources/auction.move#L93-L97
 ```
 
 A view may return an immutable reference. Because the reference only borrows existing state, it cannot be used to mutate it, so it stays within the read-only guarantee. When a view is [called from off-chain](../how-tos/call-a-view-function.mdx) — over JSON-RPC or GraphQL, or through an SDK — the caller has no Move stack to hold a reference into, so the returned reference is dereferenced and serialized as its underlying value. An off-chain consumer always receives a concrete value, never a pointer.
