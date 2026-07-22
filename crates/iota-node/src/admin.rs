@@ -88,10 +88,11 @@ use crate::IotaNode;
 // Patterns may be group names from the `metrics.groups` config section
 // (`default` and `hardware` included) or raw METRICS_FILTER-style patterns.
 // The override is merged over the startup directives: an override directive
-// replaces every startup directive whose pattern it prefixes, and metrics it
-// does not shadow keep their startup exposure. A bare level (e.g. `trace`)
-// replaces the whole filter. Each POST starts from the startup directives
-// again rather than stacking on the previous override.
+// replaces the startup directive with the same pattern, and otherwise the
+// most specific matching pattern decides each metric, whichever source it
+// came from. A bare level (e.g. `trace`) replaces the whole filter. Each
+// POST starts from the startup directives again rather than stacking on the
+// previous override.
 //
 //   $ curl -X POST 'http://127.0.0.1:1337/metrics/filters' -d 'consensus=off,typed_store=warn'
 //

@@ -565,6 +565,43 @@ mod tests {
     }
 
     #[test]
+    fn runtime_group_override_keeps_other_groups_untouched() {
+        use prometheus_filtered::FilterSource;
+
+        // The `runtime` group's `iota_metrics` module prefix also covers the
+        // `p2p` and `hardware` groups' submodules; overriding `runtime` must
+        // not change those groups' exposure, matching the group definition.
+        let groups = MetricGroups {
+            hardware: MetricLevel::Off,
+            ..MetricGroups::default()
+        };
+        let filter = prometheus_filtered::Filter::from_sources(
+            FilterSource::with_display(&groups.to_filter_string(), &groups.to_display_string()),
+            None,
+        );
+        let expanded = MetricGroups::expand_directives("runtime=trace").unwrap();
+        filter
+            .set_runtime_filter(FilterSource::with_display(&expanded, "runtime=trace"))
+            .unwrap();
+
+        // The runtime group's own modules are raised ...
+        assert!(filter.is_exposed("x", "iota_metrics::monitored_mpsc", MetricLevel::Trace));
+        // ... while hardware stays off and p2p keeps its configured `warn`.
+        assert!(!filter.is_exposed(
+            "hw_metrics",
+            "iota_metrics::hardware_metrics",
+            MetricLevel::Warn
+        ));
+        assert!(!filter.is_exposed("x", "iota_metrics::metrics_network", MetricLevel::Info));
+        // The reported filter reflects that: only the runtime entry changed.
+        let display = filter.filter_string();
+        assert!(display.contains("runtime=trace"), "{display}");
+        assert!(display.contains("hardware=off"), "{display}");
+        assert!(display.contains("p2p=warn"), "{display}");
+        assert!(!display.contains("runtime=warn"), "{display}");
+    }
+
+    #[test]
     fn expand_startup_directives_drops_bad_directives() {
         // An invalid directive is dropped and reported; the rest still expand.
         let (expanded, errors) =
