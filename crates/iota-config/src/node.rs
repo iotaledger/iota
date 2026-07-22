@@ -1386,6 +1386,8 @@ pub struct KeyPairWithPath {
     #[serde(skip)]
     keypair: OnceCell<Arc<IotaKeyPair>>,
 
+    // Cached fastcrypto view of the protocol/network keys, whose consumers
+    // borrow the fastcrypto ed25519 type. Never populated for account keys.
     #[serde(skip)]
     ed25519_keypair: OnceCell<Arc<Ed25519KeyPair>>,
 }
