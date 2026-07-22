@@ -49,7 +49,8 @@ use iota_sdk::{
 };
 use iota_sdk_types::{
     Address, Identifier, MoveAuthenticatorV1, ObjectId, ObjectReference, Owner,
-    SharedObjectReference, TransactionDigest, TransactionKind, TypeTag, UserSignature, Version,
+    SharedObjectReference, SignatureScheme, TransactionDigest, TransactionKind, TypeTag,
+    UserSignature, Version,
     crypto::{Intent, IntentMessage},
     gas::GasCostSummary,
     move_package::MovePackage,
@@ -62,7 +63,7 @@ use iota_types::{
             AuthenticatorFunctionRefV1, derive_authenticator_function_ref_v1_dynamic_field_id,
         },
     },
-    crypto::{EmptySignInfo, SignatureScheme},
+    crypto::EmptySignInfo,
     digests::ChainIdentifier,
     dynamic_field::{DynamicFieldInfo, Field},
     error::IotaError,
