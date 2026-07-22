@@ -2433,19 +2433,25 @@ impl SpawnOnce {
     pub async fn start(self) -> Self {
         match self {
             Self::Unstarted(future, serving_rt_handle) => {
-                let server = future
-                    .into_inner()
-                    .await
-                    .unwrap_or_else(|err| panic!("Failed to start validator gRPC server: {err}"));
-                let handle = server.handle().clone();
-                // Serve client requests on the dedicated serving runtime so that
-                // request load never shares worker threads with the node core.
+                // bind() and serve() must execute on the serving runtime:
+                // iota_http::Builder::serve captures Handle::current() there for
+                // the accept loop and every request handler.
+                let (handle_tx, handle_rx) = tokio::sync::oneshot::channel();
                 serving_rt_handle.spawn(async move {
+                    let server = future.into_inner().await.unwrap_or_else(|err| {
+                        panic!("Failed to start validator gRPC server: {err}")
+                    });
+                    if handle_tx.send(server.handle().clone()).is_err() {
+                        return;
+                    }
                     if let Err(err) = server.serve().await {
                         info!("Server stopped: {err}");
                     }
                     info!("Server stopped");
                 });
+                let handle = handle_rx
+                    .await
+                    .expect("validator gRPC server exited before returning its handle");
                 Self::Started(handle)
             }
             Self::Started(_) => self,
@@ -2742,4 +2748,104 @@ fn max_tx_per_checkpoint(protocol_config: &ProtocolConfig) -> usize {
 #[cfg(test)]
 fn max_tx_per_checkpoint(_: &ProtocolConfig) -> usize {
     2
+}
+
+// Not msim: this test asserts routing across real OS worker-thread pools by
+// name, which the deterministic simulator collapses onto a single thread.
+#[cfg(all(test, not(msim)))]
+mod runtime_split_tests {
+    use std::{
+        sync::mpsc,
+        time::{Duration, Instant},
+    };
+
+    use anyhow::anyhow;
+
+    use super::SpawnOnce;
+
+    /// A single-worker-thread runtime whose worker thread carries `name`, so a
+    /// task can tell which runtime it is running on via `current_pool()`.
+    fn runtime(name: &'static str) -> tokio::runtime::Runtime {
+        tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(1)
+            .thread_name(name)
+            .enable_all()
+            .build()
+            .unwrap()
+    }
+
+    /// Name of the runtime whose worker thread is executing this code.
+    fn current_pool() -> String {
+        std::thread::current()
+            .name()
+            .unwrap_or("<unnamed>")
+            .to_string()
+    }
+
+    /// Regression guard for the runtime split. `SpawnOnce::start()` is invoked
+    /// on the node-core runtime (as `IotaNode::start_async` does), but it
+    /// must run the server *bind* on the serving runtime:
+    /// `iota_http::Builder::serve` captures `Handle::current()` there for
+    /// the accept loop and every request handler.
+    ///
+    /// The test records the runtime `start()` runs on and the runtime the bind
+    /// runs on, and asserts the former is node-core and the latter is
+    /// serving (so they differ). With the pre-fix inline bind the bind ran
+    /// on the caller (node-core) runtime, and this test fails.
+    #[test]
+    fn spawn_once_binds_on_serving_not_the_core_runtime() {
+        let node = runtime("node-core");
+        let serving = runtime("serving");
+        let (tx, rx) = mpsc::channel::<(&'static str, String)>();
+
+        // The "bind" future records where it runs, then binds a minimal real
+        // server (health service only) on an ephemeral port.
+        let bind_tx = tx.clone();
+        let bind_future = async move {
+            let _ = bind_tx.send(("bind", current_pool()));
+            let addr = "/ip4/127.0.0.1/tcp/0/http".parse().unwrap();
+            let server = iota_network_stack::config::Config::new()
+                .server_builder()
+                .bind(&addr, None)
+                .await
+                .map_err(|e| anyhow!("bind failed: {e}"))?;
+            Ok(server)
+        };
+        let once = SpawnOnce::new(bind_future, serving.handle().clone());
+
+        // Drive start() ON the node-core runtime and record the runtime it runs on.
+        let caller_tx = tx.clone();
+        node.spawn(async move {
+            let _ = caller_tx.send(("caller", current_pool()));
+            let _ = once.start().await;
+        });
+
+        // Collect both readings.
+        let (mut caller_pool, mut bind_pool) = (None, None);
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while (caller_pool.is_none() || bind_pool.is_none()) && Instant::now() < deadline {
+            if let Ok((which, pool)) = rx.recv_timeout(Duration::from_millis(200)) {
+                match which {
+                    "caller" => caller_pool = Some(pool),
+                    "bind" => bind_pool = Some(pool),
+                    _ => {}
+                }
+            }
+        }
+        let caller_pool = caller_pool.expect("start() never ran");
+        let bind_pool = bind_pool.expect("bind future never ran");
+
+        assert!(
+            caller_pool.starts_with("node-core"),
+            "start() should run on the node-core runtime, ran on: {caller_pool}"
+        );
+        assert!(
+            bind_pool.starts_with("serving"),
+            "server bind must run on the serving runtime, ran on: {bind_pool}"
+        );
+        assert_ne!(
+            caller_pool, bind_pool,
+            "the fix must move the bind off the caller (node-core) runtime onto serving"
+        );
+    }
 }
