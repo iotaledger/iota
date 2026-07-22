@@ -2,13 +2,14 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+#[cfg(target_os = "windows")]
+use std::os::windows::fs::FileExt;
 use std::{
     collections::{BTreeMap, BTreeSet, HashSet},
     env,
     fmt::Write,
     fs::{self, read_dir},
     io::{self, Read, Seek, SeekFrom, Write as IoWrite},
-    os::windows::fs::FileExt,
     path::{Path, PathBuf},
     str::{self, FromStr},
     thread,
@@ -39,10 +40,8 @@ use iota_keys::keystore::AccountKeystore;
 use iota_macros::sim_test;
 use iota_move_build::{BuildConfig, IotaPackageHooks};
 use iota_sdk::{IotaClient, PagedFn, wallet_context::WalletContext};
-#[cfg(target_os = "windows")]
-use iota_sdk_types::SignatureScheme;
 use iota_sdk_types::{
-    Address, ObjectId, ObjectReference, Owner, StructTag,
+    Address, ObjectId, ObjectReference, Owner, SignatureScheme, StructTag,
     move_package::{MovePackage, UpgradeInfo},
 };
 use iota_swarm_config::genesis_config::{AccountConfig, GenesisConfig};
