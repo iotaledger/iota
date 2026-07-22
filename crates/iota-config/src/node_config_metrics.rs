@@ -4,7 +4,7 @@
 
 use std::sync::Arc;
 
-use prometheus_filtered::{IntGauge, Registry, register_int_gauge_with_registry};
+use prometheus_filtered::{IntGauge, MetricLevel, Registry, register_int_gauge_with_registry};
 
 use crate::NodeConfig;
 
@@ -24,43 +24,50 @@ impl NodeConfigMetrics {
             tx_deny_config_user_transaction_disabled: register_int_gauge_with_registry!(
                 "tx_deny_config_user_transaction_disabled",
                 "Whether all user transactions are disabled",
-                registry
+                registry;
+                MetricLevel::Warn
             )
             .unwrap(),
             tx_deny_config_shared_object_disabled: register_int_gauge_with_registry!(
                 "tx_deny_config_shared_object_disabled",
                 "Whether all shared object transactions are disabled",
-                registry
+                registry;
+                MetricLevel::Warn
             )
             .unwrap(),
             tx_deny_config_package_publish_disabled: register_int_gauge_with_registry!(
                 "tx_deny_config_package_publish_disabled",
                 "Whether all package publish transactions are disabled",
-                registry
+                registry;
+                MetricLevel::Warn
             )
             .unwrap(),
             tx_deny_config_package_upgrade_disabled: register_int_gauge_with_registry!(
                 "tx_deny_config_package_upgrade_disabled",
                 "Whether all package upgrade transactions are disabled",
-                registry
+                registry;
+                MetricLevel::Warn
             )
             .unwrap(),
             tx_deny_config_num_denied_objects: register_int_gauge_with_registry!(
                 "tx_deny_config_num_denied_objects",
                 "Number of denied objects",
-                registry
+                registry;
+                MetricLevel::Warn
             )
             .unwrap(),
             tx_deny_config_num_denied_packages: register_int_gauge_with_registry!(
                 "tx_deny_config_num_denied_packages",
                 "Number of denied packages",
-                registry
+                registry;
+                MetricLevel::Warn
             )
             .unwrap(),
             tx_deny_config_num_denied_addresses: register_int_gauge_with_registry!(
                 "tx_deny_config_num_denied_addresses",
                 "Number of denied addresses",
-                registry
+                registry;
+                MetricLevel::Warn
             )
             .unwrap(),
         };
