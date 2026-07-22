@@ -21,7 +21,7 @@ use serde::{Deserialize, Serialize};
 use tracing::warn;
 
 use crate::{
-    attestation::AttestedTransaction,
+    attestation::{Attestation, AttestedTransaction},
     base_types::{AuthorityName, ConciseableName},
     crypto::{AuthoritySignature, DefaultHash, default_hash},
     message_envelope::{Envelope, Message, VerifiedEnvelope},
@@ -302,13 +302,15 @@ impl ConsensusTransactionKind {
         self.map_cert_or_raw_user_tx(|c| *c.digest(), |t| *t.digest())
     }
 
-    /// Returns the raw, uncertified user transaction (`UserTransactionV1` or
-    /// `UserTransactionV2`) submitted directly to consensus, or `None` for any
+    /// Returns the raw, uncertified user transaction together with its
+    /// attestation (`Some` only for `UserTransactionV2`), or `None` for any
     /// other kind. Certified user transactions are not included here.
-    pub fn as_user_transaction(&self) -> Option<&Transaction> {
+    pub fn as_user_transaction_with_attestation(
+        &self,
+    ) -> Option<(&Transaction, Option<&Attestation>)> {
         match self {
-            Self::UserTransactionV1(tx) => Some(tx),
-            Self::UserTransactionV2(a) => Some(&a.transaction),
+            Self::UserTransactionV1(t) => Some((t, None)),
+            Self::UserTransactionV2(a) => Some((&a.transaction, Some(&a.attestation))),
             Self::CertifiedTransaction(_)
             | Self::CheckpointSignature(_)
             | Self::EndOfPublish(_)
@@ -321,6 +323,13 @@ impl ConsensusTransactionKind {
             #[allow(deprecated)]
             Self::NewJWKFetchedDeprecated => None,
         }
+    }
+
+    /// Returns the raw, uncertified user transaction (`UserTransactionV1` or
+    /// `UserTransactionV2`) submitted directly to consensus, or `None` for any
+    /// other kind. Certified user transactions are not included here.
+    pub fn as_user_transaction(&self) -> Option<&Transaction> {
+        self.as_user_transaction_with_attestation().map(|(t, _)| t)
     }
 
     /// Returns `true` only for a raw, uncertified user transaction
