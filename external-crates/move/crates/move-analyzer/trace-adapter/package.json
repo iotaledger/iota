@@ -10,6 +10,7 @@
     "test": "npm run compile && mocha --config ./.mocharc.yaml"
   },
   "devDependencies": {
+    "@types/lodash.snakecase": "^4.1.9",
     "@types/node": "20.x",
     "@typescript-eslint/eslint-plugin": "^7.14.1",
     "@typescript-eslint/parser": "^7.11.0",
@@ -21,5 +22,8 @@
     "@vscode/debugadapter-testsupport": "^1.56.0",
     "@vscode/debugprotocol": "1.66.0",
     "toml": "^3.0.0"
+  },
+  "dependencies": {
+    "lodash.snakecase": "^4.1.1"
   }
 }
