@@ -412,7 +412,7 @@ impl TestTransactionBuilder {
 
     pub fn build_and_sign(
         self,
-        signer: &impl iota_sdk_crypto::Signer<SimpleSignature>,
+        signer: &impl Signer<SimpleSignature>,
     ) -> Transaction {
         Transaction::from_data_and_signer(self.build(), vec![signer])
     }

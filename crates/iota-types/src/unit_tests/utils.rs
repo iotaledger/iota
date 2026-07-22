@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 
 use fastcrypto::traits::KeyPair as KeypairTraits;
 use iota_sdk_crypto::{
-    Signer as _, ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey,
+    Signer, ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey,
     secp256r1::Secp256r1PrivateKey, simple::SimpleKeypair,
 };
 use iota_sdk_types::{Address, ObjectId, SimpleSignature, TransactionKind, crypto::Intent};
@@ -126,7 +126,7 @@ pub fn make_transaction(sender: Address, kp: &SimpleKeypair) -> Transaction {
 // This is used to sign transaction with signer using default Intent.
 pub fn to_sender_signed_transaction(
     data: TransactionData,
-    signer: &impl iota_sdk_crypto::Signer<SimpleSignature>,
+    signer: &impl Signer<SimpleSignature>,
 ) -> Transaction {
     to_sender_signed_transaction_with_multi_signers(data, vec![signer])
 }
@@ -134,7 +134,7 @@ pub fn to_sender_signed_transaction(
 pub fn to_sender_signed_transaction_with_optional_sponsor(
     data: TransactionData,
     sender_signature: UserSignature,
-    sponsor_signer_opt: Option<&impl iota_sdk_crypto::Signer<SimpleSignature>>,
+    sponsor_signer_opt: Option<&impl Signer<SimpleSignature>>,
 ) -> Transaction {
     let mut signatures = vec![sender_signature];
     if let Some(sponsor) = sponsor_signer_opt {
@@ -149,7 +149,7 @@ pub fn to_sender_signed_transaction_with_optional_sponsor(
 
 pub fn to_sender_signed_transaction_with_multi_signers(
     data: TransactionData,
-    signers: Vec<&impl iota_sdk_crypto::Signer<SimpleSignature>>,
+    signers: Vec<&impl Signer<SimpleSignature>>,
 ) -> Transaction {
     Transaction::from_data_and_signer(data, signers)
 }
@@ -287,7 +287,7 @@ mod move_authenticator {
 pub use move_authenticator::*;
 
 mod passkey {
-    use iota_sdk_crypto::{Signer, secp256r1::Secp256r1PrivateKey};
+    use iota_sdk_crypto::secp256r1::Secp256r1PrivateKey;
 
     use super::*;
     use crate::{passkey_authenticator::PasskeyAuthenticator, signature::UserSignature};
