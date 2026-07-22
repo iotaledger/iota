@@ -47,8 +47,8 @@ use iota_metrics::{
 use iota_sdk_types::{
     Address, CheckpointContentsDigest, CheckpointDigest, Digest, EndOfEpochTransactionKind, Event,
     ExecutionStatus, GasPayment, ObjectDigest, ObjectId, ObjectReference, Owner, RandomnessRound,
-    StructTag, SystemPackage, TransactionDigest, TransactionEffectsDigest, TransactionExpiration,
-    TransactionKind, TypeTag, Version,
+    SenderSignedTransaction, StructTag, SystemPackage, TransactionDigest, TransactionEffectsDigest,
+    TransactionExpiration, TransactionKind, TypeTag, Version,
     crypto::{Intent, IntentAppId, IntentMessage, IntentScope, IntentVersion},
     gas::GasCostSummary,
 };
