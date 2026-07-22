@@ -106,7 +106,7 @@ fn get_registry() -> Result<Registry> {
     let type_tag_struct = TypeTag::from(struct_tag.clone());
     tracer.trace_value(&mut samples, &type_tag_struct).unwrap();
 
-    // MoveStruct.type_ uses MoveObjectType which has custom serde.
+    // MoveStruct.object_type uses MoveObjectType which has custom serde.
     // Trace all variants so the schema is complete:
     // Other (variant 0) - any non-special struct tag
     tracer

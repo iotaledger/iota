@@ -699,7 +699,7 @@ async fn test_ptb_publish_upgrade() -> Result<(), anyhow::Error> {
 
             packages_with_upgrade_cap.push((pkg_path, package_addr, cap_id));
         } else {
-            panic!("Expected MoveStruct");
+            panic!("Expected MoveObject");
         }
     }
 
@@ -813,7 +813,7 @@ async fn publish_package_for_upgrade(
             .parse::<Address>()
             .unwrap()
     } else {
-        panic!("Expected MoveStruct");
+        panic!("Expected MoveObject");
     };
 
     // Update lock file

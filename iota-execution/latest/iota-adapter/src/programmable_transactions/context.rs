@@ -1655,7 +1655,7 @@ mod checked {
         Ok(())
     }
 
-    /// Generate an MoveStruct given an updated/written object
+    /// Generate a MoveStruct given an updated/written object
     fn create_written_object(
         vm: &MoveVM,
         linkage_view: &LinkageView,

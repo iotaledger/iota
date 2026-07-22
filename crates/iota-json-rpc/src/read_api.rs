@@ -1120,7 +1120,7 @@ pub enum ObjectDisplayError {
     #[error("Failed to extract layout")]
     Layout,
 
-    #[error("Failed to extract Move object")]
+    #[error("Failed to extract Move struct")]
     MoveStruct,
 
     #[error(transparent)]
