@@ -3496,8 +3496,8 @@ impl AuthorityState {
         &self.execution_scheduler
     }
 
-    /// Whether this authority runs the new `ExecutionScheduler` (vs the
-    /// `TransactionManager`). Used by tests to assert which is active.
+    /// Whether this authority runs the `ExecutionScheduler` rather than the
+    /// `TransactionManager`.
     pub fn uses_execution_scheduler(&self) -> bool {
         self.execution_scheduler.uses_execution_scheduler()
     }

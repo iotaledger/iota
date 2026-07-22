@@ -29,14 +29,8 @@ pub(crate) mod transaction_manager;
 
 /// Timing statistics for a pending transaction in the execution scheduler.
 ///
-/// It tracks when a transaction was enqueued and when it became ready for
-/// execution and it is used for latency metrics.
-///
-/// The legacy name (in the certificate era) was `PendingCertificateStats`.
-/// It is renamed to `PendingTransactionStats` because this type now (in the
-/// certificate-less era) covers more consensus transaction kinds, not just
-/// certificates. The renaming is safe and backward-compatible since this is
-/// a fully internal type.
+/// Tracks when a transaction was enqueued and when it became ready for
+/// execution; used for latency metrics.
 #[derive(Clone, Debug)]
 pub struct PendingTransactionStats {
     /// The time this transaction enters the execution scheduler.
@@ -48,12 +42,6 @@ pub struct PendingTransactionStats {
 
 /// A transaction that is waiting in the execution scheduler for its input
 /// objects to become available before it can be sent to the execution driver.
-///
-/// The legacy name (in the certificate era) was `PendingCertificate`.
-/// It is renamed to `PendingTransaction` because this type now (in the
-/// certificate-less era) covers more consensus transaction kinds, not just
-/// certificates. The renaming is safe and backward-compatible since this is
-/// a fully internal type.
 #[derive(Debug)]
 pub struct PendingTransaction {
     /// The transaction to be executed.

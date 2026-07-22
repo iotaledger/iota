@@ -19,13 +19,13 @@ use iota_types::{
 use tokio::{sync::mpsc::UnboundedSender, time::Instant};
 use tracing::{debug, warn};
 
-use super::{
-    ExecutingGuard, ExecutionSchedulerAPI, PendingTransaction, PendingTransactionStats,
-    overload_tracker::OverloadTracker,
-};
 use crate::{
     authority::{AuthorityMetrics, authority_per_epoch_store::AuthorityPerEpochStore},
     execution_cache::{ObjectCacheRead, TransactionCacheRead},
+    execution_scheduler::{
+        ExecutingGuard, ExecutionSchedulerAPI, PendingTransaction, PendingTransactionStats,
+        overload_tracker::OverloadTracker,
+    },
 };
 
 #[derive(Clone)]

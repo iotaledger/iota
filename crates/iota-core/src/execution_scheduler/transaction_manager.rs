@@ -28,10 +28,10 @@ use tap::TapOptional;
 use tokio::{sync::mpsc::UnboundedSender, time::Instant};
 use tracing::{error, info, instrument, trace, warn};
 
-use super::{ExecutionSchedulerAPI, PendingTransaction, PendingTransactionStats};
 use crate::{
     authority::{AuthorityMetrics, authority_per_epoch_store::AuthorityPerEpochStore},
     execution_cache::{ObjectCacheRead, TransactionCacheRead},
+    execution_scheduler::{ExecutionSchedulerAPI, PendingTransaction, PendingTransactionStats},
 };
 
 #[cfg(test)]
