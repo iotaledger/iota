@@ -425,25 +425,21 @@ impl ConsensusAdapter {
         committee: &Committee,
         transactions: &[ConsensusTransaction],
     ) -> (impl Future<Output = ()>, usize, usize, usize) {
-        // Use the minimum digest to compute submit delay.
+        // Use the minimum digest to compute submit delay. P-COOL user
+        // transactions (`UserTransactionV1` / `UserTransactionV2`) are
+        // excluded: no submit delay needed (number of submitting validators
+        // controlled through another mechanism).
         let min_digest = transactions
             .iter()
-            .filter_map(|tx| match &tx.kind {
-                ConsensusTransactionKind::CertifiedTransaction(certificate) => {
-                    Some(certificate.digest())
-                }
-                ConsensusTransactionKind::UserTransactionV1(_)
-                | ConsensusTransactionKind::UserTransactionV2(_) => {
-                    // P-COOL: no submit delay needed (number of submitting validators
-                    // controlled through another mechanism)
-                    None
-                }
-                _ => None,
+            .filter_map(|tx| {
+                tx.is_user_certificate()
+                    .then(|| tx.kind.transaction_digest())
+                    .flatten()
             })
             .min();
 
         let (duration, position, positions_moved, preceding_disconnected) = match min_digest {
-            Some(digest) => self.await_submit_delay_user_transaction(committee, digest),
+            Some(digest) => self.await_submit_delay_user_transaction(committee, &digest),
             _ => (Duration::ZERO, 0, 0, 0),
         };
         (
