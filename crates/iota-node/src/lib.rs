@@ -2434,19 +2434,25 @@ impl SpawnOnce {
     pub async fn start(self) -> Self {
         match self {
             Self::Unstarted(future, serving_rt_handle) => {
-                let server = future
-                    .into_inner()
-                    .await
-                    .unwrap_or_else(|err| panic!("Failed to start validator gRPC server: {err}"));
-                let handle = server.handle().clone();
-                // Serve client requests on the dedicated serving runtime so that
-                // request load never shares worker threads with the node core.
+                // bind() and serve() must execute on the serving runtime:
+                // iota_http::Builder::serve captures Handle::current() there for
+                // the accept loop and every request handler.
+                let (handle_tx, handle_rx) = tokio::sync::oneshot::channel();
                 serving_rt_handle.spawn(async move {
+                    let server = future.into_inner().await.unwrap_or_else(|err| {
+                        panic!("Failed to start validator gRPC server: {err}")
+                    });
+                    if handle_tx.send(server.handle().clone()).is_err() {
+                        return;
+                    }
                     if let Err(err) = server.serve().await {
                         info!("Server stopped: {err}");
                     }
                     info!("Server stopped");
                 });
+                let handle = handle_rx
+                    .await
+                    .expect("validator gRPC server exited before returning its handle");
                 Self::Started(handle)
             }
             Self::Started(_) => self,
