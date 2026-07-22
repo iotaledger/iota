@@ -16,7 +16,7 @@ use iota_sdk_types::{
 use iota_types::{
     base_types::dbg_addr,
     crypto::{AccountKeyPair, get_key_pair},
-    effects::{InputSharedObject, TransactionEffects, TransactionEffectsAPI},
+    effects::{InputSharedObject, TransactionEffectsAPI},
     error::IotaError,
     executable_transaction::VerifiedExecutableTransaction,
     messages_consensus::{ConsensusTransaction, ConsensusTransactionKind},
@@ -211,9 +211,8 @@ impl TestSetup {
 }
 
 // Creates a transaction that touches the shared objects provided and the owned
-// object provided. The transaction is passed through a fake consensus and then
-// the congestion control before being executed.
-async fn commit_and_execute_transaction(
+// object provided.
+async fn build_test_transaction(
     authority_state: &AuthorityState,
     package: &ObjectReference,
     sender: &Address,
@@ -222,7 +221,7 @@ async fn commit_and_execute_transaction(
     shared_objects: &[(ObjectId, Version)],
     owned_object: &ObjectReference,
     gas_units: u64,
-) -> (TransactionEnvelope, TransactionEffects) {
+) -> TransactionEnvelope {
     let mut txn_builder = ProgrammableTransactionBuilder::new();
     let mut args = vec![];
     for shared_object in shared_objects {
@@ -263,7 +262,7 @@ async fn commit_and_execute_transaction(
         _ => panic!("Unsupported number of shared objects. Maximum supported is 2."),
     }
     let pt = txn_builder.finish();
-    let transaction = build_programmable_transaction(
+    build_programmable_transaction(
         authority_state,
         gas_object_id,
         sender,
@@ -272,7 +271,33 @@ async fn commit_and_execute_transaction(
         gas_units,
     )
     .await
-    .unwrap();
+    .unwrap()
+}
+
+// Creates a transaction that touches the shared objects provided and the owned
+// object provided. The transaction is passed through a fake consensus and then
+// the congestion control before being executed.
+async fn commit_and_execute_transaction(
+    authority_state: &AuthorityState,
+    package: &ObjectReference,
+    sender: &Address,
+    sender_key: &AccountKeyPair,
+    gas_object_id: &ObjectId,
+    shared_objects: &[(ObjectId, Version)],
+    owned_object: &ObjectReference,
+    gas_units: u64,
+) -> (TransactionEnvelope, TransactionEffects) {
+    let transaction = build_test_transaction(
+        authority_state,
+        package,
+        sender,
+        sender_key,
+        gas_object_id,
+        shared_objects,
+        owned_object,
+        gas_units,
+    )
+    .await;
 
     let execution_effects =
         send_and_confirm_transaction_(authority_state, None, transaction.clone(), true)
@@ -283,27 +308,44 @@ async fn commit_and_execute_transaction(
     (transaction, execution_effects)
 }
 
+// Tests the fate of a transaction that exceeds the deferral limit due to
+// shared object congestion, with execution-worker congestion control disabled
+// and enabled:
+//   - Disabled: the transaction is cancelled. Tests that
+//     1. Cancelled transaction should return correct error status.
+//     2. Executing cancelled transaction with effects should result in the same
+//        transaction cancellation.
+//   - Enabled (PCOOL): the transaction is dropped instead, and the submitter is
+//     notified out-of-band with the same suggested gas price. Once
+//     execution-worker congestion control is enabled on a network, the disabled
+//     variant can be removed.
+//
+// The cancellation variant runs against both schedulers: a
+// congestion-cancelled transaction is only "ready" because the availability
+// check treats its cancelled sentinel input version as available; a regression
+// there would strand cancelled transactions in the scheduler instead of
+// executing them to cancelled effects. A dropped transaction never reaches the
+// scheduler, so the drop variant runs against one.
+//
+// Separate `#[sim_test]` wrappers instead of an rstest parameterization:
+// rstest injects `#[async_std::test]` for async functions whose test attribute
+// it does not recognize, and `#[sim_test]` is not one it knows.
 #[sim_test]
 async fn test_congestion_control_execution_cancellation_transaction_manager() {
-    congestion_control_execution_cancellation(false).await;
+    congestion_past_deferral_limit(false, false).await;
 }
 
 #[sim_test]
 async fn test_congestion_control_execution_cancellation_execution_scheduler() {
-    congestion_control_execution_cancellation(true).await;
+    congestion_past_deferral_limit(true, false).await;
 }
 
-// Tests execution aspect of cancelled transaction due to shared object
-// congestion. Mainly tests that
-//   1. Cancelled transaction should return correct error status.
-//   2. Executing cancelled transaction with effects should result in the same
-//      transaction cancellation.
-//
-// Run against both schedulers: a congestion-cancelled transaction is only
-// "ready" because the availability check treats its cancelled sentinel input
-// version as available; a regression there would strand cancelled transactions
-// in the scheduler instead of executing them to cancelled effects.
-async fn congestion_control_execution_cancellation(use_execution_scheduler: bool) {
+#[sim_test]
+async fn test_congestion_control_execution_drop() {
+    congestion_past_deferral_limit(false, true).await;
+}
+
+async fn congestion_past_deferral_limit(use_execution_scheduler: bool, worker_congestion: bool) {
     telemetry_subscribers::init_for_testing();
     // Select the scheduler before the authorities are built (the env vars are
     // read by ExecutionSchedulerWrapper::new).
@@ -313,7 +355,15 @@ async fn congestion_control_execution_cancellation(use_execution_scheduler: bool
     // limit is equal to one default transaction's gas budget, and the overshoot
     // allowed is also equal to one default transaction's gas budget.
     let default_tx_gas_budget = TEST_ONLY_GAS_UNIT * TEST_ONLY_GAS_PRICE;
-    let test_setup = TestSetup::new(default_tx_gas_budget, default_tx_gas_budget).await;
+    let mut test_setup = TestSetup::new(default_tx_gas_budget, default_tx_gas_budget).await;
+    if worker_congestion {
+        test_setup
+            .protocol_config
+            .set_enable_pcool_flow_for_testing(true);
+        test_setup
+            .protocol_config
+            .set_max_concurrent_execution_workers_for_testing(1);
+    }
 
     // Creates 2 shared objects and 1 owned object.
     let shared_object_1 = test_setup.create_shared_object().await;
@@ -329,21 +379,13 @@ async fn congestion_control_execution_cancellation(use_execution_scheduler: bool
         ])
         .await;
 
-    // Creates two authority states with the same genesis objects for the actual
-    // test. One tests cancellation execution, and one tests executing cancelled
-    // transaction from effect.
+    // Creates an authority state with the genesis objects for the actual test.
     let authority_state = TestAuthorityBuilder::new()
         .with_reference_gas_price(TEST_ONLY_GAS_PRICE)
         .with_protocol_config(test_setup.protocol_config.clone())
         .build()
         .await;
     authority_state.insert_genesis_objects(&genesis_objects);
-    let authority_state_2 = TestAuthorityBuilder::new()
-        .with_reference_gas_price(TEST_ONLY_GAS_PRICE)
-        .with_protocol_config(test_setup.protocol_config.clone())
-        .build()
-        .await;
-    authority_state_2.insert_genesis_objects(&genesis_objects);
     assert_eq!(
         authority_state.uses_execution_scheduler(),
         use_execution_scheduler
@@ -352,10 +394,11 @@ async fn congestion_control_execution_cancellation(use_execution_scheduler: bool
     // The congestion limit, taking overshoot into account is
     // 2 * TEST_ONLY_GAS_PRICE * TEST_ONLY_GAS_UNIT. We set the initial debt to be
     // TEST_ONLY_GAS_PRICE * TEST_ONLY_GAS_UNIT + 1, so that the next transaction
-    // touching shared_object_1 will be cancelled.
+    // touching shared_object_1 will be cancelled (or dropped, with worker
+    // congestion control enabled).
     let initial_debt = TEST_ONLY_GAS_PRICE * TEST_ONLY_GAS_UNIT + 1;
 
-    let congestion_control_parameters = CongestionControlParameters::new_for_test(
+    let mut congestion_control_parameters = CongestionControlParameters::new_for_test(
         PerObjectCongestionControlMode::TotalGasBudget,
         test_setup
             .protocol_config
@@ -374,10 +417,13 @@ async fn congestion_control_execution_cancellation(use_execution_scheduler: bool
             .protocol_config
             .separate_gas_price_feedback_mechanism_for_randomness(),
     );
+    if worker_congestion {
+        congestion_control_parameters.set_max_concurrent_execution_workers_for_test(1);
+    }
 
     // Initialize shared object queue in the tracker and gas price calculator so
     // that any transaction touches shared_object_1 should result in congestion
-    // and cancellation.
+    // and cancellation (or dropping).
     let congestion_control_parameters_1 = congestion_control_parameters.clone();
     register_fail_point_arg("initial_congestion_tracker", move || {
         Some(new_congestion_tracker_with_initial_value_for_test(
@@ -395,6 +441,81 @@ async fn congestion_control_execution_cancellation(use_execution_scheduler: bool
             ),
         )
     });
+
+    let suggested_gas_price = TEST_ONLY_GAS_PRICE + 1;
+
+    if worker_congestion {
+        // With execution-worker congestion control enabled, the transaction is
+        // dropped instead of cancelled: it is neither executed nor
+        // checkpointed, and the submitter is notified out-of-band with the
+        // suggested gas price.
+        let transaction = build_test_transaction(
+            &authority_state,
+            &test_setup.package,
+            &test_setup.sender,
+            &test_setup.sender_key,
+            &test_setup.gas_object_id,
+            &[
+                (shared_object_1.object_id, shared_object_1.version),
+                (shared_object_2.object_id, shared_object_2.version),
+            ],
+            &authority_state
+                .get_object(&owned_object.object_id)
+                .unwrap()
+                .object_ref(),
+            TEST_ONLY_GAS_UNIT,
+        )
+        .await;
+
+        let sequenced_transactions = vec![SequencedConsensusTransaction::new_test(
+            ConsensusTransaction {
+                kind: ConsensusTransactionKind::UserTransactionV1(Box::new(
+                    transaction.clone().into(),
+                )),
+                tracking_id: Default::default(),
+            },
+        )];
+        let checkpoint_service = Arc::new(CheckpointServiceNoop {});
+        let epoch_store = authority_state.epoch_store_for_testing();
+        let executable_transactions = epoch_store
+            .process_consensus_transactions_for_tests(
+                sequenced_transactions,
+                &checkpoint_service,
+                authority_state.get_object_cache_reader().as_ref(),
+                authority_state.get_transaction_cache_reader().as_ref(),
+                &authority_state.metrics,
+                true,
+                authority_state.as_ref(),
+            )
+            .await
+            .unwrap();
+        assert!(
+            executable_transactions.is_empty(),
+            "a dropped transaction must not be scheduled for execution"
+        );
+
+        let error = epoch_store
+            .notify_read_dropped_digests(*transaction.digest())
+            .await;
+        match error {
+            IotaError::ValidatorTransactionCongested {
+                suggested_gas_price: reported,
+            } => {
+                assert_eq!(reported, suggested_gas_price);
+            }
+            other => panic!("expected ValidatorTransactionCongested, got {other:?}"),
+        }
+        return;
+    }
+
+    // Creates a second authority state with the same genesis objects to test
+    // executing the cancelled transaction from its effects.
+    let authority_state_2 = TestAuthorityBuilder::new()
+        .with_reference_gas_price(TEST_ONLY_GAS_PRICE)
+        .with_protocol_config(test_setup.protocol_config.clone())
+        .build()
+        .await;
+    authority_state_2.insert_genesis_objects(&genesis_objects);
 
     // Runs a transaction that touches shared_object_1, shared_object_2 and a owned
     // object.
@@ -415,8 +536,6 @@ async fn congestion_control_execution_cancellation(use_execution_scheduler: bool
         TEST_ONLY_GAS_UNIT,
     )
     .await;
-
-    let suggested_gas_price = TEST_ONLY_GAS_PRICE + 1;
 
     // Transaction should be cancelled with `shared_object_1` and `shared_object_2`
     // as the congested objects, and the suggested gas price should be

@@ -5402,7 +5402,9 @@ impl AuthorityPerEpochStore {
                                     max_gas_price,
                                 }
                             } else {
-                                IotaError::ValidatorTransactionCongested { suggested_gas_price }
+                                IotaError::ValidatorTransactionCongested {
+                                    suggested_gas_price,
+                                }
                             };
 
                             ConsensusTransactionResult::Dropped {
