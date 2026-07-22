@@ -325,7 +325,7 @@ impl MoveTraceBuilder {
 
     // All events pushed to the trace are first pushed, and then the tracer is
     // notified of the event.
-    fn push_event(&mut self, event: TraceEvent) {
+    pub fn push_event(&mut self, event: TraceEvent) {
         self.trace.events.push(event.clone());
         self.tracer.notify(&event, Writer(&mut self.trace));
     }
