@@ -2356,6 +2356,7 @@ dependencies = [
  "move-stdlib",
  "move-stdlib-natives",
  "move-trace-format",
+ "move-vm-config",
  "move-vm-profiler",
  "move-vm-runtime",
  "move-vm-test-utils",
