@@ -4,7 +4,9 @@
 
 use std::{collections::HashMap, sync::Arc};
 
-use iota_sdk_types::{CheckpointContentsDigest, CheckpointDigest, TransactionDigest};
+use iota_sdk_types::{
+    CheckpointContentsDigest, CheckpointDigest, TransactionDigest, checkpoint::CheckpointContents,
+};
 use tap::Pipe;
 use tracing::error;
 
@@ -14,8 +16,8 @@ use crate::{
     committee::Committee,
     effects::{TransactionEffects, TransactionEvents},
     messages_checkpoint::{
-        CheckpointContents, CheckpointContentsExt, CheckpointSequenceNumber,
-        FullCheckpointContents, VerifiedCheckpoint, VerifiedCheckpointContents,
+        CheckpointContentsExt, CheckpointSequenceNumber, FullCheckpointContents,
+        VerifiedCheckpoint, VerifiedCheckpointContents,
     },
     storage::{ReadStore, WriteStore},
     transaction::VerifiedTransaction,

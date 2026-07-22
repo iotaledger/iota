@@ -8,6 +8,7 @@ use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
     Address, EndOfEpochTransactionKind, Event, Identifier, ObjectId, ObjectReference, Owner,
     SharedObjectReference, StructTag, TransactionDigest, TransactionKind, TypeTag, Version,
+    checkpoint::{CheckpointContents, CheckpointSummary, EndOfEpochData},
 };
 use tap::Pipe;
 
@@ -22,8 +23,7 @@ use crate::{
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     gas_coin::GAS,
     messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointContents, CheckpointContentsExt, CheckpointSummary,
-        CheckpointSummaryExt, EndOfEpochData,
+        CertifiedCheckpointSummary, CheckpointContentsExt, CheckpointSummaryExt,
     },
     object::{GAS_VALUE_FOR_TESTING, MoveObject, MoveObjectExt, Object},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
