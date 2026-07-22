@@ -13,7 +13,7 @@ use docs_examples::utils::{
 };
 use iota_keys::keystore::{AccountKeystore, InMemKeystore};
 use iota_sdk::{
-    IotaClient, IotaClientBuilder, rpc_types::ObjectChange, types::crypto::SignatureScheme::ED25519,
+    IotaClient, IotaClientBuilder, rpc_types::ObjectChange, types::crypto::SignatureScheme,
 };
 use iota_sdk_types::{
     Address, Argument, Identifier, ObjectId, ObjectReference, Owner, SharedObjectReference,
@@ -56,7 +56,12 @@ async fn main() -> Result<(), anyhow::Error> {
     let mut keystore = InMemKeystore::new_insecure_for_tests(0);
 
     // Derive the address of the first account and set it as default
-    let publisher = keystore.import_from_mnemonic(MAIN_ADDRESS_MNEMONIC, ED25519, None, None)?;
+    let publisher = keystore.import_from_mnemonic(
+        MAIN_ADDRESS_MNEMONIC,
+        SignatureScheme::Ed25519,
+        None,
+        None,
+    )?;
 
     println!("Publisher address: {publisher}");
 
@@ -229,7 +234,7 @@ pub fn swap_recipient_in_transaction(
     mut transaction: Transaction,
     attacker: Address,
 ) -> Transaction {
-    match &mut transaction.inner_mut().intent_message.value {
+    match &mut transaction.0.transaction {
         TransactionData::V1(data) => match &mut data.kind {
             TransactionKind::Programmable(ptb) => {
                 ptb.inputs[0] = CallArg::Pure(bcs::to_bytes(&attacker).unwrap());

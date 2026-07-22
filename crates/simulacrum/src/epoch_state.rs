@@ -106,13 +106,13 @@ impl EpochState {
         Result<(), iota_types::error::ExecutionError>,
     )> {
         let tx_digest = *transaction.digest();
-        let tx_data = &transaction.data().intent_message().value;
-        let input_object_kinds = tx_data.input_objects()?;
-        let receiving_object_refs = tx_data.receiving_objects();
+        let tx = transaction.data().transaction();
+        let input_object_kinds = tx.input_objects()?;
+        let receiving_object_refs = tx.receiving_objects();
 
         iota_transaction_checks::deny::check_transaction_for_validation(
-            tx_data,
-            transaction.tx_signatures(),
+            tx,
+            transaction.signatures(),
             &input_object_kinds,
             &receiving_object_refs,
             deny_config,
@@ -134,7 +134,7 @@ impl EpochState {
         let (gas_status, checked_input_objects) = iota_transaction_checks::check_transaction_input(
             &self.protocol_config,
             self.epoch_start_state.reference_gas_price(),
-            transaction.data().transaction_data(),
+            transaction.data().transaction(),
             input_objects,
             &receiving_objects,
             &self.bytecode_verifier_metrics,
@@ -142,8 +142,8 @@ impl EpochState {
             authenticator_gas_budget,
         )?;
 
-        let transaction_data = transaction.data().transaction_data();
-        let (kind, signer, gas_data) = transaction_data.execution_parts();
+        let transaction = transaction.data().transaction();
+        let (kind, signer, gas_data) = transaction.execution_parts();
         Ok(self.executor.execute_transaction_to_effects(
             store.backing_store(),
             &self.protocol_config,

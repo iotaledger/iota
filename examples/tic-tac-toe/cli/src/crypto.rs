@@ -16,7 +16,7 @@ use iota_types::{
 pub(crate) fn public_key_from_base64(base64: &str) -> Result<PublicKey> {
     let bytes = Base64::decode(base64).map_err(|_| anyhow!("Failed to decode base64"))?;
 
-    PublicKey::try_from_bytes(SignatureScheme::ED25519, &bytes)
+    PublicKey::try_from_bytes(SignatureScheme::Ed25519, &bytes)
         .map_err(|_| anyhow!("Failed to read public key"))
 }
 

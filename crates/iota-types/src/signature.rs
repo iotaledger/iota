@@ -71,6 +71,6 @@ impl AuthenticatorTrait for crate::crypto::Signature {
         T: Serialize,
     {
         use crate::crypto::IotaSignature;
-        self.verify_secure(value, author, self.signature_scheme())
+        self.verify_secure(value, author)
     }
 }

@@ -6,8 +6,9 @@ use std::{cmp::Ordering, collections::HashMap};
 
 use iota_sdk_types::{ObjectId, SharedObjectReference};
 use iota_types::{
-    base_types::CommitRound, executable_transaction::VerifiedExecutableTransaction,
-    transaction::TransactionDataAPI,
+    base_types::CommitRound,
+    executable_transaction::VerifiedExecutableTransaction,
+    transaction::{SenderSignedTransactionAPI, TransactionDataAPI},
 };
 use serde::{Deserialize, Serialize};
 use tracing::instrument;
@@ -509,7 +510,7 @@ impl SharedObjectCongestionTracker {
             object_ids,
             start_time,
             estimated_execution_duration,
-            transaction.transaction_data().gas_price(),
+            transaction.transaction().gas_price(),
         ))
     }
 

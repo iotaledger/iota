@@ -132,7 +132,7 @@ pub(crate) trait LocalRead {
 
     /// Cleans the local directory by removing all processed checkpoint files.
     fn gc_processed_files(&mut self, watermark: CheckpointSequenceNumber) -> IngestionResult<()> {
-        info!("cleaning processed files, watermark is {watermark}");
+        debug!("cleaning processed files, watermark is {watermark}");
         self.update_last_pruned_watermark(watermark);
         for entry in fs::read_dir(self.path())? {
             let entry = entry?;

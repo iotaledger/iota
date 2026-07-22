@@ -5,11 +5,11 @@
 use std::sync::Arc;
 
 use prometheus_filtered::{
-    Histogram, HistogramVec, IntCounter, IntCounterVec, IntGauge, IntGaugeVec, MetricLevel,
-    Registry, exponential_buckets, register_histogram_vec_with_registry,
-    register_histogram_with_registry, register_int_counter_vec_with_registry,
-    register_int_counter_with_registry, register_int_gauge_vec_with_registry,
-    register_int_gauge_with_registry,
+    GaugeVec, Histogram, HistogramVec, IntCounter, IntCounterVec, IntGauge, IntGaugeVec,
+    MetricLevel, Registry, exponential_buckets, register_gauge_vec_with_registry,
+    register_histogram_vec_with_registry, register_histogram_with_registry,
+    register_int_counter_vec_with_registry, register_int_counter_with_registry,
+    register_int_gauge_vec_with_registry, register_int_gauge_with_registry,
 };
 
 use crate::network::metrics::NetworkMetrics;
@@ -223,6 +223,7 @@ pub(crate) struct NodeMetrics {
     pub(crate) transactions_synchronizer_success_by_peer: IntCounterVec,
     pub(crate) transactions_synchronizer_failure_by_peer: IntCounterVec,
     pub(crate) transactions_synchronizer_inflight_requests: IntGauge,
+    pub(crate) peer_responsiveness_expected_latency_ms: GaugeVec,
     pub(crate) reputation_scores: IntGaugeVec,
     pub(crate) scope_processing_time: HistogramVec,
     pub(crate) sub_dags_per_commit_count: HistogramVec,
@@ -259,6 +260,7 @@ pub(crate) struct NodeMetrics {
     pub(crate) commit_sync_highest_fetched_index: IntGaugeVec,
     pub(crate) commit_sync_local_index: IntGauge,
     pub(crate) commit_sync_gap_on_processing: IntCounterVec,
+    pub(crate) commit_sync_truncated_fetches: IntCounterVec,
     pub(crate) commit_sync_fetch_loop_latency: Histogram,
     pub(crate) commit_sync_fetch_once_latency: HistogramVec,
     pub(crate) commit_sync_fetch_once_errors: IntCounterVec,
@@ -1185,6 +1187,12 @@ impl NodeMetrics {
                 registry;
                 MetricLevel::Warn,
             ).unwrap(),
+            commit_sync_truncated_fetches: register_int_counter_vec_with_registry!(
+                "commit_sync_truncated_fetches",
+                "Number of fetches whose response covered only a prefix of the returned commits",
+                &["source"],
+                registry,
+            ).unwrap(),
             commit_sync_fetch_loop_latency: register_histogram_with_registry!(
                 "commit_sync_fetch_loop_latency",
                 "The time taken to finish fetching commits and block headers from a given range",
@@ -1273,6 +1281,13 @@ impl NodeMetrics {
             transactions_synchronizer_inflight_requests: register_int_gauge_with_registry!(
                 "transaction_synchronizer_concurrent_requests",
                 "Number of concurrent transaction fetch requests",
+                registry;
+                MetricLevel::Warn,
+            ).unwrap(),
+            peer_responsiveness_expected_latency_ms: register_gauge_vec_with_registry!(
+                "peer_responsiveness_expected_latency_ms",
+                "Expected per-fetch latency (ms) over measured peers per fetch kind under uniform vs responsiveness-weighted selection; their ratio is the improvement the ranking buys",
+                &["kind", "selection"],
                 registry;
                 MetricLevel::Warn,
             ).unwrap(),

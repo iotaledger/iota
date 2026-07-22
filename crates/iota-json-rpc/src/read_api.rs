@@ -39,7 +39,7 @@ use iota_types::{
     error::IotaError,
     iota_serde::BigInt,
     messages_checkpoint::{CheckpointSequenceNumber, CheckpointTimestamp},
-    object::{MoveObjectExt, Object, ObjectRead, PastObjectRead},
+    object::{MoveStructExt, Object, ObjectRead, PastObjectRead},
     transaction::{Transaction, TransactionDataAPI},
 };
 use itertools::Itertools;
@@ -371,12 +371,7 @@ impl ReadApi {
             let mut results = vec![];
             for resp in temp_response.values() {
                 let input_objects = if let Some(tx) = resp.transaction() {
-                    tx.data()
-                        .inner()
-                        .intent_message
-                        .value
-                        .input_objects()
-                        .unwrap_or_default()
+                    tx.data().transaction().input_objects().unwrap_or_default()
                 } else {
                     // don't have the input tx, so not much we can do. perhaps this is an Err?
                     Vec::new()
@@ -426,8 +421,7 @@ impl ReadApi {
                             )
                         })?
                         .data()
-                        .intent_message()
-                        .value
+                        .transaction()
                         .sender(),
                     effects.modified_at_versions(),
                     effects.all_changed_objects(),
@@ -776,9 +770,7 @@ impl ReadApiServer for ReadApi {
             .map_err(Error::from)??;
             let input_objects = transaction
                 .data()
-                .inner()
-                .intent_message
-                .value
+                .transaction()
                 .input_objects()
                 .unwrap_or_default();
 
@@ -887,7 +879,7 @@ impl ReadApiServer for ReadApi {
                 if let (Some(effects), Some(input)) =
                     (&temp_response.effects, &temp_response.transaction)
                 {
-                    let sender = input.data().intent_message().value.sender();
+                    let sender = input.data().transaction().sender();
                     let object_changes = get_object_changes(
                         &object_cache,
                         sender,
@@ -1120,8 +1112,8 @@ pub enum ObjectDisplayError {
     #[error("Failed to extract layout")]
     Layout,
 
-    #[error("Failed to extract Move object")]
-    MoveObject,
+    #[error("Failed to extract Move struct")]
+    MoveStruct,
 
     #[error(transparent)]
     Deserialization(#[from] IotaError),
@@ -1203,7 +1195,7 @@ fn get_move_struct(
     let layout = layout.as_ref().ok_or_else(|| ObjectDisplayError::Layout)?;
     Ok(o.data
         .as_opt_struct()
-        .ok_or_else(|| ObjectDisplayError::MoveObject)?
+        .ok_or_else(|| ObjectDisplayError::MoveStruct)?
         .to_move_struct(layout)?)
 }
 

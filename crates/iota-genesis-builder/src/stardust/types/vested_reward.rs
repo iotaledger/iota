@@ -4,14 +4,14 @@
 //! Vested reward detection and conversion logic for Stardust migration.
 
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{Address, ObjectData, ObjectId, Owner, StructTag, Version};
+use iota_sdk_types::{Address, MoveStruct, ObjectData, ObjectId, Owner, StructTag, Version};
 use iota_stardust_types::block::output::{BasicOutput, OutputId};
 use iota_types::{
     balance::Balance,
     base_types::TxContext,
     error::ExecutionError,
     id::UID,
-    object::{MoveObject, MoveObjectExt, Object},
+    object::{MoveStructExt, Object},
     timelock::{
         label::label_struct_tag_to_string, stardust_upgrade_label::stardust_upgrade_label_type,
         timelock::TimeLock,
@@ -118,7 +118,7 @@ pub fn to_genesis_object(
     version: Version,
 ) -> Result<Object, VestedRewardError> {
     let move_object = {
-        MoveObject::new_from_execution(
+        MoveStruct::new_from_execution(
             StructTag::new_timelocked_gas_balance(),
             version,
             timelock.to_bcs_bytes(),

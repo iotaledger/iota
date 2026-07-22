@@ -401,6 +401,17 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
                 return Err(e);
             }
 
+            if let Err(e) = check_shard_transaction_author(&shard, peer, &self.context) {
+                self.context
+                    .metrics
+                    .node_metrics
+                    .bundles_with_invalid_parts
+                    .with_label_values(&[peer_hostname, "shard", e.name()])
+                    .inc();
+                info!("Invalid shard from {}: {}", peer, e);
+                return Err(e);
+            }
+
             if shard.round() >= block_round {
                 let e = ConsensusError::TooBigShardRoundInABundle {
                     shard_round: shard.round(),
@@ -669,6 +680,22 @@ pub(crate) fn check_shard_version(shard: &ShardWithProof) -> ConsensusResult<()>
         ShardWithProof::V2(_) => Ok(()),
         ShardWithProof::V1(_) => Err(ConsensusError::WrongShardVersion { actual: "V1" }),
     }
+}
+
+pub(crate) fn check_shard_transaction_author(
+    shard: &ShardWithProof,
+    peer: AuthorityIndex,
+    context: &Context,
+) -> ConsensusResult<()> {
+    let index = shard.author();
+    if !context.committee.is_valid_index(index) {
+        return Err(ConsensusError::InvalidAuthorityIndexRequested {
+            index,
+            max: context.committee.size(),
+            peer,
+        });
+    }
+    Ok(())
 }
 
 #[async_trait]
@@ -1806,6 +1833,7 @@ mod tests {
             context.clone(),
             core_dispatcher.clone(),
             dag_state.clone(),
+            block_verifier.clone(),
         );
 
         let header_synchronizer = HeaderSynchronizer::start(
@@ -1898,6 +1926,7 @@ mod tests {
             context.clone(),
             core_dispatcher.clone(),
             dag_state.clone(),
+            block_verifier.clone(),
         );
         let header_synchronizer = HeaderSynchronizer::start(
             network_client.clone(),
@@ -1985,6 +2014,7 @@ mod tests {
             context.clone(),
             core_dispatcher.clone(),
             dag_state.clone(),
+            block_verifier.clone(),
         );
 
         let header_synchronizer = HeaderSynchronizer::start(
@@ -2102,6 +2132,7 @@ mod tests {
             context.clone(),
             core_dispatcher.clone(),
             dag_state.clone(),
+            block_verifier.clone(),
         );
 
         let header_synchronizer = HeaderSynchronizer::start(
@@ -2242,6 +2273,7 @@ mod tests {
             context.clone(),
             core_dispatcher.clone(),
             dag_state.clone(),
+            block_verifier.clone(),
         );
 
         let header_synchronizer = HeaderSynchronizer::start(
@@ -2327,6 +2359,7 @@ mod tests {
             context.clone(),
             core_dispatcher.clone(),
             dag_state.clone(),
+            block_verifier.clone(),
         );
 
         let header_synchronizer = HeaderSynchronizer::start(
@@ -2566,6 +2599,7 @@ mod tests {
             context.clone(),
             core_dispatcher.clone(),
             dag_state.clone(),
+            block_verifier.clone(),
         );
 
         let header_synchronizer = HeaderSynchronizer::start(
@@ -2733,6 +2767,7 @@ mod tests {
             context.clone(),
             core_dispatcher.clone(),
             dag_state.clone(),
+            block_verifier.clone(),
         );
 
         let header_synchronizer = HeaderSynchronizer::start(
@@ -2911,6 +2946,7 @@ mod tests {
             context.clone(),
             core_dispatcher.clone(),
             dag_state.clone(),
+            block_verifier.clone(),
         );
 
         let header_synchronizer = HeaderSynchronizer::start(
@@ -3244,6 +3280,7 @@ mod tests {
             context.clone(),
             core_dispatcher.clone(),
             dag_state.clone(),
+            block_verifier.clone(),
         );
 
         let header_synchronizer = HeaderSynchronizer::start(
@@ -3395,6 +3432,7 @@ mod tests {
             context.clone(),
             core_dispatcher.clone(),
             dag_state.clone(),
+            block_verifier.clone(),
         );
 
         let header_synchronizer = HeaderSynchronizer::start(
@@ -3565,6 +3603,7 @@ mod tests {
             context.clone(),
             core_dispatcher.clone(),
             dag_state.clone(),
+            block_verifier.clone(),
         );
 
         let header_synchronizer = HeaderSynchronizer::start(
@@ -3788,6 +3827,7 @@ mod tests {
             context.clone(),
             core_dispatcher.clone(),
             dag_state.clone(),
+            block_verifier.clone(),
         );
 
         let header_synchronizer = HeaderSynchronizer::start(
@@ -3987,6 +4027,7 @@ mod tests {
             context.clone(),
             core_dispatcher.clone(),
             dag_state.clone(),
+            block_verifier.clone(),
         );
 
         let header_synchronizer = HeaderSynchronizer::start(
@@ -4155,5 +4196,46 @@ mod tests {
             TransactionsCommitment::default(),
         );
         check_shard_version(&shard_v2).unwrap();
+    }
+
+    #[tokio::test]
+    async fn check_shard_transaction_author_rejects_invalid_author() {
+        use super::check_shard_transaction_author;
+        use crate::{
+            block_header::{ShardWithProof, ShardWithProofV2},
+            error::ConsensusError,
+            transaction_ref::TransactionRef,
+        };
+
+        let (context, _) = Context::new_for_test(4);
+        let peer = context.committee.to_authority_index(1).unwrap();
+        let invalid_author = AuthorityIndex::new_for_test(context.committee.size() as u8);
+        let shard = ShardWithProof::V2(ShardWithProofV2 {
+            shard: vec![],
+            proof: vec![],
+            transaction_ref: TransactionRef {
+                round: 1,
+                author: invalid_author,
+                transactions_commitment: TransactionsCommitment::default(),
+            },
+        });
+
+        let result = check_shard_transaction_author(&shard, peer, &context);
+        assert!(matches!(
+            result,
+            Err(ConsensusError::InvalidAuthorityIndexRequested {
+                index,
+                max: 4,
+                peer: err_peer,
+            }) if index == invalid_author && err_peer == peer
+        ));
+
+        let valid_shard = ShardWithProof::new(
+            vec![],
+            vec![],
+            BlockRef::new(1, peer, BlockHeaderDigest::default()),
+            TransactionsCommitment::default(),
+        );
+        check_shard_transaction_author(&valid_shard, peer, &context).unwrap();
     }
 }

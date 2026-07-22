@@ -12,7 +12,7 @@ use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    object::{MoveObjectExt, Object},
+    object::{MoveStructExt, Object},
     storage::BackingPackageStore,
 };
 

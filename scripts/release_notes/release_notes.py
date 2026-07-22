@@ -47,6 +47,14 @@ RE_BREAKING = re.compile(
     re.DOTALL | re.IGNORECASE,
 )
 
+# Explicit terminator that marks the end of the release notes block in the PR
+# template. Anything after it (e.g. a tooling attribution footer appended to the
+# description) is ignored, regardless of surrounding whitespace.
+RE_NOTES_END = re.compile(
+    r"^\s*---\s*$",
+    re.MULTILINE,
+)
+
 RE_BREAKING_CRATE = re.compile(
     r"^\s*#####\s+([^\n#]+)$",
     re.MULTILINE,
@@ -447,6 +455,16 @@ def extract_notes(commit_or_pr, seen, is_pr, crate_names, is_dry_run):
             pr, notes = extract_notes_from_commit(commit_or_pr)
 
     notes = strip_html_comments(notes)
+
+    # Truncate at the `---` terminator following the Release Notes heading so
+    # trailing content (e.g. an appended tooling footer) can't be read as
+    # release note or rollout content.
+    heading = RE_HEADING.search(notes)
+    if heading:
+        terminator = RE_NOTES_END.search(notes, heading.start())
+        if terminator:
+            notes = notes[: terminator.start()]
+
     result = {}
     rollout = extract_rollout(notes, crate_names)
 

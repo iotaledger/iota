@@ -224,9 +224,9 @@ impl ChildObjectResolver for StoreBackend<'_> {
 
 #[cfg(test)]
 mod tests {
-    use iota_sdk_types::{ObjectId, Owner, TransactionDigest, Version};
+    use iota_sdk_types::{MoveStruct, ObjectId, Owner, TransactionDigest, Version};
     use iota_types::{
-        object::{MoveObject, MoveObjectExt, Object},
+        object::{MoveStructExt, Object},
         storage::ChildObjectResolver,
     };
 
@@ -237,7 +237,7 @@ mod tests {
         let parent = ObjectId::random();
         let stranger = ObjectId::random();
         let child = Object::new_move(
-            MoveObject::new_gas_coin(Version::from(3), ObjectId::random(), 1),
+            MoveStruct::new_gas_coin(Version::from(3), ObjectId::random(), 1),
             Owner::Object(parent),
             TransactionDigest::ZERO,
         );
@@ -276,7 +276,7 @@ mod tests {
         let stranger = ObjectId::random();
         let current = Version::from(5);
         let child = Object::new_move(
-            MoveObject::new_gas_coin(current, ObjectId::random(), 1),
+            MoveStruct::new_gas_coin(current, ObjectId::random(), 1),
             Owner::Address(parent.into()),
             TransactionDigest::ZERO,
         );

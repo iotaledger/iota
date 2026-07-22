@@ -579,7 +579,7 @@ mod tests {
         error::{IotaError, IotaResult},
         id::UID,
         messages_checkpoint::CheckpointSequenceNumber,
-        object::{MoveObjectExt, Object},
+        object::{MoveStructExt, Object},
         parse_iota_struct_tag,
         utils::create_fake_transaction,
     };
@@ -973,8 +973,7 @@ mod tests {
     }
 
     mod get_all_coins_tests {
-        use iota_sdk_types::Owner;
-        use iota_types::object::MoveObject;
+        use iota_sdk_types::{MoveStruct, Owner};
 
         use super::{super::*, *};
 
@@ -1013,7 +1012,7 @@ mod tests {
                 get_test_coin(Some("0xAAA"), CoinType::Gas),
             ];
             let coins_clone = coins.clone();
-            let coin_move_object = MoveObject::new_gas_coin(
+            let coin_move_object = MoveStruct::new_gas_coin(
                 coins[0].version,
                 coins[0].coin_object_id,
                 coins[0].balance,

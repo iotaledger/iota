@@ -20,8 +20,8 @@ use iota_sdk::{
     IotaClient, IotaClientBuilder,
     rpc_types::{IotaTransactionBlockEffectsAPI, ObjectChange},
     types::{
-        crypto::SignatureScheme::ED25519,
-        programmable_transaction_builder::ProgrammableTransactionBuilder, transaction::Transaction,
+        crypto::SignatureScheme, programmable_transaction_builder::ProgrammableTransactionBuilder,
+        transaction::Transaction,
     },
 };
 use iota_sdk_types::{
@@ -67,7 +67,12 @@ async fn main() -> Result<(), anyhow::Error> {
     let mut keystore = InMemKeystore::new_insecure_for_tests(0);
 
     // Derive the address of the first account and set it as default
-    let publisher = keystore.import_from_mnemonic(MAIN_ADDRESS_MNEMONIC, ED25519, None, None)?;
+    let publisher = keystore.import_from_mnemonic(
+        MAIN_ADDRESS_MNEMONIC,
+        SignatureScheme::Ed25519,
+        None,
+        None,
+    )?;
 
     println!("Publisher address: {publisher}");
 
@@ -410,7 +415,7 @@ pub fn swap_blacklist_in_transaction(
         false,
     ));
 
-    let new_sig = match &transaction.inner_mut().tx_signatures[0] {
+    let new_sig = match &transaction.0.signatures[0] {
         UserSignature::MoveAuthenticator(move_authenticator) => {
             let raw_value_call_arg = move_authenticator.call_args()[1].clone();
             let signature_call_arg = move_authenticator.call_args()[2].clone();
@@ -442,7 +447,7 @@ pub fn swap_blacklist_in_transaction(
         _ => panic!("Expected MoveAuthenticator signature"),
     };
 
-    transaction.inner_mut().tx_signatures[0] = new_sig;
+    transaction.0.signatures[0] = new_sig;
 
     transaction
 }
@@ -454,7 +459,7 @@ pub fn swap_raw_value_in_transaction(
 ) -> Transaction {
     let new_raw_value_call_arg = CallArg::Pure(bcs::to_bytes(&new_raw_value).unwrap());
 
-    let new_sig = match &transaction.inner_mut().tx_signatures[0] {
+    let new_sig = match &transaction.0.signatures[0] {
         UserSignature::MoveAuthenticator(move_authenticator) => {
             let blacklist_call_arg = move_authenticator.call_args()[0].clone();
             let signature_call_arg = move_authenticator.call_args()[2].clone();
@@ -486,7 +491,7 @@ pub fn swap_raw_value_in_transaction(
         _ => panic!("Expected MoveAuthenticator signature"),
     };
 
-    transaction.inner_mut().tx_signatures[0] = new_sig;
+    transaction.0.signatures[0] = new_sig;
 
     transaction
 }

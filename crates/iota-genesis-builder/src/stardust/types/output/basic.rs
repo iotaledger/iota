@@ -6,7 +6,7 @@
 
 use anyhow::Result;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{Address, ObjectData, ObjectId, Owner, StructTag, Version};
+use iota_sdk_types::{Address, MoveStruct, ObjectData, ObjectId, Owner, StructTag, Version};
 // Re-export the canonical type from iota-types
 pub use iota_types::stardust::output::basic::BasicOutput;
 use iota_types::{
@@ -15,7 +15,7 @@ use iota_types::{
     coin::Coin,
     collection_types::Bag,
     id::UID,
-    object::{MoveObject, MoveObjectExt, Object},
+    object::{MoveStructExt, Object},
     stardust::{
         coin_type::CoinType,
         output::unlock_conditions::{
@@ -44,7 +44,7 @@ pub fn create_coin(
 ) -> Result<Object> {
     let coin = Coin::new(object_id, amount);
     let move_object = {
-        MoveObject::new_from_execution(
+        MoveStruct::new_from_execution(
             StructTag::new_coin(coin_type.to_type_tag()),
             version,
             bcs::to_bytes(&coin)?,
@@ -154,7 +154,7 @@ impl BasicOutputExt for BasicOutput {
         coin_type: &CoinType,
     ) -> Result<Object> {
         let move_object = {
-            MoveObject::new_from_execution(
+            MoveStruct::new_from_execution(
                 BasicOutput::tag(coin_type.to_type_tag()),
                 version,
                 bcs::to_bytes(self)?,

@@ -283,7 +283,7 @@ pub enum IotaClientCommands {
     /// derivation path which defaults to m/44'/4218'/0'/0'/0' for ed25519,
     /// m/54'/4218'/0'/0/0 for secp256k1 or m/74'/4218'/0'/0/0 for secp256r1.
     NewAddress {
-        #[arg(long, default_value_t = SignatureScheme::ED25519)]
+        #[arg(long, default_value_t = SignatureScheme::Ed25519)]
         key_scheme: SignatureScheme,
         /// The alias must start with a letter and can contain only letters,
         /// digits, hyphens (-), or underscores (_).
@@ -2859,8 +2859,16 @@ pub struct NewAddressOutput {
     pub address: Address,
     pub public_base64_key: String,
     pub public_base64_key_with_flag: String,
+    #[serde(serialize_with = "serialize_as_display")]
     pub key_scheme: SignatureScheme,
     pub recovery_phrase: String,
+}
+
+fn serialize_as_display<S: serde::Serializer>(
+    value: &impl Display,
+    serializer: S,
+) -> Result<S::Ok, S::Error> {
+    serializer.collect_str(value)
 }
 
 #[derive(Serialize)]

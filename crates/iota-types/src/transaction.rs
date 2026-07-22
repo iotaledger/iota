@@ -18,15 +18,18 @@ use fastcrypto::{encoding::Base64, hash::HashFunction};
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
     Address, Argument, CancelledTransaction, CertificateDigest, Command, ConsensusCommitDigest,
-    ConsensusCommitPrologueV1, ConsensusDeterminedVersionAssignments, Digest,
-    EndOfEpochTransactionKind, Event, GasPayment, GenesisObject, GenesisTransaction, Identifier,
-    Input, MakeMoveVector, MergeCoins, MoveCall, ObjectDigest, ObjectId, ObjectReference, Owner,
+    ConsensusCommitPrologueV1, ConsensusDeterminedVersionAssignments, EndOfEpochTransactionKind,
+    Event, GasPayment, GenesisObject, GenesisTransaction, Identifier, Input, MakeMoveVector,
+    MergeCoins, MoveCall, MoveStruct, ObjectDigest, ObjectId, ObjectReference, Owner,
     ProgrammableTransaction, Publish, RandomnessRound, RandomnessStateUpdate,
-    SenderSignedDataDigest, SharedObjectReference, SplitCoins, TransactionDigest,
-    TransactionExpiration, TransactionKind, TransferObjects, TypeTag, Upgrade, Version,
+    SharedObjectReference, SplitCoins, TransactionDigest, TransactionExpiration, TransactionKind,
+    TransferObjects, TypeTag, Upgrade, Version,
     crypto::{Intent, IntentMessage, IntentScope},
 };
-pub use iota_sdk_types::{Transaction as TransactionData, TransactionV1 as TransactionDataV1};
+pub use iota_sdk_types::{
+    SenderSignedTransaction as SenderSignedData, Transaction as TransactionData,
+    TransactionV1 as TransactionDataV1,
+};
 use itertools::Either;
 use nonempty::{NonEmpty, nonempty};
 use serde::{Deserialize, Serialize};
@@ -46,7 +49,7 @@ use crate::{
     message_envelope::{Envelope, Message, TrustedEnvelope, VerifiedEnvelope},
     messages_checkpoint::CheckpointTimestamp,
     move_authenticator::{MoveAuthenticator, MoveAuthenticatorExt},
-    object::{MoveObject, Object},
+    object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     signature::{UserSignature, VerifyParams},
     signature_verification::verify_sender_signed_data_message_signatures,
@@ -1810,85 +1813,6 @@ pub struct TxValidityCheckContext<'a> {
     pub epoch: EpochId,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
-pub struct SenderSignedData(SizeOneVec<SenderSignedTransaction>);
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct SenderSignedTransaction {
-    pub intent_message: IntentMessage<TransactionData>,
-    /// A list of signatures signed by all transaction participants.
-    /// 1. non participant signature must not be present.
-    /// 2. signature order does not matter.
-    pub tx_signatures: Vec<UserSignature>,
-}
-
-impl Serialize for SenderSignedTransaction {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        #[derive(Serialize)]
-        #[serde(rename = "SenderSignedTransaction")]
-        struct SignedTxn<'a> {
-            intent_message: &'a IntentMessage<TransactionData>,
-            tx_signatures: &'a Vec<UserSignature>,
-        }
-
-        if self.intent_message().intent != Intent::iota_transaction() {
-            return Err(serde::ser::Error::custom("invalid Intent for Transaction"));
-        }
-
-        let txn = SignedTxn {
-            intent_message: self.intent_message(),
-            tx_signatures: &self.tx_signatures,
-        };
-        txn.serialize(serializer)
-    }
-}
-
-impl<'de> Deserialize<'de> for SenderSignedTransaction {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        #[derive(Deserialize)]
-        #[serde(rename = "SenderSignedTransaction")]
-        struct SignedTxn {
-            intent_message: IntentMessage<TransactionData>,
-            tx_signatures: Vec<UserSignature>,
-        }
-
-        let SignedTxn {
-            intent_message,
-            tx_signatures,
-        } = Deserialize::deserialize(deserializer)?;
-
-        if intent_message.intent != Intent::iota_transaction() {
-            return Err(serde::de::Error::custom("invalid Intent for Transaction"));
-        }
-
-        Ok(Self {
-            intent_message,
-            tx_signatures,
-        })
-    }
-}
-
-impl SenderSignedTransaction {
-    pub(crate) fn get_signer_sig_mapping(&self) -> IotaResult<BTreeMap<Address, &UserSignature>> {
-        let mut mapping = BTreeMap::new();
-        for sig in &self.tx_signatures {
-            let address = sig.derive_address();
-            mapping.insert(address, sig);
-        }
-        Ok(mapping)
-    }
-
-    pub fn intent_message(&self) -> &IntentMessage<TransactionData> {
-        &self.intent_message
-    }
-}
-
 /// Merge every [`MoveAuthenticator`]'s input objects into `input_objects`.
 ///
 /// Objects not yet present are appended; for an object that appears in both
@@ -1914,126 +1838,148 @@ pub fn merge_authenticator_input_objects<'a>(
     Ok(())
 }
 
-impl SenderSignedData {
-    pub fn new(tx_data: TransactionData, tx_signatures: Vec<UserSignature>) -> Self {
-        Self(SizeOneVec::new(SenderSignedTransaction {
-            intent_message: IntentMessage::new(Intent::iota_transaction(), tx_data),
-            tx_signatures,
-        }))
+/// API for accessing and constructing [`SenderSignedData`].
+///
+/// This trait provides node-internal methods on the SDK's
+/// [`SenderSignedTransaction`](iota_sdk_types::SenderSignedTransaction), which
+/// carries the transaction data together with the signatures of all
+/// transaction participants. A non-participant signature must not be present,
+/// and the signature order does not matter.
+pub trait SenderSignedTransactionAPI {
+    /// Creates a new [`SenderSignedData`] with a single sender signature.
+    fn new_from_sender_signature(
+        tx_data: TransactionData,
+        tx_signature: Signature,
+    ) -> SenderSignedData;
+
+    /// Adds a signature. Does not check the validity of the signature or
+    /// perform any de-dup checks.
+    fn add_signature(&mut self, new_signature: Signature);
+
+    /// Returns a mapping from the address each signature commits to, to the
+    /// signature itself.
+    fn get_signer_sig_mapping(&self) -> IotaResult<BTreeMap<Address, &UserSignature>>;
+
+    /// Returns `true` if any signature is a multisig.
+    fn has_multisig(&self) -> bool;
+
+    /// Returns a mutable reference to the transaction. **Testing only.**
+    fn transaction_mut_for_testing(&mut self) -> &mut TransactionData;
+
+    /// Returns a mutable reference to the signatures. **Testing only.**
+    fn tx_signatures_mut_for_testing(&mut self) -> &mut Vec<UserSignature>;
+
+    /// Returns the BCS serialized size in bytes.
+    fn serialized_size(&self) -> IotaResult<usize>;
+
+    /// Validate untrusted user transaction, including its size, input count,
+    /// command count, etc.
+    /// Returns the certificate serialised bytes size.
+    fn validity_check(&self, context: &TxValidityCheckContext<'_>) -> Result<usize, IotaError>;
+
+    /// Returns all unique input objects including those from
+    /// `MoveAuthenticator`s if any for reading.
+    ///
+    /// Although some shared objects(with a different mutability flag, for
+    /// example) can be duplicated in the transaction and authenticators, we
+    /// load them independently to make it possible to analyze the inputs in
+    /// the transaction checkers.
+    fn collect_all_input_object_kind_for_reading(&self) -> IotaResult<Vec<InputObjectKind>>;
+
+    /// Splits the provided input objects into groups:
+    /// 1. Input objects required by the transaction itself; may contain
+    ///    duplicates if an IOTA coin is used both as an input and a gas coin.
+    /// 2. A list of input objects required by each `MoveAuthenticator`(
+    ///    including the object to authenticate) + the object to authenticate.
+    fn split_input_objects_into_groups_for_reading(
+        &self,
+        input_objects: InputObjects,
+    ) -> IotaResult<(InputObjects, Vec<(InputObjects, ObjectReadResult)>)>;
+
+    /// Checks if [`SenderSignedData`] contains at least one shared object.
+    /// This function checks shared objects from the `MoveAuthenticator`s if
+    /// any.
+    fn contains_shared_object(&self) -> bool;
+
+    /// Returns an iterator over all shared input objects related to this
+    /// transaction, including those from `MoveAuthenticator`s if any.
+    ///
+    /// If a shared object appears with the same version but different
+    /// mutability, only one instance which is mutable is returned.
+    ///
+    /// Panics if there are shared objects with the same ID but different
+    /// initial versions.
+    fn shared_input_objects(&self) -> Vec<SharedObjectReference>;
+
+    /// Returns an iterator over all input objects related to this
+    /// transaction, including those from the `MoveAuthenticator`s if any.
+    ///
+    /// If an IOTA coin is used both as an input and as a gas coin, it will
+    /// appear two times in the returned iterator.
+    ///
+    /// If a shared object appears both in the transaction and authenticator
+    /// with different mutability, only one instance which is mutable is
+    /// returned.
+    ///
+    /// Shared objects with the same ID but different versions are not allowed.
+    fn input_objects(&self) -> IotaResult<Vec<InputObjectKind>>;
+
+    /// Checks if [`SenderSignedData`] contains the `Random` object as an
+    /// input.
+    /// This function checks shared objects from the `MoveAuthenticator`s if
+    /// any.
+    fn uses_randomness(&self) -> bool;
+}
+
+impl SenderSignedTransactionAPI for SenderSignedData {
+    fn new_from_sender_signature(
+        tx_data: TransactionData,
+        tx_signature: Signature,
+    ) -> SenderSignedData {
+        Self::new(tx_data, vec![tx_signature.into()])
     }
 
-    pub fn new_from_sender_signature(tx_data: TransactionData, tx_signature: Signature) -> Self {
-        Self(SizeOneVec::new(SenderSignedTransaction {
-            intent_message: IntentMessage::new(Intent::iota_transaction(), tx_data),
-            tx_signatures: vec![tx_signature.into()],
-        }))
+    fn add_signature(&mut self, new_signature: Signature) {
+        self.0.signatures.push(new_signature.into());
     }
 
-    pub fn inner(&self) -> &SenderSignedTransaction {
-        self.0.element()
+    fn get_signer_sig_mapping(&self) -> IotaResult<BTreeMap<Address, &UserSignature>> {
+        let mut mapping = BTreeMap::new();
+        for sig in &self.0.signatures {
+            let address = sig.derive_address();
+            mapping.insert(address, sig);
+        }
+        Ok(mapping)
     }
 
-    pub fn into_inner(self) -> SenderSignedTransaction {
-        self.0.into_inner()
+    fn has_multisig(&self) -> bool {
+        self.signatures().iter().any(|sig| sig.is_multisig())
     }
 
-    pub fn inner_mut(&mut self) -> &mut SenderSignedTransaction {
-        self.0.element_mut()
+    fn transaction_mut_for_testing(&mut self) -> &mut TransactionData {
+        &mut self.0.transaction
     }
 
-    // This function does not check validity of the signature
-    // or perform any de-dup checks.
-    pub fn add_signature(&mut self, new_signature: Signature) {
-        self.inner_mut().tx_signatures.push(new_signature.into());
+    fn tx_signatures_mut_for_testing(&mut self) -> &mut Vec<UserSignature> {
+        &mut self.0.signatures
     }
 
-    pub(crate) fn get_signer_sig_mapping(&self) -> IotaResult<BTreeMap<Address, &UserSignature>> {
-        self.inner().get_signer_sig_mapping()
-    }
-
-    pub fn transaction_data(&self) -> &TransactionData {
-        &self.intent_message().value
-    }
-
-    pub fn intent_message(&self) -> &IntentMessage<TransactionData> {
-        self.inner().intent_message()
-    }
-
-    pub fn tx_signatures(&self) -> &[UserSignature] {
-        &self.inner().tx_signatures
-    }
-
-    pub fn has_upgraded_multisig(&self) -> bool {
-        self.tx_signatures().iter().any(|sig| sig.is_multisig())
-    }
-
-    #[cfg(test)]
-    pub fn intent_message_mut_for_testing(&mut self) -> &mut IntentMessage<TransactionData> {
-        &mut self.inner_mut().intent_message
-    }
-
-    // used cross-crate, so cannot be #[cfg(test)]
-    pub fn tx_signatures_mut_for_testing(&mut self) -> &mut Vec<UserSignature> {
-        &mut self.inner_mut().tx_signatures
-    }
-
-    pub fn full_message_digest(&self) -> SenderSignedDataDigest {
-        let mut digest = DefaultHash::default();
-        bcs::serialize_into(&mut digest, self).expect("serialization should not fail");
-        let hash = digest.finalize();
-        SenderSignedDataDigest::new(hash.into())
-    }
-
-    pub fn serialized_size(&self) -> IotaResult<usize> {
+    fn serialized_size(&self) -> IotaResult<usize> {
         bcs::serialized_size(self).map_err(|e| IotaError::TransactionSerialization {
             error: e.to_string(),
         })
     }
 
-    fn check_user_signature_protocol_compatibility(&self, config: &ProtocolConfig) -> IotaResult {
-        for sig in &self.inner().tx_signatures {
-            match sig {
-                UserSignature::PasskeyAuthenticator(_) => {
-                    if !config.passkey_auth() {
-                        return Err(IotaError::UserInput {
-                            error: UserInputError::Unsupported(
-                                "passkey is not enabled on this network".to_string(),
-                            ),
-                        });
-                    }
-                }
-                UserSignature::MoveAuthenticator(_) => {
-                    if !config.enable_move_authentication() {
-                        return Err(IotaError::UserInput {
-                            error: UserInputError::Unsupported(
-                                "`Move authentication` is not enabled on this network".to_string(),
-                            ),
-                        });
-                    }
-                }
-                UserSignature::Simple(_) | UserSignature::Multisig(_) => (),
-                _ => {
-                    unimplemented!("a new UserSignature variant was added and needs to be handled")
-                }
-            }
-        }
-
-        Ok(())
-    }
-
-    /// Validate untrusted user transaction, including its size, input count,
-    /// command count, etc.
-    /// Returns the certificate serialised bytes size.
-    pub fn validity_check(&self, context: &TxValidityCheckContext<'_>) -> Result<usize, IotaError> {
+    fn validity_check(&self, context: &TxValidityCheckContext<'_>) -> Result<usize, IotaError> {
         // Check that the features used by the user signatures are enabled on the
         // network.
-        self.check_user_signature_protocol_compatibility(context.config)?;
+        check_user_signature_protocol_compatibility(self, context.config)?;
 
         // CRITICAL!!
         // Users cannot send system transactions.
-        let tx_data = self.transaction_data();
+        let tx = self.transaction();
         fp_ensure!(
-            !tx_data.is_system_tx(),
+            !tx.is_system_tx(),
             IotaError::UserInput {
                 error: UserInputError::Unsupported(
                     "SenderSignedData must not contain system transaction".to_string()
@@ -2042,7 +1988,7 @@ impl SenderSignedData {
         );
 
         // Checks to see if the transaction has expired
-        if match &tx_data.expiration() {
+        if match &tx.expiration() {
             TransactionExpiration::None => false,
             TransactionExpiration::Epoch(exp_poch) => *exp_poch < context.epoch,
             _ => unimplemented!(
@@ -2067,88 +2013,17 @@ impl SenderSignedData {
             }
         );
 
-        tx_data
-            .validity_check(context.config)
+        tx.validity_check(context.config)
             .map_err(Into::<IotaError>::into)?;
 
-        self.move_authenticators_validity_check(context.config)?;
+        move_authenticators_validity_check(self, context.config)?;
 
         Ok(tx_size)
     }
 
-    pub fn move_authenticators(&self) -> Vec<&MoveAuthenticator> {
-        self.tx_signatures()
-            .iter()
-            .filter_map(|sig| {
-                if let UserSignature::MoveAuthenticator(move_authenticator) = sig {
-                    Some(move_authenticator)
-                } else {
-                    None
-                }
-            })
-            .collect()
-    }
-
-    /// Returns the senders's [`MoveAuthenticator`], if the sender uses one.
-    pub fn sender_move_authenticator(&self) -> Option<&MoveAuthenticator> {
-        let sender = self.intent_message().value.sender();
-
-        self.move_authenticators()
-            .into_iter()
-            .find(|a| a.address() == sender)
-    }
-
-    /// Returns the sponsor's [`MoveAuthenticator`], if the transaction is
-    /// sponsored and the sponsor uses one.
-    pub fn sponsor_move_authenticator(&self) -> Option<&MoveAuthenticator> {
-        let tx_data = self.transaction_data();
-
-        if tx_data.is_sponsored_tx() {
-            let gas_owner = tx_data.gas_owner();
-
-            self.move_authenticators()
-                .into_iter()
-                .find(|a| a.address() == gas_owner)
-        } else {
-            None
-        }
-    }
-
-    /// Computes the auth digest for the sender and, if sponsored, for the
-    /// sponsor. See [`auth_digest_for_sig`] for the per-signature logic.
-    pub fn compute_auth_digests(&self) -> IotaResult<(Digest, Option<Digest>)> {
-        let tx_data = self.transaction_data();
-
-        let digest_for_address = |address: Address| {
-            self.tx_signatures()
-                .iter()
-                .find(|sig| sig.derive_address() == address)
-                .ok_or_else(|| IotaError::InvalidSignature {
-                    error: format!("no signature found for address {address}"),
-                })
-                .and_then(auth_digest_for_sig)
-        };
-
-        let sender_auth_digest = digest_for_address(tx_data.sender())?;
-        let sponsor_auth_digest = if tx_data.is_sponsored_tx() {
-            Some(digest_for_address(tx_data.gas_owner())?)
-        } else {
-            None
-        };
-
-        Ok((sender_auth_digest, sponsor_auth_digest))
-    }
-
-    /// Returns all unique input objects including those from
-    /// `MoveAuthenticator`s if any for reading.
-    ///
-    /// Although some shared objects(with a different mutability flag, for
-    /// example) can be duplicated in the transaction and authenticators, we
-    /// load them independently to make it possible to analyze the inputs in
-    /// the transaction checkers.
-    pub fn collect_all_input_object_kind_for_reading(&self) -> IotaResult<Vec<InputObjectKind>> {
+    fn collect_all_input_object_kind_for_reading(&self) -> IotaResult<Vec<InputObjectKind>> {
         let mut input_objects_set = self
-            .transaction_data()
+            .transaction()
             .input_objects()?
             .into_iter()
             .collect::<HashSet<_>>();
@@ -2162,12 +2037,7 @@ impl SenderSignedData {
         Ok(input_objects_set.into_iter().collect::<Vec<_>>())
     }
 
-    /// Splits the provided input objects into groups:
-    /// 1. Input objects required by the transaction itself; may contain
-    ///    duplicates if an IOTA coin is used both as an input and a gas coin.
-    /// 2. A list of input objects required by each `MoveAuthenticator`(
-    ///    including the object to authenticate) + the object to authenticate.
-    pub fn split_input_objects_into_groups_for_reading(
+    fn split_input_objects_into_groups_for_reading(
         &self,
         input_objects: InputObjects,
     ) -> IotaResult<(InputObjects, Vec<(InputObjects, ObjectReadResult)>)> {
@@ -2177,7 +2047,7 @@ impl SenderSignedData {
             .collect::<HashMap<_, _>>();
 
         let tx_input_objects = self
-            .transaction_data()
+            .transaction()
             .input_objects()?
             .iter()
             .map(|k| {
@@ -2234,24 +2104,13 @@ impl SenderSignedData {
         Ok((tx_input_objects, per_authenticator_inputs))
     }
 
-    /// Checks if `SenderSignedData` contains at least one shared object.
-    /// This function checks shared objects from the `MoveAuthenticator`s if
-    /// any.
-    pub fn contains_shared_object(&self) -> bool {
+    fn contains_shared_object(&self) -> bool {
         !self.shared_input_objects().is_empty()
     }
 
-    /// Returns an iterator over all shared input objects related to this
-    /// transaction, including those from `MoveAuthenticator`s if any.
-    ///
-    /// If a shared object appears with the same version but different
-    /// mutability, only one instance which is mutable is returned.
-    ///
-    /// Panics if there are shared objects with the same ID but different
-    /// initial versions.
-    pub fn shared_input_objects(&self) -> Vec<SharedObjectReference> {
+    fn shared_input_objects(&self) -> Vec<SharedObjectReference> {
         // Vector is used to preserve the order of input objects.
-        let mut input_objects = self.transaction_data().shared_input_objects();
+        let mut input_objects = self.transaction().shared_input_objects();
 
         // Add Move authenticator shared objects if any.
         self.move_authenticators()
@@ -2275,21 +2134,10 @@ impl SenderSignedData {
         input_objects
     }
 
-    /// Returns an iterator over all input objects related to this
-    /// transaction, including those from the `MoveAuthenticator`s if any.
-    ///
-    /// If an IOTA coin is used both as an input and as a gas coin, it will
-    /// appear two times in the returned iterator.
-    ///
-    /// If a shared object appears both in the transaction and authenticator
-    /// with different mutability, only one instance which is mutable is
-    /// returned.
-    ///
-    /// Shared objects with the same ID but different versions are not allowed.
-    pub fn input_objects(&self) -> IotaResult<Vec<InputObjectKind>> {
+    fn input_objects(&self) -> IotaResult<Vec<InputObjectKind>> {
         // Can contain duplicates in case of using the same IOTA coin as an input and as
         // a gas coin.
-        let mut input_objects = self.transaction_data().input_objects()?;
+        let mut input_objects = self.transaction().input_objects()?;
 
         // Add the `MoveAuthenticator` shared objects if any.
         merge_authenticator_input_objects(self.move_authenticators(), &mut input_objects)?;
@@ -2297,95 +2145,126 @@ impl SenderSignedData {
         Ok(input_objects)
     }
 
-    /// Checks if `SenderSignedData` contains the `Random` object as an
-    /// input.
-    /// This function checks shared objects from the `MoveAuthenticator`s if
-    /// any.
-    pub fn uses_randomness(&self) -> bool {
+    fn uses_randomness(&self) -> bool {
         self.shared_input_objects()
             .iter()
             .any(|obj| obj.object_id == ObjectId::RANDOMNESS_STATE)
     }
+}
 
-    fn move_authenticators_validity_check(&self, config: &ProtocolConfig) -> IotaResult {
-        let authenticators = self.move_authenticators();
+fn check_user_signature_protocol_compatibility(
+    data: &SenderSignedData,
+    config: &ProtocolConfig,
+) -> IotaResult {
+    for sig in data.signatures() {
+        match sig {
+            UserSignature::PasskeyAuthenticator(_) => {
+                if !config.passkey_auth() {
+                    return Err(IotaError::UserInput {
+                        error: UserInputError::Unsupported(
+                            "passkey is not enabled on this network".to_string(),
+                        ),
+                    });
+                }
+            }
+            UserSignature::MoveAuthenticator(_) => {
+                if !config.enable_move_authentication() {
+                    return Err(IotaError::UserInput {
+                        error: UserInputError::Unsupported(
+                            "`Move authentication` is not enabled on this network".to_string(),
+                        ),
+                    });
+                }
+            }
+            UserSignature::Simple(_) | UserSignature::Multisig(_) => (),
+            _ => {
+                unimplemented!("a new UserSignature variant was added and needs to be handled")
+            }
+        }
+    }
 
-        // Check each `MoveAuthenticator` validity.
-        authenticators
-            .iter()
-            .try_for_each(|authenticator| authenticator.validity_check(config))?;
+    Ok(())
+}
 
-        // Additional checks when `MoveAuthenticators` are present.
-        let authenticators_num = authenticators.len();
-        if authenticators_num > 0 {
-            let tx_data = self.transaction_data();
+fn move_authenticators_validity_check(
+    data: &SenderSignedData,
+    config: &ProtocolConfig,
+) -> IotaResult {
+    let authenticators = data.move_authenticators();
 
+    // Check each `MoveAuthenticator` validity.
+    authenticators
+        .iter()
+        .try_for_each(|authenticator| authenticator.validity_check(config))?;
+
+    // Additional checks when `MoveAuthenticators` are present.
+    let authenticators_num = authenticators.len();
+    if authenticators_num > 0 {
+        let tx = data.transaction();
+
+        fp_ensure!(
+            tx.kind().is_programmable(),
+            UserInputError::Unsupported(
+                "SenderSignedData with MoveAuthenticator must be a programmable transaction"
+                    .to_string(),
+            )
+            .into()
+        );
+
+        if !config.enable_move_authentication_for_sponsor() {
             fp_ensure!(
-                tx_data.kind().is_programmable(),
+                authenticators_num == 1,
                 UserInputError::Unsupported(
-                    "SenderSignedData with MoveAuthenticator must be a programmable transaction"
+                    "SenderSignedData with more than one MoveAuthenticator is not supported"
                         .to_string(),
                 )
                 .into()
             );
 
-            if !config.enable_move_authentication_for_sponsor() {
-                fp_ensure!(
-                    authenticators_num == 1,
-                    UserInputError::Unsupported(
-                        "SenderSignedData with more than one MoveAuthenticator is not supported"
-                            .to_string(),
-                    )
-                    .into()
-                );
-
-                fp_ensure!(
-                    self.sender_move_authenticator().is_some(),
-                    UserInputError::Unsupported(
-                        "SenderSignedData can have MoveAuthenticator only for the sender"
-                            .to_string(),
-                    )
-                    .into()
-                );
-            }
-
-            Self::check_move_authenticators_input_consistency(tx_data, &authenticators)?;
+            fp_ensure!(
+                data.sender_move_authenticator().is_some(),
+                UserInputError::Unsupported(
+                    "SenderSignedData can have MoveAuthenticator only for the sender".to_string(),
+                )
+                .into()
+            );
         }
 
-        Ok(())
+        check_move_authenticators_input_consistency(tx, &authenticators)?;
     }
 
-    fn check_move_authenticators_input_consistency(
-        tx_data: &TransactionData,
-        authenticators: &[&MoveAuthenticator],
-    ) -> IotaResult {
-        // Get the input objects from the transaction data kind to skip the gas coins.
-        let mut checked_inputs = tx_data
-            .kind()
-            .input_objects()?
-            .into_iter()
-            .map(|o| (o.object_id(), o))
-            .collect::<HashMap<_, _>>();
+    Ok(())
+}
 
-        authenticators.iter().try_for_each(|authenticator| {
-            authenticator
-                .input_objects()
-                .iter()
-                .try_for_each(|auth_input_object| {
-                    match checked_inputs.get(&auth_input_object.object_id()) {
-                        Some(existing) => {
-                            auth_input_object.check_consistency_for_authentication(existing)?
-                        }
-                        None => {
-                            checked_inputs
-                                .insert(auth_input_object.object_id(), *auth_input_object);
-                        }
-                    };
+fn check_move_authenticators_input_consistency(
+    tx_data: &TransactionData,
+    authenticators: &[&MoveAuthenticator],
+) -> IotaResult {
+    // Get the input objects from the transaction data kind to skip the gas coins.
+    let mut checked_inputs = tx_data
+        .kind()
+        .input_objects()?
+        .into_iter()
+        .map(|o| (o.object_id(), o))
+        .collect::<HashMap<_, _>>();
 
-                    Ok(())
-                })
-        })
-    }
+    authenticators.iter().try_for_each(|authenticator| {
+        authenticator
+            .input_objects()
+            .iter()
+            .try_for_each(|auth_input_object| {
+                match checked_inputs.get(&auth_input_object.object_id()) {
+                    Some(existing) => {
+                        auth_input_object.check_consistency_for_authentication(existing)?
+                    }
+                    None => {
+                        checked_inputs.insert(auth_input_object.object_id(), *auth_input_object);
+                    }
+                };
+
+                Ok(())
+            })
+    })
 }
 
 impl Message for SenderSignedData {
@@ -2395,22 +2274,22 @@ impl Message for SenderSignedData {
     /// Computes the tx digest that encodes the Rust type prefix from Signable
     /// trait.
     fn digest(&self) -> Self::DigestType {
-        self.intent_message().value.digest()
+        self.transaction().digest()
     }
 }
 
 impl<S> Envelope<SenderSignedData, S> {
     pub fn sender_address(&self) -> Address {
-        self.data().intent_message().value.sender()
+        self.data().transaction().sender()
     }
 
     pub fn gas(&self) -> &[ObjectReference] {
-        self.data().intent_message().value.gas()
+        self.data().transaction().gas()
     }
 
     // Returns the primary key for this transaction.
     pub fn key(&self) -> TransactionKey {
-        match &self.data().intent_message().value.kind() {
+        match &self.data().transaction().kind() {
             TransactionKind::RandomnessStateUpdate(rsu) => {
                 TransactionKey::RandomnessRound(rsu.epoch, rsu.randomness_round)
             }
@@ -2423,7 +2302,7 @@ impl<S> Envelope<SenderSignedData, S> {
     // At the moment this returns a single Option for efficiency, but if more key
     // types are added, the return type could change to Vec<TransactionKey>.
     pub fn non_digest_key(&self) -> Option<TransactionKey> {
-        match &self.data().intent_message().value.kind() {
+        match &self.data().transaction().kind() {
             TransactionKind::RandomnessStateUpdate(rsu) => Some(TransactionKey::RandomnessRound(
                 rsu.epoch,
                 rsu.randomness_round,
@@ -2433,11 +2312,11 @@ impl<S> Envelope<SenderSignedData, S> {
     }
 
     pub fn is_system_tx(&self) -> bool {
-        self.data().intent_message().value.is_system_tx()
+        self.data().transaction().is_system_tx()
     }
 
     pub fn is_sponsored_tx(&self) -> bool {
-        self.data().intent_message().value.is_sponsored_tx()
+        self.data().transaction().is_sponsored_tx()
     }
 }
 
@@ -2447,7 +2326,7 @@ impl Transaction {
         signers: Vec<impl Into<IotaKeyPair>>,
     ) -> Self {
         let signatures = {
-            let intent_msg = IntentMessage::new(Intent::iota_transaction(), &data);
+            let intent_msg = data.intent_message();
             signers
                 .into_iter()
                 .map(|s| Signature::new_secure(&intent_msg, s))
@@ -2478,10 +2357,9 @@ impl Transaction {
     /// and a list of Base64 encoded [`UserSignature`].
     pub fn to_tx_bytes_and_signatures(&self) -> (Base64, Vec<Base64>) {
         (
-            Base64::from_bytes(&bcs::to_bytes(&self.data().intent_message().value).unwrap()),
+            Base64::from_bytes(&bcs::to_bytes(self.data().transaction()).unwrap()),
             self.data()
-                .inner()
-                .tx_signatures
+                .signatures()
                 .iter()
                 .map(|s| Base64::from_bytes(&s.to_bytes()))
                 .collect(),
@@ -2591,7 +2469,7 @@ impl Transaction {
     }
 
     pub fn gas_price(&self) -> u64 {
-        self.data().transaction_data().gas_price()
+        self.data().transaction().gas_price()
     }
 }
 
@@ -2631,7 +2509,7 @@ impl CertifiedTransaction {
     }
 
     pub fn gas_price(&self) -> u64 {
-        self.data().transaction_data().gas_price()
+        self.data().transaction().gas_price()
     }
 
     // TODO: Eventually we should remove all calls to verify_signature
@@ -3195,7 +3073,7 @@ impl InputObjects {
             .iter()
             .filter_map(|object| match &object.object {
                 ObjectReadResultKind::Object(object) => {
-                    object.data.as_opt_struct().map(MoveObject::version)
+                    object.data.as_opt_struct().map(MoveStruct::version)
                 }
                 ObjectReadResultKind::DeletedSharedObject(v, _) => Some(*v),
                 ObjectReadResultKind::CancelledTransactionSharedObject(_) => None,
@@ -3314,7 +3192,7 @@ impl Display for CertifiedTransaction {
             "Signed Authorities Bitmap : {:?}",
             self.auth_sig().signers_map
         )?;
-        write!(writer, "{}", self.data().intent_message().value.kind())?;
+        write!(writer, "{}", self.data().transaction().kind())?;
         write!(f, "{writer}")
     }
 }
@@ -3335,24 +3213,5 @@ impl TransactionKey {
             TransactionKey::Digest(d) => d,
             _ => panic!("called expect_digest on a non-Digest TransactionKey: {self:?}"),
         }
-    }
-}
-
-/// Computes the auth digest for a single [`UserSignature`].
-///
-/// For [`MoveAuthenticator`] signatures this equals
-/// [`MoveAuthenticator::digest()`]. For all other supported signature types it
-/// is the Blake2b256 of the serialized (flag-prefixed) signature bytes.
-pub fn auth_digest_for_sig(sig: &UserSignature) -> IotaResult<Digest> {
-    match sig {
-        UserSignature::MoveAuthenticator(authenticator) => Ok(authenticator.digest()),
-        UserSignature::Multisig(_)
-        | UserSignature::Simple(_)
-        | UserSignature::PasskeyAuthenticator(_) => {
-            let mut hasher = DefaultHash::default();
-            hasher.update(sig.to_bytes());
-            Ok(Digest::new(hasher.finalize().into()))
-        }
-        _ => unimplemented!("a new UserSignature variant was added and needs to be handled"),
     }
 }

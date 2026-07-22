@@ -79,24 +79,24 @@ async fn test_flag_in_signature_and_keypair() -> Result<(), anyhow::Error> {
                 // signature contains corresponding flag
                 assert_eq!(
                     *sig.to_bytes().first().unwrap(),
-                    SignatureScheme::ED25519.flag()
+                    SignatureScheme::Ed25519.to_u8()
                 );
                 // keystore stores pubkey with corresponding flag
-                assert!(pk.flag() == SignatureScheme::ED25519.flag())
+                assert!(pk.flag() == SignatureScheme::Ed25519.to_u8())
             }
             Signature::Secp256k1 { .. } => {
                 assert_eq!(
                     *sig.to_bytes().first().unwrap(),
-                    SignatureScheme::Secp256k1.flag()
+                    SignatureScheme::Secp256k1.to_u8()
                 );
-                assert!(pk.flag() == SignatureScheme::Secp256k1.flag())
+                assert!(pk.flag() == SignatureScheme::Secp256k1.to_u8())
             }
             Signature::Secp256r1 { .. } => {
                 assert_eq!(
                     *sig.to_bytes().first().unwrap(),
-                    SignatureScheme::Secp256r1.flag()
+                    SignatureScheme::Secp256r1.to_u8()
                 );
-                assert!(pk.flag() == SignatureScheme::Secp256r1.flag())
+                assert!(pk.flag() == SignatureScheme::Secp256r1.to_u8())
             }
             _ => panic!("unexpected signature scheme"),
         }
@@ -203,7 +203,7 @@ async fn test_private_keys_import_export() -> Result<(), anyhow::Error> {
         KeyToolCommand::Import {
             alias: None,
             input_string: private_key.to_string(),
-            key_scheme: SignatureScheme::ED25519,
+            key_scheme: SignatureScheme::Ed25519,
             derivation_path: None,
         }
         .execute(&mut keystore)
@@ -241,7 +241,7 @@ async fn test_private_keys_import_export() -> Result<(), anyhow::Error> {
         let output = KeyToolCommand::Import {
             alias: None,
             input_string: private_key[1..].to_string(),
-            key_scheme: SignatureScheme::ED25519,
+            key_scheme: SignatureScheme::Ed25519,
             derivation_path: None,
         }
         .execute(&mut keystore)
@@ -252,7 +252,7 @@ async fn test_private_keys_import_export() -> Result<(), anyhow::Error> {
         let output = KeyToolCommand::Import {
             alias: None,
             input_string: addr.to_string(),
-            key_scheme: SignatureScheme::ED25519,
+            key_scheme: SignatureScheme::Ed25519,
             derivation_path: None,
         }
         .execute(&mut keystore)
@@ -291,7 +291,7 @@ async fn test_mnemonics_ed25519() -> Result<(), anyhow::Error> {
         KeyToolCommand::Import {
             alias: None,
             input_string: t[0].to_string(),
-            key_scheme: SignatureScheme::ED25519,
+            key_scheme: SignatureScheme::Ed25519,
             derivation_path: None,
         }
         .execute(&mut keystore)
@@ -395,7 +395,7 @@ async fn test_invalid_derivation_path() -> Result<(), anyhow::Error> {
         KeyToolCommand::Import {
             alias: None,
             input_string: TEST_MNEMONIC.to_string(),
-            key_scheme: SignatureScheme::ED25519,
+            key_scheme: SignatureScheme::Ed25519,
             derivation_path: Some("m/44'/1'/0'/0/0".parse().unwrap()),
         }
         .execute(&mut keystore)
@@ -407,7 +407,7 @@ async fn test_invalid_derivation_path() -> Result<(), anyhow::Error> {
         KeyToolCommand::Import {
             alias: None,
             input_string: TEST_MNEMONIC.to_string(),
-            key_scheme: SignatureScheme::ED25519,
+            key_scheme: SignatureScheme::Ed25519,
             derivation_path: Some("m/0'/4218'/0'/0/0".parse().unwrap()),
         }
         .execute(&mut keystore)
@@ -419,7 +419,7 @@ async fn test_invalid_derivation_path() -> Result<(), anyhow::Error> {
         KeyToolCommand::Import {
             alias: None,
             input_string: TEST_MNEMONIC.to_string(),
-            key_scheme: SignatureScheme::ED25519,
+            key_scheme: SignatureScheme::Ed25519,
             derivation_path: Some("m/54'/4218'/0'/0/0".parse().unwrap()),
         }
         .execute(&mut keystore)
@@ -461,7 +461,7 @@ async fn test_valid_derivation_path() -> Result<(), anyhow::Error> {
         KeyToolCommand::Import {
             alias: None,
             input_string: TEST_MNEMONIC.to_string(),
-            key_scheme: SignatureScheme::ED25519,
+            key_scheme: SignatureScheme::Ed25519,
             derivation_path: Some("m/44'/4218'/0'/0'/0'".parse().unwrap()),
         }
         .execute(&mut keystore)
@@ -473,7 +473,7 @@ async fn test_valid_derivation_path() -> Result<(), anyhow::Error> {
         KeyToolCommand::Import {
             alias: None,
             input_string: TEST_MNEMONIC.to_string(),
-            key_scheme: SignatureScheme::ED25519,
+            key_scheme: SignatureScheme::Ed25519,
             derivation_path: Some("m/44'/4218'/0'/0'/1'".parse().unwrap()),
         }
         .execute(&mut keystore)
@@ -485,7 +485,7 @@ async fn test_valid_derivation_path() -> Result<(), anyhow::Error> {
         KeyToolCommand::Import {
             alias: None,
             input_string: TEST_MNEMONIC.to_string(),
-            key_scheme: SignatureScheme::ED25519,
+            key_scheme: SignatureScheme::Ed25519,
             derivation_path: Some("m/44'/4218'/1'/0'/1'".parse().unwrap()),
         }
         .execute(&mut keystore)
@@ -523,7 +523,7 @@ async fn test_valid_derivation_path() -> Result<(), anyhow::Error> {
 async fn test_keytool_bls12381() -> Result<(), anyhow::Error> {
     let mut keystore = Keystore::from(InMemKeystore::new_insecure_for_tests(0));
     KeyToolCommand::Generate {
-        key_scheme: SignatureScheme::BLS12381,
+        key_scheme: SignatureScheme::Bls12381,
         derivation_path: None,
         word_length: None,
     }

@@ -5,10 +5,10 @@
 //! reporting for standard signature schemes, missing input objects, and
 //! unsupported protocol versions.
 
-use iota_sdk_types::{ObjectId, Owner, TransactionDigest, Version};
+use iota_sdk_types::{MoveStruct, ObjectId, Owner, TransactionDigest, Version};
 use iota_types::{
     crypto::{AccountKeyPair, get_key_pair},
-    object::{MoveObject, MoveObjectExt, Object},
+    object::{MoveStructExt, Object},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{
         TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, TransactionData, TransactionDataAPI,
@@ -30,7 +30,7 @@ fn chain_context() -> ChainContext {
 
 fn gas_coin(owner: Address) -> Object {
     Object::new_move(
-        MoveObject::new_gas_coin(Version::from(1), ObjectId::random(), GAS_COIN_VALUE),
+        MoveStruct::new_gas_coin(Version::from(1), ObjectId::random(), GAS_COIN_VALUE),
         Owner::Address(owner),
         TransactionDigest::ZERO,
     )
