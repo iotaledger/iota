@@ -6619,7 +6619,6 @@ dependencies = [
  "roaring",
  "serde",
  "serde_json",
- "signature 1.6.4",
  "statrs",
  "tap",
  "telemetry-subscribers",
