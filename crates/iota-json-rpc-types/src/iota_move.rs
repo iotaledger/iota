@@ -5,6 +5,7 @@
 use std::{
     collections::BTreeMap,
     fmt::{self, Display, Formatter, Write},
+    hash::Hash,
     str::FromStr,
 };
 
@@ -233,7 +234,7 @@ impl<S: std::hash::Hash + Eq + ToString> From<&NormalizedModule<S>> for IotaMove
     }
 }
 
-impl<S: ToString> From<&NormalizedFunction<S>> for IotaMoveNormalizedFunction {
+impl<S: Hash + Eq + ToString> From<&NormalizedFunction<S>> for IotaMoveNormalizedFunction {
     fn from(function: &NormalizedFunction<S>) -> Self {
         Self {
             visibility: match function.visibility {
@@ -262,7 +263,7 @@ impl<S: ToString> From<&NormalizedFunction<S>> for IotaMoveNormalizedFunction {
     }
 }
 
-impl<S: ToString> From<&NormalizedStruct<S>> for IotaMoveNormalizedStruct {
+impl<S: Hash + Eq + ToString> From<&NormalizedStruct<S>> for IotaMoveNormalizedStruct {
     fn from(struct_: &NormalizedStruct<S>) -> Self {
         Self {
             abilities: struct_.abilities.into(),
@@ -274,14 +275,15 @@ impl<S: ToString> From<&NormalizedStruct<S>> for IotaMoveNormalizedStruct {
                 .collect::<Vec<IotaMoveStructTypeParameter>>(),
             fields: struct_
                 .fields
-                .iter()
+                .0
+                .values()
                 .map(|f| IotaMoveNormalizedField::from(&**f))
                 .collect::<Vec<IotaMoveNormalizedField>>(),
         }
     }
 }
 
-impl<S: ToString> From<&NormalizedEnum<S>> for IotaMoveNormalizedEnum {
+impl<S: Hash + Eq + ToString> From<&NormalizedEnum<S>> for IotaMoveNormalizedEnum {
     fn from(value: &NormalizedEnum<S>) -> Self {
         Self {
             abilities: value.abilities.into(),
@@ -293,11 +295,16 @@ impl<S: ToString> From<&NormalizedEnum<S>> for IotaMoveNormalizedEnum {
                 .collect(),
             variants: value
                 .variants
-                .iter()
+                .values()
                 .map(|variant| {
                     (
                         variant.name.to_string(),
-                        variant.fields.iter().map(Into::into).collect(),
+                        variant
+                            .fields
+                            .0
+                            .values()
+                            .map(|f| IotaMoveNormalizedField::from(&**f))
+                            .collect::<Vec<IotaMoveNormalizedField>>(),
                     )
                 })
                 .collect(),
