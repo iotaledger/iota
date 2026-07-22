@@ -183,7 +183,7 @@ fn make_key_files(
                 key
             }
             None => {
-                let (_, kp, _, _) = generate_new_key(SignatureScheme::ED25519, None, None)?;
+                let (_, kp, _, _) = generate_new_key(SignatureScheme::Ed25519, None, None)?;
                 println!("Generated new key file: {file_name:?}.");
                 kp
             }
@@ -214,7 +214,7 @@ impl IotaValidatorCommand {
 
                 let account_key = context.config().keystore().get_key(&iota_address)?;
 
-                if account_key.public().scheme() != SignatureScheme::ED25519 {
+                if account_key.public().scheme() != SignatureScheme::Ed25519 {
                     bail!("Only Ed25519 accounts are supported, please use Ed25519 keys for now.");
                 }
 

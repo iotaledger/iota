@@ -49,7 +49,8 @@ use iota_types::{
     },
     transaction::{
         CheckedInputObjects, InputObjectKind, InputObjects, ObjectReadResult, ObjectReadResultKind,
-        SenderSignedData, Transaction, TransactionDataAPI, VerifiedTransaction,
+        SenderSignedData, SenderSignedTransactionAPI, Transaction, TransactionDataAPI,
+        VerifiedTransaction,
     },
 };
 use move_binary_format::CompiledModule;
@@ -863,8 +864,10 @@ impl LocalExec {
                 )
                 .collect::<Result<Vec<_>, ReplayEngineError>>()?;
 
-            let (sender_auth_digest, sponsor_auth_digest) =
-                tx_info.sender_signed_data.compute_auth_digests()?;
+            let (sender_auth_digest, sponsor_auth_digest) = tx_info
+                .sender_signed_data
+                .compute_auth_digests()
+                .map_err(IotaError::from)?;
 
             let (sender_authenticator_function_ref, sponsor_authenticator_function_ref) =
                 extract_auth_fun_refs(tx_info.sender, gas_data.owner, |address| {
@@ -875,10 +878,8 @@ impl LocalExec {
                 });
 
             let auth_context_data = AuthContextData {
-                transaction_data_bytes: bcs::to_bytes(
-                    tx_info.sender_signed_data.transaction_data(),
-                )
-                .expect("TransactionData serialization cannot fail"),
+                transaction_data_bytes: bcs::to_bytes(tx_info.sender_signed_data.transaction())
+                    .expect("Transaction serialization cannot fail"),
                 sender_auth_digest,
                 sponsor_auth_digest,
                 sender_authenticator_function_ref,
@@ -1062,7 +1063,7 @@ impl LocalExec {
                 reference_gas_price,
             )
             .unwrap();
-            let (kind, signer, gas_data) = executable.transaction_data().execution_parts();
+            let (kind, signer, gas_data) = executable.transaction().execution_parts();
             executor.execute_transaction_to_effects(
                 &store,
                 &protocol_config,
@@ -1178,9 +1179,10 @@ impl LocalExec {
                 )
                 .collect::<Vec<_>>();
 
-            let (kind, signer, gas_data) = executable.transaction_data().execution_parts();
-            let (sender_auth_digest, sponsor_auth_digest) =
-                sender_signed_data.compute_auth_digests()?;
+            let (kind, signer, gas_data) = executable.transaction().execution_parts();
+            let (sender_auth_digest, sponsor_auth_digest) = sender_signed_data
+                .compute_auth_digests()
+                .map_err(IotaError::from)?;
 
             let (sender_authenticator_function_ref, sponsor_authenticator_function_ref) =
                 extract_auth_fun_refs(signer, gas_data.owner, |address| {
@@ -1191,8 +1193,8 @@ impl LocalExec {
                 });
 
             let auth_context_data = AuthContextData {
-                transaction_data_bytes: bcs::to_bytes(sender_signed_data.transaction_data())
-                    .expect("TransactionData serialization cannot fail"),
+                transaction_data_bytes: bcs::to_bytes(sender_signed_data.transaction())
+                    .expect("Transaction serialization cannot fail"),
                 sender_auth_digest,
                 sponsor_auth_digest,
                 sender_authenticator_function_ref,
@@ -1775,7 +1777,7 @@ impl LocalExec {
                     err: other.to_string(),
                 },
             })?;
-        let tx_kind_orig = orig_tx.transaction_data().kind();
+        let tx_kind_orig = orig_tx.transaction().kind();
 
         // Download the objects at the version right before the execution of this TX
         let modified_at_versions: Vec<(ObjectId, Version)> = effects.modified_at_versions();
@@ -1798,7 +1800,7 @@ impl LocalExec {
         };
         let gas_object_refs = gas_data.payment;
         let receiving_objs = orig_tx
-            .transaction_data()
+            .transaction()
             .receiving_objects()
             .into_iter()
             .map(|obj_ref| (obj_ref.object_id, obj_ref.version))
@@ -1847,11 +1849,7 @@ impl LocalExec {
 
         let dp = self.fetcher.as_node_state_dump();
 
-        let sender = dp
-            .node_state_dump
-            .sender_signed_data
-            .transaction_data()
-            .sender();
+        let sender = dp.node_state_dump.sender_signed_data.transaction().sender();
         let orig_tx = dp.node_state_dump.sender_signed_data.clone();
         let effects = dp.node_state_dump.computed_effects.clone();
         let effects = IotaTransactionBlockEffects::try_from(effects).unwrap();
@@ -1870,7 +1868,7 @@ impl LocalExec {
                     err: other.to_string(),
                 },
             })?;
-        let tx_kind_orig = orig_tx.transaction_data().kind();
+        let tx_kind_orig = orig_tx.transaction().kind();
 
         // Download the objects at the version right before the execution of this TX
         let modified_at_versions: Vec<(ObjectId, Version)> = effects.modified_at_versions();
@@ -1889,7 +1887,7 @@ impl LocalExec {
             })
             .collect();
         let receiving_objs = orig_tx
-            .transaction_data()
+            .transaction()
             .receiving_objects()
             .into_iter()
             .map(|obj_ref| (obj_ref.object_id, obj_ref.version))
@@ -1905,7 +1903,7 @@ impl LocalExec {
         let (epoch_start_timestamp, reference_gas_price) = self
             .get_epoch_start_timestamp_and_rgp(epoch_id, tx_digest)
             .await?;
-        let gas_data = orig_tx.transaction_data().gas_data();
+        let gas_data = orig_tx.transaction().gas_data();
         let gas_object_refs: Vec<_> = gas_data.clone().objects;
 
         Ok(OnChainTransactionInfo {

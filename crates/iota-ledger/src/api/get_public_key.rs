@@ -30,7 +30,7 @@ impl Unpackable for PublicKeyResult {
         }
         let mut key = [0_u8; ED25519_PUBLIC_KEY_LENGTH];
         buf.read_exact(&mut key)?;
-        let public_key = PublicKey::try_from_bytes(SignatureScheme::ED25519, &key)
+        let public_key = PublicKey::try_from_bytes(SignatureScheme::Ed25519, &key)
             .map_err(|_| PackableError::InvalidData)?;
 
         if u8::unpack(buf)? != 32 {

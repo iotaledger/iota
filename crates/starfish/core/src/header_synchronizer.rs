@@ -2174,6 +2174,7 @@ mod tests {
             context.clone(),
             core_dispatcher.clone(),
             dag_state.clone(),
+            block_verifier.clone(),
         );
 
         let misbehavior_store = Arc::new(MisbehaviorStore::new(&context));
@@ -2245,6 +2246,7 @@ mod tests {
             context.clone(),
             core_dispatcher.clone(),
             dag_state.clone(),
+            block_verifier.clone(),
         );
 
         let misbehavior_store = Arc::new(MisbehaviorStore::new(&context));
@@ -2330,6 +2332,7 @@ mod tests {
             context.clone(),
             core_dispatcher.clone(),
             dag_state.clone(),
+            block_verifier.clone(),
         );
         // Create some test block headers
         let expected_block_headers_1 = (0..10)
@@ -2444,6 +2447,7 @@ mod tests {
             context.clone(),
             core_dispatcher.clone(),
             dag_state.clone(),
+            block_verifier.clone(),
         );
         // AND stub some missing blocks. The highest accepted round is 0.
         // Create some blocks that are below and above the threshold sync.
@@ -2582,6 +2586,7 @@ mod tests {
             context.clone(),
             core_dispatcher.clone(),
             dag_state.clone(),
+            block_verifier.clone(),
         );
         // AND stub some missing blocks. The highest accepted round is 0. Create blocks
         // that are above the threshold sync.
@@ -2735,6 +2740,7 @@ mod tests {
             context.clone(),
             core_dispatcher.clone(),
             dag_state.clone(),
+            block_verifier.clone(),
         );
         // Create some test block headers
         let mut expected_block_headers = (8..=10)
@@ -3247,6 +3253,7 @@ mod tests {
             context.clone(),
             core_dispatcher.clone(),
             dag_state.clone(),
+            block_verifier.clone(),
         );
         // Create input test blocks:
         // - Authority 0 block at round 60.
@@ -3393,6 +3400,7 @@ mod tests {
             context.clone(),
             core_dispatcher.clone(),
             dag_state.clone(),
+            block_verifier.clone(),
         );
 
         // Frontier is genesis round 0; a header one past the ceiling can never

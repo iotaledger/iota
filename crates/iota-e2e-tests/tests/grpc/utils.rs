@@ -129,7 +129,7 @@ pub fn is_success(status: &ExecutionStatus) -> bool {
 pub async fn create_signed_transaction(test_cluster: &TestCluster) -> SignedTransaction {
     let recipient = Address::random();
     let tx = make_transfer_iota_transaction(&test_cluster.wallet, Some(recipient), Some(100)).await;
-    tx.try_into().expect("SDK type conversion failed")
+    tx.into()
 }
 
 /// Create an unsigned transaction for simulation testing.

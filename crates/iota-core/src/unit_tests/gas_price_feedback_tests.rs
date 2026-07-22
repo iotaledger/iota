@@ -464,7 +464,7 @@ async fn per_object_congestion_control_mode_is_none() {
         certificates.len() + 1,
     );
     assert!(matches!(
-        scheduled_transactions[0].data().transaction_data().kind(),
+        scheduled_transactions[0].data().transaction().kind(),
         TransactionKind::ConsensusCommitPrologueV1(..)
     ));
 
@@ -537,7 +537,7 @@ async fn max_execution_duration_per_commit_is_none() {
         certificates.len() + 1,
     );
     assert!(matches!(
-        scheduled_transactions[0].data().transaction_data().kind(),
+        scheduled_transactions[0].data().transaction().kind(),
         TransactionKind::ConsensusCommitPrologueV1(..)
     ));
 
@@ -637,15 +637,12 @@ async fn transaction_duration_exceeds_max_execution_duration_per_commit() {
             .is_empty()
     );
 
-    let expected_suggested_gas_price_2 = scheduled_transactions[2]
-        .data()
-        .transaction_data()
-        .gas_price()
-        + 1;
+    let expected_suggested_gas_price_2 =
+        scheduled_transactions[2].data().transaction().gas_price() + 1;
 
     // The first scheduled transaction should be `ConsensusCommitPrologueV1`
     if let TransactionKind::ConsensusCommitPrologueV1(prologue_tx) =
-        scheduled_transactions[0].data().transaction_data().kind()
+        scheduled_transactions[0].data().transaction().kind()
     {
         // Check if `ConsensusDeterminedVersionAssignments` are correct.
         let cancelled_transactions = vec![
@@ -868,7 +865,7 @@ async fn gas_price_feedback_mechanism_is_turned_off() {
 
     // The first scheduled transaction should be `ConsensusCommitPrologueV1`
     if let TransactionKind::ConsensusCommitPrologueV1(prologue_tx) =
-        scheduled_transactions[0].data().transaction_data().kind()
+        scheduled_transactions[0].data().transaction().kind()
     {
         // Check if `ConsensusDeterminedVersionAssignments` are correct.
         let cancelled_transactions = vec![CancelledTransaction {
@@ -896,17 +893,11 @@ async fn gas_price_feedback_mechanism_is_turned_off() {
 
     // Confirm that gas price order of scheduled transactions is descending
     assert_eq!(
-        scheduled_transactions[1]
-            .data()
-            .transaction_data()
-            .gas_price(),
+        scheduled_transactions[1].data().transaction().gas_price(),
         REFERENCE_GAS_PRICE_FOR_TESTS + 1
     );
     assert_eq!(
-        scheduled_transactions[2]
-            .data()
-            .transaction_data()
-            .gas_price(),
+        scheduled_transactions[2].data().transaction().gas_price(),
         REFERENCE_GAS_PRICE_FOR_TESTS
     );
 
@@ -1025,7 +1016,7 @@ async fn gas_price_feedback_mechanism_with_max_gas_price() {
 
     // The first scheduled transaction should be `ConsensusCommitPrologueV1`
     if let TransactionKind::ConsensusCommitPrologueV1(prologue_tx) =
-        scheduled_transactions[0].data().transaction_data().kind()
+        scheduled_transactions[0].data().transaction().kind()
     {
         // Check if `ConsensusDeterminedVersionAssignments` are correct.
         let cancelled_transactions = vec![CancelledTransaction {
@@ -1178,7 +1169,7 @@ async fn gas_price_feedback_mechanism_for_multiple_commits() {
 
     // The first scheduled transaction should be `ConsensusCommitPrologueV1`
     if let TransactionKind::ConsensusCommitPrologueV1(prologue_tx) =
-        scheduled_transactions[0].data().transaction_data().kind()
+        scheduled_transactions[0].data().transaction().kind()
     {
         // Check if `ConsensusDeterminedVersionAssignments` are correct.
         assert_eq!(
@@ -1261,7 +1252,7 @@ async fn gas_price_feedback_mechanism_for_multiple_commits() {
 
     // The first scheduled transaction should be `ConsensusCommitPrologueV1`
     if let TransactionKind::ConsensusCommitPrologueV1(prologue_tx) =
-        scheduled_transactions[0].data().transaction_data().kind()
+        scheduled_transactions[0].data().transaction().kind()
     {
         // Check if `ConsensusDeterminedVersionAssignments` are correct.
         let cancelled_transactions = vec![CancelledTransaction {
@@ -1443,7 +1434,7 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_tx_count_mode() {
 
     // The first scheduled transaction should be `ConsensusCommitPrologueV1`
     if let TransactionKind::ConsensusCommitPrologueV1(prologue_tx) =
-        scheduled_transactions[0].data().transaction_data().kind()
+        scheduled_transactions[0].data().transaction().kind()
     {
         // Check if `ConsensusDeterminedVersionAssignments` are correct.
         let cancelled_transactions = vec![
@@ -1767,7 +1758,7 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_gas_budget_mode() {
 
     // The first scheduled transaction should be `ConsensusCommitPrologueV1`
     if let TransactionKind::ConsensusCommitPrologueV1(prologue_tx) =
-        scheduled_transactions[0].data().transaction_data().kind()
+        scheduled_transactions[0].data().transaction().kind()
     {
         // Check if `ConsensusDeterminedVersionAssignments` are correct.
         let cancelled_transactions = vec![

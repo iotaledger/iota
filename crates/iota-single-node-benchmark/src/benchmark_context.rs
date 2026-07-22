@@ -16,7 +16,10 @@ use iota_types::{
     effects::{TransactionEffects, TransactionEffectsAPI},
     messages_grpc::HandleTransactionResponse,
     mock_checkpoint_builder::ValidatorKeypairProvider,
-    transaction::{CertifiedTransaction, SignedTransaction, Transaction, VerifiedTransaction},
+    transaction::{
+        CertifiedTransaction, SenderSignedTransactionAPI, SignedTransaction, Transaction,
+        VerifiedTransaction,
+    },
 };
 use tracing::info;
 

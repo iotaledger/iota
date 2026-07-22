@@ -199,7 +199,7 @@ async fn create_credential_and_sign_test_tx(
     let sig = p256::ecdsa::Signature::from_der(sig_bytes_der).unwrap();
     let sig_bytes = sig.normalize_s().unwrap_or(sig).to_bytes();
 
-    let mut user_sig_bytes = vec![SignatureScheme::Secp256r1.flag()];
+    let mut user_sig_bytes = vec![SignatureScheme::Secp256r1.to_u8()];
     user_sig_bytes.extend_from_slice(&sig_bytes);
     user_sig_bytes.extend_from_slice(&pk_bytes);
 

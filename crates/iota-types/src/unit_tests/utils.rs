@@ -9,10 +9,7 @@ use iota_sdk_crypto::{
     Signer as _, ToFromBytes as _, ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey,
     secp256r1::Secp256r1PrivateKey, simple::SimpleKeypair,
 };
-use iota_sdk_types::{
-    Address, ObjectId, SimpleSignature, TransactionKind,
-    crypto::{Intent, IntentMessage},
-};
+use iota_sdk_types::{Address, ObjectId, SimpleSignature, TransactionKind, crypto::Intent};
 use rand::{SeedableRng, rngs::StdRng};
 
 use crate::{
@@ -122,8 +119,8 @@ pub fn make_sponsored_transaction_data(sender: Address, sponsor: Address) -> Tra
 /// is not verified or signed by authority.
 pub fn make_transaction(sender: Address, kp: &SimpleKeypair) -> Transaction {
     let data = make_transaction_data(sender);
-    let digest = IntentMessage::new(Intent::iota_transaction(), data.clone()).signing_digest();
-    Transaction::from_data(data, vec![kp.sign(&*digest)])
+    let digest = data.signing_digest();
+    Transaction::from_data(data, vec![kp.sign(&digest)])
 }
 
 // This is used to sign transaction with signer using default Intent.
@@ -193,15 +190,14 @@ pub fn make_upgraded_multisig_tx() -> Transaction {
     let addr = Address::from(&multisig_pk);
     let tx = make_transaction(addr, &SimpleKeypair::from(kp1.clone()));
 
-    let msg = IntentMessage::new(Intent::iota_transaction(), tx.transaction_data().clone())
-        .signing_digest();
-    let sig1: SimpleSignature = kp1.sign(&*msg);
-    let sig2: SimpleSignature = kp2.sign(&*msg);
+    let msg = tx.transaction().signing_digest();
+    let sig1: SimpleSignature = kp1.sign(&msg);
+    let sig2: SimpleSignature = kp2.sign(&msg);
 
     // Any 2 of 3 signatures verifies ok.
     let multi_sig1 = MultiSig::new(vec![sig1.into(), sig2.into()], multisig_pk).unwrap();
     Transaction::new(SenderSignedData::new(
-        tx.transaction_data().clone(),
+        tx.transaction().clone(),
         vec![UserSignature::Multisig(multi_sig1)],
     ))
 }
@@ -284,7 +280,7 @@ mod move_authenticator {
     /// Compute the Blake2b256 hash of the serialized (flag-prefixed) bytes of a
     /// [`UserSignature`], matching the digest used for
     /// non-[`MoveAuthenticator`] signatures by
-    /// [`crate::transaction::auth_digest_for_sig`].
+    /// [`UserSignature::auth_digest`].
     pub fn blake2b256_of_sig(sig: &UserSignature) -> Digest {
         let mut hasher = DefaultHash::default();
         hasher.update(sig.to_bytes());

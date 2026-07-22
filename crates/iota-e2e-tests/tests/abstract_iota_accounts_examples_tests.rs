@@ -51,7 +51,7 @@ use iota_types::{
     storage::WriteKind,
     transaction::{
         CallArg, TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, Transaction, TransactionData,
-        TransactionDataAPI, auth_digest_for_sig,
+        TransactionDataAPI,
     },
 };
 use test_cluster::{TestCluster, TestClusterBuilder};
@@ -1051,7 +1051,7 @@ async fn run_lean_imt_account(env: &mut TestEnvironment) -> PackageResult {
         let keystore = env.test_cluster.wallet.config_mut().keystore_mut();
         let addr = match keystore.import_from_mnemonic(
             LEAN_IMT_MNEMONIC,
-            SignatureScheme::ED25519,
+            SignatureScheme::Ed25519,
             Some(path),
             None,
         ) {
@@ -1725,14 +1725,7 @@ async fn run_sponsorship_ed25519(env: &TestEnvironment) -> PackageResult {
     //
     //   msg = ctx.digest()                  // 32 bytes
     //      || auth_ctx.sender_auth_digest() // 32 bytes — Blake2b256(sender_sig.as_ref())
-    let sender_auth_digest = match auth_digest_for_sig(&sender_auth) {
-        Ok(d) => d,
-        Err(e) => {
-            r.authenticate_outcome = Outcome::Fail;
-            r.authenticate_err = Some(format!("sender auth digest: {e:?}"));
-            return r;
-        }
-    };
+    let sender_auth_digest = sender_auth.auth_digest();
     let mut sponsor_msg = Vec::with_capacity(32 + 32);
     sponsor_msg.extend_from_slice(&tx_digest);
     sponsor_msg.extend_from_slice(sender_auth_digest.as_bytes());

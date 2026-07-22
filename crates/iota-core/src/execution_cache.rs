@@ -22,7 +22,7 @@ use iota_types::{
         BackingPackageStore, BackingStore, InputKey, MarkerValue, ObjectKey, ObjectOrTombstone,
         ObjectStore, PackageObject,
     },
-    transaction::{VerifiedSignedTransaction, VerifiedTransaction},
+    transaction::{SenderSignedTransactionAPI, VerifiedSignedTransaction, VerifiedTransaction},
 };
 use prometheus_filtered::Registry;
 use tracing::instrument;

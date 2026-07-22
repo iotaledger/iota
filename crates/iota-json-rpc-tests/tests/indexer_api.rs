@@ -14,8 +14,8 @@ use iota_json_rpc_types::{
 use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    Address, Command, Identifier, ObjectData, ObjectId, Owner, StructTag, TransactionDigest,
-    TypeTag,
+    Address, Command, Identifier, MoveStruct, ObjectData, ObjectId, Owner, StructTag,
+    TransactionDigest, TypeTag,
 };
 use iota_swarm_config::genesis_config::AccountConfig;
 use iota_test_transaction_builder::TestTransactionBuilder;
@@ -25,7 +25,7 @@ use iota_types::{
     dynamic_field::DynamicFieldName,
     gas_coin::GAS,
     id::UID,
-    object::{MoveObject, MoveObjectExt, OBJECT_START_VERSION, ObjectInner},
+    object::{MoveStructExt, OBJECT_START_VERSION, ObjectInner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::ExecuteTransactionRequestType,
     stardust::output::{Irc27Metadata, Nft},
@@ -63,7 +63,7 @@ async fn test_nft_display_object() -> Result<(), anyhow::Error> {
     };
 
     let nft_move_object = {
-        MoveObject::new_from_execution(
+        MoveStruct::new_from_execution(
             Nft::tag(),
             OBJECT_START_VERSION,
             bcs::to_bytes(&nft).unwrap(),

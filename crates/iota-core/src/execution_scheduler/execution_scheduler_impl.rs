@@ -14,7 +14,7 @@ use iota_types::{
     error::IotaResult,
     executable_transaction::VerifiedExecutableTransaction,
     storage::InputKey,
-    transaction::{SenderSignedData, TransactionDataAPI},
+    transaction::{SenderSignedData, SenderSignedTransactionAPI, TransactionDataAPI},
 };
 use tokio::{sync::mpsc::UnboundedSender, time::Instant};
 use tracing::{debug, warn};
@@ -93,13 +93,14 @@ impl ExecutionScheduler {
         epoch_store: &Arc<AuthorityPerEpochStore>,
     ) {
         let enqueue_time = Instant::now();
-        let tx_data = cert.transaction_data();
+        let tx_data = cert.data().transaction();
         // Use the full input set (transaction inputs plus every MoveAuthenticator's
         // input objects), not just `input_objects()`. Execution reads the same
         // superset via `collect_all_input_object_kind_for_reading`; scheduling on
         // the narrower set would dispatch before an authenticator's shared input
         // (e.g. the Clock) is available and panic in the input loader.
         let input_object_kinds = cert
+            .data()
             .collect_all_input_object_kind_for_reading()
             .expect("collect_all_input_object_kind_for_reading() cannot fail");
         let input_object_keys: Vec<_> =

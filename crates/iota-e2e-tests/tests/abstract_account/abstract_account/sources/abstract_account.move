@@ -151,6 +151,18 @@ public fun rotate_auth_function_ref_v1(
     account::rotate_auth_function_ref_v1(self, authenticator)
 }
 
+/// Delete the account.
+///
+/// Only the account itself can call this function.
+public fun delete_account(self: AbstractAccount, ctx: &TxContext) {
+    // Check that the sender of this transaction is the account.
+    ensure_tx_sender_is_account(&self, ctx);
+
+    // Delete the account.
+    let AbstractAccount { id } = self;
+    object::delete(id);
+}
+
 // === Public-View Functions ===
 
 /// Return the account's address.

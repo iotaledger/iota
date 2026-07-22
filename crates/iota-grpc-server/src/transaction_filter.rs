@@ -329,7 +329,7 @@ fn is_system_transaction(transaction_kind: &TransactionKind) -> bool {
 impl TransactionFilter {
     pub fn matches_transaction(&self, item: &CheckpointTransaction) -> bool {
         let _scope = monitored_scope("TransactionFilter::matches_transaction");
-        let tx_data = item.transaction.data().transaction_data();
+        let tx = item.transaction.data().transaction();
 
         match self {
             TransactionFilter::All(filters) => filters.iter().all(|f| f.matches_transaction(item)),
@@ -339,14 +339,14 @@ impl TransactionFilter {
             TransactionFilter::Not(filter) => !filter.matches_transaction(item),
 
             TransactionFilter::TransactionKind(kinds) => {
-                let actual_kind = TransactionKind::from(tx_data.kind());
+                let actual_kind = TransactionKind::from(tx.kind());
                 kinds.iter().any(|kind| match kind {
                     TransactionKind::System => is_system_transaction(&actual_kind),
                     _ => kind == &actual_kind,
                 })
             }
 
-            TransactionFilter::Sender(a) => &tx_data.sender() == a,
+            TransactionFilter::Sender(a) => &tx.sender() == a,
 
             TransactionFilter::Receiver(a) => item
                 .effects
@@ -361,7 +361,7 @@ impl TransactionFilter {
                 .iter()
                 .any(|obj_ref| &obj_ref.object_id == o),
 
-            TransactionFilter::Command(cmd_filter) => match tx_data.kind() {
+            TransactionFilter::Command(cmd_filter) => match tx.kind() {
                 iota_sdk_types::TransactionKind::Programmable(pt) => {
                     cmd_filter.matches_commands(&pt.commands)
                 }

@@ -14,7 +14,7 @@ use iota_types::{
     error::{IotaError, IotaResult},
     fp_bail, fp_ensure,
     message_envelope::Message,
-    transaction::{SenderSignedData, TransactionDataAPI},
+    transaction::{SenderSignedData, SenderSignedTransactionAPI},
 };
 use parking_lot::RwLock;
 use tokio::time::Instant;
@@ -66,7 +66,6 @@ impl OverloadTracker {
 
     fn get_mutable_shared_objects(tx_data: &SenderSignedData) -> Vec<ObjectId> {
         tx_data
-            .transaction_data()
             .shared_input_objects()
             .into_iter()
             .filter_map(|r| r.mutable.then_some(r.object_id))

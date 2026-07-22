@@ -22,11 +22,13 @@ use iota_grpc_types::{
         types::Address as ProtoAddress,
     },
 };
-use iota_sdk_types::{Address, MoveObjectType, ObjectId, Owner, StructTag, TransactionDigest};
+use iota_sdk_types::{
+    Address, MoveObjectType, MoveStruct, ObjectId, Owner, StructTag, TransactionDigest,
+};
 use iota_types::{
     crypto::{AccountKeyPair, get_key_pair},
     gas_coin::GasCoin,
-    object::{MoveObject, MoveObjectExt, OBJECT_START_VERSION, Object},
+    object::{MoveStructExt, OBJECT_START_VERSION, Object},
     storage::{AccountOwnedObjectInfo, OwnedObjectCursor},
 };
 use prost_types::FieldMask;
@@ -39,7 +41,7 @@ use tonic::transport::Channel;
 /// Create a gas-coin `Object` owned by `owner` with the given `object_id`.
 fn make_gas_coin(owner: Address, object_id: ObjectId, balance: u64) -> Object {
     let contents = GasCoin::new(object_id, balance).to_bcs_bytes();
-    let move_obj = MoveObject::new_from_execution_with_limit(
+    let move_obj = MoveStruct::new_from_execution_with_limit(
         StructTag::new_gas_coin(),
         OBJECT_START_VERSION,
         contents,
@@ -62,7 +64,7 @@ fn make_large_gas_coin(
 ) -> Object {
     let mut contents = GasCoin::new(object_id, balance).to_bcs_bytes();
     contents.extend(vec![0u8; padding]);
-    let move_obj = MoveObject::new_from_execution_with_limit(
+    let move_obj = MoveStruct::new_from_execution_with_limit(
         StructTag::new_gas_coin(),
         OBJECT_START_VERSION,
         contents,

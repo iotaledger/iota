@@ -220,6 +220,7 @@ mod tests {
     use crate::{
         BlockRef, Round, TestBlockHeader,
         block_header::VerifiedBlock,
+        block_verifier::NoopBlockVerifier,
         commit::CommitRange,
         context::Context,
         core::{CoreSignals, ReasonToCreateBlock},
@@ -328,6 +329,7 @@ mod tests {
                 context.clone(),
                 Arc::new(MemStore::new()),
             ))),
+            Arc::new(NoopBlockVerifier),
         );
 
         // spawn the task
@@ -442,6 +444,7 @@ mod tests {
                 context.clone(),
                 Arc::new(MemStore::new()),
             ))),
+            Arc::new(NoopBlockVerifier),
         );
 
         let now = Instant::now();

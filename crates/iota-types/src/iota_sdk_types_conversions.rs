@@ -119,7 +119,7 @@ impl TryFrom<crate::full_checkpoint_content::CheckpointTransaction> for Checkpoi
             .collect::<Result<_, _>>();
         match (input_objects, output_objects) {
             (Ok(input_objects), Ok(output_objects)) => Ok(Self {
-                transaction: value.transaction.try_into()?,
+                transaction: value.transaction.into(),
                 effects: value.effects,
                 events: value.events,
                 input_objects,
@@ -146,7 +146,7 @@ impl TryFrom<CheckpointTransaction> for crate::full_checkpoint_content::Checkpoi
             .collect();
 
         Ok(Self {
-            transaction: value.transaction.try_into()?,
+            transaction: value.transaction.into(),
             effects: value.effects,
             events: value.events,
             input_objects,
@@ -219,49 +219,15 @@ impl<const T: bool> From<ValidatorAggregatedSignature>
     }
 }
 
-impl TryFrom<crate::transaction::SenderSignedData> for SignedTransaction {
-    type Error = SdkTypeConversionError;
-
-    fn try_from(value: crate::transaction::SenderSignedData) -> Result<Self, Self::Error> {
-        let crate::transaction::SenderSignedTransaction {
-            intent_message,
-            tx_signatures,
-        } = value.into_inner();
-
-        Self {
-            transaction: intent_message.value,
-            signatures: tx_signatures,
-        }
-        .pipe(Ok)
+impl From<crate::transaction::Transaction> for SignedTransaction {
+    fn from(value: crate::transaction::Transaction) -> Self {
+        value.into_data().into()
     }
 }
 
-impl TryFrom<SignedTransaction> for crate::transaction::SenderSignedData {
-    type Error = SdkTypeConversionError;
-
-    fn try_from(value: SignedTransaction) -> Result<Self, Self::Error> {
-        let SignedTransaction {
-            transaction,
-            signatures,
-        } = value;
-
-        Self::new(transaction, signatures).pipe(Ok)
-    }
-}
-
-impl TryFrom<crate::transaction::Transaction> for SignedTransaction {
-    type Error = SdkTypeConversionError;
-
-    fn try_from(value: crate::transaction::Transaction) -> Result<Self, Self::Error> {
-        value.into_data().try_into()
-    }
-}
-
-impl TryFrom<SignedTransaction> for crate::transaction::Transaction {
-    type Error = SdkTypeConversionError;
-
-    fn try_from(value: SignedTransaction) -> Result<Self, Self::Error> {
-        Ok(Self::new(value.try_into()?))
+impl From<SignedTransaction> for crate::transaction::Transaction {
+    fn from(value: SignedTransaction) -> Self {
+        Self::new(value.into())
     }
 }
 

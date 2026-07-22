@@ -1152,11 +1152,11 @@ impl GrpcReader {
                 .ok_or(crate::error::TransactionNotFoundError(*digest))?;
 
             let transaction_data = (fields.include_transaction || fields.include_object_changes)
-                .then(|| transaction.transaction_data().clone());
+                .then(|| transaction.transaction().clone());
 
             let signatures_data = fields
                 .include_signatures
-                .then(|| transaction.tx_signatures().to_owned());
+                .then(|| transaction.signatures().to_owned());
 
             (transaction_data, signatures_data)
         } else {
@@ -1412,7 +1412,7 @@ impl Merge<CheckpointTransactionWithContext>
         if mask.subtree(Self::OBJECT_CHANGES_FIELD.name).is_some() {
             use iota_types::transaction::TransactionDataAPI as _;
 
-            let sender = source.transaction.transaction.transaction_data().sender();
+            let sender = source.transaction.transaction.transaction().sender();
             self.object_changes = Some(
                 iota_grpc_types::v1::transaction::ObjectChanges::default().with_object_changes(
                     crate::changes::derive_object_changes(

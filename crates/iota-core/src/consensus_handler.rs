@@ -19,7 +19,7 @@ use iota_types::{
     executable_transaction::{TrustedExecutableTransaction, VerifiedExecutableTransaction},
     iota_system_state::epoch_start_iota_system_state::EpochStartSystemStateTrait,
     messages_consensus::{ConsensusTransaction, ConsensusTransactionKey, ConsensusTransactionKind},
-    transaction::{SenderSignedData, VerifiedTransaction},
+    transaction::{SenderSignedData, SenderSignedTransactionAPI, VerifiedTransaction},
 };
 use lru::LruCache;
 use serde::{Deserialize, Serialize};
@@ -1303,7 +1303,7 @@ mod tests {
                     format!("cap({})", cap.generation)
                 }
                 ConsensusTransactionKind::CertifiedTransaction(txn) => {
-                    format!("user({})", txn.transaction_data().gas_price())
+                    format!("user({})", txn.transaction().gas_price())
                 }
                 _ => unreachable!(),
             },

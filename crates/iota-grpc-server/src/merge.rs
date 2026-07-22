@@ -139,7 +139,7 @@ impl Merge<iota_types::transaction::Transaction> for UserSignatures {
     ) -> Result<(), Self::Error> {
         // Get signatures directly from transaction without converting the whole
         // transaction
-        let tx_signatures = source.tx_signatures();
+        let tx_signatures = source.signatures();
 
         self.signatures = tx_signatures
             .iter()
@@ -719,7 +719,7 @@ impl Merge<iota_types::transaction::Transaction> for Transaction {
             return Ok(());
         }
 
-        Merge::merge(self, source.transaction_data(), mask)
+        Merge::merge(self, source.transaction(), mask)
     }
 }
 

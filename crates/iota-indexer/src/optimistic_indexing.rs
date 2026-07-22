@@ -232,7 +232,7 @@ impl OptimisticTransactionExecutor {
         let response = self
             .rpc_client
             .execute_transaction(
-                signed_transaction.try_into()?,
+                signed_transaction.into(),
                 Some(ReadMask::from(EXECUTE_TRANSACTION_READ_MASK)),
                 None,
             )

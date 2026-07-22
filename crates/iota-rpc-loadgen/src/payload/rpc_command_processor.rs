@@ -20,10 +20,7 @@ use iota_json_rpc_types::{
     IotaTransactionBlockResponseOptions,
 };
 use iota_sdk::{IotaClient, IotaClientBuilder};
-use iota_sdk_types::{
-    Address, ObjectId, ObjectReference, TransactionDigest,
-    crypto::{Intent, IntentMessage},
-};
+use iota_sdk_types::{Address, ObjectId, ObjectReference, TransactionDigest};
 use iota_types::{
     crypto::{
         AccountKeyPair, EncodeDecodeBase64, IotaKeyPair, IotaSignature, Signature, get_key_pair,
@@ -790,10 +787,7 @@ pub(crate) async fn sign_and_execute(
     txn_data: TransactionData,
     request_type: ExecuteTransactionRequestType,
 ) -> IotaTransactionBlockResponse {
-    let signature = Signature::new_secure(
-        &IntentMessage::new(Intent::iota_transaction(), &txn_data),
-        keypair,
-    );
+    let signature = Signature::new_secure(&txn_data.intent_message(), keypair);
 
     let transaction_response = match client
         .quorum_driver_api()
