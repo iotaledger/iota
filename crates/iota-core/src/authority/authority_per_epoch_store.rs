@@ -4688,6 +4688,9 @@ impl AuthorityPerEpochStore {
             .consensus_handler_cancelled_transactions
             .inc_by(cancelled_txns.len() as u64);
         authority_metrics
+            .consensus_handler_congestion_dropped_transactions
+            .inc_by(congestion_dropped.len() as u64);
+        authority_metrics
             .consensus_handler_max_object_costs
             .with_label_values(&["regular_commit"])
             .set(shared_object_congestion_tracker.max_occupied_slot_end_time() as i64);
