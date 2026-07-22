@@ -9,8 +9,8 @@ use iota_types::{
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
-/// Serialize account keys the way the previous fastcrypto keypairs did: as
-/// base64 strings of the raw 32-byte ed25519 private key.
+/// Serializes account keys as base64 strings of the raw 32-byte ed25519
+/// private key.
 mod account_keys_base64 {
     use fastcrypto::encoding::{Base64, Encoding};
     use iota_sdk_crypto::ToFromBytes as _;
