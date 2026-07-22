@@ -396,7 +396,7 @@ mod test {
                     name: format!("validator-{i}"),
                     authority_key: authority_keypair.public().into(),
                     protocol_key: protocol_keypair.public().clone(),
-                    account_address: IotaKeyPair::Ed25519(account_keypair.clone()).address(),
+                    account_address: account_keypair.public_key().derive_address(),
                     network_key: network_keypair.public().clone(),
                     gas_price: iota_config::node::DEFAULT_VALIDATOR_GAS_PRICE,
                     commission_rate: iota_config::node::DEFAULT_COMMISSION_RATE,

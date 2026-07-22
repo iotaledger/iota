@@ -15,7 +15,7 @@ use iota_sdk_types::{
 use iota_types::{
     base_types::AuthorityName,
     committee::{Committee, EpochId},
-    crypto::{AccountKeyPair, AuthorityKeyPair, IotaKeyPair},
+    crypto::{AccountKeyPair, AuthorityKeyPair},
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     error::IotaError,
     messages_checkpoint::{CheckpointContents, CheckpointSequenceNumber, VerifiedCheckpoint},
@@ -550,7 +550,7 @@ impl KeyStore {
             .account_keys
             .iter()
             .map(|key| {
-                let address = IotaKeyPair::Ed25519(key.clone()).address();
+                let address = key.public_key().derive_address();
                 (address, key.clone())
             })
             .collect();

@@ -242,7 +242,7 @@ impl Cluster for LocalNewCluster {
 
         // Use the wealthy account for faucet
         let faucet_key = test_cluster.swarm.config_mut().account_keys.swap_remove(0);
-        let faucet_address = IotaKeyPair::Ed25519(faucet_key.clone()).address();
+        let faucet_address = faucet_key.public_key().derive_address();
         info!(?faucet_address, "faucet_address");
 
         // This cluster has fullnode handle, safe to unwrap
