@@ -9749,13 +9749,22 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "append-only-vec",
+ "clap",
  "codespan-reporting",
  "derive-where",
+ "futures",
+ "itertools 0.10.5",
+ "move-command-line-common",
+ "regex",
  "serde",
+ "serde_json",
  "serde_spanned 0.6.9",
  "thiserror 1.0.64",
+ "tokio",
  "toml 0.5.11",
  "toml_edit 0.22.27",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]
