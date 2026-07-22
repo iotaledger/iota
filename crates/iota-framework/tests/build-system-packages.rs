@@ -301,7 +301,9 @@ fn relocate_docs(files: &[(String, String)], output: &mut BTreeMap<String, Strin
         // from mdx. MDX also strips leading whitespace inside `<code>` blocks
         // (it parses the content as a paragraph), which silently drops indentation
         // from Move implementations — encode leading spaces as `&nbsp;` so the
-        // browser still renders them as regular spaces.
+        // browser still renders them as regular spaces. Escape `*` as well: MDX
+        // parses the block content as markdown, so a pair of `*` (e.g. two `*x`
+        // dereferences) would be read as emphasis and mangle the code.
         let content = code_regex.replace_all(&content, |caps: &regex::Captures| {
             let match_content = caps.get(0).unwrap().as_str();
             let code_content = caps.get(1).unwrap().as_str();
@@ -310,6 +312,7 @@ fn relocate_docs(files: &[(String, String)], output: &mut BTreeMap<String, Strin
             }
             let escaped = code_content
                 .replace('{', "\\{")
+                .replace('*', "\\*")
                 .split('\n')
                 .map(|line| {
                     let stripped = line.trim_start_matches(' ');
