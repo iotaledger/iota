@@ -1,0 +1,11 @@
+diff --git a/dist/index.mjs b/dist/index.mjs
+index 2fc1734161128cc2d181abdb9844a01167471eff..f2ae0cf2d03a94273132444a37a70c307a999a81 100644
+--- a/dist/index.mjs
++++ b/dist/index.mjs
+@@ -4,5 +4,5 @@
+  * (c) 2023 Joost De Cock <joost@joost.at> (https://github.com/joostdecock)
+  * @license MIT
+  */
+-import{visit as s}from"unist-util-visit";import{fromHtml as o}from"hast-util-from-html";var i=(r,e)=>`<span class="jargon-term">${r}<span class="jargon-info">${e}</span></span>`,l=r=>{if(!r||!r.jargon)throw Error('Required "jargon" option is missing in remark-jargon configuration');r.transform||(r.transform=i);let e=a=>a.tagName==="em"&&Object.keys(r.jargon).indexOf(a.children[0].value.toLowerCase())!==-1,n=a=>{if(e(a)){let t=o(r.transform(a.children[0].value,r.jargon[a.children[0].value.toLowerCase()]),{fragment:!0});a.children=t.children}};return a=>{s(a,"element",n)}};export{l as default};
++import{visit as s}from"unist-util-visit";import{fromHtml as o}from"hast-util-from-html";var i=(r,e)=>`<span class="jargon-term">${r}<span class="jargon-info">${e}</span></span>`,l=r=>{if(!r||!r.jargon)throw Error('Required "jargon" option is missing in remark-jargon configuration');r.transform||(r.transform=i);let e=a=>a.tagName==="em"&&typeof a.children[0]?.value=="string"&&Object.keys(r.jargon).indexOf(a.children[0].value.toLowerCase())!==-1,n=a=>{if(e(a)){let t=o(r.transform(a.children[0].value,r.jargon[a.children[0].value.toLowerCase()]),{fragment:!0});a.children=t.children}};return a=>{s(a,"element",n)}};export{l as default};
+ //# sourceMappingURL=index.mjs.map
