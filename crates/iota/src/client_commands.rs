@@ -1418,16 +1418,11 @@ impl IotaClientCommands {
                 let signer = context.get_object_owner(&input_coins[0]).await?;
                 let client = context.get_grpc_client().await?;
                 let mut builder = TransactionBuilder::new(signer);
-                let mut coin_args =
-                    builder.apply_arguments(grpc_input_refs(&client, &input_coins).await?);
-                let coin = coin_args.remove(0);
-                if !coin_args.is_empty() {
-                    builder.command(unresolved::Command::MergeCoins(unresolved::MergeCoins {
-                        coin,
-                        coins_to_merge: coin_args,
-                    }));
-                }
-                pay_commands(&mut builder, coin, recipients, amounts);
+                builder.pay(
+                    grpc_input_refs(&client, &input_coins).await?,
+                    recipients,
+                    amounts,
+                );
 
                 ensure!(
                     !payment.gas.iter().any(|gas| input_coins.contains(gas)),
@@ -1479,12 +1474,7 @@ impl IotaClientCommands {
                     get_identity_address(processing.sender.map(Into::into), context).await?;
                 let client = context.get_grpc_client().await?;
                 let mut builder = TransactionBuilder::new(signer);
-                pay_commands(
-                    &mut builder,
-                    unresolved::Argument::Gas,
-                    recipients,
-                    amounts.clone(),
-                );
+                builder.pay([unresolved::Argument::Gas], recipients, amounts.clone());
                 let (tx_kind, _) = tx_kind_and_gas_payment(builder)?;
 
                 let input_coins = if let Some(coins) = input_coins {
@@ -3368,54 +3358,6 @@ fn tx_kind_and_gas_payment(
     builder.gas_price(0);
     let tx = builder.finish()?.into_v1();
     Ok((tx.kind, tx.gas_payment.objects))
-}
-
-/// Add the commands for a pay transaction to the builder: split the amounts
-/// off `coin` and transfer the split coins to the corresponding recipients,
-/// with one transfer command per unique recipient.
-///
-/// Builds the same commands as
-/// [`ProgrammableTransactionBuilder::pay`](iota_types::programmable_transaction_builder::ProgrammableTransactionBuilder::pay).
-fn pay_commands(
-    builder: &mut TransactionBuilder,
-    coin: unresolved::Argument,
-    recipients: Vec<Address>,
-    amounts: Vec<u64>,
-) {
-    // collect recipients in the case where they are non-unique in order
-    // to minimize the number of transfers that must be performed
-    let mut recipient_transfers: Vec<(Address, Vec<u16>)> = Vec::new();
-    let mut amount_args = Vec::with_capacity(amounts.len());
-    for (i, (recipient, amount)) in recipients.into_iter().zip(amounts).enumerate() {
-        match recipient_transfers
-            .iter_mut()
-            .find(|(r, _)| *r == recipient)
-        {
-            Some((_, indexes)) => indexes.push(i as u16),
-            None => recipient_transfers.push((recipient, vec![i as u16])),
-        }
-        amount_args.push(builder.pure(amount));
-    }
-    let unresolved::Argument::Result(split) =
-        builder.command(unresolved::Command::SplitCoins(unresolved::SplitCoins {
-            coin,
-            amounts: amount_args,
-        }))
-    else {
-        unreachable!("command() always returns a result argument");
-    };
-    for (recipient, indexes) in recipient_transfers {
-        let address = builder.pure(recipient);
-        builder.command(unresolved::Command::TransferObjects(
-            unresolved::TransferObjects {
-                objects: indexes
-                    .into_iter()
-                    .map(|i| unresolved::Argument::NestedResult(split, i))
-                    .collect(),
-                address,
-            },
-        ));
-    }
 }
 
 /// Dry run, execute, or serialize a transaction.
