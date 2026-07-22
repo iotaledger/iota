@@ -271,6 +271,60 @@ async fn test_writeback_wait_for_shared_deleted() {
     timeout(Duration::from_secs(1), notification).await.unwrap();
 }
 
+/// Sibling of `test_writeback_wait_for_shared_deleted` for the `OwnedDeleted`
+/// marker, which satisfies availability for a received-then-deleted owned
+/// object used as a receiving input. The marker is written *after* the wait
+/// begins, so this exercises the notify wakeup path — not the fetch-time
+/// resolution that `notify_read_resolves_received_then_deleted_owned_input`
+/// covers. Without `notify_marker_written` notifying on `OwnedDeleted`, the
+/// waiter is never woken and this times out.
+///
+/// This pins the cache-primitive contract (a marker that grants availability
+/// must wake waiters) in isolation. A live transaction cannot reach this state:
+/// a receiving reference is pinned at signing to a currently-live object
+/// version, whose object-write already notifies, and consensus ordering places
+/// that write before any later deletion marker. The direct
+/// `write_marker_for_testing` here deliberately bypasses those invariants to
+/// test the primitive.
+#[tokio::test]
+async fn test_writeback_wait_for_owned_deleted() {
+    let cache = create_writeback_cache().await;
+    let object_id = ObjectId::random();
+    let version = Version::from(1);
+    let epoch_id = 0;
+
+    let input_key = InputKey::VersionedObject {
+        id: object_id,
+        version,
+    };
+    let input_keys = vec![input_key];
+    // An `OwnedDeleted` marker only satisfies availability for a *receiving*
+    // input, so the key must be in the receiving set for the wait to resolve.
+    let mut receiving_keys = HashSet::new();
+    receiving_keys.insert(input_key);
+    let epoch = &epoch_id;
+
+    // Start notification future while neither the object nor its marker exists,
+    // so the waiter registers and blocks.
+    let notification = cache.notify_read_input_objects(&input_keys, &receiving_keys, epoch);
+
+    // Write OwnedDeleted marker after small delay
+    tokio::spawn({
+        let cache = cache.clone();
+        async move {
+            tokio::time::sleep(Duration::from_millis(100)).await;
+            cache.write_marker_for_testing(
+                epoch_id,
+                &ObjectKey(object_id, version),
+                MarkerValue::OwnedDeleted,
+            );
+        }
+    });
+
+    // Should complete once OwnedDeleted marker is written
+    timeout(Duration::from_secs(1), notification).await.unwrap();
+}
+
 #[tokio::test]
 async fn test_writeback_receiving_object_higher_version() {
     let cache = create_writeback_cache().await;

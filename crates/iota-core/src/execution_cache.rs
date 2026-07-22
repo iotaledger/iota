@@ -69,15 +69,22 @@ fn notify_object_written(object_notify_read: &NotifyRead<InputKey, ()>, object: 
     }
 }
 
-/// Notify waiters that a marker value has been written. Only `SharedDeleted`
-/// markers need notification, since they satisfy input object reads for shared
-/// objects that were deleted.
+/// Notify waiters that a marker value has been written. Both `SharedDeleted`
+/// and `OwnedDeleted` markers need notification: each can satisfy an input
+/// object read (`SharedDeleted` for a deleted shared object; `OwnedDeleted` for
+/// a received-then-deleted owned object referenced as a receiving input), so a
+/// waiter that registered before the marker was written must be woken — a
+/// deleted object is never written at that version, so no object-write
+/// notification will arrive to release it.
 fn notify_marker_written(
     object_notify_read: &NotifyRead<InputKey, ()>,
     object_key: &ObjectKey,
     marker_value: &MarkerValue,
 ) {
-    if matches!(marker_value, MarkerValue::SharedDeleted(_)) {
+    if matches!(
+        marker_value,
+        MarkerValue::SharedDeleted(_) | MarkerValue::OwnedDeleted
+    ) {
         object_notify_read.notify(
             &InputKey::VersionedObject {
                 id: object_key.0,
