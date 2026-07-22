@@ -337,7 +337,7 @@ impl CongestionControlParameters {
     /// The execution-worker concurrency cap, or `None` when execution-worker
     /// congestion control is not active. Active only when the cap is set and
     /// per-object congestion control is enabled; the protocol config
-    /// guarantees the white-flag flow is enabled whenever the cap is set.
+    /// guarantees the PCOOL flow is enabled whenever the cap is set.
     pub(super) fn max_concurrent_execution_workers(&self) -> Option<u16> {
         if self.is_congestion_control_enabled() {
             self.max_concurrent_execution_workers
@@ -534,7 +534,7 @@ pub enum ConsensusTransactionResult {
         ),
     ),
 
-    /// A transaction shed due to execution congestion under the white-flag
+    /// A transaction shed due to execution congestion under the PCOOL
     /// flow. Unlike `Cancelled`, it is neither executed nor checkpointed: the
     /// submitter is notified out-of-band via the dropped-tx status cache with
     /// `error` (carrying a suggested gas price) and must resubmit a new
@@ -3894,7 +3894,7 @@ impl AuthorityPerEpochStore {
                 sequenced_randomness_transactions = randomness;
             }
         }
-        // A single tracker implies the white-flag flow (enforced by the
+        // A single tracker implies the PCOOL flow (enforced by the
         // protocol config), under which all user transactions are in
         // `sequenced_transactions` and the partition-back is skipped.
         debug_assert!(
@@ -4441,7 +4441,7 @@ impl AuthorityPerEpochStore {
         let mut deferred_txns: BTreeMap<DeferralKey, Vec<DeferredTransaction>> = BTreeMap::new();
         let mut cancelled_txns: BTreeMap<TransactionDigest, CancelConsensusTransactionReason> =
             BTreeMap::new();
-        // Transactions shed for execution congestion under the white-flag flow.
+        // Transactions shed for execution congestion under the PCOOL flow.
         // Fed to `dropped_tx_status_cache.insert_and_notify` after the loop so
         // the submitter's `await_consensus_or_checkpoint` wait is woken; these
         // transactions are neither executed nor checkpointed.
@@ -4499,7 +4499,9 @@ impl AuthorityPerEpochStore {
                     &mut shared_object_congestion_tracker,
                     &mut suggested_gas_price_calculator,
                 ),
-                // Only reached in the two-tracker mode.
+                // Randomness transactions arm is only reached in the two-tracker mode because the
+                // sgp calculator is directly linked to the congestion tracker so single tracker
+                // means single sgp calculator.
                 Either::Right(tx) => (
                     tx,
                     shared_object_using_randomness_congestion_tracker
@@ -4632,7 +4634,7 @@ impl AuthorityPerEpochStore {
 
         // Notify submitters of transactions shed for execution congestion. Their
         // owned-object soft locks are released by the post-quarantine soft-lock
-        // release, the same as for any other sequenced white-flag transaction.
+        // release, the same as for any other sequenced PCOOL transaction.
         if !congestion_dropped.is_empty() {
             self.dropped_tx_status_cache
                 .insert_and_notify(&congestion_dropped);

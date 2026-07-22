@@ -951,7 +951,7 @@ async fn test_execution_worker_congestion_drops_owned_object_only_tx() {
     // One execution worker and a per-commit limit of one transaction, so only
     // one transaction can be scheduled per commit; no deferral allowance, so
     // the transaction that does not fit is dropped immediately. The drop path
-    // requires the white-flag (P-COOL) flow.
+    // requires the PCOOL flow.
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
         config.set_enable_pcool_flow_for_testing(true);
         config.set_per_object_congestion_control_mode_for_testing(
