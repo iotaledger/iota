@@ -340,6 +340,7 @@ fn classify_block_error(error: &ConsensusError) -> FaultType {
         | ConsensusError::UnexpectedNumberOfHeadersFetched { .. }
         | ConsensusError::UnexpectedLastOwnHeader { .. }
         | ConsensusError::TooManyFetchedTransactionsReturned(_)
+        | ConsensusError::UnrequestedTransactionFetched { .. }
         | ConsensusError::TooManyAuthoritiesProvided(_)
         | ConsensusError::InvalidSizeOfHighestAcceptedRounds(..)
         | ConsensusError::InvalidAuthorityIndexRequested { .. }
