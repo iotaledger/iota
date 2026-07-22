@@ -200,11 +200,14 @@ Aggregation and reporting tooling (all under `h1/` directory):
 ### Findings (10 iterations per configuration)
 
 Numbers below are means over all seconds of all iterations, except the bursty
-queue/shedding gauges, which report peaks (see the tooling note above).
-Per-configuration means are steady at light and moderate load — they vary a
-few percent from run to run — and noisier on the heavy-compute configurations,
-where throughput is small (up to tens of percent). Figure error bars are
-±1 std (signal variability) by default; `summary_plot.py --disp sem` switches
+queue/shedding gauges, which report peaks — max over time per iteration,
+averaged across iterations (see the `make_table.py` entry in the tooling
+list above).
+**Per-configuration means are steady at light and moderate load** — they
+vary a few percent from run to run — **and noisier on the heavy-compute
+configurations**, where throughput is small (up to tens of percent). Figure
+error bars are ±1 std (signal variability) by default;
+`summary_plot.py --disp sem` switches
 them to the standard error of the mean.
 
 In the figures below, blue = **A (V1, attestation off)** and red = **B (V2,
@@ -292,7 +295,7 @@ The dry-run and the real execution share the bulk of the work — load the
 inputs, run the Move VM — so their latencies scale together with computation
 cost. The differences are at the edges.
 
-- For a no-op transaction (`slow0`) the Move work is almost nothing and only
+- For a no-op transaction, (`slow0`) the Move work is almost nothing and only
 fixed overhead remains; the real execution (`try_execute_immediately`: lock,
 input load, Move VM, effects commit) carries more of it than the attestation
 checks do, so it sits a little above the dry-run (≈1.3–2.1 vs ≈0.95 ms on `n4`).
@@ -646,9 +649,9 @@ the pinned path's B penalty at `slow100`/`slow200`.*
 The client sees the same picture: `settlement_finality_latency` is the
 client's submit→finality time (fullnode path only). It's the end-to-end view
 of the internal pipeline above plus network and finality, so it moves the same
-way. Fullnode path, each cell `n4` ∣ `n24`:
+way. Fullnode path, p50, each cell `n4` ∣ `n24`:
 
-| slow_size | p50 A | p50 B | p50 B/A |
+| slow_size | A | B | B/A |
 | :---: | --- | --- | --- |
 | 0   | 253 ms ∣ **267 ms** | 252 ms ∣ **266 ms** | 1.00 ∣ **1.00** |
 | 50  | 259 ms ∣ **294 ms** | 258 ms ∣ **297 ms** | 1.00 ∣ **1.01** |
@@ -659,7 +662,7 @@ way. Fullnode path, each cell `n4` ∣ `n24`:
 <details>
 <summary>The same latency at p95</summary>
 
-| slow_size | p95 A | p95 B | p95 B/A |
+| slow_size | A | B | B/A |
 | :---: | --- | --- | --- |
 | 0   | 367 ms ∣ **332 ms** | 374 ms ∣ **327 ms** | 1.02 ∣ **0.98** |
 | 50  | 359 ms ∣ **359 ms** | 351 ms ∣ **364 ms** | 0.98 ∣ **1.01** |
@@ -815,12 +818,12 @@ ahead of consensus); `v24` shows no such shift.*
 `validate_and_resolve_conflicts` (the post-consensus pass) is where attestation
 adds Check #3 — attestor verification plus cost bounds. But that's a few integer
 comparisons per tx; the pass is dominated by the already-executed cache lookup
-(Check #1) and owned-object lock/conflict resolution. All paths, each
+(Check #1) and owned-object lock/conflict resolution. All paths, p50, each
 cell `n4` ∣ `n24`:
 
 Fullnode path (`f1`):
 
-| slow_size | p50 A | p50 B | p50 B/A |
+| slow_size | A | B | B/A |
 | :---: | --- | --- | --- |
 | 0   | 2.9 ms ∣ **2.4 ms** | 2.8 ms ∣ **2.3 ms** | 0.96 ∣ **0.94** |
 | 50  | 2.9 ms ∣ **2.8 ms** | 2.8 ms ∣ **2.2 ms** | 0.96 ∣ **0.80** |
@@ -830,7 +833,7 @@ Fullnode path (`f1`):
 
 Direct-to-one-validator path (`v1`):
 
-| slow_size | p50 A | p50 B | p50 B/A |
+| slow_size | A | B | B/A |
 | :---: | --- | --- | --- |
 | 0   | 2.9 ms ∣ **2.8 ms** | 2.9 ms ∣ **2.7 ms** | 1.00 ∣ **0.97** |
 | 50  | 2.9 ms ∣ **2.5 ms** | 2.8 ms ∣ **2.2 ms** | 0.98 ∣ **0.86** |
@@ -840,7 +843,7 @@ Direct-to-one-validator path (`v1`):
 
 Direct-to-all-validators path (`v4` / `v24`):
 
-| slow_size | p50 A | p50 B | p50 B/A |
+| slow_size | A | B | B/A |
 | :---: | --- | --- | --- |
 | 0   | 3.0 ms ∣ **2.8 ms** | 2.9 ms ∣ **2.6 ms** | 0.98 ∣ **0.95** |
 | 50  | 2.9 ms ∣ **2.8 ms** | 2.8 ms ∣ **2.6 ms** | 0.95 ∣ **0.92** |
@@ -853,7 +856,7 @@ Direct-to-all-validators path (`v4` / `v24`):
 
 Fullnode path (`f1`), p95:
 
-| slow_size | p95 A | p95 B | p95 B/A |
+| slow_size | A | B | B/A |
 | :---: | --- | --- | --- |
 | 0   | 5.7 ms ∣ **4.5 ms** | 5.1 ms ∣ **4.4 ms** | 0.89 ∣ **0.97** |
 | 50  | 5.2 ms ∣ **5.1 ms** | 4.9 ms ∣ **4.7 ms** | 0.95 ∣ **0.91** |
@@ -863,7 +866,7 @@ Fullnode path (`f1`), p95:
 
 Direct-to-one-validator path (`v1`), p95:
 
-| slow_size | p95 A | p95 B | p95 B/A |
+| slow_size | A | B | B/A |
 | :---: | --- | --- | --- |
 | 0   | 5.9 ms ∣ **4.9 ms** | 5.1 ms ∣ **4.8 ms** | 0.85 ∣ **0.98** |
 | 50  | 5.4 ms ∣ **6.2 ms** | 5.0 ms ∣ **5.8 ms** | 0.93 ∣ **0.93** |
@@ -873,7 +876,7 @@ Direct-to-one-validator path (`v1`), p95:
 
 Direct-to-all-validators path (`v4` / `v24`), p95:
 
-| slow_size | p95 A | p95 B | p95 B/A |
+| slow_size | A | B | B/A |
 | :---: | --- | --- | --- |
 | 0   | 5.3 ms ∣ **4.9 ms** | 4.9 ms ∣ **4.9 ms** | 0.93 ∣ **0.99** |
 | 50  | 5.3 ms ∣ **5.0 ms** | 4.9 ms ∣ **4.9 ms** | 0.92 ∣ **0.99** |
