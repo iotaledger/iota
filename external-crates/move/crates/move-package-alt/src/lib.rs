@@ -8,7 +8,9 @@
 //! TODO: major modules, etc
 
 #![allow(unused)]
+pub mod cli;
 pub mod dependency;
 pub mod errors;
 pub mod flavor;
+pub mod jsonrpc;
 pub mod package;
