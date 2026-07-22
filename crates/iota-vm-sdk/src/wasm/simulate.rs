@@ -6,12 +6,10 @@
 
 use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
 use iota_protocol_config::{Chain, ProtocolVersion};
-use iota_sdk_types::{ObjectReference, Owner as SdkOwner};
+use iota_sdk_types::{ObjectReference, Owner as SdkOwner, SenderSignedTransaction};
 use iota_types::{
-    effects::TransactionEffectsAPI,
-    object::Object,
-    signature::UserSignature,
-    transaction::{SenderSignedData, TransactionData},
+    effects::TransactionEffectsAPI, object::Object, signature::UserSignature,
+    transaction::TransactionData,
 };
 use wasm_bindgen::prelude::*;
 
@@ -90,7 +88,7 @@ pub fn simulate(req: JsValue, fetch_object: js_sys::Function) -> Result<JsValue,
                 .map_err(|e| JsError::new(&format!("signature[{i}] decode: {e}")))?;
             sigs.push(sig);
         }
-        let signed_data = SenderSignedData::new(tx, sigs);
+        let signed_data = SenderSignedTransaction::new(tx, sigs);
         vm.execute_signed(signed_data, opts).map_err(err_to_js)?
     } else {
         vm.execute(tx, opts).map_err(err_to_js)?

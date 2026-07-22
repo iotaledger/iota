@@ -103,7 +103,7 @@ pub(super) fn prepare_transaction(
     // shared/owned kind) that store loading does not change, so a denied
     // transaction is rejected without the intervening object I/O.
     //
-    // The node deny-checks `SenderSignedData::input_objects()`, which merges
+    // The node deny-checks `SenderSignedTransaction::input_objects()`, which merges
     // every `MoveAuthenticator`'s input objects into the transaction's; mirror
     // that merge so denied objects are also caught as authenticator inputs.
     let mut deny_check_input_kinds = raw_input_object_kinds.clone();

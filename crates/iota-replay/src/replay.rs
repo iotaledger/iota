@@ -19,8 +19,8 @@ use iota_json_rpc_types::{
 use iota_protocol_config::{Chain, ProtocolConfig};
 use iota_sdk::{IotaClient, IotaClientBuilder};
 use iota_sdk_types::{
-    GasPayment, ObjectData, ObjectDigest, ObjectId, ObjectReference, Owner, StructTag,
-    TransactionDigest, TransactionKind, Version,
+    GasPayment, ObjectData, ObjectDigest, ObjectId, ObjectReference, Owner,
+    SenderSignedTransaction, StructTag, TransactionDigest, TransactionKind, Version,
 };
 use iota_types::{
     IOTA_DENY_LIST_OBJECT_ID,
@@ -49,8 +49,7 @@ use iota_types::{
     },
     transaction::{
         CheckedInputObjects, InputObjectKind, InputObjects, ObjectReadResult, ObjectReadResultKind,
-        SenderSignedData, SenderSignedTransactionAPI, Transaction, TransactionDataAPI,
-        VerifiedTransaction,
+        SenderSignedTransactionAPI, Transaction, TransactionDataAPI, VerifiedTransaction,
     },
 };
 use move_binary_format::CompiledModule;
@@ -1768,7 +1767,7 @@ impl LocalExec {
         let config_objects = self.add_config_objects_if_needed(effects.status());
 
         let raw_tx_bytes = tx_info.clone().raw_transaction;
-        let orig_tx: SenderSignedData = bcs::from_bytes(&raw_tx_bytes).unwrap();
+        let orig_tx: SenderSignedTransaction = bcs::from_bytes(&raw_tx_bytes).unwrap();
         let input_objs = orig_tx
             .collect_all_input_object_kind_for_reading()
             .map_err(|e| match e {

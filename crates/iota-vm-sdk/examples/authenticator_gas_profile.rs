@@ -18,11 +18,12 @@ use std::path::PathBuf;
 
 use anyhow::{Context, Result};
 use fastcrypto::encoding::{Base64, Encoding};
+use iota_sdk_types::SenderSignedTransaction;
 use iota_types::{
     effects::TransactionEffectsAPI,
     object::Object,
     signature::UserSignature,
-    transaction::{SenderSignedData, TransactionData, TransactionDataAPI},
+    transaction::{TransactionData, TransactionDataAPI},
 };
 use iota_vm_sdk::{
     Chain, ChainContext, DebugConfig, ExecuteOptions, InMemoryStore, LocalVm, ProfileOutput,
@@ -102,7 +103,7 @@ fn fixture() -> Result<Value> {
 
 /// Build the example's signed transaction — PTB body plus its MoveAuthenticator
 /// signature — from the committed fixture.
-fn example_signed_transaction() -> Result<SenderSignedData> {
+fn example_signed_transaction() -> Result<SenderSignedTransaction> {
     let f = fixture()?;
     let tx: TransactionData =
         bcs::from_bytes(&Base64::decode(f["tx_b64"].as_str().unwrap()).unwrap())?;
@@ -116,5 +117,5 @@ fn example_signed_transaction() -> Result<SenderSignedData> {
             )?)
         })
         .collect::<Result<_>>()?;
-    Ok(SenderSignedData::new(tx, sigs))
+    Ok(SenderSignedTransaction::new(tx, sigs))
 }

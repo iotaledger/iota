@@ -16,9 +16,9 @@ use iota_sdk_types::{
     ConsensusDeterminedVersionAssignments, EndOfEpochTransactionKind, Event, ExecutionError,
     ExecutionStatus, GenesisObject, GenesisTransaction, Identifier, MoveLocation, MoveObjectType,
     ObjectData, ObjectDigest, ObjectId, ObjectReference, Owner, PackageUpgradeError,
-    ProgrammableTransaction, RandomnessStateUpdate, SharedObjectReference, SimpleSignature,
-    StructTag, TransactionDigest, TransactionEffectsDigest, TransactionExpiration, TransactionKind,
-    TypeArgumentError, TypeTag, UnchangedSharedKind,
+    ProgrammableTransaction, RandomnessStateUpdate, SenderSignedTransaction, SharedObjectReference,
+    SimpleSignature, StructTag, TransactionDigest, TransactionEffectsDigest, TransactionExpiration,
+    TransactionKind, TypeArgumentError, TypeTag, UnchangedSharedKind,
     crypto::{Intent, IntentMessage, PersonalMessage},
     move_package::{MovePackage, TypeOrigin, UpgradeInfo},
     validator::ValidatorCommitteeMember,
@@ -44,7 +44,7 @@ use iota_types::{
     object::{MoveObject, MoveObjectExt, ObjectInner},
     signature::UserSignature,
     storage::DeleteKind,
-    transaction::{CallArg, SenderSignedData, Transaction, TransactionData, TransactionDataAPI},
+    transaction::{CallArg, Transaction, TransactionData, TransactionDataAPI},
 };
 use move_core_types::{account_address::AccountAddress, language_storage::ModuleId};
 use pretty_assertions::assert_str_eq;
@@ -551,7 +551,7 @@ fn get_registry() -> Result<Registry> {
         .trace_type::<ConsensusDeterminedVersionAssignments>(&samples)
         .unwrap();
 
-    let sender_data = SenderSignedData::new(
+    let sender_data = SenderSignedTransaction::new(
         TransactionData::new_with_gas_coins(
             TransactionKind::EndOfEpoch(vec![EndOfEpochTransactionKind::ChangeEpoch(
                 ChangeEpoch {

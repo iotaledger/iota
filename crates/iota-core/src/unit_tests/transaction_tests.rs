@@ -756,7 +756,7 @@ async fn test_handle_certificate_errors() {
         err,
         IotaError::UserInput {
             error: UserInputError::Unsupported(message)
-        } if message == "SenderSignedData must not contain system transaction"
+        } if message == "SenderSignedTransaction must not contain system transaction"
     );
 
     let mut invalid_sig_count_tx = transfer_transaction.clone();
@@ -1408,7 +1408,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
 
 #[test]
 fn sender_signed_data_serialized_intent() {
-    let txn = SenderSignedData::new(
+    let txn = SenderSignedTransaction::new(
         TransactionData::new_transfer(
             Address::ZERO,
             random_object_ref(),
@@ -1436,6 +1436,6 @@ fn sender_signed_data_serialized_intent() {
     // deser fails when intent is wrong
     let mut bytes = bytes;
     bytes[1] = IntentScope::TransactionEffects as u8;
-    let e = bcs::from_bytes::<SenderSignedData>(&bytes).unwrap_err();
+    let e = bcs::from_bytes::<SenderSignedTransaction>(&bytes).unwrap_err();
     assert!(e.to_string().contains("invalid intent"));
 }
