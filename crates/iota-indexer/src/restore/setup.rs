@@ -134,8 +134,9 @@ impl FormalSnapshotStore {
         let root_manifest = RootManifest::from_bytes(&manifest_contents)?;
         let mut epochs: Vec<_> = root_manifest
             .available_epochs
-            .iter()
-            .map(|(epoch, _)| *epoch)
+            .into_iter()
+            // epochs with V2 snapshots have a positive timestamp
+            .filter_map(|(epoch, timestamp)| (timestamp > 0).then_some(epoch))
             .collect();
         epochs.sort_by_key(|&epoch| Reverse(epoch));
         Ok(epochs)
