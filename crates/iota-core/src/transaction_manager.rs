@@ -12,7 +12,9 @@ use std::{
 use iota_common::{fatal, random_util::randomize_cache_capacity_in_tests};
 use iota_config::node::AuthorityOverloadConfig;
 use iota_metrics::monitored_scope;
-use iota_sdk_types::{ObjectId, TransactionDigest, TransactionEffectsDigest, Version};
+use iota_sdk_types::{
+    ObjectId, SenderSignedTransaction, TransactionDigest, TransactionEffectsDigest, Version,
+};
 use iota_types::{
     committee::EpochId,
     error::{IotaError, IotaResult},
@@ -20,9 +22,7 @@ use iota_types::{
     fp_bail, fp_ensure,
     message_envelope::Message,
     storage::InputKey,
-    transaction::{
-        SenderSignedData, SenderSignedTransactionAPI, TransactionDataAPI, VerifiedCertificate,
-    },
+    transaction::{SenderSignedTransactionAPI, TransactionDataAPI, VerifiedCertificate},
 };
 use lru::LruCache;
 use parking_lot::RwLock;
@@ -875,7 +875,7 @@ impl TransactionManager {
     pub(crate) fn check_execution_overload(
         &self,
         overload_config: &AuthorityOverloadConfig,
-        tx_data: &SenderSignedData,
+        tx_data: &SenderSignedTransaction,
     ) -> IotaResult {
         // Too many transactions are pending execution.
         let inflight_queue_len = self.inflight_queue_len();

@@ -32,7 +32,8 @@ use iota_protocol_config::{
 };
 use iota_sdk_types::{
     Address, CancelledTransaction, CheckpointTimestamp, ObjectId, ObjectReference, RandomnessRound,
-    TransactionDigest, TransactionEffectsDigest, TransactionKind, Version, VersionAssignment,
+    SenderSignedTransaction, TransactionDigest, TransactionEffectsDigest, TransactionKind, Version,
+    VersionAssignment,
 };
 use iota_storage::mutex_table::{MutexGuard, MutexTable};
 use iota_types::{
@@ -63,9 +64,9 @@ use iota_types::{
     signature::UserSignature,
     storage::{BackingPackageStore, InputKey},
     transaction::{
-        CertifiedTransaction, InputObjectKind, SenderSignedData, SenderSignedTransactionAPI,
-        Transaction, TransactionDataAPI, TransactionKey, TxValidityCheckContext,
-        VerifiedCertificate, VerifiedSignedTransaction, VerifiedTransaction,
+        CertifiedTransaction, InputObjectKind, SenderSignedTransactionAPI, Transaction,
+        TransactionDataAPI, TransactionKey, TxValidityCheckContext, VerifiedCertificate,
+        VerifiedSignedTransaction, VerifiedTransaction,
     },
 };
 use itertools::izip;
@@ -784,7 +785,7 @@ pub struct AuthorityEpochTables {
     /// `transaction_lock`.
     #[default_options_override_fn = "signed_transactions_table_default_config"]
     signed_transactions:
-        DBMap<TransactionDigest, TrustedEnvelope<SenderSignedData, AuthoritySignInfo>>,
+        DBMap<TransactionDigest, TrustedEnvelope<SenderSignedTransaction, AuthoritySignInfo>>,
 
     /// Map from ObjectReference to transaction locking that object
     #[default_options_override_fn = "owned_object_locked_transactions_table_default_config"]

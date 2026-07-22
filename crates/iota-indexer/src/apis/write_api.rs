@@ -25,8 +25,8 @@ use iota_json_rpc_types::{
 use iota_open_rpc::Module;
 use iota_package_resolver::{PackageStore, Resolver};
 use iota_sdk_types::{
-    Address, GasPayment, ObjectId, TransactionDigest, TransactionExpiration, TransactionKind,
-    Version,
+    Address, GasPayment, ObjectId, SenderSignedTransaction, TransactionDigest,
+    TransactionExpiration, TransactionKind, Version,
 };
 use iota_transaction_builder::TransactionBuilder;
 use iota_types::{
@@ -35,7 +35,7 @@ use iota_types::{
     iota_serde::BigInt,
     object::{Object, PastObjectRead},
     signature::UserSignature,
-    transaction::{SenderSignedData, TransactionData, TransactionDataAPI, TransactionDataV1},
+    transaction::{TransactionData, TransactionDataAPI, TransactionDataV1},
 };
 use jsonrpsee::{RpcModule, core::RpcResult};
 
@@ -136,7 +136,8 @@ impl WriteApi {
             .map(|s| -> IndexerResult<_> { Ok(s.signature()?) })
             .collect::<IndexerResult<Vec<UserSignature>>>()?;
 
-        let sender_signed_data = SenderSignedData::new(transaction_data.clone(), tx_signatures);
+        let sender_signed_data =
+            SenderSignedTransaction::new(transaction_data.clone(), tx_signatures);
 
         let tx_events = executed_transaction.events()?.events()?;
 

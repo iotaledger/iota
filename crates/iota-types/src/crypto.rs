@@ -753,7 +753,7 @@ pub trait IotaSignature: Sized {
         // transaction data, this is the BCS hash of `struct TransactionData`,
         // different from the transaction digest itself that computes the BCS
         // hash of the Rust type prefix and `struct TransactionData`.
-        // (See `fn digest` in `impl Message for SenderSignedData`).
+        // (See `fn digest` in `impl Message for SenderSignedTransaction`).
         let mut hasher = DefaultHash::default();
         hasher.update(bcs::to_bytes(&value).expect("Message serialization should not fail"));
 
@@ -1219,7 +1219,7 @@ mod bcs_signable {
     impl BcsSignable for crate::effects::TransactionEffects {}
     impl BcsSignable for crate::effects::TransactionEvents {}
     impl BcsSignable for crate::transaction::TransactionData {}
-    impl BcsSignable for crate::transaction::SenderSignedData {}
+    impl BcsSignable for iota_sdk_types::SenderSignedTransaction {}
     impl BcsSignable for crate::object::ObjectInner {}
 
     impl BcsSignable for crate::global_state_hash::GlobalStateHash {}

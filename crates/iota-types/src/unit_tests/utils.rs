@@ -9,7 +9,9 @@ use iota_sdk_crypto::{
     Signer as _, ToFromBytes as _, ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey,
     secp256r1::Secp256r1PrivateKey, simple::SimpleKeypair,
 };
-use iota_sdk_types::{Address, ObjectId, SimpleSignature, TransactionKind, crypto::Intent};
+use iota_sdk_types::{
+    Address, ObjectId, SenderSignedTransaction, SimpleSignature, TransactionKind, crypto::Intent,
+};
 use rand::{SeedableRng, rngs::StdRng};
 
 use crate::{
@@ -24,8 +26,7 @@ use crate::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     signature::UserSignature,
     transaction::{
-        SenderSignedData, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, Transaction, TransactionData,
-        TransactionDataAPI,
+        TEST_ONLY_GAS_UNIT_FOR_TRANSFER, Transaction, TransactionData, TransactionDataAPI,
     },
 };
 
@@ -196,7 +197,7 @@ pub fn make_upgraded_multisig_tx() -> Transaction {
 
     // Any 2 of 3 signatures verifies ok.
     let multi_sig1 = MultiSig::new(vec![sig1.into(), sig2.into()], multisig_pk).unwrap();
-    Transaction::new(SenderSignedData::new(
+    Transaction::new(SenderSignedTransaction::new(
         tx.transaction().clone(),
         vec![UserSignature::Multisig(multi_sig1)],
     ))
@@ -221,14 +222,14 @@ pub fn make_sponsored_regular_sig_tx() -> (Transaction, Address, Address) {
 
 mod move_authenticator {
     use fastcrypto::hash::HashFunction;
-    use iota_sdk_types::{Address, Digest, SharedObjectReference};
+    use iota_sdk_types::{Address, Digest, SenderSignedTransaction, SharedObjectReference};
 
     pub use crate::move_authenticator::{MoveAuthenticator, MoveAuthenticatorV1};
     use crate::{
         crypto::DefaultHash,
         object::OBJECT_START_VERSION,
         signature::UserSignature,
-        transaction::{SenderSignedData, Transaction},
+        transaction::Transaction,
         utils::{make_sponsored_transaction_data, make_transaction_data},
     };
 
@@ -236,7 +237,7 @@ mod move_authenticator {
     pub fn make_move_authenticator_tx(address: Address) -> Transaction {
         let data = make_transaction_data(address);
         let (authenticator, _) = make_move_authenticator_sig(address);
-        Transaction::new(SenderSignedData::new(data, vec![authenticator]))
+        Transaction::new(SenderSignedTransaction::new(data, vec![authenticator]))
     }
 
     /// Build a [`UserSignature::MoveAuthenticator`] and the underlying
@@ -270,7 +271,7 @@ mod move_authenticator {
         let (sender_sig, sender_auth) = make_move_authenticator_sig(sender_addr);
         let (sponsor_sig, sponsor_auth) = make_move_authenticator_sig(sponsor_addr);
         let tx_data = make_sponsored_transaction_data(sender_addr, sponsor_addr);
-        let tx = Transaction::new(SenderSignedData::new(
+        let tx = Transaction::new(SenderSignedTransaction::new(
             tx_data,
             vec![sender_sig, sponsor_sig],
         ));

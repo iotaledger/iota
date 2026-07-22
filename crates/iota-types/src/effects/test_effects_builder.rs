@@ -5,8 +5,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use iota_sdk_types::{
-    ExecutionStatus, ObjectDigest, ObjectId, ObjectReference, Owner, TransactionEventsDigest,
-    Version, gas::GasCostSummary,
+    ExecutionStatus, ObjectDigest, ObjectId, ObjectReference, Owner, SenderSignedTransaction,
+    TransactionEventsDigest, Version, gas::GasCostSummary,
 };
 
 use crate::{
@@ -16,11 +16,11 @@ use crate::{
     },
     execution::SharedInput,
     message_envelope::Message,
-    transaction::{InputObjectKind, SenderSignedData, TransactionDataAPI},
+    transaction::{InputObjectKind, TransactionDataAPI},
 };
 
 pub struct TestEffectsBuilder {
-    transaction: SenderSignedData,
+    transaction: SenderSignedTransaction,
     /// Override the execution status if provided.
     status: Option<ExecutionStatus>,
     /// Provide the assigned versions for all shared objects.
@@ -40,7 +40,7 @@ pub struct TestEffectsBuilder {
 }
 
 impl TestEffectsBuilder {
-    pub fn new(transaction: &SenderSignedData) -> Self {
+    pub fn new(transaction: &SenderSignedTransaction) -> Self {
         Self {
             transaction: transaction.clone(),
             status: None,

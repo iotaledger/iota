@@ -16,8 +16,8 @@ use iota_macros::sim_test;
 use iota_move_build::BuildConfig;
 use iota_protocol_config::Chain::Unknown;
 use iota_sdk_types::{
-    Address, ExecutionError, ExecutionStatus, Identifier, ObjectId, ObjectReference, StakeUnit,
-    TransactionDigest,
+    Address, ExecutionError, ExecutionStatus, Identifier, ObjectId, ObjectReference,
+    SenderSignedTransaction, StakeUnit, TransactionDigest,
     crypto::{Intent, IntentMessage, IntentScope},
 };
 #[cfg(msim)]
@@ -46,7 +46,7 @@ use iota_types::{
     object::Object,
     supported_protocol_versions::SupportedProtocolVersions,
     transaction::{
-        CallArg, CertifiedTransaction, SenderSignedData, SignedTransaction,
+        CallArg, CertifiedTransaction, SignedTransaction,
         TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS,
         Transaction, TransactionData, TransactionDataAPI, VerifiedTransaction,
     },
@@ -216,7 +216,7 @@ where
     A: AuthorityAPI + Send + Sync + Clone + 'static,
 {
     let mut votes = vec![];
-    let mut tx_data: Option<SenderSignedData> = None;
+    let mut tx_data: Option<SenderSignedTransaction> = None;
     for authority in authorities {
         let response = authority
             .handle_transaction_info_request(TransactionInfoRequest {
