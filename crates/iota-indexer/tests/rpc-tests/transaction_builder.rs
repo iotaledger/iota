@@ -14,11 +14,10 @@ use iota_json_rpc_types::{
     RPCTransactionRequestParams, StakeStatus, TransactionBlockBytes, TransferObjectParams,
 };
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{Address, ObjectData, ObjectId, Owner, StructTag};
+use iota_sdk_types::{Address, ObjectData, ObjectId, Owner, StructTag, TransactionDigest};
 use iota_swarm_config::genesis_config::AccountConfig;
 use iota_types::{
     crypto::{AccountKeyPair, get_key_pair},
-    digests::TransactionDigest,
     gas_coin::GAS,
     id::UID,
     iota_system_state::iota_system_state_summary::IotaSystemStateSummary,

@@ -324,7 +324,7 @@ async fn test_passkey_fails_to_verify_sig() {
     assert_eq!(
         err,
         IotaError::InvalidSignature {
-            error: "Invalid passkey authentication: signature error".to_string()
+            error: "Invalid passkey authentication: signature error: Invalid signature was given to the function".to_string()
         }
     );
 
@@ -349,7 +349,7 @@ async fn test_passkey_fails_to_verify_sig() {
     assert_eq!(
         err,
         IotaError::InvalidSignature {
-            error: "Invalid passkey authentication: signature error".to_string()
+            error: "Invalid passkey authentication: signature error: Invalid signature was given to the function".to_string()
         }
     );
 }

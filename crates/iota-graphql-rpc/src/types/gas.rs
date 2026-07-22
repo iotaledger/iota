@@ -3,11 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use async_graphql::{connection::Connection, *};
-use iota_sdk_types::gas::GasCostSummary as NativeGasCostSummary;
-use iota_types::{
-    effects::{TransactionEffects as NativeTransactionEffects, TransactionEffectsAPI},
-    transaction::GasData,
-};
+use iota_sdk_types::{GasPayment, gas::GasCostSummary as NativeGasCostSummary};
+use iota_types::effects::{TransactionEffects as NativeTransactionEffects, TransactionEffectsAPI};
 
 use crate::types::{
     address::Address,
@@ -176,7 +173,7 @@ impl GasInput {
     /// which this `GasInput` was queried for. This is stored on `GasInput`
     /// so that when viewing that entity's state, it will be as if it was
     /// read at the same checkpoint.
-    pub(crate) fn from(s: &GasData, checkpoint_viewed_at: u64) -> Self {
+    pub(crate) fn from(s: &GasPayment, checkpoint_viewed_at: u64) -> Self {
         Self {
             owner: s.owner.into(),
             price: s.price,

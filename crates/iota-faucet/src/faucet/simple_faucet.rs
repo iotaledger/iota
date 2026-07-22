@@ -20,9 +20,8 @@ use iota_json_rpc_types::{
 use iota_keys::keystore::AccountKeystore;
 use iota_metrics::spawn_monitored_task;
 use iota_sdk::wallet_context::WalletContext;
-use iota_sdk_types::{Address, ObjectId, Owner, crypto::Intent};
+use iota_sdk_types::{Address, ObjectId, Owner, TransactionDigest, crypto::Intent};
 use iota_types::{
-    base_types::TransactionDigest,
     gas_coin::GasCoin,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::ExecuteTransactionRequestType,

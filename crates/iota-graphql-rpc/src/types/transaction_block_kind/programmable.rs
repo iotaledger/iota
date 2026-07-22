@@ -10,9 +10,9 @@ use iota_json_rpc_types::IotaArgument;
 use iota_sdk_types::{
     Argument as NativeArgument, Command as NativeProgrammableTransaction,
     MoveCall as NativeMoveCallTransaction,
-    ProgrammableTransaction as NativeProgrammableTransactionBlock,
+    ProgrammableTransaction as NativeProgrammableTransactionBlock, SharedObjectReference,
 };
-use iota_types::transaction::{CallArg as NativeCallArg, SharedObjectRef};
+use iota_types::transaction::CallArg as NativeCallArg;
 
 use crate::{
     consistency::ConsistentIndexCursor,
@@ -342,7 +342,7 @@ impl TransactionInput {
                 },
             }),
 
-            N::Shared(SharedObjectRef {
+            N::Shared(SharedObjectReference {
                 object_id: id,
                 initial_shared_version,
                 mutable,

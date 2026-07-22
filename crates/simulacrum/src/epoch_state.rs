@@ -10,21 +10,18 @@ use iota_config::{
 };
 use iota_execution::Executor;
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
-use iota_sdk_types::{ObjectId, Owner};
 use iota_types::{
     committee::{Committee, EpochId},
-    digests::TransactionDigest,
     effects::{TransactionEffects, TransactionEffectsAPI},
     error::IotaResult,
     gas::IotaGasStatus,
-    gas_coin::NANOS_PER_IOTA,
+    gas_coin::mock_simulation_gas_coin,
     inner_temporary_store::InnerTemporaryStore,
     iota_system_state::{
         IotaSystemState, IotaSystemStateTrait,
         epoch_start_iota_system_state::{EpochStartSystemState, EpochStartSystemStateTrait},
     },
     metrics::{BytecodeVerifierMetrics, LimitsMetrics},
-    object::{MoveObject, MoveObjectExt, Object},
     transaction::{ObjectReadResult, TransactionData, TransactionDataAPI, VerifiedTransaction},
     transaction_executor::{SimulateTransactionResult, VmChecks},
 };
@@ -204,13 +201,8 @@ impl EpochState {
         )?;
 
         // Create a mock gas object if one was not provided
-        const SIMULATION_GAS_COIN_VALUE: u64 = 1_000_000_000 * NANOS_PER_IOTA; // 1B IOTA
         let mock_gas_id = if transaction.gas().is_empty() {
-            let mock_gas_object = Object::new_move(
-                MoveObject::new_gas_coin(1.into(), ObjectId::MAX, SIMULATION_GAS_COIN_VALUE),
-                Owner::Address(transaction.gas_data().owner),
-                TransactionDigest::GENESIS_MARKER,
-            );
+            let mock_gas_object = mock_simulation_gas_coin(transaction.gas_data().owner);
             let mock_gas_object_ref = mock_gas_object.object_ref();
             transaction.gas_data_mut().objects = vec![mock_gas_object_ref];
             input_objects.push(ObjectReadResult::new_from_gas_object(&mock_gas_object));

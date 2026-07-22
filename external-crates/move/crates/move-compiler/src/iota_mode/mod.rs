@@ -194,6 +194,15 @@ pub const PRIVATE_ACCOUNT_CALL_DIAG: DiagnosticInfo = custom(
     10,
     "invalid private account call",
 );
+pub const VIEW_FUN_SIGNATURE_DIAG: DiagnosticInfo = custom(
+    IOTA_DIAG_PREFIX,
+    Severity::NonblockingError,
+    // category
+    TYPING,
+    // code
+    11,
+    "invalid 'view' function signature",
+);
 
 // Bridge supported asset
 pub const BRIDGE_SUPPORTED_ASSET: &[&str] = &["btc", "eth", "usdc", "usdt"];

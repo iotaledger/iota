@@ -4,9 +4,8 @@
 
 use dashmap::{DashMap, mapref::entry::Entry as DashMapEntry};
 use iota_common::debug_fatal;
-use iota_sdk_types::ObjectId;
+use iota_sdk_types::{ObjectId, ObjectReference};
 use iota_types::{
-    base_types::ObjectRef,
     error::{IotaError, IotaResult, UserInputError},
     object::Object,
     storage::ObjectStore,
@@ -30,7 +29,7 @@ pub(super) struct ObjectLocks {
     // for those objects. Therefore we do a db read for each object we are locking.
     //
     // TODO: find a strategy to allow us to avoid db reads for each object.
-    locked_transactions: DashMap<ObjectRef, (RefCount, LockDetails)>,
+    locked_transactions: DashMap<ObjectReference, (RefCount, LockDetails)>,
 }
 
 impl ObjectLocks {
@@ -42,7 +41,7 @@ impl ObjectLocks {
 
     pub(crate) fn get_transaction_lock(
         &self,
-        obj_ref: &ObjectRef,
+        obj_ref: &ObjectReference,
         epoch_store: &AuthorityPerEpochStore,
     ) -> IotaResult<Option<LockDetails>> {
         // We don't consult the in-memory state here. We are only interested in state
@@ -57,7 +56,7 @@ impl ObjectLocks {
     /// transaction, the lock is set.
     pub(crate) fn try_set_transaction_lock(
         &self,
-        obj_ref: &ObjectRef,
+        obj_ref: &ObjectReference,
         new_lock: LockDetails,
         epoch_store: &AuthorityPerEpochStore,
     ) -> IotaResult {
@@ -119,7 +118,7 @@ impl ObjectLocks {
         self.locked_transactions.clear();
     }
 
-    fn verify_live_object(obj_ref: &ObjectRef, live_object: &Object) -> IotaResult {
+    fn verify_live_object(obj_ref: &ObjectReference, live_object: &Object) -> IotaResult {
         debug_assert_eq!(obj_ref.object_id, live_object.id());
         if obj_ref.version != live_object.version() {
             debug!(
@@ -148,7 +147,7 @@ impl ObjectLocks {
         Ok(())
     }
 
-    fn clear_cached_locks(&self, locks: &[(ObjectRef, LockDetails)]) {
+    fn clear_cached_locks(&self, locks: &[(ObjectReference, LockDetails)]) {
         for (obj_ref, lock) in locks {
             let entry = self.locked_transactions.entry(*obj_ref);
             let mut occupied = match entry {
@@ -199,7 +198,7 @@ impl ObjectLocks {
     /// match the live objects. Does not acquire any locks.
     pub(crate) fn validate_owned_object_versions(
         cache: &WritebackCache,
-        owned_input_objects: &[ObjectRef],
+        owned_input_objects: &[ObjectReference],
     ) -> IotaResult {
         if owned_input_objects.is_empty() {
             return Ok(());
@@ -217,7 +216,7 @@ impl ObjectLocks {
         &self,
         cache: &WritebackCache,
         epoch_store: &AuthorityPerEpochStore,
-        owned_input_objects: &[ObjectRef],
+        owned_input_objects: &[ObjectReference],
         transaction: VerifiedSignedTransaction,
     ) -> IotaResult {
         let tx_digest = *transaction.digest();

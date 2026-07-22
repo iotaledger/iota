@@ -24,17 +24,17 @@ use iota_core::{
     global_state_hasher::GlobalStateHasher,
     grpc_indexes::{GRPC_INDEXES_DIR, GrpcIndexesStore, OwnerTypeFilter},
 };
-use iota_sdk_types::{Address, GasCostSummary, ObjectId};
+use iota_sdk_types::{Address, CheckpointDigest, GasCostSummary, ObjectId, TransactionDigest};
 use iota_types::{
     committee::{Committee, EpochId},
     crypto::AuthorityKeyPair,
-    digests::{ChainIdentifier, TransactionDigest},
+    digests::ChainIdentifier,
     effects::{TransactionEffects, TransactionEffectsExtForTesting, TransactionEvents},
     global_state_hash::GlobalStateHash,
     iota_system_state::IotaSystemState,
     messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointContents, CheckpointSummary, ECMHLiveObjectSetDigest,
-        EndOfEpochData, SignedCheckpointSummary,
+        CertifiedCheckpointSummary, CheckpointContents, CheckpointContentsExt, CheckpointSummary,
+        ECMHLiveObjectSetDigest, EndOfEpochData, SignedCheckpointSummary,
     },
     object::Object,
     storage::EpochInfoV2,
@@ -356,7 +356,7 @@ async fn snapshot_round_trip(
 /// Writes the EPOCH_INFO file for `[0, snapshot_epoch]`, reads it back, and
 /// asserts every entry round-trips well-formed (one per epoch, in order, with a
 /// populated proof bundle) — the writer/reader half of the restore path.
-async fn epoch_info_backfill_round_trip(
+async fn epoch_info_round_trip(
     tmp_dir: &std::path::Path,
     snapshot_epoch: EpochId,
 ) -> Result<(), anyhow::Error> {
@@ -390,8 +390,9 @@ async fn epoch_info_backfill_round_trip(
         .write_internal(snapshot_epoch, perpetual_db, root_accumulator)
         .await?;
 
-    // 2. LOAD via `read_epoch_info_only` (the running-node background backfill
-    //    path): downloads only MANIFEST + EPOCH_INFO, verifies sha3 + magic.
+    // 2. LOAD via `read_epoch_info_only` (the formal-snapshot restore's
+    //    EPOCH_INFO-first step): downloads only MANIFEST + EPOCH_INFO, verifies
+    //    sha3 + magic.
     let (chain_id, epoch_info) =
         StateSnapshotReaderV1::read_epoch_info_only(snapshot_epoch, &remote_store_config).await?;
     assert_eq!(
@@ -474,9 +475,9 @@ async fn snapshot_round_trip_populated_zstd() -> Result<(), anyhow::Error> {
 
 /// EPOCH_INFO write → read entry round-trip across two epochs.
 #[tokio::test]
-async fn snapshot_epoch_info_backfill_round_trip() -> Result<(), anyhow::Error> {
+async fn snapshot_epoch_info_round_trip() -> Result<(), anyhow::Error> {
     let dir = iota_common::tempdir();
-    epoch_info_backfill_round_trip(dir.path(), 2).await
+    epoch_info_round_trip(dir.path(), 2).await
 }
 
 /// Restoring through [`RestoreWithGrpcIndexes`] must build the gRPC
@@ -1046,7 +1047,7 @@ fn verify_epoch_info_chain_rejects_wrong_chain_id() {
         test_committee_at(0),
         test_system_state(),
         ChainIdentifier::default(),
-        ChainIdentifier::from(iota_types::digests::CheckpointDigest::new([7; 32])),
+        ChainIdentifier::from(CheckpointDigest::new([7; 32])),
     )
     .expect_err("a foreign chain id must be rejected");
     assert!(err.to_string().contains("chain_id"), "got: {err}");
@@ -1091,7 +1092,7 @@ fn epoch_info_v2_row_derives_fields() {
     // `end_*` derived from the signed last-checkpoint summary.
     assert_eq!(
         row.end_checkpoint(),
-        Some(*entry.last_checkpoint_summary.data().sequence_number()),
+        Some(entry.last_checkpoint_summary.data().sequence_number()),
     );
     assert_eq!(
         row.end_timestamp_ms(),

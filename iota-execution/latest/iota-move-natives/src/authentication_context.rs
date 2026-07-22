@@ -4,10 +4,10 @@
 use std::{cell::RefCell, rc::Rc};
 
 use better_any::{Tid, TidAble};
+use iota_sdk_types::{Digest, MoveAuthenticatorDigest};
 use iota_types::{
     account_abstraction::authenticator_function::AuthenticatorFunctionRefV1,
     auth_context::{AuthContext, MoveCallArg, MoveCommand},
-    digests::{Digest, MoveAuthenticatorDigest},
 };
 use move_binary_format::errors::{PartialVMError, PartialVMResult};
 use move_core_types::{

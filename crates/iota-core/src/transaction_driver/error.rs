@@ -4,10 +4,10 @@
 
 use std::{collections::BTreeMap, time::Duration};
 
+use iota_sdk_types::TransactionEffectsDigest;
 use iota_types::{
     base_types::{AuthorityName, ConciseableName},
     committee::{EpochId, StakeUnit},
-    digests::TransactionEffectsDigest,
     error::{ErrorCategory, IotaError},
 };
 use itertools::Itertools as _;

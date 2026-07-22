@@ -2502,7 +2502,12 @@ mod tests {
         // GIVEN
         let rounds = 10;
         let validators = 10;
-        let (context, key_pairs) = Context::new_for_test(validators);
+        // Test headers are V1, which flag-on verification rejects; run with
+        // StarfishSpeed off.
+        let (mut context, key_pairs) = Context::new_for_test(validators);
+        context
+            .protocol_config
+            .set_consensus_starfish_speed_for_testing(false);
         let context = Arc::new(context);
         let block_verifier = Arc::new(SignedBlockVerifier::new(
             context.clone(),
@@ -2665,7 +2670,12 @@ mod tests {
         // GIVEN
         let rounds = 10;
         let validators = 10;
-        let (context, key_pairs) = Context::new_for_test(validators);
+        // Test headers are V1, which flag-on verification rejects; run with
+        // StarfishSpeed off.
+        let (mut context, key_pairs) = Context::new_for_test(validators);
+        context
+            .protocol_config
+            .set_consensus_starfish_speed_for_testing(false);
         let context = Arc::new(context);
         let block_verifier = Arc::new(SignedBlockVerifier::new(
             context.clone(),
@@ -3489,7 +3499,11 @@ mod tests {
         // GIVEN
         let rounds = 15;
         let validators = 4;
-        let (context, key_pairs) = Context::new_for_test(validators);
+        // Test blocks carry no strong votes; run with StarfishSpeed off.
+        let (mut context, key_pairs) = Context::new_for_test(validators);
+        context
+            .protocol_config
+            .set_consensus_starfish_speed_for_testing(false);
         let context = Arc::new(context);
         let block_verifier = Arc::new(SignedBlockVerifier::new(
             context.clone(),

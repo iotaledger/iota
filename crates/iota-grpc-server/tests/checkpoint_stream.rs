@@ -14,14 +14,18 @@ use iota_grpc_client::{
 };
 use iota_grpc_server::GrpcServerHandle;
 use iota_grpc_types::v1::{filter, ledger_service::checkpoint_data};
-use iota_sdk_types::{Address, Event, Identifier, ObjectId, StructTag};
+use iota_sdk_types::{Address, Event, Identifier, ObjectId, Owner, StructTag};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     base_types::random_object_ref,
     crypto::{AccountKeyPair, get_key_pair},
-    effects::{TestEffectsBuilder, TransactionEvents},
+    effects::{
+        TestEffectsBuilder, TransactionEffects, TransactionEffectsAPI as _,
+        TransactionEffectsExt as _, TransactionEvents,
+    },
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     messages_checkpoint::CheckpointSequenceNumber,
+    object::Object,
 };
 use prost::Message;
 use tokio_stream::StreamExt;
@@ -37,6 +41,33 @@ fn mock_checkpoint_data(sequence_number: u64) -> CheckpointData {
     }
 }
 
+/// Input/output object sets matching `effects` (all plain gas coins owned by
+/// `sender`). Checkpoint transactions must carry complete object sets — a
+/// wildcard read mask derives change fields from them and errors on gaps.
+fn objects_for_effects(
+    sender: Address,
+    effects: &TransactionEffects,
+) -> (Vec<Object>, Vec<Object>) {
+    let owner = Owner::Address(sender);
+    let input_objects = effects
+        .modified_at_versions()
+        .into_iter()
+        .map(|(id, version)| Object::with_id_owner_version_for_testing(id, version, owner))
+        .collect();
+    let output_objects = effects
+        .all_changed_objects()
+        .into_iter()
+        .map(|(object_ref, _, _)| {
+            Object::with_id_owner_version_for_testing(
+                object_ref.object_id,
+                object_ref.version,
+                owner,
+            )
+        })
+        .collect();
+    (input_objects, output_objects)
+}
+
 /// Create checkpoint data with a transaction from a specific sender.
 fn mock_checkpoint_data_with_sender(
     sequence_number: u64,
@@ -48,6 +79,7 @@ fn mock_checkpoint_data_with_sender(
         .transfer(random_object_ref(), sender)
         .build_and_sign(key);
     let effects = TestEffectsBuilder::new(transaction.data()).build();
+    let (input_objects, output_objects) = objects_for_effects(sender, &effects);
     CheckpointData {
         checkpoint_summary: common::mock_summary(
             sequence_number,
@@ -58,8 +90,8 @@ fn mock_checkpoint_data_with_sender(
             transaction,
             effects,
             events: None,
-            input_objects: vec![],
-            output_objects: vec![],
+            input_objects,
+            output_objects,
         }],
     }
 }
@@ -78,13 +110,14 @@ fn build_large_checkpoint_transactions() -> Vec<CheckpointTransaction> {
             .build_and_sign(&key);
 
         let effects = TestEffectsBuilder::new(transaction.data()).build();
+        let (input_objects, output_objects) = objects_for_effects(sender, &effects);
 
         transactions.push(CheckpointTransaction {
             transaction,
             effects,
             events: None,
-            input_objects: vec![],  // Empty for simplicity
-            output_objects: vec![], // Empty for simplicity
+            input_objects,
+            output_objects,
         });
     }
 
@@ -945,12 +978,13 @@ fn build_checkpoint_transactions_with_events(
         } else {
             None
         };
+        let (input_objects, output_objects) = objects_for_effects(sender, &effects);
         transactions.push(CheckpointTransaction {
             transaction,
             effects,
             events,
-            input_objects: vec![],
-            output_objects: vec![],
+            input_objects,
+            output_objects,
         });
     }
     transactions

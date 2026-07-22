@@ -5,10 +5,9 @@
 use std::{collections::HashSet, path::PathBuf};
 
 use iota_macros::*;
-use iota_sdk_types::{ObjectId, Owner};
+use iota_sdk_types::{ObjectId, ObjectReference, Owner};
 use iota_test_transaction_builder::publish_package;
 use iota_types::{
-    base_types::ObjectRef,
     effects::{
         TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt, TransactionEvents,
     },
@@ -95,7 +94,9 @@ async fn delete_of_object_with_reconfiguration_receive_of_new_parent_and_old_chi
     assert!(env.receive(new_parent, child).await.is_err());
 }
 
-fn get_parent_and_child(created: Vec<(ObjectRef, Owner)>) -> (ObjectRef, ObjectRef) {
+fn get_parent_and_child(
+    created: Vec<(ObjectReference, Owner)>,
+) -> (ObjectReference, ObjectReference) {
     // make sure there is an object with an `Address` who matches the object ID
     // of another object.
     let created_addrs: HashSet<_> = created
@@ -160,7 +161,7 @@ impl TestEnvironment {
             .await
     }
 
-    async fn start(&self) -> (ObjectRef, ObjectRef) {
+    async fn start(&self) -> (ObjectReference, ObjectReference) {
         let (fx, _) = self.move_call("start", vec![]).await.unwrap();
         assert!(fx.status().is_success());
 
@@ -169,9 +170,9 @@ impl TestEnvironment {
 
     async fn receive(
         &self,
-        parent: ObjectRef,
-        child: ObjectRef,
-    ) -> anyhow::Result<(ObjectRef, ObjectRef)> {
+        parent: ObjectReference,
+        child: ObjectReference,
+    ) -> anyhow::Result<(ObjectReference, ObjectReference)> {
         let arguments = vec![CallArg::ImmutableOrOwned(parent), CallArg::Receiving(child)];
         let fx = self.move_call("receiver", arguments).await?;
         assert!(fx.0.status().is_success());
@@ -188,7 +189,7 @@ impl TestEnvironment {
         Ok((new_parent_ref, new_child_ref))
     }
 
-    async fn delete(&self, parent: ObjectRef, child: ObjectRef) -> ObjectRef {
+    async fn delete(&self, parent: ObjectReference, child: ObjectReference) -> ObjectReference {
         let arguments = vec![CallArg::ImmutableOrOwned(parent), CallArg::Receiving(child)];
         let fx = self.move_call("deleter", arguments).await.unwrap();
         assert!(fx.0.status().is_success());
@@ -199,7 +200,7 @@ impl TestEnvironment {
     }
 }
 
-async fn publish_move_package(test_cluster: &TestCluster) -> ObjectRef {
+async fn publish_move_package(test_cluster: &TestCluster) -> ObjectReference {
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     path.push("tests/move_test_code");
     publish_package(&test_cluster.wallet, path).await

@@ -8,6 +8,7 @@ description = "A drop-in prometheus wrapper with per-metric filtering"
 
 [dependencies]
 prometheus = "0.14.0"
+serde.workspace = true
 tracing.workspace = true
 
 [lints]

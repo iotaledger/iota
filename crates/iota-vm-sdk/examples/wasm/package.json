@@ -1,0 +1,16 @@
+{
+  "name": "iota-vm-sdk-wasm-example",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Browser example: build a staking tx with the IOTA TS SDK on testnet and simulate it in the wasm Move VM.",
+  "scripts": {
+    "build": "node build.mjs"
+  },
+  "dependencies": {
+    "@iota/iota-sdk": "^1.13.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0"
+  }
+}

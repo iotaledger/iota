@@ -4,10 +4,9 @@
 
 use std::{collections::BTreeMap, time::Duration};
 
-use iota_sdk_types::ObjectId;
+use iota_sdk_types::{ObjectId, TransactionDigest};
 
 use crate::{
-    digests::TransactionDigest,
     effects::{TransactionEffects, TransactionEvents},
     error::{ExecutionError, IotaError},
     execution::ExecutionResult,

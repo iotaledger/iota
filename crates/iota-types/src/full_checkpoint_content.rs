@@ -4,12 +4,11 @@
 
 use std::collections::BTreeMap;
 
-use iota_sdk_types::{ObjectId, TransactionKind};
+use iota_sdk_types::{ObjectId, ObjectReference, TransactionKind};
 use serde::{Deserialize, Serialize};
 use tap::Pipe;
 
 use crate::{
-    base_types::ObjectRef,
     effects::{
         TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt, TransactionEvents,
     },
@@ -45,7 +44,7 @@ impl CheckpointData {
 
     // returns the object refs that are eventually deleted or wrapped in the current
     // checkpoint
-    pub fn eventually_removed_object_refs_post_version(&self) -> Vec<ObjectRef> {
+    pub fn eventually_removed_object_refs_post_version(&self) -> Vec<ObjectReference> {
         let mut eventually_removed_object_refs = BTreeMap::new();
         for tx in self.transactions.iter() {
             for obj_ref in tx.removed_object_refs_post_version() {
@@ -179,7 +178,7 @@ impl CheckpointTransaction {
             })
     }
 
-    pub fn removed_object_refs_post_version(&self) -> impl Iterator<Item = ObjectRef> {
+    pub fn removed_object_refs_post_version(&self) -> impl Iterator<Item = ObjectReference> {
         let deleted = self.effects.deleted().into_iter();
         let wrapped = self.effects.wrapped().into_iter();
         let unwrapped_then_deleted = self.effects.unwrapped_then_deleted().into_iter();

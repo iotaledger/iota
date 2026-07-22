@@ -4,6 +4,7 @@
 
 use std::{collections::BTreeMap, env};
 
+use iota_macros::nondeterministic;
 use rocksdb::{BlockBasedOptions, Cache, ReadOptions};
 use sysinfo::{MemoryRefreshKind, RefreshKind, System};
 use tap::TapFallible;
@@ -157,27 +158,32 @@ pub fn bulk_ingestion_options() -> BulkIngestionOptions {
 /// Available memory in bytes, honoring cgroup limits in containerized
 /// environments and falling back to total system memory.
 fn available_memory_bytes() -> u64 {
-    // `RefreshKind::nothing().with_memory(..)` avoids collecting other, slower
-    // stats.
-    let mut sys = System::new_with_specifics(
-        RefreshKind::nothing().with_memory(MemoryRefreshKind::everything()),
-    );
-    sys.refresh_memory();
+    // Under the simulator sysinfo must run off the test thread, where the
+    // intercepted clock and rng would make its probes a source of
+    // non-determinism. No-op outside msim.
+    nondeterministic!({
+        // `RefreshKind::nothing().with_memory(..)` avoids collecting other,
+        // slower stats.
+        let mut sys = System::new_with_specifics(
+            RefreshKind::nothing().with_memory(MemoryRefreshKind::everything()),
+        );
+        sys.refresh_memory();
 
-    if let Some(cgroup_limits) = sys.cgroup_limits() {
-        // `total_memory` is 0 when there is no cgroup limit.
-        if cgroup_limits.total_memory > 0 {
-            debug!(
-                limit = cgroup_limits.total_memory,
-                "using cgroup memory limit"
-            );
-            return cgroup_limits.total_memory;
+        if let Some(cgroup_limits) = sys.cgroup_limits() {
+            // `total_memory` is 0 when there is no cgroup limit.
+            if cgroup_limits.total_memory > 0 {
+                debug!(
+                    limit = cgroup_limits.total_memory,
+                    "using cgroup memory limit"
+                );
+                return cgroup_limits.total_memory;
+            }
         }
-    }
 
-    let total = sys.total_memory();
-    debug!(total, "using total system memory");
-    total
+        let total = sys.total_memory();
+        debug!(total, "using total system memory");
+        total
+    })
 }
 
 #[derive(Clone)]

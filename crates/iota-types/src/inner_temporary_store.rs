@@ -7,13 +7,13 @@ use std::{
     sync::Arc,
 };
 
-use iota_sdk_types::{ObjectId, Owner};
+use iota_sdk_types::{ObjectId, Owner, Version};
 use move_binary_format::{CompiledModule, binary_config::BinaryConfig};
 use move_bytecode_utils::module_cache::GetModule;
 use move_core_types::language_storage::ModuleId;
 
 use crate::{
-    base_types::{SequenceNumber, VersionDigest},
+    base_types::VersionDigest,
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     error::IotaResult,
     execution::DynamicallyLoadedObjectMetadata,
@@ -37,7 +37,7 @@ pub struct InnerTemporaryStore {
     pub events: TransactionEvents,
     pub binary_config: BinaryConfig,
     pub runtime_packages_loaded_from_db: BTreeMap<ObjectId, PackageObject>,
-    pub lamport_version: SequenceNumber,
+    pub lamport_version: Version,
 }
 
 impl InnerTemporaryStore {

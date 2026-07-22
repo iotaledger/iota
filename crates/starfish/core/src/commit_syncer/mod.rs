@@ -50,7 +50,8 @@ use tracing::{info, warn};
 use crate::{
     BlockRef, CommitConsumerMonitor, CommitIndex, Transaction, VerifiedBlockHeader,
     block_header::{
-        BlockHeaderAPI, SignedBlockHeader, TransactionsCommitment, VerifiedTransactions,
+        BlockHeaderAPI, GENESIS_ROUND, SignedBlockHeader, TransactionsCommitment,
+        VerifiedTransactions,
     },
     block_verifier::{BlockVerifier, serialized_transactions_size_limit},
     commit::{Commit, CommitAPI as _, CommitDigest, CommitRange, CommitRef, TrustedCommit},
@@ -412,6 +413,18 @@ pub(crate) fn verify_transactions_with_transactions_refs(
     let size_limit = serialized_transactions_size_limit(context);
     for (committed_transactions_ref, inner_serialized_transactions) in serialized_transactions {
         let transaction_ref = committed_transactions_ref.expect_transaction_ref()?;
+        // Range-check the peer-supplied author and round before any consumer
+        // indexes the committee by author.
+        if !context.committee.is_valid_index(transaction_ref.author) {
+            return Err(ConsensusError::InvalidAuthorityIndexRequested {
+                index: transaction_ref.author,
+                max: context.committee.size(),
+                peer,
+            });
+        }
+        if transaction_ref.round == GENESIS_ROUND {
+            return Err(ConsensusError::UnexpectedGenesisRequested { peer });
+        }
         // Bound the peer-supplied payload before erasure-encoding it.
         if inner_serialized_transactions.len() > size_limit {
             return Err(ConsensusError::SerializedTransactionsTooLarge {
@@ -920,6 +933,78 @@ mod tests {
             result,
             Err(ConsensusError::SerializedTransactionsTooLarge { size, limit })
                 if size == size_limit + 1 && limit == size_limit
+        ));
+    }
+
+    #[tokio::test]
+    async fn verify_transactions_rejects_out_of_range_author() {
+        let (context, _) = Context::new_for_test(4);
+        let context = Arc::new(context);
+        let peer = AuthorityIndex::new_for_test(1);
+        let out_of_range_author = AuthorityIndex::new_for_test(context.committee.size() as u8);
+
+        let inner_serialized_transactions =
+            Bytes::from(bcs::to_bytes(&Vec::<Transaction>::new()).unwrap());
+        let mut encoder = create_encoder(&context);
+        let transactions_commitment = TransactionsCommitment::compute_transactions_commitment(
+            &inner_serialized_transactions,
+            &context,
+            &mut encoder,
+        )
+        .unwrap();
+        let transaction_ref = TransactionRef {
+            round: 1,
+            author: out_of_range_author,
+            transactions_commitment,
+        };
+        let serialized_transactions = BTreeMap::from([(
+            GenericTransactionRef::TransactionRef(transaction_ref),
+            inner_serialized_transactions,
+        )]);
+
+        let result =
+            verify_transactions_with_transactions_refs(&context, peer, serialized_transactions);
+        assert!(matches!(
+            result,
+            Err(ConsensusError::InvalidAuthorityIndexRequested {
+                index,
+                max,
+                peer: error_peer,
+            }) if index == out_of_range_author && max == context.committee.size() && error_peer == peer
+        ));
+    }
+
+    #[tokio::test]
+    async fn verify_transactions_rejects_genesis_round() {
+        let (context, _) = Context::new_for_test(4);
+        let context = Arc::new(context);
+        let peer = AuthorityIndex::new_for_test(1);
+
+        let inner_serialized_transactions =
+            Bytes::from(bcs::to_bytes(&Vec::<Transaction>::new()).unwrap());
+        let mut encoder = create_encoder(&context);
+        let transactions_commitment = TransactionsCommitment::compute_transactions_commitment(
+            &inner_serialized_transactions,
+            &context,
+            &mut encoder,
+        )
+        .unwrap();
+        let transaction_ref = TransactionRef {
+            round: GENESIS_ROUND,
+            author: AuthorityIndex::new_for_test(0),
+            transactions_commitment,
+        };
+        let serialized_transactions = BTreeMap::from([(
+            GenericTransactionRef::TransactionRef(transaction_ref),
+            inner_serialized_transactions,
+        )]);
+
+        let result =
+            verify_transactions_with_transactions_refs(&context, peer, serialized_transactions);
+        assert!(matches!(
+            result,
+            Err(ConsensusError::UnexpectedGenesisRequested { peer: error_peer })
+                if error_peer == peer
         ));
     }
 

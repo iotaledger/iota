@@ -12,10 +12,8 @@ use docs_examples::utils::{
     request_tokens_from_faucet,
 };
 use fastcrypto::{
-    ed25519::Ed25519Signature,
     encoding::{Encoding, Hex},
     hash::{HashFunction, Sha256},
-    traits::Authenticator,
 };
 use iota_keys::keystore::{AccountKeystore, InMemKeystore};
 use iota_sdk::{
@@ -26,14 +24,12 @@ use iota_sdk::{
         programmable_transaction_builder::ProgrammableTransactionBuilder, transaction::Transaction,
     },
 };
-use iota_sdk_types::{Address, Argument, Identifier, ObjectId, Owner, TypeTag};
+use iota_sdk_types::{
+    Address, Argument, Identifier, ObjectId, ObjectReference, Owner, SharedObjectReference, TypeTag,
+};
 use iota_types::{
-    base_types::ObjectRef,
-    crypto::PublicKey,
-    move_authenticator::MoveAuthenticatorExt,
-    signature::GenericSignature,
-    transaction::{CallArg, SharedObjectRef},
-    utils::MoveAuthenticatorV1,
+    crypto::PublicKey, move_authenticator::MoveAuthenticatorExt, signature::GenericSignature,
+    transaction::CallArg, utils::MoveAuthenticatorV1,
 };
 
 /// Got from iota-genesis-builder/src/stardust/test_outputs/stardust_mix.rs
@@ -237,9 +233,9 @@ pub async fn create_account(
     keystore: &mut InMemKeystore,
     publisher: Address,
     package_id: &ObjectId,
-    package_metadata_ref: ObjectRef,
+    package_metadata_ref: ObjectReference,
     pub_key: &PublicKey,
-) -> Result<ObjectRef> {
+) -> Result<ObjectReference> {
     // Create a PTB that creates an abstract account
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
@@ -307,7 +303,7 @@ pub async fn create_blacklist(
     keystore: &mut InMemKeystore,
     publisher: Address,
     package_id: &ObjectId,
-) -> Result<ObjectRef> {
+) -> Result<ObjectReference> {
     // Create a PTB that creates a blacklist shared object instance
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
@@ -351,8 +347,8 @@ pub async fn create_test_transaction(
     keystore: &mut InMemKeystore,
     publisher: Address,
     recipient: Address,
-    account_ref: &ObjectRef,
-    blacklist_ref: &ObjectRef,
+    account_ref: &ObjectReference,
+    blacklist_ref: &ObjectReference,
 ) -> Result<Transaction> {
     let account_address = account_ref.object_id.into();
 
@@ -369,7 +365,7 @@ pub async fn create_test_transaction(
     let tx_digest = tx_data.digest();
 
     // Create a transaction
-    let blacklist_call_arg = CallArg::Shared(SharedObjectRef::new(
+    let blacklist_call_arg = CallArg::Shared(SharedObjectReference::new(
         blacklist_ref.object_id,
         blacklist_ref.version,
         false,
@@ -384,19 +380,18 @@ pub async fn create_test_transaction(
     message.extend_from_slice(bcs::to_bytes(&raw_value)?.as_slice());
     let message_hash = Sha256::digest(message.as_slice()).digest;
 
-    let hex_encoded_signature: String =
-        Hex::encode(keystore.sign_hashed(&publisher, &message_hash)?)
-            .chars()
-            .skip(2) // flag prefix length
-            .take(Ed25519Signature::LENGTH * 2)
-            .collect();
+    let hex_encoded_signature: String = Hex::encode(
+        keystore
+            .sign_hashed(&publisher, &message_hash)?
+            .signature_bytes(),
+    );
     let signature_call_arg = CallArg::Pure(bcs::to_bytes(&hex_encoded_signature)?);
 
     let signature = GenericSignature::MoveAuthenticator(
         MoveAuthenticatorV1::new_with_shared_account_object(
             vec![blacklist_call_arg, raw_value_arg, signature_call_arg],
             vec![],
-            SharedObjectRef::new(account_ref.object_id, account_ref.version, false),
+            SharedObjectReference::new(account_ref.object_id, account_ref.version, false),
         )
         .into(),
     );
@@ -407,9 +402,9 @@ pub async fn create_test_transaction(
 /// Swaps the blacklist shared object in the transaction with a new one.
 pub fn swap_blacklist_in_transaction(
     mut transaction: Transaction,
-    new_blacklist_ref: &ObjectRef,
+    new_blacklist_ref: &ObjectReference,
 ) -> Transaction {
-    let new_blacklist_ref_call_arg = CallArg::Shared(SharedObjectRef::new(
+    let new_blacklist_ref_call_arg = CallArg::Shared(SharedObjectReference::new(
         new_blacklist_ref.object_id,
         new_blacklist_ref.version,
         false,

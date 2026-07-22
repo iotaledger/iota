@@ -116,8 +116,6 @@ proptest! {
         bytes in collection::vec(any::<u8>(), 0..1024)
     ){
         let _apkb = AuthorityPublicKeyBytes::from_bytes(&bytes);
-        let _iotasig = Ed25519IotaSignature::from_bytes(&bytes);
-        let _iotasig = Secp256k1IotaSignature::from_bytes(&bytes);
         let _pk = PublicKey::try_from_bytes(SignatureScheme::BLS12381, &bytes);
         let _pk = PublicKey::try_from_bytes(SignatureScheme::ED25519, &bytes);
         let _pk = PublicKey::try_from_bytes(SignatureScheme::Secp256k1, &bytes);

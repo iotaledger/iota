@@ -259,7 +259,6 @@ mod tests {
     use iota_protocol_config::Chain;
     use iota_sdk_types::ObjectId;
     use iota_types::{
-        crypto::Ed25519IotaSignature,
         error::IotaError,
         messages_consensus::{
             ConsensusTransaction, ConsensusTransactionKind, MisbehaviorObservationsV1,
@@ -329,11 +328,8 @@ mod tests {
             .into_iter()
             .map(|mut cert| {
                 // set it to an all-zero user signature
-                cert.tx_signatures_mut_for_testing()[0] = GenericSignature::Signature(
-                    iota_types::crypto::Signature::Ed25519IotaSignature(
-                        Ed25519IotaSignature::default(),
-                    ),
-                );
+                cert.tx_signatures_mut_for_testing()[0] =
+                    GenericSignature::Signature(iota_types::crypto::zero_ed25519_signature());
                 bcs::to_bytes(&ConsensusTransaction::new_certificate_message(&name1, cert)).unwrap()
             })
             .collect();

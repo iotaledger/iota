@@ -7,11 +7,12 @@ use std::result::Result;
 use anyhow::{Ok, anyhow, bail};
 use iota_json_rpc_types::IotaObjectDataOptions;
 use iota_sdk_types::{
-    Address, Argument, Identifier, ObjectId, Owner, TransactionKind, move_package::MovePackage,
+    Address, Argument, Identifier, ObjectId, Owner, SharedObjectReference, TransactionKind,
+    move_package::MovePackage,
 };
 use iota_types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{CallArg, SharedObjectRef, TransactionData, TransactionDataAPI},
+    transaction::{CallArg, TransactionData, TransactionDataAPI},
 };
 
 use crate::TransactionBuilder;
@@ -83,11 +84,13 @@ impl TransactionBuilder {
             let mut builder = ProgrammableTransactionBuilder::new();
             let capability_arg = match capability_owner {
                 Owner::Address(_) => CallArg::ImmutableOrOwned(upgrade_capability.object_ref()),
-                Owner::Shared(initial_shared_version) => CallArg::Shared(SharedObjectRef::new(
-                    upgrade_capability.object_ref().object_id,
-                    initial_shared_version,
-                    true,
-                )),
+                Owner::Shared(initial_shared_version) => {
+                    CallArg::Shared(SharedObjectReference::new(
+                        upgrade_capability.object_ref().object_id,
+                        initial_shared_version,
+                        true,
+                    ))
+                }
                 Owner::Immutable => {
                     bail!("Upgrade capability is stored immutably and cannot be used for upgrades")
                 }

@@ -6,11 +6,13 @@ use std::{future::Future, path::PathBuf, sync::Arc, time::Duration};
 
 use iota_json_rpc_types::IotaTransactionBlockEffectsAPI;
 use iota_macros::sim_test;
-use iota_sdk_types::{Address, Identifier, ObjectId, TypeTag};
+use iota_sdk_types::{
+    Address, Identifier, ObjectId, ObjectReference, SharedObjectReference, TypeTag, Version,
+};
 use iota_types::{
-    base_types::{EpochId, ObjectRef, SequenceNumber},
+    base_types::EpochId,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{CallArg, SharedObjectRef, TransactionData},
+    transaction::{CallArg, TransactionData},
 };
 use rand::random;
 use test_cluster::{TestCluster, TestClusterBuilder};
@@ -74,7 +76,7 @@ async fn run_thread<F, Fut>(
     tx_creation_func: F,
     tx_may_fail: bool,
 ) where
-    F: Fn(Arc<TestEnv>, ObjectRef) -> Fut,
+    F: Fn(Arc<TestEnv>, ObjectReference) -> Fut,
     Fut: Future<Output = TransactionData>,
 {
     info!(?thread_id, "Thread started");
@@ -126,7 +128,7 @@ async fn run_thread<F, Fut>(
     );
 }
 
-async fn create_deny_tx(test_env: Arc<TestEnv>, gas: ObjectRef) -> TransactionData {
+async fn create_deny_tx(test_env: Arc<TestEnv>, gas: ObjectReference) -> TransactionData {
     let deny: bool = random();
     test_env
         .test_cluster
@@ -141,7 +143,7 @@ async fn create_deny_tx(test_env: Arc<TestEnv>, gas: ObjectRef) -> TransactionDa
                 "deny_list_v1_remove"
             },
             vec![
-                CallArg::Shared(SharedObjectRef::new(
+                CallArg::Shared(SharedObjectReference::new(
                     ObjectId::DENY_LIST,
                     test_env.deny_list_object_init_version,
                     true,
@@ -156,7 +158,7 @@ async fn create_deny_tx(test_env: Arc<TestEnv>, gas: ObjectRef) -> TransactionDa
         .build()
 }
 
-async fn create_transfer_tx(test_env: Arc<TestEnv>, gas: ObjectRef) -> TransactionData {
+async fn create_transfer_tx(test_env: Arc<TestEnv>, gas: ObjectReference) -> TransactionData {
     let use_move: bool = random();
     if use_move {
         create_move_transfer_tx(test_env, gas).await
@@ -165,7 +167,7 @@ async fn create_transfer_tx(test_env: Arc<TestEnv>, gas: ObjectRef) -> Transacti
     }
 }
 
-async fn create_move_transfer_tx(test_env: Arc<TestEnv>, gas: ObjectRef) -> TransactionData {
+async fn create_move_transfer_tx(test_env: Arc<TestEnv>, gas: ObjectReference) -> TransactionData {
     test_env
         .test_cluster
         .test_transaction_builder_with_gas_object(test_env.regulated_coin_owner, gas)
@@ -188,7 +190,10 @@ async fn create_move_transfer_tx(test_env: Arc<TestEnv>, gas: ObjectRef) -> Tran
         .build()
 }
 
-async fn create_native_transfer_tx(test_env: Arc<TestEnv>, gas: ObjectRef) -> TransactionData {
+async fn create_native_transfer_tx(
+    test_env: Arc<TestEnv>,
+    gas: ObjectReference,
+) -> TransactionData {
     let mut pt_builder = ProgrammableTransactionBuilder::new();
     let coin_input = pt_builder
         .obj(CallArg::ImmutableOrOwned(
@@ -221,11 +226,11 @@ struct TestEnv {
     regulated_coin_type: TypeTag,
     regulated_coin_owner: Address,
     deny_cap_id: ObjectId,
-    deny_list_object_init_version: SequenceNumber,
+    deny_list_object_init_version: Version,
 }
 
 impl TestEnv {
-    async fn get_latest_object_ref(&self, object_id: &ObjectId) -> ObjectRef {
+    async fn get_latest_object_ref(&self, object_id: &ObjectId) -> ObjectReference {
         self.test_cluster
             .get_object_from_fullnode_store(object_id)
             .await

@@ -4,7 +4,7 @@
 
 use std::str::FromStr;
 
-use iota_types::digests::{
+use iota_sdk_types::{
     CheckpointContentsDigest, CheckpointDigest, EffectsAuxDataDigest, ObjectDigest,
     TransactionDigest, TransactionEventsDigest,
 };

@@ -4,8 +4,7 @@
 
 use std::fmt::{Display, Formatter, Result};
 
-use iota_sdk_types::{Address, ObjectId, Owner, StructTag};
-use iota_types::base_types::{ObjectDigest, ObjectRef, SequenceNumber};
+use iota_sdk_types::{Address, ObjectDigest, ObjectId, ObjectReference, Owner, StructTag, Version};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
@@ -32,7 +31,7 @@ pub enum ObjectChange {
         package_id: ObjectId,
         #[schemars(with = "SequenceNumberStringSchema")]
         #[serde_as(as = "SequenceNumberStringSchema")]
-        version: SequenceNumber,
+        version: Version,
         #[serde_as(as = "Base58Schema")]
         #[schemars(with = "Base58Schema")]
         digest: ObjectDigest,
@@ -55,7 +54,7 @@ pub enum ObjectChange {
         object_id: ObjectId,
         #[schemars(with = "SequenceNumberStringSchema")]
         #[serde_as(as = "SequenceNumberStringSchema")]
-        version: SequenceNumber,
+        version: Version,
         #[serde_as(as = "Base58Schema")]
         #[schemars(with = "Base58Schema")]
         digest: ObjectDigest,
@@ -77,10 +76,10 @@ pub enum ObjectChange {
         object_id: ObjectId,
         #[schemars(with = "SequenceNumberStringSchema")]
         #[serde_as(as = "SequenceNumberStringSchema")]
-        version: SequenceNumber,
+        version: Version,
         #[schemars(with = "SequenceNumberStringSchema")]
         #[serde_as(as = "SequenceNumberStringSchema")]
-        previous_version: SequenceNumber,
+        previous_version: Version,
         #[serde_as(as = "Base58Schema")]
         #[schemars(with = "Base58Schema")]
         digest: ObjectDigest,
@@ -99,7 +98,7 @@ pub enum ObjectChange {
         object_id: ObjectId,
         #[schemars(with = "SequenceNumberStringSchema")]
         #[serde_as(as = "SequenceNumberStringSchema")]
-        version: SequenceNumber,
+        version: Version,
     },
     /// Wrapped object
     #[serde(rename_all = "camelCase")]
@@ -115,7 +114,7 @@ pub enum ObjectChange {
         object_id: ObjectId,
         #[schemars(with = "SequenceNumberStringSchema")]
         #[serde_as(as = "SequenceNumberStringSchema")]
-        version: SequenceNumber,
+        version: Version,
     },
     /// Unwrapped object
     #[serde(rename_all = "camelCase")]
@@ -134,7 +133,7 @@ pub enum ObjectChange {
         object_id: ObjectId,
         #[schemars(with = "SequenceNumberStringSchema")]
         #[serde_as(as = "SequenceNumberStringSchema")]
-        version: SequenceNumber,
+        version: Version,
         #[serde_as(as = "Base58Schema")]
         #[schemars(with = "Base58Schema")]
         digest: ObjectDigest,
@@ -156,7 +155,7 @@ pub enum ObjectChange {
         object_id: ObjectId,
         #[schemars(with = "SequenceNumberStringSchema")]
         #[serde_as(as = "SequenceNumberStringSchema")]
-        version: SequenceNumber,
+        version: Version,
         #[serde_as(as = "Base58Schema")]
         #[schemars(with = "Base58Schema")]
         digest: ObjectDigest,
@@ -176,14 +175,14 @@ impl ObjectChange {
         }
     }
 
-    pub fn object_ref(&self) -> ObjectRef {
+    pub fn object_ref(&self) -> ObjectReference {
         match self {
             ObjectChange::Published {
                 package_id,
                 version,
                 digest,
                 ..
-            } => ObjectRef::new(*package_id, *version, *digest),
+            } => ObjectReference::new(*package_id, *version, *digest),
             ObjectChange::Transferred {
                 object_id,
                 version,
@@ -207,17 +206,17 @@ impl ObjectChange {
                 version,
                 digest,
                 ..
-            } => ObjectRef::new(*object_id, *version, *digest),
+            } => ObjectReference::new(*object_id, *version, *digest),
             ObjectChange::Deleted {
                 object_id, version, ..
-            } => ObjectRef::new(*object_id, *version, ObjectDigest::OBJECT_DELETED),
+            } => ObjectReference::new(*object_id, *version, ObjectDigest::OBJECT_DELETED),
             ObjectChange::Wrapped {
                 object_id, version, ..
-            } => ObjectRef::new(*object_id, *version, ObjectDigest::OBJECT_WRAPPED),
+            } => ObjectReference::new(*object_id, *version, ObjectDigest::OBJECT_WRAPPED),
         }
     }
 
-    pub fn mask_for_test(&mut self, new_version: SequenceNumber, new_digest: ObjectDigest) {
+    pub fn mask_for_test(&mut self, new_version: Version, new_digest: ObjectDigest) {
         match self {
             ObjectChange::Published {
                 version, digest, ..

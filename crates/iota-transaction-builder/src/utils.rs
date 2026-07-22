@@ -13,20 +13,25 @@ use iota_json::{
 use iota_json_rpc_types::{IotaArgument, IotaData, IotaObjectDataOptions, IotaRawData, PtbInput};
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    Address, Argument, Identifier, ObjectId, Owner, StructTag, TypeTag, move_package::MovePackage,
+    Address, Argument, Identifier, ObjectId, ObjectReference, Owner, SharedObjectReference,
+    StructTag, TypeTag, move_package::MovePackage,
 };
 use iota_types::{
-    base_types::{ObjectRef, ObjectType, TxContext, TxContextKind},
-    error::UserInputError,
+    base_types::{ObjectType, TxContext, TxContextKind},
+    error::{IotaError, UserInputError},
     fp_ensure,
     gas_coin::GasCoin,
-    move_package::MovePackageExt,
+    move_package::{
+        IotaAttributeV2, MovePackageExt, ProtocolBuildConfig, RuntimeModuleMetadata,
+        RuntimeModuleMetadataWrapper,
+    },
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{CallArg, SharedObjectRef},
+    transaction::CallArg,
 };
 use move_binary_format::{
     CompiledModule, binary_config::BinaryConfig, file_format::SignatureToken,
+    file_format_common::IOTA_METADATA_KEY,
 };
 
 use crate::TransactionBuilder;
@@ -40,7 +45,7 @@ impl TransactionBuilder {
         gas_budget: u64,
         input_objects: Vec<ObjectId>,
         gas_price: u64,
-    ) -> Result<ObjectRef, anyhow::Error> {
+    ) -> Result<ObjectReference, anyhow::Error> {
         if gas_budget < gas_price {
             bail!(
                 "Gas budget {gas_budget} is less than the reference gas price {gas_price}. The gas budget must be at least the current reference gas price of {gas_price}."
@@ -89,12 +94,15 @@ impl TransactionBuilder {
     }
 
     /// Get the object references for a list of object IDs
-    pub async fn input_refs(&self, obj_ids: &[ObjectId]) -> Result<Vec<ObjectRef>, anyhow::Error> {
+    pub async fn input_refs(
+        &self,
+        obj_ids: &[ObjectId],
+    ) -> Result<Vec<ObjectReference>, anyhow::Error> {
         let handles: Vec<_> = obj_ids.iter().map(|id| self.get_object_ref(*id)).collect();
         let obj_refs = join_all(handles)
             .await
             .into_iter()
-            .collect::<anyhow::Result<Vec<ObjectRef>>>()?;
+            .collect::<anyhow::Result<Vec<ObjectReference>>>()?;
         Ok(obj_refs)
     }
 
@@ -119,7 +127,7 @@ impl TransactionBuilder {
             return Ok(CallArg::Receiving(obj_ref));
         }
         Ok(match owner {
-            Owner::Shared(initial_shared_version) => CallArg::Shared(SharedObjectRef::new(
+            Owner::Shared(initial_shared_version) => CallArg::Shared(SharedObjectReference::new(
                 id,
                 initial_shared_version,
                 is_mutable_ref,
@@ -281,8 +289,8 @@ impl TransactionBuilder {
 
     /// Convert provided JSON arguments for a move function to their
     /// [`Argument`] representation and check their validity. Also, check that
-    /// the passed function is compliant to the Move View
-    /// Function specification.
+    /// the passed function is declared as a `#[view]` function in the
+    /// module's runtime metadata.
     pub async fn resolve_and_checks_json_view_args(
         &self,
         builder: &mut ProgrammableTransactionBuilder,
@@ -296,9 +304,29 @@ impl TransactionBuilder {
         let package = self.fetch_move_package(package_id).await?;
         let module = package.deserialize_module(module_ident, &BinaryConfig::standard())?;
 
-        // Extract the expected function signature and check the return type.
-        // If the function is a view function, it MUST return at least a value.
-        check_function_has_a_return(&module, function_ident)?;
+        fp_ensure!(
+            module.find_function_def_by_name(function_ident.as_str()).is_some(),
+            UserInputError::InvalidMoveViewFunction {
+                error: format!(
+                    "function {function_ident} not found in module {module_ident} of package {package_id}"
+                ),
+            }
+            .into()
+        );
+
+        // Check the function against the view functions recorded in the module's
+        // runtime metadata. Functions recorded there passed the view function
+        // verifier at publish time, so no further signature checks are needed.
+        let is_view = is_view_function_from_module_metadata(&module, function_ident.as_str())?;
+        fp_ensure!(
+            is_view,
+            UserInputError::InvalidMoveViewFunction {
+                error: format!(
+                    "function {function_ident} in module {module_ident} of package {package_id} is not declared as a #[view] function"
+                ),
+            }
+            .into()
+        );
 
         // Then resolve the function parameters type.
         let json_args_and_tokens = resolve_move_function_args(
@@ -392,19 +420,20 @@ impl TransactionBuilder {
     }
 
     /// Get the latest object ref for an object.
-    pub async fn get_object_ref(&self, object_id: ObjectId) -> anyhow::Result<ObjectRef> {
+    pub async fn get_object_ref(&self, object_id: ObjectId) -> anyhow::Result<ObjectReference> {
         // TODO: we should add retrial to reduce the transaction building error rate
         self.get_object_ref_and_type(object_id)
             .await
             .map(|(oref, _)| oref)
     }
 
-    /// Helper function to get the latest ObjectRef (ObjectId, SequenceNumber,
-    /// ObjectDigest) and ObjectType for a provided ObjectId.
+    /// Helper function to get the latest ObjectReference (ObjectId,
+    /// Version, ObjectDigest) and ObjectType for a provided
+    /// ObjectId.
     pub(crate) async fn get_object_ref_and_type(
         &self,
         object_id: ObjectId,
-    ) -> anyhow::Result<(ObjectRef, ObjectType)> {
+    ) -> anyhow::Result<(ObjectReference, ObjectType)> {
         let object = self
             .0
             .get_object_with_options(object_id, IotaObjectDataOptions::new().with_type())
@@ -444,30 +473,45 @@ impl TransactionBuilder {
     }
 }
 
-/// Helper function to check if the provided function within a module has at
-/// least a return type.
-fn check_function_has_a_return(
+/// Checks whether `function_name` is recorded as a `#[view]` function in the
+/// module's runtime metadata.
+///
+/// Returns `false` for modules without version 2 runtime metadata (compiled
+/// before view functions were introduced, or carrying no function
+/// attributes), which therefore record no view function information.
+fn is_view_function_from_module_metadata(
     module: &CompiledModule,
-    function_ident: &Identifier,
-) -> Result<(), anyhow::Error> {
-    let (_, fdef) = module
-        .find_function_def_by_name(function_ident.as_str())
-        .ok_or_else(|| {
-            anyhow!(
-                "Could not resolve function {} in module {}",
-                function_ident,
-                module.self_id()
-            )
+    function_name: &str,
+) -> Result<bool, IotaError> {
+    let Some(metadata) = module
+        .metadata
+        .iter()
+        .find(|metadata| metadata.key == IOTA_METADATA_KEY)
+    else {
+        return Ok(false);
+    };
+    let metadata_wrapper: RuntimeModuleMetadataWrapper =
+        bcs::from_bytes(&metadata.value).map_err(|error| {
+            IotaError::RuntimeModuleMetadataDeserialization {
+                error: error.to_string(),
+            }
         })?;
-    let function_signature = module.function_handle_at(fdef.function);
-    fp_ensure!(
-        !&module.signature_at(function_signature.return_).is_empty(),
-        UserInputError::InvalidMoveViewFunction {
-            error: "No return type for this function".to_owned(),
-        }
-        .into()
-    );
-    Ok(())
+    // Module metadata stored on chain passed the verifier at publish time, so
+    // decoding may assume view function support.
+    let metadata = metadata_wrapper.try_into_runtime_module_metadata(&ProtocolBuildConfig {
+        allow_view_function: true,
+    })?;
+    Ok(match metadata {
+        RuntimeModuleMetadata::V1(_) => false,
+        RuntimeModuleMetadata::V2(metadata_v2) => metadata_v2
+            .fun_attributes
+            .get(function_name)
+            .is_some_and(|attributes| {
+                attributes
+                    .iter()
+                    .any(|attribute| matches!(attribute, IotaAttributeV2::View))
+            }),
+    })
 }
 
 /// Result of resolving a call argument, distinguishing between single

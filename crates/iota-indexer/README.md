@@ -116,8 +116,6 @@ tx_senders = 3
 > [!NOTE]
 > All retention values must be greater than 0.
 
-The legacy `--epochs-to-keep` CLI argument is still supported but deprecated, and will be removed in v1.28.0. If both `--pruning-config-path` and `--epochs-to-keep` are provided, the config file takes precedence.
-
 #### Default behavior
 
 - If no pruning configuration is provided, pruning is disabled.

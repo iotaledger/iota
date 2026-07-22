@@ -2,8 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::{ExecutionError, ExecutionStatus, ObjectId, Owner, ProgrammableTransaction};
-use iota_types::{base_types::ObjectRef, effects::TransactionEffectsAPI, transaction::CallArg};
+use iota_sdk_types::{
+    ExecutionError, ExecutionStatus, ObjectId, ObjectReference, Owner, ProgrammableTransaction,
+};
+use iota_types::{effects::TransactionEffectsAPI, transaction::CallArg};
 use proptest::{prelude::*, strategy::ValueTree};
 use transaction_fuzzer::{
     account_universe::{AccountCurrent, AccountData},
@@ -30,7 +32,7 @@ fn invalid_pt_fuzz() {
 fn publish_coin_factory(
     exec: &mut Executor,
     account: &mut AccountCurrent,
-) -> (ObjectRef, ObjectRef) {
+) -> (ObjectReference, ObjectReference) {
     let effects = exec.publish(
         "coin_factory",
         vec![ObjectId::STD, ObjectId::FRAMEWORK],
@@ -71,8 +73,8 @@ pub fn run_pt_success(
     account: &mut AccountCurrent,
     exec: &mut Executor,
     mut pt: ProgrammableTransaction,
-    cap: ObjectRef,
-) -> ObjectRef {
+    cap: ObjectReference,
+) -> ObjectReference {
     for i in 0..pt.inputs.len() {
         if let CallArg::ImmutableOrOwned(obj_ref) = &pt.inputs[i] {
             if obj_ref.object_id == cap.object_id {

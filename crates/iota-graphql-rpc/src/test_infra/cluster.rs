@@ -6,7 +6,7 @@ use std::{net::SocketAddr, path::PathBuf, sync::Arc, time::Duration};
 
 use iota_graphql_rpc_client::simple_client::SimpleClient;
 use iota_indexer::{
-    config::PruningOptions,
+    config::RetentionConfig,
     errors::IndexerError,
     store::PgIndexerStore,
     test_utils::{IndexerTypeConfig, force_delete_database, start_test_indexer_impl},
@@ -137,10 +137,9 @@ pub async fn serve_executor(
         true,
         None,
         format!("http://{executor_server_url}"),
-        IndexerTypeConfig::writer_mode(Some(PruningOptions {
-            epochs_to_keep,
-            ..Default::default()
-        })),
+        IndexerTypeConfig::writer_mode_with_retention(
+            epochs_to_keep.map(|epochs| RetentionConfig::new(epochs, Default::default())),
+        ),
         Some(data_ingestion_path),
         cancellation_token.clone(),
     )
@@ -256,8 +255,7 @@ async fn start_validator_with_fullnode(
                 gas_amounts: vec![DEFAULT_GAS_AMOUNT; GAS_OBJECT_COUNT],
             };
             ACCOUNT_NUM
-        ])
-        .with_fullnode_enable_grpc_api(true);
+        ]);
 
     if let Some(internal_data_source_rpc_port) = internal_data_source_rpc_port {
         test_cluster_builder =

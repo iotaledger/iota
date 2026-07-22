@@ -1,0 +1,16 @@
+// Copyright (c) 2026 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+//# init --addresses test=0x0 --accounts A
+
+//# publish --sender A
+module test::automatic_linkage;
+
+#[view]
+public fun answer(): u64 {
+    42
+}
+
+//# view-object 1,0
+
+//# view-object 1,1

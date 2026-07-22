@@ -6,9 +6,8 @@ use std::num::NonZeroUsize;
 
 use anyhow::Result;
 use async_trait::async_trait;
-use iota_sdk_types::Address;
+use iota_sdk_types::{Address, CheckpointDigest, TransactionDigest};
 use iota_types::{
-    digests::{CheckpointDigest, TransactionDigest},
     effects::{TransactionEffects, TransactionEvents},
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     messages_checkpoint::{
@@ -23,9 +22,12 @@ use serde::{Deserialize, Serialize};
 /// BigTable Key Value store implementation.
 mod bigtable;
 
+#[cfg(feature = "emulator")]
+pub mod emulator;
+
 pub use bigtable::{
     client,
-    worker::{KvWorker, Table},
+    worker::{KvWorker, Table, transactions_by_address},
 };
 pub use iota_bigtable::{BigTableClient, Cell, Row, proto};
 

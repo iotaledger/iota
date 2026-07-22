@@ -5,7 +5,7 @@
 use std::{fs, path::Path};
 
 use clap::Parser;
-use iota_move_build::{BuildConfig, implicit_deps};
+use iota_move_build::{BuildConfig, ProtocolBuildConfig, implicit_deps};
 use iota_package_management::system_package_versions::latest_system_packages;
 use move_cli::base;
 use move_package::BuildConfig as MoveBuildConfig;
@@ -14,6 +14,52 @@ use crate::manage_package::resolve_lock_file_path;
 
 const LAYOUTS_DIR: &str = "layouts";
 const STRUCT_LAYOUTS_FILENAME: &str = "struct_layouts.yaml";
+
+/// CLI-flattened, per-field overrides mirroring [`ProtocolBuildConfig`].
+///
+/// This lives here rather than in `iota-types` so that `iota-types` need not
+/// depend on `clap`. Each field is an optional override: `None` keeps the value
+/// from the network-resolved [`ProtocolBuildConfig`].
+#[derive(clap::Args, Debug, Clone, Default)]
+pub struct ProtocolBuildConfigArgs {
+    /// Override whether view-function metadata is emitted and the `View`
+    /// attribute is verified. When unset, this follows the resolved protocol
+    /// config's `package_metadata_with_dynamic_module_metadata` feature; pass
+    /// `--allow-view-function true` or `--allow-view-function false` to force
+    /// it.
+    #[arg(long, global = true)]
+    pub allow_view_function: Option<bool>,
+}
+
+impl ProtocolBuildConfigArgs {
+    /// Fills any override left unset on the command line with the corresponding
+    /// value from `defaults` (e.g. the target network's protocol config).
+    /// Command-line values take precedence.
+    pub fn fill_unset_from(&mut self, defaults: &ProtocolBuildConfig) {
+        // Destructured so that adding a field to `ProtocolBuildConfig` fails to
+        // compile here until the new default is wired in.
+        let ProtocolBuildConfig {
+            allow_view_function,
+        } = *defaults;
+        self.allow_view_function.get_or_insert(allow_view_function);
+    }
+}
+
+/// Resolves the CLI overrides into a [`ProtocolBuildConfig`], falling back to
+/// [`ProtocolBuildConfig::default()`] for any option left unset.
+impl From<ProtocolBuildConfigArgs> for ProtocolBuildConfig {
+    fn from(args: ProtocolBuildConfigArgs) -> Self {
+        let defaults = ProtocolBuildConfig::default();
+        // Destructured so that adding a field to `ProtocolBuildConfigArgs` fails
+        // to compile here until it is resolved.
+        let ProtocolBuildConfigArgs {
+            allow_view_function,
+        } = args;
+        ProtocolBuildConfig {
+            allow_view_function: allow_view_function.unwrap_or(defaults.allow_view_function),
+        }
+    }
+}
 
 /// Build a move package.
 #[derive(Parser)]
@@ -43,6 +89,10 @@ pub struct Build {
     /// resolved for the respective chain in the Move.lock file.
     #[arg(skip)]
     pub chain_id: Option<String>,
+    /// Protocol build config, either provided by the user on the command line
+    /// or populated from the target network's protocol config.
+    #[command(flatten)]
+    pub protocol_build_config_args: ProtocolBuildConfigArgs,
 }
 
 impl Build {
@@ -58,6 +108,7 @@ impl Build {
             build_config,
             self.generate_struct_layouts,
             self.chain_id.clone(),
+            self.protocol_build_config_args.clone(),
         )
     }
 
@@ -66,6 +117,7 @@ impl Build {
         mut config: MoveBuildConfig,
         generate_struct_layouts: bool,
         chain_id: Option<String>,
+        protocol_build_config_args: ProtocolBuildConfigArgs,
     ) -> anyhow::Result<()> {
         config.implicit_dependencies = implicit_deps(latest_system_packages());
         let pkg = BuildConfig {
@@ -73,6 +125,7 @@ impl Build {
             run_bytecode_verifier: true,
             print_diags_to_stderr: true,
             chain_id,
+            protocol_build_config: protocol_build_config_args.into(),
         }
         .build(rerooted_path)?;
 

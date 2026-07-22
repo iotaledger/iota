@@ -161,7 +161,7 @@ impl Genesis {
     }
 
     pub fn contains_migrations(&self) -> bool {
-        self.checkpoint_contents.size() > 1
+        self.checkpoint_contents.len() > 1
     }
 
     pub fn iota_system_object(&self) -> IotaSystemState {

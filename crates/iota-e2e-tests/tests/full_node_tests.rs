@@ -14,7 +14,10 @@ use iota_keys::keystore::AccountKeystore;
 use iota_macros::*;
 use iota_node::IotaNodeHandle;
 use iota_sdk::wallet_context::WalletContext;
-use iota_sdk_types::{Address, Identifier, ObjectId, Owner, TransactionKind};
+use iota_sdk_types::{
+    Address, GasPayment, Identifier, ObjectId, ObjectReference, Owner, TransactionDigest,
+    TransactionKind, Version,
+};
 use iota_storage::{
     key_value_store::TransactionKeyValueStore, key_value_store_metrics::KeyValueStoreMetrics,
 };
@@ -25,7 +28,6 @@ use iota_test_transaction_builder::{
 };
 use iota_tool::restore_from_db_checkpoint;
 use iota_types::{
-    base_types::{ObjectRef, SequenceNumber, TransactionDigest},
     crypto::{IotaKeyPair, get_key_pair},
     error::{IotaError, UserInputError},
     messages_grpc::TransactionInfoRequest,
@@ -36,7 +38,7 @@ use iota_types::{
     },
     storage::ObjectStore,
     transaction::{
-        CallArg, GasData, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS, TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+        CallArg, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS, TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
         TransactionData, TransactionDataAPI,
     },
     utils::{to_sender_signed_transaction, to_sender_signed_transaction_with_multi_signers},
@@ -67,7 +69,7 @@ async fn test_full_node_follows_txes() -> Result<(), anyhow::Error> {
     fullnode
         .state()
         .get_transaction_cache_reader()
-        .notify_read_executed_effects(&[digest])
+        .notify_read_executed_effects_for_testing(&[digest])
         .await;
 
     // A small delay is needed for post processing operations following the
@@ -113,7 +115,7 @@ async fn test_full_node_shared_objects() -> Result<(), anyhow::Error> {
         .iota_node
         .state()
         .get_transaction_cache_reader()
-        .notify_read_executed_effects(&[digest])
+        .notify_read_executed_effects_for_testing(&[digest])
         .await;
 
     Ok(())
@@ -152,7 +154,7 @@ async fn test_sponsored_transaction() -> Result<(), anyhow::Error> {
     let tx_data = TransactionData::new_with_gas_data(
         kind,
         sender,
-        GasData {
+        GasPayment {
             objects: vec![gas_obj],
             owner: sponsor,
             price: rgp,
@@ -486,7 +488,7 @@ async fn test_full_node_cold_sync() -> Result<(), anyhow::Error> {
     fullnode
         .state()
         .get_transaction_cache_reader()
-        .notify_read_executed_effects(&[digest])
+        .notify_read_executed_effects_for_testing(&[digest])
         .await;
 
     let info = fullnode
@@ -596,7 +598,7 @@ async fn do_test_full_node_sync_flood() {
     fullnode
         .state()
         .get_transaction_cache_reader()
-        .notify_read_executed_effects(&digests)
+        .notify_read_executed_effects_for_testing(&digests)
         .await;
 }
 
@@ -782,7 +784,7 @@ async fn test_full_node_transaction_orchestrator_basic() -> Result<(), anyhow::E
     fullnode
         .state()
         .get_transaction_cache_reader()
-        .notify_read_executed_effects(&[digest])
+        .notify_read_executed_effects_for_testing(&[digest])
         .await;
     fullnode.state().get_executed_transaction_and_effects(digest, kv_store).await
         .unwrap_or_else(|e| panic!("Fullnode does not know about the txn {digest:?} that was executed with WaitForEffectsCert: {e:?}"));
@@ -918,7 +920,7 @@ async fn test_full_node_transaction_orchestrator_rpc_ok() -> Result<(), anyhow::
 async fn get_obj_read_from_node(
     node: &IotaNodeHandle,
     object_id: ObjectId,
-) -> Result<(ObjectRef, Object, Option<MoveStructLayout>), anyhow::Error> {
+) -> Result<(ObjectReference, Object, Option<MoveStructLayout>), anyhow::Error> {
     if let ObjectRead::Exists(obj_ref, object, layout) = node.state().get_object_read(&object_id)? {
         Ok((obj_ref, object, layout))
     } else {
@@ -929,8 +931,8 @@ async fn get_obj_read_from_node(
 async fn get_past_obj_read_from_node(
     node: &IotaNodeHandle,
     object_id: ObjectId,
-    seq_num: SequenceNumber,
-) -> Result<(ObjectRef, Object, Option<MoveStructLayout>), anyhow::Error> {
+    seq_num: Version,
+) -> Result<(ObjectReference, Object, Option<MoveStructLayout>), anyhow::Error> {
     if let PastObjectRead::VersionFound(obj_ref, object, layout) =
         node.state().get_past_object_read(&object_id, seq_num)?
     {
@@ -1019,7 +1021,7 @@ async fn test_get_objects_read() -> Result<(), anyhow::Error> {
     assert_eq!(read_obj_v1, object_v1);
     assert_eq!(read_obj_v1.owner, Owner::Address(sender));
 
-    let too_high_version = SequenceNumber::lamport_increment([object_ref_v3.version]).unwrap();
+    let too_high_version = Version::lamport_increment([object_ref_v3.version]).unwrap();
 
     match node
         .state()
@@ -1085,7 +1087,7 @@ async fn test_full_node_bootstrap_from_snapshot() -> Result<(), anyhow::Error> {
 
     node.state()
         .get_transaction_cache_reader()
-        .notify_read_executed_effects(&[digest])
+        .notify_read_executed_effects_for_testing(&[digest])
         .await;
 
     loop {
@@ -1104,7 +1106,7 @@ async fn test_full_node_bootstrap_from_snapshot() -> Result<(), anyhow::Error> {
         transfer_coin(&test_cluster.wallet).await?;
     node.state()
         .get_transaction_cache_reader()
-        .notify_read_executed_effects(&[digest_after_restore])
+        .notify_read_executed_effects_for_testing(&[digest_after_restore])
         .await;
     Ok(())
 }
@@ -1272,7 +1274,16 @@ async fn test_access_old_object_pruned() {
 
 async fn transfer_coin(
     context: &WalletContext,
-) -> Result<(ObjectId, Address, Address, TransactionDigest, ObjectRef), anyhow::Error> {
+) -> Result<
+    (
+        ObjectId,
+        Address,
+        Address,
+        TransactionDigest,
+        ObjectReference,
+    ),
+    anyhow::Error,
+> {
     let gas_price = context.get_reference_gas_price().await?;
     let accounts_and_objs = context.get_all_accounts_and_gas_objects().await.unwrap();
     let sender = accounts_and_objs[0].0;

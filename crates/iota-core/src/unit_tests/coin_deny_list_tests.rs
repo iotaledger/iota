@@ -4,10 +4,12 @@
 
 use std::sync::Arc;
 
-use iota_sdk_types::{Address, Identifier, ObjectId, StructTag, TypeTag};
+use iota_sdk_types::{
+    Address, Identifier, ObjectId, ObjectReference, SharedObjectReference, StructTag, TypeTag,
+};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::{ObjectRef, dbg_addr},
+    base_types::dbg_addr,
     crypto::{AccountKeyPair, get_account_key_pair},
     deny_list_v1::{
         DenyCapV1, RegulatedCoinMetadata, check_address_denied_by_config, check_global_pause,
@@ -15,7 +17,7 @@ use iota_types::{
     },
     effects::{TransactionEffects, TransactionEffectsAPI},
     object::Object,
-    transaction::{CallArg, SharedObjectRef, TEST_ONLY_GAS_UNIT_FOR_PUBLISH},
+    transaction::{CallArg, TEST_ONLY_GAS_UNIT_FOR_PUBLISH},
 };
 
 use crate::authority::{
@@ -101,7 +103,7 @@ async fn test_regulated_coin_v1_types() {
         "coin",
         "deny_list_v1_add",
         vec![
-            CallArg::Shared(SharedObjectRef::new(
+            CallArg::Shared(SharedObjectReference::new(
                 ObjectId::DENY_LIST,
                 deny_list_object_init_version,
                 true,
@@ -175,7 +177,7 @@ async fn test_regulated_coin_v1_types() {
         "coin",
         "deny_list_v1_enable_global_pause",
         vec![
-            CallArg::Shared(SharedObjectRef::new(
+            CallArg::Shared(SharedObjectReference::new(
                 ObjectId::DENY_LIST,
                 deny_list_object_init_version,
                 true,
@@ -218,7 +220,7 @@ struct TestEnv {
 }
 
 impl TestEnv {
-    async fn get_latest_object_ref(&self, id: &ObjectId) -> ObjectRef {
+    async fn get_latest_object_ref(&self, id: &ObjectId) -> ObjectReference {
         self.authority.get_object(id).unwrap().object_ref()
     }
 }

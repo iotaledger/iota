@@ -8,15 +8,14 @@ use either::Either;
 use fastcrypto::traits::{AggregateAuthenticator, ToFromBytes};
 use futures::pin_mut;
 use iota_metrics::monitored_scope;
-use iota_sdk_types::crypto::Intent;
+use iota_sdk_types::{CertificateDigest, SenderSignedDataDigest, crypto::Intent};
 use iota_types::{
     base_types::AuthorityName,
     committee::Committee,
     crypto::{AuthorityPublicKey, AuthoritySignInfoTrait, VerificationObligation},
-    digests::{CertificateDigest, SenderSignedDataDigest},
     error::{IotaError, IotaResult},
     message_envelope::Message,
-    messages_checkpoint::SignedCheckpointSummary,
+    messages_checkpoint::{CheckpointSummaryExt, SignedCheckpointSummary},
     messages_consensus::{AuthorityCapabilitiesDigest, SignedAuthorityCapabilitiesV1},
     signature::VerifyParams,
     signature_verification::{VerifiedDigestCache, verify_sender_signed_data_message_signatures},

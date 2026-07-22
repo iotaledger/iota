@@ -5,7 +5,9 @@ use std::{collections::HashMap, str::FromStr};
 
 use anyhow::{anyhow, bail, ensure};
 use iota_protocol_config::{Chain, ProtocolConfig};
-use iota_sdk_types::{Address, Argument, Identifier, ObjectId, StructTag, TypeTag};
+use iota_sdk_types::{
+    Address, Argument, Identifier, ObjectId, StructTag, TransactionDigest, TypeTag,
+};
 use iota_stardust_types::block::{
     address::AliasAddress,
     output::{
@@ -17,7 +19,6 @@ use iota_stardust_types::block::{
 };
 use iota_types::{
     base_types::TxContext,
-    digests::TransactionDigest,
     epoch_data::EpochData,
     in_memory_storage::InMemoryStorage,
     inner_temporary_store::InnerTemporaryStore,

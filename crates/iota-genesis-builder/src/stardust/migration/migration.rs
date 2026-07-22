@@ -467,11 +467,8 @@ pub(super) fn create_migration_context(
 #[cfg(test)]
 mod tests {
     use iota_protocol_config::ProtocolConfig;
-    use iota_sdk_types::{ObjectData, Owner};
-    use iota_types::{
-        balance::Balance, base_types::SequenceNumber, gas_coin::GasCoin, id::UID,
-        timelock::timelock::TimeLock,
-    };
+    use iota_sdk_types::{ObjectData, Owner, Version};
+    use iota_types::{balance::Balance, gas_coin::GasCoin, id::UID, timelock::timelock::TimeLock};
 
     use super::*;
     use crate::stardust::types::vested_reward::to_genesis_object;
@@ -489,7 +486,7 @@ mod tests {
                     owner,
                     &ProtocolConfig::get_for_min_version(),
                     &tx_context,
-                    SequenceNumber::MIN_VALID_INCL,
+                    Version::MIN_VALID_INCL,
                 )
                 .unwrap()
             })
@@ -502,12 +499,12 @@ mod tests {
                     address,
                     &ProtocolConfig::get_for_min_version(),
                     &tx_context,
-                    SequenceNumber::MIN_VALID_INCL,
+                    Version::MIN_VALID_INCL,
                 )
                 .unwrap()
             });
         let non_matching_objects = (0..8)
-            .map(|_| GasCoin::new_for_testing(0).to_object(SequenceNumber::MIN_VALID_INCL))
+            .map(|_| GasCoin::new_for_testing(0).to_object(Version::MIN_VALID_INCL))
             .map(|move_object| {
                 Object::new_from_genesis(
                     ObjectData::Struct(move_object),
@@ -546,12 +543,12 @@ mod tests {
                     address,
                     &ProtocolConfig::get_for_min_version(),
                     &tx_context,
-                    SequenceNumber::MIN_VALID_INCL,
+                    Version::MIN_VALID_INCL,
                 )
                 .unwrap()
             });
         let expected_gas_coins = (0..8)
-            .map(|_| GasCoin::new_for_testing(0).to_object(SequenceNumber::MIN_VALID_INCL))
+            .map(|_| GasCoin::new_for_testing(0).to_object(Version::MIN_VALID_INCL))
             .map(|move_object| {
                 Object::new_from_genesis(
                     ObjectData::Struct(move_object),

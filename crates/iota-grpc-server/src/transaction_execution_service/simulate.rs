@@ -99,6 +99,13 @@ use crate::{
 ///         of the output object contents
 ///     - `executed_transaction.output_objects.bcs` - the full BCS-encoded
 ///       object
+///   - `executed_transaction.balance_changes` - per-owner, per-coin-type
+///     balance deltas derived from the simulated effects and input/output
+///     objects; a mocked gas coin is excluded. For a failed transaction this
+///     contains only the gas charge.
+///   - `executed_transaction.object_changes` - structured object changes
+///     (created, mutated, deleted, wrapped, unwrapped, published) derived from
+///     the simulated effects and input/output objects.
 ///
 /// ## Gas Fields
 /// - `suggested_gas_price` - the suggested gas price for the transaction,
@@ -235,7 +242,7 @@ async fn simulate_single_transaction(
         input_objects,
         output_objects,
         execution_result,
-        mock_gas_id: _,
+        mock_gas_id,
         suggested_gas_price,
     } = executor
         .simulate_transaction(transaction_data.clone(), vm_checks)
@@ -268,6 +275,7 @@ async fn simulate_single_transaction(
             timestamp_ms: None,
             input_objects: Some(input_objects.into_values().collect()),
             output_objects: Some(output_objects.into_values().collect()),
+            mocked_coin: mock_gas_id,
         };
 
         response.executed_transaction = Some(

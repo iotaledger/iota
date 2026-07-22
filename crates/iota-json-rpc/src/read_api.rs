@@ -28,10 +28,9 @@ use iota_package_resolver::{
     Package, PackageStore, Resolver, error::Error as PackageResolverError,
 };
 use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
-use iota_sdk_types::{Address, ObjectId, StructTag};
+use iota_sdk_types::{Address, ObjectId, StructTag, TransactionDigest, Version};
 use iota_storage::key_value_store::TransactionKeyValueStore;
 use iota_types::{
-    base_types::{SequenceNumber, TransactionDigest},
     collection_types::VecMap,
     display::DisplayVersionUpdatedEvent,
     effects::{
@@ -597,7 +596,7 @@ impl ReadApiServer for ReadApi {
         options: Option<IotaObjectDataOptions>,
     ) -> RpcResult<IotaPastObjectResponse> {
         async move {
-            let version: SequenceNumber = version.into();
+            let version: Version = version.into();
             let state = self.state.clone();
             let past_read = spawn_monitored_task!(async move {
             state.get_past_object_read(&object_id, version)
@@ -654,7 +653,7 @@ impl ReadApiServer for ReadApi {
     async fn try_get_object_before_version(
         &self,
         object_id: ObjectId,
-        version: SequenceNumber,
+        version: Version,
     ) -> RpcResult<IotaPastObjectResponse> {
         let version = self
             .state
@@ -1467,7 +1466,7 @@ mod tests {
     use std::collections::HashMap;
 
     use iota_protocol_config::ProtocolConfig;
-    use iota_sdk_types::gas::GasCostSummary;
+    use iota_sdk_types::{CheckpointDigest, TransactionEffectsDigest, gas::GasCostSummary};
     use iota_storage::{
         key_value_store::{
             KVStoreCheckpointData, KVStoreTransactionData, TransactionKeyValueStoreTrait,
@@ -1477,12 +1476,12 @@ mod tests {
     use iota_types::{
         base_types::ExecutionDigests,
         crypto::AuthorityStrongQuorumSignInfo,
-        digests::TransactionEffectsDigest,
         effects::TransactionEvents,
         error::IotaResult,
         message_envelope::Envelope,
         messages_checkpoint::{
-            CertifiedCheckpointSummary, CheckpointContents, CheckpointDigest, CheckpointSummary,
+            CertifiedCheckpointSummary, CheckpointContents, CheckpointContentsExt,
+            CheckpointSummary, CheckpointSummaryExt,
         },
         object::Object,
         storage::ObjectKey,
@@ -1596,7 +1595,7 @@ mod tests {
             async fn get_object(
                 &self,
                 object_id: ObjectId,
-                version: SequenceNumber,
+                version: Version,
             ) -> IotaResult<Option<Object>>;
 
             async fn multi_get_objects(
@@ -1638,7 +1637,7 @@ mod tests {
         seq: CheckpointSequenceNumber,
         contents: &CheckpointContents,
     ) -> CertifiedCheckpointSummary {
-        let summary = CheckpointSummary::new(
+        let summary = CheckpointSummary::new_with_protocol_config(
             &ProtocolConfig::get_for_max_version_UNSAFE(),
             0,
             seq,

@@ -13,7 +13,6 @@ use iota_types::{
     committee::EpochId,
     iota_system_state::epoch_start_iota_system_state::EpochStartSystemStateTrait,
 };
-use prometheus_filtered::Registry;
 use starfish_config::{Committee, NetworkKeyPair, Parameters, ProtocolKeyPair};
 use starfish_core::{
     Clock, CommitConsumer, CommitConsumerMonitor, CommitIndex, ConsensusAuthority,
@@ -130,16 +129,19 @@ impl ConsensusManagerTrait for StarfishManager {
             .find(|(_, a)| a.protocol_key == own_protocol_key)
             .expect("Own authority should be among the consensus authorities!");
 
-        // Opt into the protective consensus gRPC resource limits via an
-        // environment variable, for gradual rollout on a subset of validators
-        // without changing the default (inert) behaviour.
+        // Apply the protective consensus gRPC resource limits by default,
+        // filling only the bounds left unconfigured so explicit node config is
+        // respected. A node can opt out via the environment variable without a
+        // redeploy; these are local operational parameters, so heterogeneous
+        // values across validators are safe.
         let parameters = {
             let mut p = parameters;
             if matches!(
                 std::env::var("CONSENSUS_GRPC_PROTECTIVE_LIMITS").as_deref(),
-                Ok("1") | Ok("true")
+                Ok("0") | Ok("false")
             ) {
-                info!("Applying protective consensus gRPC limits for validator {own_index}");
+                info!("Consensus gRPC protective limits disabled for validator {own_index}");
+            } else {
                 p.tonic.apply_protective();
             }
             p
@@ -164,7 +166,10 @@ impl ConsensusManagerTrait for StarfishManager {
             p
         };
 
-        let registry = Registry::new_custom(Some("consensus".to_string()), None).unwrap();
+        let registry = self
+            .registry_service
+            .new_registry_custom(Some("consensus".to_string()), None)
+            .unwrap();
 
         let (commit_sender, commit_receiver) = unbounded_channel("consensus_output");
 

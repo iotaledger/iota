@@ -279,20 +279,19 @@ impl From<IotaRpcInputError> for ErrorObjectOwned {
 #[cfg(test)]
 mod tests {
     use expect_test::expect;
-    use iota_sdk_types::ObjectId;
+    use iota_sdk_types::{ObjectDigest, ObjectId, ObjectReference, TransactionDigest, Version};
     use iota_types::{
-        base_types::{AuthorityName, ObjectRef, SequenceNumber},
+        base_types::AuthorityName,
         committee::StakeUnit,
         crypto::{AuthorityPublicKey, AuthorityPublicKeyBytes},
-        digests::{ObjectDigest, TransactionDigest},
     };
 
     use super::*;
 
-    fn test_object_ref() -> ObjectRef {
-        ObjectRef::new(
+    fn test_object_ref() -> ObjectReference {
+        ObjectReference::new(
             ObjectId::ZERO,
-            SequenceNumber::from_u64(0),
+            Version::from_u64(0),
             ObjectDigest::new([0; 32]),
         )
     }
@@ -354,7 +353,7 @@ mod tests {
             use iota_types::crypto::VerifyingKey;
             let mut conflicting_txes: BTreeMap<
                 TransactionDigest,
-                (Vec<(AuthorityName, ObjectRef)>, StakeUnit),
+                (Vec<(AuthorityName, ObjectReference)>, StakeUnit),
             > = BTreeMap::new();
             let tx_digest = TransactionDigest::from([1; 32]);
             let object_ref = test_object_ref();
@@ -394,7 +393,7 @@ mod tests {
             use iota_types::crypto::VerifyingKey;
             let mut conflicting_txes: BTreeMap<
                 TransactionDigest,
-                (Vec<(AuthorityName, ObjectRef)>, StakeUnit),
+                (Vec<(AuthorityName, ObjectReference)>, StakeUnit),
             > = BTreeMap::new();
             let tx_digest = TransactionDigest::from([1; 32]);
             let object_ref = test_object_ref();

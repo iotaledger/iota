@@ -12,6 +12,7 @@ use std::{
 
 use anyhow::Result;
 use iota_keys::keypair_file::{read_authority_keypair_from_file, read_keypair_from_file};
+use iota_metrics::MetricGroups;
 use iota_names::config::IotaNamesConfig;
 use iota_sdk_types::Address;
 use iota_types::{
@@ -45,6 +46,9 @@ pub const DEFAULT_VALIDATOR_GAS_PRICE: u64 = iota_types::transaction::DEFAULT_VA
 
 /// Default commission rate of 2%
 pub const DEFAULT_COMMISSION_RATE: u64 = 200;
+
+/// Default budget in MiB for the in-memory full-checkpoint-contents cache.
+pub const DEFAULT_FULL_CHECKPOINT_CONTENTS_CACHE_SIZE_MB: usize = 1024;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
@@ -226,6 +230,19 @@ pub struct NodeConfig {
 
     #[serde(default)]
     pub execution_cache_config: ExecutionCacheConfig,
+
+    /// Memory budget in MiB for the in-memory cache of full checkpoint
+    /// contents, which serves the checkpoint executor's bulk transaction
+    /// loads and checkpoint-contents requests from state-sync peers. When
+    /// the budget is exceeded, the oldest checkpoints are evicted first.
+    /// Set to 0 to disable the cache; consumers then fall back to
+    /// reconstructing contents from the transaction and effects stores.
+    ///
+    /// The budget is accounted in serialized (BCS) bytes; the resident
+    /// memory of a full cache is somewhat higher than the configured value
+    /// due to in-memory representation overhead.
+    #[serde(default = "default_full_checkpoint_contents_cache_size_mb")]
+    pub full_checkpoint_contents_cache_size_mb: usize,
 
     #[serde(default = "bool_true")]
     pub enable_validator_tx_finalizer: bool,
@@ -681,12 +698,12 @@ pub fn default_end_of_epoch_broadcast_channel_capacity() -> usize {
     128
 }
 
-pub fn bool_true() -> bool {
-    true
+pub fn default_full_checkpoint_contents_cache_size_mb() -> usize {
+    DEFAULT_FULL_CHECKPOINT_CONTENTS_CACHE_SIZE_MB
 }
 
-fn is_true(value: &bool) -> bool {
-    *value
+pub fn bool_true() -> bool {
+    true
 }
 
 impl Config for NodeConfig {}
@@ -1020,16 +1037,6 @@ pub struct AuthorityStorePruningConfig {
     /// Use `u64::MAX` to disable the pruner for the objects.
     #[serde(default)]
     pub num_epochs_to_retain: u64,
-    /// pruner's runtime interval used for aggressive mode
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub pruning_run_delay_seconds: Option<u64>,
-    /// maximum number of checkpoints in the pruning batch. Can be adjusted to
-    /// increase performance
-    #[serde(default = "default_max_checkpoints_in_batch")]
-    pub max_checkpoints_in_batch: usize,
-    /// maximum number of transaction in the pruning batch
-    #[serde(default = "default_max_transactions_in_batch")]
-    pub max_transactions_in_batch: usize,
     /// enables periodic background compaction for old SST files whose last
     /// modified time is older than `periodic_compaction_threshold_days`
     /// days. That ensures that all sst files eventually go through the
@@ -1043,8 +1050,6 @@ pub struct AuthorityStorePruningConfig {
     /// for
     #[serde(skip_serializing_if = "Option::is_none")]
     pub num_epochs_to_retain_for_checkpoints: Option<u64>,
-    #[serde(default = "default_smoothing", skip_serializing_if = "is_true")]
-    pub smooth: bool,
     /// Enables the compaction filter for pruning the objects table.
     /// If disabled, a range deletion approach is used instead.
     /// While it is generally safe to switch between the two modes,
@@ -1060,18 +1065,6 @@ fn default_num_latest_epoch_dbs_to_retain() -> usize {
     3
 }
 
-fn default_max_transactions_in_batch() -> usize {
-    1000
-}
-
-fn default_max_checkpoints_in_batch() -> usize {
-    10
-}
-
-fn default_smoothing() -> bool {
-    cfg!(not(test))
-}
-
 fn default_periodic_compaction_threshold_days() -> Option<usize> {
     Some(1)
 }
@@ -1081,12 +1074,8 @@ impl Default for AuthorityStorePruningConfig {
         Self {
             num_latest_epoch_dbs_to_retain: default_num_latest_epoch_dbs_to_retain(),
             num_epochs_to_retain: 0,
-            pruning_run_delay_seconds: if cfg!(msim) { Some(2) } else { None },
-            max_checkpoints_in_batch: default_max_checkpoints_in_batch(),
-            max_transactions_in_batch: default_max_transactions_in_batch(),
             periodic_compaction_threshold_days: None,
             num_epochs_to_retain_for_checkpoints: if cfg!(msim) { Some(2) } else { None },
-            smooth: true,
             enable_compaction_filter: cfg!(test) || cfg!(msim),
             num_epochs_to_retain_for_indexes: None,
         }
@@ -1123,6 +1112,8 @@ pub struct MetricsConfig {
     pub push_interval_seconds: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub push_url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub groups: Option<MetricGroups>,
 }
 
 #[derive(Default, Debug, Clone, Deserialize, Serialize)]
@@ -1434,7 +1425,7 @@ impl KeyPairWithPath {
         // OK to unwrap panic because authority should not start without all keypairs
         // loaded.
         cell.set(Arc::new(read_keypair_from_file(&path).unwrap_or_else(
-            |e| panic!("invalid keypair file at path {:?}: {e}", &path),
+            |e| panic!("invalid keypair file at path {path:?}: {e}"),
         )))
         .expect("failed to set keypair");
         Self {
@@ -1499,7 +1490,7 @@ impl AuthorityKeyPairWithPath {
         // loaded.
         cell.set(Arc::new(
             read_authority_keypair_from_file(&path)
-                .unwrap_or_else(|_| panic!("invalid authority keypair file at path {:?}", &path)),
+                .unwrap_or_else(|_| panic!("invalid authority keypair file at path {path:?}")),
         ))
         .expect("failed to set authority keypair");
         Self {
@@ -1516,9 +1507,8 @@ impl AuthorityKeyPairWithPath {
                     // OK to unwrap panic because authority should not start without all keypairs
                     // loaded.
                     Arc::new(
-                        read_authority_keypair_from_file(path).unwrap_or_else(|_| {
-                            panic!("invalid authority keypair file {:?}", &path)
-                        }),
+                        read_authority_keypair_from_file(path)
+                            .unwrap_or_else(|_| panic!("invalid authority keypair file {path:?}")),
                     )
                 }
             })
