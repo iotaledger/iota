@@ -8,7 +8,9 @@ use iota_json_rpc_types::{
 };
 use iota_sdk_types::{
     Address, CheckpointDigest, ObjectDigest, ObjectId, Owner, StructTag, TransactionDigest,
-    TypeTag, Version, move_package::MovePackage,
+    TypeTag, Version,
+    checkpoint::{CheckpointCommitment, EndOfEpochData},
+    move_package::MovePackage,
 };
 use iota_types::{
     crypto::AggregateAuthoritySignature,
@@ -16,9 +18,7 @@ use iota_types::{
     effects::TransactionEffects,
     event::{SystemEpochInfoEvent, SystemEpochInfoEventV1, SystemEpochInfoEventV2},
     iota_serde::{IotaStructTag, IotaTypeTag},
-    messages_checkpoint::{
-        CheckpointCommitment, CheckpointContentsExt, CheckpointSequenceNumber, EndOfEpochData,
-    },
+    messages_checkpoint::{CheckpointContentsExt, CheckpointSequenceNumber},
     object::Object,
     transaction::SenderSignedData,
 };

@@ -33,6 +33,7 @@ use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_sdk_types::{
     Address, Command, Event, GenesisObject, Identifier, ObjectId, ObjectReference, Owner,
     StructTag, TransactionDigest, Version,
+    checkpoint::{CheckpointContents, CheckpointSummary},
     crypto::{Intent, IntentMessage, IntentScope},
 };
 use iota_types::{
@@ -52,8 +53,8 @@ use iota_types::{
     inner_temporary_store::InnerTemporaryStore,
     iota_system_state::{IotaSystemState, IotaSystemStateTrait, get_iota_system_state},
     messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointContents, CheckpointContentsExt, CheckpointSummary,
-        CheckpointVersionSpecificData, CheckpointVersionSpecificDataV1,
+        CertifiedCheckpointSummary, CheckpointContentsExt, CheckpointVersionSpecificData,
+        CheckpointVersionSpecificDataV1,
     },
     metrics::LimitsMetrics,
     object::{MoveObjectExt, Object},

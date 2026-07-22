@@ -6,13 +6,13 @@ use std::{sync::Arc, time::Duration};
 
 use iota_config::node::ExpensiveSafetyCheckConfig;
 use iota_metrics::spawn_monitored_task;
-use iota_sdk_types::{CheckpointCommitment, gas::GasCostSummary};
+use iota_sdk_types::{CheckpointCommitment, checkpoint::EndOfEpochData, gas::GasCostSummary};
 use iota_swarm_config::test_utils::{CommitteeFixture, empty_contents};
 use iota_types::{
     committee::ProtocolVersion,
     iota_system_state::epoch_start_iota_system_state::EpochStartSystemState,
     messages_checkpoint::{
-        ECMHLiveObjectSetDigest, EndOfEpochData, VerifiedCheckpoint, VerifiedCheckpointContents,
+        ECMHLiveObjectSetDigest, VerifiedCheckpoint, VerifiedCheckpointContents,
     },
     supported_protocol_versions::SupportedProtocolVersions,
 };

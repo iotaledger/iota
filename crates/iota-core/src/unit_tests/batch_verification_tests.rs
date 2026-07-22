@@ -8,14 +8,14 @@ use fastcrypto::traits::KeyPair;
 use futures::future::join_all;
 use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::gas::GasCostSummary;
+use iota_sdk_types::{
+    checkpoint::{CheckpointContents, CheckpointSummary},
+    gas::GasCostSummary,
+};
 use iota_types::{
     committee::Committee,
     crypto::{AccountKeyPair, AuthorityKeyPair, get_key_pair},
-    messages_checkpoint::{
-        CheckpointContents, CheckpointContentsExt, CheckpointSummary, CheckpointSummaryExt,
-        SignedCheckpointSummary,
-    },
+    messages_checkpoint::{CheckpointContentsExt, CheckpointSummaryExt, SignedCheckpointSummary},
     transaction::CertifiedTransaction,
 };
 use itertools::Itertools as _;

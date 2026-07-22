@@ -49,6 +49,7 @@ use iota_sdk_types::{
     ExecutionStatus, GasPayment, MoveAuthenticator, ObjectDigest, ObjectId, ObjectReference, Owner,
     RandomnessRound, StructTag, SystemPackage, TransactionDigest, TransactionEffectsDigest,
     TransactionExpiration, TransactionKind, TypeTag, Version,
+    checkpoint::{CheckpointCommitment, CheckpointContents, CheckpointSummary},
     crypto::{Intent, IntentAppId, IntentMessage, IntentScope, IntentVersion},
     gas::GasCostSummary,
 };
@@ -96,10 +97,9 @@ use iota_types::{
     layout_resolver::{LayoutResolver, into_struct_layout},
     message_envelope::Message,
     messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointCommitment, CheckpointContents,
-        CheckpointContentsExt, CheckpointRequest, CheckpointResponse, CheckpointSequenceNumber,
-        CheckpointSummary, CheckpointSummaryResponse, CheckpointTimestamp, ECMHLiveObjectSetDigest,
-        VerifiedCheckpoint,
+        CertifiedCheckpointSummary, CheckpointContentsExt, CheckpointRequest, CheckpointResponse,
+        CheckpointSequenceNumber, CheckpointSummaryResponse, CheckpointTimestamp,
+        ECMHLiveObjectSetDigest, VerifiedCheckpoint,
     },
     messages_consensus::AuthorityCapabilitiesV1,
     messages_grpc::{

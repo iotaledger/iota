@@ -361,15 +361,17 @@ fn open_epoch_of(checkpoint: &CheckpointSummary) -> EpochId {
 
 #[cfg(test)]
 mod tests {
-    use iota_sdk_types::{GasCostSummary, TransactionDigest};
+    use iota_sdk_types::{
+        GasCostSummary, TransactionDigest,
+        checkpoint::{CheckpointContents, CheckpointSummary, EndOfEpochData},
+    };
     use iota_types::{
         crypto::AuthorityStrongQuorumSignInfo,
         effects::{TransactionEffects, TransactionEffectsExtForTesting, TransactionEvents},
         iota_system_state::IotaSystemState,
         message_envelope::Envelope,
         messages_checkpoint::{
-            CertifiedCheckpointSummary, CheckpointContents, CheckpointContentsExt,
-            CheckpointSummary, EndOfEpochData, VerifiedCheckpoint,
+            CertifiedCheckpointSummary, CheckpointContentsExt, VerifiedCheckpoint,
         },
     };
     use typed_store::Map;

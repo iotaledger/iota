@@ -511,13 +511,14 @@ impl ObjectStore for CheckpointSummaryFileStore {
 
 #[cfg(test)]
 mod tests {
-    use iota_sdk_types::gas::GasCostSummary;
+    use iota_sdk_types::{
+        checkpoint::{CheckpointContents, CheckpointSummary},
+        gas::GasCostSummary,
+    };
     use iota_types::{
         crypto::AuthorityQuorumSignInfo,
         message_envelope::Envelope,
-        messages_checkpoint::{
-            CheckpointContents, CheckpointContentsExt, CheckpointSummary, CheckpointSummaryExt,
-        },
+        messages_checkpoint::{CheckpointContentsExt, CheckpointSummaryExt},
         supported_protocol_versions::ProtocolConfig,
     };
     use roaring::RoaringBitmap;

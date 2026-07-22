@@ -32,14 +32,14 @@ use iota_keys::{
 };
 use iota_sdk::{IotaClient, PagedFn, wallet_context::WalletContext};
 use iota_sdk_types::{
-    Address, Identifier, ObjectId, ObjectReference, Owner, TypeTag,
+    Address, Identifier, ObjectId, ObjectReference, Owner, SignatureScheme, TypeTag,
     crypto::{Intent, IntentMessage, IntentScope},
 };
 use iota_types::{
     crypto::{
         AuthorityKeyPair, AuthorityPublicKey, AuthorityPublicKeyBytes, DEFAULT_EPOCH_ID,
-        IotaKeyPair, NetworkKeyPair, NetworkPublicKey, Signable, SignatureScheme,
-        generate_proof_of_possession, get_authority_key_pair,
+        IotaKeyPair, NetworkKeyPair, NetworkPublicKey, Signable, generate_proof_of_possession,
+        get_authority_key_pair,
     },
     dynamic_field::{DynamicFieldName, Field},
     iota_system_state::{

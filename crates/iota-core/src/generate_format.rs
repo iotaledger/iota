@@ -19,6 +19,7 @@ use iota_sdk_types::{
     ProgrammableTransaction, RandomnessStateUpdate, SharedObjectReference, SimpleSignature,
     StructTag, TransactionDigest, TransactionEffectsDigest, TransactionExpiration, TransactionKind,
     TypeArgumentError, TypeTag, UnchangedSharedKind, UserSignature,
+    checkpoint::{CheckpointCommitment, CheckpointContents, CheckpointSummary},
     crypto::{Intent, IntentMessage, PersonalMessage},
     move_package::{MovePackage, TypeOrigin, UpgradeInfo},
     validator::ValidatorCommitteeMember,
@@ -36,8 +37,7 @@ use iota_types::{
     },
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointCommitment, CheckpointContents,
-        CheckpointContentsExt, CheckpointSummary, FullCheckpointContents,
+        CertifiedCheckpointSummary, CheckpointContentsExt, FullCheckpointContents,
     },
     messages_grpc::ObjectInfoRequestKind,
     multisig::{MultiSig, MultiSigPublicKey, MultisigMember},
