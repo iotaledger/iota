@@ -22,9 +22,8 @@ use iota_sdk_types::{
     Event, GasPayment, GenesisObject, GenesisTransaction, Identifier, Input, MakeMoveVector,
     MergeCoins, MoveCall, MoveStruct, ObjectDigest, ObjectId, ObjectReference, Owner,
     ProgrammableTransaction, Publish, RandomnessRound, RandomnessStateUpdate,
-    SharedObjectReference, SplitCoins,
-    TransactionDigest, TransactionExpiration, TransactionKind, TransferObjects, TypeTag, Upgrade,
-    Version,
+    SharedObjectReference, SplitCoins, TransactionDigest, TransactionExpiration, TransactionKind,
+    TransferObjects, TypeTag, Upgrade, Version,
     crypto::{Intent, IntentMessage, IntentScope},
 };
 pub use iota_sdk_types::{
