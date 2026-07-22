@@ -430,7 +430,7 @@ pub async fn get_transaction_block(
             r.2.as_ref().map(|ok_result| match &ok_result.status {
                 TransactionStatus::Signed(_) => None,
                 TransactionStatus::Executed(_, effects, _) => Some((
-                    ok_result.transaction.transaction_data(),
+                    ok_result.transaction.transaction(),
                     effects.data(),
                     effects.digest(),
                 )),

@@ -989,7 +989,7 @@ mod tests {
         let recipient = Address::random();
         let (tx, transfer_amount) = sim.transfer_txn(recipient);
 
-        let gas_id = tx.data().transaction_data().gas_data().objects[0].object_id;
+        let gas_id = tx.data().transaction().gas_data().objects[0].object_id;
         let effects = sim.execute_transaction(tx).unwrap().0;
         let gas_summary = effects.gas_cost_summary();
         let gas_paid = gas_summary.net_gas_usage();

@@ -148,7 +148,7 @@ impl Ledger {
     }
 
     pub fn get_signature_scheme(&self) -> SignatureScheme {
-        SignatureScheme::ED25519
+        SignatureScheme::Ed25519
     }
 
     pub fn sign_intent<T: Serialize>(
@@ -181,7 +181,7 @@ impl Ledger {
         })?;
 
         let mut signature_bytes: Vec<u8> = Vec::new();
-        signature_bytes.extend_from_slice(&[self.get_signature_scheme().flag()]);
+        signature_bytes.extend_from_slice(&[self.get_signature_scheme().to_u8()]);
         signature_bytes.extend_from_slice(&signature.bytes);
         signature_bytes.extend_from_slice(key_response.public_key.as_ref());
 

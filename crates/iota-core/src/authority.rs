@@ -992,16 +992,16 @@ impl AuthorityState {
 
         let epoch = epoch_store.epoch();
 
-        let tx_data = transaction.data().transaction_data();
+        let tx = transaction.data().transaction();
 
         // Note: the deny checks may do redundant package loads but:
         // - they only load packages when there is an active package deny map
         // - the loads are cached anyway
         iota_transaction_checks::deny::check_transaction_for_validation(
-            tx_data,
-            transaction.tx_signatures(),
+            tx,
+            transaction.signatures(),
             &transaction.input_objects()?,
-            &tx_data.receiving_objects(),
+            &tx.receiving_objects(),
             &self.config.transaction_deny_config,
             self.get_backing_package_store().as_ref(),
         )?;
@@ -1024,7 +1024,7 @@ impl AuthorityState {
             .check_transaction_inputs_for_validation(
                 protocol_config,
                 reference_gas_price,
-                tx_data,
+                tx,
                 tx_input_objects,
                 &tx_receiving_objects,
                 &move_authenticators,
@@ -1042,7 +1042,7 @@ impl AuthorityState {
         // objects and the authenticator input objects are in the coin deny
         // list, which would prevent the transaction from being signed.
         check_coin_deny_list_v1(
-            tx_data.sender(),
+            tx.sender(),
             &tx_checked_input_objects,
             &tx_receiving_objects,
             &per_authenticator_checked_input_objects,
@@ -1050,7 +1050,7 @@ impl AuthorityState {
             epoch_gated_coin_deny_list.then_some(epoch),
         )?;
 
-        let (kind, signer, gas_data) = tx_data.execution_parts();
+        let (kind, signer, gas_data) = tx.execution_parts();
 
         let (sender_authenticator_function_ref, sponsor_authenticator_function_ref) =
             extract_auth_fun_refs(signer, gas_data.owner, |address| {
@@ -1114,7 +1114,7 @@ impl AuthorityState {
 
             // Serialize the TransactionData for the auth context before decomposing.
             let tx_data_bytes =
-                bcs::to_bytes(&tx_data).expect("TransactionData serialization cannot fail");
+                bcs::to_bytes(tx).expect("TransactionData serialization cannot fail");
 
             let (sender_auth_digest, sponsor_auth_digest) =
                 transaction.data().compute_auth_digests()?;
@@ -1199,7 +1199,7 @@ impl AuthorityState {
     }
 
     /// Initiate a new transaction.
-    #[instrument(name = "handle_transaction", level = "trace", skip_all, fields(tx_digest = ?transaction.digest(), sender = transaction.data().transaction_data().gas_owner().to_string()
+    #[instrument(name = "handle_transaction", level = "trace", skip_all, fields(tx_digest = ?transaction.digest(), sender = transaction.data().transaction().gas_owner().to_string()
     ))]
     pub async fn handle_transaction(
         &self,
@@ -1599,7 +1599,7 @@ impl AuthorityState {
         .map_err(|e| IotaError::FileIO(e.to_string()))
     }
 
-    #[instrument(name = "process_certificate", level = "trace", skip_all, fields(tx_digest = ?transaction.digest(), sender = ?transaction.data().transaction_data().gas_owner().to_string()))]
+    #[instrument(name = "process_certificate", level = "trace", skip_all, fields(tx_digest = ?transaction.digest(), sender = ?transaction.data().transaction().gas_owner().to_string()))]
     pub(crate) fn process_transaction(
         &self,
         tx_guard: TxGuard,
@@ -1780,7 +1780,7 @@ impl AuthorityState {
         self.get_cache_writer()
             .try_write_transaction_outputs(epoch_store.epoch(), transaction_outputs.into())?;
 
-        if transaction.transaction_data().is_end_of_epoch_tx() {
+        if transaction.transaction().is_end_of_epoch_tx() {
             // At the end of epoch, since system packages may have been upgraded, force
             // reload them in the cache.
             self.get_object_cache_reader()
@@ -1808,7 +1808,7 @@ impl AuthorityState {
         shared_object_count: usize,
     ) {
         // count signature by scheme, for multisig
-        if transaction.has_upgraded_multisig() {
+        if transaction.has_multisig() {
             self.metrics.multisig_sig_count.inc();
         }
 
@@ -1829,14 +1829,9 @@ impl AuthorityState {
         self.metrics
             .num_shared_objects
             .observe(shared_object_count as f64);
-        self.metrics.batch_size.observe(
-            transaction
-                .data()
-                .intent_message()
-                .value
-                .kind()
-                .num_commands() as f64,
-        );
+        self.metrics
+            .batch_size
+            .observe(transaction.data().transaction().kind().num_commands() as f64);
     }
 
     /// `execute_transaction()` validates the transaction input, and executes
@@ -1883,10 +1878,10 @@ impl AuthorityState {
 
         // TODO: We need to move this to a more appropriate place to avoid redundant
         // checks.
-        let tx_data = transaction.data().transaction_data();
-        tx_data.validity_check(protocol_config)?;
+        let tx = transaction.data().transaction();
+        tx.validity_check(protocol_config)?;
 
-        let (kind, signer, gas_data) = tx_data.execution_parts();
+        let (kind, signer, gas_data) = tx.execution_parts();
 
         let move_authenticators = transaction.move_authenticators();
 
@@ -1978,7 +1973,7 @@ impl AuthorityState {
 
             // Serialize the TransactionData for the auth context.
             let tx_data_bytes =
-                bcs::to_bytes(tx_data).expect("TransactionData serialization cannot fail");
+                bcs::to_bytes(tx).expect("TransactionData serialization cannot fail");
 
             let (sender_auth_digest, sponsor_auth_digest) =
                 transaction.data().compute_auth_digests()?;
@@ -2738,11 +2733,10 @@ impl AuthorityState {
             .tap_err(|e| warn!(tx_digest=?digest, "Failed to process object index, index_tx is skipped: {e}"))?;
 
         indexes.index_tx(
-            transaction.data().intent_message().value.sender(),
+            transaction.data().transaction().sender(),
             transaction
                 .data()
-                .intent_message()
-                .value
+                .transaction()
                 .input_objects()?
                 .iter()
                 .map(|o| o.object_id()),
@@ -2752,8 +2746,7 @@ impl AuthorityState {
                 .map(|(obj_ref, owner, _kind)| (obj_ref, owner)),
             transaction
                 .data()
-                .intent_message()
-                .value
+                .transaction()
                 .move_calls()
                 .into_iter()
                 .map(|(package, module, function)| {
@@ -2780,7 +2773,7 @@ impl AuthorityState {
         thread_local! {
             static FAIL_STATE: RefCell<(u64, HashSet<AuthorityName>)> = RefCell::new((0, HashSet::new()));
         }
-        if !transaction.data().intent_message().value.is_system_tx() {
+        if !transaction.data().transaction().is_system_tx() {
             let committee = epoch_store.committee();
             let cur_stake = (**committee).weight(&self.name);
             if cur_stake > 0 {
@@ -3106,7 +3099,7 @@ impl AuthorityState {
             )?;
             // Emit events
             self.subscription_handler
-                .process_tx(transaction.data().transaction_data(), &effects, &events)
+                .process_tx(transaction.data().transaction(), &effects, &events)
                 .tap_ok(|_| {
                     self.metrics
                         .post_processing_total_tx_had_event_processed
@@ -5774,7 +5767,7 @@ impl AuthorityState {
         let (input_objects, tx_receiving_objects) = self.input_loader.read_objects_for_signing(
             Some(transaction.digest()),
             &transaction.collect_all_input_object_kind_for_reading()?,
-            &transaction.data().transaction_data().receiving_objects(),
+            &transaction.data().transaction().receiving_objects(),
             epoch,
         )?;
 
@@ -6461,7 +6454,7 @@ fn pre_consensus_move_authenticators<'a>(
     protocol_config: &ProtocolConfig,
 ) -> Vec<&'a MoveAuthenticator> {
     if protocol_config.pre_consensus_sponsor_only_move_authentication() {
-        if tx.transaction_data().is_sponsored_tx() {
+        if tx.transaction().is_sponsored_tx() {
             if let Some(sponsor_move_authenticator) = tx.sponsor_move_authenticator() {
                 vec![sponsor_move_authenticator]
             } else {

@@ -53,9 +53,9 @@ use iota_types::{
     randomness_state::get_randomness_state_obj_initial_shared_version,
     supported_protocol_versions::{SupportedProtocolVersions, SupportedProtocolVersionsWithHashes},
     transaction::{
-        CallArg, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS, TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
-        TEST_ONLY_GAS_UNIT_FOR_TRANSFER, Transaction, TransactionData, TransactionDataAPI,
-        VerifiedCertificate, VerifiedTransaction,
+        CallArg, SenderSignedTransactionAPI, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS,
+        TEST_ONLY_GAS_UNIT_FOR_PUBLISH, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, Transaction,
+        TransactionData, TransactionDataAPI, VerifiedCertificate, VerifiedTransaction,
     },
     utils::{to_sender_signed_transaction, to_sender_signed_transaction_with_multi_signers},
 };
@@ -234,10 +234,7 @@ async fn test_dry_run_transaction_block() {
     let transaction_digest = *transaction.digest();
 
     let (response, _, _, _) = fullnode
-        .dry_exec_transaction(
-            transaction.data().intent_message().value.clone(),
-            transaction_digest,
-        )
+        .dry_exec_transaction(transaction.data().transaction().clone(), transaction_digest)
         .unwrap();
     assert_eq!(*response.effects.status(), IotaExecutionStatus::Success);
     let gas_usage = response.effects.gas_cost_summary();
@@ -248,13 +245,13 @@ async fn test_dry_run_transaction_block() {
     let shared_object_version = fullnode.get_object(&shared_object_id).unwrap().version();
     assert_eq!(shared_object_version, initial_shared_object_version);
 
-    let txn_data = &transaction.data().intent_message().value;
+    let tx = transaction.data().transaction();
     let txn_data = TransactionData::new_with_gas_coins(
-        txn_data.kind().clone(),
-        txn_data.sender(),
+        tx.kind().clone(),
+        tx.sender(),
         vec![],
-        txn_data.gas_budget(),
-        txn_data.gas_price(),
+        tx.gas_budget(),
+        tx.gas_price(),
     );
     let (response, _, _, _) = fullnode
         .dry_exec_transaction(txn_data, transaction_digest)
@@ -287,10 +284,7 @@ async fn test_dry_run_no_gas_big_transfer() {
     let signed = to_sender_signed_transaction(data, &sender_key);
 
     let (dry_run_res, _, _, _) = fullnode
-        .dry_exec_transaction(
-            signed.data().intent_message().value.clone(),
-            *signed.digest(),
-        )
+        .dry_exec_transaction(signed.data().transaction().clone(), *signed.digest())
         .unwrap();
     assert_eq!(*dry_run_res.effects.status(), IotaExecutionStatus::Success);
 }
@@ -969,10 +963,8 @@ async fn test_dry_run_on_validator() {
     let (validator, _fullnode, transaction, _gas_object_id, _shared_object_id) =
         construct_shared_object_transaction_with_version(None).await;
     let transaction_digest = *transaction.digest();
-    let response = validator.dry_exec_transaction(
-        transaction.data().intent_message().value.clone(),
-        transaction_digest,
-    );
+    let response = validator
+        .dry_exec_transaction(transaction.data().transaction().clone(), transaction_digest);
     assert!(response.is_err());
 }
 
@@ -1193,7 +1185,7 @@ async fn test_handle_transfer_transaction_bad_signature() {
     *bad_signature_transfer_transaction
         .data_mut_for_testing()
         .tx_signatures_mut_for_testing() = vec![
-        Signature::new_secure(transfer_transaction.data().intent_message(), &unknown_key).into(),
+        Signature::new_secure(&transfer_transaction.data().intent_message(), &unknown_key).into(),
     ];
 
     assert!(
@@ -1415,8 +1407,8 @@ async fn test_handle_transfer_transaction_ok() {
     };
 
     assert_eq!(
-        envelope.data().intent_message().value,
-        transfer_transaction.data().intent_message().value
+        envelope.data().transaction(),
+        transfer_transaction.data().transaction()
     );
 }
 
@@ -4754,7 +4746,7 @@ async fn test_consensus_commit_prologue_generation(#[values(false, true)] pcool:
     assert!(matches!(
         processed_consensus_transactions[0]
             .data()
-            .transaction_data()
+            .transaction()
             .kind(),
         TransactionKind::ConsensusCommitPrologueV1(..)
     ));
@@ -5709,10 +5701,7 @@ async fn test_for_inc_201_dry_run() {
         _,
         _,
     ) = fullnode
-        .dry_exec_transaction(
-            signed.data().intent_message().value.clone(),
-            *signed.digest(),
-        )
+        .dry_exec_transaction(signed.data().transaction().clone(), *signed.digest())
         .unwrap();
     assert_eq!(effects.status(), &IotaExecutionStatus::Success);
 
@@ -5763,10 +5752,7 @@ async fn test_function_not_found() {
         _,
         _,
     ) = fullnode
-        .dry_exec_transaction(
-            signed.data().intent_message().value.clone(),
-            *signed.digest(),
-        )
+        .dry_exec_transaction(signed.data().transaction().clone(), *signed.digest())
         .unwrap();
     assert_eq!(
         effects.status(),
@@ -5819,10 +5805,7 @@ async fn test_arity_mismatch() {
         _,
         _,
     ) = authority
-        .dry_exec_transaction(
-            signed.data().intent_message().value.clone(),
-            *signed.digest(),
-        )
+        .dry_exec_transaction(signed.data().transaction().clone(), *signed.digest())
         .unwrap();
     assert_eq!(
         effects.status(),
@@ -6312,7 +6295,7 @@ async fn test_consensus_handler_per_object_congestion_control(
     assert_eq!(scheduled_txns.len(), 2 + non_congested_tx_count as usize);
     for cert in scheduled_txns.iter() {
         assert!(
-            cert.data().transaction_data().gas_price() >= 4000
+            cert.data().transaction().gas_price() >= 4000
                 || cert
                     .shared_input_objects()
                     .into_iter()
@@ -6370,7 +6353,7 @@ async fn test_consensus_handler_per_object_congestion_control(
     assert_eq!(scheduled_txns.len(), 2 + non_congested_tx_count as usize);
     for cert in scheduled_txns.iter() {
         assert!(
-            cert.data().transaction_data().gas_price() >= 2000
+            cert.data().transaction().gas_price() >= 2000
                 || cert
                     .shared_input_objects()
                     .into_iter()
@@ -6535,22 +6518,18 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
     // Note that consensus handler also generates consensus commit prologue
     // transaction, and it must be the first one.
     assert!(matches!(
-        scheduled_txns[0].data().transaction_data().kind(),
+        scheduled_txns[0].data().transaction().kind(),
         TransactionKind::ConsensusCommitPrologueV1(..)
     ));
-    assert!(
-        scheduled_txns[1].data().transaction_data().gas_price() == gas_price_of_non_cancelled_txs
-    );
+    assert!(scheduled_txns[1].data().transaction().gas_price() == gas_price_of_non_cancelled_txs);
 
     let scheduled_txns = send_batch_consensus_no_execution(&authority, &[], false).await;
     assert_eq!(scheduled_txns.len(), 2);
     assert!(matches!(
-        scheduled_txns[0].data().transaction_data().kind(),
+        scheduled_txns[0].data().transaction().kind(),
         TransactionKind::ConsensusCommitPrologueV1(..)
     ));
-    assert!(
-        scheduled_txns[1].data().transaction_data().gas_price() == gas_price_of_non_cancelled_txs
-    );
+    assert!(scheduled_txns[1].data().transaction().gas_price() == gas_price_of_non_cancelled_txs);
 
     // Run consensus round 3. 2 user transactions will come out with 1 transaction
     // being cancelled.
@@ -6594,11 +6573,7 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
             &authority.epoch_store_for_testing(),
             &cancelled_txn.key(),
             &TxLockGuard::guard_for_tests(),
-            &cancelled_txn
-                .data()
-                .transaction_data()
-                .input_objects()
-                .unwrap(),
+            &cancelled_txn.data().transaction().input_objects().unwrap(),
             authority.epoch_store_for_testing().epoch(),
         )
         .unwrap();
@@ -6636,7 +6611,7 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
     // Consensus commit prologue contains cancelled txn shared object version
     // assignment.
     if let TransactionKind::ConsensusCommitPrologueV1(prologue_txn) =
-        scheduled_txns[0].data().transaction_data().kind()
+        scheduled_txns[0].data().transaction().kind()
     {
         assert!(matches!(
             &prologue_txn.consensus_determined_version_assignments,
@@ -6775,7 +6750,7 @@ async fn test_post_consensus_white_flag_simple_conflict() {
         "Only tx1 should be executable, tx2 dropped"
     );
     assert_eq!(
-        executable_txs[0].inner().transaction_data().digest(),
+        executable_txs[0].inner().transaction().digest(),
         *verified_tx1.digest(),
         "The executable transaction should be tx1"
     );
@@ -6889,7 +6864,7 @@ async fn test_post_consensus_white_flag_no_conflict() {
     );
     let executable_digests: std::collections::HashSet<_> = executable_txs
         .iter()
-        .map(|tx| tx.inner().transaction_data().digest())
+        .map(|tx| tx.inner().transaction().digest())
         .collect();
     assert!(executable_digests.contains(verified_tx1.digest()));
     assert!(executable_digests.contains(verified_tx2.digest()));
@@ -6975,7 +6950,7 @@ async fn test_post_consensus_white_flag_conflict_different_commits() {
     // Verify tx1 was executable
     assert_eq!(executable_txs.len(), 1);
     assert_eq!(
-        executable_txs[0].inner().transaction_data().digest(),
+        executable_txs[0].inner().transaction().digest(),
         *verified_tx1.digest()
     );
 
