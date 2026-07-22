@@ -48,7 +48,7 @@ use iota_types::{
     iota_system_state::{IotaSystemStateTrait, IotaSystemStateWrapper},
     messages_consensus::{AuthorityCapabilitiesV1, ConsensusTransaction, ConsensusTransactionKind},
     messages_grpc::{LayoutGenerationOption, ObjectInfoRequest, TransactionInfoRequest},
-    object::{GAS_VALUE_FOR_TESTING, MoveObjectExt, OBJECT_START_VERSION, Object},
+    object::{GAS_VALUE_FOR_TESTING, MoveStructExt, OBJECT_START_VERSION, Object},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     randomness_state::get_randomness_state_obj_initial_shared_version,
     supported_protocol_versions::{SupportedProtocolVersions, SupportedProtocolVersionsWithHashes},

@@ -16,7 +16,7 @@ pub mod checked {
         error::ExecutionError,
         gas::{IotaGasStatus, deduct_gas},
         gas_model::tables::GasStatus,
-        object::MoveObjectExt,
+        object::MoveStructExt,
     };
     use tracing::trace;
 
