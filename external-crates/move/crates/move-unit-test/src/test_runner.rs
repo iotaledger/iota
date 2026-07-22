@@ -26,7 +26,7 @@ use move_core_types::{
     u256::U256,
     vm_status::StatusCode,
 };
-use move_trace_format::format::MoveTraceBuilder;
+use move_trace_format::format::{MoveTraceBuilder, TRACE_FILE_EXTENSION};
 use move_vm_runtime::{
     move_vm::MoveVM, native_extensions::NativeContextExtensions,
     native_functions::NativeFunctionTable,
@@ -448,7 +448,7 @@ impl SharedTestingConfig {
         // tracing is enabled).
         if let Some(location) = &self.trace_location {
             let trace_file_location = format!(
-                "{}/{}__{}{}.json",
+                "{}/{}__{}{}.{}",
                 location,
                 format_module_id(output.test_info, &output.test_plan.module_id).replace("::", "__"),
                 function_name,
@@ -456,7 +456,8 @@ impl SharedTestingConfig {
                     format!("_seed_{}", seed)
                 } else {
                     "".to_string()
-                }
+                },
+                TRACE_FILE_EXTENSION,
             );
             if let Err(e) = test_run_info.save_trace(&trace_file_location) {
                 eprintln!("Unable to save trace to {trace_file_location} -- {:?}", e);
