@@ -869,13 +869,13 @@ impl TransactionManager {
 impl ExecutionSchedulerAPI for TransactionManager {
     fn enqueue_impl(
         &self,
-        certs: Vec<(
+        transactions: Vec<(
             VerifiedExecutableTransaction,
             Option<TransactionEffectsDigest>,
         )>,
         epoch_store: &Arc<AuthorityPerEpochStore>,
     ) {
-        TransactionManager::enqueue_impl(self, certs, epoch_store)
+        TransactionManager::enqueue_impl(self, transactions, epoch_store)
     }
 
     fn check_execution_overload(
@@ -886,7 +886,7 @@ impl ExecutionSchedulerAPI for TransactionManager {
         TransactionManager::check_execution_overload(self, overload_config, tx_data)
     }
 
-    fn num_pending_certificates(&self) -> usize {
+    fn num_pending_transactions(&self) -> usize {
         self.inflight_queue_len()
     }
 }

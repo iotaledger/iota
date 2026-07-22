@@ -612,7 +612,7 @@ impl ValidatorService {
                 num_inflight_execution_transactions: self
                     .state
                     .execution_scheduler()
-                    .num_pending_certificates()
+                    .num_pending_transactions()
                     as u64,
                 num_inflight_consensus_transactions: self
                     .consensus_adapter

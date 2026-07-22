@@ -126,7 +126,7 @@ async fn execution_scheduler_waits_for_missing_owned_input() {
     // The scheduler must NOT release the transaction while its input is missing.
     sleep(Duration::from_secs(1)).await;
     assert!(rx_ready_transactions.try_recv().is_err());
-    assert_eq!(execution_scheduler.num_pending_certificates(), 1);
+    assert_eq!(execution_scheduler.num_pending_transactions(), 1);
 
     // Make the owned object available at the awaited version. The scheduler's
     // readiness check keys on (id, version) only, so a fresh object at that
@@ -151,9 +151,9 @@ async fn execution_scheduler_waits_for_missing_owned_input() {
     // gauge is held by the ready certificate's `ExecutingGuard` until execution
     // completes. Dropping it must return the count to 0 — pins the RAII gauge
     // accounting that feeds overload admission.
-    assert_eq!(execution_scheduler.num_pending_certificates(), 1);
+    assert_eq!(execution_scheduler.num_pending_transactions(), 1);
     drop(ready);
-    assert_eq!(execution_scheduler.num_pending_certificates(), 0);
+    assert_eq!(execution_scheduler.num_pending_transactions(), 0);
 }
 
 /// A transaction whose own input is only the (available) gas object, but whose
@@ -196,7 +196,7 @@ async fn assert_awaits_authenticator_input(
         rx_ready_transactions.try_recv().is_err(),
         "{who} dispatched before its authenticator's shared input became available"
     );
-    assert_eq!(scheduler.num_pending_certificates(), 1);
+    assert_eq!(scheduler.num_pending_transactions(), 1);
 
     make_shared_input_available();
     let ready = rx_ready_transactions.recv().await.unwrap();
@@ -336,7 +336,7 @@ async fn execution_scheduler_releases_all_waiters_on_one_object() {
     // None are ready while the shared object version is missing.
     sleep(Duration::from_secs(1)).await;
     assert!(rx_ready_transactions.try_recv().is_err());
-    assert_eq!(execution_scheduler.num_pending_certificates(), txns.len());
+    assert_eq!(execution_scheduler.num_pending_transactions(), txns.len());
 
     // Make the shared object available at the awaited version: all three release.
     let new_shared_object = Object::with_id_owner_version_for_testing(
@@ -359,9 +359,9 @@ async fn execution_scheduler_releases_all_waiters_on_one_object() {
     assert_eq!(want, got);
 
     // All three are now executing; dropping them returns the gauge to 0.
-    assert_eq!(execution_scheduler.num_pending_certificates(), txns.len());
+    assert_eq!(execution_scheduler.num_pending_transactions(), txns.len());
     drop(ready);
-    assert_eq!(execution_scheduler.num_pending_certificates(), 0);
+    assert_eq!(execution_scheduler.num_pending_transactions(), 0);
 }
 
 /// When executing from a checkpoint the scheduler is handed a certified
@@ -466,7 +466,7 @@ async fn execution_scheduler_awaits_all_missing_inputs() {
 
     sleep(Duration::from_secs(1)).await;
     assert!(rx_ready_transactions.try_recv().is_err());
-    assert_eq!(execution_scheduler.num_pending_certificates(), 1);
+    assert_eq!(execution_scheduler.num_pending_transactions(), 1);
 
     // Writing only the FIRST input must NOT release the transaction.
     let a_ready = Object::with_id_owner_version_for_testing(
@@ -482,7 +482,7 @@ async fn execution_scheduler_awaits_all_missing_inputs() {
         rx_ready_transactions.try_recv().is_err(),
         "transaction released before its second input became available"
     );
-    assert_eq!(execution_scheduler.num_pending_certificates(), 1);
+    assert_eq!(execution_scheduler.num_pending_transactions(), 1);
 
     // Writing the SECOND input releases it exactly once.
     let b_ready = Object::with_id_owner_version_for_testing(
@@ -523,7 +523,7 @@ async fn enqueue_wrong_epoch_transaction_is_dropped() {
     // one must be filtered out and leave no pending or ready work behind.
     sleep(Duration::from_secs(1)).await;
     assert!(rx_ready_transactions.try_recv().is_err());
-    assert_eq!(execution_scheduler.num_pending_certificates(), 0);
+    assert_eq!(execution_scheduler.num_pending_transactions(), 0);
 }
 
 /// The `ExecutionScheduler` keeps no per-epoch state to reset explicitly: it
@@ -571,7 +571,7 @@ async fn execution_scheduler_reconfigure_clears_pending_and_overload() {
 
     // Both sit pending, and the overload tracker reports the object as congested.
     sleep(Duration::from_secs(1)).await;
-    assert_eq!(execution_scheduler.num_pending_certificates(), txns.len());
+    assert_eq!(execution_scheduler.num_pending_transactions(), txns.len());
     let overload_config = AuthorityOverloadConfig {
         max_transaction_manager_per_object_queue_length: txns.len(),
         ..Default::default()
@@ -592,7 +592,7 @@ async fn execution_scheduler_reconfigure_clears_pending_and_overload() {
     // drop, clearing both the pending gauge and the overload tracker.
     state.epoch_store_for_testing().epoch_terminated().await;
 
-    assert_eq!(execution_scheduler.num_pending_certificates(), 0);
+    assert_eq!(execution_scheduler.num_pending_transactions(), 0);
     assert!(rx_ready_transactions.try_recv().is_err());
     assert!(
         execution_scheduler

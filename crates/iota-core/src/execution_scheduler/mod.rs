@@ -82,7 +82,7 @@ pub struct ExecutingGuard {
 pub(crate) trait ExecutionSchedulerAPI {
     fn enqueue_impl(
         &self,
-        certs: Vec<(
+        transactions: Vec<(
             VerifiedExecutableTransaction,
             Option<TransactionEffectsDigest>,
         )>,
@@ -91,23 +91,23 @@ pub(crate) trait ExecutionSchedulerAPI {
 
     fn enqueue(
         &self,
-        certs: Vec<VerifiedExecutableTransaction>,
+        transactions: Vec<VerifiedExecutableTransaction>,
         epoch_store: &Arc<AuthorityPerEpochStore>,
     ) {
-        let certs = certs.into_iter().map(|cert| (cert, None)).collect();
-        self.enqueue_impl(certs, epoch_store)
+        let transactions = transactions.into_iter().map(|txn| (txn, None)).collect();
+        self.enqueue_impl(transactions, epoch_store)
     }
 
     fn enqueue_with_expected_effects_digest(
         &self,
-        certs: Vec<(VerifiedExecutableTransaction, TransactionEffectsDigest)>,
+        transactions: Vec<(VerifiedExecutableTransaction, TransactionEffectsDigest)>,
         epoch_store: &Arc<AuthorityPerEpochStore>,
     ) {
-        let certs = certs
+        let transactions = transactions
             .into_iter()
-            .map(|(cert, fx)| (cert, Some(fx)))
+            .map(|(txn, fx)| (txn, Some(fx)))
             .collect();
-        self.enqueue_impl(certs, epoch_store)
+        self.enqueue_impl(transactions, epoch_store)
     }
 
     /// Enqueues certificates / verified transactions. Once all of the input
@@ -135,7 +135,7 @@ pub(crate) trait ExecutionSchedulerAPI {
     ) -> IotaResult;
 
     /// Returns the number of transactions pending or being executed right now.
-    fn num_pending_certificates(&self) -> usize;
+    fn num_pending_transactions(&self) -> usize;
 }
 
 // The `TransactionManager` variant is much larger than `ExecutionScheduler`,

@@ -7043,7 +7043,7 @@ async fn test_post_consensus_white_flag_survivor_executes_execution_scheduler() 
 
 /// Under `ExecutionScheduler`, a transaction that has been dispatched to the
 /// execution driver but is still executing must be counted by
-/// `num_pending_certificates()` — the value that feeds overload admission —
+/// `num_pending_transactions()` — the value that feeds overload admission —
 /// exactly as the legacy `TransactionManager` counts it.
 ///
 /// This holds only if the scheduler's `ExecutingGuard` is kept alive for the
@@ -7124,7 +7124,7 @@ async fn execution_scheduler_counts_executing_transaction() {
         .expect("transaction did not reach execution within 20s");
 
     // Dispatched but not finished, so it must still be counted.
-    let count = authority.execution_scheduler().num_pending_certificates();
+    let count = authority.execution_scheduler().num_pending_transactions();
 
     // Release execution and let it finish before asserting, so the fail point is
     // always cleared even if the assertion below fails.
@@ -7143,7 +7143,7 @@ async fn execution_scheduler_counts_executing_transaction() {
     assert!(
         count >= 1,
         "an executing (dispatched, not-yet-finished) transaction must be counted by \
-         num_pending_certificates(); got {count}. If 0, the scheduler dropped its \
+         num_pending_transactions(); got {count}. If 0, the scheduler dropped its \
          ExecutingGuard at dispatch instead of holding it through execution."
     );
 }
@@ -7152,7 +7152,7 @@ async fn execution_scheduler_counts_executing_transaction() {
 /// must be dropped when the epoch is terminated — the execution runs inside
 /// `within_alive_epoch`, so cancelling it releases the guard even though the
 /// transaction never finishes. Otherwise the executing gauge (the second half
-/// of `num_pending_certificates()`) would leak into the next epoch and
+/// of `num_pending_transactions()`) would leak into the next epoch and
 /// permanently inflate overload admission. This is an
 /// ExecutionScheduler-specific failure mode: the TransactionManager reads live
 /// `Inner` state and cannot leak a guard.
@@ -7219,7 +7219,7 @@ async fn execution_scheduler_drops_executing_guard_on_epoch_termination() {
         .await
         .expect("transaction did not reach execution within 20s");
     assert!(
-        authority.execution_scheduler().num_pending_certificates() >= 1,
+        authority.execution_scheduler().num_pending_transactions() >= 1,
         "the in-flight transaction must be counted before epoch termination"
     );
 
@@ -7228,7 +7228,7 @@ async fn execution_scheduler_drops_executing_guard_on_epoch_termination() {
     // futures have been cancelled, so the count is 0 synchronously afterward.
     epoch_store.epoch_terminated().await;
     assert_eq!(
-        authority.execution_scheduler().num_pending_certificates(),
+        authority.execution_scheduler().num_pending_transactions(),
         0,
         "epoch termination must drop the ExecutingGuard of an in-flight transaction; a leaked \
          gauge would carry false in-flight work into the next epoch"
@@ -7329,17 +7329,17 @@ async fn duplicate_enqueue_executes_once(use_execution_scheduler: bool) {
     // executing gauge return to 0 once the second attempt observes the first's
     // effects and drops its guard. Poll to let that settle (assert on the gauge,
     // not the executed-transactions counter, which can momentarily race to 2).
-    let mut count = authority.execution_scheduler().num_pending_certificates();
+    let mut count = authority.execution_scheduler().num_pending_transactions();
     for _ in 0..200 {
         if count == 0 {
             break;
         }
         tokio::time::sleep(std::time::Duration::from_millis(10)).await;
-        count = authority.execution_scheduler().num_pending_certificates();
+        count = authority.execution_scheduler().num_pending_transactions();
     }
     assert_eq!(
         count, 0,
-        "a duplicate enqueue must not leave in-flight work behind; num_pending_certificates()={count}"
+        "a duplicate enqueue must not leave in-flight work behind; num_pending_transactions()={count}"
     );
 }
 

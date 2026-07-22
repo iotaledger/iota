@@ -52,7 +52,7 @@ pub async fn execution_process(
                     executing_guard = pending_tx.executing_guard;
                 } else {
                     // Should only happen after the AuthorityState has shut down and
-                    // tx_ready_transaction has been dropped by TransactionManager.
+                    // the scheduler has dropped its tx_ready_transactions sender.
                     info!("No more transaction will be received. Exiting executor ...");
                     return;
                 };
@@ -115,10 +115,11 @@ pub async fn execution_process(
         spawn_monitored_task!(epoch_store.within_alive_epoch(async move {
             let _scope = monitored_scope("ExecutionDriver::task");
             let _guard = permit;
-            // Held for the whole execution (not dropped right after dispatch as
-            // upstream SUI does): IOTA's `num_pending_certificates` counts
-            // executing certs, matching the legacy TransactionManager, so this
-            // keeps the two schedulers consistent. Dropped on completion or
+            // Held for the whole execution, not dropped right at dispatch:
+            // `num_pending_transactions` counts executing transactions as well
+            // as pending ones, so holding the guard until execution finishes
+            // keeps that count (and the overload-admission threshold it feeds)
+            // consistent across both schedulers. Dropped on completion or
             // cancellation, decrementing the executing gauge.
             let _executing_guard = executing_guard;
             if let Ok(true) = authority.try_is_tx_already_executed(&digest) {

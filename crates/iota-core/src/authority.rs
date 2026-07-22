@@ -354,12 +354,12 @@ pub struct AuthorityMetrics {
     // until it starts executing.
     pub execution_queueing_latency: LatencyObserver,
 
-    // Tracks the rate of transactions become ready for execution in transaction manager.
-    // The need for the Mutex is that the tracker is updated in transaction manager and read
-    // in the overload_monitor. There should be low mutex contention because
-    // transaction manager is single threaded and the read rate in overload_monitor is
-    // low. In the case where transaction manager becomes multi-threaded, we can
-    // create one rate tracker per thread.
+    // Tracks the rate at which transactions become ready for execution in the
+    // scheduler. The need for the Mutex is that the tracker is updated in the
+    // scheduler and read in the overload_monitor. There should be low mutex
+    // contention because the update side is effectively single threaded and the
+    // read rate in overload_monitor is low. If the update side becomes
+    // multi-threaded, we can create one rate tracker per thread.
     pub txn_ready_rate_tracker: Arc<Mutex<RateTracker>>,
 
     // Tracks the rate of transactions starts execution in execution driver.
@@ -1269,7 +1269,7 @@ impl AuthorityState {
     /// post-consensus.
     ///
     /// In certificate mode: runs all checks — authority overload
-    /// (execution latency), transaction manager (execution queue),
+    /// (execution latency), the execution scheduler (execution queue),
     /// consensus adapter (queue limit), and writeback cache backpressure.
     pub(crate) fn check_system_overload(
         &self,
@@ -3502,8 +3502,7 @@ impl AuthorityState {
         self.execution_scheduler.uses_execution_scheduler()
     }
 
-    /// Adds transactions / certificates to transaction manager for ordered
-    /// execution.
+    /// Adds transactions to the execution scheduler for ordered execution.
     pub fn enqueue_transactions_for_execution(
         &self,
         transactions: Vec<VerifiedExecutableTransaction>,
@@ -3512,7 +3511,7 @@ impl AuthorityState {
         self.execution_scheduler.enqueue(transactions, epoch_store)
     }
 
-    /// Adds certificates to transaction manager for ordered execution.
+    /// Adds certificates to the execution scheduler for ordered execution.
     pub fn enqueue_certificates_for_execution(
         &self,
         certs: Vec<VerifiedCertificate>,
@@ -5997,7 +5996,7 @@ impl RandomnessRoundReceiver {
             .get_cache_commit()
             .persist_transaction(&transaction);
 
-        // Send transaction to TransactionManager for execution.
+        // Send transaction to the execution scheduler for execution.
         self.authority_state
             .execution_scheduler()
             .enqueue(vec![transaction], &epoch_store);

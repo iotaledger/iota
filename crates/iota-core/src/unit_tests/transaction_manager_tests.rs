@@ -105,7 +105,7 @@ async fn transaction_manager_reconfigure_drops_all_pending_and_executing_state()
     // method that feeds overload admission (today a plain delegation — asserting
     // both pins that relationship should either implementation change).
     assert_eq!(transaction_manager.inflight_queue_len(), 0);
-    assert_eq!(transaction_manager.num_pending_certificates(), 0);
+    assert_eq!(transaction_manager.num_pending_transactions(), 0);
 }
 
 #[tokio::test(flavor = "current_thread", start_paused = true)]
