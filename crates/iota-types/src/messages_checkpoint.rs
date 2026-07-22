@@ -13,8 +13,7 @@ use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
     CheckpointContentsDigest, CheckpointContentsV1, CheckpointDigest, Digest, RandomnessRound,
     checkpoint::{
-        CheckpointCommitment, CheckpointContents, CheckpointSummary, CheckpointTransactionInfo,
-        EndOfEpochData,
+        CheckpointContents, CheckpointSummary, CheckpointTransactionInfo, EndOfEpochData,
     },
     crypto::{Intent, IntentScope, UserSignature},
     gas::GasCostSummary,
