@@ -15,7 +15,7 @@ use iota_sdk_types::{
 use iota_types::{
     crypto::Signature,
     move_authenticator::MoveAuthenticatorV1,
-    signature::GenericSignature,
+    signature::UserSignature,
     transaction::{CallArg, TransactionData},
 };
 use serde::Serialize;
@@ -73,7 +73,7 @@ pub(crate) async fn sign_transaction(
     tx_data: &TransactionData,
     signer_address: &Address,
     auth_args: Option<(Vec<CallArg>, Vec<TypeTag>)>,
-) -> Result<GenericSignature> {
+) -> Result<UserSignature> {
     let iota_client = context.get_client().await?;
     let key = context.config().keystore().get_key(signer_address)?;
 
@@ -89,7 +89,7 @@ pub(crate) async fn sign_transaction(
             let initial_shared_version =
                 get_shared_object_version(&iota_client, signer_address).await?;
 
-            Ok(GenericSignature::MoveAuthenticator(
+            Ok(UserSignature::MoveAuthenticator(
                 MoveAuthenticatorV1::new_with_shared_account_object(
                     auth_call_args,
                     auth_type_args,

@@ -13,10 +13,10 @@
 //! - `iota-grpc-server` can consume them without depending on `iota-core`
 //! - `simulacrum` and other test harnesses can implement them freely
 
-use iota_sdk_types::{Address, ObjectId, StructTag, TypeTag};
+use iota_sdk_types::{Address, ObjectId, StructTag, TransactionDigest, TypeTag};
 use iota_types::{
     base_types::EpochId,
-    digests::{ChainIdentifier, TransactionDigest},
+    digests::ChainIdentifier,
     messages_checkpoint::{CheckpointSequenceNumber, VerifiedCheckpoint},
     storage::{
         CoinInfo, DynamicFieldIteratorItem, EpochInfoV2, ObjectStore, OwnedObjectCursor,

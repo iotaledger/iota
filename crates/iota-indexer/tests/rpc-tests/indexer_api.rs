@@ -23,7 +23,9 @@ use iota_json_rpc_types::{
     IotaTransactionBlockResponseQueryV2, IotaTransactionKind, ObjectsPage, TransactionFilter,
     TransactionFilterV2,
 };
-use iota_sdk_types::{Address, Command, Identifier, ObjectId, StructTag, TypeTag};
+use iota_sdk_types::{
+    Address, Command, Identifier, ObjectId, StructTag, TransactionDigest, TypeTag,
+};
 use iota_test_transaction_builder::{TestTransactionBuilder, split_coin_equal_tx};
 use iota_types::{
     crypto::{AccountKeyPair, get_key_pair},
@@ -1101,7 +1103,7 @@ fn test_query_transaction_blocks_from_or_to_address() -> Result<(), anyhow::Erro
 
 async fn assert_paginated_filtered_transactions(
     client: &HttpClient,
-    expected_transactions_digests: &[iota_types::digests::TransactionDigest],
+    expected_transactions_digests: &[TransactionDigest],
     filter: TransactionFilter,
     page_size: usize,
 ) -> Result<(), IndexerError> {
@@ -1141,7 +1143,7 @@ async fn assert_paginated_filtered_transactions(
 
 async fn assert_paginated_transactions_ascending(
     client: &HttpClient,
-    expected_transactions_digests: &[iota_types::digests::TransactionDigest],
+    expected_transactions_digests: &[TransactionDigest],
     filter: &TransactionFilter,
     page_size: usize,
 ) -> Result<(), IndexerError> {
@@ -1183,7 +1185,7 @@ async fn assert_paginated_transactions_ascending(
 
 async fn assert_paginated_transactions_descending(
     client: &HttpClient,
-    expected_transactions_digests: &[iota_types::digests::TransactionDigest],
+    expected_transactions_digests: &[TransactionDigest],
     filter: &TransactionFilter,
     page_size: usize,
 ) -> Result<(), IndexerError> {

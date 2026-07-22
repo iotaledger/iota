@@ -11,26 +11,25 @@ use iota_sdk_crypto::{
     secp256r1::Secp256r1PrivateKey,
 };
 use iota_sdk_types::{
-    Address, Argument, ChangeEpoch, Command, CommandArgumentError, ConsensusCommitPrologueV1,
+    Address, Argument, ChangeEpoch, CheckpointContentsDigest, CheckpointDigest, Command,
+    CommandArgumentError, ConsensusCommitDigest, ConsensusCommitPrologueV1,
     ConsensusDeterminedVersionAssignments, EndOfEpochTransactionKind, Event, ExecutionError,
     ExecutionStatus, GenesisObject, GenesisTransaction, Identifier, MoveLocation, MoveObjectType,
-    ObjectData, ObjectId, ObjectReference, Owner, PackageUpgradeError, ProgrammableTransaction,
-    RandomnessStateUpdate, SharedObjectReference, SimpleSignature, StructTag,
-    TransactionExpiration, TransactionKind, TypeArgumentError, TypeTag, UnchangedSharedKind,
+    ObjectData, ObjectDigest, ObjectId, ObjectReference, Owner, PackageUpgradeError,
+    ProgrammableTransaction, RandomnessStateUpdate, SharedObjectReference, SimpleSignature,
+    StructTag, TransactionDigest, TransactionEffectsDigest, TransactionExpiration, TransactionKind,
+    TypeArgumentError, TypeTag, UnchangedSharedKind,
     crypto::{Intent, IntentMessage, PersonalMessage},
     move_package::{MovePackage, TypeOrigin, UpgradeInfo},
     validator::ValidatorCommitteeMember,
 };
 use iota_types::{
-    base_types::{
-        ExecutionData, ExecutionDigests, ObjectDigest, TransactionDigest, TransactionEffectsDigest,
-    },
+    base_types::{ExecutionData, ExecutionDigests},
     crypto::{
         AccountKeyPair, AggregateAuthoritySignature, AuthorityKeyPair, AuthorityPublicKeyBytes,
-        AuthorityQuorumSignInfo, AuthoritySignature, AuthorityStrongQuorumSignInfo, IotaKeyPair,
-        KeypairTraits, Signature, Signer, get_key_pair,
+        AuthorityQuorumSignInfo, AuthoritySignature, AuthorityStrongQuorumSignInfo, KeypairTraits,
+        Signature, Signer, get_key_pair,
     },
-    digests::ConsensusCommitDigest,
     effects::{
         IDOperation, ObjectIn, ObjectOut, TransactionEffects, TransactionEffectsExtForTesting,
         TransactionEvents,
@@ -38,13 +37,12 @@ use iota_types::{
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointCommitment, CheckpointContents,
-        CheckpointContentsDigest, CheckpointContentsExt, CheckpointDigest, CheckpointSummary,
-        FullCheckpointContents,
+        CheckpointContentsExt, CheckpointSummary, FullCheckpointContents,
     },
     messages_grpc::ObjectInfoRequestKind,
     multisig::{MultiSig, MultiSigPublicKey, MultisigMember},
     object::{MoveObject, MoveObjectExt, ObjectInner},
-    signature::GenericSignature,
+    signature::UserSignature,
     storage::DeleteKind,
     transaction::{CallArg, SenderSignedData, Transaction, TransactionData, TransactionDataAPI},
 };
@@ -176,14 +174,14 @@ fn get_registry() -> Result<Registry> {
     // include the PubKey ...
     let sig: AuthoritySignature = Signer::sign(&kp, b"hello world");
     tracer.trace_value(&mut samples, &sig).unwrap();
-    // ... and the user signature which does
-
-    let sig: Signature = IotaKeyPair::from(s_kp).sign(b"hello world");
-    tracer.trace_value(&mut samples, &sig).unwrap();
 
     let kp1 = Ed25519PrivateKey::generate(StdRng::from_seed([0; 32]));
     let kp2 = Secp256k1PrivateKey::generate(StdRng::from_seed([0; 32]));
     let kp3 = Secp256r1PrivateKey::generate(StdRng::from_seed([0; 32]));
+
+    // ... and the user signature which does
+    let sig: Signature = kp1.sign(b"hello world");
+    tracer.trace_value(&mut samples, &sig).unwrap();
 
     let multisig_pk = MultiSigPublicKey::new(
         vec![
@@ -216,18 +214,16 @@ fn get_registry() -> Result<Registry> {
     .unwrap();
     tracer.trace_value(&mut samples, &multi_sig).unwrap();
 
-    let generic_sig_multi = GenericSignature::MultiSig(multi_sig);
-    tracer
-        .trace_value(&mut samples, &generic_sig_multi)
-        .unwrap();
+    let user_sig_multi = UserSignature::Multisig(multi_sig);
+    tracer.trace_value(&mut samples, &user_sig_multi).unwrap();
 
-    // Seed a `GenericSignature::Signature` sample so that when the tracer
+    // Seed a `UserSignature::Simple` sample so that when the tracer
     // later deserializes `CheckpointContents.user_signatures`
-    // (`Vec<Vec<GenericSignature>>`) it has flag-0/1/2 bytes available.
+    // (`Vec<Vec<UserSignature>>`) it has flag-0/1/2 bytes available.
     // Otherwise fastcrypto's `from_bytes` rejects synthesized bytes with
     // "Invalid signature was given to the function".
     tracer
-        .trace_value(&mut samples, &GenericSignature::Signature(sig.clone()))
+        .trace_value(&mut samples, &UserSignature::Simple(sig.clone()))
         .unwrap();
 
     // `CheckpointContents` (the SDK type) has a custom (de)serializer, so the
@@ -239,7 +235,7 @@ fn get_registry() -> Result<Registry> {
             TransactionDigest::random(),
             TransactionEffectsDigest::random(),
         )],
-        vec![vec![GenericSignature::Signature(sig.clone())]],
+        vec![vec![UserSignature::Simple(sig.clone())]],
     );
     tracer
         .trace_value(&mut samples, &checkpoint_contents_sample)
@@ -578,7 +574,7 @@ fn get_registry() -> Result<Registry> {
             0,
             0,
         ),
-        vec![GenericSignature::Signature(sig1.clone())],
+        vec![UserSignature::Simple(sig1.clone())],
     );
     tracer.trace_value(&mut samples, &sender_data).unwrap();
 

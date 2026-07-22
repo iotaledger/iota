@@ -10,8 +10,8 @@ use std::{
 use anemo::{Request, Response, Result, rpc::Status, types::response::StatusCode};
 use dashmap::DashMap;
 use futures::future::BoxFuture;
+use iota_sdk_types::{CheckpointContentsDigest, CheckpointDigest};
 use iota_types::{
-    digests::{CheckpointContentsDigest, CheckpointDigest},
     messages_checkpoint::{
         CertifiedCheckpointSummary as Checkpoint, CheckpointSequenceNumber, FullCheckpointContents,
         VerifiedCheckpoint,

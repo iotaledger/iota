@@ -4,16 +4,17 @@
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 
-use iota_sdk_types::{ObjectId, SharedObjectReference, Version, VersionAssignment};
+use iota_sdk_types::{
+    ObjectId, SharedObjectReference, TransactionDigest, Version, VersionAssignment,
+};
 use iota_types::{
-    base_types::TransactionDigest,
     effects::{TransactionEffects, TransactionEffectsAPI},
     error::IotaResult,
     executable_transaction::VerifiedExecutableTransaction,
     storage::{
         ObjectKey, transaction_non_shared_input_object_keys, transaction_receiving_object_keys,
     },
-    transaction::{SenderSignedData, TransactionKey},
+    transaction::{SenderSignedData, SenderSignedTransactionAPI, TransactionKey},
 };
 use tracing::trace;
 
@@ -273,10 +274,9 @@ fn get_or_init_versions<'a>(
 mod tests {
     use std::collections::{BTreeMap, HashMap};
 
-    use iota_sdk_types::{Address, ObjectReference, RandomnessRound};
+    use iota_sdk_types::{Address, ObjectDigest, ObjectReference, RandomnessRound};
     use iota_test_transaction_builder::TestTransactionBuilder;
     use iota_types::{
-        digests::ObjectDigest,
         effects::TestEffectsBuilder,
         executable_transaction::{
             CertificateProof, ExecutableTransaction, VerifiedExecutableTransaction,

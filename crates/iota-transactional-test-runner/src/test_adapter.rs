@@ -33,9 +33,10 @@ use iota_json_rpc_types::{
 use iota_node_storage::GrpcStateReader;
 use iota_protocol_config::{Chain, ProtocolConfig};
 use iota_sdk_types::{
-    Address, Argument, Command, Event, ExecutionStatus, Identifier, MoveAuthenticatorV1,
-    ObjectData, ObjectId, ObjectReference, ProgrammableTransaction, RandomnessRound,
-    TransactionKind, TypeTag, Version, gas::GasCostSummary, move_package::MovePackage,
+    Address, Argument, CheckpointContentsDigest, CheckpointDigest, Command, ConsensusCommitDigest,
+    Event, ExecutionStatus, Identifier, MoveAuthenticatorV1, ObjectData, ObjectId, ObjectReference,
+    ProgrammableTransaction, RandomnessRound, TransactionDigest, TransactionKind, TypeTag, Version,
+    gas::GasCostSummary, move_package::MovePackage,
 };
 use iota_storage::{
     key_value_store::TransactionKeyValueStore, key_value_store_metrics::KeyValueStoreMetrics,
@@ -45,21 +46,21 @@ use iota_types::{
     base_types::{IOTA_ADDRESS_LENGTH, VersionNumber},
     committee::EpochId,
     crypto::{AccountKeyPair, get_authority_key_pair, get_key_pair_from_rng},
-    digests::{ConsensusCommitDigest, TransactionDigest},
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     iota_sdk_types_conversions::type_tag_core_to_sdk,
-    messages_checkpoint::{
-        CheckpointContents, CheckpointContentsDigest, CheckpointSequenceNumber, VerifiedCheckpoint,
-    },
+    messages_checkpoint::{CheckpointContents, CheckpointSequenceNumber, VerifiedCheckpoint},
     move_package::{
         IotaAttribute, IotaAttributeV1, IotaAttributeV2, RuntimeModuleMetadata,
         RuntimeModuleMetadataWrapper,
     },
     object::{GAS_VALUE_FOR_TESTING, MoveObjectExt, Object, bounded_visitor::BoundedVisitor},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    signature::GenericSignature,
+    signature::UserSignature,
     storage::{ObjectStore, ReadStore},
-    transaction::{CallArg, Transaction, TransactionData, TransactionDataAPI, VerifiedTransaction},
+    transaction::{
+        CallArg, SenderSignedTransactionAPI, Transaction, TransactionData, TransactionDataAPI,
+        VerifiedTransaction,
+    },
     utils::{
         to_sender_signed_transaction, to_sender_signed_transaction_with_multi_signers,
         to_sender_signed_transaction_with_optional_sponsor,
@@ -755,7 +756,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
 
                         self.stabilize_str(format!(
                             "Owner: {}\nVersion: {}\nContents: {:#}",
-                            &obj.owner,
+                            obj.owner,
                             obj.version(),
                             move_struct
                         ))
@@ -1413,7 +1414,7 @@ impl IotaTestAdapter {
         &mut self,
         authenticator_inputs: Vec<ParsedValue<IotaExtraValueArgs>>,
         account: ParsedValue<IotaExtraValueArgs>,
-    ) -> anyhow::Result<(ObjectId, GenericSignature)> {
+    ) -> anyhow::Result<(ObjectId, UserSignature)> {
         // Resolve authenticator inputs
         let auth_inputs_resolved = self.compiled_state().resolve_args(authenticator_inputs)?;
         let auth_inputs: Vec<CallArg> = auth_inputs_resolved
@@ -1432,7 +1433,7 @@ impl IotaTestAdapter {
         match &aa_call_arg {
             CallArg::ImmutableOrOwned(obj_ref) => Ok((
                 obj_ref.object_id,
-                GenericSignature::MoveAuthenticator(
+                UserSignature::MoveAuthenticator(
                     MoveAuthenticatorV1::new_with_immutable_account_object(
                         auth_inputs,
                         vec![],
@@ -1443,7 +1444,7 @@ impl IotaTestAdapter {
             )),
             CallArg::Shared(shared) => Ok((
                 shared.object_id,
-                GenericSignature::MoveAuthenticator(
+                UserSignature::MoveAuthenticator(
                     MoveAuthenticatorV1::new_with_shared_account_object(
                         auth_inputs,
                         vec![],
@@ -1466,7 +1467,7 @@ impl IotaTestAdapter {
             .compiled_state
             .named_address_mapping
             .iter()
-            .map(|(name, addr)| (name.clone(), format!("{addr:#02x}")));
+            .map(|(name, addr)| (name.clone(), format!("{addr:#04x}")));
 
         for (name, addr) in named_addrs {
             let addr = addr.to_string();
@@ -1719,7 +1720,7 @@ impl IotaTestAdapter {
         sender: &TestAccount,
         sponsor: Option<String>,
         payment: Vec<FakeID>,
-        aa_sig: Option<GenericSignature>,
+        aa_sig: Option<UserSignature>,
         txn_data: impl FnOnce(
             // sender
             Address,
@@ -2875,7 +2876,7 @@ impl ReadStore for IotaTestAdapter {
 
     fn try_get_checkpoint_by_digest(
         &self,
-        digest: &iota_types::messages_checkpoint::CheckpointDigest,
+        digest: &CheckpointDigest,
     ) -> iota_types::storage::error::Result<Option<VerifiedCheckpoint>> {
         self.executor.try_get_checkpoint_by_digest(digest)
     }

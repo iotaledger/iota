@@ -4,11 +4,8 @@
 //! gRPC-backed store (`feature = "grpc"`, native only); see [`GrpcStore`].
 
 use iota_grpc_client::Client;
-use iota_sdk_types::{Digest, ObjectId, Version};
-use iota_types::{
-    digests::{ChainIdentifier, CheckpointDigest},
-    object::Object,
-};
+use iota_sdk_types::{CheckpointDigest, Digest, ObjectId, Version};
+use iota_types::{digests::ChainIdentifier, object::Object};
 
 use crate::{
     caching::{CachingStore, ObjectFetcher},

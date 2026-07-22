@@ -29,7 +29,7 @@ use iota_config::object_storage_config::ObjectStoreConfig;
 use iota_core::authority::authority_store_tables::{
     AuthorityPerpetualTables, LiveObject, SnapshotLiveObject,
 };
-use iota_sdk_types::{ObjectId, ObjectReference, Version};
+use iota_sdk_types::{ObjectDigest, ObjectId, ObjectReference, Version};
 use iota_storage::{
     blob::{Blob, BlobEncoding},
     object_store::{
@@ -40,9 +40,7 @@ use iota_storage::{
         },
     },
 };
-use iota_types::{
-    base_types::ObjectDigest, digests::ChainIdentifier, global_state_hash::GlobalStateHash,
-};
+use iota_types::{digests::ChainIdentifier, global_state_hash::GlobalStateHash};
 use object_store::path::Path;
 use tokio::{
     sync::Mutex,

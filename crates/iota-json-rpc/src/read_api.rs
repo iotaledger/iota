@@ -28,10 +28,9 @@ use iota_package_resolver::{
     Package, PackageStore, Resolver, error::Error as PackageResolverError,
 };
 use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
-use iota_sdk_types::{Address, ObjectId, StructTag, Version};
+use iota_sdk_types::{Address, ObjectId, StructTag, TransactionDigest, Version};
 use iota_storage::key_value_store::TransactionKeyValueStore;
 use iota_types::{
-    base_types::TransactionDigest,
     collection_types::VecMap,
     display::DisplayVersionUpdatedEvent,
     effects::{
@@ -372,12 +371,7 @@ impl ReadApi {
             let mut results = vec![];
             for resp in temp_response.values() {
                 let input_objects = if let Some(tx) = resp.transaction() {
-                    tx.data()
-                        .inner()
-                        .intent_message
-                        .value
-                        .input_objects()
-                        .unwrap_or_default()
+                    tx.data().transaction().input_objects().unwrap_or_default()
                 } else {
                     // don't have the input tx, so not much we can do. perhaps this is an Err?
                     Vec::new()
@@ -427,8 +421,7 @@ impl ReadApi {
                             )
                         })?
                         .data()
-                        .intent_message()
-                        .value
+                        .transaction()
                         .sender(),
                     effects.modified_at_versions(),
                     effects.all_changed_objects(),
@@ -777,9 +770,7 @@ impl ReadApiServer for ReadApi {
             .map_err(Error::from)??;
             let input_objects = transaction
                 .data()
-                .inner()
-                .intent_message
-                .value
+                .transaction()
                 .input_objects()
                 .unwrap_or_default();
 
@@ -888,7 +879,7 @@ impl ReadApiServer for ReadApi {
                 if let (Some(effects), Some(input)) =
                     (&temp_response.effects, &temp_response.transaction)
                 {
-                    let sender = input.data().intent_message().value.sender();
+                    let sender = input.data().transaction().sender();
                     let object_changes = get_object_changes(
                         &object_cache,
                         sender,
@@ -1467,7 +1458,7 @@ mod tests {
     use std::collections::HashMap;
 
     use iota_protocol_config::ProtocolConfig;
-    use iota_sdk_types::gas::GasCostSummary;
+    use iota_sdk_types::{CheckpointDigest, TransactionEffectsDigest, gas::GasCostSummary};
     use iota_storage::{
         key_value_store::{
             KVStoreCheckpointData, KVStoreTransactionData, TransactionKeyValueStoreTrait,
@@ -1477,13 +1468,12 @@ mod tests {
     use iota_types::{
         base_types::ExecutionDigests,
         crypto::AuthorityStrongQuorumSignInfo,
-        digests::TransactionEffectsDigest,
         effects::TransactionEvents,
         error::IotaResult,
         message_envelope::Envelope,
         messages_checkpoint::{
             CertifiedCheckpointSummary, CheckpointContents, CheckpointContentsExt,
-            CheckpointDigest, CheckpointSummary, CheckpointSummaryExt,
+            CheckpointSummary, CheckpointSummaryExt,
         },
         object::Object,
         storage::ObjectKey,

@@ -14,14 +14,13 @@ use std::{
 use async_trait::async_trait;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    Address, ObjectId, ObjectReference, RandomnessStateUpdate, TransactionKind, Version,
-    gas::GasCostSummary,
+    Address, ObjectDigest, ObjectId, ObjectReference, RandomnessStateUpdate, TransactionKind,
+    Version, gas::GasCostSummary,
 };
 use iota_storage::blob::{Blob, BlobEncoding};
 use iota_types::{
     committee::EpochId,
     crypto::KeypairTraits,
-    digests::ObjectDigest,
     effects::{TransactionEffects, TransactionEffectsExtForTesting},
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     messages_checkpoint::{

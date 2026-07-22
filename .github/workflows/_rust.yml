@@ -51,8 +51,10 @@ jobs:
       isRustExample: ${{ inputs.isRustExample }}
       isNightly: ${{ inputs.isNightly }}
 
+  # Only feeds rust-tests, which doesn't run on pull_request events (below).
   crates-changes:
     needs: rust-lints
+    if: (!cancelled() && !failure() && github.event_name != 'pull_request')
     runs-on: [self-hosted-x64]
     outputs:
       components: ${{ steps.filter.outputs.changes }}
@@ -66,10 +68,11 @@ jobs:
           list-files: "json"
           filters: .github/crates-filters.yml
 
+  # Only feeds rust-tests, which doesn't run on pull_request events (below).
   external-changes:
     needs: rust-lints
     runs-on: [self-hosted-x64]
-    if: (!cancelled() && !failure())
+    if: (!cancelled() && !failure() && github.event_name != 'pull_request')
     outputs:
       components: ${{ steps.filter.outputs.changes }}
     steps:
@@ -82,8 +85,12 @@ jobs:
           list-files: "json"
           filters: .github/external-crates-filters.yml
 
+  # Heavy chain (tests + simtests): not on pull_request events — PRs get
+  # these in the merge queue (merge_group) via `heavy-tests-status` in
+  # hierarchy.yml. Pushes to long-lived branches are unchanged; nightly
+  # calls _rust_tests.yml directly and is unaffected.
   rust-tests:
-    if: (!cancelled() && !failure() && (inputs.isRust || inputs.isPgIntegration || inputs.isMoveExampleUsedByOthers))
+    if: (!cancelled() && !failure() && github.event_name != 'pull_request' && (inputs.isRust || inputs.isPgIntegration || inputs.isMoveExampleUsedByOthers))
     needs:
       - crates-changes
       - external-changes

@@ -20,8 +20,7 @@ use iota_network::{
     DEFAULT_CONNECT_TIMEOUT_SEC, DEFAULT_REQUEST_TIMEOUT_SEC, default_iota_network_config,
 };
 use iota_network_stack::config::Config;
-use iota_sdk_types::{ObjectId, ObjectReference};
-use iota_swarm_config::network_config::NetworkConfig;
+use iota_sdk_types::{ObjectId, ObjectReference, TransactionDigest, TransactionEffectsDigest};
 use iota_types::{
     base_types::*,
     committee::{Committee, CommitteeTrait, CommitteeWithNetworkMetadata, StakeUnit},
@@ -1102,10 +1101,7 @@ where
             tx_digest = ?tx_digest,
             "Broadcasting transaction request to authorities"
         );
-        trace!(
-            "Transaction data: {:?}",
-            transaction.data().intent_message().value
-        );
+        trace!("Transaction data: {:?}", transaction.data().transaction());
         let committee = self.committee.clone();
         let state = ProcessTransactionState {
             tx_signatures: StakeAggregator::new(committee.clone()),
@@ -2050,7 +2046,6 @@ where
 /// customizable configurations for the IOTA network.
 #[derive(Default)]
 pub struct AuthorityAggregatorBuilder<'a> {
-    network_config: Option<&'a NetworkConfig>,
     genesis: Option<&'a Genesis>,
     committee: Option<Committee>,
     committee_store: Option<Arc<CommitteeStore>>,
@@ -2059,14 +2054,6 @@ pub struct AuthorityAggregatorBuilder<'a> {
 }
 
 impl<'a> AuthorityAggregatorBuilder<'a> {
-    /// Creates a new `AuthorityAggregatorBuilder` from a `NetworkConfig`.
-    pub fn from_network_config(config: &'a NetworkConfig) -> Self {
-        Self {
-            network_config: Some(config),
-            ..Default::default()
-        }
-    }
-
     /// Creates a new `AuthorityAggregatorBuilder` from a `Genesis`.
     pub fn from_genesis(genesis: &'a Genesis) -> Self {
         Self {
@@ -2110,14 +2097,9 @@ impl<'a> AuthorityAggregatorBuilder<'a> {
     }
 
     fn get_network_committee(&self) -> CommitteeWithNetworkMetadata {
-        let genesis = if let Some(network_config) = self.network_config {
-            &network_config.genesis
-        } else if let Some(genesis) = self.genesis {
-            genesis
-        } else {
-            panic!("need either NetworkConfig or Genesis.");
-        };
-        genesis.committee_with_network()
+        self.genesis
+            .expect("need a Genesis.")
+            .committee_with_network()
     }
 
     fn get_committee(&self) -> Committee {

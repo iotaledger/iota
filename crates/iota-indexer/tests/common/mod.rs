@@ -39,9 +39,10 @@ use iota_json_rpc_types::{
 };
 use iota_metrics::init_metrics;
 use iota_move_build::BuildConfig;
+use iota_sdk_types::TransactionDigest;
 use iota_types::{
-    crypto::IotaKeyPair, digests::TransactionDigest,
-    quorum_driver_types::ExecuteTransactionRequestType, utils::to_sender_signed_transaction,
+    crypto::IotaKeyPair, quorum_driver_types::ExecuteTransactionRequestType,
+    utils::to_sender_signed_transaction,
 };
 use jsonrpsee::{
     http_client::{HttpClient, HttpClientBuilder},
@@ -567,7 +568,10 @@ pub async fn publish_test_move_package(
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     path.extend(["tests", "data", test_package_name]);
 
-    let compiled_package = BuildConfig::new_for_testing().build(&path).unwrap();
+    let compiled_package = BuildConfig::new_for_testing()
+        .with_allow_view_function()
+        .build(&path)
+        .unwrap();
     let with_unpublished_deps = false;
     let compiled_modules_bytes = compiled_package.get_package_base64(with_unpublished_deps);
     let dependencies = compiled_package.get_dependency_storage_package_ids();

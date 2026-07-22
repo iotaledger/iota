@@ -2,14 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::{ObjectId, ObjectReference, Version};
+use iota_sdk_types::{ObjectDigest, ObjectId, ObjectReference, TransactionDigest, Version};
 use iota_types::{
-    balance::Supply,
-    base_types::{ObjectDigest, TransactionDigest},
-    coin::CoinMetadata,
-    error::IotaError,
-    messages_checkpoint::CheckpointSequenceNumber,
-    object::Object,
+    balance::Supply, coin::CoinMetadata, error::IotaError,
+    messages_checkpoint::CheckpointSequenceNumber, object::Object,
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};

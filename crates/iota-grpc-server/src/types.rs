@@ -16,10 +16,11 @@ use iota_grpc_types::{
     },
 };
 use iota_node_storage::GrpcStateReader;
-use iota_sdk_types::{Address, ObjectId, StructTag, TypeTag, Version};
+use iota_sdk_types::{
+    Address, CheckpointDigest, ObjectId, StructTag, TransactionDigest, TypeTag, Version,
+};
 use iota_types::{
     base_types::VersionNumber,
-    digests::TransactionDigest,
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     full_checkpoint_content::{
         CheckpointData as IotaTypesCheckpointData,
@@ -332,7 +333,7 @@ impl GrpcReader {
     /// Get checkpoint sequence number by digest
     pub fn get_checkpoint_sequence_number_by_digest(
         &self,
-        digest: &iota_types::digests::CheckpointDigest,
+        digest: &CheckpointDigest,
     ) -> anyhow::Result<Option<u64>> {
         self.state_reader
             .try_get_checkpoint_by_digest(digest)
@@ -1151,18 +1152,11 @@ impl GrpcReader {
                 .ok_or(crate::error::TransactionNotFoundError(*digest))?;
 
             let transaction_data = (fields.include_transaction || fields.include_object_changes)
-                .then(|| transaction.transaction_data().clone());
+                .then(|| transaction.transaction().clone());
 
             let signatures_data = fields
                 .include_signatures
-                .then(|| {
-                    transaction
-                        .tx_signatures()
-                        .iter()
-                        .map(|sig| sig.clone().try_into())
-                        .collect::<Result<Vec<_>, _>>()
-                })
-                .transpose()?;
+                .then(|| transaction.signatures().to_owned());
 
             (transaction_data, signatures_data)
         } else {
@@ -1418,7 +1412,7 @@ impl Merge<CheckpointTransactionWithContext>
         if mask.subtree(Self::OBJECT_CHANGES_FIELD.name).is_some() {
             use iota_types::transaction::TransactionDataAPI as _;
 
-            let sender = source.transaction.transaction.transaction_data().sender();
+            let sender = source.transaction.transaction.transaction().sender();
             self.object_changes = Some(
                 iota_grpc_types::v1::transaction::ObjectChanges::default().with_object_changes(
                     crate::changes::derive_object_changes(

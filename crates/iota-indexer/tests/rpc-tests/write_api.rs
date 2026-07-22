@@ -1473,6 +1473,32 @@ fn move_view_function_call() {
             view_results.into_return_values(),
             vec![IotaMoveValue::Bool(true)]
         );
+
+        // Test that a public function without the #[view] attribute is rejected.
+        let fn_name = format!(
+            "{}::wat_counter::get_counter_not_view",
+            object_ref.object_id
+        );
+        let err = client
+            .view_function_call(fn_name, None, vec![call_arg!(review_id).unwrap()])
+            .await
+            .unwrap_err();
+        assert!(
+            err.to_string()
+                .contains("is not declared as a #[view] function"),
+            "{err}"
+        );
+
+        // Test that a nonexistent module is rejected.
+        let fn_name = format!("{}::nonexistent_module::get_counter", object_ref.object_id);
+        let err = client
+            .view_function_call(fn_name, None, vec![])
+            .await
+            .unwrap_err();
+        assert!(
+            err.to_string().contains("Module not found in package"),
+            "{err}"
+        );
     });
 }
 

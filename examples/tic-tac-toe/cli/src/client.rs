@@ -26,7 +26,6 @@ use iota_types::{
     crypto::PublicKey,
     multisig::{MultiSig, MultiSigPublicKey},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    signature::GenericSignature,
     transaction::{
         CallArg, InputObjectKind, Transaction, TransactionData, TransactionDataAPI,
         TransactionKindExt,
@@ -713,7 +712,7 @@ impl Client {
         admin_key: MultiSigPublicKey,
         data: TransactionData,
     ) -> Result<Transaction> {
-        let sponsor_sig: GenericSignature = self
+        let sponsor_sig: UserSignature = self
             .wallet
             .config()
             .keystore()
@@ -721,16 +720,11 @@ impl Client {
             .context("Signing transaction")?
             .into();
 
-        let member_sig: UserSignature = sponsor_sig
-            .clone()
-            .try_into()
-            .context("Converting sponsor signature for multisig")?;
-
-        let multi_sig: GenericSignature = MultiSig::new(vec![member_sig], admin_key)
+        let multi_sig: UserSignature = MultiSig::new(vec![sponsor_sig.clone()], admin_key)
             .context("Signing as admin")?
             .into();
 
-        Ok(Transaction::from_generic_sig_data(
+        Ok(Transaction::from_user_sig_data(
             data,
             vec![multi_sig, sponsor_sig],
         ))

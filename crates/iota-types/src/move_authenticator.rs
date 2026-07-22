@@ -8,11 +8,10 @@ use iota_sdk_types::{
     Address, ObjectId, ObjectReference, SharedObjectReference, TypeTag, Version,
     crypto::IntentMessage,
 };
-pub use iota_sdk_types::{MoveAuthenticator, MoveAuthenticatorV1};
+pub use iota_sdk_types::{MoveAuthenticator, MoveAuthenticatorV1, ObjectDigest};
 use serde::Serialize;
 
 use crate::{
-    digests::ObjectDigest,
     error::{IotaError, IotaResult, UserInputError, UserInputResult},
     signature::{AuthenticatorTrait, VerifyParams},
     transaction::{CallArg, CallArgExt, InputObjectKind},

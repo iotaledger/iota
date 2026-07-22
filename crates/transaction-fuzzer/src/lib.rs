@@ -13,10 +13,9 @@ use std::fmt::Debug;
 
 use executor::Executor;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{Address, GasPayment, ObjectId, Owner};
+use iota_sdk_types::{Address, GasPayment, ObjectId, Owner, TransactionDigest};
 use iota_types::{
     crypto::{AccountKeyPair, get_key_pair},
-    digests::TransactionDigest,
     gas_coin::NANOS_PER_IOTA,
     object::{MoveObject, MoveObjectExt, OBJECT_START_VERSION, Object},
 };

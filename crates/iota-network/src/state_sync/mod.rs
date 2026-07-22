@@ -71,9 +71,9 @@ use anemo::{PeerId, Request, Response, Result, types::PeerEvent};
 use anyhow::{anyhow, bail};
 use futures::{FutureExt, StreamExt, stream::FuturesOrdered};
 use iota_config::p2p::StateSyncConfig;
+use iota_sdk_types::CheckpointDigest;
 use iota_types::{
     committee::Committee,
-    digests::CheckpointDigest,
     messages_checkpoint::{
         CertifiedCheckpointSummary as Checkpoint, CheckpointSequenceNumber, CheckpointSummaryExt,
         EndOfEpochData, FullCheckpointContents, VerifiedCheckpoint, VerifiedCheckpointContents,

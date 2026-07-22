@@ -28,7 +28,7 @@ The [`tx_inputs`](../../../references/framework/iota/auth_context.mdx#iota_auth_
 
 An Abstract Account's transactions can be sponsored — paid for by an account other than the sender — and the sponsor itself can be either kind of account:
 
-- A **standard protocol-created account** (a regular keypair, multisig, passkey, …). Sponsorship is authorized by a standard `GenericSignature` over the transaction; the protocol's signature check is the only validation the sponsor goes through.
+- A **standard protocol-created account** (a regular keypair, multisig, passkey, …). Sponsorship is authorized by a standard `UserSignature` over the transaction; the protocol's signature check is the only validation the sponsor goes through.
 - An **Abstract Account** whose Move authenticator authorizes the sponsorship. This authenticator runs the same way it would for a sender — receiving the full [`AuthContext`](../../../references/framework/iota/auth_context.mdx#iota_auth_context_AuthContext) — and can therefore inspect the PTB *and* the sender's authentication info before deciding to pay.
 
 A timing asymmetry shapes what each sponsor kind can verify. The protocol runs sponsor verification (the standard signature check or the sponsor's AA Move authenticator) at **both the pre-consensus and the post-consensus phases**. The sender's Move authenticator, by contrast, runs **only at post-consensus, and only when the transaction is sponsored** — on the **sponsor's gas budget**. So by the time the sponsor's pre-consensus approval lands, the sponsor has already committed to pay for whatever sender-authentication code path runs after consensus.

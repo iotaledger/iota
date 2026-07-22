@@ -12,13 +12,14 @@ use iota_config::{
     object_storage_config::{ObjectStoreConfig, ObjectStoreType},
     p2p::StateSyncConfig,
 };
+use iota_sdk_types::CheckpointDigest;
 use iota_storage::{FileCompression, StorageFormat};
 use iota_swarm_config::test_utils::{
     CommitteeFixture, MakeCheckpointResults, empty_contents, random_contents,
 };
 use iota_types::{
     committee::{Committee, EpochId},
-    messages_checkpoint::{CheckpointDigest, VerifiedCheckpoint, VerifiedCheckpointContents},
+    messages_checkpoint::{VerifiedCheckpoint, VerifiedCheckpointContents},
     storage::{ReadStore, SharedInMemoryStore, WriteStore},
 };
 use prometheus_filtered::Registry;

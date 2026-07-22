@@ -1425,7 +1425,7 @@ impl KeyPairWithPath {
         // OK to unwrap panic because authority should not start without all keypairs
         // loaded.
         cell.set(Arc::new(read_keypair_from_file(&path).unwrap_or_else(
-            |e| panic!("invalid keypair file at path {:?}: {e}", &path),
+            |e| panic!("invalid keypair file at path {path:?}: {e}"),
         )))
         .expect("failed to set keypair");
         Self {
@@ -1490,7 +1490,7 @@ impl AuthorityKeyPairWithPath {
         // loaded.
         cell.set(Arc::new(
             read_authority_keypair_from_file(&path)
-                .unwrap_or_else(|_| panic!("invalid authority keypair file at path {:?}", &path)),
+                .unwrap_or_else(|_| panic!("invalid authority keypair file at path {path:?}")),
         ))
         .expect("failed to set authority keypair");
         Self {
@@ -1507,9 +1507,8 @@ impl AuthorityKeyPairWithPath {
                     // OK to unwrap panic because authority should not start without all keypairs
                     // loaded.
                     Arc::new(
-                        read_authority_keypair_from_file(path).unwrap_or_else(|_| {
-                            panic!("invalid authority keypair file {:?}", &path)
-                        }),
+                        read_authority_keypair_from_file(path)
+                            .unwrap_or_else(|_| panic!("invalid authority keypair file {path:?}")),
                     )
                 }
             })

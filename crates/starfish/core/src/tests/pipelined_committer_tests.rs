@@ -779,7 +779,12 @@ fn basic_test_setup() -> (
 ) {
     telemetry_subscribers::init_for_testing();
     // Committee of 4 with even stake
-    let context = Arc::new(Context::new_for_test(4).0);
+    // Test blocks carry no strong votes; run with StarfishSpeed off.
+    let mut context = Context::new_for_test(4).0;
+    context
+        .protocol_config
+        .set_consensus_starfish_speed_for_testing(false);
+    let context = Arc::new(context);
     let dag_state = Arc::new(RwLock::new(DagState::new(
         context.clone(),
         Arc::new(MemStore::new()),

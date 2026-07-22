@@ -22,9 +22,10 @@ use futures::{
     stream::FuturesUnordered,
 };
 use iota_metrics::{GaugeGuard, InflightGuardFutureExt, LATENCY_SEC_BUCKETS, spawn_monitored_task};
+use iota_sdk_types::TransactionDigest;
 use iota_simulator::anemo::PeerId;
 use iota_types::{
-    base_types::{AuthorityName, TransactionDigest},
+    base_types::AuthorityName,
     committee::Committee,
     error::{IotaError, IotaResult},
     fp_ensure,
@@ -90,7 +91,8 @@ impl ConsensusAdapterMetrics {
                 "sequencing_certificate_attempt",
                 "Counts the number of certificates the validator attempts to sequence.",
                 &["tx_type"],
-                registry,
+                registry;
+                MetricLevel::Warn,
             )
             .unwrap(),
             sequencing_certificate_success: register_int_counter_vec_with_registry!(
@@ -111,7 +113,8 @@ impl ConsensusAdapterMetrics {
                 "sequencing_certificate_status",
                 "The status of the certificate sequencing as reported by consensus. The status can be either sequenced or garbage collected.",
                 &["tx_type", "status"],
-                registry,
+                registry;
+                MetricLevel::Warn,
             )
             .unwrap(),
             sequencing_certificate_inflight: register_int_gauge_vec_with_registry!(
@@ -136,7 +139,7 @@ impl ConsensusAdapterMetrics {
                 &["position", "tx_type", "processed_method"],
                 LATENCY_SEC_BUCKETS.to_vec(),
                 registry;
-                MetricLevel::Info,
+                MetricLevel::Warn,
             )
             .unwrap(),
             sequencing_certificate_authority_position: register_histogram_with_registry!(
@@ -164,7 +167,8 @@ impl ConsensusAdapterMetrics {
                 "sequencing_certificate_processed",
                 "The number of certificates that have been processed either by consensus or checkpoint.",
                 &["source"],
-                registry
+                registry;
+                MetricLevel::Warn,
             )
             .unwrap(),
             sequencing_in_flight_semaphore_wait: register_int_gauge_with_registry!(
@@ -628,12 +632,12 @@ impl ConsensusAdapter {
             // UserTransactionV1 (P-COOL flow). submit_and_wait_inner
             // assumes a single transaction kind across the batch.
             for transaction in transactions {
+                // Routed through the shared user-transaction helpers rather than an
+                // inline match, so a new user-transaction kind is classified in one
+                // place (`ConsensusTransactionKind::is_user_transaction`) and becomes
+                // soft-bundle eligible automatically.
                 fp_ensure!(
-                    matches!(
-                        transaction.kind,
-                        ConsensusTransactionKind::CertifiedTransaction(_)
-                            | ConsensusTransactionKind::UserTransactionV1(_)
-                    ),
+                    transaction.is_user_certificate() || transaction.kind.is_user_transaction(),
                     IotaError::InvalidTxKindInSoftBundle
                 );
             }
@@ -935,18 +939,13 @@ impl ConsensusAdapter {
         let is_user_tx = is_soft_bundle
             || if epoch_store.protocol_config().enable_pcool_flow() {
                 // In the P-COOL flow, `UserTransactionV1` kind corresponds
-                // to user transactions.
-                matches!(
-                    transactions[0].kind,
-                    ConsensusTransactionKind::UserTransactionV1(_)
-                )
+                // to user transactions.  Routed through the shared predicate
+                // so a new user-transaction kind is classified in one place.
+                transactions[0].kind.is_user_transaction()
             } else {
                 // In the certificate mode, `CertifiedTransaction` kind corresponds
                 // to user transactions.
-                matches!(
-                    transactions[0].kind,
-                    ConsensusTransactionKind::CertifiedTransaction(_)
-                )
+                transactions[0].is_user_certificate()
             };
         let send_end_of_publish = if is_user_tx {
             if epoch_store.protocol_config().enable_pcool_flow() {
@@ -1503,8 +1502,8 @@ mod adapter_tests {
     use std::{sync::Arc, time::Duration};
 
     use fastcrypto::traits::KeyPair;
+    use iota_sdk_types::TransactionDigest;
     use iota_types::{
-        base_types::TransactionDigest,
         committee::Committee,
         crypto::{AuthorityKeyPair, AuthorityPublicKeyBytes, get_key_pair_from_rng},
     };

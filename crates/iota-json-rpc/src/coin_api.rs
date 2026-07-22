@@ -563,7 +563,9 @@ impl CoinReadInternal for CoinReadInternalImpl {
 mod tests {
     use expect_test::expect;
     use iota_json_rpc_types::Coin;
-    use iota_sdk_types::{StructTag, TypeTag, Version};
+    use iota_sdk_types::{
+        CheckpointDigest, ObjectDigest, StructTag, TransactionDigest, TypeTag, Version,
+    };
     use iota_storage::{
         key_value_store::{
             KVStoreCheckpointData, KVStoreTransactionData, TransactionKeyValueStoreTrait,
@@ -573,11 +575,10 @@ mod tests {
     use iota_types::{
         balance::Supply,
         coin::TreasuryCap,
-        digests::{ObjectDigest, TransactionDigest},
         effects::{TransactionEffects, TransactionEffectsExtForTesting, TransactionEvents},
         error::{IotaError, IotaResult},
         id::UID,
-        messages_checkpoint::{CheckpointDigest, CheckpointSequenceNumber},
+        messages_checkpoint::CheckpointSequenceNumber,
         object::{MoveObjectExt, Object},
         parse_iota_struct_tag,
         utils::create_fake_transaction,

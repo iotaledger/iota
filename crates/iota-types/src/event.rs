@@ -5,15 +5,12 @@
 use std::str::FromStr;
 
 use anyhow::ensure;
-use iota_sdk_types::Event;
+use iota_sdk_types::{Event, TransactionDigest};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use serde_with::serde_as;
 
-use crate::{
-    base_types::TransactionDigest,
-    iota_serde::{BigInt, Readable},
-};
+use crate::iota_serde::{BigInt, Readable};
 
 /// A universal IOTA event type encapsulating different types of events
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -23,7 +23,7 @@ use arc_swap::ArcSwap;
 use futures::future::BoxFuture;
 pub use handle::IotaNodeHandle;
 use iota_archival::{reader::ArchiveReaderBalancer, writer::ArchiveWriter};
-use iota_common::debug_fatal;
+use iota_common::{debug_fatal, fatal};
 use iota_config::{
     ConsensusConfig, NodeConfig,
     node::{DBCheckpointConfig, RunWithRange},
@@ -135,7 +135,7 @@ use iota_types::{
     messages_grpc::HandleCapabilityNotificationRequestV1,
     quorum_driver_types::QuorumDriverEffectsQueueResult,
     supported_protocol_versions::SupportedProtocolVersions,
-    transaction::{Transaction, VerifiedCertificate},
+    transaction::{SenderSignedTransactionAPI, Transaction, VerifiedCertificate},
 };
 use prometheus_filtered::Registry;
 #[cfg(msim)]
@@ -1413,18 +1413,29 @@ impl IotaNode {
         soft_locks.clear();
         epoch_store.set_soft_locks(soft_locks.clone());
 
-        let randomness_manager = RandomnessManager::try_new(
+        // A validator cannot participate without a randomness manager. Aborting here
+        // fails loudly at the real cause (startup or reconfiguration) instead
+        // of leaving the node to panic later on the first consensus commit that
+        // unconditionally expects one.
+        let randomness_manager = match RandomnessManager::try_new(
             Arc::downgrade(&epoch_store),
             Box::new(consensus_adapter.clone()),
             randomness_handle,
             config.authority_key_pair(),
         )
-        .await;
-        if let Some(randomness_manager) = randomness_manager {
-            epoch_store
-                .set_randomness_manager(randomness_manager)
-                .await?;
-        }
+        .await
+        {
+            Ok(randomness_manager) => randomness_manager,
+            Err(err) => {
+                fatal!(
+                    "validator cannot start epoch {} without a randomness manager: {err}",
+                    epoch_store.epoch()
+                );
+            }
+        };
+        epoch_store
+            .set_randomness_manager(randomness_manager)
+            .await?;
 
         let consensus_handler_initializer = ConsensusHandlerInitializer::new(
             state.clone(),

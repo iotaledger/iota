@@ -5,8 +5,6 @@ teams:
 description: Learn how to upgrade your packages on the IOTA network while maintaining their immutable properties.
 ---
 import AutomatedAddressManagement from '../../../../_snippets/automated-address-management.mdx'
-import Quiz from '@site/src/components/Quiz';
-import questions from '/json/developer/iota-101/move-overview/package-upgrades/upgrade.json';
 
 # Managing Package Upgrades
 
@@ -314,7 +312,6 @@ Manage access to specific functions by adding or removing marker types as dynami
 
 Modify other fields, adjust dynamic fields, or handle multiple shared objects during the migration process.
 
-
 #### Large-Scale Migrations
 
 For migrations requiring multiple transactions, consider a three-phase approach:
@@ -608,7 +605,6 @@ Array [
     },
 ]
 
-
 ```
 
 After successfully upgrading your `iota_package`, the result will include a new ID for the upgraded package. Just like before, it's essential to update your manifest with this new ID. This ensures that any other packages depending on your `iota_package` can locate the correct on-chain bytecode for verification.
@@ -618,7 +614,6 @@ After successfully upgrading your `iota_package`, the result will include a new 
 To reflect the new package ID, in the `[addresses]` section, return the `iota_package` value to the original package ID.
 
 Your updated manifest should look like this:
-
 
 ```toml
 [package]
@@ -632,5 +627,3 @@ iota_package = "<ORIGINAL-PACKAGE-ID>"
 
 * The `iota_package` address in the `[addresses]` section should always point back to the original package ID after an upgrade.
 * Before running any subsequent upgrade commands, always set the `iota_package` address to `0x0` in the `[addresses]` section. This ensures the validator assigns a new ID for the upgrade.
-
-<Quiz questions={questions} />

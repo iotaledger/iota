@@ -6,11 +6,7 @@ use std::{env, fmt};
 
 use fastcrypto::encoding::{Base58, Encoding, Hex};
 use iota_protocol_config::Chain;
-pub use iota_sdk_types::{
-    CertificateDigest, CheckpointContentsDigest, CheckpointDigest, ConsensusCommitDigest, Digest,
-    EffectsAuxDataDigest, MisbehaviorReportDigest, MoveAuthenticatorDigest, ObjectDigest,
-    SenderSignedDataDigest, TransactionDigest, TransactionEffectsDigest, TransactionEventsDigest,
-};
+use iota_sdk_types::CheckpointDigest;
 use once_cell::sync::{Lazy, OnceCell};
 use serde::{Deserialize, Serialize};
 use tracing::info;

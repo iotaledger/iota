@@ -4,8 +4,7 @@
 
 use iota_config::node::ExpensiveSafetyCheckConfig;
 use iota_macros::sim_test;
-use iota_sdk_types::Address;
-use iota_types::digests::TransactionDigest;
+use iota_sdk_types::{Address, TransactionDigest};
 use test_cluster::TestClusterBuilder;
 
 use crate::{LocalExec, types::ReplayEngineError};

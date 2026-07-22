@@ -4,9 +4,8 @@
 
 use std::path::Path;
 
-use iota_sdk_types::Version;
+use iota_sdk_types::{TransactionEventsDigest, Version};
 use iota_types::{
-    digests::TransactionEventsDigest,
     effects::{TransactionEffects, TransactionEvents},
     global_state_hash::GlobalStateHash,
     storage::MarkerValue,

@@ -12,7 +12,7 @@
       "name": "Apache-2.0",
       "url": "https://raw.githubusercontent.com/iotaledger/iota/main/LICENSE"
     },
-    "version": "1.28.0-alpha"
+    "version": "1.29.0-alpha"
   },
   "methods": [
     {
@@ -1316,7 +1316,7 @@
                 "consensus_round_prober": true,
                 "consensus_round_prober_probe_accepted_rounds": true,
                 "consensus_smart_ancestor_selection": false,
-                "consensus_starfish_speed": false,
+                "consensus_starfish_speed": true,
                 "consensus_zstd_compression": true,
                 "convert_type_argument_error": true,
                 "deny_rule_governance": false,
@@ -1344,6 +1344,7 @@
                 "protocol_defined_base_fee": true,
                 "publish_package_metadata": true,
                 "relocate_event_module": true,
+                "report_move_authentication_error": true,
                 "rethrow_serialization_type_layout_errors": true,
                 "select_committee_from_eligible_validators": true,
                 "select_committee_supporting_next_epoch_version": true,
@@ -3335,11 +3336,11 @@
           "name": "Write API"
         }
       ],
-      "description": "Calls a move view function.",
+      "description": "Calls a Move view function. The function must be declared with the `#[view]` attribute.",
       "params": [
         {
           "name": "function_name",
-          "description": "The fully qualified function name `<package_id>::<module_name>::<function_name>`. E.g.  `0x3::iota_system::get_total_iota_supply`.",
+          "description": "The fully qualified function name `<package_id>::<module_name>::<function_name>`, where the function is declared with the `#[view]` attribute. E.g. `0x1234::counter::value`.",
           "required": true,
           "schema": {
             "type": "string"
@@ -7502,11 +7503,6 @@
           }
         }
       },
-      "GenericSignature": {
-        "description": "Base64 encoded signature",
-        "type": "string",
-        "format": "base64"
-      },
       "GetPastObjectRequest": {
         "type": "object",
         "required": [
@@ -11323,7 +11319,7 @@
           "txSignatures": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/GenericSignature"
+              "$ref": "#/components/schemas/UserSignature"
             }
           }
         }
@@ -12309,6 +12305,11 @@
             ]
           }
         }
+      },
+      "UserSignature": {
+        "description": "Base64 encoded signature",
+        "type": "string",
+        "format": "base64"
       },
       "ValidatorApy": {
         "type": "object",

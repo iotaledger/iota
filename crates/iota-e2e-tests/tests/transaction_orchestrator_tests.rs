@@ -71,7 +71,7 @@ async fn test_blocking_execution() -> Result<(), anyhow::Error> {
     handle
         .state()
         .get_transaction_cache_reader()
-        .notify_read_executed_effects(&[digest])
+        .notify_read_executed_effects_for_testing(&[digest])
         .await;
 
     // Transaction Orchestrator proactivcely executes txn locally
@@ -314,6 +314,96 @@ async fn execute_with_orchestrator(
         .await
 }
 
+/// A resubmission of an already-executed transaction must be answered from
+/// the local cache (finality `QuorumExecuted`) instead of being driven
+/// through the validators again — on every entry point.
+#[sim_test]
+async fn test_cached_response_for_executed_transaction() -> Result<(), anyhow::Error> {
+    let mut test_cluster = TestClusterBuilder::new().build().await;
+    let context = &mut test_cluster.wallet;
+    let handle = &test_cluster.fullnode_handle.iota_node;
+    let orchestrator = handle.with(|n| n.transaction_orchestrator().as_ref().unwrap().clone());
+
+    let txn = batch_make_transfer_transactions(context, 1)
+        .await
+        .pop()
+        .expect("gas objects should produce at least one tx");
+    let digest = *txn.digest();
+
+    let (first, _) = execute_with_orchestrator(
+        &orchestrator,
+        txn.clone(),
+        ExecuteTransactionRequestType::WaitForLocalExecution,
+    )
+    .await?;
+    assert!(
+        matches!(
+            first.effects.finality_info,
+            EffectsFinalityInfo::Certified(_)
+        ),
+        "first execution should be driven to a certificate, got {:?}",
+        first.effects.finality_info
+    );
+
+    // Make sure the effects have landed in the local cache before
+    // resubmitting.
+    handle
+        .state()
+        .get_transaction_cache_reader()
+        .notify_read_executed_effects_for_testing(&[digest])
+        .await;
+
+    let (second, executed_locally) = execute_with_orchestrator(
+        &orchestrator,
+        txn.clone(),
+        ExecuteTransactionRequestType::WaitForLocalExecution,
+    )
+    .await?;
+    assert!(executed_locally);
+    assert!(
+        matches!(
+            second.effects.finality_info,
+            EffectsFinalityInfo::QuorumExecuted(_)
+        ),
+        "resubmission should be answered from the local cache, got {:?}",
+        second.effects.finality_info
+    );
+    assert_eq!(
+        first.effects.effects.digest(),
+        second.effects.effects.digest()
+    );
+
+    let (third, _) = execute_with_orchestrator(
+        &orchestrator,
+        txn.clone(),
+        ExecuteTransactionRequestType::WaitForEffectsCert,
+    )
+    .await?;
+    assert!(
+        matches!(
+            third.effects.finality_info,
+            EffectsFinalityInfo::QuorumExecuted(_)
+        ),
+        "resubmission without local-execution wait should also be answered \
+         from the local cache, got {:?}",
+        third.effects.finality_info
+    );
+
+    let response = orchestrator
+        .execute_transaction_v1(ExecuteTransactionRequestV1::new(txn), false, None)
+        .await?;
+    assert!(
+        matches!(
+            response.effects.finality_info,
+            EffectsFinalityInfo::QuorumExecuted(_)
+        ),
+        "v1 resubmission should be answered from the local cache, got {:?}",
+        response.effects.finality_info
+    );
+
+    Ok(())
+}
+
 #[sim_test]
 async fn execute_transaction_v1() -> Result<(), anyhow::Error> {
     let mut test_cluster = TestClusterBuilder::new().build().await;
@@ -472,6 +562,69 @@ async fn test_skip_effect_cert_reconciles_to_checkpointed() -> Result<(), anyhow
     Ok(())
 }
 
+/// Under the P-COOL flow, a resubmission of an already-executed transaction
+/// must be answered from the local cache (finality `QuorumExecuted`) before
+/// reaching the skip-effect-certification path, and must not be routed
+/// through the cache-rebuild reconciliation (which would tag it
+/// `Checkpointed`).
+#[sim_test]
+async fn test_cached_response_for_executed_transaction_under_pcool() -> Result<(), anyhow::Error> {
+    let _env_guard = enable_pcool_env();
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(true);
+        config
+    });
+
+    let mut test_cluster = TestClusterBuilder::new().build().await;
+    let context = &mut test_cluster.wallet;
+    let handle = &test_cluster.fullnode_handle.iota_node;
+    let orchestrator = handle.with(|n| n.transaction_orchestrator().as_ref().unwrap().clone());
+
+    let txn = batch_make_transfer_transactions(context, 1)
+        .await
+        .pop()
+        .expect("gas objects should produce at least one tx");
+
+    // The first execution reconciles from the local cache after checkpoint
+    // inclusion, so the effects are guaranteed to be cached afterwards.
+    let (first, _) = execute_with_orchestrator(
+        &orchestrator,
+        txn.clone(),
+        ExecuteTransactionRequestType::WaitForLocalExecution,
+    )
+    .await?;
+    assert!(
+        matches!(
+            first.effects.finality_info,
+            EffectsFinalityInfo::Checkpointed(_, _)
+        ),
+        "first skip-cert execution should reconcile to Checkpointed, got {:?}",
+        first.effects.finality_info
+    );
+
+    let (second, executed_locally) = execute_with_orchestrator(
+        &orchestrator,
+        txn,
+        ExecuteTransactionRequestType::WaitForLocalExecution,
+    )
+    .await?;
+    assert!(executed_locally);
+    assert!(
+        matches!(
+            second.effects.finality_info,
+            EffectsFinalityInfo::QuorumExecuted(_)
+        ),
+        "resubmission should be answered from the local cache, got {:?}",
+        second.effects.finality_info
+    );
+    assert_eq!(
+        first.effects.effects.digest(),
+        second.effects.effects.digest()
+    );
+
+    Ok(())
+}
+
 /// With the P-COOL flow enabled, a caller that did *not* ask for events
 /// or input/output objects must not receive them.
 #[sim_test]
@@ -525,6 +678,82 @@ async fn test_skip_effect_cert_respects_request_flags() -> Result<(), anyhow::Er
     assert!(
         response.output_objects.is_none(),
         "output_objects must not leak when include_output_objects=false"
+    );
+
+    Ok(())
+}
+
+/// With the P-COOL flow enabled, two concurrent submissions of the same
+/// transaction digest must not each drive an independent committee-wide
+/// submission: the second observes the first in flight and waits for its
+/// effects instead. Both callers must return the same finalized effects, and
+/// the pending-transaction log must stay empty: the driver path tracks
+/// in-flight submissions in memory only.
+#[sim_test]
+async fn test_pcool_deduplicates_concurrent_submissions() -> Result<(), anyhow::Error> {
+    let _env_guard = enable_pcool_env();
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(true);
+        config
+    });
+
+    let mut test_cluster = TestClusterBuilder::new().build().await;
+    let context = &mut test_cluster.wallet;
+    let handle = &test_cluster.fullnode_handle.iota_node;
+    let orchestrator = handle.with(|n| n.transaction_orchestrator().as_ref().unwrap().clone());
+
+    let txn = batch_make_transfer_transactions(context, 1)
+        .await
+        .pop()
+        .expect("gas objects should produce at least one tx");
+    let digest = *txn.digest();
+
+    let request = |txn: Transaction| ExecuteTransactionRequestV1 {
+        transaction: txn,
+        include_events: false,
+        include_input_objects: false,
+        include_output_objects: false,
+        include_auxiliary_data: false,
+    };
+
+    let (first, second) = tokio::join!(
+        orchestrator.execute_transaction_block(
+            request(txn.clone()),
+            ExecuteTransactionRequestType::WaitForLocalExecution,
+            Some(make_socket_addr()),
+        ),
+        orchestrator.execute_transaction_block(
+            request(txn.clone()),
+            ExecuteTransactionRequestType::WaitForLocalExecution,
+            Some(make_socket_addr()),
+        ),
+    );
+
+    let (first_response, _) =
+        first.unwrap_or_else(|e| panic!("first submission failed for {digest:?}: {e:?}"));
+    let (second_response, _) =
+        second.unwrap_or_else(|e| panic!("second submission failed for {digest:?}: {e:?}"));
+
+    for response in [&first_response, &second_response] {
+        assert!(
+            matches!(
+                response.effects.finality_info,
+                EffectsFinalityInfo::Checkpointed(_, _)
+            ),
+            "concurrent submission should resolve to Checkpointed, got {:?}",
+            response.effects.finality_info
+        );
+    }
+    assert_eq!(
+        first_response.effects.effects.transaction_digest(),
+        second_response.effects.effects.transaction_digest(),
+        "both concurrent submissions must report the same finalized effects"
+    );
+
+    let pending = orchestrator.load_all_pending_transactions()?;
+    assert!(
+        pending.is_empty(),
+        "driver path must not write to the pending transaction log, found {pending:?}"
     );
 
     Ok(())

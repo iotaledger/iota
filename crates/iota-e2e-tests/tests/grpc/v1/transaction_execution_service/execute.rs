@@ -146,7 +146,7 @@ async fn execute_transaction_derived_changes() {
 
     let recipient = Address::random();
     let txn = make_transfer_iota_transaction(&test_cluster.wallet, Some(recipient), Some(9)).await;
-    let sender = txn.transaction_data().sender();
+    let sender = txn.transaction().sender();
     let item = build_item(&txn);
 
     // Requesting only the derived fields (plus effects for the gas charge)
@@ -223,7 +223,7 @@ async fn execute_transaction_invalid_signatures() {
         make_transfer_iota_transaction(&test_cluster.wallet, Some(recipient), Some(amount)).await;
 
     let transaction = ProtoTransaction::default()
-        .with_bcs(BcsData::default().with_data(bcs::to_bytes(txn.transaction_data()).unwrap()));
+        .with_bcs(BcsData::default().with_data(bcs::to_bytes(txn.transaction()).unwrap()));
 
     // Create invalid signatures (wrong signature data)
     let signatures =

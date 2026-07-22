@@ -5,10 +5,9 @@
 use std::str::FromStr;
 
 use anyhow::anyhow;
-use iota_sdk_types::{Address, ObjectId, Owner, Version};
+use iota_sdk_types::{Address, ObjectDigest, ObjectId, Owner, Version};
 use iota_types::{
     IOTA_FRAMEWORK_ADDRESS, MOVE_STDLIB_ADDRESS,
-    base_types::ObjectDigest,
     gas_coin::GasCoin,
     object::{MoveObject, MoveObjectExt},
     parse_iota_struct_tag,

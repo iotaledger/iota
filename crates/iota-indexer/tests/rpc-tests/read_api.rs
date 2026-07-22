@@ -21,14 +21,16 @@ use iota_json_rpc_types::{
 };
 use iota_package_resolver::Resolver;
 use iota_protocol_config::ProtocolVersion;
-use iota_sdk_types::{Identifier, ObjectId, ObjectReference, Version};
+use iota_sdk_types::{
+    Identifier, ObjectDigest, ObjectId, ObjectReference, TransactionDigest, Version,
+};
 use iota_test_transaction_builder::{
     TestTransactionBuilder, create_nft, delete_nft, publish_nfts_package,
     publish_simple_warrior_package,
 };
 use iota_types::{
     crypto::{AccountKeyPair, IotaKeyPair, get_key_pair},
-    digests::{ChainIdentifier, ObjectDigest, TransactionDigest},
+    digests::ChainIdentifier,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::CallArg,
     utils::to_sender_signed_transaction,

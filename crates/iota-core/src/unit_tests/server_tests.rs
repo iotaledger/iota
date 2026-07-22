@@ -8,13 +8,12 @@ use iota_network::api::{
     TxStatusQuery, ValidatorPeer, ValidatorV2,
 };
 use iota_protocol_config::{Chain, ProtocolConfig};
-use iota_sdk_types::ProgrammableTransaction;
 // Additional imports for P-COOL tests
 use iota_sdk_types::{
     Address, Argument, Command, Identifier, ObjectId, SplitCoins,
     crypto::{Intent, IntentMessage, IntentScope::AuthorityCapabilities},
 };
-use iota_types::digests::TransactionDigest;
+use iota_sdk_types::{ProgrammableTransaction, TransactionDigest};
 // Additional imports for P-COOL tests
 use iota_types::{
     base_types::{AuthorityName, dbg_addr, dbg_object_id, random_object_ref},
@@ -326,7 +325,7 @@ fn make_v2_submit_request(transactions: Vec<Transaction>) -> tonic::Request<Subm
 /// Result from collecting a V2 stream item: either a successfully decoded
 /// status or a raw `tonic::Status` error.
 enum V2StreamItem {
-    Ok(iota_types::digests::TransactionDigest, TxStatusUpdate),
+    Ok(TransactionDigest, TxStatusUpdate),
     Err(tonic::Status),
 }
 
@@ -341,7 +340,7 @@ async fn collect_v2_stream_raw(
         match item {
             Err(status) => results.push(V2StreamItem::Err(status)),
             Ok(status) => {
-                let digest: iota_types::digests::TransactionDigest = status
+                let digest: TransactionDigest = status
                     .tx_digest
                     .expect("tx_digest present")
                     .try_into()
@@ -378,7 +377,7 @@ async fn collect_v2_stream_raw(
 /// Convenience wrapper: collect all items and panic on stream-level errors.
 async fn collect_v2_stream(
     response: tonic::Response<crate::authority_server::StreamResponse<iota_network::api::TxStatus>>,
-) -> Vec<(iota_types::digests::TransactionDigest, TxStatusUpdate)> {
+) -> Vec<(TransactionDigest, TxStatusUpdate)> {
     collect_v2_stream_raw(response)
         .await
         .into_iter()
@@ -971,13 +970,13 @@ fn make_v2_get_tx_status_request(
 /// `(TransactionDigest, TxStatusUpdate)` pairs.
 async fn collect_v2_status_stream(
     response: tonic::Response<crate::authority_server::StreamResponse<iota_network::api::TxStatus>>,
-) -> Vec<(iota_types::digests::TransactionDigest, TxStatusUpdate)> {
+) -> Vec<(TransactionDigest, TxStatusUpdate)> {
     use iota_network::api::status_detail::Kind;
     let mut stream = response.into_inner();
     let mut results = Vec::new();
     while let Some(item) = stream.next().await {
         let status = item.expect("stream item should be Ok");
-        let digest: iota_types::digests::TransactionDigest = status
+        let digest: TransactionDigest = status
             .tx_digest
             .expect("tx_digest present")
             .try_into()
@@ -1273,7 +1272,7 @@ async fn test_v2_get_tx_status_too_many_queries() {
 
     // Build 33 queries (exceeds MAX_QUERIES_PER_GET_TX_STATUS = 32).
     let queries: Vec<_> = (0..33)
-        .map(|_| (iota_types::digests::TransactionDigest::random(), false))
+        .map(|_| (TransactionDigest::random(), false))
         .collect();
 
     let result = validator_service
@@ -1331,7 +1330,7 @@ async fn test_v2_get_tx_status_dropped_digest_rejected() {
         authority_state.name,
     ));
 
-    let dropped_digest = iota_types::digests::TransactionDigest::random();
+    let dropped_digest = TransactionDigest::random();
     let dropped_error = IotaError::TransactionExpired;
 
     // Simulate white-flag dropping the transaction.
@@ -1380,7 +1379,7 @@ async fn test_v2_get_tx_status_unknown_digest_expires() {
         Arc::new(ValidatorServiceMetrics::new_for_tests()),
     ));
 
-    let unknown_digest = iota_types::digests::TransactionDigest::random();
+    let unknown_digest = TransactionDigest::random();
 
     let response = validator_service
         .get_tx_status(make_v2_get_tx_status_request(vec![(unknown_digest, false)]))

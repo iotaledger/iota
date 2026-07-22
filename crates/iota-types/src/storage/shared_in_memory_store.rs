@@ -4,14 +4,14 @@
 
 use std::{collections::HashMap, sync::Arc};
 
+use iota_sdk_types::{CheckpointContentsDigest, CheckpointDigest, TransactionDigest};
 use tap::Pipe;
 use tracing::error;
 
 use super::{ObjectStore, error::Result};
 use crate::{
-    base_types::{EpochId, ExecutionData, TransactionDigest},
+    base_types::{EpochId, ExecutionData},
     committee::Committee,
-    digests::{CheckpointContentsDigest, CheckpointDigest},
     effects::{TransactionEffects, TransactionEvents},
     messages_checkpoint::{
         CheckpointContents, CheckpointContentsExt, CheckpointSequenceNumber,

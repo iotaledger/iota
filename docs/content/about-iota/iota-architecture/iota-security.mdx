@@ -1,8 +1,6 @@
 ---
 tags: [core-protocol]
 ---
-import Quiz from '@site/src/components/Quiz';
-import quizData from '../../../site/static/json/about-iota/iota-architecture/iota-security.json';
 
 # Security
 
@@ -17,7 +15,6 @@ The set of validators changes periodically and is [determined by the amount of l
 :::
 
 ### Delegated PoS Consensus Mechanism
-
 
 IOTA employs a delegated Proof-of-Stake (dPoS) mechanism to select validators (nodes that help secure and operate the network) for each epoch. Users can lock and delegate their IOTA tokens to validators, granting them voting power. Validators are chosen based on the number of delegated tokens, and any node with sufficient support can become a validator.
 
@@ -70,5 +67,3 @@ IOTA full nodes provide access to asset balances and transaction histories. Vali
 ### Public Auditability 
 
 All transactions and assets on IOTA are publicly viewable, ensuring auditability. However, users can maintain pseudonymity by utilizing multiple addresses. Third-party custodial services can further enhance privacy by managing assets on behalf of users. Additionally, privacy-preserving smart contracts can be developed to add extra confidentiality layers.
-
-<Quiz questions={quizData.questions} />

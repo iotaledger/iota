@@ -35,7 +35,7 @@ async fn main() -> Result<(), anyhow::Error> {
     );
     let address = keystore.import_from_mnemonic(
         MNEMONIC_WITH_TIMELOCKED_IOTA,
-        SignatureScheme::ED25519,
+        SignatureScheme::Ed25519,
         None,
         None,
     )?;

@@ -7,8 +7,6 @@ tags:
     - address
     - iota-wallet
 ---
-import Quiz from '@site/src/components/Quiz';
-import questions from '/json/developer/getting-started/get-address.json';
 import { useCurrentAccount } from '@iota/dapp-kit';
 
 export function CurrentAddress({ fallbackValue }) {
@@ -77,7 +75,6 @@ Here are some examples of reserved addresses:
 
 :::
 
-
 ## Create an IOTA address
 
 IOTA provides multiple ways to obtain an IOTA address. The following are the two most common.
@@ -103,7 +100,6 @@ Open the Chrome IOTA Wallet browser extension and then:
 Your current address: <CurrentAddress fallbackValue='No Wallet Connected'/>.
 
 :::
-
 
 For more information on the IOTA Wallet and how to keep it secure, see
 the [IOTA Wallet documentation](../../users/iota-wallet/getting-started.mdx).
@@ -154,6 +150,3 @@ the `~/.iota/iota_config/iota.keystore` file. Anyone who can access that file ca
 should not share it with anyone.
 
 :::
-
-
-<Quiz questions={questions} />

@@ -13,7 +13,7 @@ use crate::{
     committee::EpochId,
     crypto::{
         AccountKeyPair, AuthorityKeyPair, AuthoritySignature, IotaAuthoritySignature,
-        IotaSignature, Signature, SignatureScheme, get_key_pair,
+        IotaSignature, Signature, get_key_pair,
     },
     object::Object,
     transaction::{
@@ -48,11 +48,7 @@ fn test_personal_message_intent() {
 
     // Let's ensure we can sign and verify intents.
     let s = Signature::new_secure(&IntentMessage::new(intent, p_message), &sec1);
-    let verification = s.verify_secure(
-        &IntentMessage::new(intent, p_message_2),
-        addr1,
-        SignatureScheme::ED25519,
-    );
+    let verification = s.verify_secure(&IntentMessage::new(intent, p_message_2), addr1);
     assert!(verification.is_ok())
 }
 
@@ -75,10 +71,7 @@ fn test_authority_signature_intent() {
         gas_price * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
         gas_price,
     );
-    let signature = Signature::new_secure(
-        &IntentMessage::new(Intent::iota_transaction(), data.clone()),
-        &sender_key,
-    );
+    let signature = Signature::new_secure(&data.intent_message(), &sender_key);
     let tx = Transaction::from_data(data, vec![signature]);
     let tx1 = tx.clone();
     assert!(
@@ -87,7 +80,8 @@ fn test_authority_signature_intent() {
     );
 
     // Create an intent with signed data.
-    let intent_bcs = bcs::to_bytes(tx1.intent_message()).unwrap();
+    let intent_message = tx1.intent_message();
+    let intent_bcs = bcs::to_bytes(&intent_message).unwrap();
 
     // Check that the first 3 bytes are the domain separation information.
     assert_eq!(
@@ -100,11 +94,11 @@ fn test_authority_signature_intent() {
     );
 
     // Check that intent's last bytes match the signed_data's bsc bytes.
-    let signed_data_bcs = bcs::to_bytes(&tx1.data().intent_message().value).unwrap();
+    let signed_data_bcs = bcs::to_bytes(&tx1.data().transaction()).unwrap();
     assert_eq!(&intent_bcs[3..], signed_data_bcs);
 
     // Let's ensure we can sign and verify intents.
-    let s = AuthoritySignature::new_secure(tx1.data().intent_message(), &epoch, &kp);
-    let verification = s.verify_secure(tx1.data().intent_message(), 0, kp.public().into());
+    let s = AuthoritySignature::new_secure(&intent_message, &epoch, &kp);
+    let verification = s.verify_secure(&intent_message, 0, kp.public().into());
     assert!(verification.is_ok())
 }

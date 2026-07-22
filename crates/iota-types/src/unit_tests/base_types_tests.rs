@@ -13,7 +13,7 @@ use fastcrypto::{
 };
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    Owner,
+    Digest, Owner, TransactionDigest,
     crypto::{Intent, IntentMessage, IntentScope},
 };
 use move_binary_format::file_format;
@@ -23,11 +23,10 @@ use crate::{
     base_types::TypeTag,
     crypto::{
         AccountKeyPair, AuthorityKeyPair, AuthoritySignature, IotaAuthoritySignature,
-        IotaSignature, Signature, SignatureScheme,
+        IotaSignature, Signature,
         bcs_signable_test::{Bar, Foo},
         get_key_pair, get_key_pair_from_bytes,
     },
-    digests::{Digest, TransactionDigest},
     dynamic_field::DynamicFieldInfo,
     gas_coin::GasCoin,
     object::Object,
@@ -56,18 +55,9 @@ fn test_signatures() {
     let bar = IntentMessage::new(Intent::iota_transaction(), Bar("hello".into()));
 
     let s = Signature::new_secure(&foo, &sec1);
-    assert!(
-        s.verify_secure(&foo, addr1, SignatureScheme::ED25519)
-            .is_ok()
-    );
-    assert!(
-        s.verify_secure(&foo, addr2, SignatureScheme::ED25519)
-            .is_err()
-    );
-    assert!(
-        s.verify_secure(&foox, addr1, SignatureScheme::ED25519)
-            .is_err()
-    );
+    assert!(s.verify_secure(&foo, addr1).is_ok());
+    assert!(s.verify_secure(&foo, addr2).is_err());
+    assert!(s.verify_secure(&foox, addr1).is_err());
     assert!(
         s.verify_secure(
             &IntentMessage::new(
@@ -75,16 +65,12 @@ fn test_signatures() {
                 Foo("hello".into())
             ),
             addr1,
-            SignatureScheme::ED25519
         )
         .is_err()
     );
 
     // The struct type is different, but the serialization is the same.
-    assert!(
-        s.verify_secure(&bar, addr1, SignatureScheme::ED25519)
-            .is_ok()
-    );
+    assert!(s.verify_secure(&bar, addr1).is_ok());
 }
 
 #[test]

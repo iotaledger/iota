@@ -14,19 +14,18 @@ use bincode::Options;
 use iota_archival::reader::ArchiveReaderBalancer;
 use iota_config::node::AuthorityStorePruningConfig;
 use iota_metrics::{monitored_scope, spawn_monitored_task};
-use iota_sdk_types::{ObjectId, Version};
+use iota_sdk_types::{CheckpointDigest, ObjectId, Version};
 use iota_types::{
     base_types::VersionNumber,
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
     messages_checkpoint::{
-        CheckpointContents, CheckpointContentsExt, CheckpointDigest, CheckpointSequenceNumber,
-        CheckpointTimestamp,
+        CheckpointContents, CheckpointContentsExt, CheckpointSequenceNumber, CheckpointTimestamp,
     },
     storage::ObjectKey,
 };
 use once_cell::sync::Lazy;
 use prometheus_filtered::{
-    IntCounter, IntGauge, Registry, register_int_counter_with_registry,
+    IntCounter, IntGauge, MetricLevel, Registry, register_int_counter_with_registry,
     register_int_gauge_with_registry,
 };
 use tokio::{
@@ -146,25 +145,29 @@ impl AuthorityStorePruningMetrics {
             last_pruned_checkpoint: register_int_gauge_with_registry!(
                 "last_pruned_checkpoint",
                 "Last pruned checkpoint",
-                registry
+                registry;
+                MetricLevel::Warn,
             )
             .unwrap(),
             num_pruned_objects: register_int_counter_with_registry!(
                 "num_pruned_objects",
                 "Number of pruned objects",
-                registry
+                registry;
+                MetricLevel::Warn,
             )
             .unwrap(),
             num_pruned_tombstones: register_int_counter_with_registry!(
                 "num_pruned_tombstones",
                 "Number of pruned tombstones",
-                registry
+                registry;
+                MetricLevel::Warn,
             )
             .unwrap(),
             last_pruned_effects_checkpoint: register_int_gauge_with_registry!(
                 "last_pruned_effects_checkpoint",
                 "Last pruned effects checkpoint",
-                registry
+                registry;
+                MetricLevel::Warn,
             )
             .unwrap(),
             last_pruned_indexes_transaction: register_int_gauge_with_registry!(
@@ -176,7 +179,8 @@ impl AuthorityStorePruningMetrics {
             num_epochs_to_retain_for_objects: register_int_gauge_with_registry!(
                 "num_epochs_to_retain_for_objects",
                 "Number of epochs to retain for objects",
-                registry
+                registry;
+                MetricLevel::Warn,
             )
             .unwrap(),
             num_epochs_to_retain_for_checkpoints: register_int_gauge_with_registry!(
@@ -1081,11 +1085,9 @@ impl ObjectCompactionMetrics {
 mod tests {
     use std::{collections::HashSet, path::Path, sync::Arc, time::Duration};
 
-    use iota_sdk_types::{ObjectId, ObjectReference, Version};
+    use iota_sdk_types::{ObjectDigest, ObjectId, ObjectReference, TransactionDigest, Version};
     use iota_swarm_config::test_utils::{CommitteeFixture, empty_contents};
     use iota_types::{
-        base_types::ObjectDigest,
-        digests::TransactionDigest,
         effects::{
             TransactionEffects, TransactionEffectsAPIForTesting, TransactionEffectsExtForTesting,
         },

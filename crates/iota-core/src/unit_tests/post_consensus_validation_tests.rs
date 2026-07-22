@@ -8,10 +8,9 @@ use std::sync::Arc;
 
 use iota_macros::sim_test;
 use iota_protocol_config::{OverrideGuard, ProtocolConfig};
-use iota_sdk_types::{Address, ObjectId, ObjectReference, Owner, Version};
+use iota_sdk_types::{Address, ObjectId, ObjectReference, Owner, TransactionDigest, Version};
 use iota_types::{
     crypto::{AccountKeyPair, get_key_pair},
-    digests::TransactionDigest,
     error::{IotaError, UserInputError},
     executable_transaction::VerifiedExecutableTransaction,
     messages_consensus::{ConsensusTransaction, ConsensusTransactionKind},

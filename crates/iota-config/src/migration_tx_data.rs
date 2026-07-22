@@ -10,10 +10,9 @@ use std::{
 
 use anyhow::{Context, Result};
 use iota_genesis_common::prepare_and_execute_genesis_transaction;
-use iota_sdk_types::ObjectData;
+use iota_sdk_types::{ObjectData, TransactionDigest};
 use iota_types::{
     balance::Balance,
-    digests::TransactionDigest,
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     gas_coin::GasCoin,
     message_envelope::Message,

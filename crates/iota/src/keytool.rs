@@ -43,14 +43,14 @@ use iota_sdk_types::{
 use iota_types::{
     base_types::address_from_iota_pub_key,
     crypto::{
-        DefaultHash, EncodeDecodeBase64, IotaKeyPair, IotaSignature, PublicKey, SignatureScheme,
+        DefaultHash, EncodeDecodeBase64, IotaKeyPair, PublicKey, SignatureScheme,
         get_authority_key_pair,
     },
     error::IotaResult,
     move_authenticator::MoveAuthenticatorExt,
     multisig::{MultiSig, MultiSigPublicKey, MultisigMember, ThresholdUnit, WeightUnit},
     passkey_authenticator::PasskeyAuthenticator,
-    signature::{GenericSignature, VerifyParams},
+    signature::{AuthenticatorTrait, VerifyParams},
     transaction::{SenderSignedData, TransactionData, TransactionDataAPI},
 };
 use json_to_table::{Orientation, json_to_table};
@@ -85,7 +85,7 @@ pub enum KeyToolCommand {
         #[arg(long)]
         tx_bytes: String,
         #[arg(long)]
-        sig: Option<GenericSignature>,
+        sig: Option<UserSignature>,
     },
     /// Given a Base64 encoded MultiSig signature, decode its components.
     /// If tx_bytes is passed in, verify the multisig.
@@ -464,9 +464,9 @@ impl KeyToolCommand {
                     let tx_bytes = Base64::decode(&tx_bytes)
                         .map_err(|e| anyhow!("Invalid base64 tx bytes: {e}"))?;
                     let tx_data: TransactionData = bcs::from_bytes(&tx_bytes)?;
-                    let s = GenericSignature::MultiSig(multisig);
-                    let res = s.verify_authenticator(
-                        &IntentMessage::new(Intent::iota_transaction(), tx_data),
+                    let s = UserSignature::Multisig(multisig);
+                    let res = s.verify_claims(
+                        &tx_data.intent_message(),
                         address,
                         &VerifyParams::default(),
                     );
@@ -480,9 +480,9 @@ impl KeyToolCommand {
                 CommandOutput::DecodeMultiSig(output)
             }
             KeyToolCommand::DecodeSig { sig } => {
-                // Try to decode as GenericSignature first, then fallback to
+                // Try to decode as UserSignature first, then fallback to
                 // SenderSignedData (which contains a SenderSignedTransaction)
-                let signature = match GenericSignature::decode_base64(&sig) {
+                let signature = match UserSignature::from_base64(&sig) {
                     Ok(sig) => sig,
                     Err(_) => {
                         // Try decoding as SenderSignedData
@@ -491,31 +491,27 @@ impl KeyToolCommand {
                         let tx = bcs::from_bytes::<SenderSignedData>(&tx_bytes).map_err(|e| {
                             anyhow!("Failed to decode as signature or transaction: {e}")
                         })?;
-                        tx.into_inner()
-                            .tx_signatures
+                        tx.0.signatures
                             .into_iter()
                             .next()
                             .ok_or_else(|| anyhow!("Transaction has no signatures"))?
                     }
                 };
                 let decoded = match signature {
-                    GenericSignature::Signature(s) => {
-                        let pk = PublicKey::try_from_bytes(
-                            s.signature_scheme(),
-                            s.to_public_key().as_ref(),
-                        )
-                        .map_err(|e| anyhow!("Invalid public key bytes: {e}"))?;
+                    UserSignature::Simple(s) => {
+                        let pk = PublicKey::try_from_bytes(s.scheme(), s.to_public_key().as_ref())
+                            .map_err(|e| anyhow!("Invalid public key bytes: {e}"))?;
                         let address = Address::from(&pk);
                         let public_key_base64 = pk.encode_base64();
                         let signature_hex = format!("0x{}", Hex::encode(s.signature_bytes()));
                         DecodedSigOutput::Signature {
-                            scheme: s.signature_scheme().to_string(),
+                            scheme: s.scheme().to_string(),
                             public_key_base64,
                             address: address.to_string(),
                             signature_hex,
                         }
                     }
-                    GenericSignature::MultiSig(multisig) => {
+                    UserSignature::Multisig(multisig) => {
                         let members = multisig.committee().members();
                         let signatures = multisig.signatures();
                         let indices = multisig.indices()?;
@@ -540,14 +536,10 @@ impl KeyToolCommand {
                             participating_signatures,
                         }
                     }
-                    #[allow(deprecated)]
-                    GenericSignature::ZkLoginAuthenticatorDeprecated(_) => {
-                        anyhow::bail!("zkLogin is not supported");
-                    }
-                    GenericSignature::PasskeyAuthenticator(passkey) => {
+                    UserSignature::PasskeyAuthenticator(passkey) => {
                         DecodedSigOutput::Passkey(Box::new(passkey))
                     }
-                    GenericSignature::MoveAuthenticator(move_auth) => {
+                    UserSignature::MoveAuthenticator(move_auth) => {
                         let call_arguments: Vec<String> = move_auth
                             .call_args()
                             .iter()
@@ -567,6 +559,9 @@ impl KeyToolCommand {
                             object_to_authenticate,
                         }
                     }
+                    _ => unimplemented!(
+                        "a new UserSignature variant was added and needs to be handled"
+                    ),
                 };
                 CommandOutput::DecodeSig(decoded)
             }
@@ -580,8 +575,8 @@ impl KeyToolCommand {
                         result: None,
                     }),
                     Some(s) => {
-                        let res = s.verify_authenticator(
-                            &IntentMessage::new(Intent::iota_transaction(), tx_data.clone()),
+                        let res = s.verify_claims(
+                            &tx_data.intent_message(),
                             tx_data.sender(),
                             &VerifyParams::default(),
                         );
@@ -623,12 +618,12 @@ impl KeyToolCommand {
                 derivation_path,
                 word_length,
             } => match key_scheme {
-                SignatureScheme::BLS12381 => {
+                SignatureScheme::Bls12381 => {
                     let (iota_address, kp) = get_authority_key_pair();
                     let file_name = format!("bls-{iota_address}.key");
                     write_authority_keypair_to_file(&kp, file_name)?;
                     let public_base64_key_with_flag = encode_public_key_with_flag_base64(
-                        SignatureScheme::BLS12381.flag(),
+                        SignatureScheme::Bls12381.to_u8(),
                         kp.public().as_ref(),
                     );
                     CommandOutput::Generate(Key {
@@ -638,7 +633,7 @@ impl KeyToolCommand {
                         public_base64_key: Some(kp.public().encode_base64()),
                         public_base64_key_with_flag: Some(public_base64_key_with_flag),
                         key_scheme: Some(key_scheme.to_string()),
-                        flag: Some(SignatureScheme::BLS12381.flag()),
+                        flag: Some(SignatureScheme::Bls12381.to_u8()),
                         mnemonic: None,
                         peer_id: None,
                         derivation_path: None,
@@ -788,7 +783,7 @@ impl KeyToolCommand {
                         Ok(keypair) => {
                             let public_base64_key = keypair.public().encode_base64();
                             let public_base64_key_with_flag = encode_public_key_with_flag_base64(
-                                SignatureScheme::BLS12381.flag(),
+                                SignatureScheme::Bls12381.to_u8(),
                                 keypair.public().as_ref(),
                             );
                             CommandOutput::Show(Key {
@@ -797,8 +792,8 @@ impl KeyToolCommand {
                                 source: "keypair".to_string(),
                                 public_base64_key: Some(public_base64_key),
                                 public_base64_key_with_flag: Some(public_base64_key_with_flag),
-                                key_scheme: Some(SignatureScheme::BLS12381.to_string()),
-                                flag: Some(SignatureScheme::BLS12381.flag()),
+                                key_scheme: Some(SignatureScheme::Bls12381.to_string()),
+                                flag: Some(SignatureScheme::Bls12381.to_u8()),
                                 peer_id: None,
                                 mnemonic: None,
                                 derivation_path: None,
@@ -920,7 +915,7 @@ impl KeyToolCommand {
                 external_sig.normalize_s();
                 let sig_compact = external_sig.serialize_compact();
 
-                let mut serialized_sig = vec![SignatureScheme::Secp256k1.flag()];
+                let mut serialized_sig = vec![SignatureScheme::Secp256k1.to_u8()];
                 serialized_sig.extend_from_slice(&sig_compact);
                 serialized_sig.extend_from_slice(pk_owner.as_ref());
                 let serialized_sig = Base64::encode(&serialized_sig);

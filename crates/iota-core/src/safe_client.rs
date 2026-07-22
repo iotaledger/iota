@@ -5,11 +5,11 @@
 
 use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 
+use iota_sdk_types::{TransactionDigest, TransactionEffectsDigest};
 use iota_types::{
     base_types::*,
     committee::*,
     crypto::AuthorityPublicKeyBytes,
-    digests::TransactionDigest,
     effects::{SignedTransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
     error::{IotaError, IotaResult},
     fp_ensure,

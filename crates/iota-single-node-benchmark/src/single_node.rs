@@ -20,10 +20,10 @@ use iota_core::{
     global_state_hasher::GlobalStateHasher,
     mock_consensus::{ConsensusMode, MockConsensusClient},
 };
-use iota_sdk_types::{Address, ObjectReference};
+use iota_sdk_types::{Address, ObjectReference, TransactionDigest};
 use iota_test_transaction_builder::{PublishData, TestTransactionBuilder};
 use iota_types::{
-    base_types::{AuthorityName, TransactionDigest},
+    base_types::AuthorityName,
     committee::Committee,
     crypto::{AccountKeyPair, AuthoritySignature, Signer},
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
@@ -33,8 +33,8 @@ use iota_types::{
     mock_checkpoint_builder::{MockCheckpointBuilder, ValidatorKeypairProvider},
     object::Object,
     transaction::{
-        CertifiedTransaction, DEFAULT_VALIDATOR_GAS_PRICE, Transaction, TransactionDataAPI,
-        VerifiedCertificate, VerifiedTransaction,
+        CertifiedTransaction, DEFAULT_VALIDATOR_GAS_PRICE, SenderSignedTransactionAPI, Transaction,
+        TransactionDataAPI, VerifiedCertificate, VerifiedTransaction,
     },
 };
 
@@ -138,7 +138,7 @@ impl SingleValidator {
         let effects = self
             .get_validator()
             .dry_exec_transaction_for_benchmark(
-                transaction.data().intent_message().value.clone(),
+                transaction.data().transaction().clone(),
                 *transaction.digest(),
             )
             .unwrap()
@@ -198,7 +198,7 @@ impl SingleValidator {
         store: InMemoryObjectStore,
         transaction: CertifiedTransaction,
     ) -> TransactionEffects {
-        let input_objects = transaction.transaction_data().input_objects().unwrap();
+        let input_objects = transaction.transaction().input_objects().unwrap();
         let objects = store
             .read_objects_for_execution(&self.epoch_store, &transaction.key(), &input_objects)
             .unwrap();
@@ -213,7 +213,7 @@ impl SingleValidator {
             self.epoch_store.reference_gas_price(),
         )
         .unwrap();
-        let (kind, signer, gas_data) = executable.transaction_data().execution_parts();
+        let (kind, signer, gas_data) = executable.transaction().execution_parts();
         let (inner_temp_store, _, effects, _) =
             self.epoch_store.executor().execute_transaction_to_effects(
                 &store,

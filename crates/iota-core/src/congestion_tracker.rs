@@ -183,7 +183,7 @@ impl CongestionTracker {
                         effects.transaction_digest()
                     )
                 })
-                .transaction_data()
+                .transaction()
                 .gas_price();
 
             // Skip system transactions

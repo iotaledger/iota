@@ -7,14 +7,13 @@ use std::{
     fmt::{Display, Formatter},
 };
 
-use iota_sdk_types::{Address, ObjectData, ObjectId, Owner, Version};
+use iota_sdk_types::{Address, ObjectData, ObjectId, Owner, TransactionDigest, Version};
 use move_core_types::annotated_value::MoveStructLayout;
 use serde::{Deserialize, Serialize};
 
 use crate::{
     balance::Supply,
     coin::{Coin, TreasuryCap},
-    digests::TransactionDigest,
     error::{ExecutionError, ExecutionErrorKind},
     object::{MoveObject, MoveObjectExt, OBJECT_START_VERSION, Object},
 };

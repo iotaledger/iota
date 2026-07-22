@@ -6,10 +6,9 @@ use diesel::prelude::*;
 use iota_json_rpc::coin_api::parse_to_struct_tag;
 use iota_json_rpc_types::{Balance, Coin as IotaCoin};
 use iota_package_resolver::{PackageStore, Resolver};
-use iota_sdk_types::{ObjectId, ObjectReference, Version};
+use iota_sdk_types::{ObjectDigest, ObjectId, ObjectReference, Version};
 use iota_types::{
     base_types::ObjectIdParseError,
-    digests::ObjectDigest,
     dynamic_field::{DynamicFieldType, Field},
     object::{Object, ObjectRead, PastObjectRead},
 };
@@ -493,7 +492,7 @@ impl StoredObject {
 ///
 /// ```ignore
 /// use iota_indexer::models::objects::{StoredObject, StoredObjects};
-/// use iota_types::digests::TransactionDigest;
+/// use iota_sdk_types::TransactionDigest;
 ///
 /// fn construct_data() -> Vec<(StoredObject, TransactionDigest)> {
 ///     Default::default()
@@ -610,9 +609,10 @@ impl TryFrom<CoinBalance> for Balance {
 
 #[cfg(test)]
 mod tests {
-    use iota_sdk_types::{Address, Identifier, ObjectData, Owner, StructTag, TypeTag};
+    use iota_sdk_types::{
+        Address, Identifier, ObjectData, Owner, StructTag, TransactionDigest, TypeTag,
+    };
     use iota_types::{
-        digests::TransactionDigest,
         gas_coin::GasCoin,
         object::{MoveObject, MoveObjectExt, ObjectInner},
     };

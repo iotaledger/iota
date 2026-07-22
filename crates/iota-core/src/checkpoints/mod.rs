@@ -26,12 +26,13 @@ use iota_common::{debug_fatal, fatal, random::get_rng, sync::notify_read::Notify
 use iota_macros::fail_point;
 use iota_metrics::{MonitoredFutureExt, monitored_future, monitored_scope};
 use iota_network::default_iota_network_config;
-use iota_sdk_types::{GasCostSummary, TransactionKind};
+use iota_sdk_types::{
+    CheckpointContentsDigest, CheckpointDigest, GasCostSummary, TransactionDigest, TransactionKind,
+};
 use iota_types::{
-    base_types::{AuthorityName, ConciseableName, EpochId, ExecutionData, TransactionDigest},
+    base_types::{AuthorityName, ConciseableName, EpochId, ExecutionData},
     committee::StakeUnit,
     crypto::AuthorityStrongQuorumSignInfo,
-    digests::{CheckpointContentsDigest, CheckpointDigest},
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
     error::{IotaError, IotaResult},
     event::SystemEpochInfoEvent,
@@ -47,7 +48,7 @@ use iota_types::{
         SignedCheckpointSummary, TrustedCheckpoint, VerifiedCheckpoint, VerifiedCheckpointContents,
     },
     messages_consensus::ConsensusTransactionKey,
-    signature::GenericSignature,
+    signature::UserSignature,
     storage::EpochInfoV2,
     transaction::{Transaction, TransactionDataAPI, TransactionKey},
 };
@@ -1418,7 +1419,7 @@ impl CheckpointBuilder {
             .try_get_transaction_block(&root_digests[0])?
             .expect("Transaction block must exist");
 
-        Ok(match first_tx.transaction_data().kind() {
+        Ok(match first_tx.transaction().kind() {
             TransactionKind::ConsensusCommitPrologueV1(_) => {
                 assert_eq!(first_tx.digest(), root_effects[0].transaction_digest());
                 Some((*first_tx.digest(), root_effects[0].clone()))
@@ -1515,8 +1516,8 @@ impl CheckpointBuilder {
     fn split_checkpoint_chunks(
         &self,
         transactions_effects_and_sizes: Vec<(Transaction, TransactionEffects, usize)>,
-        signatures: Vec<Vec<GenericSignature>>,
-    ) -> anyhow::Result<Vec<Vec<(Transaction, TransactionEffects, Vec<GenericSignature>)>>> {
+        signatures: Vec<Vec<UserSignature>>,
+    ) -> anyhow::Result<Vec<Vec<(Transaction, TransactionEffects, Vec<UserSignature>)>>> {
         let _guard = monitored_scope("CheckpointBuilder::split_checkpoint_chunks");
         let mut chunks = Vec::new();
         let mut chunk = Vec::new();
@@ -1640,7 +1641,7 @@ impl CheckpointBuilder {
             {
                 let (transaction, size) = transaction_and_size
                     .unwrap_or_else(|| panic!("Could not find executed transaction {effects:?}"));
-                match transaction.inner().transaction_data().kind() {
+                match transaction.inner().transaction().kind() {
                     #[allow(deprecated)]
                     TransactionKind::ConsensusCommitPrologueV1(_)
                     | TransactionKind::AuthenticatorStateUpdateV1Deprecated => {
@@ -1738,7 +1739,7 @@ impl CheckpointBuilder {
             let (chunk_transactions, mut effects, mut signatures): (
                 Vec<Transaction>,
                 Vec<TransactionEffects>,
-                Vec<Vec<GenericSignature>>,
+                Vec<Vec<UserSignature>>,
             ) = chunk.into_iter().multiunzip();
             let epoch_rolling_gas_cost_summary =
                 self.get_epoch_total_gas_cost(last_checkpoint.as_ref().map(|(_, c)| c), &effects);
@@ -1934,7 +1935,7 @@ impl CheckpointBuilder {
         epoch_total_gas_cost: &GasCostSummary,
         epoch_start_timestamp_ms: CheckpointTimestamp,
         checkpoint_effects: &mut Vec<TransactionEffects>,
-        signatures: &mut Vec<Vec<GenericSignature>>,
+        signatures: &mut Vec<Vec<UserSignature>>,
         checkpoint: CheckpointSequenceNumber,
         scores: Vec<u64>,
     ) -> anyhow::Result<(IotaSystemState, Option<SystemEpochInfoEvent>)> {
@@ -2057,7 +2058,7 @@ impl CheckpointBuilder {
             .filter_map(|tx| {
                 tx.as_ref().filter(|tx| {
                     matches!(
-                        tx.transaction_data().kind(),
+                        tx.transaction().kind(),
                         TransactionKind::ConsensusCommitPrologueV1(_)
                     )
                 })
@@ -2085,7 +2086,7 @@ impl CheckpointBuilder {
             // checkpoint.
             for tx in txs.iter().flatten() {
                 assert!(!matches!(
-                    tx.transaction_data().kind(),
+                    tx.transaction().kind(),
                     TransactionKind::ConsensusCommitPrologueV1(_)
                 ));
             }
@@ -2093,7 +2094,7 @@ impl CheckpointBuilder {
             // If there is one consensus commit prologue, it must be the first one in the
             // checkpoint.
             assert!(matches!(
-                txs[0].as_ref().unwrap().transaction_data().kind(),
+                txs[0].as_ref().unwrap().transaction().kind(),
                 TransactionKind::ConsensusCommitPrologueV1(_)
             ));
 
@@ -2101,7 +2102,7 @@ impl CheckpointBuilder {
 
             for tx in txs.iter().skip(1).flatten() {
                 assert!(!matches!(
-                    tx.transaction_data().kind(),
+                    tx.transaction().kind(),
                     TransactionKind::ConsensusCommitPrologueV1(_)
                 ));
             }
@@ -2957,10 +2958,10 @@ mod tests {
     use iota_macros::sim_test;
     use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
     use iota_sdk_types::{
-        GenesisObject, Identifier, ObjectData, ObjectId, Owner, Version, move_package::MovePackage,
+        GenesisObject, Identifier, ObjectData, ObjectId, Owner, TransactionEffectsDigest, Version,
+        move_package::MovePackage,
     };
     use iota_types::{
-        base_types::TransactionEffectsDigest,
         effects::{
             TransactionEffects, TransactionEffectsAPIForTesting, TransactionEffectsExtForTesting,
             TransactionEvents,

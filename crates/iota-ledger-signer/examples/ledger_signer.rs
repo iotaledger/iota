@@ -72,7 +72,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
     // Get the signer's address
     let address = signer.get_address()?;
-    println!("Signer address: {}", &address);
+    println!("Signer address: {address}");
 
     let signed_tx = signer.sign_transaction(&transaction, &address).await?;
     println!("Signature: {}", signed_tx.signature.to_base64());

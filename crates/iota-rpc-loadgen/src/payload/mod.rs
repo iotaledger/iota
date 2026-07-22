@@ -19,8 +19,8 @@ use std::time::Duration;
 
 use anyhow::Result;
 use async_trait::async_trait;
-use iota_sdk_types::{Address, ObjectId};
-use iota_types::{digests::TransactionDigest, messages_checkpoint::CheckpointSequenceNumber};
+use iota_sdk_types::{Address, ObjectId, TransactionDigest};
+use iota_types::messages_checkpoint::CheckpointSequenceNumber;
 pub use rpc_command_processor::{
     RpcCommandProcessor, load_addresses_from_file, load_digests_from_file, load_objects_from_file,
 };
