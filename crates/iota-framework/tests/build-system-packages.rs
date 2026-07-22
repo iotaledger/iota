@@ -297,8 +297,10 @@ fn relocate_docs(files: &[(String, String)], output: &mut BTreeMap<String, Strin
         // need to make sure that `to` path don't contain extensions in a later step.
         let content = link_to_regex.replace_all(&content, r#"<Link to="$1">$2</Link>"#);
 
-        // Escape `{` in multi-line <code> and add new lines as this is a requirement
-        // from mdx. MDX also strips leading whitespace inside `<code>` blocks
+        // Escape `{` and `*` in multi-line <code> and add new lines as this is
+        // a requirement from mdx. Unescaped `{` starts a JSX expression, and a
+        // pair of `*` (e.g. two dereferences) becomes markdown emphasis. MDX
+        // also strips leading whitespace inside `<code>` blocks
         // (it parses the content as a paragraph), which silently drops indentation
         // from Move implementations — encode leading spaces as `&nbsp;` so the
         // browser still renders them as regular spaces.
@@ -310,6 +312,7 @@ fn relocate_docs(files: &[(String, String)], output: &mut BTreeMap<String, Strin
             }
             let escaped = code_content
                 .replace('{', "\\{")
+                .replace('*', "\\*")
                 .split('\n')
                 .map(|line| {
                     let stripped = line.trim_start_matches(' ');
@@ -361,6 +364,25 @@ fn relocate_docs(files: &[(String, String)], output: &mut BTreeMap<String, Strin
             }).to_string()
         });
     }
+}
+
+#[test]
+fn relocate_docs_escapes_asterisks_in_code_blocks() {
+    // Two `*` dereferences in one code block pair up as markdown emphasis when
+    // MDX parses the block, which corrupts the rendered code and crashes
+    // rehype plugins that expect emphasis to contain plain text.
+    let input = "<pre><code>let a = f(*x);\nlet b = g(*y);\n</code></pre>\n";
+    let mut output = BTreeMap::new();
+    relocate_docs(&[("m.md".to_string(), input.to_string())], &mut output);
+    let content = &output["m.mdx"];
+    assert!(
+        !content.contains("(*"),
+        "unescaped `*` in code block: {content}"
+    );
+    assert!(
+        content.contains("f(\\*x)"),
+        "expected escaped `*`: {content}"
+    );
 }
 
 fn serialize_modules_to_file<'a>(
