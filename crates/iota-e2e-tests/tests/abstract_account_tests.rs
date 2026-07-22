@@ -25,7 +25,7 @@ use iota_json_rpc_types::{
 };
 use iota_keys::keystore::AccountKeystore;
 use iota_macros::sim_test;
-use iota_protocol_config::ProtocolConfig;
+use iota_protocol_config::{PerObjectCongestionControlMode, ProtocolConfig};
 use iota_sdk_types::{
     Address, Argument, ExecutionError, Identifier, MoveLocation, ObjectId, ObjectReference, Owner,
     ProgrammableTransaction, SharedObjectReference, TypeTag, crypto::Intent,
@@ -476,6 +476,213 @@ async fn test_abstract_account_post_consensus_failure() -> Result<(), anyhow::Er
             && ErrorBitset::from_u64(*abort_code).unwrap().error_code() == Some(0)
         ),
         "Expected failure to be a MoveAuthenticationError wrapping a Move abort in basic_keyed_aa::authenticate_ed25519",
+    );
+
+    Ok(())
+}
+
+/// Test in 3 steps the failure of an Abstract Account transaction
+/// post-consensus:
+/// 1) Create a TX certificate signed by the validators where the authentication
+///    is successful
+/// 2) Tamper with the AA shared object state by creating a second TX altering
+///    the state by deleting the AA shared object
+/// 3) Submit the original certificate which should now fail during
+///    post-consensus, even though validators originally run the authenticate
+///    and it passed
+#[sim_test]
+async fn test_abstract_account_post_consensus_deletion_failure() -> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
+    let client_ip = SocketAddr::new([127, 0, 0, 1].into(), 0);
+
+    // Build a test environment and create an abstract account
+    let mut test_env = TestEnvironment::new().await;
+    test_env
+        .setup_abstract_account(AA_AUTHENTICATE_FN_NAME_ED25519)
+        .await?;
+    let aa_ref = test_env.aa_ref.unwrap();
+    let rgp = test_env.test_cluster.get_reference_gas_price().await;
+    let aa_sender = aa_ref.object_id.into();
+
+    // Step 1: create an AA TX and ask the validators to sign it
+    // Create a simple transaction from the IOTA account
+    let aa_gas = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20000000000), aa_sender)
+        .await;
+    let pt = test_env.craft_aa_simple_ptb(AA_MODULE_NAME)?;
+    let tx_data = test_env
+        .craft_tx_from_pt(
+            pt, aa_gas, aa_sender, None, // No sponsor
+        )
+        .await?;
+    let tx_digest = tx_data.digest().into_inner();
+    // Create the MoveAuthenticator for the Ed25519 signature authenticator
+    let signatures = vec![test_env.create_move_authenticator_for_ed25519(&tx_digest)?];
+    // Create the TX envelope and send it for validators signing
+    let aa_simple_tx = Transaction::from_generic_sig_data(tx_data, signatures);
+    let cert = test_env
+        .test_cluster
+        .create_certificate(aa_simple_tx, Some(client_ip))
+        .await
+        .unwrap();
+
+    // Step 2: tamper with the AA shared object state by deleting it, so the
+    // original certificate becomes invalid post-consensus
+    let aa_gas2 = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20000000000), aa_sender)
+        .await;
+    let pt2 = test_env.craft_aa_delete_object_ptb()?;
+    let tx_data2 = test_env
+        .craft_tx_from_pt(
+            pt2, aa_gas2, aa_sender, None, // No sponsor
+        )
+        .await?;
+    let tx_digest2 = tx_data2.digest().into_inner();
+    // Create the MoveAuthenticator for the Ed25519 signature authenticator
+    let signatures2 = vec![test_env.create_move_authenticator_for_ed25519(&tx_digest2)?];
+    // Create the TX envelope and send it for validators signing
+    let aa_delete_tx = Transaction::from_generic_sig_data(tx_data2, signatures2);
+    // Should succeed
+    test_env
+        .execute_and_check_tx_correctness(aa_delete_tx)
+        .await?;
+
+    // Step 3: submit the original certificate which should now fail
+    let QuorumDriverResponse { effects_cert, .. } = test_env
+        .test_cluster
+        .authority_aggregator()
+        .process_certificate(
+            HandleCertificateRequestV1::new(cert).with_events(),
+            Some(client_ip),
+        )
+        .await
+        .unwrap();
+    let summary = effects_cert.summary_for_debug();
+
+    assert!(
+        summary.status.is_failure(),
+        "Expected the TX execution to fail"
+    );
+    assert!(
+        summary.gas_cost_summary.gas_used() == 1980400
+            && summary.mutated_object_count == 1
+            && summary.created_object_count == 0
+            && summary.unwrapped_object_count == 0
+            && summary.deleted_object_count == 0
+            && summary.wrapped_object_count == 0,
+        "Expected gas to be used in the failed transaction and that only the gas object was mutated",
+    );
+
+    let (error, command) = summary.status.unwrap_err();
+    assert!(
+        command.is_none(),
+        "Expected the authentication failure to carry no command index",
+    );
+    let ExecutionError::InputObjectDeleted = &error else {
+        panic!("Expected an InputObjectDeleted error, got: {error:?}");
+    };
+
+    Ok(())
+}
+
+/// Test that a certified Abstract Account transaction is cancelled
+/// post-consensus when the (shared) AA object it touches is congested.
+///
+/// Shared-object congestion control is forced on via protocol-config overrides:
+/// with `TotalGasBudget` accounting the transaction's gas budget alone
+/// overflows a per-object commit limit of 1, so it is deferred, and with zero
+/// allowed deferral rounds the first deferral is turned into a cancellation.
+/// Validators originally sign the transaction (authentication runs
+/// pre-consensus and passes), but post-consensus the AA object is read as a
+/// cancelled shared object and the transaction fails with
+/// `ExecutionCancelledDueToSharedObjectCongestionV2`.
+#[sim_test]
+async fn test_abstract_account_shared_object_congestion_cancellation() -> Result<(), anyhow::Error>
+{
+    telemetry_subscribers::init_for_testing();
+    let client_ip = SocketAddr::new([127, 0, 0, 1].into(), 0);
+
+    // Force shared-object congestion so any transaction touching a shared object
+    // is cancelled on the first deferral.
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_per_object_congestion_control_mode_for_testing(
+            PerObjectCongestionControlMode::TotalGasBudget,
+        );
+        config.set_max_accumulated_txn_cost_per_object_in_mysticeti_commit_for_testing(1);
+        config.set_max_congestion_limit_overshoot_per_commit_for_testing(0);
+        config.set_max_deferral_rounds_for_congestion_control_for_testing(0);
+        // Selects the V2 error (carrying `suggested_gas_price`); enabled by
+        // default at the max protocol version, set explicitly for robustness.
+        config.set_congestion_control_gas_price_feedback_mechanism_for_testing(true);
+        config
+    });
+
+    // Build a test environment and create an abstract account
+    let mut test_env = TestEnvironment::new().await;
+    test_env
+        .setup_abstract_account(AA_AUTHENTICATE_FN_NAME_ED25519)
+        .await?;
+    let aa_ref = test_env.aa_ref.unwrap();
+    let rgp = test_env.test_cluster.get_reference_gas_price().await;
+    let aa_sender = aa_ref.object_id.into();
+
+    // Create an AA TX that touches the (shared) AA object and ask the validators
+    // to sign it. Authentication runs and passes here, pre-consensus.
+    let aa_gas = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20000000000), aa_sender)
+        .await;
+    let pt = test_env.craft_aa_simple_ptb(AA_MODULE_NAME)?;
+    let tx_data = test_env
+        .craft_tx_from_pt(
+            pt, aa_gas, aa_sender, None, // No sponsor
+        )
+        .await?;
+    let tx_digest = tx_data.digest().into_inner();
+    // Create the MoveAuthenticator for the Ed25519 signature authenticator
+    let signatures = vec![test_env.create_move_authenticator_for_ed25519(&tx_digest)?];
+    // Create the TX envelope and send it for validators signing
+    let aa_simple_tx = Transaction::from_generic_sig_data(tx_data, signatures);
+    let cert = test_env
+        .test_cluster
+        .create_certificate(aa_simple_tx, Some(client_ip))
+        .await
+        .unwrap();
+
+    // Submit the certificate: consensus defers the congested transaction and,
+    // with zero deferral rounds allowed, cancels it.
+    let QuorumDriverResponse { effects_cert, .. } = test_env
+        .test_cluster
+        .authority_aggregator()
+        .process_certificate(
+            HandleCertificateRequestV1::new(cert).with_events(),
+            Some(client_ip),
+        )
+        .await
+        .unwrap();
+    let summary = effects_cert.summary_for_debug();
+
+    assert!(
+        summary.status.is_failure(),
+        "Expected the TX execution to fail"
+    );
+
+    let (error, command) = summary.status.unwrap_err();
+    assert!(
+        command.is_none(),
+        "Expected the congestion cancellation to carry no command index",
+    );
+    let ExecutionError::ExecutionCancelledDueToSharedObjectCongestionV2 {
+        congested_objects, ..
+    } = &error
+    else {
+        panic!("Expected an ExecutionCancelledDueToSharedObjectCongestionV2 error, got: {error:?}");
+    };
+    assert!(
+        congested_objects.contains(&aa_ref.object_id),
+        "Expected the AA shared object to be reported as congested, got: {congested_objects:?}",
     );
 
     Ok(())
@@ -2307,6 +2514,29 @@ impl TestEnvironment {
                 arguments,
             );
         }
+        Ok(builder.finish())
+    }
+
+    fn craft_aa_delete_object_ptb(&mut self) -> anyhow::Result<ProgrammableTransaction> {
+        let (Some(aa_ref), Some(aa_package_id)) = (self.aa_ref, self.aa_package_id) else {
+            anyhow::bail!("Abstract account not created yet");
+        };
+
+        let mut builder = ProgrammableTransactionBuilder::new();
+
+        // Delete the abstract account shared object.
+        let arguments = vec![builder.obj(CallArg::Shared(SharedObjectReference::new(
+            aa_ref.object_id,
+            aa_ref.version,
+            true,
+        )))?];
+        builder.programmable_move_call(
+            aa_package_id,
+            Identifier::from_static(AA_MODULE_NAME),
+            Identifier::from_static("delete_account"),
+            vec![],
+            arguments,
+        );
         Ok(builder.finish())
     }
 
