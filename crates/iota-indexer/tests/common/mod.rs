@@ -11,6 +11,7 @@ use std::{
     time::Duration,
 };
 
+use iota_sdk_crypto::Signer;
 use iota_sdk_types::{Address, ObjectId, ObjectReference, Version};
 
 const PRUNING_WAIT_TIMEOUT: Duration = Duration::from_secs(60);
@@ -390,7 +391,7 @@ pub async fn execute_tx_and_wait_for_indexer_checkpoint(
     indexer_client: &HttpClient,
     store: &PgIndexerStore,
     tx_bytes: TransactionBlockBytes,
-    keypair: &impl iota_sdk_crypto::Signer<Signature>,
+    keypair: &impl Signer<Signature>,
 ) -> TransactionDigest {
     let digest = execute_tx_must_succeed(indexer_client, tx_bytes, keypair).await;
     indexer_wait_for_transaction(digest, store, indexer_client).await;
@@ -400,7 +401,7 @@ pub async fn execute_tx_and_wait_for_indexer_checkpoint(
 pub async fn execute_tx_must_succeed(
     indexer_client: &HttpClient,
     tx_bytes: TransactionBlockBytes,
-    keypair: &impl iota_sdk_crypto::Signer<Signature>,
+    keypair: &impl Signer<Signature>,
 ) -> TransactionDigest {
     let txn = to_sender_signed_transaction(tx_bytes.to_data().unwrap(), keypair);
     let (tx_bytes, signatures) = txn.to_tx_bytes_and_signatures();

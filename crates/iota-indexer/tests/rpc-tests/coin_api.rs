@@ -14,6 +14,7 @@ use iota_json_rpc_types::{
     IotaTransactionBlockResponseOptions, IotaTypeTag, TransactionBlockBytes,
 };
 use iota_keys::keystore::AccountKeystore;
+use iota_sdk_crypto::Signer;
 use iota_sdk_types::{Address, Identifier, ObjectId, ObjectReference, StructTag, TypeTag};
 use iota_types::{
     balance::Supply,
@@ -784,7 +785,7 @@ async fn create_trusted_coins(
 pub async fn execute_move_call(
     client: &HttpClient,
     address: Address,
-    account_keypair: &impl iota_sdk_crypto::Signer<Signature>,
+    account_keypair: &impl Signer<Signature>,
     package_object_id: ObjectId,
     module: String,
     function: String,

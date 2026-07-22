@@ -2,38 +2,29 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use fastcrypto::encoding::{Base64, Encoding};
 use iota_config::{Config, NodeConfig, genesis, node};
+use iota_sdk_crypto::ToFromBytes as _;
 use iota_types::{
     committee::CommitteeWithNetworkMetadata, crypto::AccountKeyPair, multiaddr::Multiaddr,
 };
-use serde::{Deserialize, Serialize};
-use serde_with::serde_as;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde_with::{DeserializeAs, SerializeAs, serde_as};
 
-/// Serializes account keys as base64 strings of the raw 32-byte ed25519
+/// Serializes an account key as a base64 string of the raw 32-byte ed25519
 /// private key.
-mod account_keys_base64 {
-    use fastcrypto::encoding::{Base64, Encoding};
-    use iota_sdk_crypto::ToFromBytes as _;
-    use serde::{Deserialize, Deserializer, Serializer, ser::SerializeSeq};
+struct AccountKeyPairBase64;
 
-    use super::AccountKeyPair;
-
-    pub fn serialize<S: Serializer>(keys: &[AccountKeyPair], s: S) -> Result<S::Ok, S::Error> {
-        let mut seq = s.serialize_seq(Some(keys.len()))?;
-        for key in keys {
-            seq.serialize_element(&Base64::encode(key.to_bytes()))?;
-        }
-        seq.end()
+impl SerializeAs<AccountKeyPair> for AccountKeyPairBase64 {
+    fn serialize_as<S: Serializer>(key: &AccountKeyPair, s: S) -> Result<S::Ok, S::Error> {
+        Base64::encode(key.to_bytes()).serialize(s)
     }
+}
 
-    pub fn deserialize<'de, D: Deserializer<'de>>(d: D) -> Result<Vec<AccountKeyPair>, D::Error> {
-        Vec::<String>::deserialize(d)?
-            .into_iter()
-            .map(|s| {
-                let bytes = Base64::decode(&s).map_err(serde::de::Error::custom)?;
-                AccountKeyPair::from_bytes(&bytes).map_err(serde::de::Error::custom)
-            })
-            .collect()
+impl<'de> DeserializeAs<'de, AccountKeyPair> for AccountKeyPairBase64 {
+    fn deserialize_as<D: Deserializer<'de>>(d: D) -> Result<AccountKeyPair, D::Error> {
+        let bytes = Base64::decode(&String::deserialize(d)?).map_err(serde::de::Error::custom)?;
+        AccountKeyPair::from_bytes(&bytes).map_err(serde::de::Error::custom)
     }
 }
 
@@ -43,7 +34,7 @@ mod account_keys_base64 {
 #[derive(Debug, Deserialize, Serialize)]
 pub struct NetworkConfig {
     pub validator_configs: Vec<NodeConfig>,
-    #[serde(with = "account_keys_base64")]
+    #[serde_as(as = "Vec<AccountKeyPairBase64>")]
     pub account_keys: Vec<AccountKeyPair>,
     pub genesis: genesis::Genesis,
 }
@@ -88,7 +79,7 @@ impl NetworkConfig {
 #[derive(Debug, Deserialize, Serialize)]
 pub struct NetworkConfigLight {
     pub validator_configs: Vec<NodeConfig>,
-    #[serde(with = "account_keys_base64")]
+    #[serde_as(as = "Vec<AccountKeyPairBase64>")]
     pub account_keys: Vec<AccountKeyPair>,
     pub committee_with_network: CommitteeWithNetworkMetadata,
 }
