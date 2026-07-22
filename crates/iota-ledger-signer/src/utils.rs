@@ -8,11 +8,11 @@ use iota_sdk::{
     rpc_types::{IotaObjectData, IotaObjectDataOptions, IotaObjectResponse},
     types::{
         base_types::ObjectType,
-        object::{MoveObject, MoveObjectExt, Object},
+        object::{MoveStructExt, Object},
         transaction::{InputObjectKind, TransactionData, TransactionDataAPI},
     },
 };
-use iota_sdk_types::ObjectId;
+use iota_sdk_types::{MoveStruct, ObjectId};
 
 use crate::LedgerSignerError;
 
@@ -78,7 +78,7 @@ fn object_from_response(resp: IotaObjectResponse) -> Option<Object> {
         _ => return None,
     };
 
-    let move_object = MoveObject::new_from_execution_with_limit(
+    let move_object = MoveStruct::new_from_execution_with_limit(
         move_object_type.into(),
         data.version,
         bcs_bytes,

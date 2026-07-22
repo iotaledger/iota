@@ -7,7 +7,9 @@ use std::{
     fmt::{Display, Formatter},
 };
 
-use iota_sdk_types::{Address, ObjectData, ObjectId, Owner, TransactionDigest, Version};
+use iota_sdk_types::{
+    Address, MoveStruct, ObjectData, ObjectId, Owner, TransactionDigest, Version,
+};
 use move_core_types::annotated_value::MoveStructLayout;
 use serde::{Deserialize, Serialize};
 
@@ -15,7 +17,7 @@ use crate::{
     balance::Supply,
     coin::{Coin, TreasuryCap},
     error::{ExecutionError, ExecutionErrorKind},
-    object::{MoveObject, MoveObjectExt, OBJECT_START_VERSION, Object},
+    object::{MoveStructExt, OBJECT_START_VERSION, Object},
 };
 
 /// The number of Nanos per IOTA token
@@ -40,7 +42,7 @@ pub const SIMULATION_GAS_COIN_VALUE: u64 = 1_000_000_000 * NANOS_PER_IOTA; // 1B
 /// and funded with [`SIMULATION_GAS_COIN_VALUE`].
 pub fn mock_simulation_gas_coin(owner: Address) -> Object {
     Object::new_move(
-        MoveObject::new_gas_coin(
+        MoveStruct::new_gas_coin(
             OBJECT_START_VERSION,
             ObjectId::MAX,
             SIMULATION_GAS_COIN_VALUE,
@@ -99,8 +101,8 @@ mod checked {
             bcs::to_bytes(&self).unwrap()
         }
 
-        pub fn to_object(&self, version: Version) -> MoveObject {
-            MoveObject::new_gas_coin(version, *self.id(), self.value())
+        pub fn to_object(&self, version: Version) -> MoveStruct {
+            MoveStruct::new_gas_coin(version, *self.id(), self.value())
         }
 
         pub fn layout() -> MoveStructLayout {
@@ -116,10 +118,10 @@ mod checked {
         }
     }
 
-    impl TryFrom<&MoveObject> for GasCoin {
+    impl TryFrom<&MoveStruct> for GasCoin {
         type Error = ExecutionError;
 
-        fn try_from(value: &MoveObject) -> Result<GasCoin, ExecutionError> {
+        fn try_from(value: &MoveStruct) -> Result<GasCoin, ExecutionError> {
             if !value.struct_tag().is_gas_coin() {
                 return Err(ExecutionError::new_with_source(
                     ExecutionErrorKind::InvalidGasObject,

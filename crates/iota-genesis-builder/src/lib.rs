@@ -57,7 +57,7 @@ use iota_types::{
         CheckpointVersionSpecificDataV1,
     },
     metrics::LimitsMetrics,
-    object::{MoveObjectExt, Object},
+    object::{MoveStructExt, Object},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     randomness_state::RANDOMNESS_STATE_CREATE_FUNCTION_NAME,
     timelock::{

@@ -73,7 +73,7 @@ use iota_types::{
         TransactionInfoRequest, TransactionStatus,
     },
     multiaddr::Multiaddr,
-    object::MoveObjectExt,
+    object::MoveStructExt,
     storage::{ReadStore, SharedInMemoryStore},
 };
 use itertools::Itertools;

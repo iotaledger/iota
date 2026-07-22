@@ -3,7 +3,6 @@ name: Hierarchy
 on:
   push:
     branches:
-      - "develop"
       - "devnet"
       - "testnet"
       - "mainnet"

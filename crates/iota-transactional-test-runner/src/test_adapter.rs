@@ -54,7 +54,7 @@ use iota_types::{
         IotaAttribute, IotaAttributeV1, IotaAttributeV2, RuntimeModuleMetadata,
         RuntimeModuleMetadataWrapper,
     },
-    object::{GAS_VALUE_FOR_TESTING, MoveObjectExt, Object, bounded_visitor::BoundedVisitor},
+    object::{GAS_VALUE_FOR_TESTING, MoveStructExt, Object, bounded_visitor::BoundedVisitor},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     storage::{ObjectStore, ReadStore},
     transaction::{

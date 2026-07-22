@@ -342,7 +342,7 @@ fn test_move_object_size_for_gas_metering() {
     let object = Object::with_id_owner_for_testing(ObjectId::random(), Address::random());
     let size = object.object_size_for_gas_metering();
     let serialized = bcs::to_bytes(&object).unwrap();
-    // If the following assertion breaks, it's likely you have changed MoveObject's
+    // If the following assertion breaks, it's likely you have changed MoveStruct's
     // fields. Make sure to adjust `object_size_for_gas_metering()` to include
     // those changes.
     assert_eq!(size - 4, serialized.len());

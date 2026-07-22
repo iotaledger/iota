@@ -5,14 +5,14 @@
 //! during migration.
 
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{Address, ObjectData, ObjectId, Owner, Version};
+use iota_sdk_types::{Address, MoveStruct, ObjectData, ObjectId, Owner, Version};
 use iota_stardust_types::block::output::AliasOutput as StardustAlias;
 use iota_types::{
     balance::Balance,
     base_types::TxContext,
     collection_types::Bag,
     id::UID,
-    object::{MoveObject, MoveObjectExt, Object},
+    object::{MoveStructExt, Object},
     stardust::{
         coin_type::CoinType,
         output::alias::{Alias, AliasOutput},
@@ -91,7 +91,7 @@ impl AliasExt for Alias {
     ) -> anyhow::Result<Object> {
         // Construct the Alias object.
         let move_alias_object = {
-            MoveObject::new_from_execution(
+            MoveStruct::new_from_execution(
                 Alias::tag(),
                 version,
                 bcs::to_bytes(&self)?,
@@ -155,7 +155,7 @@ impl AliasOutputExt for AliasOutput {
     ) -> anyhow::Result<Object> {
         // Construct the Alias Output object.
         let move_alias_output_object = {
-            MoveObject::new_from_execution(
+            MoveStruct::new_from_execution(
                 AliasOutput::tag(coin_type.to_type_tag()),
                 version,
                 bcs::to_bytes(&self)?,

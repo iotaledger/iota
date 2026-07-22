@@ -15,7 +15,7 @@ use iota_sdk_types::{
     CommandArgumentError, ConsensusCommitDigest, ConsensusCommitPrologueV1,
     ConsensusDeterminedVersionAssignments, EndOfEpochTransactionKind, Event, ExecutionError,
     ExecutionStatus, GenesisObject, GenesisTransaction, Identifier, MoveLocation, MoveObjectType,
-    ObjectData, ObjectDigest, ObjectId, ObjectReference, Owner, PackageUpgradeError,
+    MoveStruct, ObjectData, ObjectDigest, ObjectId, ObjectReference, Owner, PackageUpgradeError,
     ProgrammableTransaction, RandomnessStateUpdate, SharedObjectReference, SimpleSignature,
     StructTag, TransactionDigest, TransactionEffectsDigest, TransactionExpiration, TransactionKind,
     TypeArgumentError, TypeTag, UnchangedSharedKind, UserSignature,
@@ -41,7 +41,7 @@ use iota_types::{
     },
     messages_grpc::ObjectInfoRequestKind,
     multisig::{MultiSig, MultiSigPublicKey, MultisigMember},
-    object::{MoveObject, MoveObjectExt, ObjectInner},
+    object::{MoveStructExt, ObjectInner},
     storage::DeleteKind,
     transaction::{CallArg, SenderSignedData, Transaction, TransactionData, TransactionDataAPI},
 };
@@ -105,7 +105,7 @@ fn get_registry() -> Result<Registry> {
     let type_tag_struct = TypeTag::from(struct_tag.clone());
     tracer.trace_value(&mut samples, &type_tag_struct).unwrap();
 
-    // MoveObject.type_ uses MoveObjectType which has custom serde.
+    // MoveStruct.object_type uses MoveObjectType which has custom serde.
     // Trace all variants so the schema is complete:
     // Other (variant 0) - any non-special struct tag
     tracer
@@ -285,7 +285,7 @@ fn get_registry() -> Result<Registry> {
     // the SDK's MovePackage uses BTreeMap<Identifier, Vec<u8>> with serde_with,
     // and Identifier's custom serde (DisplayFromStr) is incompatible with
     // serde_reflection's tracing deserializer for map keys.
-    let sample_move_obj = MoveObject::new_gas_coin(1u64.into(), ObjectId::ZERO, 0);
+    let sample_move_obj = MoveStruct::new_gas_coin(1u64.into(), ObjectId::ZERO, 0);
     tracer
         .trace_value(&mut samples, &ObjectData::Struct(sample_move_obj))
         .unwrap();
@@ -397,7 +397,7 @@ fn get_registry() -> Result<Registry> {
         .trace_value(&mut samples, &TransactionKind::Programmable(sample_pt))
         .unwrap();
     let sample_genesis_obj = GenesisObject::new(
-        ObjectData::Struct(MoveObject::new_gas_coin(1u64.into(), ObjectId::ZERO, 0)),
+        ObjectData::Struct(MoveStruct::new_gas_coin(1u64.into(), ObjectId::ZERO, 0)),
         Owner::Address(Address::ZERO),
     );
     tracer
@@ -448,7 +448,7 @@ fn get_registry() -> Result<Registry> {
     // so we need to trace ObjectInner directly to avoid a format conflict
     // (Struct vs NewTypeStruct both named "Object").
     let sample_obj_inner = ObjectInner {
-        data: ObjectData::Struct(MoveObject::new_gas_coin(1u64.into(), ObjectId::ZERO, 0)),
+        data: ObjectData::Struct(MoveStruct::new_gas_coin(1u64.into(), ObjectId::ZERO, 0)),
         owner: Owner::Address(Address::ZERO),
         previous_transaction: TransactionDigest::default(),
         storage_rebate: 0,

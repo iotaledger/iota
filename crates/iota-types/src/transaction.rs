@@ -20,8 +20,8 @@ use iota_sdk_types::{
     Address, Argument, CancelledTransaction, CertificateDigest, Command, ConsensusCommitDigest,
     ConsensusCommitPrologueV1, ConsensusDeterminedVersionAssignments, EndOfEpochTransactionKind,
     Event, GasPayment, GenesisObject, GenesisTransaction, Identifier, Input, MakeMoveVector,
-    MergeCoins, MoveAuthenticator, MoveCall, ObjectDigest, ObjectId, ObjectReference, Owner,
-    ProgrammableTransaction, Publish, RandomnessRound, RandomnessStateUpdate,
+    MergeCoins, MoveAuthenticator, MoveCall, MoveStruct, ObjectDigest, ObjectId, ObjectReference,
+    Owner, ProgrammableTransaction, Publish, RandomnessRound, RandomnessStateUpdate,
     SharedObjectReference, SplitCoins, TransactionDigest, TransactionExpiration, TransactionKind,
     TransferObjects, TypeTag, Upgrade, UserSignature, Version,
     crypto::{Intent, IntentMessage, IntentScope},
@@ -49,7 +49,7 @@ use crate::{
     message_envelope::{Envelope, Message, TrustedEnvelope, VerifiedEnvelope},
     messages_checkpoint::CheckpointTimestamp,
     move_authenticator::MoveAuthenticatorExt,
-    object::{MoveObject, Object},
+    object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     signature::VerifyParams,
     signature_verification::verify_sender_signed_data_message_signatures,
@@ -3073,7 +3073,7 @@ impl InputObjects {
             .iter()
             .filter_map(|object| match &object.object {
                 ObjectReadResultKind::Object(object) => {
-                    object.data.as_opt_struct().map(MoveObject::version)
+                    object.data.as_opt_struct().map(MoveStruct::version)
                 }
                 ObjectReadResultKind::DeletedSharedObject(v, _) => Some(*v),
                 ObjectReadResultKind::CancelledTransactionSharedObject(_) => None,

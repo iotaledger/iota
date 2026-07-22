@@ -46,9 +46,9 @@ use iota_metrics::{
 };
 use iota_sdk_types::{
     Address, CheckpointContentsDigest, CheckpointDigest, Digest, EndOfEpochTransactionKind, Event,
-    ExecutionStatus, GasPayment, MoveAuthenticator, ObjectDigest, ObjectId, ObjectReference, Owner,
-    RandomnessRound, StructTag, SystemPackage, TransactionDigest, TransactionEffectsDigest,
-    TransactionExpiration, TransactionKind, TypeTag, Version,
+    ExecutionStatus, GasPayment, MoveAuthenticator, MoveStruct, ObjectDigest, ObjectId,
+    ObjectReference, Owner, RandomnessRound, StructTag, SystemPackage, TransactionDigest,
+    TransactionEffectsDigest, TransactionExpiration, TransactionKind, TypeTag, Version,
     checkpoint::{CheckpointCommitment, CheckpointContents, CheckpointSummary},
     crypto::{Intent, IntentAppId, IntentMessage, IntentScope, IntentVersion},
     gas::GasCostSummary,
@@ -110,7 +110,7 @@ use iota_types::{
     metrics::{BytecodeVerifierMetrics, LimitsMetrics},
     move_authenticator::MoveAuthenticatorExt,
     object::{
-        MoveObject, MoveObjectExt, OBJECT_START_VERSION, Object, ObjectRead, PastObjectRead,
+        MoveStructExt, OBJECT_START_VERSION, Object, ObjectRead, PastObjectRead,
         bounded_visitor::BoundedVisitor,
     },
     storage::{
@@ -1946,25 +1946,28 @@ impl AuthorityState {
                             auth_account_object_id,
                             auth_account_object_seq_number,
                             auth_account_object_digest,
-                        ) = move_authenticator.object_to_authenticate_components()?;
+                        ) = move_authenticator
+                            .object_to_authenticate_components()
+                            .expect("the object to authenticate is validated before consensus and cannot be invalid during execution");
 
                         let signer = move_authenticator.address();
 
-                        let authenticator_function_ref_for_execution = self.check_move_account(
-                            auth_account_object_id,
-                            auth_account_object_seq_number,
-                            auth_account_object_digest,
-                            account_object,
-                            &signer,
-                        )?;
+                        let authenticator_function_ref_for_execution = self
+                            .check_move_account_for_execution(
+                                auth_account_object_id,
+                                auth_account_object_seq_number,
+                                auth_account_object_digest,
+                                account_object,
+                                &signer,
+                            );
 
-                        Ok((
+                        (
                             authenticator_input_objects,
                             authenticator_function_ref_for_execution,
-                        ))
+                        )
                     },
                 )
-                .collect::<IotaResult<Vec<_>>>()?;
+                .collect::<Vec<_>>();
 
             let per_authenticator_input_objects = per_authenticator_inputs
                 .iter()
@@ -2190,7 +2193,7 @@ impl AuthorityState {
             let sender = transaction.gas_owner();
             let gas_object_id = ObjectId::random();
             let gas_object = Object::new_move(
-                MoveObject::new_gas_coin(
+                MoveStruct::new_gas_coin(
                     OBJECT_START_VERSION,
                     gas_object_id,
                     SIMULATION_GAS_COIN_VALUE,
@@ -5650,9 +5653,36 @@ impl AuthorityState {
         Ok(new_epoch_store)
     }
 
-    /// Checks if `authenticator` unlocks a valid Move account and returns the
-    /// account-related `AuthenticatorFunctionRef` object.
-    fn check_move_account(
+    /// Resolves the account's `AuthenticatorFunctionRef` on the execution path,
+    /// where the certificate has already passed validation before consensus.
+    ///
+    /// A deleted or cancelled account object is not an error here: its version
+    /// is returned so execution can proceed and surface the proper effect
+    /// (e.g. `InputObjectDeleted` or a shared-object congestion cancellation).
+    /// Any other failure is a broken invariant and panics.
+    fn check_move_account_for_execution(
+        &self,
+        auth_account_object_id: ObjectId,
+        auth_account_object_seq_number: Option<Version>,
+        auth_account_object_digest: Option<ObjectDigest>,
+        account_object: ObjectReadResult,
+        signer: &Address,
+    ) -> AuthenticatorFunctionRefForExecution {
+        self.check_move_account(
+            auth_account_object_id,
+            auth_account_object_seq_number,
+            auth_account_object_digest,
+            account_object,
+            signer,
+            true,
+        )
+        .expect("move account checks cannot fail during execution")
+    }
+
+    /// Resolves the account's `AuthenticatorFunctionRef` on the validation
+    /// (signing) path, rejecting the transaction when the account object was
+    /// deleted or belongs to a cancelled transaction.
+    fn check_move_account_for_validation(
         &self,
         auth_account_object_id: ObjectId,
         auth_account_object_seq_number: Option<Version>,
@@ -5660,74 +5690,117 @@ impl AuthorityState {
         account_object: ObjectReadResult,
         signer: &Address,
     ) -> IotaResult<AuthenticatorFunctionRefForExecution> {
-        let account_object = match account_object.object {
-            ObjectReadResultKind::Object(object) => Ok(object),
-            ObjectReadResultKind::DeletedSharedObject(version, digest) => {
-                Err(UserInputError::AccountObjectDeleted {
-                    account_id: account_object.id(),
-                    account_version: version,
-                    transaction_digest: digest,
-                })
-            }
-            // It is impossible to check the account object because it is used in a canceled
-            // transaction and is not loaded.
-            ObjectReadResultKind::CancelledTransactionSharedObject(version) => {
-                Err(UserInputError::AccountObjectInCanceledTransaction {
-                    account_id: account_object.id(),
-                    account_version: version,
-                })
-            }
-        }?;
+        self.check_move_account(
+            auth_account_object_id,
+            auth_account_object_seq_number,
+            auth_account_object_digest,
+            account_object,
+            signer,
+            false,
+        )
+    }
 
-        let account_object_addr = Address::from(auth_account_object_id);
-
-        fp_ensure!(
-            signer == &account_object_addr,
-            UserInputError::IncorrectUserSignature {
-                error: format!("Move authenticator is trying to unlock {account_object_addr:?}, but given signer address is {signer:?}")
-            }
-            .into()
-        );
-
-        fp_ensure!(
-            account_object.is_shared() || account_object.is_immutable(),
-            UserInputError::AccountObjectNotSupported {
-                object_id: auth_account_object_id
-            }
-            .into()
-        );
-
-        let auth_account_object_seq_number =
-            if let Some(auth_account_object_seq_number) = auth_account_object_seq_number {
-                let account_object_version = account_object.version();
-
+    /// Checks whether `authenticator` unlocks a valid Move account and returns
+    /// the account-related `AuthenticatorFunctionRef`. When `is_execution` is
+    /// set, a deleted or cancelled account object yields its version instead of
+    /// an error, so execution can proceed to the proper effect. Prefer the
+    /// `check_move_account_for_execution` / `check_move_account_for_validation`
+    /// wrappers over calling this directly.
+    fn check_move_account(
+        &self,
+        auth_account_object_id: ObjectId,
+        auth_account_object_seq_number: Option<Version>,
+        auth_account_object_digest: Option<ObjectDigest>,
+        account_object: ObjectReadResult,
+        signer: &Address,
+        is_execution: bool,
+    ) -> IotaResult<AuthenticatorFunctionRefForExecution> {
+        let auth_account_object_seq_number = match (&account_object.object, is_execution) {
+            // In any case, if the account object is loaded, we can check its version and digest.
+            // Then we return the version of the account object to be used for reading the
+            // authenticator function ref dynamic field.
+            (ObjectReadResultKind::Object(object), _) => {
+                let account_object_addr = Address::from(auth_account_object_id);
                 fp_ensure!(
-                    account_object_version == auth_account_object_seq_number,
-                    UserInputError::AccountObjectVersionMismatch {
-                        object_id: auth_account_object_id,
-                        expected_version: auth_account_object_seq_number,
-                        actual_version: account_object_version,
+                    signer == &account_object_addr,
+                    UserInputError::IncorrectUserSignature {
+                        error: format!("Move authenticator is trying to unlock {account_object_addr:?}, but given signer address is {signer:?}")
                     }
                     .into()
                 );
 
-                auth_account_object_seq_number
-            } else {
-                account_object.version()
-            };
+                fp_ensure!(
+                    object.is_shared() || object.is_immutable(),
+                    UserInputError::AccountObjectNotSupported {
+                        object_id: auth_account_object_id
+                    }
+                    .into()
+                );
 
-        if let Some(auth_account_object_digest) = auth_account_object_digest {
-            let expected_digest = account_object.digest();
-            fp_ensure!(
-                expected_digest == auth_account_object_digest,
-                UserInputError::InvalidAccountObjectDigest {
-                    object_id: auth_account_object_id,
-                    expected_digest,
-                    actual_digest: auth_account_object_digest,
+                let auth_account_object_seq_number =
+                    if let Some(auth_account_object_seq_number) = auth_account_object_seq_number {
+                        let account_object_version = object.version();
+
+                        fp_ensure!(
+                            account_object_version == auth_account_object_seq_number,
+                            UserInputError::AccountObjectVersionMismatch {
+                                object_id: auth_account_object_id,
+                                expected_version: auth_account_object_seq_number,
+                                actual_version: account_object_version,
+                            }
+                            .into()
+                        );
+
+                        auth_account_object_seq_number
+                    } else {
+                        object.version()
+                    };
+
+                if let Some(auth_account_object_digest) = auth_account_object_digest {
+                    let expected_digest = object.digest();
+                    fp_ensure!(
+                        expected_digest == auth_account_object_digest,
+                        UserInputError::InvalidAccountObjectDigest {
+                            object_id: auth_account_object_id,
+                            expected_digest,
+                            actual_digest: auth_account_object_digest,
+                        }
+                        .into()
+                    );
                 }
-                .into()
-            );
-        }
+
+                Ok(auth_account_object_seq_number)
+            }
+            // If the account object is not loaded because it was deleted, we return the error in
+            // the case in which we are not executing the transaction right after.
+            (ObjectReadResultKind::DeletedSharedObject(version, digest), false) => {
+                Err(UserInputError::AccountObjectDeleted {
+                    account_id: account_object.id(),
+                    account_version: *version,
+                    transaction_digest: *digest,
+                })
+            }
+            // If the account object is not loaded because the transaction was canceled, we return
+            // the error in the case in which we are not executing the transaction right
+            // after.
+            (ObjectReadResultKind::CancelledTransactionSharedObject(version), false) => {
+                Err(UserInputError::AccountObjectInCanceledTransaction {
+                    account_id: account_object.id(),
+                    account_version: *version,
+                })
+            }
+            // If the account object is not loaded because it was deleted, we return the version in
+            // the case in which we are executing the transaction right after.
+            // This version is used to read the authenticator function ref dynamic field because it
+            // is greater than the version of the child dynamic field.
+            (ObjectReadResultKind::DeletedSharedObject(version, _), true) => Ok(*version),
+            // If the account object is not loaded because the transaction was canceled, we return
+            // the version in the case in which we are executing the transaction right
+            // after. This version is used to read the authenticator function ref
+            // dynamic field because it is greater than the version of the child dynamic
+            // field.
+            (ObjectReadResultKind::CancelledTransactionSharedObject(version), true) => Ok(*version),
+        }?;
 
         let authenticator_function_ref_field_id =
             derive_authenticator_function_ref_v1_dynamic_field_id(auth_account_object_id)?;
@@ -5829,7 +5902,7 @@ impl AuthorityState {
                     let AuthenticatorFunctionRefForExecution {
                         authenticator_function_ref,
                         ..
-                    } = self.check_move_account(
+                    } = self.check_move_account_for_validation(
                         auth_account_object_id,
                         auth_account_object_seq_number,
                         auth_account_object_digest,
