@@ -2179,7 +2179,7 @@ impl IndexerReader {
         let object: Object = stored_object.try_into()?;
         let Some(move_object) = object.data.as_opt_struct().cloned() else {
             return Err(IndexerError::ResolveMoveStruct(
-                "Object is not a MoveObject".to_string(),
+                "Object is not a MoveStruct".to_string(),
             ));
         };
         let type_tag = move_object.type_tag();

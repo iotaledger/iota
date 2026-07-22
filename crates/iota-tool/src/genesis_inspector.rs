@@ -6,14 +6,14 @@ use std::collections::BTreeMap;
 
 use inquire::Select;
 use iota_config::genesis::UnsignedGenesis;
-use iota_sdk_types::{ObjectId, Owner, move_package::MovePackage};
+use iota_sdk_types::{MoveStruct, ObjectId, Owner, move_package::MovePackage};
 use iota_types::{
     balance::Balance,
     coin::CoinMetadata,
     gas_coin::{GasCoin, IotaTreasuryCap, NANOS_PER_IOTA},
     governance::StakedIota,
     iota_system_state::IotaValidatorGenesis,
-    object::{MoveObject, Object},
+    object::Object,
     stardust::output::{AliasOutput, BasicOutput, NftOutput},
     timelock::{
         timelock::{TimeLock, is_timelocked_gas_balance},
@@ -272,7 +272,7 @@ fn examine_object(
     basic_output_iota_map: &BTreeMap<ObjectId, BasicOutput>,
     nft_output_iota_map: &BTreeMap<ObjectId, NftOutput>,
     coin_metadata_map: &BTreeMap<ObjectId, CoinMetadata>,
-    other_object_map: &BTreeMap<ObjectId, MoveObject>,
+    other_object_map: &BTreeMap<ObjectId, MoveStruct>,
 ) {
     let object_options: Vec<&str> = vec![
         STR_IOTA,

@@ -16,7 +16,7 @@ pub mod checked {
         ObjectId,
         error::{ExecutionError, IotaResult, UserInputError, UserInputResult},
         gas_model::{gas_v1::IotaGasStatus as IotaGasStatusV1, tables::GasStatus},
-        object::{MoveObjectExt, Object},
+        object::{MoveStructExt, Object},
         transaction::ObjectReadResult,
     };
 

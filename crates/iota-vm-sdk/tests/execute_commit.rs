@@ -7,12 +7,12 @@
 //! only the built-in framework, no Move compiler.
 
 use iota_sdk_types::{
-    ObjectId, Owner, TransactionDigest,
+    MoveStruct, ObjectId, Owner, TransactionDigest,
     transaction::{GenesisTransaction, TransactionKind},
 };
 use iota_types::{
     effects::TransactionEffectsAPI,
-    object::{MoveObject, MoveObjectExt, OBJECT_START_VERSION, Object},
+    object::{MoveStructExt, OBJECT_START_VERSION, Object},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{
         TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, TransactionData, TransactionDataAPI,
@@ -34,7 +34,7 @@ fn chain_context() -> ChainContext {
 /// A fresh, well-funded gas coin owned by `owner`.
 fn gas_coin(owner: Address) -> Object {
     Object::new_move(
-        MoveObject::new_gas_coin(OBJECT_START_VERSION, ObjectId::random(), GAS_COIN_VALUE),
+        MoveStruct::new_gas_coin(OBJECT_START_VERSION, ObjectId::random(), GAS_COIN_VALUE),
         Owner::Address(owner),
         TransactionDigest::ZERO,
     )
