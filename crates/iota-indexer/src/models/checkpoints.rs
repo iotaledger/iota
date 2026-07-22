@@ -223,8 +223,8 @@ impl TryFrom<StoredCheckpoint> for CheckpointSummary {
         let checkpoint_commitments =
             bcs::from_bytes(&checkpoint.checkpoint_commitments).map_err(|e| {
                 IndexerError::PersistentStorageDataCorruption(format!(
-                    "Failed to decode checkpoint commitments: {:?} with err: {:?}",
-                    checkpoint.checkpoint_commitments, e
+                    "Failed to decode checkpoint commitments: {:?} with err: {e:?}",
+                    checkpoint.checkpoint_commitments
                 ))
             })?;
 
