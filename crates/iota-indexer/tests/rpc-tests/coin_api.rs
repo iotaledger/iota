@@ -17,7 +17,7 @@ use iota_keys::keystore::AccountKeystore;
 use iota_sdk_types::{Address, Identifier, ObjectId, ObjectReference, StructTag, TypeTag};
 use iota_types::{
     balance::Supply,
-    crypto::{AccountKeyPair, IotaKeyPair, get_key_pair},
+    crypto::{AccountKeyPair, IotaKeyPair, Signature, get_key_pair},
     parse_iota_struct_tag,
     quorum_driver_types::ExecuteTransactionRequestType,
     utils::to_sender_signed_transaction,
