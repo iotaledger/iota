@@ -926,7 +926,7 @@ impl<'env> Docgen<'env> {
                 continue;
             }
             let ref_for_module = self.ref_for_module(module_env);
-            self.item_text(&format!("[`{}`]({})", id.name, ref_for_module))
+            self.item_text(&format!("[`{}`]({ref_for_module})", id.name))
         }
         self.end_items();
     }
