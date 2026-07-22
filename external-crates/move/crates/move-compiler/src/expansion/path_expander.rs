@@ -29,6 +29,7 @@ use crate::{
     },
     shared::{
         ide::{AliasAutocompleteInfo, IDEAnnotation},
+        known_attributes::{ExternalAttributeValue, ExternalAttributeValue_},
         *,
     },
 };
@@ -76,7 +77,7 @@ pub trait PathExpander {
         &mut self,
         context: &mut DefnContext,
         attribute_value: P::AttributeValue,
-    ) -> Option<E::AttributeValue>;
+    ) -> Option<ExternalAttributeValue>;
 
     fn name_access_chain_to_module_access(
         &mut self,
@@ -514,9 +515,9 @@ impl PathExpander for Move2024PathExpander {
         &mut self,
         context: &mut DefnContext,
         sp!(loc, avalue_): P::AttributeValue,
-    ) -> Option<E::AttributeValue> {
+    ) -> Option<ExternalAttributeValue> {
         use AccessChainNameResult as NR;
-        use E::AttributeValue_ as EV;
+        use ExternalAttributeValue_ as EV;
         use P::AttributeValue_ as PV;
         Some(sp(
             loc,
@@ -914,8 +915,8 @@ impl PathExpander for LegacyPathExpander {
         &mut self,
         context: &mut DefnContext,
         sp!(loc, avalue_): P::AttributeValue,
-    ) -> Option<E::AttributeValue> {
-        use E::AttributeValue_ as EV;
+    ) -> Option<ExternalAttributeValue> {
+        use ExternalAttributeValue_ as EV;
         use P::{AttributeValue_ as PV, LeadingNameAccess_ as LN, NameAccessChain_ as PN};
         Some(sp(
             loc,

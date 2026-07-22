@@ -2,9 +2,9 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! This module contains definitions and implementations supporting the notion of cursor
-//! which gets compuuted during symbolication process to contain information about the
-//! position of the cursor in the source code,
+//! This module contains definitions and implementations supporting the notion
+//! of cursor which gets compuuted during symbolication process to contain
+//! information about the position of the cursor in the source code,
 
 use std::fmt;
 
@@ -103,8 +103,9 @@ impl CursorContext {
         }
     }
 
-    /// Returns access chain at cursor position (if any) along with the information of what the chain's
-    /// auto-completed target kind should be, and weather it is part of the use statement.
+    /// Returns access chain at cursor position (if any) along with the
+    /// information of what the chain's auto-completed target kind should
+    /// be, and weather it is part of the use statement.
     pub fn find_access_chain(&self) -> Option<ChainInfo> {
         use ChainCompletionKind as CT;
         use CursorPosition as CP;
