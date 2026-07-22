@@ -245,34 +245,29 @@ Several tables hold data that is retained for the full lifetime of the database.
 
 The IOTA Indexer has the ability to initialize the database from a [formal snapshot](../common/snapshots.mdx#formal-snapshots) of the network instead of ingesting every checkpoint from genesis. A formal snapshot is a minimal, cryptographically verifiable capture of the end-of-epoch object state. Full nodes bootstrap from the same snapshots (see [formal-snapshot restore](../common/snapshots.mdx#restoring-from-formal-snapshots)).
 
-For a target epoch, restoring the Indexer involves downloading the snapshot, verifying it against the committee chain, and writing the live object state plus the epoch, protocol, and other data derived from it (display, packages, object-version mapping). It leaves the database at that epoch's final checkpoint. Then the writer should be started to catch up to the chain tip.
+For a target epoch, restoring the Indexer involves downloading the snapshot, verifying it against the committee chain, and writing the live object state plus the epoch, protocol, and other data derived from it (display, packages, object-version mapping).
 
-This is feasible through the `restore` command that exposes two subcommands, `run` and `available-epochs`:
+The CLI command to manage the underlying operations is `restore`, which exposes `run` and `available-epochs`:
 
-```text
+```sh
 iota-indexer restore --network <mainnet|testnet|devnet> run [OPTIONS]
       --staging-path <STAGING_PATH>   Local directory to stage the downloaded MANIFEST and .ref files
       --genesis-path <GENESIS_PATH>   Path to the genesis blob used to verify the snapshot
       --epoch <EPOCH>                 Epoch to download [default: latest available]
       --num-parallel-downloads <N>    Parallel downloads [default: host available parallelism]
-
-iota-indexer restore --network <mainnet|testnet|devnet> available-epochs
-      Print the epochs for which a formal snapshot is available (no database needed)
 ```
+where `--genesis-path` is the network's [genesis blob](../common/genesis.mdx). It is the trusted resource the committee chain is verified against. The snapshot is in turn verified against that committee chain.
 
-`--genesis-path` is the network's [genesis blob](../common/genesis.mdx). It is the trusted resource the committee chain is verified against. The snapshot is in turn verified against that committee chain.
-
-One caveat when selecting the target epoch and configuring a retention policy is that the restore epoch must sit at least a full window behind the tip of the network. That is because all prunable history tables start populating from the checkpoints that follow the restore point. To keep the recommended [30 epochs of retention](#sizing-and-retention), restore from an epoch about 30 epochs behind the tip.
-
-List the epochs that currently have a snapshot with `available-epochs`:
+To get the epochs for which a formal snapshot is available use the following command:
 
 ```sh
-iota-indexer restore --network mainnet available-epochs
+# epochs are returned as a sorted JSON array, newest first
+iota-indexer restore --network <mainnet|testnet|devnet> available-epochs [| jq .[i] ] # i: 0,1,2,...
 ```
 
-It prints the available epochs as a JSON array. Pass any of them to `--epoch` when restoring, or omit `--epoch` to take the latest.
+When the restore finishes it leaves the database at the target epoch's final checkpoint. So, all prunable history tables start populating from the checkpoints that follow the restore point. Thus, one caveat when selecting the target epoch and configuring a retention policy is that the restore epoch must sit at least a full retention window behind the tip of the network. To keep the recommended [30 epochs of data](#sizing-and-retention), restore from an epoch about 30 epochs behind the tip.
 
-For convenience, the picker below generates the restore and catch-up commands. Leave the epoch on **Latest** for the most recent snapshot, and adjust the `DATABASE_URL`, `GENESIS_PATH`, and `PRUNING_TOML_PATH` values for your deployment.
+For convenience, the interactive picker below generates the restore command. Leave the epoch on **Latest** for the most recent snapshot, and adjust `DATABASE_URL` and `GENESIS_PATH`.
 
 <IndexerRestorePicker />
 

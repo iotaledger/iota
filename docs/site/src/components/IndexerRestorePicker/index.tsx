@@ -11,7 +11,6 @@ function buildCommand(network: Network, epoch: EpochSelection): string {
     const env = [
         'DATABASE_URL="postgres://iota_indexer:iota_indexer@localhost:5432/iota_indexer"',
         'GENESIS_PATH="/path/to/genesis.blob"',
-        'PRUNING_TOML_PATH="/path/to/pruning.toml"',
     ].join('\n');
 
     const restore = joinArgs([
@@ -21,21 +20,11 @@ function buildCommand(network: Network, epoch: EpochSelection): string {
         ...(epoch === 'latest' ? [] : [`  --epoch ${epoch}`]),
     ]);
 
-    const catchUp = joinArgs([
-        'iota-indexer --db-url "$DATABASE_URL" indexer',
-        `  --remote-store-url "https://checkpoints.${network}.iota.cafe/ingestion/historical"`,
-        `  --live-checkpoints-store-url "https://checkpoints.${network}.iota.cafe/ingestion/live"`,
-        '  --pruning-config-path "$PRUNING_TOML_PATH"',
-    ]);
-
     return [
         env,
         '',
-        '# 1. Bootstrap the database from the formal snapshot.',
+        '# Bootstrap the database from the formal snapshot.',
         restore,
-        '',
-        '# 2. Catch up to the chain tip, with pruning enabled.',
-        catchUp,
     ].join('\n');
 }
 
