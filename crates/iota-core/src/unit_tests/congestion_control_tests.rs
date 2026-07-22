@@ -1045,6 +1045,104 @@ async fn test_execution_worker_congestion_drops_owned_object_only_tx() {
     }
 }
 
+// A transaction shed for execution-worker congestion while already priced at
+// the maximum gas price cannot bid higher, so the submitter is notified with
+// `ValidatorTransactionCongestedAtMaxGasPrice` rather than a suggested price it
+// cannot beat.
+#[sim_test]
+async fn test_execution_worker_congestion_drops_tx_at_max_gas_price() {
+    telemetry_subscribers::init_for_testing();
+
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(true);
+        config.set_per_object_congestion_control_mode_for_testing(
+            PerObjectCongestionControlMode::TotalTxCount,
+        );
+        config.set_max_accumulated_txn_cost_per_object_in_mysticeti_commit_for_testing(1);
+        config.set_max_congestion_limit_overshoot_per_commit_for_testing(0);
+        config.set_max_concurrent_execution_workers_for_testing(1);
+        config.set_max_deferral_rounds_for_congestion_control_for_testing(0);
+        config
+    });
+
+    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let object_1_id = ObjectId::random();
+    let object_2_id = ObjectId::random();
+    let gas_1_id = ObjectId::random();
+    let gas_2_id = ObjectId::random();
+    let authority = init_state_with_ids(vec![
+        (sender, object_1_id),
+        (sender, object_2_id),
+        (sender, gas_1_id),
+        (sender, gas_2_id),
+    ])
+    .await;
+    let epoch_store = authority.epoch_store_for_testing();
+    let max_gas_price = epoch_store.protocol_config().max_gas_price();
+
+    // Two owned-object-only transfer transactions with no object overlap, both
+    // priced at the maximum gas price.
+    let mut transactions = Vec::new();
+    for (object_id, gas_id) in [(object_1_id, gas_1_id), (object_2_id, gas_2_id)] {
+        let object = authority.get_object(&object_id).unwrap();
+        let gas = authority.get_object(&gas_id).unwrap();
+        transactions.push(init_transfer_transaction(
+            &authority,
+            sender,
+            &sender_key,
+            dbg_addr(2),
+            object.object_ref(),
+            gas.object_ref(),
+            max_gas_price * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+            max_gas_price,
+        ));
+    }
+
+    let sequenced_transactions = transactions
+        .iter()
+        .map(|tx| {
+            SequencedConsensusTransaction::new_test(ConsensusTransaction {
+                kind: ConsensusTransactionKind::UserTransactionV1(Box::new(tx.clone().into())),
+                tracking_id: Default::default(),
+            })
+        })
+        .collect();
+
+    let checkpoint_service = Arc::new(CheckpointServiceNoop {});
+    let executable_transactions = epoch_store
+        .process_consensus_transactions_for_tests(
+            sequenced_transactions,
+            &checkpoint_service,
+            authority.get_object_cache_reader().as_ref(),
+            authority.get_transaction_cache_reader().as_ref(),
+            &authority.metrics,
+            true,
+            authority.as_ref(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(executable_transactions.len(), 1);
+    let scheduled_digest = *executable_transactions[0].digest();
+    let dropped_digest = *transactions
+        .iter()
+        .map(|tx| tx.digest())
+        .find(|digest| **digest != scheduled_digest)
+        .unwrap();
+
+    let error = epoch_store
+        .notify_read_dropped_digests(dropped_digest)
+        .await;
+    match error {
+        IotaError::ValidatorTransactionCongestedAtMaxGasPrice {
+            max_gas_price: reported,
+        } => {
+            assert_eq!(reported, max_gas_price);
+        }
+        other => panic!("expected ValidatorTransactionCongestedAtMaxGasPrice, got {other:?}"),
+    }
+}
+
 // A transaction dropped for execution-worker congestion must release its
 // owned-object locks: the resubmission carries a higher gas price and hence a
 // different digest, which would otherwise conflict with the dropped

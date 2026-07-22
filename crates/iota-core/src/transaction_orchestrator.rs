@@ -1487,6 +1487,18 @@ fn map_td_error_to_qd(e: TransactionDriverError) -> QuorumDriverError {
                 )],
             }
         }
+        CongestedAtMaxGasPrice { max_gas_price } => {
+            // The transaction is already priced at the maximum, so no
+            // resubmission would clear the congestion. Surface the ceiling
+            // rather than a suggested price the client cannot beat.
+            QuorumDriverError::NonRecoverableTransactionError {
+                errors: vec![(
+                    IotaError::ValidatorTransactionCongestedAtMaxGasPrice { max_gas_price },
+                    0,
+                    vec![],
+                )],
+            }
+        }
     }
 }
 

@@ -6,7 +6,7 @@ use std::collections::{BTreeMap, HashMap};
 use iota_sdk_types::ObjectId;
 use iota_types::{
     executable_transaction::VerifiedExecutableTransaction,
-    transaction::{SenderSignedTransactionAPI, TransactionDataAPI},
+    transaction::{SenderSignedTransactionAPI, TransactionAPI},
 };
 use tracing::instrument;
 
@@ -237,7 +237,7 @@ impl SuggestedGasPriceCalculator {
                         self.congestion_control_parameters
                             .max_concurrent_execution_workers()
                             .is_none()
-                            || clearing_gas_price >= transaction.transaction_data().gas_price(),
+                            || clearing_gas_price >= transaction.transaction().gas_price(),
                         "clearing gas price below the shed transaction's own price"
                     );
                     clearing_gas_price.saturating_add(1)
@@ -254,7 +254,7 @@ impl SuggestedGasPriceCalculator {
                         // the identical transaction is answered with the cached drop
                         // status) so the client can retry once the debt has decayed.
                         self.reference_gas_price
-                            .max(transaction.transaction_data().gas_price().saturating_add(1))
+                            .max(transaction.transaction().gas_price().saturating_add(1))
                     } else {
                         self.reference_gas_price
                     }

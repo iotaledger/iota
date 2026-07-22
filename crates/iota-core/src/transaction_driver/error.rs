@@ -92,6 +92,10 @@ pub enum TransactionDriverError {
     /// Non-retriable by the driver itself (the same signed bytes would be
     /// shed again at the same price).
     Congested { suggested_gas_price: u64 },
+    /// Transaction shed due to execution congestion while already priced at the
+    /// maximum gas price. No resubmission at a higher price is possible, so the
+    /// client must wait for congestion to clear. Non-retriable.
+    CongestedAtMaxGasPrice { max_gas_price: u64 },
     /// Transaction execution observed multiple effects digests, and it is no
     /// longer possible to certify any of them.
     /// Non-retriable.
@@ -162,7 +166,10 @@ impl TransactionDriverError {
                 ErrorCategory::Unavailable
             }
             TransactionDriverError::SubmittedButFetchFailed { .. } => ErrorCategory::Unavailable,
-            TransactionDriverError::Congested { .. } => ErrorCategory::TransactionCongested,
+            TransactionDriverError::Congested { .. }
+            | TransactionDriverError::CongestedAtMaxGasPrice { .. } => {
+                ErrorCategory::TransactionCongested
+            }
         }
     }
 
@@ -296,6 +303,14 @@ impl std::fmt::Display for TransactionDriverError {
                     transaction with a gas price of at least {suggested_gas_price}."
                 )
             }
+            TransactionDriverError::CongestedAtMaxGasPrice { max_gas_price } => {
+                write!(
+                    f,
+                    "Transaction shed due to execution congestion (non-retriable) while already at \
+                    the maximum gas price of {max_gas_price}. Resubmitting at a higher gas price is \
+                    not possible; retry once congestion clears."
+                )
+            }
         }
     }
 }
@@ -345,31 +360,48 @@ fn format_transaction_request_error(error: &TransactionRequestError) -> String {
 }
 
 /// If transactions shed for execution congestion account for at least the
-/// validity threshold of the rejection stake, returns the suggested gas price
-/// to surface to the client as a [`TransactionDriverError::Congested`]. The
-/// price is the max reported across validators; in practice all report the same
-/// value since the shed decision is deterministic per consensus commit.
-pub(crate) fn congestion_suggested_gas_price(
+/// validity threshold of the rejection stake, returns the congestion error to
+/// surface to the client, otherwise `None`. The shed decision is deterministic
+/// per consensus commit, so honest validators report the same congestion
+/// variant; if any report the at-max-gas-price case (no higher resubmission is
+/// possible), that is preferred over echoing a suggested price the client
+/// cannot beat. For the ordinary case the suggested price is the max reported.
+pub(crate) fn congestion_error(
     errors: &[(AuthorityName, StakeUnit, TransactionRequestError)],
     validity_threshold: StakeUnit,
-) -> Option<u64> {
+) -> Option<TransactionDriverError> {
     let mut congested_stake: StakeUnit = 0;
     let mut suggested_gas_price: Option<u64> = None;
+    let mut max_gas_price: Option<u64> = None;
     for (_, stake, error) in errors {
-        if let TransactionRequestError::RejectedAtValidator(
-            IotaError::ValidatorTransactionCongested {
-                suggested_gas_price: price,
-            },
-        ) = error
-        {
-            congested_stake += *stake;
-            suggested_gas_price = Some(suggested_gas_price.map_or(*price, |s| s.max(*price)));
+        match error {
+            TransactionRequestError::RejectedAtValidator(
+                IotaError::ValidatorTransactionCongested {
+                    suggested_gas_price: price,
+                },
+            ) => {
+                congested_stake += *stake;
+                suggested_gas_price = Some(suggested_gas_price.map_or(*price, |s| s.max(*price)));
+            }
+            TransactionRequestError::RejectedAtValidator(
+                IotaError::ValidatorTransactionCongestedAtMaxGasPrice {
+                    max_gas_price: price,
+                },
+            ) => {
+                congested_stake += *stake;
+                max_gas_price = Some(max_gas_price.map_or(*price, |m| m.max(*price)));
+            }
+            _ => {}
         }
     }
-    if congested_stake >= validity_threshold {
-        suggested_gas_price
+    if congested_stake < validity_threshold {
+        return None;
+    }
+    if let Some(max_gas_price) = max_gas_price {
+        Some(TransactionDriverError::CongestedAtMaxGasPrice { max_gas_price })
     } else {
-        None
+        suggested_gas_price
+            .map(|suggested_gas_price| TransactionDriverError::Congested { suggested_gas_price })
     }
 }
 
@@ -445,6 +477,12 @@ mod tests {
         })
     }
 
+    fn congested_at_max_error(max_gas_price: u64) -> TransactionRequestError {
+        TransactionRequestError::RejectedAtValidator(
+            IotaError::ValidatorTransactionCongestedAtMaxGasPrice { max_gas_price },
+        )
+    }
+
     fn random_authority() -> AuthorityName {
         let (_, key_pair): (_, AuthorityKeyPair) = get_key_pair();
         key_pair.public().into()
@@ -471,7 +509,16 @@ mod tests {
     }
 
     #[test]
-    fn congestion_suggested_gas_price_requires_validity_threshold() {
+    fn congested_at_max_gas_price_driver_error_is_not_submission_retriable() {
+        let error = TransactionDriverError::CongestedAtMaxGasPrice {
+            max_gas_price: 1000,
+        };
+        assert_eq!(error.categorize(), ErrorCategory::TransactionCongested);
+        assert!(!error.is_submission_retriable());
+    }
+
+    #[test]
+    fn congestion_error_requires_validity_threshold() {
         let errors = vec![
             (random_authority(), 1, congested_error(1000)),
             (random_authority(), 1, congested_error(1200)),
@@ -484,10 +531,32 @@ mod tests {
 
         // Congested stake (2) at or above the threshold: the max reported
         // price is surfaced; other errors don't count toward it.
-        assert_eq!(congestion_suggested_gas_price(&errors, 2), Some(1200));
+        assert_eq!(
+            congestion_error(&errors, 2),
+            Some(TransactionDriverError::Congested {
+                suggested_gas_price: 1200
+            })
+        );
         // Congested stake below the threshold.
-        assert_eq!(congestion_suggested_gas_price(&errors, 3), None);
+        assert_eq!(congestion_error(&errors, 3), None);
         // No congested errors at all.
-        assert_eq!(congestion_suggested_gas_price(&errors[2..], 1), None);
+        assert_eq!(congestion_error(&errors[2..], 1), None);
+    }
+
+    #[test]
+    fn congestion_error_prefers_at_max_gas_price() {
+        // When the congested stake meets the threshold and any vote reports the
+        // at-max-gas-price case, surface that instead of a suggested price the
+        // client cannot beat.
+        let errors = vec![
+            (random_authority(), 1, congested_at_max_error(2000)),
+            (random_authority(), 1, congested_error(1200)),
+        ];
+        assert_eq!(
+            congestion_error(&errors, 2),
+            Some(TransactionDriverError::CongestedAtMaxGasPrice {
+                max_gas_price: 2000
+            })
+        );
     }
 }

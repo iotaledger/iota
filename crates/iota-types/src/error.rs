@@ -687,6 +687,13 @@ pub enum IotaError {
     )]
     ValidatorTransactionCongested { suggested_gas_price: u64 },
 
+    #[error(
+        "Transaction shed due to execution congestion, but its gas price is already at the maximum \
+        of {max_gas_price}, so resubmitting at a higher gas price is not possible. Retry once \
+        congestion clears."
+    )]
+    ValidatorTransactionCongestedAtMaxGasPrice { max_gas_price: u64 },
+
     #[error("Too many requests")]
     TooManyRequests,
 
@@ -876,7 +883,10 @@ impl IotaError {
             // Congestion shedding requires the client to resubmit a *new*
             // transaction at a higher gas price, so auto-retrying the same
             // signed bytes is pointless — surface it to the caller instead.
-            IotaError::ValidatorTransactionCongested { .. } => false,
+            // The at-max variant cannot be resolved by any resubmission until
+            // congestion clears, so it is likewise non-retryable.
+            IotaError::ValidatorTransactionCongested { .. }
+            | IotaError::ValidatorTransactionCongestedAtMaxGasPrice { .. } => false,
 
             // Non retryable error
             IotaError::Execution(..) => false,
@@ -984,7 +994,10 @@ pub fn categorize(error: &IotaError) -> ErrorCategory {
         | IotaError::TooManyTransactionsPendingConsensus
         | IotaError::ValidatorOverloadedRetryAfter { .. } => ErrorCategory::ValidatorOverloaded,
 
-        IotaError::ValidatorTransactionCongested { .. } => ErrorCategory::TransactionCongested,
+        IotaError::ValidatorTransactionCongested { .. }
+        | IotaError::ValidatorTransactionCongestedAtMaxGasPrice { .. } => {
+            ErrorCategory::TransactionCongested
+        }
 
         _ => ErrorCategory::Aborted,
     }

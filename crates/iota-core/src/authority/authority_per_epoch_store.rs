@@ -4592,7 +4592,7 @@ impl AuthorityPerEpochStore {
                     // Release its owned-object locks so the resubmitted
                     // (different digest) transaction is not blocked.
                     let owned_inputs = transaction
-                        .transaction_data()
+                        .transaction()
                         .input_objects()?
                         .into_iter()
                         .filter_map(|input| match input {
@@ -5379,20 +5379,32 @@ impl AuthorityPerEpochStore {
                             // out-of-band with a suggested gas price.
                             let suggested_gas_price =
                                 suggested_gas_price.unwrap_or_else(|| self.reference_gas_price());
+                            let actual_gas_price =
+                                verified_executable_tx.transaction().gas_price();
                             debug!(
                                 "Dropping verified executable transaction {:?} with deferral key \
                                     {deferral_key:?} due to congestion on objects \
-                                    {congested_objects:?}: actual gas price: {}, suggested gas \
-                                    price: {suggested_gas_price}",
+                                    {congested_objects:?}: actual gas price: {actual_gas_price}, \
+                                    suggested gas price: {suggested_gas_price}",
                                 verified_executable_tx.digest(),
-                                verified_executable_tx.transaction().gas_price(),
                             );
+
+                            // A transaction already priced at the maximum cannot bid
+                            // higher, so no resubmission would clear the congestion.
+                            // Report the ceiling instead of echoing the same price,
+                            // which the client cannot act on.
+                            let max_gas_price = self.protocol_config.max_gas_price();
+                            let error = if actual_gas_price >= max_gas_price {
+                                IotaError::ValidatorTransactionCongestedAtMaxGasPrice {
+                                    max_gas_price,
+                                }
+                            } else {
+                                IotaError::ValidatorTransactionCongested { suggested_gas_price }
+                            };
 
                             ConsensusTransactionResult::Dropped {
                                 transaction: verified_executable_tx,
-                                error: IotaError::ValidatorTransactionCongested {
-                                    suggested_gas_price,
-                                },
+                                error,
                             }
                         } else {
                             // Cancel the transaction that has been deferred for too long.

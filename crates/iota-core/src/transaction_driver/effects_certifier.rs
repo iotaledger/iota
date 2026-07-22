@@ -36,7 +36,7 @@ use crate::{
         QuorumTransactionResponse, SubmitTransactionOptions,
         error::{
             AggregatedEffectsDigests, TransactionDriverError, TransactionRequestError,
-            aggregate_request_errors, congestion_suggested_gas_price,
+            aggregate_request_errors, congestion_error,
         },
         metrics::TransactionDriverMetrics,
         request_retrier::RequestRetrier,
@@ -548,12 +548,8 @@ impl EffectsCertifier {
         if non_retriable_rejected.reached_validity_threshold() {
             self.metrics.skip_cert_corroborated_rejections.inc();
             let non_retriable = non_retriable_rejected.status_by_authority();
-            if let Some(suggested_gas_price) =
-                congestion_suggested_gas_price(&non_retriable, validity_threshold)
-            {
-                return TransactionDriverError::Congested {
-                    suggested_gas_price,
-                };
+            if let Some(error) = congestion_error(&non_retriable, validity_threshold) {
+                return error;
             }
             return TransactionDriverError::RejectedByValidators {
                 submission_non_retriable_errors: aggregate_request_errors(non_retriable),
@@ -619,12 +615,8 @@ impl EffectsCertifier {
             if non_retriable_rejected.reached_validity_threshold() {
                 self.metrics.skip_cert_corroborated_rejections.inc();
                 let non_retriable = non_retriable_rejected.status_by_authority();
-                if let Some(suggested_gas_price) =
-                    congestion_suggested_gas_price(&non_retriable, validity_threshold)
-                {
-                    return TransactionDriverError::Congested {
-                        suggested_gas_price,
-                    };
+                if let Some(error) = congestion_error(&non_retriable, validity_threshold) {
+                    return error;
                 }
                 return TransactionDriverError::RejectedByValidators {
                     submission_non_retriable_errors: aggregate_request_errors(non_retriable),
@@ -832,15 +824,13 @@ impl EffectsCertifier {
                 if non_retriable_errors_aggregator.total_votes() >= committee.validity_threshold() {
                     let non_retriable = non_retriable_errors_aggregator.status_by_authority();
                     // If the rejections are dominated by execution congestion,
-                    // surface the suggested gas price so the client can resubmit
-                    // at a higher price rather than treating the tx as invalid.
-                    if let Some(suggested_gas_price) = congestion_suggested_gas_price(
-                        &non_retriable,
-                        committee.validity_threshold(),
-                    ) {
-                        return Err(TransactionDriverError::Congested {
-                            suggested_gas_price,
-                        });
+                    // surface the congestion error so the client can resubmit at
+                    // a higher price (or learn it is already at the maximum)
+                    // rather than treating the tx as invalid.
+                    if let Some(error) =
+                        congestion_error(&non_retriable, committee.validity_threshold())
+                    {
+                        return Err(error);
                     }
                     return Err(TransactionDriverError::RejectedByValidators {
                         submission_non_retriable_errors: aggregate_request_errors(non_retriable),
