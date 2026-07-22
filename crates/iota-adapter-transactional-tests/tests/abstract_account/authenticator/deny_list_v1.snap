@@ -10,7 +10,12 @@ task 1, lines 8-33:
 //# publish --sender C
 created: object(1,0), object(1,1), object(1,2), object(1,3), object(1,4), object(1,5)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 18506000, storage_rebate: 0, non_refundable_storage_fee: 0
+Gas Cost Summary
+├── Computation Cost: 1000000
+├── Computation Cost Burned: 1000000
+├── Storage Cost: 18506000
+├── Storage Rebate: 0
+└── Non-Refundable Storage Fee: 0
 
 task 2, line 34:
 //# view-object 1,0
@@ -32,34 +37,59 @@ task 3, line 36:
 Output for 'crates/iota-adapter-transactional-tests/data/account_abstraction/simple_abstract_account.move':
 created: object(4,0)
 mutated: object(0,2)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 9971200, storage_rebate: 0, non_refundable_storage_fee: 0
+Gas Cost Summary
+├── Computation Cost: 1000000
+├── Computation Cost Burned: 1000000
+├── Storage Cost: 9971200
+├── Storage Rebate: 0
+└── Non-Refundable Storage Fee: 0
 
 task 4, lines 38-51:
 //# publish --sender A --dependencies test_coin simple_abstract_account
 created: object(5,0), object(5,1), object(5,2), object(5,3), object(5,4), object(5,5)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 20299600, storage_rebate: 0, non_refundable_storage_fee: 0
+Gas Cost Summary
+├── Computation Cost: 1000000
+├── Computation Cost Burned: 1000000
+├── Storage Cost: 20299600
+├── Storage Rebate: 0
+└── Non-Refundable Storage Fee: 0
 
 task 5, line 53:
 //# init-abstract-account --sender A --package-metadata object(5,5) --inputs "authenticate" "authenticate" --create-function simple_abstract_account::abstract_account::create --account-type simple_abstract_account::abstract_account::AbstractAccount
 events: Event { package_id: ObjectId("simple_abstract_account"), module: Identifier("abstract_account"), sender: Address("A"), type_: StructTag { address: Address("iota"), module: Identifier("account"), name: Identifier("MutableAccountCreated"), type_params: [Struct(StructTag { address: Address("simple_abstract_account"), module: Identifier("abstract_account"), name: Identifier("AbstractAccount"), type_params: [] })] }, contents: "hUOlwULDMxGBh4AIXTVsB1Fy4C/AJHmmA7e+ZujhBALCPTbmcB/TYRx6d8sfoF1jxA6twdVVRT1yQHcQFa/EDwxhdXRoZW50aWNhdGUMYXV0aGVudGljYXRl" }
 created: object(6,0), object(6,1), object(6,2)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 6847600, storage_rebate: 980400, non_refundable_storage_fee: 0
+Gas Cost Summary
+├── Computation Cost: 1000000
+├── Computation Cost Burned: 1000000
+├── Storage Cost: 6847600
+├── Storage Rebate: 980400
+└── Non-Refundable Storage Fee: 0
 
 task 7, lines 58-62:
 //# abstract --account immshared(6,2) --auth-inputs immshared(1,0) --ptb-inputs 100 @A
 created: object(8,0)
 mutated: object(6,0)
 unchanged_shared: object(1,0), object(6,2)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 1960800, storage_rebate: 980400, non_refundable_storage_fee: 0
+Gas Cost Summary
+├── Computation Cost: 1000000
+├── Computation Cost Burned: 1000000
+├── Storage Cost: 1960800
+├── Storage Rebate: 980400
+└── Non-Refundable Storage Fee: 0
 
 task 8, lines 63-65:
 //# run iota::coin::deny_list_v1_add --args object(0x403) object(1,2) @account_addr --type-args test_coin::regulated_coin::REGULATED_COIN --sender C
 events: Event { package_id: ObjectId("iota"), module: Identifier("coin"), sender: Address("C"), type_: StructTag { address: Address("iota"), module: Identifier("deny_list"), name: Identifier("PerTypeConfigCreated"), type_params: [] }, contents: "AAAAAAAAAABgMDc2YmE4OGExNzQyOTQ3NzQxNTk1ZWNjMWFlYWUwODdlZTliN2RhOWE0MTBlZDUwOTY5MDI5ZjQzYjRjNGQ0Yzo6cmVndWxhdGVkX2NvaW46OlJFR1VMQVRFRF9DT0lOQ8t29vXoOA1jfmBX8p+kyWwMGSyBKJh3Ud96JObYxaA=" }
 created: object(9,0), object(9,1), object(9,2)
 mutated: 0x0000000000000000000000000000000000000000000000000000000000000403, object(0,1), object(1,2)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 12144800, storage_rebate: 2758800, non_refundable_storage_fee: 0
+Gas Cost Summary
+├── Computation Cost: 1000000
+├── Computation Cost Burned: 1000000
+├── Storage Cost: 12144800
+├── Storage Rebate: 2758800
+└── Non-Refundable Storage Fee: 0
 
 task 9, lines 66-70:
 //# abstract --account immshared(6,2) --auth-inputs immshared(1,0) --ptb-inputs 100 @A
@@ -69,11 +99,21 @@ task 10, lines 71-73:
 //# run iota::coin::deny_list_v1_remove --args object(0x403) object(1,2) @account_addr --type-args test_coin::regulated_coin::REGULATED_COIN --sender C
 mutated: 0x0000000000000000000000000000000000000000000000000000000000000403, object(0,1), object(1,2)
 deleted: object(9,1)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 4377600, storage_rebate: 6832400, non_refundable_storage_fee: 0
+Gas Cost Summary
+├── Computation Cost: 1000000
+├── Computation Cost Burned: 1000000
+├── Storage Cost: 4377600
+├── Storage Rebate: 6832400
+└── Non-Refundable Storage Fee: 0
 
 task 11, lines 74-76:
 //# abstract --account immshared(6,2) --auth-inputs immshared(1,0) --ptb-inputs 100 @A
 created: object(12,0)
 mutated: object(6,0)
 unchanged_shared: object(1,0), object(6,2)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 1960800, storage_rebate: 980400, non_refundable_storage_fee: 0
+Gas Cost Summary
+├── Computation Cost: 1000000
+├── Computation Cost Burned: 1000000
+├── Storage Cost: 1960800
+├── Storage Rebate: 980400
+└── Non-Refundable Storage Fee: 0

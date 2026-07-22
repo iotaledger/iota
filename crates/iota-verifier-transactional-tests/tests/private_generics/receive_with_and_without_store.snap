@@ -17,10 +17,20 @@ task 2, lines 27-41:
 //# publish
 created: object(3,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 4841200, storage_rebate: 980400, non_refundable_storage_fee: 0
+Gas Cost Summary
+├── Computation Cost: 1000000
+├── Computation Cost Burned: 1000000
+├── Storage Cost: 4841200
+├── Storage Rebate: 980400
+└── Non-Refundable Storage Fee: 0
 
 task 3, lines 43-54:
 //# publish
 created: object(4,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 4423200, storage_rebate: 980400, non_refundable_storage_fee: 0
+Gas Cost Summary
+├── Computation Cost: 1000000
+├── Computation Cost Burned: 1000000
+├── Storage Cost: 4423200
+├── Storage Rebate: 980400
+└── Non-Refundable Storage Fee: 0

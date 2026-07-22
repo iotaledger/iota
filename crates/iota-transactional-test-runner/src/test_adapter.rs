@@ -2131,7 +2131,7 @@ impl IotaTestAdapter {
             .unwrap();
         }
         out.push('\n');
-        write!(out, "gas summary: {gas_summary}").unwrap();
+        write!(out, "{gas_summary}").unwrap();
 
         if out.is_empty() { None } else { Some(out) }
     }

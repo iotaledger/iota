@@ -11,41 +11,71 @@ task 1, lines 11-73:
 created: object(1,0), object(1,1), object(1,2), object(1,3), object(1,4), object(1,5)
 mutated: object(0,0)
 unchanged_shared: 0x0000000000000000000000000000000000000000000000000000000000000403
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 21918400, storage_rebate: 0, non_refundable_storage_fee: 0
+Gas Cost Summary
+├── Computation Cost: 1000000
+├── Computation Cost Burned: 1000000
+├── Storage Cost: 21918400
+├── Storage Rebate: 0
+└── Non-Refundable Storage Fee: 0
 
 task 2, lines 74-76:
 //# run iota::pay::split_and_transfer --args object(1,0) 1 @B --type-args test::regulated_coin::REGULATED_COIN --sender A
 created: object(2,0)
 mutated: object(0,0), object(1,0)
 unchanged_shared: 0x0000000000000000000000000000000000000000000000000000000000000403
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 3914000, storage_rebate: 2447200, non_refundable_storage_fee: 0
+Gas Cost Summary
+├── Computation Cost: 1000000
+├── Computation Cost Burned: 1000000
+├── Storage Cost: 3914000
+├── Storage Rebate: 2447200
+└── Non-Refundable Storage Fee: 0
 
 task 3, lines 77-79:
 //# run test::regulated_coin::partial_wrap --args object(1,0) --sender A
 created: object(3,0)
 mutated: object(0,0), object(1,0)
 unchanged_shared: 0x0000000000000000000000000000000000000000000000000000000000000403
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 4096400, storage_rebate: 2447200, non_refundable_storage_fee: 0
+Gas Cost Summary
+├── Computation Cost: 1000000
+├── Computation Cost Burned: 1000000
+├── Storage Cost: 4096400
+├── Storage Rebate: 2447200
+└── Non-Refundable Storage Fee: 0
 
 task 4, lines 80-82:
 //# run test::regulated_coin::partial_wrap --args object(1,0) --sender A
 created: object(4,0)
 mutated: object(0,0), object(1,0)
 unchanged_shared: 0x0000000000000000000000000000000000000000000000000000000000000403
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 4096400, storage_rebate: 2447200, non_refundable_storage_fee: 0
+Gas Cost Summary
+├── Computation Cost: 1000000
+├── Computation Cost Burned: 1000000
+├── Storage Cost: 4096400
+├── Storage Rebate: 2447200
+└── Non-Refundable Storage Fee: 0
 
 task 5, lines 83-85:
 //# run iota::coin::deny_list_v1_enable_global_pause --args object(0x403) object(1,2) --type-args test::regulated_coin::REGULATED_COIN --sender A
 events: Event { package_id: ObjectId("iota"), module: Identifier("coin"), sender: Address("A"), type_: StructTag { address: Address("iota"), module: Identifier("deny_list"), name: Identifier("PerTypeConfigCreated"), type_params: [] }, contents: "AAAAAAAAAABgZGJiMjA5OWM3MjNlZWU2YjJhNDIyYmFlYjRlN2RlMzhmNGRmYTZhODcwOTAyNjA0MzhmMzA3NmE0NWExMTM2Mjo6cmVndWxhdGVkX2NvaW46OlJFR1VMQVRFRF9DT0lO+lOiPMkwSR0AXOhQpA5Z3qek4GyC8p4DM6xvLWh8j+k=" }
 created: object(5,0), object(5,1), object(5,2)
 mutated: 0x0000000000000000000000000000000000000000000000000000000000000403, object(0,0), object(1,2)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 11939600, storage_rebate: 2758800, non_refundable_storage_fee: 0
+Gas Cost Summary
+├── Computation Cost: 1000000
+├── Computation Cost Burned: 1000000
+├── Storage Cost: 11939600
+├── Storage Rebate: 2758800
+└── Non-Refundable Storage Fee: 0
 
 task 6, lines 86-88:
 //# run test::regulated_coin::assert_global_pause_status --args immshared(0x403) true --sender A
 mutated: object(0,0)
 unchanged_shared: 0x0000000000000000000000000000000000000000000000000000000000000403
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 980400, storage_rebate: 980400, non_refundable_storage_fee: 0
+Gas Cost Summary
+├── Computation Cost: 1000000
+├── Computation Cost Burned: 1000000
+├── Storage Cost: 980400
+├── Storage Rebate: 980400
+└── Non-Refundable Storage Fee: 0
 
 task 7, lines 89-91:
 //# run iota::pay::split_and_transfer --args object(1,0) 1 @B --type-args test::regulated_coin::REGULATED_COIN --sender A
@@ -65,7 +95,12 @@ mutated: object(0,0)
 unwrapped: object(10,0)
 deleted: object(3,0)
 unchanged_shared: 0x0000000000000000000000000000000000000000000000000000000000000403
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2447200, storage_rebate: 2629600, non_refundable_storage_fee: 0
+Gas Cost Summary
+├── Computation Cost: 1000000
+├── Computation Cost Burned: 1000000
+├── Storage Cost: 2447200
+├── Storage Rebate: 2629600
+└── Non-Refundable Storage Fee: 0
 
 task 11, lines 101-104:
 //# advance-epoch
@@ -84,18 +119,33 @@ task 14, lines 111-113:
 //# run test::regulated_coin::assert_global_pause_status --args immshared(0x403) true --sender A
 mutated: object(0,0)
 unchanged_shared: 0x0000000000000000000000000000000000000000000000000000000000000403
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 980400, storage_rebate: 980400, non_refundable_storage_fee: 0
+Gas Cost Summary
+├── Computation Cost: 1000000
+├── Computation Cost Burned: 1000000
+├── Storage Cost: 980400
+├── Storage Rebate: 980400
+└── Non-Refundable Storage Fee: 0
 
 task 15, lines 114-116:
 //# run iota::coin::deny_list_v1_disable_global_pause --args object(0x403) object(1,2) --type-args test::regulated_coin::REGULATED_COIN --sender A
 mutated: 0x0000000000000000000000000000000000000000000000000000000000000403, object(0,0), object(1,2), object(5,1)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 6627200, storage_rebate: 6627200, non_refundable_storage_fee: 0
+Gas Cost Summary
+├── Computation Cost: 1000000
+├── Computation Cost Burned: 1000000
+├── Storage Cost: 6627200
+├── Storage Rebate: 6627200
+└── Non-Refundable Storage Fee: 0
 
 task 16, lines 117-119:
 //# run test::regulated_coin::assert_global_pause_status --args immshared(0x403) false --sender A
 mutated: object(0,0)
 unchanged_shared: 0x0000000000000000000000000000000000000000000000000000000000000403
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 980400, storage_rebate: 980400, non_refundable_storage_fee: 0
+Gas Cost Summary
+├── Computation Cost: 1000000
+├── Computation Cost Burned: 1000000
+├── Storage Cost: 980400
+├── Storage Rebate: 980400
+└── Non-Refundable Storage Fee: 0
 
 task 17, lines 120-122:
 //# run iota::pay::split_and_transfer --args object(1,0) 1 @B --type-args test::regulated_coin::REGULATED_COIN --sender A
@@ -107,7 +157,12 @@ task 18, lines 123-126:
 created: object(18,0)
 mutated: object(0,0)
 wrapped: object(1,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2629600, storage_rebate: 2447200, non_refundable_storage_fee: 0
+Gas Cost Summary
+├── Computation Cost: 1000000
+├── Computation Cost Burned: 1000000
+├── Storage Cost: 2629600
+├── Storage Rebate: 2447200
+└── Non-Refundable Storage Fee: 0
 
 task 19, line 127:
 //# run test::regulated_coin::unwrap --args object(18,0) --sender A
@@ -124,4 +179,9 @@ mutated: object(0,0)
 unwrapped: object(1,0)
 deleted: object(18,0)
 unchanged_shared: 0x0000000000000000000000000000000000000000000000000000000000000403
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2447200, storage_rebate: 2629600, non_refundable_storage_fee: 0
+Gas Cost Summary
+├── Computation Cost: 1000000
+├── Computation Cost Burned: 1000000
+├── Storage Cost: 2447200
+├── Storage Rebate: 2629600
+└── Non-Refundable Storage Fee: 0
