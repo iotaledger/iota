@@ -96,6 +96,14 @@ impl SlidingWindowSchedule {
     /// Ingest a new committed subdag, updating the running aggregate. Commits
     /// must be supplied in consecutive index order.
     pub(crate) fn add_commit(&mut self, c: SubDagBase) {
+        let _s = self
+            .context
+            .metrics
+            .node_metrics
+            .scope_processing_time
+            .with_label_values(&["SlidingWindowSchedule::add_commit"])
+            .start_timer();
+
         if let Some(last) = self.pending_commits.back() {
             assert_eq!(c.commit_ref.index, last.commit_ref.index + 1);
         }
