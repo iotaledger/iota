@@ -361,18 +361,26 @@ fn format_transaction_request_error(error: &TransactionRequestError) -> String {
 
 /// If transactions shed for execution congestion account for at least the
 /// validity threshold of the rejection stake, returns the congestion error to
-/// surface to the client, otherwise `None`. The shed decision is deterministic
-/// per consensus commit, so honest validators report the same congestion
-/// variant; if any report the at-max-gas-price case (no higher resubmission is
-/// possible), that is preferred over echoing a suggested price the client
-/// cannot beat. For the ordinary case the suggested price is the max reported.
+/// surface to the client, otherwise `None`.
+///
+/// The shed decision is deterministic per consensus commit, so honest
+/// validators report the same congestion variant and price. A single
+/// dishonest validator must therefore not be able to skew the outcome: taking
+/// the maximum reported price would let it make the client overpay
+/// arbitrarily, and honoring any single at-max-gas-price report would let it
+/// falsely tell the client that resubmission is futile. Instead, reports are
+/// ordered by price (an at-max report orders by the ceiling it carries) and
+/// the smallest report backed by a validity threshold of cumulative congested
+/// stake is surfaced — with at least one honest validator at or below it, the
+/// price and variant cannot be inflated by fewer than that threshold of
+/// dishonest stake.
 pub(crate) fn congestion_error(
     errors: &[(AuthorityName, StakeUnit, TransactionRequestError)],
     validity_threshold: StakeUnit,
 ) -> Option<TransactionDriverError> {
+    // (price, stake, at_max) per congested report.
+    let mut reports: Vec<(u64, StakeUnit, bool)> = Vec::new();
     let mut congested_stake: StakeUnit = 0;
-    let mut suggested_gas_price: Option<u64> = None;
-    let mut max_gas_price: Option<u64> = None;
     for (_, stake, error) in errors {
         match error {
             TransactionRequestError::RejectedAtValidator(
@@ -381,7 +389,7 @@ pub(crate) fn congestion_error(
                 },
             ) => {
                 congested_stake += *stake;
-                suggested_gas_price = Some(suggested_gas_price.map_or(*price, |s| s.max(*price)));
+                reports.push((*price, *stake, false));
             }
             TransactionRequestError::RejectedAtValidator(
                 IotaError::ValidatorTransactionCongestedAtMaxGasPrice {
@@ -389,7 +397,7 @@ pub(crate) fn congestion_error(
                 },
             ) => {
                 congested_stake += *stake;
-                max_gas_price = Some(max_gas_price.map_or(*price, |m| m.max(*price)));
+                reports.push((*price, *stake, true));
             }
             _ => {}
         }
@@ -397,12 +405,24 @@ pub(crate) fn congestion_error(
     if congested_stake < validity_threshold {
         return None;
     }
-    if let Some(max_gas_price) = max_gas_price {
-        Some(TransactionDriverError::CongestedAtMaxGasPrice { max_gas_price })
-    } else {
-        suggested_gas_price
-            .map(|suggested_gas_price| TransactionDriverError::Congested { suggested_gas_price })
-    }
+    reports.sort_unstable_by_key(|(price, _, _)| *price);
+    let mut cumulative: StakeUnit = 0;
+    // Always yields a report: the reports' stake sums to `congested_stake`,
+    // which is at least `validity_threshold`.
+    reports.into_iter().find_map(|(price, stake, at_max)| {
+        cumulative += stake;
+        (cumulative >= validity_threshold).then(|| {
+            if at_max {
+                TransactionDriverError::CongestedAtMaxGasPrice {
+                    max_gas_price: price,
+                }
+            } else {
+                TransactionDriverError::Congested {
+                    suggested_gas_price: price,
+                }
+            }
+        })
+    })
 }
 
 pub(crate) fn aggregate_request_errors(
@@ -529,8 +549,9 @@ mod tests {
             ),
         ];
 
-        // Congested stake (2) at or above the threshold: the max reported
-        // price is surfaced; other errors don't count toward it.
+        // Congested stake (2) at or above the threshold: the smallest price
+        // backed by threshold stake (here, the higher of the two, since one
+        // unit is not enough) is surfaced; other errors don't count toward it.
         assert_eq!(
             congestion_error(&errors, 2),
             Some(TransactionDriverError::Congested {
@@ -545,9 +566,8 @@ mod tests {
 
     #[test]
     fn congestion_error_prefers_at_max_gas_price() {
-        // When the congested stake meets the threshold and any vote reports the
-        // at-max-gas-price case, surface that instead of a suggested price the
-        // client cannot beat.
+        // When the at-max-gas-price report is needed to reach the threshold,
+        // surface it instead of a suggested price the client cannot beat.
         let errors = vec![
             (random_authority(), 1, congested_at_max_error(2000)),
             (random_authority(), 1, congested_error(1200)),
@@ -556,6 +576,54 @@ mod tests {
             congestion_error(&errors, 2),
             Some(TransactionDriverError::CongestedAtMaxGasPrice {
                 max_gas_price: 2000
+            })
+        );
+    }
+
+    #[test]
+    fn congestion_error_single_high_report_cannot_inflate_price() {
+        // Honest validators (stake 2) report the deterministic price; one
+        // dishonest report (stake 1) cannot raise the suggestion.
+        let errors = vec![
+            (random_authority(), 2, congested_error(1000)),
+            (random_authority(), 1, congested_error(1_000_000)),
+        ];
+        assert_eq!(
+            congestion_error(&errors, 2),
+            Some(TransactionDriverError::Congested {
+                suggested_gas_price: 1000
+            })
+        );
+    }
+
+    #[test]
+    fn congestion_error_single_low_report_cannot_deflate_price() {
+        // A dishonest low report (stake 1) below the threshold does not pull
+        // the suggestion under the price backed by threshold stake.
+        let errors = vec![
+            (random_authority(), 1, congested_error(1)),
+            (random_authority(), 2, congested_error(1000)),
+        ];
+        assert_eq!(
+            congestion_error(&errors, 2),
+            Some(TransactionDriverError::Congested {
+                suggested_gas_price: 1000
+            })
+        );
+    }
+
+    #[test]
+    fn congestion_error_single_at_max_report_cannot_flip_variant() {
+        // One dishonest at-max report (stake 1) cannot make the client give
+        // up on resubmission when threshold stake reports a beatable price.
+        let errors = vec![
+            (random_authority(), 2, congested_error(1000)),
+            (random_authority(), 1, congested_at_max_error(2000)),
+        ];
+        assert_eq!(
+            congestion_error(&errors, 2),
+            Some(TransactionDriverError::Congested {
+                suggested_gas_price: 1000
             })
         );
     }
