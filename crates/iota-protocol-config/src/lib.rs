@@ -1457,8 +1457,8 @@ pub struct ProtocolConfig {
     /// be scheduled to execute concurrently (the execution-worker pool size).
     /// `Some` activates execution-worker congestion control, under which
     /// owned-object-only transactions are also scheduled, deferred and shed
-    /// by the congestion tracker; `None` disables it. Requires
-    /// `enable_pcool_flow`.
+    /// by the congestion tracker; `None` disables it. Must be positive when
+    /// set. Requires `enable_pcool_flow`.
     max_concurrent_execution_workers: Option<u16>,
 
     /// Scorer version. When set to `None`, MisbehaviorReports are not sent nor
@@ -1989,6 +1989,10 @@ impl ProtocolConfig {
         assert!(
             res.is_none() || self.enable_pcool_flow(),
             "max_concurrent_execution_workers requires enable_pcool_flow to be enabled"
+        );
+        assert!(
+            res != Some(0),
+            "max_concurrent_execution_workers must be positive when set"
         );
         res
     }
