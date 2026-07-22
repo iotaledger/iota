@@ -3,13 +3,13 @@
 
 use iota_core::checkpoints::CheckpointStore;
 use iota_macros::sim_test;
-use iota_sdk_types::TransactionDigest;
+use iota_sdk_types::{TransactionDigest, checkpoint::CheckpointContents};
 use iota_snapshot::{EpochInfo, EpochInfoV1};
 use iota_types::{
     committee::EpochId,
     digests::ChainIdentifier,
     effects::{TransactionEffects, TransactionEffectsExtForTesting, TransactionEvents},
-    messages_checkpoint::{CheckpointContents, CheckpointContentsExt},
+    messages_checkpoint::CheckpointContentsExt,
     storage::EpochInfoV1Entry,
 };
 use test_cluster::TestClusterBuilder;

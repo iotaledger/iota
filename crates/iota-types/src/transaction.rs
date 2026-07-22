@@ -23,7 +23,7 @@ use iota_sdk_types::{
     MergeCoins, MoveCall, ObjectDigest, ObjectId, ObjectReference, Owner, ProgrammableTransaction,
     Publish, RandomnessRound, RandomnessStateUpdate, SharedObjectReference, SplitCoins,
     TransactionDigest, TransactionExpiration, TransactionKind, TransferObjects, TypeTag, Upgrade,
-    Version,
+    UserSignature, Version,
     crypto::{Intent, IntentMessage, IntentScope},
 };
 pub use iota_sdk_types::{
@@ -51,7 +51,7 @@ use crate::{
     move_authenticator::{MoveAuthenticator, MoveAuthenticatorExt},
     object::{MoveObject, Object},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    signature::{UserSignature, VerifyParams},
+    signature::VerifyParams,
     signature_verification::verify_sender_signed_data_message_signatures,
 };
 

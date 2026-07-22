@@ -9,7 +9,7 @@ use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_crypto::{secp256r1::Secp256r1PrivateKey, simple::SimpleKeypair};
 use iota_sdk_types::{
-    Address,
+    Address, UserSignature,
     crypto::{
         Intent, IntentMessage, PasskeyAuthenticator, PasskeyPublicKey, PublicKey,
         Secp256r1PublicKey, Secp256r1Signature, SimpleSignature,
@@ -19,7 +19,6 @@ use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     error::{IotaError, IotaResult},
     multisig::{MultiSig, MultiSigPublicKey, MultisigMember},
-    signature::UserSignature,
     transaction::Transaction,
     utils::{make_upgraded_multisig_tx, multisig_keys},
 };

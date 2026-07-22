@@ -32,7 +32,8 @@ use iota_protocol_config::{
 };
 use iota_sdk_types::{
     Address, CancelledTransaction, CheckpointTimestamp, ObjectId, ObjectReference, RandomnessRound,
-    TransactionDigest, TransactionEffectsDigest, TransactionKind, Version, VersionAssignment,
+    TransactionDigest, TransactionEffectsDigest, TransactionKind, UserSignature, Version,
+    VersionAssignment,
 };
 use iota_storage::mutex_table::{MutexGuard, MutexTable};
 use iota_types::{
@@ -60,7 +61,6 @@ use iota_types::{
         ConsensusTransactionKind, SignedAuthorityCapabilitiesV1, VerifiedAuthorityCapabilitiesV1,
         VersionedDkgConfirmation,
     },
-    signature::UserSignature,
     storage::{BackingPackageStore, InputKey},
     transaction::{
         CertifiedTransaction, InputObjectKind, SenderSignedData, SenderSignedTransactionAPI,

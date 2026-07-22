@@ -12,12 +12,13 @@
 //! epoch whose contiguous prefix is finalized.
 
 use iota_protocol_config::Chain;
+use iota_sdk_types::checkpoint::CheckpointSummary;
 use iota_types::{
     committee::EpochId,
     digests::ChainIdentifier,
     full_checkpoint_content::CheckpointData,
     iota_system_state::IotaSystemStateTrait,
-    messages_checkpoint::{CheckpointSequenceNumber, CheckpointSummary},
+    messages_checkpoint::CheckpointSequenceNumber,
     storage::{EpochInfoV1Entry, EpochInfoV2, error::Error as StorageError},
 };
 use tracing::warn;

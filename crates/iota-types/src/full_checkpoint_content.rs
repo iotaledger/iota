@@ -4,7 +4,7 @@
 
 use std::collections::BTreeMap;
 
-use iota_sdk_types::{ObjectId, ObjectReference, TransactionKind};
+use iota_sdk_types::{ObjectId, ObjectReference, TransactionKind, checkpoint::CheckpointContents};
 use serde::{Deserialize, Serialize};
 use tap::Pipe;
 
@@ -13,7 +13,7 @@ use crate::{
         TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt, TransactionEvents,
     },
     iota_system_state::{IotaSystemStateTrait, get_iota_system_state},
-    messages_checkpoint::{CertifiedCheckpointSummary, CheckpointContents},
+    messages_checkpoint::CertifiedCheckpointSummary,
     object::Object,
     storage::{BackingPackageStore, EpochInfo, error::Error as StorageError},
     transaction::{Transaction, TransactionDataAPI},

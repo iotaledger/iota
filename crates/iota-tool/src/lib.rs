@@ -50,6 +50,7 @@ use iota_protocol_config::Chain;
 use iota_sdk::{IotaClient, IotaClientBuilder};
 use iota_sdk_types::{
     CheckpointContentsDigest, ObjectDigest, ObjectId, Owner, TransactionDigest, Version,
+    checkpoint::CheckpointCommitment,
 };
 use iota_snapshot::{
     VerifiedEpochInfo, reader::StateSnapshotReaderV1, restore::RestoreWithGrpcIndexes,
@@ -66,7 +67,7 @@ use iota_types::{
     crypto::AuthorityPublicKeyBytes,
     digests::ChainIdentifier,
     global_state_hash::GlobalStateHash,
-    messages_checkpoint::{CheckpointCommitment, ECMHLiveObjectSetDigest, VerifiedCheckpoint},
+    messages_checkpoint::{ECMHLiveObjectSetDigest, VerifiedCheckpoint},
     messages_grpc::{
         LayoutGenerationOption, ObjectInfoRequest, ObjectInfoRequestKind, ObjectInfoResponse,
         TransactionInfoRequest, TransactionStatus,

@@ -8,15 +8,15 @@ use dashmap::DashMap;
 use fastcrypto_tbls::{dkg_v1, nodes::PartyId};
 use iota_common::{fatal, random_util::randomize_cache_capacity_in_tests};
 use iota_sdk_types::{
-    ObjectId, ObjectReference, RandomnessRound, TransactionDigest, Version, VersionAssignment,
+    ObjectId, ObjectReference, RandomnessRound, TransactionDigest, UserSignature, Version,
+    VersionAssignment, checkpoint::CheckpointContents,
 };
 use iota_types::{
     base_types::AuthorityName,
     deny_rule_governance::DenyRuleProposal,
     error::IotaResult,
-    messages_checkpoint::{CheckpointContents, CheckpointContentsExt, CheckpointSequenceNumber},
+    messages_checkpoint::{CheckpointContentsExt, CheckpointSequenceNumber},
     messages_consensus::VersionedDkgConfirmation,
-    signature::UserSignature,
     transaction::SenderSignedTransactionAPI,
 };
 use moka::{policy::EvictionPolicy, sync::SegmentedCache as MokaCache};

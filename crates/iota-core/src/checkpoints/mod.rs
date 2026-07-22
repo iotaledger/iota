@@ -28,6 +28,7 @@ use iota_metrics::{MonitoredFutureExt, monitored_future, monitored_scope};
 use iota_network::default_iota_network_config;
 use iota_sdk_types::{
     CheckpointContentsDigest, CheckpointDigest, GasCostSummary, TransactionDigest, TransactionKind,
+    UserSignature,
 };
 use iota_types::{
     base_types::{AuthorityName, ConciseableName, EpochId, ExecutionData},
@@ -48,7 +49,6 @@ use iota_types::{
         SignedCheckpointSummary, TrustedCheckpoint, VerifiedCheckpoint, VerifiedCheckpointContents,
     },
     messages_consensus::ConsensusTransactionKey,
-    signature::UserSignature,
     storage::EpochInfoV2,
     transaction::{Transaction, TransactionDataAPI, TransactionKey},
 };

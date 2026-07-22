@@ -7,12 +7,11 @@ use std::sync::{Arc, OnceLock};
 
 use iota_execution::Executor;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::Address;
+use iota_sdk_types::{Address, MoveAuthenticator};
 use iota_types::{
     effects::{TransactionEffectsAPI, TransactionEvents},
     gas::IotaGasStatus,
     metrics::{BytecodeVerifierMetrics, LimitsMetrics},
-    move_authenticator::MoveAuthenticator,
     signature::VerifyParams,
     signature_verification::verify_sender_signed_data_message_signatures,
     transaction::{SenderSignedData, TransactionData, TransactionDataAPI},
@@ -154,7 +153,7 @@ impl LocalVm {
     /// Run a signed transaction, verifying signatures first.
     ///
     /// Standard schemes are verified cryptographically first. Every
-    /// [`MoveAuthenticator`](iota_types::move_authenticator::MoveAuthenticator)
+    /// [`MoveAuthenticator`](iota_sdk_types::MoveAuthenticator)
     /// — the sender's and, for a sponsored tx, the sponsor's — is verified by
     /// running its function in the VM. On failure the authenticators are re-run
     /// alone to tell a rejection from a body abort.

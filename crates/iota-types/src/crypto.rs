@@ -43,7 +43,7 @@ use iota_sdk_crypto::{Verifier, simple::SimpleVerifier};
 // shares a single definition with clients. Flag `0x05` (the removed zkLogin
 // authenticator, never enabled on IOTA) stays reserved: the SDK rejects it in
 // `SignatureScheme::from_byte`.
-pub use iota_sdk_types::SignatureScheme;
+use iota_sdk_types::SignatureScheme;
 use iota_sdk_types::{
     Address,
     crypto::{Intent, IntentMessage, IntentScope},
@@ -1211,8 +1211,8 @@ mod bcs_signable {
 
     pub trait BcsSignable: serde::Serialize + serde::de::DeserializeOwned {}
     impl BcsSignable for crate::committee::Committee {}
-    impl BcsSignable for crate::messages_checkpoint::CheckpointSummary {}
-    impl BcsSignable for crate::messages_checkpoint::CheckpointContents {}
+    impl BcsSignable for iota_sdk_types::checkpoint::CheckpointSummary {}
+    impl BcsSignable for iota_sdk_types::checkpoint::CheckpointContents {}
     #[cfg(not(target_arch = "wasm32"))]
     impl BcsSignable for crate::messages_consensus::VersionedMisbehaviorReport {}
 

@@ -48,8 +48,8 @@ use iota_sdk::{
     wallet_context::WalletContext,
 };
 use iota_sdk_types::{
-    Address, Identifier, ObjectId, ObjectReference, Owner, SharedObjectReference,
-    TransactionDigest, TransactionKind, TypeTag, Version,
+    Address, Identifier, MoveAuthenticatorV1, ObjectId, ObjectReference, Owner,
+    SharedObjectReference, TransactionDigest, TransactionKind, TypeTag, UserSignature, Version,
     crypto::{Intent, IntentMessage},
     gas::GasCostSummary,
     move_package::MovePackage,
@@ -71,11 +71,9 @@ use iota_types::{
     iota_serde,
     message_envelope::Envelope,
     metrics::BytecodeVerifierMetrics,
-    move_authenticator::MoveAuthenticatorV1,
     move_package::UpgradeCap,
     parse_iota_type_tag,
     quorum_driver_types::ExecuteTransactionRequestType,
-    signature::UserSignature,
     transaction::{
         CallArg, InputObjectKind, SenderSignedData, Transaction, TransactionData,
         TransactionDataAPI, TransactionKindExt,

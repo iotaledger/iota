@@ -35,8 +35,9 @@ use iota_protocol_config::{Chain, ProtocolConfig};
 use iota_sdk_types::{
     Address, Argument, CheckpointContentsDigest, CheckpointDigest, Command, ConsensusCommitDigest,
     Event, ExecutionStatus, Identifier, MoveAuthenticatorV1, ObjectData, ObjectId, ObjectReference,
-    ProgrammableTransaction, RandomnessRound, TransactionDigest, TransactionKind, TypeTag, Version,
-    gas::GasCostSummary, move_package::MovePackage,
+    ProgrammableTransaction, RandomnessRound, TransactionDigest, TransactionKind, TypeTag,
+    UserSignature, Version, checkpoint::CheckpointContents, gas::GasCostSummary,
+    move_package::MovePackage,
 };
 use iota_storage::{
     key_value_store::TransactionKeyValueStore, key_value_store_metrics::KeyValueStoreMetrics,
@@ -48,14 +49,13 @@ use iota_types::{
     crypto::{AccountKeyPair, get_authority_key_pair, get_key_pair_from_rng},
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     iota_sdk_types_conversions::type_tag_core_to_sdk,
-    messages_checkpoint::{CheckpointContents, CheckpointSequenceNumber, VerifiedCheckpoint},
+    messages_checkpoint::{CheckpointSequenceNumber, VerifiedCheckpoint},
     move_package::{
         IotaAttribute, IotaAttributeV1, IotaAttributeV2, RuntimeModuleMetadata,
         RuntimeModuleMetadataWrapper,
     },
     object::{GAS_VALUE_FOR_TESTING, MoveObjectExt, Object, bounded_visitor::BoundedVisitor},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    signature::UserSignature,
     storage::{ObjectStore, ReadStore},
     transaction::{
         CallArg, SenderSignedTransactionAPI, Transaction, TransactionData, TransactionDataAPI,

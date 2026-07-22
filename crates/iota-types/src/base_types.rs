@@ -13,8 +13,8 @@ use anyhow::anyhow;
 use fastcrypto::hash::HashFunction;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    Address, Identifier, MoveObjectType, ObjectDigest, ObjectId, ObjectReference, Owner, StructTag,
-    TransactionDigest, TransactionEffectsDigest, TypeTag, Version,
+    Address, Identifier, MoveObjectType, ObjectDigest, ObjectId, ObjectReference, Owner,
+    SignatureScheme, StructTag, TransactionDigest, TransactionEffectsDigest, TypeTag, Version,
 };
 use move_binary_format::{CompiledModule, file_format::SignatureToken};
 use move_bytecode_utils::resolve_struct;
@@ -26,7 +26,7 @@ use serde::{Deserialize, Serialize, ser::Error};
 pub use crate::committee::EpochId;
 use crate::{
     MOVE_STDLIB_ADDRESS,
-    crypto::{AuthorityPublicKeyBytes, DefaultHash, IotaPublicKey, PublicKey, SignatureScheme},
+    crypto::{AuthorityPublicKeyBytes, DefaultHash, IotaPublicKey, PublicKey},
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
     epoch_data::EpochData,
     error::{ExecutionError, ExecutionErrorKind},

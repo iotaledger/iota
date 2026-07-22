@@ -36,18 +36,16 @@ use iota_keys::keystore::AccountKeystore;
 use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    Address, Argument, Identifier, ObjectId, ObjectReference, Owner, ProgrammableTransaction,
-    SharedObjectReference, TypeTag, crypto::Intent,
+    Address, Argument, Identifier, MoveAuthenticatorV1, ObjectId, ObjectReference, Owner,
+    ProgrammableTransaction, SharedObjectReference, TypeTag, UserSignature, crypto::Intent,
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     IOTA_CLOCK_OBJECT_ID, IOTA_CLOCK_OBJECT_SHARED_VERSION, IOTA_FRAMEWORK_PACKAGE_ID,
     crypto::SignatureScheme,
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
-    move_authenticator::MoveAuthenticatorV1,
     move_package,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    signature::UserSignature,
     storage::WriteKind,
     transaction::{
         CallArg, TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, Transaction, TransactionData,

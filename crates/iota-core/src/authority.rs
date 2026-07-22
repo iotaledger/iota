@@ -46,9 +46,9 @@ use iota_metrics::{
 };
 use iota_sdk_types::{
     Address, CheckpointContentsDigest, CheckpointDigest, Digest, EndOfEpochTransactionKind, Event,
-    ExecutionStatus, GasPayment, ObjectDigest, ObjectId, ObjectReference, Owner, RandomnessRound,
-    StructTag, SystemPackage, TransactionDigest, TransactionEffectsDigest, TransactionExpiration,
-    TransactionKind, TypeTag, Version,
+    ExecutionStatus, GasPayment, MoveAuthenticator, ObjectDigest, ObjectId, ObjectReference, Owner,
+    RandomnessRound, StructTag, SystemPackage, TransactionDigest, TransactionEffectsDigest,
+    TransactionExpiration, TransactionKind, TypeTag, Version,
     crypto::{Intent, IntentAppId, IntentMessage, IntentScope, IntentVersion},
     gas::GasCostSummary,
 };
@@ -108,7 +108,7 @@ use iota_types::{
         TransactionStatus,
     },
     metrics::{BytecodeVerifierMetrics, LimitsMetrics},
-    move_authenticator::{MoveAuthenticator, MoveAuthenticatorExt},
+    move_authenticator::MoveAuthenticatorExt,
     object::{
         MoveObject, MoveObjectExt, OBJECT_START_VERSION, Object, ObjectRead, PastObjectRead,
         bounded_visitor::BoundedVisitor,

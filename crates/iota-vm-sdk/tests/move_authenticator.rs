@@ -17,9 +17,9 @@
 use std::{fs, path::PathBuf};
 
 use fastcrypto::encoding::{Base64, Encoding};
+use iota_sdk_types::UserSignature;
 use iota_types::{
     object::Object,
-    signature::UserSignature,
     transaction::{SenderSignedData, TransactionData, TransactionDataAPI},
 };
 use iota_vm_sdk::{

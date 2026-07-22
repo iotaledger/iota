@@ -18,7 +18,7 @@ use iota_sdk_types::{
     ObjectData, ObjectDigest, ObjectId, ObjectReference, Owner, PackageUpgradeError,
     ProgrammableTransaction, RandomnessStateUpdate, SharedObjectReference, SimpleSignature,
     StructTag, TransactionDigest, TransactionEffectsDigest, TransactionExpiration, TransactionKind,
-    TypeArgumentError, TypeTag, UnchangedSharedKind,
+    TypeArgumentError, TypeTag, UnchangedSharedKind, UserSignature,
     crypto::{Intent, IntentMessage, PersonalMessage},
     move_package::{MovePackage, TypeOrigin, UpgradeInfo},
     validator::ValidatorCommitteeMember,
@@ -42,7 +42,6 @@ use iota_types::{
     messages_grpc::ObjectInfoRequestKind,
     multisig::{MultiSig, MultiSigPublicKey, MultisigMember},
     object::{MoveObject, MoveObjectExt, ObjectInner},
-    signature::UserSignature,
     storage::DeleteKind,
     transaction::{CallArg, SenderSignedData, Transaction, TransactionData, TransactionDataAPI},
 };

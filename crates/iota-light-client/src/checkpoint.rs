@@ -438,18 +438,16 @@ impl ReadStore for CheckpointSummaryFileStore {
     fn try_get_checkpoint_contents_by_digest(
         &self,
         _: &CheckpointContentsDigest,
-    ) -> iota_types::storage::error::Result<
-        Option<iota_types::messages_checkpoint::CheckpointContents>,
-    > {
+    ) -> iota_types::storage::error::Result<Option<iota_sdk_types::checkpoint::CheckpointContents>>
+    {
         unimplemented!()
     }
 
     fn try_get_checkpoint_contents_by_sequence_number(
         &self,
         _: iota_types::messages_checkpoint::CheckpointSequenceNumber,
-    ) -> iota_types::storage::error::Result<
-        Option<iota_types::messages_checkpoint::CheckpointContents>,
-    > {
+    ) -> iota_types::storage::error::Result<Option<iota_sdk_types::checkpoint::CheckpointContents>>
+    {
         unimplemented!()
     }
 

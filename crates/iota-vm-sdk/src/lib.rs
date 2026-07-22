@@ -62,7 +62,6 @@ pub use iota_sdk_types::{Address, MoveAuthenticator, ObjectId, StructTag, TypeTa
 pub use iota_types::{
     effects::{TransactionEffects, TransactionEvents},
     object::Object,
-    signature::UserSignature,
     transaction::{SenderSignedData, TransactionData},
 };
 pub use store::{InMemoryStore, Store};

@@ -35,6 +35,7 @@ use iota_sdk_types::{
     Address, CheckpointContentsDigest, CheckpointDigest, ConsensusCommitDigest,
     EndOfEpochTransactionKind, GasPayment, ObjectId, StructTag, SystemPackage, TransactionDigest,
     TransactionKind,
+    checkpoint::{CheckpointContents, EndOfEpochData},
 };
 use iota_storage::blob::{Blob, BlobEncoding};
 use iota_swarm_config::{
@@ -52,10 +53,7 @@ use iota_types::{
     iota_system_state::{
         IotaSystemState, IotaSystemStateTrait, epoch_start_iota_system_state::EpochStartSystemState,
     },
-    messages_checkpoint::{
-        CheckpointContents, CheckpointContentsExt, CheckpointSequenceNumber, EndOfEpochData,
-        VerifiedCheckpoint,
-    },
+    messages_checkpoint::{CheckpointContentsExt, CheckpointSequenceNumber, VerifiedCheckpoint},
     mock_checkpoint_builder::{MockCheckpointBuilder, ValidatorKeypairProvider},
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
@@ -616,18 +614,16 @@ impl<T, V: store::SimulatorStore> ReadStore for Simulacrum<T, V> {
     fn try_get_checkpoint_contents_by_digest(
         &self,
         digest: &CheckpointContentsDigest,
-    ) -> iota_types::storage::error::Result<
-        Option<iota_types::messages_checkpoint::CheckpointContents>,
-    > {
+    ) -> iota_types::storage::error::Result<Option<iota_sdk_types::checkpoint::CheckpointContents>>
+    {
         Ok(self.with_store(|store| store.get_checkpoint_contents_by_digest(digest)))
     }
 
     fn try_get_checkpoint_contents_by_sequence_number(
         &self,
         sequence_number: iota_types::messages_checkpoint::CheckpointSequenceNumber,
-    ) -> iota_types::storage::error::Result<
-        Option<iota_types::messages_checkpoint::CheckpointContents>,
-    > {
+    ) -> iota_types::storage::error::Result<Option<iota_sdk_types::checkpoint::CheckpointContents>>
+    {
         Ok(self.with_store(|store| {
             store
                 .get_checkpoint_by_sequence_number(sequence_number)

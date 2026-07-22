@@ -38,7 +38,9 @@ use iota_keys::{
 use iota_ledger::Ledger;
 use iota_sdk_types::{
     Address, SenderSignedTransaction, Transaction,
-    crypto::{Intent, IntentMessage, PublicKey as SdkPublicKey, UserSignature},
+    crypto::{
+        Intent, IntentMessage, PasskeyAuthenticator, PublicKey as SdkPublicKey, UserSignature,
+    },
 };
 use iota_types::{
     base_types::address_from_iota_pub_key,
@@ -49,7 +51,6 @@ use iota_types::{
     error::IotaResult,
     move_authenticator::MoveAuthenticatorExt,
     multisig::{MultiSig, MultiSigPublicKey, MultisigMember, ThresholdUnit, WeightUnit},
-    passkey_authenticator::PasskeyAuthenticator,
     signature::{AuthenticatorTrait, VerifyParams},
     transaction::{SenderSignedData, TransactionData, TransactionDataAPI},
 };

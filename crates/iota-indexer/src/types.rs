@@ -59,7 +59,7 @@ pub struct IndexedCheckpoint {
 impl IndexedCheckpoint {
     pub fn from_iota_checkpoint(
         checkpoint: &iota_types::messages_checkpoint::CertifiedCheckpointSummary,
-        contents: &iota_types::messages_checkpoint::CheckpointContents,
+        contents: &iota_sdk_types::checkpoint::CheckpointContents,
         successful_tx_num: usize,
     ) -> Self {
         let total_gas_cost = checkpoint.epoch_rolling_gas_cost_summary.computation_cost as i64

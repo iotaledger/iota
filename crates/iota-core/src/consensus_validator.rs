@@ -257,7 +257,7 @@ mod tests {
 
     use iota_macros::sim_test;
     use iota_protocol_config::Chain;
-    use iota_sdk_types::ObjectId;
+    use iota_sdk_types::{ObjectId, UserSignature};
     use iota_types::{
         error::IotaError,
         messages_consensus::{
@@ -265,7 +265,6 @@ mod tests {
             VersionedMisbehaviorReport,
         },
         object::Object,
-        signature::UserSignature,
         transaction::SenderSignedTransactionAPI,
     };
     use starfish_core::TransactionVerifier as _;
