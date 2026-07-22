@@ -41,7 +41,6 @@ use iota_sdk_types::{
     crypto::{Intent, IntentMessage, PublicKey as SdkPublicKey, UserSignature},
 };
 use iota_types::{
-    base_types::address_from_iota_pub_key,
     crypto::{
         DefaultHash, EncodeDecodeBase64, IotaKeyPair, PublicKey, Signature, SignatureScheme,
         get_authority_key_pair,
@@ -788,7 +787,7 @@ impl KeyToolCommand {
                             );
                             CommandOutput::Show(Key {
                                 alias: None, // alias does not get stored in key files
-                                iota_address: address_from_iota_pub_key(keypair.public()),
+                                iota_address: authority_key_address(keypair.public().as_ref()),
                                 source: "keypair".to_string(),
                                 public_base64_key: Some(public_base64_key),
                                 public_base64_key_with_flag: Some(public_base64_key_with_flag),
@@ -1219,6 +1218,15 @@ fn anemo_styling(pk: &PublicKey) -> Option<String> {
     } else {
         None
     }
+}
+
+/// Authority keys have no on-chain account; this address only labels key
+/// files and `keytool` output.
+fn authority_key_address(public_key: &[u8]) -> Address {
+    let mut hasher = DefaultHash::default();
+    hasher.update([SignatureScheme::Bls12381.to_u8()]);
+    hasher.update(public_key);
+    Address::new(hasher.finalize().digest)
 }
 
 fn encode_public_key_with_flag_base64(flag: u8, public_key: &[u8]) -> String {

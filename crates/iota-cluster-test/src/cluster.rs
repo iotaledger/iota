@@ -24,7 +24,7 @@ use iota_swarm_config::{
     genesis_config::GenesisConfig,
     network_config::{NetworkConfig, NetworkConfigLight},
 };
-use iota_types::crypto::{AccountKeyPair, IotaKeyPair, get_key_pair};
+use iota_types::crypto::{AccountKeyPair, get_key_pair};
 use tempfile::tempdir;
 use test_cluster::{TestCluster, TestClusterBuilder};
 use tracing::info;
@@ -388,8 +388,7 @@ pub fn new_wallet_context_from_cluster(
     info!("Use RPC: {fullnode_url}");
     let keystore_path = config_dir.join(IOTA_KEYSTORE_FILENAME);
     let mut keystore = Keystore::from(FileBasedKeystore::new(&keystore_path).unwrap());
-    let key_pair = IotaKeyPair::Ed25519(key_pair);
-    let address = key_pair.address();
+    let address = key_pair.public_key().derive_address();
     keystore.add_key(None, key_pair).unwrap();
     IotaClientConfig::new(keystore)
         .with_envs([IotaEnv::new("localnet", fullnode_url)])

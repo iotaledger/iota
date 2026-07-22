@@ -55,7 +55,7 @@ use serde_with::{Bytes, serde_as};
 use tracing::{instrument, warn};
 
 use crate::{
-    base_types::{AuthorityName, ConciseableName, address_from_iota_pub_key},
+    base_types::{AuthorityName, ConciseableName},
     committee::{Committee, CommitteeTrait, EpochId, StakeUnit},
     error::{IotaError, IotaResult},
     iota_serde::{IotaBitmap, Readable},
@@ -603,19 +603,30 @@ pub trait RandomKeyPair: Sized {
     fn generate_with_address(rng: &mut StdRng) -> (Address, Self);
 }
 
-macro_rules! random_key_pair_from_fastcrypto {
-    ($keypair:ty) => {
-        impl RandomKeyPair for $keypair {
-            fn generate_with_address(rng: &mut StdRng) -> (Address, Self) {
-                let kp = <$keypair as KeypairTraits>::generate(rng);
-                (address_from_iota_pub_key(kp.public()), kp)
-            }
-        }
-    };
+impl RandomKeyPair for BLS12381KeyPair {
+    fn generate_with_address(rng: &mut StdRng) -> (Address, Self) {
+        let kp = <BLS12381KeyPair as KeypairTraits>::generate(rng);
+        // Authority keys have no on-chain account; this address only labels
+        // key files and `keytool` output.
+        let mut hasher = DefaultHash::default();
+        hasher.update([SignatureScheme::Bls12381.to_u8()]);
+        hasher.update(kp.public().as_ref());
+        (Address::new(hasher.finalize().digest), kp)
+    }
 }
 
-random_key_pair_from_fastcrypto!(BLS12381KeyPair);
-random_key_pair_from_fastcrypto!(Ed25519KeyPair);
+impl RandomKeyPair for Ed25519KeyPair {
+    fn generate_with_address(rng: &mut StdRng) -> (Address, Self) {
+        let kp = <Ed25519KeyPair as KeypairTraits>::generate(rng);
+        let public = PublicKey::Ed25519(BytesRepresentation(
+            kp.public()
+                .as_ref()
+                .try_into()
+                .expect("ed25519 public keys are 32 bytes"),
+        ));
+        (Address::from(&public), kp)
+    }
+}
 
 macro_rules! random_key_pair_from_sdk {
     ($private_key:ty, $variant:ident) => {
@@ -633,8 +644,8 @@ random_key_pair_from_sdk!(Ed25519PrivateKey, Ed25519);
 random_key_pair_from_sdk!(Secp256k1PrivateKey, Secp256k1);
 random_key_pair_from_sdk!(Secp256r1PrivateKey, Secp256r1);
 
-// TODO: get_key_pair() and get_key_pair_from_bytes() should return KeyPair
-// only. TODO: rename to random_key_pair
+// TODO: get_key_pair() should return KeyPair only.
+// TODO: rename to random_key_pair
 pub fn get_key_pair<KP: RandomKeyPair>() -> (Address, KP) {
     get_key_pair_from_rng(&mut OsRng)
 }
@@ -681,10 +692,7 @@ where
 }
 
 // TODO: C-GETTER
-pub fn get_key_pair_from_bytes<KP: KeypairTraits>(bytes: &[u8]) -> IotaResult<(Address, KP)>
-where
-    <KP as KeypairTraits>::PubKey: IotaPublicKey,
-{
+pub fn get_key_pair_from_bytes<KP: KeypairTraits>(bytes: &[u8]) -> IotaResult<KP> {
     let priv_length = <KP as KeypairTraits>::PrivKey::LENGTH;
     let pub_key_length = <KP as KeypairTraits>::PubKey::LENGTH;
     if bytes.len() != priv_length + pub_key_length {
@@ -700,8 +708,7 @@ where
             .ok_or(IotaError::InvalidPrivateKey)?,
     )
     .map_err(|_| IotaError::InvalidPrivateKey)?;
-    let kp: KP = sk.into();
-    Ok((address_from_iota_pub_key(kp.public()), kp))
+    Ok(sk.into())
 }
 
 // Account Signatures
