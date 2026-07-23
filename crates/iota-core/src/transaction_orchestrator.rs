@@ -309,7 +309,7 @@ where
                 // Detached so a client disconnect (this future dropped) does
                 // not cancel a submission that may already be in consensus;
                 // the task drives the transaction to finality on its own.
-                spawn_monitored_task!(Self::submit_with_checkpoint_race(
+                join_submission_task(spawn_monitored_task!(Self::submit_with_checkpoint_race(
                     td,
                     in_flight_transactions,
                     validator_state,
@@ -317,33 +317,25 @@ where
                     request,
                     client_addr,
                     tx_digest,
-                ))
-                .await
-                .unwrap_or_else(|e| {
-                    Err(QuorumDriverError::QuorumDriverInternal(IotaError::Unknown(
-                        format!("transaction submission task panicked: {e}"),
-                    )))
-                })?
+                )))
+                .await?
             }
             (Driver::Transaction(td), false) => {
                 let td = td.clone();
                 let in_flight_transactions = self.in_flight_transactions.clone();
                 let validator_state = self.validator_state.clone();
                 // Detached for the same reason as above.
-                let result = spawn_monitored_task!(Self::submit_with_transaction_driver(
-                    td,
-                    in_flight_transactions,
-                    validator_state,
-                    request,
-                    client_addr,
-                    false,
+                let result = join_submission_task(spawn_monitored_task!(
+                    Self::submit_with_transaction_driver(
+                        td,
+                        in_flight_transactions,
+                        validator_state,
+                        request,
+                        client_addr,
+                        false,
+                    )
                 ))
-                .await
-                .unwrap_or_else(|e| {
-                    Err(QuorumDriverError::QuorumDriverInternal(IotaError::Unknown(
-                        format!("transaction submission task panicked: {e}"),
-                    )))
-                })?;
+                .await?;
                 (Some(result), None)
             }
             (Driver::Quorum(qd), _) => {
@@ -661,32 +653,25 @@ where
 
         match &self.driver {
             Driver::Transaction(td) => {
+                let td = td.clone();
+                let in_flight_transactions = self.in_flight_transactions.clone();
+                let validator_state = self.validator_state.clone();
                 // v1 does not do an internal wait; callers (e.g. the gRPC
                 // execution service) are responsible for their own
                 // `wait_for_checkpoint_inclusion` when they need it, and will
                 // reconcile the response from the cache there.
-                epoch_store
-                    .verify_transaction(request.transaction.clone())
-                    .map_err(QuorumDriverError::InvalidUserSignature)?;
-                let td = td.clone();
-                let in_flight_transactions = self.in_flight_transactions.clone();
-                let validator_state = self.validator_state.clone();
-                // Detached so a client disconnect does not cancel a
-                // submission that may already be in consensus.
-                spawn_monitored_task!(Self::submit_with_transaction_driver(
+                //
+                // Detached so a client disconnect does not cancel a submission
+                // that may already be in consensus.
+                join_submission_task(spawn_monitored_task!(Self::submit_with_transaction_driver(
                     td,
                     in_flight_transactions,
                     validator_state,
                     request,
                     client_addr,
                     skip_certification,
-                ))
+                )))
                 .await
-                .unwrap_or_else(|e| {
-                    Err(QuorumDriverError::QuorumDriverInternal(IotaError::Unknown(
-                        format!("transaction submission task panicked: {e}"),
-                    )))
-                })
             }
             Driver::Quorum(qd) => {
                 let qd_resp = self
@@ -713,11 +698,8 @@ where
     /// finality requiring rebuild) and `seq` is the checkpoint sequence if
     /// either future yielded it.
     ///
-    /// Takes `in_flight_transactions`, `validator_state`, and `metrics` by
-    /// `Arc` rather than `&self`: the caller runs this inside a detached task
-    /// so a client disconnect does not cancel the race before the
-    /// checkpoint-seq bookkeeping completes, and a detached task needs owned,
-    /// `'static` inputs.
+    /// Run inside a detached task so a client disconnect cannot cancel the
+    /// race before the checkpoint-sequence bookkeeping completes.
     #[instrument(name = "tx_orchestrator_submit_with_checkpoint_race", level = "trace", skip_all,
         fields(tx_digest = ?tx_digest))]
     async fn submit_with_checkpoint_race(
@@ -783,11 +765,8 @@ where
     /// See `corroborate_single_validator_error` for the per-submission
     /// fetch-failure recovery flow inside the driver.
     ///
-    /// Takes `td`, `in_flight_transactions`, and `validator_state` by `Arc`
-    /// rather than `&self`: the caller runs this inside a detached task so a
-    /// client disconnect does not cancel a `drive_transaction` call that may
-    /// already be in consensus, and a detached task needs owned, `'static`
-    /// inputs.
+    /// Run inside a detached task so a client disconnect cannot cancel a
+    /// `drive_transaction` call that may already be in consensus.
     #[instrument(name = "tx_orchestrator_submit_with_td", level = "trace", skip_all,
         fields(tx_digest = ?request.transaction.digest()))]
     async fn submit_with_transaction_driver(
@@ -1358,6 +1337,18 @@ fn count_validator_attempts(errors: &AggregatedRequestErrors) -> u32 {
         .iter()
         .map(|(_, authorities, _, _)| authorities.len() as u32)
         .sum()
+}
+
+/// Await a detached submission task, surfacing a task panic as an internal
+/// error.
+async fn join_submission_task<T>(
+    handle: tokio::task::JoinHandle<Result<T, QuorumDriverError>>,
+) -> Result<T, QuorumDriverError> {
+    handle.await.unwrap_or_else(|e| {
+        Err(QuorumDriverError::QuorumDriverInternal(IotaError::Unknown(
+            format!("transaction submission task panicked: {e}"),
+        )))
+    })
 }
 
 /// Prometheus metrics which can be displayed in Grafana, queried and alerted on
