@@ -20,7 +20,7 @@ use futures::{
     stream::FuturesUnordered,
 };
 use iota_common::{
-    fatal, in_test_configuration,
+    debug_fatal, fatal, in_test_configuration,
     sync::{notify_once::NotifyOnce, notify_read::NotifyRead},
 };
 use iota_config::node::ExpensiveSafetyCheckConfig;
@@ -3692,6 +3692,23 @@ impl AuthorityPerEpochStore {
         // after the consensus output is quarantined.
         let mut soft_lock_release_tx_digests = Vec::new();
         if enable_pcool {
+            // Invariant: P-COOL flow categorization funnels all user transactions
+            // (regular + randomness) into `sequenced_transactions`, leaving
+            // `sequenced_randomness_transactions` empty until the partition after
+            // conflict resolution. If it is non-empty here, the partition below
+            // overwrites it and those transactions are silently ignored and never
+            // conflict-resolved, which is a logic bug.
+            if !sequenced_randomness_transactions.is_empty() {
+                debug_fatal!(
+                    "P-COOL flow categorization must keep all user transactions (regular + \
+                        randomness) in sequenced_transactions until validate_and_resolve_conflicts \
+                        and the subsequent partition; got {} transactions in \
+                        sequenced_randomness_transactions at round {}",
+                    sequenced_randomness_transactions.len(),
+                    consensus_commit_info.round,
+                );
+            }
+
             let (dropped, owned_object_locks, soft_lock_digests) =
                 post_consensus_validation::validate_and_resolve_conflicts(
                     authority_state,

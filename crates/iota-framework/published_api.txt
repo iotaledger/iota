@@ -1,9 +1,3 @@
-is_feature_enabled
-	public(package) fun
-	0x3::protocol_config
-get_attr
-	public(package) fun
-	0x3::protocol_config
 UnverifiedValidatorOperationCap
 	public struct
 	0x3::validator_cap
@@ -694,6 +688,12 @@ total_object_storage_rebates
 total_balance
 	public fun
 	0x3::storage_fund
+is_feature_enabled
+	public(package) fun
+	0x3::protocol_config
+get_attr
+	public(package) fun
+	0x3::protocol_config
 SystemParametersV1
 	public struct
 	0x3::iota_system_state_inner

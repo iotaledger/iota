@@ -5759,6 +5759,7 @@ dependencies = [
  "iota-keys",
  "iota-metrics",
  "iota-names",
+ "iota-protocol-config",
  "iota-sdk-types",
  "iota-types",
  "move-vm-config",

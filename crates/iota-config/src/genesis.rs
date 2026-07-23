@@ -14,6 +14,7 @@ use fastcrypto::{
     encoding::{Base64, Encoding},
     hash::HashFunction,
 };
+use iota_protocol_config::{Chain, ProtocolConfig};
 use iota_sdk_types::{
     Address, ObjectId,
     checkpoint::{CheckpointContents, CheckpointSummary},
@@ -351,13 +352,26 @@ pub struct GenesisChainParameters {
     pub chain_start_timestamp_ms: u64,
     pub epoch_duration_ms: u64,
 
-    // Validator committee parameters
+    // The validator count limits and stake thresholds are enforced from the
+    // protocol config; the fields below are retained for layout
+    // compatibility only.
     pub max_validator_count: u64,
     pub min_validator_joining_stake: u64,
     pub validator_low_stake_threshold: u64,
     pub validator_very_low_stake_threshold: u64,
     pub validator_low_stake_grace_period: u64,
 }
+
+// These constants exist solely so that tests pinning genesis to a protocol
+// version below 32 keep producing historically-correct genesis content: real
+// genesis ceremonies require protocol version >= 32 (see the CLI guard in
+// `iota-tool`), at which point these values are enforced through the protocol
+// config instead and genesis records zeros here.
+const PRE_V32_MIN_VALIDATOR_JOINING_STAKE: u64 = 2_000_000_000_000_000;
+pub const PRE_V32_VALIDATOR_LOW_STAKE_THRESHOLD: u64 = 1_500_000_000_000_000;
+const PRE_V32_VALIDATOR_VERY_LOW_STAKE_THRESHOLD: u64 = 1_000_000_000_000_000;
+const PRE_V32_VALIDATOR_LOW_STAKE_GRACE_PERIOD: u64 = 7;
+const PRE_V32_MAX_VALIDATOR_COUNT: u64 = 150;
 
 /// Initial set of parameters for a chain.
 #[derive(Serialize, Deserialize)]
@@ -404,18 +418,39 @@ impl GenesisCeremonyParameters {
     }
 
     pub fn to_genesis_chain_parameters(&self) -> GenesisChainParameters {
+        let (
+            max_validator_count,
+            min_validator_joining_stake,
+            validator_low_stake_threshold,
+            validator_very_low_stake_threshold,
+            validator_low_stake_grace_period,
+        ) = if self.protocol_version.as_u64() >= 32 {
+            // The validator count limits and stake thresholds are enforced
+            // from the protocol config; the deprecated fields are recorded
+            // as zero.
+            (0, 0, 0, 0, 0)
+        } else {
+            // Real genesis ceremonies require protocol version >= 32; this branch
+            // exists so that tests pinning genesis to an older version still get
+            // the historical values that pre-version-32 framework snapshots read
+            // out of these fields.
+            (
+                PRE_V32_MAX_VALIDATOR_COUNT,
+                PRE_V32_MIN_VALIDATOR_JOINING_STAKE,
+                PRE_V32_VALIDATOR_LOW_STAKE_THRESHOLD,
+                PRE_V32_VALIDATOR_VERY_LOW_STAKE_THRESHOLD,
+                PRE_V32_VALIDATOR_LOW_STAKE_GRACE_PERIOD,
+            )
+        };
         GenesisChainParameters {
             protocol_version: self.protocol_version.as_u64(),
             chain_start_timestamp_ms: self.chain_start_timestamp_ms,
             epoch_duration_ms: self.epoch_duration_ms,
-            max_validator_count: iota_types::governance::MAX_VALIDATOR_COUNT,
-            min_validator_joining_stake: iota_types::governance::MIN_VALIDATOR_JOINING_STAKE_NANOS,
-            validator_low_stake_threshold:
-                iota_types::governance::VALIDATOR_LOW_STAKE_THRESHOLD_NANOS,
-            validator_very_low_stake_threshold:
-                iota_types::governance::VALIDATOR_VERY_LOW_STAKE_THRESHOLD_NANOS,
-            validator_low_stake_grace_period:
-                iota_types::governance::VALIDATOR_LOW_STAKE_GRACE_PERIOD,
+            max_validator_count,
+            min_validator_joining_stake,
+            validator_low_stake_threshold,
+            validator_very_low_stake_threshold,
+            validator_low_stake_grace_period,
         }
     }
 }
@@ -454,6 +489,7 @@ impl TokenDistributionSchedule {
     pub fn check_minimum_stake_for_validators<I: IntoIterator<Item = Address>>(
         &self,
         validators: I,
+        protocol_version: ProtocolVersion,
     ) -> Result<()> {
         let mut validators: HashMap<Address, u64> =
             validators.into_iter().map(|a| (a, 0)).collect();
@@ -470,8 +506,12 @@ impl TokenDistributionSchedule {
         }
 
         // Check that all validators have sufficient stake allocated to ensure they meet
-        // the minimum stake threshold
-        let minimum_required_stake = iota_types::governance::VALIDATOR_LOW_STAKE_THRESHOLD_NANOS;
+        // the minimum stake threshold. Below protocol version 32 the threshold isn't
+        // present in the protocol config, so fall back to the historical genesis value.
+        let minimum_required_stake =
+            ProtocolConfig::get_for_version(protocol_version, Chain::Unknown)
+                .validator_low_stake_threshold_as_option()
+                .unwrap_or(PRE_V32_VALIDATOR_LOW_STAKE_THRESHOLD);
         for (validator, stake) in validators {
             if stake < minimum_required_stake {
                 anyhow::bail!(
@@ -484,8 +524,13 @@ impl TokenDistributionSchedule {
 
     pub fn new_for_validators_with_default_allocation<I: IntoIterator<Item = Address>>(
         validators: I,
+        protocol_version: ProtocolVersion,
     ) -> Self {
-        let default_allocation = iota_types::governance::VALIDATOR_LOW_STAKE_THRESHOLD_NANOS;
+        // Below protocol version 32 the threshold isn't present in the protocol
+        // config, so fall back to the historical genesis value.
+        let default_allocation = ProtocolConfig::get_for_version(protocol_version, Chain::Unknown)
+            .validator_low_stake_threshold_as_option()
+            .unwrap_or(PRE_V32_VALIDATOR_LOW_STAKE_THRESHOLD);
 
         let allocations = validators
             .into_iter()
@@ -602,8 +647,13 @@ impl TokenDistributionScheduleBuilder {
     pub fn default_allocation_for_validators<I: IntoIterator<Item = Address>>(
         &mut self,
         validators: I,
+        protocol_version: ProtocolVersion,
     ) {
-        let default_allocation = iota_types::governance::VALIDATOR_LOW_STAKE_THRESHOLD_NANOS;
+        // Below protocol version 32 the threshold isn't present in the protocol
+        // config, so fall back to the historical genesis value.
+        let default_allocation = ProtocolConfig::get_for_version(protocol_version, Chain::Unknown)
+            .validator_low_stake_threshold_as_option()
+            .unwrap_or(PRE_V32_VALIDATOR_LOW_STAKE_THRESHOLD);
 
         for validator in validators {
             self.add_allocation(TokenAllocation {
@@ -671,12 +721,19 @@ impl Delegations {
     pub fn new_for_validators_with_default_allocation(
         validators: impl IntoIterator<Item = Address>,
         delegator: Address,
+        protocol_version: ProtocolVersion,
     ) -> Self {
+        // Below protocol version 32 the threshold isn't present in the protocol
+        // config, so fall back to the historical genesis value.
+        let min_validator_joining_stake =
+            ProtocolConfig::get_for_version(protocol_version, Chain::Unknown)
+                .min_validator_joining_stake_as_option()
+                .unwrap_or(PRE_V32_MIN_VALIDATOR_JOINING_STAKE);
         let validator_allocations = validators
             .into_iter()
             .map(|address| ValidatorAllocation {
                 validator: address,
-                amount_nanos_to_stake: iota_types::governance::MIN_VALIDATOR_JOINING_STAKE_NANOS,
+                amount_nanos_to_stake: min_validator_joining_stake,
                 amount_nanos_to_pay_gas: 0,
             })
             .collect();
