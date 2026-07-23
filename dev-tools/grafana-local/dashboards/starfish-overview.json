@@ -11823,7 +11823,7 @@
                 "uid": "prometheus"
               },
               "editorMode": "code",
-              "expr": "(sum by (host, peer) (rate(consensus_transaction_synchronizer_fetch_latency_sum[5m])) / sum by (host, peer) (rate(consensus_transaction_synchronizer_fetch_latency_count[5m])))",
+              "expr": "(sum by (host, peer) (rate(consensus_transaction_synchronizer_fetch_latency_sum{type=\"live\"}[5m])) / sum by (host, peer) (rate(consensus_transaction_synchronizer_fetch_latency_count{type=\"live\"}[5m])))",
               "hide": false,
               "instant": false,
               "legendFormat": "{{host }} -> {{peer}}",
@@ -11831,7 +11831,7 @@
               "refId": "B"
             }
           ],
-          "title": "Mean transaction synchronizer fetch latency by peer",
+          "title": "Mean transaction synchronizer fetch latency by peer (live)",
           "type": "timeseries"
         },
         {
@@ -11924,7 +11924,7 @@
               },
               "disableTextWrap": false,
               "editorMode": "code",
-              "expr": "(sum by (host, peer) (rate(consensus_transaction_synchronizer_fetch_latency_sum[5m])) / sum by (host, peer) (rate(consensus_transaction_synchronizer_fetch_latency_count[5m])))",
+              "expr": "(sum by (host, peer) (rate(consensus_transaction_synchronizer_fetch_latency_sum{type=\"periodic\"}[5m])) / sum by (host, peer) (rate(consensus_transaction_synchronizer_fetch_latency_count{type=\"periodic\"}[5m])))",
               "fullMetaSearch": false,
               "includeNullMetadata": true,
               "instant": false,
@@ -11934,7 +11934,7 @@
               "useBackend": false
             }
           ],
-          "title": "Mean transaction synchronizer fetch latency by peer (all fetches)",
+          "title": "Mean transaction synchronizer fetch latency by peer (periodic)",
           "type": "timeseries"
         },
         {

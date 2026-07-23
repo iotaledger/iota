@@ -990,7 +990,7 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
             .metrics
             .node_metrics
             .transactions_synchronizer_fetch_latency_by_peer
-            .with_label_values(&[peer_hostname.as_str()])
+            .with_label_values(&[peer_hostname.as_str(), &sync_method.get_string()])
             .observe(fetch_duration.as_secs_f64());
 
         let resp = match result {

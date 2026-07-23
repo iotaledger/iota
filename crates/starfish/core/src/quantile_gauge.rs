@@ -234,24 +234,116 @@ impl Collector for QuantileGaugeVec {
 
     fn collect(&self) -> Vec<MetricFamily> {
         let mut windows = self.windows.lock();
-        for (label_value, window) in windows.iter_mut() {
-            match window.quantiles_seconds() {
-                Some(values) => {
-                    for ((_, quantile), value) in QUANTILES.iter().zip(values) {
-                        self.gauge
-                            .with_label_values(&[label_value.as_str(), quantile])
-                            .set(value);
-                    }
+        windows.retain(|label_value, window| match window.quantiles_seconds() {
+            Some(values) => {
+                for ((_, quantile), value) in QUANTILES.iter().zip(values) {
+                    self.gauge
+                        .with_label_values(&[label_value.as_str(), quantile])
+                        .set(value);
                 }
-                None => {
-                    for (_, quantile) in QUANTILES {
-                        let _ = self
-                            .gauge
-                            .remove_label_values(&[label_value.as_str(), quantile]);
-                    }
-                }
+                true
             }
-        }
+            None => {
+                // Drop both the gauge series and the window so an idle label
+                // value stops being scraped and its memory is reclaimed.
+                for (_, quantile) in QUANTILES {
+                    let _ = self
+                        .gauge
+                        .remove_label_values(&[label_value.as_str(), quantile]);
+                }
+                false
+            }
+        });
         self.gauge.collect()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn rotate_keeps_slot_within_window_slot() {
+        let t0 = Instant::now();
+        let mut window = Window::new(t0);
+        window.rotate(t0 + WINDOW_SLOT / 2);
+        assert_eq!(window.slots.len(), 1);
+        assert_eq!(window.newest_slot_start, t0);
+    }
+
+    #[test]
+    fn rotate_adds_one_slot_at_exactly_window_slot() {
+        let t0 = Instant::now();
+        let mut window = Window::new(t0);
+        window.rotate(t0 + WINDOW_SLOT);
+        assert_eq!(window.slots.len(), 2);
+        assert_eq!(window.newest_slot_start, t0 + WINDOW_SLOT);
+    }
+
+    #[test]
+    fn rotate_adds_multiple_slots_and_trims_to_window() {
+        let t0 = Instant::now();
+        let mut window = Window::new(t0);
+
+        window.rotate(t0 + WINDOW_SLOT * 5);
+        assert_eq!(window.slots.len(), 6);
+        assert_eq!(window.newest_slot_start, t0 + WINDOW_SLOT * 5);
+
+        // Advancing far enough to overflow the deque trims the oldest slots.
+        window.rotate(t0 + WINDOW_SLOT * 16);
+        assert_eq!(window.slots.len(), WINDOW_SLOTS);
+        assert_eq!(window.newest_slot_start, t0 + WINDOW_SLOT * 16);
+    }
+
+    #[test]
+    fn rotate_resets_after_gap_longer_than_window() {
+        let t0 = Instant::now();
+        let mut window = Window::new(t0);
+        let gap = WINDOW_SLOT * WINDOW_SLOTS as u32;
+        window.rotate(t0 + gap);
+        assert_eq!(window.slots.len(), 1);
+        assert_eq!(window.newest_slot_start, t0 + gap);
+    }
+
+    #[test]
+    fn old_observations_fall_out_of_window() {
+        let t0 = Instant::now();
+        let mut window = Window::new(t0);
+        window.slots.back_mut().unwrap().saturating_record(1_000);
+
+        // Fill the window to capacity without dropping the observed slot yet.
+        window.rotate(t0 + WINDOW_SLOT * (WINDOW_SLOTS as u32 - 1));
+        assert_eq!(window.slots.len(), WINDOW_SLOTS);
+        assert!(!window.slots.front().unwrap().is_empty());
+
+        // One more slot pushes the oldest (observed) slot out of the window.
+        window.rotate(t0 + WINDOW_SLOT * WINDOW_SLOTS as u32);
+        assert_eq!(window.slots.len(), WINDOW_SLOTS);
+        assert!(window.slots.iter().all(|slot| slot.is_empty()));
+    }
+
+    #[test]
+    fn collect_drops_idle_label_series_and_window() {
+        let registry = Registry::new();
+        let gauge = QuantileGaugeVec::register(
+            "test_quantile_gauge",
+            "help",
+            "peer",
+            module_path!(),
+            &registry,
+            MetricLevel::Warn,
+        );
+        gauge.observe("peer1", 0.01);
+
+        // Force the window idle: no observation survives in any live slot.
+        {
+            let mut windows = gauge.windows.lock();
+            let window = windows.get_mut("peer1").unwrap();
+            window.slots.clear();
+            window.slots.push_back(new_histogram());
+        }
+
+        gauge.collect();
+        assert!(gauge.windows.lock().is_empty());
     }
 }

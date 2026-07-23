@@ -1343,7 +1343,7 @@ impl NodeMetrics {
             transactions_synchronizer_fetch_latency_by_peer: SumCountVec::register(
                 "transaction_synchronizer_fetch_latency",
                 "The time taken to fetch transactions from a peer",
-                &["peer"],
+                &["peer", "type"],
                 registry,
                 MetricLevel::Warn,
             ),
