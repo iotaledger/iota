@@ -2,16 +2,18 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{cell::OnceCell, collections::BTreeMap};
+
+use move_binary_format::CompiledModule;
+use move_core_types::account_address::AccountAddress;
+use move_symbol_pool::Symbol;
+
 use crate::{
     model::{self, PackageData},
     normalized,
     source_kind::{Uninit, WithoutSource},
     summary,
 };
-use move_binary_format::CompiledModule;
-use move_core_types::account_address::AccountAddress;
-use move_symbol_pool::Symbol;
-use std::{cell::OnceCell, collections::BTreeMap};
 
 pub type Model = model::Model<WithoutSource>;
 pub type Package<'a> = model::Package<'a, WithoutSource>;

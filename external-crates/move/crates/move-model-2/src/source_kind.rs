@@ -4,7 +4,8 @@
 
 use std::mem::MaybeUninit;
 
-/// Simple sealing trait that prevents other types from implementing `SourceKind`.
+/// Simple sealing trait that prevents other types from implementing
+/// `SourceKind`.
 mod private {
     pub trait Sealed {}
 }
@@ -26,8 +27,8 @@ pub struct WithoutSource;
 
 impl private::Sealed for WithoutSource {}
 impl SourceKind for WithoutSource {
-    // We use `Uninit` to ensure it has the same size as `T` which allows for upcasting from
-    // `WithoutSource`` to `AnyKind`` safely.
+    // We use `Uninit` to ensure it has the same size as `T` which allows for
+    // upcasting from `WithoutSource`` to `AnyKind`` safely.
     type FromSource<T> = Uninit<T>;
 }
 

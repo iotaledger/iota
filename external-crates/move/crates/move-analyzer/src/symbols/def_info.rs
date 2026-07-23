@@ -5,13 +5,6 @@
 //! This module contains code for handling information about definitions
 //! for source-level identifiers.
 
-use crate::symbols::ide_strings::{
-    abilities_to_ide_string, datatype_type_args_to_ide_string, fun_type_to_ide_string,
-    mod_ident_to_ide_string, ret_type_to_ide_str, type_args_to_ide_string, type_list_to_ide_string,
-    type_to_ide_string, typed_id_list_to_ide_string, variant_to_ide_string,
-    visibility_to_ide_string,
-};
-
 use std::fmt;
 
 use move_compiler::{
@@ -21,6 +14,13 @@ use move_compiler::{
 };
 use move_ir_types::location::*;
 use move_symbol_pool::Symbol;
+
+use crate::symbols::ide_strings::{
+    abilities_to_ide_string, datatype_type_args_to_ide_string, fun_type_to_ide_string,
+    mod_ident_to_ide_string, ret_type_to_ide_str, type_args_to_ide_string, type_list_to_ide_string,
+    type_to_ide_string, typed_id_list_to_ide_string, variant_to_ide_string,
+    visibility_to_ide_string,
+};
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 #[allow(clippy::large_enum_variant)]
@@ -161,12 +161,13 @@ impl fmt::Display for DefInfo {
         match self {
             Self::Type(t) => {
                 // Technically, we could use error_format function here to display the "regular"
-                // type, but the original intent of this function is subtly different that we need
-                // (i.e., to be used by compiler error messages) which, for example, results in
-                // verbosity that is not needed here.
+                // type, but the original intent of this function is subtly different that we
+                // need (i.e., to be used by compiler error messages) which, for
+                // example, results in verbosity that is not needed here.
                 //
-                // It also seems like a reasonable idea to be able to tune user experience in the
-                // IDE independently on how compiler error messages are generated.
+                // It also seems like a reasonable idea to be able to tune user experience in
+                // the IDE independently on how compiler error messages are
+                // generated.
                 write!(f, "{}", type_to_ide_string(t, /* verbose */ true))
             }
             Self::Function(
@@ -182,22 +183,24 @@ impl fmt::Display for DefInfo {
             ) => {
                 const SINGLE_LINE_TYPE_ARGS_NUM: usize = 2;
                 // The strategy for displaying function signature is as follows:
-                // - if there are more than SINGLE_LINE_TYPE_ARGS_NUM type args,
-                //   they are displayed on separate lines
-                // - "regular" args are always displayed on separate lines, which
-                //   which is motivated by the fact that datatypes are displayed
-                //   in a fully-qualified form (i.e., with package and module name),
-                //   and that makes the function name already long and (likely)
-                //   the length of each individual type also long (modulo primitive
-                //   types of course, but I think we can live with that)
+                // - if there are more than SINGLE_LINE_TYPE_ARGS_NUM type args, they are
+                //   displayed on separate lines
+                // - "regular" args are always displayed on separate lines, which which is
+                //   motivated by the fact that datatypes are displayed in a fully-qualified
+                //   form (i.e., with package and module name), and that makes the function name
+                //   already long and (likely) the length of each individual type also long
+                //   (modulo primitive types of course, but I think we can live with that)
                 let type_args_str = type_args_to_ide_string(
                     type_args,
-                    /* separate_lines */ type_args.len() > SINGLE_LINE_TYPE_ARGS_NUM,
-                    /* verbose */ true,
+                    // separate_lines
+                    type_args.len() > SINGLE_LINE_TYPE_ARGS_NUM,
+                    // verbose
+                    true,
                 );
                 let args_str = typed_id_list_to_ide_string(
-                    arg_names, arg_types, '(', ')', /* separate_lines */ true,
-                    /* verbose */ true,
+                    arg_names, arg_types, '(', ')', // separate_lines
+                    true, // verbose
+                    true,
                 );
                 let ret_type_str = ret_type_to_ide_str(ret_type, /* verbose */ true);
                 write!(
@@ -249,8 +252,10 @@ impl fmt::Display for DefInfo {
                             field_types,
                             '{',
                             '}',
-                            /* separate_lines */ true,
-                            /* verbose */ true
+                            // separate_lines
+                            true,
+                            // verbose
+                            true
                         ),
                     )
                 }
@@ -300,8 +305,10 @@ impl fmt::Display for DefInfo {
                         name,
                         type_list_to_ide_string(
                             field_types,
-                            /* separate_lines */ false,
-                            /* verbose */ true
+                            // separate_lines
+                            false,
+                            // verbose
+                            true
                         )
                     )
                 } else {
@@ -316,8 +323,10 @@ impl fmt::Display for DefInfo {
                             field_types,
                             '{',
                             '}',
-                            /* separate_lines */ false,
-                            /* verbose */ true,
+                            // separate_lines
+                            false,
+                            // verbose
+                            true,
                         ),
                     )
                 }

@@ -2,18 +2,21 @@
 // Modifications Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::base::reroot_path;
+use std::{collections::BTreeMap, path::Path};
+
 use clap::*;
 use move_binary_format::CompiledModule;
-use move_command_line_common::files::{extension_equals, find_filenames, MOVE_COMPILED_EXTENSION};
+use move_command_line_common::files::{MOVE_COMPILED_EXTENSION, extension_equals, find_filenames};
 use move_model_2 as M2;
 use move_package::BuildConfig;
-use std::{collections::BTreeMap, path::Path};
+
+use crate::base::reroot_path;
 
 const COMMAND_NAME: &str = "summary";
 const DEFAULT_OUTPUT_DIRECTORY: &str = "package_summaries";
 
-/// Generate a serialized summary of a Move package (e.g., functions, structs, annotations, etc.)
+/// Generate a serialized summary of a Move package (e.g., functions, structs,
+/// annotations, etc.)
 #[derive(Parser)]
 #[clap(name = COMMAND_NAME)]
 pub struct Summary {
@@ -23,8 +26,9 @@ pub struct Summary {
     /// Directory that all generated summaries should be nested under.
     #[clap(long = "output-directory", value_name = "PATH", default_value = DEFAULT_OUTPUT_DIRECTORY)]
     output_directory: String,
-    /// Whether we are generating a summary for a package or for a directory of bytecode modules.
-    /// All `.mv` files under the path supplied (or current directory if none supplied) will be summarized.
+    /// Whether we are generating a summary for a package or for a directory of
+    /// bytecode modules. All `.mv` files under the path supplied (or
+    /// current directory if none supplied) will be summarized.
     #[clap(long = "bytecode")]
     bytecode: bool,
 }

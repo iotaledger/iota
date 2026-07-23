@@ -41,9 +41,10 @@ pub enum Kind<TWithSource, TWithout> {
     WithoutSource(TWithout),
 }
 
-/// The model for a set of packages. Allows for ergonomic access to packages, modules, and
-/// module members. If source files are present, the Move package system can be used to generate
-/// a `Model<WithSource>` via `Model::from_source`. If no source files are present, a model can be
+/// The model for a set of packages. Allows for ergonomic access to packages,
+/// modules, and module members. If source files are present, the Move package
+/// system can be used to generate a `Model<WithSource>` via
+/// `Model::from_source`. If no source files are present, a model can be
 /// generated directly from the `CompiledModule`s via `Model::from_compiled`.
 pub struct Model<K: SourceKind> {
     pub(crate) has_source: bool,
@@ -145,9 +146,10 @@ pub struct Function<'a, K: SourceKind> {
     pub(crate) data: &'a FunctionData,
 }
 
-/// Represents the model data for a module's constant present in the `CompiledModule`. Not all
-/// constants at the source level are present in the `CompiledModule` depending on optimizations.
-/// For source level constants, see `source_model::NamedConstant` and `source_model::Constant`.
+/// Represents the model data for a module's constant present in the
+/// `CompiledModule`. Not all constants at the source level are present in the
+/// `CompiledModule` depending on optimizations. For source level constants, see
+/// `source_model::NamedConstant` and `source_model::Constant`.
 #[doc = shared_comments!()]
 pub struct CompiledConstant<'a, K: SourceKind> {
     pub(crate) module: Module<'a, K>,
@@ -1125,9 +1127,9 @@ fn annotated_constant_layout(ty: &normalized::Type) -> runtime_value::MoveTypeLa
 // Derive
 //**************************************************************************************************
 
-// We derive Clone and Copy manually to avoid needlessly requiring `Clone` and `Copy` on
-// `K: SourceKind`. This isn't super important now, but can be very annoying if we
-// ever use `dyn SourceKind` in the future.
+// We derive Clone and Copy manually to avoid needlessly requiring `Clone` and
+// `Copy` on `K: SourceKind`. This isn't super important now, but can be very
+// annoying if we ever use `dyn SourceKind` in the future.
 macro_rules! derive_all {
     ($item:ident) => {
         impl<K: SourceKind> Clone for $item<'_, K> {
