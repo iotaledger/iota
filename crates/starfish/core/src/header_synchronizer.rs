@@ -863,7 +863,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                 .map_err(ConsensusError::MalformedHeader)
                 .inspect_err(|e| {
                     // Author is unknown when deserialization fails — blame the peer.
-                    misbehavior_store.record_faulty_block_header(peer_index, peer_index, e);
+                    misbehavior_store.record_faulty_block(peer_index, peer_index, e);
                 })?;
 
             if let Err(e) = block_verifier.verify(&signed_block_header) {
@@ -877,11 +877,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                     .synchronizer_invalid_block_headers
                     .with_label_values(&[hostname.as_str(), "synchronizer", e.name()])
                     .inc();
-                misbehavior_store.record_faulty_block_header(
-                    peer_index,
-                    signed_block_header.author(),
-                    &e,
-                );
+                misbehavior_store.record_faulty_block(peer_index, signed_block_header.author(), &e);
                 warn!("Invalid block received from {}: {}", peer_index, e);
                 return Err(e);
             }
@@ -1008,7 +1004,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                                             .map_err(ConsensusError::MalformedHeader)
                                             .inspect_err(|e| {
                                                 // Author unknown when deserialization fails — blame the peer.
-                                                misbehavior_store.record_faulty_block_header(
+                                                misbehavior_store.record_faulty_block(
                                                     authority_index,
                                                     authority_index,
                                                     e,
@@ -1022,7 +1018,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                                                 .synchronizer_invalid_block_headers
                                                 .with_label_values(&[hostname.as_str(), "synchronizer_own_block_header", err.clone().name()])
                                                 .inc();
-                                            misbehavior_store.record_faulty_block_header(
+                                            misbehavior_store.record_faulty_block(
                                                 authority_index,
                                                 signed_block_header.author(),
                                                 err,

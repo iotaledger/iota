@@ -800,7 +800,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                                 // fetch-shape errors (wrong count/ref) which classify
                                 // as Untracked. When per-header faults become observable
                                 // here, record them as peer misbehavior via
-                                // `inner.misbehavior_store.record_faulty_block_header`.
+                                // `inner.misbehavior_store.record_faulty_block`.
                                 warn!(
                                     "[{}] Failed to verify headers from {}: {}",
                                     inner.sync_type.as_str(),
