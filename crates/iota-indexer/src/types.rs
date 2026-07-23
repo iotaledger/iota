@@ -9,7 +9,7 @@ use iota_json_rpc_types::{
 use iota_sdk_types::{
     Address, CheckpointContentsDigest, CheckpointDigest, ObjectDigest, ObjectId, Owner, StructTag,
     TransactionDigest, TypeTag, Version,
-    checkpoint::{CheckpointCommitment, EndOfEpochData},
+    checkpoint::{CheckpointCommitment, CheckpointContents, EndOfEpochData},
     move_package::MovePackage,
 };
 use iota_types::{
@@ -61,7 +61,7 @@ pub struct IndexedCheckpoint {
 impl IndexedCheckpoint {
     pub fn from_iota_checkpoint(
         checkpoint: &iota_types::messages_checkpoint::CertifiedCheckpointSummary,
-        contents: &iota_sdk_types::checkpoint::CheckpointContents,
+        contents: &CheckpointContents,
         successful_tx_num: usize,
     ) -> Self {
         let total_gas_cost = checkpoint.epoch_rolling_gas_cost_summary.computation_cost as i64

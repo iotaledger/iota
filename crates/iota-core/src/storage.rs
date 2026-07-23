@@ -7,7 +7,7 @@ use std::sync::Arc;
 use iota_node_storage::{GrpcIndexes, GrpcStateReader};
 use iota_sdk_types::{
     CheckpointContentsDigest, CheckpointDigest, StructTag, TransactionDigest,
-    checkpoint::EndOfEpochData,
+    checkpoint::{CheckpointContents, EndOfEpochData},
 };
 use iota_types::{
     committee::{Committee, EpochId},
@@ -232,8 +232,7 @@ impl ReadStore for RocksDbStore {
     fn try_get_checkpoint_contents_by_digest(
         &self,
         digest: &CheckpointContentsDigest,
-    ) -> iota_types::storage::error::Result<Option<iota_sdk_types::checkpoint::CheckpointContents>>
-    {
+    ) -> iota_types::storage::error::Result<Option<CheckpointContents>> {
         self.checkpoint_store
             .get_checkpoint_contents(digest)
             .map_err(iota_types::storage::error::Error::custom)
@@ -242,8 +241,7 @@ impl ReadStore for RocksDbStore {
     fn try_get_checkpoint_contents_by_sequence_number(
         &self,
         sequence_number: CheckpointSequenceNumber,
-    ) -> iota_types::storage::error::Result<Option<iota_sdk_types::checkpoint::CheckpointContents>>
-    {
+    ) -> iota_types::storage::error::Result<Option<CheckpointContents>> {
         match self.try_get_checkpoint_by_sequence_number(sequence_number) {
             Ok(Some(checkpoint)) => {
                 self.try_get_checkpoint_contents_by_digest(&checkpoint.content_digest)
@@ -433,16 +431,14 @@ impl ReadStore for GrpcReadStore {
     fn try_get_checkpoint_contents_by_digest(
         &self,
         digest: &CheckpointContentsDigest,
-    ) -> iota_types::storage::error::Result<Option<iota_sdk_types::checkpoint::CheckpointContents>>
-    {
+    ) -> iota_types::storage::error::Result<Option<CheckpointContents>> {
         self.rocks.try_get_checkpoint_contents_by_digest(digest)
     }
 
     fn try_get_checkpoint_contents_by_sequence_number(
         &self,
         sequence_number: CheckpointSequenceNumber,
-    ) -> iota_types::storage::error::Result<Option<iota_sdk_types::checkpoint::CheckpointContents>>
-    {
+    ) -> iota_types::storage::error::Result<Option<CheckpointContents>> {
         self.rocks
             .try_get_checkpoint_contents_by_sequence_number(sequence_number)
     }

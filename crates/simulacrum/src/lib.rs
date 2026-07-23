@@ -614,16 +614,14 @@ impl<T, V: store::SimulatorStore> ReadStore for Simulacrum<T, V> {
     fn try_get_checkpoint_contents_by_digest(
         &self,
         digest: &CheckpointContentsDigest,
-    ) -> iota_types::storage::error::Result<Option<iota_sdk_types::checkpoint::CheckpointContents>>
-    {
+    ) -> iota_types::storage::error::Result<Option<CheckpointContents>> {
         Ok(self.with_store(|store| store.get_checkpoint_contents_by_digest(digest)))
     }
 
     fn try_get_checkpoint_contents_by_sequence_number(
         &self,
         sequence_number: iota_types::messages_checkpoint::CheckpointSequenceNumber,
-    ) -> iota_types::storage::error::Result<Option<iota_sdk_types::checkpoint::CheckpointContents>>
-    {
+    ) -> iota_types::storage::error::Result<Option<CheckpointContents>> {
         Ok(self.with_store(|store| {
             store
                 .get_checkpoint_by_sequence_number(sequence_number)
