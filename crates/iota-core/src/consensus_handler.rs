@@ -1250,10 +1250,10 @@ mod tests {
     fn test_user_transaction_digest_covers_user_kinds() {
         use iota_types::attestation::{Attestation, AttestationData, AttestedTransaction};
 
-        let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-        let (recipient, _): (Address, AccountKeyPair) = get_key_pair();
+        let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
+        let (recipient, _): (Address, AccountPrivateKey) = get_key_pair();
         let rgp = 1000;
-        let tx_data = TransactionData::new_transfer(
+        let tx_data = Transaction::new_transfer(
             recipient,
             random_object_ref(),
             sender,
@@ -1286,7 +1286,7 @@ mod tests {
                     computation_units: 0,
                     object_versions: vec![],
                 },
-                attestor_index: starfish_config::AuthorityIndex::new_for_test(0),
+                attestor_index: 0,
             },
         );
         let v2 = external(ConsensusTransactionKind::UserTransactionV2(Box::new(

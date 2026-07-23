@@ -64,7 +64,6 @@ use iota_types::{
     deny_rule_governance::DenyRuleConfig,
     effects::TransactionEffectsAPI,
     error::{IotaError, IotaResult, UserInputError},
-    messages_consensus::{ConsensusTransaction, ConsensusTransactionKind},
     transaction::{
         InputObjectKind, SenderSignedTransactionAPI, TransactionAPI, VerifiedTransaction,
     },
@@ -168,16 +167,13 @@ pub async fn validate_and_resolve_conflicts(
 
         // Only validate UserTransactionV1/V2; pass everything else through
         // unchanged.
-        let (transaction, attestation) = match &tx.0.transaction {
-            SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                kind: ConsensusTransactionKind::UserTransactionV1(t),
-                ..
-            }) => (t.as_ref(), None),
-            SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                kind: ConsensusTransactionKind::UserTransactionV2(a),
-                ..
-            }) => (&a.transaction, Some(&a.attestation)),
-            _ => continue,
+        let Some((transaction, attestation)) = (match &tx.0.transaction {
+            SequencedConsensusTransactionKind::External(ext) => {
+                ext.kind.as_user_transaction_with_attestation()
+            }
+            SequencedConsensusTransactionKind::System(_) => None,
+        }) else {
+            continue;
         };
 
         let digest = *transaction.digest();
