@@ -92,6 +92,54 @@ async function run() {
         throw new Error(`View call failed: ${highestScore.executionError}`);
     }
     console.log('Highest score:', JSON.stringify(highestScore.functionReturnValues[0], null, 2));
+
+    // The `vault` module is generic over the type `T` it stores. Build a shared
+    // `Vault<Coin<IOTA>>` so a generic view has something to read.
+    //
+    // `create` takes the item by value, so the stored coin cannot be an existing
+    // shared object. Instead, split a coin off the gas payment and hand that
+    // split result straight to `create` in the same transaction.
+    const createVaultTx = new Transaction();
+    const [storedCoin] = createVaultTx.splitCoins(createVaultTx.gas, [1000]);
+    createVaultTx.moveCall({
+        target: `${packageId}::vault::create`,
+        // `T = Coin<IOTA>`, the type argument the view must also be called with.
+        typeArguments: ['0x2::coin::Coin<0x2::iota::IOTA>'],
+        arguments: [
+            storedCoin, // item: the coin to lock away
+            createVaultTx.pure.u64(0), // unlock_at: timestamp, unused by `item`
+            createVaultTx.pure.address(sender), // beneficiary
+        ],
+    });
+    const { digest: createVaultDigest } = await iotaClient.signAndExecuteTransaction({
+        transaction: createVaultTx,
+        signer: keypair,
+    });
+    const createVaultResponse = await iotaClient.waitForTransaction({
+        digest: createVaultDigest,
+        options: { showObjectChanges: true },
+    });
+    const vault = createVaultResponse.objectChanges?.find(
+        (change) => change.type === 'created' && change.objectType.includes('::vault::Vault<'),
+    );
+    if (vault?.type !== 'created') {
+        throw new Error('Vault object not found');
+    }
+    const vaultId = vault.objectId;
+    console.log(`Vault: ${vaultId}`);
+
+    // Call the generic `vault::item` view, filling in the type argument
+    // (`Coin<IOTA>`) and the function argument (the vault's object ID). The
+    // returned coin arrives as a struct carrying its type and fields.
+    const storedItem = await iotaClient.view({
+        functionName: `${packageId}::vault::item`,
+        typeArgs: ['0x2::coin::Coin<0x2::iota::IOTA>'],
+        arguments: [vaultId],
+    });
+    if ('executionError' in storedItem) {
+        throw new Error(`View call failed: ${storedItem.executionError}`);
+    }
+    console.log('Stored item:', JSON.stringify(storedItem.functionReturnValues[0], null, 2));
 }
 
 run().then(() => process.exit());

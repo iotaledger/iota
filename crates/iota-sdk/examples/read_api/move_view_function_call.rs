@@ -1,8 +1,9 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! This example shows how to publish a package containing a `#[view]`
-//! function and call it with the `iota_view` JSON-RPC method.
+//! This example shows how to publish a package containing `#[view]`
+//! functions and call them with the `iota_view` JSON-RPC method, including a
+//! generic view called with a type argument.
 //!
 //! A function can only be called through `iota_view` if it is declared with
 //! the `#[view]` attribute and is recorded in its module's on-chain view
@@ -16,13 +17,19 @@
 #[path = "../utils.rs"]
 mod utils;
 
-use std::path::PathBuf;
+use std::{path::PathBuf, str::FromStr};
 
 use iota_json::IotaJsonValue;
 use iota_json_rpc_api::WriteApiClient;
 use iota_move_build::{BuildConfig, ProtocolBuildConfig};
-use iota_sdk::rpc_types::ObjectChange;
-use iota_sdk_types::Owner;
+use iota_sdk::{
+    rpc_types::{IotaTypeTag, ObjectChange},
+    types::{
+        programmable_transaction_builder::ProgrammableTransactionBuilder,
+        transaction::{TransactionData, TransactionDataAPI},
+    },
+};
+use iota_sdk_types::{Argument, Command, Identifier, Owner, TypeTag};
 use move_package::BuildConfig as MoveBuildConfig;
 use utils::{setup_for_write, sign_and_execute_transaction};
 
@@ -101,6 +108,76 @@ async fn main() -> Result<(), anyhow::Error> {
         )
         .await?;
     println!("{view_call_results:?}");
+
+    // The `vault` module is generic over the type `T` it stores. Build a shared
+    // `Vault<Coin<IOTA>>` so that a generic view has something to read.
+    //
+    // `create` takes the item by value, so the stored coin cannot be an existing
+    // shared object. Instead, split a coin off the gas payment and hand that
+    // split result straight to `create` in a single transaction.
+    let gas_price = client.read_api().get_reference_gas_price().await?;
+    let gas_coin = client
+        .coin_read_api()
+        .get_coins(sender, None, None, None)
+        .await?
+        .data
+        .into_iter()
+        .next()
+        .expect("missing gas coin");
+
+    let mut ptb = ProgrammableTransactionBuilder::new();
+    // Split 1000 NANOS off the gas coin to store in the vault.
+    let split_amount = ptb.pure(1_000u64)?;
+    ptb.command(Command::new_split_coins(Argument::Gas, vec![split_amount]));
+    // unlock_at: a Unix timestamp (ms); unused by the `item` view.
+    let unlock_at = ptb.pure(0u64)?;
+    // beneficiary: the only address allowed to unlock the vault.
+    let beneficiary = ptb.pure(sender)?;
+    ptb.programmable_move_call(
+        package_id,
+        Identifier::new("vault")?,
+        Identifier::new("create")?,
+        // `T = Coin<IOTA>`, the type argument the view must also be called with.
+        vec![TypeTag::from_str("0x2::coin::Coin<0x2::iota::IOTA>")?],
+        // The split coin (result of the first command), then the two pure args.
+        vec![Argument::Result(0), unlock_at, beneficiary],
+    );
+    let create_vault_tx = TransactionData::new_programmable(
+        sender,
+        vec![gas_coin.object_ref()],
+        ptb.finish(),
+        gas_budget,
+        gas_price,
+    );
+    let create_vault_response =
+        sign_and_execute_transaction(&client, &sender, create_vault_tx).await?;
+    let vault_id = create_vault_response
+        .object_changes
+        .unwrap()
+        .iter()
+        .find_map(|change| match change {
+            ObjectChange::Created {
+                object_id,
+                owner: Owner::Shared(_),
+                ..
+            } => Some(*object_id),
+            _ => None,
+        })
+        .expect("missing shared vault object");
+
+    // Call the generic `vault::item` view, filling in the type argument
+    // (`Coin<IOTA>`) and the object argument (the vault's ID).
+    let vault_view_results = client
+        .http()
+        .view_function_call(
+            format!("{package_id}::vault::item"),
+            Some(vec![IotaTypeTag::new(
+                "0x2::coin::Coin<0x2::iota::IOTA>".to_string(),
+            )]),
+            vec![IotaJsonValue::new(serde_json::json!(vault_id))?],
+        )
+        .await?;
+    println!("{vault_view_results:?}");
 
     Ok(())
 }
