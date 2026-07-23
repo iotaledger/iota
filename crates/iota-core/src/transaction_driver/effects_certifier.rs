@@ -35,8 +35,8 @@ use crate::{
     transaction_driver::{
         QuorumTransactionResponse, SubmitTransactionOptions,
         error::{
-            AggregatedEffectsDigests, TransactionDriverError, TransactionRequestError,
-            aggregate_request_errors, congestion_error,
+            AggregatedEffectsDigests, CongestionCheck, TransactionDriverError,
+            TransactionRequestError, aggregate_request_errors, check_congestion,
         },
         metrics::TransactionDriverMetrics,
         request_retrier::RequestRetrier,
@@ -548,8 +548,12 @@ impl EffectsCertifier {
         if non_retriable_rejected.reached_validity_threshold() {
             self.metrics.skip_cert_corroborated_rejections.inc();
             let non_retriable = non_retriable_rejected.status_by_authority();
-            if let Some(error) = congestion_error(&non_retriable, validity_threshold) {
-                return error;
+            match check_congestion(&non_retriable, validity_threshold) {
+                CongestionCheck::Corroborated(error) => return error,
+                // Uncorroborated is unreachable with a single seed report (its
+                // value carries the full congested stake); either way, fall
+                // through to the aggregated rejections.
+                CongestionCheck::Contradicted | CongestionCheck::Uncorroborated => {}
             }
             return TransactionDriverError::RejectedByValidators {
                 submission_non_retriable_errors: aggregate_request_errors(non_retriable),
@@ -613,15 +617,28 @@ impl EffectsCertifier {
             }
 
             if non_retriable_rejected.reached_validity_threshold() {
-                self.metrics.skip_cert_corroborated_rejections.inc();
                 let non_retriable = non_retriable_rejected.status_by_authority();
-                if let Some(error) = congestion_error(&non_retriable, validity_threshold) {
-                    return error;
+                match check_congestion(&non_retriable, validity_threshold) {
+                    CongestionCheck::Corroborated(error) => {
+                        self.metrics.skip_cert_corroborated_rejections.inc();
+                        return error;
+                    }
+                    // The rejection verdict is final, but the reported
+                    // congestion values disagree, which requires a dishonest
+                    // reporter. Wait for more reports, but not beyond a
+                    // quorum of responses: past that, surface the aggregated
+                    // rejections below without endorsing any reported price.
+                    CongestionCheck::Uncorroborated if !responded.reached_quorum_threshold() => {}
+                    CongestionCheck::Contradicted | CongestionCheck::Uncorroborated => {
+                        self.metrics.skip_cert_corroborated_rejections.inc();
+                        return TransactionDriverError::RejectedByValidators {
+                            submission_non_retriable_errors: aggregate_request_errors(
+                                non_retriable,
+                            ),
+                            submission_retriable_errors: aggregate_request_errors(vec![]),
+                        };
+                    }
                 }
-                return TransactionDriverError::RejectedByValidators {
-                    submission_non_retriable_errors: aggregate_request_errors(non_retriable),
-                    submission_retriable_errors: aggregate_request_errors(vec![]),
-                };
             }
             // Even if every still-unheard validator rejected non-retriably,
             // the f+1 threshold can no longer be reached — stop early and let
@@ -827,17 +844,23 @@ impl EffectsCertifier {
                     // surface the congestion error so the client can resubmit at
                     // a higher price (or learn it is already at the maximum)
                     // rather than treating the tx as invalid.
-                    if let Some(error) =
-                        congestion_error(&non_retriable, committee.validity_threshold())
-                    {
-                        return Err(error);
+                    match check_congestion(&non_retriable, committee.validity_threshold()) {
+                        CongestionCheck::Corroborated(error) => return Err(error),
+                        // For Uncorroborated, a quorum has responded without
+                        // agreeing on the congestion feedback (which requires
+                        // a dishonest reporter) — surface the aggregated
+                        // rejections without endorsing any reported price.
+                        CongestionCheck::Contradicted | CongestionCheck::Uncorroborated => {
+                            return Err(TransactionDriverError::RejectedByValidators {
+                                submission_non_retriable_errors: aggregate_request_errors(
+                                    non_retriable,
+                                ),
+                                submission_retriable_errors: aggregate_request_errors(
+                                    retriable_errors_aggregator.status_by_authority(),
+                                ),
+                            });
+                        }
                     }
-                    return Err(TransactionDriverError::RejectedByValidators {
-                        submission_non_retriable_errors: aggregate_request_errors(non_retriable),
-                        submission_retriable_errors: aggregate_request_errors(
-                            retriable_errors_aggregator.status_by_authority(),
-                        ),
-                    });
                 }
                 // Return a retriable aggregated error only if it becomes impossible to gather
                 // enough non-retriable errors.
@@ -1179,6 +1202,107 @@ mod tests {
         }
 
         let initial_error = TransactionRequestError::RejectedAtValidator(rejection_iota_error());
+        let err = certifier
+            .corroborate_single_validator_error(
+                &agg,
+                &monitor,
+                Some(digest),
+                initial,
+                initial_error,
+                &options(),
+            )
+            .await;
+        assert!(
+            matches!(err, TransactionDriverError::RejectedByValidators { .. }),
+            "expected RejectedByValidators, got {err:?}"
+        );
+        assert_eq!(metrics.skip_cert_corroborated_rejections.get(), 1);
+    }
+
+    #[tokio::test]
+    async fn corroborate_congestion_agreement_outvotes_dishonest_report() {
+        let agg = make_aggregator(4);
+        let metrics = Arc::new(TransactionDriverMetrics::new_for_tests());
+        let certifier = EffectsCertifier::new(metrics.clone());
+        let monitor = Arc::new(ValidatorClientMonitor::new_for_test());
+        let digest = TransactionDigest::random();
+
+        let names: Vec<_> = agg.committee.names().copied().collect();
+        // The initial validator reports an inflated congestion price; the
+        // honest validators all report the deterministic price. The inflated
+        // value never gains validity-threshold support, so the honest value
+        // is surfaced regardless of response order.
+        let initial = names[0];
+        for name in &names[1..] {
+            set_validator_status(
+                &agg,
+                name,
+                digest,
+                TxStatusUpdate::Rejected {
+                    error: IotaError::ValidatorTransactionCongested {
+                        suggested_gas_price: 1000,
+                    },
+                },
+            );
+        }
+
+        let initial_error = TransactionRequestError::RejectedAtValidator(
+            IotaError::ValidatorTransactionCongested {
+                suggested_gas_price: 1_000_000,
+            },
+        );
+        let err = certifier
+            .corroborate_single_validator_error(
+                &agg,
+                &monitor,
+                Some(digest),
+                initial,
+                initial_error,
+                &options(),
+            )
+            .await;
+        assert_eq!(
+            err,
+            TransactionDriverError::Congested {
+                suggested_gas_price: 1000
+            }
+        );
+        assert_eq!(metrics.skip_cert_corroborated_rejections.get(), 1);
+    }
+
+    #[tokio::test]
+    async fn corroborate_uncorroborated_congestion_returns_aggregated_rejections() {
+        let agg = make_aggregator(4);
+        let metrics = Arc::new(TransactionDriverMetrics::new_for_tests());
+        let certifier = EffectsCertifier::new(metrics.clone());
+        let monitor = Arc::new(ValidatorClientMonitor::new_for_test());
+        let digest = TransactionDigest::random();
+
+        let names: Vec<_> = agg.committee.names().copied().collect();
+        // Congested rejection stake reaches the validity threshold, but the
+        // two reported prices disagree and no more rejections arrive. Once a
+        // quorum has responded, the aggregated rejections are surfaced
+        // without endorsing either reported price.
+        let initial = names[0];
+        set_validator_status(
+            &agg,
+            &names[1],
+            digest,
+            TxStatusUpdate::Rejected {
+                error: IotaError::ValidatorTransactionCongested {
+                    suggested_gas_price: 1000,
+                },
+            },
+        );
+        for name in &names[2..] {
+            set_validator_status(&agg, name, digest, TxStatusUpdate::Submitted);
+        }
+
+        let initial_error = TransactionRequestError::RejectedAtValidator(
+            IotaError::ValidatorTransactionCongested {
+                suggested_gas_price: 1_000_000,
+            },
+        );
         let err = certifier
             .corroborate_single_validator_error(
                 &agg,
