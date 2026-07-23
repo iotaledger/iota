@@ -10,10 +10,8 @@ use std::{
 use iota_config::node::ExpensiveSafetyCheckConfig;
 use iota_sdk_types::{Address, ObjectId, TransactionDigest};
 use iota_types::{
-    base_types::AuthorityName,
-    committee::Committee,
-    crypto::KeypairTraits,
-    deny_rule_governance::{DenyRuleProposal, DenyRuleSet},
+    base_types::AuthorityName, committee::Committee, crypto::KeypairTraits,
+    deny_rule_governance::DenyRuleSet, messages_consensus::TransactionDenyRuleProposal,
 };
 use tokio::time::timeout;
 use typed_store::rocks::DBBatch;
@@ -344,8 +342,8 @@ fn deny_proposal(
     authority: AuthorityName,
     generation: u64,
     proposed_rules: DenyRuleSet,
-) -> DenyRuleProposal {
-    DenyRuleProposal {
+) -> TransactionDenyRuleProposal {
+    TransactionDenyRuleProposal {
         authority,
         generation,
         proposed_rules,
@@ -363,7 +361,7 @@ fn rules_denying_address(address: Address) -> DenyRuleSet {
 /// `process_consensus_transaction` will use: buffer it in
 /// `ConsensusCommitOutput` and flush via `write_to_batch`. See
 /// `flush_overload_notification`.
-fn flush_deny_rule_proposal(store: &AuthorityPerEpochStore, proposal: DenyRuleProposal) {
+fn flush_deny_rule_proposal(store: &AuthorityPerEpochStore, proposal: TransactionDenyRuleProposal) {
     let mut output = ConsensusCommitOutput::new(0);
     output.record_deny_rule_proposal(proposal.clone());
     output.set_default_commit_stats_for_testing();
@@ -389,7 +387,7 @@ fn compute_active_transaction_deny_rules_applies_stake_thresholds() {
     let active_package = ObjectId::new([6u8; 32]);
     let minority_package = ObjectId::new([7u8; 32]);
 
-    let mut proposals: BTreeMap<AuthorityName, DenyRuleProposal> = BTreeMap::new();
+    let mut proposals: BTreeMap<AuthorityName, TransactionDenyRuleProposal> = BTreeMap::new();
     // Two members support the `active_*` entries; switch support ranges from
     // 3 members (receiving/move authenticator) through 2 (shared object,
     // package publish) and 1 (user transaction) to 0 (package upgrade).

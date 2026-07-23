@@ -622,6 +622,9 @@ pub(crate) fn classify(transaction: &ConsensusTransaction) -> &'static str {
         ConsensusTransactionKind::RandomnessDkgMessage(_, _) => "randomness_dkg_message",
         ConsensusTransactionKind::RandomnessDkgConfirmation(_, _) => "randomness_dkg_confirmation",
         ConsensusTransactionKind::OverloadNotificationV1(_, _, _) => "overload_notification_v1",
+        ConsensusTransactionKind::TransactionDenyRuleProposal(_) => {
+            "transaction_deny_rule_proposal"
+        }
     }
 }
 
