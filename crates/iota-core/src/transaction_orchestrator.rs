@@ -358,11 +358,11 @@ where
         };
 
         // `needs_cache_rebuild` is derived from finality, not caller intent:
-        // the QD fallback path — and a duplicate submission inheriting the
-        // outcome of an in-flight certifying submission — returns `Certified`
-        // (no rebuild needed) even when the caller asked for
-        // `WaitForLocalExecution`, while only the TD skip-cert engine
-        // produces `UncertifiedSingleValidator`. The
+        // the QD fallback path returns `Certified` and a duplicate
+        // submission inheriting the outcome of an in-flight certifying
+        // submission returns `QuorumExecuted` — neither needs a rebuild —
+        // even when the caller asked for `WaitForLocalExecution`, while only
+        // the TD skip-cert engine produces `UncertifiedSingleValidator`. The
         // checkpoint sequence comes from `submit_with_checkpoint_race`, which
         // relies on `executed_transactions_to_checkpoint` being written
         // strictly after every tx's effects — so a `Some(seq)` here implies
