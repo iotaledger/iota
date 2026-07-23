@@ -1420,8 +1420,7 @@ impl IotaClientCommands {
                 let mut builder = TransactionBuilder::new(signer);
                 builder.pay(
                     grpc_input_refs(&client, &input_coins).await?,
-                    recipients,
-                    amounts,
+                    recipients.into_iter().zip(amounts),
                 );
 
                 ensure!(
@@ -1474,7 +1473,7 @@ impl IotaClientCommands {
                     get_identity_address(processing.sender.map(Into::into), context).await?;
                 let client = context.get_grpc_client().await?;
                 let mut builder = TransactionBuilder::new(signer);
-                builder.pay([unresolved::Argument::Gas], recipients, amounts.clone());
+                builder.pay_iota(recipients.into_iter().zip(amounts.iter().copied()));
                 let (tx_kind, _) = tx_kind_and_gas_payment(builder)?;
 
                 let input_coins = if let Some(coins) = input_coins {
