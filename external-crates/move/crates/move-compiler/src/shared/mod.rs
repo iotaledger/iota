@@ -777,6 +777,10 @@ impl Flags {
     pub fn ide_mode(&self) -> bool {
         self.ide_mode
     }
+
+    pub fn publishable(&self) -> bool {
+        !self.is_testing()
+    }
 }
 
 //**************************************************************************************************

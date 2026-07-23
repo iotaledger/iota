@@ -2,10 +2,9 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! This module contains the implementation of functions supporting conversion of various
-//! constructs to their IDE-friendly string representations.
+//! This module contains the implementation of functions supporting conversion
+//! of various constructs to their IDE-friendly string representations.
 
-use crate::symbols::def_info::{FunType, VariantInfo};
 use move_compiler::{
     expansion::{
         ast::{self as E, AbilitySet, ModuleIdent_, Value, Value_, Visibility},
@@ -21,6 +20,8 @@ use move_compiler::{
 use move_core_types::{account_address::AccountAddress, parsing::address::NumericalAddress};
 use move_ir_types::location::*;
 use move_symbol_pool::Symbol;
+
+use crate::symbols::def_info::{FunType, VariantInfo};
 
 const STD_LIB_PKG_ADDRESS: &str = "0x1";
 const IOTA_LIB_PKG_ADDRESS: &str = "0x2";
@@ -184,8 +185,9 @@ pub fn ret_type_to_ide_str(ret_type: &Type, verbose: bool) -> String {
         _ => format!(": {}", type_to_ide_string(ret_type, verbose)),
     }
 }
-/// Conversions of constant values to strings is currently best-effort which is why this function
-/// returns an Option (in the worst case we will display constant name and type but no value).
+/// Conversions of constant values to strings is currently best-effort which is
+/// why this function returns an Option (in the worst case we will display
+/// constant name and type but no value).
 pub fn const_val_to_ide_string(exp: &Exp) -> Option<String> {
     ast_exp_to_ide_string(exp)
 }
@@ -203,7 +205,8 @@ pub fn ast_exp_to_ide_string(exp: &Exp) -> Option<String> {
                 .map(ast_seq_item_to_ide_string)
                 .collect::<Vec<_>>();
             if seq_items.iter().any(|o| o.is_none()) {
-                // even if only one element cannot be turned into string, don't try displaying block content at all
+                // even if only one element cannot be turned into string, don't try displaying
+                // block content at all
                 return None;
             }
             Some(
@@ -223,7 +226,8 @@ pub fn ast_exp_to_ide_string(exp: &Exp) -> Option<String> {
                 })
                 .collect::<Vec<_>>();
             if items.iter().any(|o| o.is_none()) {
-                // even if only one element cannot be turned into string, don't try displaying expression list at all
+                // even if only one element cannot be turned into string, don't try displaying
+                // expression list at all
                 return None;
             }
             Some(
@@ -279,9 +283,10 @@ pub fn ast_value_to_ide_string(sp!(_, val): &Value) -> String {
     }
 }
 
-/// Creates a string representing a module ID, either on it's owne as in `pkg::module`
-/// or as part of a datatype or function type, in which it should be `pkg::module::`.
-/// If it's part of the datatype, name of the datatype is passed in `datatype_name_opt`.
+/// Creates a string representing a module ID, either on it's owne as in
+/// `pkg::module` or as part of a datatype or function type, in which it should
+/// be `pkg::module::`. If it's part of the datatype, name of the datatype is
+/// passed in `datatype_name_opt`.
 pub fn mod_ident_to_ide_string(
     mod_ident: &ModuleIdent_,
     datatype_name_opt: Option<&Symbol>,
