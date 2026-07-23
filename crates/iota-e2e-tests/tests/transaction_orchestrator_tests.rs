@@ -1017,9 +1017,8 @@ async fn test_submission_survives_caller_abort() -> Result<(), anyhow::Error> {
     test_cluster.stop_node(&validator_addresses[0]);
     test_cluster.stop_node(&validator_addresses[1]);
 
-    let caller_orchestrator = orchestrator.clone();
     let caller_task = tokio::spawn(async move {
-        caller_orchestrator
+        orchestrator
             .execute_transaction_block(
                 ExecuteTransactionRequestV1::new(txn),
                 ExecuteTransactionRequestType::WaitForLocalExecution,
@@ -1040,8 +1039,10 @@ async fn test_submission_survives_caller_abort() -> Result<(), anyhow::Error> {
     // Restore quorum. The detached task inside the orchestrator — never
     // aborted — should still be retrying submission on its own and drive the
     // transaction to finality.
-    test_cluster.start_node(&validator_addresses[0]).await;
-    test_cluster.start_node(&validator_addresses[1]).await;
+    tokio::join!(
+        test_cluster.start_node(&validator_addresses[0]),
+        test_cluster.start_node(&validator_addresses[1]),
+    );
 
     let inclusion = handle
         .state()
