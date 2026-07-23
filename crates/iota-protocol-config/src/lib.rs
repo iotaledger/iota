@@ -1474,16 +1474,17 @@ pub struct ProtocolConfig {
     consensus_leader_schedule_window_size: Option<u32>,
 
     /// High threshold (percent) for the absolute leader-schedule selection: an
-    /// authority whose reputation score, normalized to the window's theoretical
-    /// maximum, is at or above this is a "good" (swap-in) node.
+    /// authority whose reputation score, normalized to the highest score in the
+    /// window, is at or above this is a "good" (swap-in) node.
     /// When unset, defaults to 90. Consulted only when
     /// `consensus_enable_absolute_score_bad_nodes` is set.
     consensus_good_nodes_normalized_score_threshold: Option<u64>,
 
     /// Low threshold (percent) for the absolute leader-schedule selection: an
-    /// authority whose normalized reputation score is strictly below this is a
-    /// "bad" node. When unset, defaults to 50. Consulted only when
-    /// `consensus_enable_absolute_score_bad_nodes` is set.
+    /// authority whose reputation score, normalized to the highest score in the
+    /// window, is strictly below this is a "bad" node. When unset, defaults to
+    /// 50. Consulted only when `consensus_enable_absolute_score_bad_nodes` is
+    /// set.
     consensus_bad_nodes_normalized_score_threshold: Option<u64>,
 
     /// Minimum size of the "good" (swap-in) pool, as a percent of the validator
@@ -1912,17 +1913,6 @@ impl ProtocolConfig {
             "consensus_enable_sliding_window_leader_schedule requires window_size >= commits_per_schedule"
         );
         res
-    }
-
-    /// Number of committed subdags the leader-schedule reputation scores are
-    /// aggregated over: the sliding window when enabled, otherwise the rotation
-    /// interval (V2 accumulates one interval's worth of commits per schedule).
-    pub fn scoring_window_commits(&self) -> u32 {
-        if self.consensus_enable_sliding_window_leader_schedule() {
-            self.leader_schedule_window_size()
-        } else {
-            self.commits_per_schedule()
-        }
     }
 
     pub fn consensus_enable_absolute_score_bad_nodes(&self) -> bool {

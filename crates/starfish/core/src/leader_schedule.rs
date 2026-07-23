@@ -743,10 +743,13 @@ impl LeaderSwapTable {
     }
 
     /// Splits the score-descending `authorities_by_score` into the good
-    /// (swap-in) and bad sets by absolute performance. Each score is normalized
-    /// against the most a validator could score over the scoring window, i.e.
-    /// its commit count times the total stake. A node below the low threshold
-    /// is bad; a node at or above the high threshold is good. The good pool
+    /// (swap-in) and bad sets by performance relative to the top scorer. Each
+    /// score is normalized against the highest score in the window, so the
+    /// thresholds mean the same thing regardless of how close the scoring
+    /// strategy gets to its theoretical ceiling — V2 batch and sliding-window
+    /// reach very different absolute levels for the same network, but their top
+    /// performers both normalize to 100%. A node below the low threshold is
+    /// bad; a node at or above the high threshold is good. The good pool
     /// extends down the ranking until it holds at least the minimum number
     /// of validators (never a single node); the bad set is capped at the
     /// maximum bad-node count. All thresholds come from the protocol
@@ -762,21 +765,26 @@ impl LeaderSwapTable {
         let good_threshold = protocol_config.good_nodes_normalized_score_threshold() as u128;
         let bad_threshold = protocol_config.bad_nodes_normalized_score_threshold() as u128;
 
-        // Theoretical maximum score for one authority over the scoring window:
-        // one vote per committed leader, each witnessed by all stake.
-        let max_possible = protocol_config.scoring_window_commits() as u128
-            * context.committee.total_stake() as u128;
+        // Normalize against the highest score in this window (the top
+        // performer). `authorities_by_score` is score descending, so the first
+        // entry is the maximum. It is derived from the same committed subdags on
+        // every authority, so the normalization is deterministic and reproduces
+        // identically on recovery.
+        let top_score = authorities_by_score
+            .first()
+            .map(|&(_, score)| score as u128)
+            .unwrap_or(0);
 
-        // No window to normalize against, so make no swaps.
-        if max_possible == 0 {
+        // No positive score to normalize against, so make no swaps.
+        if top_score == 0 {
             return (Vec::new(), BTreeMap::new());
         }
 
-        // Integer-only comparisons against `score / max_possible`:
-        //   good: score * 100 >= good_threshold * max_possible
-        //   bad:  score * 100 <  bad_threshold  * max_possible
-        let is_good = |score: u64| (score as u128) * 100 >= good_threshold * max_possible;
-        let is_bad = |score: u64| (score as u128) * 100 < bad_threshold * max_possible;
+        // Integer-only comparisons against `score / top_score`:
+        //   good: score * 100 >= good_threshold * top_score
+        //   bad:  score * 100 <  bad_threshold  * top_score
+        let is_good = |score: u64| (score as u128) * 100 >= good_threshold * top_score;
+        let is_bad = |score: u64| (score as u128) * 100 < bad_threshold * top_score;
 
         let committee_size = context.committee.size() as u64;
 
@@ -1487,19 +1495,14 @@ mod tests {
         context
             .protocol_config
             .set_consensus_enable_absolute_score_bad_nodes_for_testing(true);
-        // Pin the V2 scoring window so the normalized scores below are measured
-        // against a fixed maximum (window commits * total stake).
-        context
-            .protocol_config
-            .set_commits_per_schedule_for_testing(11);
         Arc::new(context)
     }
 
     #[tokio::test]
     async fn test_leader_swap_table_absolute_score_classifies_by_threshold() {
         telemetry_subscribers::init_for_testing();
-        // 4 authorities, even stake (total 4), window size 11 => max score 44.
-        // Good is score >= 90% (>= 40), bad is score < 50% (< 22).
+        // 4 authorities. The top scorer has 44, so good is >= 90% of 44
+        // (>= 40) and bad is < 50% of 44 (< 22).
         let context = context_with_absolute_selection(4);
         let reputation_scores = ReputationScores::new((0..=10).into(), vec![0, 30, 40, 44]);
         let table = LeaderSwapTable::new_inner(context, 33, 0, reputation_scores);
@@ -1579,33 +1582,35 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_leader_swap_table_absolute_score_normalizes_by_sliding_window_size() {
+    async fn test_leader_swap_table_absolute_score_normalizes_by_top_scorer() {
         telemetry_subscribers::init_for_testing();
-        // In sliding-window mode scores are summed over `window_size` commits,
-        // but the stamped commit_range is only the (smaller) rotation interval.
-        // Normalization must use window_size: here it is 10 (max score 10 * 4 =
-        // 40), so node 1 at 26 is 0.65 and must be middle. Using the 5-commit
-        // rotation interval would make its max 20 and wrongly mark node 1 good.
-        let mut context = Context::new_for_test(4).0;
-        context
-            .protocol_config
-            .set_consensus_enable_absolute_score_bad_nodes_for_testing(true);
-        context
-            .protocol_config
-            .set_consensus_enable_sliding_window_leader_schedule_for_testing(true);
-        context
-            .protocol_config
-            .set_commits_per_schedule_for_testing(5);
-        context
-            .protocol_config
-            .set_leader_schedule_window_size_for_testing(10);
-        let context = Arc::new(context);
-
-        let reputation_scores = ReputationScores::new((0..=4).into(), vec![40, 26, 12, 2]);
+        // Selection normalizes against the top score in the window (20 here),
+        // not against the scoring strategy's theoretical ceiling. Node 1 at 18
+        // is 90% of the best, so it is good; the same score of 18 measured
+        // against a much higher theoretical ceiling would instead fall below
+        // every threshold.
+        let context = context_with_absolute_selection(4);
+        let reputation_scores = ReputationScores::new((0..=10).into(), vec![20, 18, 10, 4]);
         let table = LeaderSwapTable::new_inner(context, 33, 0, reputation_scores);
 
         let good: Vec<_> = table.good_nodes.iter().map(|(idx, _, _)| *idx).collect();
-        assert_eq!(good, vec![AuthorityIndex::new_for_test(0)]);
+        assert_eq!(good.len(), 2);
+        assert!(good.contains(&AuthorityIndex::new_for_test(0)));
+        assert!(good.contains(&AuthorityIndex::new_for_test(1)));
+        // Node 2 (10 = 50% of the top) is neither good nor bad.
+        assert!(!good.contains(&AuthorityIndex::new_for_test(2)));
+        assert!(
+            !table
+                .bad_nodes
+                .contains_key(&AuthorityIndex::new_for_test(2))
+        );
+        // Node 3 (4 = 20% of the top) is below the low threshold.
+        assert_eq!(table.bad_nodes.len(), 1);
+        assert!(
+            table
+                .bad_nodes
+                .contains_key(&AuthorityIndex::new_for_test(3))
+        );
     }
 
     #[tokio::test]
