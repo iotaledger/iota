@@ -39,13 +39,8 @@ use fastcrypto::{
     },
 };
 use iota_sdk_crypto::{Verifier, simple::SimpleVerifier};
-// Signature schemes and their flag bytes. Sourced from the SDK so the node
-// shares a single definition with clients. Flag `0x05` (the removed zkLogin
-// authenticator, never enabled on IOTA) stays reserved: the SDK rejects it in
-// `SignatureScheme::from_byte`.
-use iota_sdk_types::SignatureScheme;
 use iota_sdk_types::{
-    Address,
+    Address, SignatureScheme,
     crypto::{Intent, IntentMessage, IntentScope},
 };
 use rand::{
