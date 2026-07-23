@@ -20,8 +20,9 @@
 # Tunables (env): SLOW_SHARED (default false = owned), QPS (default 5),
 #                 DURATION (default 20s), DIRECT (default false), N (validators,
 #                 default 4), NUM_CLIENT_THREADS, NUM_TRANSFER_ACCOUNTS,
-#                 IN_FLIGHT_RATIO, NUM_WORKERS, PROM, TS_STEP, POST_SPAM_WAIT_S,
-#                 WIPE (yes|no; default: prompt interactively, else no).
+#                 IN_FLIGHT_RATIO, NUM_WORKERS, PROM, TS_STEP, DRAIN_POLL_S,
+#                 DRAIN_TIMEOUT_S, WIPE (yes|no; default: prompt interactively,
+#                 else no).
 #
 # Example:
 #   SLOW_N=100 SLOW_SIZE=100 ./probe.sh
@@ -82,7 +83,12 @@ NUM_WORKERS="${NUM_WORKERS:-24}"
 NUM_TARGET_VALIDATORS="${NUM_TARGET_VALIDATORS:-}"
 PROM="${PROM:-http://localhost:9090}"
 TS_STEP="${TS_STEP:-1}"
-POST_SPAM_WAIT_S="${POST_SPAM_WAIT_S:-3}" # let the tail execute + one scrape land before the window closes
+# Window-closing drain: execution lags the client, so instead of a fixed sleep
+# the probe polls the pooled executed-tx counter until it stops advancing (see
+# wait_for_drain). Machine-independent: fast boxes drain in seconds, slow ones
+# get however long they need, capped by DRAIN_TIMEOUT_S.
+DRAIN_POLL_S="${DRAIN_POLL_S:-2}" # >= the Prometheus scrape interval (1s)
+DRAIN_TIMEOUT_S="${DRAIN_TIMEOUT_S:-120}"
 PRODUCT=$((SLOW_N * SLOW_SIZE))
 PRIMARY_GAS_OWNER="0xf479d29837d22943aba6afc401f518a36521b990874eca784886185bd26bf681"
 BENCH_REPO="${BENCH_REPO:-$REPO_ROOT/../network-benchmark}"
@@ -136,6 +142,58 @@ wait_for_fullnode() {
   done
   echo "${RED} -- ERROR: fullnode RPC at 127.0.0.1:9000 not ready in time.${RESET}" >&2
   exit 1
+}
+
+# Pooled executed-tx counter across all scraped nodes; empty until Prometheus
+# has scraped at least one node exposing it.
+exec_count() {
+  curl -sG --max-time 5 "$PROM/api/v1/query" \
+    --data-urlencode 'query=sum(authority_state_internal_execution_latency_count)' |
+    python3 -c 'import json,sys
+r = json.load(sys.stdin).get("data", {}).get("result", [])
+print(r[0]["value"][1] if r else "")' 2>/dev/null
+}
+
+# The measurement window must not open before Prometheus has scraped the
+# validators: on a cold start the first points otherwise see partial or absent
+# series and come out with missing CU values.
+wait_for_first_scrape() {
+  echo "${YELLOW}Waiting for Prometheus samples from the network...${RESET}"
+  for _ in $(seq 1 60); do
+    if [[ -n "$(exec_count)" ]]; then
+      echo "  - Prometheus is scraping the network."
+      return 0
+    fi
+    sleep 2
+  done
+  echo "${RED} -- ERROR: no execution-counter samples in Prometheus at $PROM.${RESET}" >&2
+  exit 1
+}
+
+# Execution lags the client: stress exits when its transactions are finalized
+# client-side, while validators are still draining the execution tail. Close
+# the window only once the pooled executed-tx counter has stopped advancing for
+# two consecutive polls — i.e. the tail has executed AND been scraped — so the
+# window is complete and nothing bleeds into the next point, on any hardware.
+wait_for_drain() {
+  local prev cur stable=0 waited=0
+  prev=$(exec_count)
+  while ((waited < DRAIN_TIMEOUT_S)); do
+    sleep "$DRAIN_POLL_S"
+    waited=$((waited + DRAIN_POLL_S))
+    cur=$(exec_count)
+    if [[ -n "$cur" && "$cur" == "$prev" ]]; then
+      stable=$((stable + 1))
+      if ((stable >= 2)); then
+        echo "  - Execution drained (counter flat for $((2 * DRAIN_POLL_S))s after ${waited}s)."
+        return 0
+      fi
+    else
+      stable=0
+    fi
+    prev="$cur"
+  done
+  echo "${YELLOW}  - WARNING: execution still advancing after ${DRAIN_TIMEOUT_S}s; closing the window anyway.${RESET}" >&2
 }
 
 # Bring the network up ONCE, only if nothing is running. Attestation ON is
@@ -197,6 +255,7 @@ ensure_network
 
 banner ">>> probe: slow(n=$SLOW_N, size=$SLOW_SIZE) product=$PRODUCT shared=$SLOW_SHARED qps=$QPS dur=$DURATION path=$([[ "$DIRECT" == true ]] && echo direct || echo fullnode)"
 wait_for_fullnode
+wait_for_first_scrape
 STRESS_LOG="$SCRIPT_DIR/results/probe-last-stress.log"
 mkdir -p "$SCRIPT_DIR/results"
 
@@ -228,9 +287,7 @@ else
 fi
 echo "  - stress stderr -> $(rel "$STRESS_LOG")"
 
-# Let the tail of the spam finish executing and one more scrape land, so the
-# window captures every transaction's execution.
-sleep "$POST_SPAM_WAIT_S"
+wait_for_drain
 end=$(date +%s)
 
 banner "== measure =="
