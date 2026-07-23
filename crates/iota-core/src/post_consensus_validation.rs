@@ -41,6 +41,7 @@ use std::{
 use iota_common::fatal;
 use iota_sdk_types::{ObjectReference, TransactionDigest};
 use iota_types::{
+    deny_rule_governance::DenyRuleConfig,
     error::{IotaError, IotaResult},
     transaction::{InputObjectKind, SenderSignedTransactionAPI, VerifiedTransaction},
 };
@@ -108,6 +109,18 @@ pub async fn validate_and_resolve_conflicts(
     // All UserTransactionV1 digests seen in this commit (both kept and dropped),
     // used by the caller to release pre-consensus soft locks.
     let mut all_user_tx_digests = Vec::with_capacity(transactions.len());
+
+    // One deny-rule snapshot for the whole commit, so every transaction in it
+    // is judged by the same set. With governance enabled this must be the
+    // consensus-derived set — local config can differ between validators and
+    // would fork the post-consensus decisions.
+    let governance_deny_rules;
+    let deny_config: &dyn DenyRuleConfig = if epoch_store.protocol_config().deny_rule_governance() {
+        governance_deny_rules = epoch_store.get_active_transaction_deny_rules();
+        governance_deny_rules.as_ref()
+    } else {
+        &authority_state.config.transaction_deny_config
+    };
 
     for (i, tx) in transactions.iter().enumerate() {
         // Check #0: Dedup by ConsensusTransactionKey.
@@ -265,6 +278,7 @@ pub async fn validate_and_resolve_conflicts(
             .handle_transaction_validation_checks(
                 &verified_tx,
                 epoch_store,
+                deny_config,
                 // Epoch-gated coin deny-list read: the verdict here decides whether
                 // the transaction stays in the committed set, so it must not depend
                 // on this validator's execution progress.
