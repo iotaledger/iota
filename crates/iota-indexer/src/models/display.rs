@@ -3,10 +3,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use diesel::prelude::*;
-use iota_sdk_types::{Address, Event, Identifier, StructTag, TypeTag};
+use iota_sdk_types::{Address, Event, Identifier, ObjectId, StructTag, TypeTag};
 use iota_types::{
     collection_types::VecMap,
     display::{DisplayObject, DisplayVersionUpdatedEvent},
+    id::ID,
     object::Object,
 };
 
@@ -109,9 +110,65 @@ impl StoredDisplay {
     }
 }
 
+/// Extracts the unique `ObjectId` of the `Display<T>` object from a
+/// `0x2::display::DisplayCreated` event.
+///
+/// Returns `None` if the provided event is of a different type.
+pub fn display_id_from_event(event: &Event) -> Option<ObjectId> {
+    if !event.type_.is_display_created() {
+        return None;
+    }
+    let created_event: ID = bcs::from_bytes(&event.contents).ok()?;
+    Some(created_event.bytes)
+}
+
 /// Returns whether `struct_tag` is of `0x2::display::Display` type.
 fn is_display(struct_tag: &StructTag) -> bool {
     struct_tag.address() == Address::FRAMEWORK
         && struct_tag.module() == &Identifier::DISPLAY_MODULE
         && struct_tag.name() == &DISPLAY_STRUCT_NAME
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn display_event(type_: StructTag, contents: Vec<u8>) -> Event {
+        Event {
+            package_id: ObjectId::random(),
+            module: Identifier::DISPLAY_MODULE,
+            sender: Address::random(),
+            type_,
+            contents,
+        }
+    }
+
+    /// The type `T` a `Display<T>` refers to.
+    fn displayed_type() -> StructTag {
+        StructTag::new(
+            Address::random(),
+            Identifier::from_static("test"),
+            Identifier::from_static("Test"),
+            vec![],
+        )
+    }
+
+    #[test]
+    fn display_id_from_event_extracts_id_from_display_created_event() {
+        let display_id = ObjectId::random();
+        let event = display_event(
+            StructTag::new_display_created(displayed_type()),
+            bcs::to_bytes(&ID::new(display_id)).unwrap(),
+        );
+        assert_eq!(display_id_from_event(&event), Some(display_id));
+    }
+
+    #[test]
+    fn display_id_from_event_ignores_other_events() {
+        let event = display_event(
+            StructTag::new_display_version_updated(displayed_type()),
+            vec![],
+        );
+        assert_eq!(display_id_from_event(&event), None);
+    }
 }

@@ -37,7 +37,7 @@ use crate::{
     },
     metrics::IndexerMetrics,
     models::{
-        display::StoredDisplay,
+        display::{StoredDisplay, display_id_from_event},
         epoch::{EndOfEpochUpdate, StartOfEpochUpdate, extract_epoch_info_event},
         obj_indices::StoredObjectVersion,
         objects::StoredBackwardHistoryObject,
@@ -372,6 +372,7 @@ impl PrimaryWorker {
             transaction: sender_signed_data,
             effects: fx,
             events,
+            output_objects,
             ..
         } = tx;
 
@@ -402,11 +403,27 @@ impl PrimaryWorker {
             .map(|(idx, event)| EventIndex::from_event(tx_sequence_number, idx as u64, event))
             .collect();
 
-        let db_displays = events
+        let mut db_displays: BTreeMap<String, StoredDisplay> = events
             .iter()
             .flat_map(StoredDisplay::try_from_event)
             .map(|display| (display.object_type.clone(), display))
             .collect();
+
+        // `display::new` only emits a `DisplayCreated` event with no fields. If an
+        // author creates a `Display<T>` but never calls `update_version`, it wouldn't
+        // get indexed normally. To prevent this, we fall back to the contents of the
+        // created object itself, while ensuring `VersionUpdated` events still take
+        // precedence.
+        for display in events
+            .iter()
+            .filter_map(display_id_from_event)
+            .filter_map(|id| output_objects.iter().find(|object| object.id() == id))
+            .filter_map(StoredDisplay::try_from_object)
+        {
+            db_displays
+                .entry(display.object_type.clone())
+                .or_insert(display);
+        }
 
         // Input Objects
         let input_objects = tx
