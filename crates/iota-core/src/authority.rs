@@ -257,6 +257,7 @@ pub struct AuthorityMetrics {
     execute_certificate_latency_shared_object: Histogram,
 
     internal_execution_latency: Histogram,
+    internal_execution_latency_user: Histogram,
     /// Number of times the validator refused to report effects (signed or
     /// unsigned, labeled by RPC surface) because it had previously signed
     /// different effects for the same transaction.
@@ -557,6 +558,14 @@ impl AuthorityMetrics {
             internal_execution_latency: register_histogram_with_registry!(
                 "authority_state_internal_execution_latency",
                 "Latency of actual certificate executions",
+                LATENCY_SEC_BUCKETS.to_vec(),
+                registry,
+            )
+                .unwrap(),
+            internal_execution_latency_user: register_histogram_with_registry!(
+                "authority_state_internal_execution_latency_user",
+                "Latency of actual certificate executions, user transactions only \
+                 (system transactions excluded)",
                 LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             )
@@ -1794,6 +1803,8 @@ impl AuthorityState {
     ) -> IotaResult<(TransactionEffects, Option<ExecutionError>)> {
         let _scope = monitored_scope("Execution::try_execute_immediately");
         let _metrics_guard = self.metrics.internal_execution_latency.start_timer();
+        let _user_metrics_guard = (!transaction.data().transaction().is_system_tx())
+            .then(|| self.metrics.internal_execution_latency_user.start_timer());
 
         let tx_digest = transaction.digest();
 
