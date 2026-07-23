@@ -58,7 +58,9 @@ pub use iota_config::transaction_deny_config::{
     TransactionDenyConfig, TransactionDenyConfigBuilder,
 };
 pub use iota_protocol_config::{Chain, ProtocolVersion};
-pub use iota_sdk_types::{Address, MoveAuthenticator, ObjectId, StructTag, TypeTag, Version};
+pub use iota_sdk_types::{
+    Address, MoveAuthenticator, ObjectId, StructTag, TypeTag, UserSignature, Version,
+};
 pub use iota_types::{
     effects::{TransactionEffects, TransactionEvents},
     object::Object,
