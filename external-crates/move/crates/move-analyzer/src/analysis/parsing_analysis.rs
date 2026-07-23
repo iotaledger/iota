@@ -112,15 +112,60 @@ impl<'a> ParsingAnalysisContext<'a> {
         }
     }
 
-    fn attr_symbols(&mut self, sp!(_, attr): P::Attribute) {
+    fn attr_symbols(&mut self, sp!(_attr_loc, attr): &P::Attribute) {
         use P::Attribute_ as A;
+        // TODO: This is under-supported in the current cursor position system. We could
+        // make pretty good suggestions with a little work, though.
         match attr {
-            A::Name(_) => (),
-            A::Assigned(_, v) => {
-                update_cursor!(self.cursor, *v, Attribute);
+            A::BytecodeInstruction
+            | A::DefinesPrimitive(..)
+            | A::Deprecation { .. }
+            | A::Error { .. }
+            | A::Syntax { .. }
+            | A::Allow { .. }
+            | A::LintAllow { .. } => (),
+            A::External { attrs } => {
+                // attrs: Spanned<Vec<ParsedAttribute>>
+                for parsed in &attrs.value {
+                    self.parsed_attr_symbols(parsed);
+                }
             }
-            A::Parameterized(_, sp!(_, attributes)) => {
-                attributes.iter().for_each(|a| self.attr_symbols(a.clone()))
+            A::VerifyOnly => {}
+            A::Test | A::TestOnly | A::RandomTest => {}
+            A::Authenticator { .. } | A::View => {}
+            A::ExpectedFailure {
+                minor_status,
+                failure_kind,
+                ..
+            } => {
+                let failure_kind = &failure_kind.as_ref().value;
+                match failure_kind {
+                    P::ExpectedFailureKind_::Empty => (),
+                    P::ExpectedFailureKind_::Name(_) => (),
+                    P::ExpectedFailureKind_::MajorStatus(_) => (),
+                    P::ExpectedFailureKind_::AbortCode(value) => {
+                        update_cursor!(self.cursor, *value, Attribute);
+                    }
+                }
+                if let Some(value) = minor_status {
+                    update_cursor!(self.cursor, *value, Attribute);
+                }
+            }
+        }
+    }
+
+    /// Walk a `ParsedAttribute` (used by `External`) similarly.
+    fn parsed_attr_symbols(&mut self, sp!(_loc, pattr): &P::ParsedAttribute) {
+        use P::ParsedAttribute_ as P;
+        match pattr {
+            P::Name(_) => (),
+            P::Assigned(_, boxed_val) => {
+                update_cursor!(self.cursor, **boxed_val, Attribute);
+            }
+            P::Parameterized(_, sp!(_, args)) => {
+                for arg in args {
+                    self.parsed_attr_symbols(arg);
+                }
             }
         }
     }
@@ -162,7 +207,7 @@ impl<'a> ParsingAnalysisContext<'a> {
         mod_def
             .attributes
             .iter()
-            .for_each(|sp!(_, attrs)| attrs.iter().for_each(|a| self.attr_symbols(a.clone())));
+            .for_each(|sp!(_, attrs)| attrs.iter().for_each(|a| self.attr_symbols(a)));
 
         // location of the latest use declaration (if any)
         let mut latest_use_loc = Loc::new(mod_def.loc.file_hash(), 0, 0);
@@ -193,9 +238,9 @@ impl<'a> ParsingAnalysisContext<'a> {
                         }
                     };
 
-                    fun.attributes.iter().for_each(|sp!(_, attrs)| {
-                        attrs.iter().for_each(|a| self.attr_symbols(a.clone()))
-                    });
+                    fun.attributes
+                        .iter()
+                        .for_each(|sp!(_, attrs)| attrs.iter().for_each(|a| self.attr_symbols(a)));
 
                     for (_, x, t) in fun.signature.parameters.iter() {
                         update_cursor!(IDENT, self.cursor, x, Parameter);
@@ -227,9 +272,9 @@ impl<'a> ParsingAnalysisContext<'a> {
                         }
                     };
 
-                    sdef.attributes.iter().for_each(|sp!(_, attrs)| {
-                        attrs.iter().for_each(|a| self.attr_symbols(a.clone()))
-                    });
+                    sdef.attributes
+                        .iter()
+                        .for_each(|sp!(_, attrs)| attrs.iter().for_each(|a| self.attr_symbols(a)));
 
                     match &sdef.fields {
                         P::StructFields::Named(v) => v.iter().for_each(|(_, x, t)| {
@@ -257,9 +302,9 @@ impl<'a> ParsingAnalysisContext<'a> {
                         }
                     };
 
-                    edef.attributes.iter().for_each(|sp!(_, attrs)| {
-                        attrs.iter().for_each(|a| self.attr_symbols(a.clone()))
-                    });
+                    edef.attributes
+                        .iter()
+                        .for_each(|sp!(_, attrs)| attrs.iter().for_each(|a| self.attr_symbols(a)));
 
                     let P::EnumDefinition { variants, .. } = edef;
                     for variant in variants {
@@ -299,9 +344,9 @@ impl<'a> ParsingAnalysisContext<'a> {
                         }
                     };
 
-                    c.attributes.iter().for_each(|sp!(_, attrs)| {
-                        attrs.iter().for_each(|a| self.attr_symbols(a.clone()))
-                    });
+                    c.attributes
+                        .iter()
+                        .for_each(|sp!(_, attrs)| attrs.iter().for_each(|a| self.attr_symbols(a)));
 
                     self.type_symbols(&c.signature);
                     self.exp_symbols(&c.value);
@@ -630,7 +675,7 @@ impl<'a> ParsingAnalysisContext<'a> {
         use_decl
             .attributes
             .iter()
-            .for_each(|sp!(_, attrs)| attrs.iter().for_each(|a| self.attr_symbols(a.clone())));
+            .for_each(|sp!(_, attrs)| attrs.iter().for_each(|a| self.attr_symbols(a)));
 
         update_cursor!(self.cursor, sp(use_decl.loc, use_decl.use_.clone()), Use);
 
@@ -883,25 +928,28 @@ impl<'a> ParsingAnalysisContext<'a> {
     }
 }
 
-/// Produces module ident string of the form pkg::module to be used as a map key.
-/// It's important that these are consistent between parsing AST and typed AST.
+/// Produces module ident string of the form pkg::module to be used as a map
+/// key. It's important that these are consistent between parsing AST and typed
+/// AST.
 pub fn parsing_mod_def_to_map_key(
     pkg_addresses: &NamedAddressMap,
     mod_def: &P::ModuleDefinition,
 ) -> Option<String> {
-    // we assume that modules are declared using the PkgName::ModName pattern (which seems to be the
-    // standard practice) and while Move allows other ways of defining modules (i.e., with address
-    // preceding a sequence of modules), this method is now deprecated.
+    // we assume that modules are declared using the PkgName::ModName pattern (which
+    // seems to be the standard practice) and while Move allows other ways of
+    // defining modules (i.e., with address preceding a sequence of modules),
+    // this method is now deprecated.
     //
-    // TODO: make this function simply return String when the other way of defining modules is
-    // removed
+    // TODO: make this function simply return String when the other way of defining
+    // modules is removed
     mod_def
         .address
         .map(|a| parsing_leading_and_mod_names_to_map_key(pkg_addresses, a, mod_def.name))
 }
 
-/// Produces module ident string of the form pkg::module to be used as a map key.
-/// It's important that these are consistent between parsing AST and typed AST.
+/// Produces module ident string of the form pkg::module to be used as a map
+/// key. It's important that these are consistent between parsing AST and typed
+/// AST.
 fn parsing_leading_and_mod_names_to_map_key(
     pkg_addresses: &NamedAddressMap,
     ln: P::LeadingNameAccess,

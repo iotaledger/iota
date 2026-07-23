@@ -2,36 +2,42 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! This set of modules are responsible for building symbolication information on top of compiler's parsed
-//! and typed ASTs, in particular identifier definitions to be used for implementing go-to-def,
-//! go-to-references, and on-hover language server commands.
+//! This set of modules are responsible for building symbolication information
+//! on top of compiler's parsed and typed ASTs, in particular identifier
+//! definitions to be used for implementing go-to-def, go-to-references, and
+//! on-hover language server commands.
 //!
-//! The analysis starts with top-level module definitions being processed and then proceeds to
-//! process parsed AST (parsing analysis) and typed AST (typing analysis) to gather all the required
-//! information which is then summarized in the Symbols struct subsequently used by the language
-//! server to find definitions, references, auto-completions, etc.  Parsing analysis is largely
-//! responsible for processing import statements (no longer available at the level of typed AST) and
-//! typing analysis gathers remaining information. In particular, for local definitions, typing
-//! analysis builds a scope stack, entering encountered definitions and matching uses to a
-//! definition in the innermost scope.
+//! The analysis starts with top-level module definitions being processed and
+//! then proceeds to process parsed AST (parsing analysis) and typed AST (typing
+//! analysis) to gather all the required information which is then summarized in
+//! the Symbols struct subsequently used by the language server to find
+//! definitions, references, auto-completions, etc.  Parsing analysis is largely
+//! responsible for processing import statements (no longer available at the
+//! level of typed AST) and typing analysis gathers remaining information. In
+//! particular, for local definitions, typing analysis builds a scope stack,
+//! entering encountered definitions and matching uses to a definition in the
+//! innermost scope.
 //!
-//! Here is a brief description of how the symbolication information is encoded. Each identifier in
-//! the source code of a given module is represented by its location (UseLoc struct): line number,
-//! starting and ending column, and hash of the source file where this identifier is located). A
-//! definition for each identifier (if any - e.g., built-in type definitions are excluded as there
-//! is no place in source code where they are defined) is also represented by its location in the
-//! source code (DefLoc struct): line, starting column and a hash of the source file where it's
-//! located. The symbolication process maps each identifier with its definition, and also computes
-//! other relevant information for each identifier, such as location of its type and information
-//! that should be displayed on hover. All this information for an identifier is stored in the
-//! UseDef struct.
+//! Here is a brief description of how the symbolication information is encoded.
+//! Each identifier in the source code of a given module is represented by its
+//! location (UseLoc struct): line number, starting and ending column, and hash
+//! of the source file where this identifier is located). A definition for each
+//! identifier (if any - e.g., built-in type definitions are excluded as there
+//! is no place in source code where they are defined) is also represented by
+//! its location in the source code (DefLoc struct): line, starting column and a
+//! hash of the source file where it's located. The symbolication process maps
+//! each identifier with its definition, and also computes other relevant
+//! information for each identifier, such as location of its type and
+//! information that should be displayed on hover. All this information for an
+//! identifier is stored in the UseDef struct.
 
-//! All UseDefs for a given module are stored in a per module map keyed on the line number where the
-//! identifier represented by a given UseDef is located - the map entry contains a set of UseDef-s
-//! ordered by the column where the identifier starts.
+//! All UseDefs for a given module are stored in a per module map keyed on the
+//! line number where the identifier represented by a given UseDef is located -
+//! the map entry contains a set of UseDef-s ordered by the column where the
+//! identifier starts.
 //!
-//! For example consider the following code fragment (0-based line numbers on the left and 0-based
-//! column numbers at the bottom):
+//! For example consider the following code fragment (0-based line numbers on
+//! the left and 0-based column numbers at the bottom):
 //!
 //! 7: const SOME_CONST: u64 = 42;
 //! 8:
@@ -39,18 +45,47 @@
 //!    |     |  |   | |      |
 //!    0     6  9  13 15    22
 //!
-//! Symbolication information for this code fragment would look as follows assuming that this code
-//! is stored in a file with hash FHASH (we omit on-hover, type def and doc string info here; also
-//! note that identifier in the definition of the constant maps to itself):
+//! Symbolication information for this code fragment would look as follows
+//! assuming that this code is stored in a file with hash FHASH (we omit
+//! on-hover, type def and doc string info here; also note that identifier in
+//! the definition of the constant maps to itself):
 //!
 //! [7] -> [UseDef(col_start:6,  col_end:13, DefLoc(7:6, FHASH))]
 //! [9] -> [UseDef(col_start:0,  col_end: 9, DefLoc(7:6, FHASH))],
 //!        [UseDef(col_start:13, col_end:22, DefLoc(7:6, FHASH))]
 //!
 //! We also associate all uses of an identifier with its definition to support
-//! go-to-references. This is done in a global map from an identifier location (DefLoc) to a set of
-//! use locations (UseLoc).
+//! go-to-references. This is done in a global map from an identifier location
+//! (DefLoc) to a set of use locations (UseLoc).
 #![allow(clippy::non_canonical_partial_ord_impl)]
+
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    path::{Path, PathBuf},
+    sync::{Arc, Mutex},
+    time::Instant,
+    vec,
+};
+
+use anyhow::Result;
+use lsp_types::{Diagnostic, Position};
+use move_command_line_common::files::FileHash;
+use move_compiler::{
+    editions::{Edition, FeatureGate},
+    expansion::ast::{self as E, ModuleIdent, ModuleIdent_, Visibility},
+    linters::LintLevel,
+    naming::ast::{DatatypeTypeParameter, StructFields, Type, Type_, TypeName_, VariantFields},
+    parser::ast::{self as P, DocComment},
+    shared::{
+        Identifier, NamedAddressMap, NamedAddressMaps, files::MappedFiles, unique_map::UniqueMap,
+    },
+    typing::ast::ModuleDefinition,
+    unit_test::filter_test_members::UNIT_TEST_POISON_FUN_NAME,
+};
+use move_ir_types::location::*;
+use move_package::source_package::parsed_manifest::Dependencies;
+use move_symbol_pool::Symbol;
+use vfs::VfsPath;
 
 use crate::{
     analysis::{
@@ -71,34 +106,6 @@ use crate::{
     },
     utils::{expansion_mod_ident_to_map_key, loc_start_to_lsp_position_opt, lsp_position_to_loc},
 };
-
-use anyhow::Result;
-use lsp_types::{Diagnostic, Position};
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    path::{Path, PathBuf},
-    sync::{Arc, Mutex},
-    time::Instant,
-    vec,
-};
-use vfs::VfsPath;
-
-use move_command_line_common::files::FileHash;
-use move_compiler::{
-    editions::{Edition, FeatureGate},
-    expansion::ast::{self as E, ModuleIdent, ModuleIdent_, Visibility},
-    linters::LintLevel,
-    naming::ast::{DatatypeTypeParameter, StructFields, Type, Type_, TypeName_, VariantFields},
-    parser::ast::{self as P, DocComment},
-    shared::{
-        Identifier, NamedAddressMap, NamedAddressMaps, files::MappedFiles, unique_map::UniqueMap,
-    },
-    typing::ast::ModuleDefinition,
-    unit_test::filter_test_members::UNIT_TEST_POISON_FUN_NAME,
-};
-use move_ir_types::location::*;
-use move_package::source_package::parsed_manifest::Dependencies;
-use move_symbol_pool::Symbol;
 
 pub mod compilation;
 pub mod cursor;
@@ -128,8 +135,8 @@ pub struct Symbols {
     pub cursor_context: Option<CursorContext>,
 }
 
-/// Information about field order in structs and enums needed for auto-completion
-/// to be consistent with field order in the source code
+/// Information about field order in structs and enums needed for
+/// auto-completion to be consistent with field order in the source code
 #[derive(Debug, Clone, Ord, PartialOrd, PartialEq, Eq)]
 struct FieldOrderInfo {
     pub structs: BTreeMap<String, StructFieldOrderInfo>,
@@ -146,16 +153,19 @@ type FileUseDefs = BTreeMap<PathBuf, UseDefMap>;
 
 pub type FileModules = BTreeMap<PathBuf, BTreeSet<ModuleDefs>>;
 
-/// Main driver to get symbols for the whole package. Returned symbols is an option as only the
-/// correctly computed symbols should be a replacement for the old set - if symbols are not
-/// actually (re)computed and the diagnostics are returned, the old symbolic information should
-/// be retained even if it's getting out-of-date.
+/// Main driver to get symbols for the whole package. Returned symbols is an
+/// option as only the correctly computed symbols should be a replacement for
+/// the old set - if symbols are not actually (re)computed and the diagnostics
+/// are returned, the old symbolic information should be retained even if it's
+/// getting out-of-date.
 ///
-/// Takes `modified_files` as an argument to indicate if we can retain (portion of) the cached
-/// user code. If `modified_files` is `None`, we can't retain any cached user code (need to recompute)
-/// everything. If `modified_files` is `Some`, we can retain cached user code for all Move files other than
-/// the ones in `modified_files` (if `modified_paths` contains a path not representing
-/// a Move file but rather a directory, then we conservatively do not re-use any cached info).
+/// Takes `modified_files` as an argument to indicate if we can retain (portion
+/// of) the cached user code. If `modified_files` is `None`, we can't retain any
+/// cached user code (need to recompute) everything. If `modified_files` is
+/// `Some`, we can retain cached user code for all Move files other than
+/// the ones in `modified_files` (if `modified_paths` contains a path not
+/// representing a Move file but rather a directory, then we conservatively do
+/// not re-use any cached info).
 pub fn get_symbols(
     packages_info: Arc<Mutex<BTreeMap<PathBuf, PrecomputedPkgInfo>>>,
     ide_files_root: VfsPath,
@@ -283,14 +293,16 @@ pub fn compute_symbols_pre_process(
         // we have at least compiled program available
         let (deps_mod_outer_defs, deps_def_info) =
             if let Some(cached_symbols_data) = cached_deps.symbols_data {
-                // We have cached results of the dependency symbols computation from the previous run.
+                // We have cached results of the dependency symbols computation from the
+                // previous run.
                 (
                     cached_symbols_data.mod_outer_defs.clone(),
                     cached_symbols_data.def_info.clone(),
                 )
             } else {
-                // No cached dependency symbols data but we still have cached compilation results.
-                // Fill out dependency symbols from compiled package info to cache them at the end of analysis
+                // No cached dependency symbols data but we still have cached compilation
+                // results. Fill out dependency symbols from compiled package
+                // info to cache them at the end of analysis
                 pre_process_typed_modules(
                     &cached_deps.program_deps.typing.modules,
                     &FieldOrderInfo::new(),
@@ -375,11 +387,13 @@ pub fn compute_symbols_typed_program(
         if let Some(cached_deps) = compiled_pkg_info.cached_deps.clone() {
             // we have at least compiled program available
             let deps_symbols_data = if let Some(cached_symbols_data) = cached_deps.symbols_data {
-                // We have cached results of the dependency symbols computation from the previous run.
+                // We have cached results of the dependency symbols computation from the
+                // previous run.
                 cached_symbols_data
             } else {
-                // No cached dependency symbols data but we still have cached compilation results.
-                // Fill out dependency symbols from compiled package info to cache them at the end of analysis
+                // No cached dependency symbols data but we still have cached compilation
+                // results. Fill out dependency symbols from compiled package
+                // info to cache them at the end of analysis
                 let computation_data_deps = run_typing_analysis(
                     computation_data_deps,
                     mapped_files,
@@ -388,9 +402,9 @@ pub fn compute_symbols_typed_program(
                 );
                 Arc::new(computation_data_deps)
             };
-            // create `file_use_defs` map and merge references to produce complete symbols data
-            // (mod_outer_defs and def_info have already been merged to facilitate user program
-            // analysis)
+            // create `file_use_defs` map and merge references to produce complete symbols
+            // data (mod_outer_defs and def_info have already been merged to
+            // facilitate user program analysis)
             update_file_use_defs(&deps_symbols_data, mapped_files, &mut file_use_defs);
             for (def_loc, uses) in &deps_symbols_data.references {
                 computation_data
@@ -433,8 +447,8 @@ fn update_file_use_defs(
     file_use_defs: &mut FileUseDefs,
 ) {
     for (module_ident_str, use_defs) in &computation_data.mod_use_defs {
-        // unwrap here is safe as all modules in a given program have the module_defs entry
-        // in the map
+        // unwrap here is safe as all modules in a given program have the module_defs
+        // entry in the map
         let module_defs = computation_data
             .mod_outer_defs
             .get(module_ident_str)
@@ -563,11 +577,13 @@ fn pre_process_typed_modules(
     }
 }
 
-/// Converts parsing AST's `LeadingNameAccess` to expansion AST's `Address` (similarly to
-/// expansion::translate::top_level_address but disregarding the name portion of `Address` as we
-/// only care about actual address here if it's available). We need this to be able to reliably
-/// compare parsing AST's module identifier with expansion/typing AST's module identifier, even in
-/// presence of module renaming (i.e., we cannot rely on module names if addresses are available).
+/// Converts parsing AST's `LeadingNameAccess` to expansion AST's `Address`
+/// (similarly to expansion::translate::top_level_address but disregarding the
+/// name portion of `Address` as we only care about actual address here if it's
+/// available). We need this to be able to reliably compare parsing AST's module
+/// identifier with expansion/typing AST's module identifier, even in
+/// presence of module renaming (i.e., we cannot rely on module names if
+/// addresses are available).
 pub fn parsed_address(ln: P::LeadingNameAccess, pkg_addresses: &NamedAddressMap) -> E::Address {
     let sp!(loc, ln_) = ln;
     match ln_ {
@@ -655,14 +671,15 @@ fn datatype_type_params(data_tparams: &[DatatypeTypeParameter]) -> Vec<(Type, /*
 
 /// Some functions defined in a module need to be ignored.
 pub fn ignored_function(name: Symbol) -> bool {
-    // In test mode (that's how IDE compiles Move source files), the compiler inserts an dummy
-    // function preventing publishing of modules compiled in test mode. We need to ignore its
-    // definition to avoid spurious on-hover display of this function's info whe hovering close to
-    // `module` keyword.
+    // In test mode (that's how IDE compiles Move source files), the compiler
+    // inserts an dummy function preventing publishing of modules compiled in
+    // test mode. We need to ignore its definition to avoid spurious on-hover
+    // display of this function's info whe hovering close to `module` keyword.
     name == UNIT_TEST_POISON_FUN_NAME
 }
 
-/// Get symbols for outer definitions in the module (functions, structs, and consts)
+/// Get symbols for outer definitions in the module (functions, structs, and
+/// consts)
 fn get_mod_outer_defs(
     loc: &Loc,
     mod_ident: &ModuleIdent,

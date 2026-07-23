@@ -5,38 +5,20 @@
 //! This module contains code responsible for compiling Move sources
 //! to a represenatation that can be used for computing symbols.
 
-use crate::{
-    compiler_info::CompilerInfo,
-    diagnostics::{lsp_diagnostics, lsp_empty_diagnostics},
-    symbols::{
-        def_info::DefInfo,
-        mod_defs::ModuleDefs,
-        use_def::{UseDefMap, UseLoc},
-    },
-};
-
-use anyhow::Result;
-use lsp_types::{Diagnostic, Position};
-use sha2::{Digest, Sha256};
 use std::{
     collections::{BTreeMap, BTreeSet},
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
     vec,
 };
-use tempfile::tempdir;
-use vfs::{
-    VfsPath,
-    impls::{memory::MemoryFS, overlay::OverlayFS, physical::PhysicalFS},
-};
 
+use anyhow::Result;
+use lsp_types::{Diagnostic, Position};
 use move_command_line_common::files::FileHash;
 use move_compiler::{
     PASS_CFGIR, PASS_PARSER, PASS_TYPING,
-    command_line::compiler::FullyCompiledProgram,
-    command_line::compiler::construct_pre_compiled_lib,
-    editions::Edition,
-    editions::Flavor,
+    command_line::compiler::{FullyCompiledProgram, construct_pre_compiled_lib},
+    editions::{Edition, Flavor},
     expansion::ast::ModuleIdent,
     linters::LintLevel,
     parser::ast as P,
@@ -48,6 +30,22 @@ use move_package::{
     compilation::{build_plan::BuildPlan, compiled_package::ModuleFormat},
     resolution::resolution_graph::ResolvedGraph,
     source_package::parsed_manifest::Dependencies,
+};
+use sha2::{Digest, Sha256};
+use tempfile::tempdir;
+use vfs::{
+    VfsPath,
+    impls::{memory::MemoryFS, overlay::OverlayFS, physical::PhysicalFS},
+};
+
+use crate::{
+    compiler_info::CompilerInfo,
+    diagnostics::{lsp_diagnostics, lsp_empty_diagnostics},
+    symbols::{
+        def_info::DefInfo,
+        mod_defs::ModuleDefs,
+        use_def::{UseDefMap, UseLoc},
+    },
 };
 
 pub const MANIFEST_FILE_NAME: &str = "Move.toml";
@@ -119,18 +117,19 @@ pub struct AnalyzedPkgInfo {
 /// Data used during symbols computation
 #[derive(Clone)]
 pub struct SymbolsComputationData {
-    /// Outermost definitions in a module (structs, consts, functions), keyed on a ModuleIdent
-    /// string
+    /// Outermost definitions in a module (structs, consts, functions), keyed on
+    /// a ModuleIdent string
     pub mod_outer_defs: BTreeMap<String, ModuleDefs>,
-    /// A UseDefMap for a given module (needs to be appropriately set before the module
-    /// processing starts) keyed on a ModuleIdent string
+    /// A UseDefMap for a given module (needs to be appropriately set before the
+    /// module processing starts) keyed on a ModuleIdent string
     pub mod_use_defs: BTreeMap<String, UseDefMap>,
     /// Uses (references) for a definition at a given location
     pub references: BTreeMap<Loc, BTreeSet<UseLoc>>,
     /// Additional information about a definitions at a given location
     pub def_info: BTreeMap<Loc, DefInfo>,
-    /// Module name lengths in access paths for a given module (needs to be appropriately
-    /// set before the module processing starts) keyed on a ModuleIdent string
+    /// Module name lengths in access paths for a given module (needs to be
+    /// appropriately set before the module processing starts) keyed on a
+    /// ModuleIdent string
     pub mod_to_alias_lengths: BTreeMap<String, BTreeMap<Position, usize>>,
 }
 
@@ -177,8 +176,8 @@ pub fn get_compiled_pkg(
 
     eprintln!("symbolicating {:?}", pkg_path);
 
-    // resolution graph diagnostics are only needed for CLI commands so ignore them by passing a
-    // vector as the writer
+    // resolution graph diagnostics are only needed for CLI commands so ignore them
+    // by passing a vector as the writer
     let resolution_graph =
         build_config.resolution_graph_for_package(pkg_path, None, &mut Vec::new())?;
     let root_pkg_name = resolution_graph.graph.root_package_name;
@@ -378,9 +377,10 @@ pub fn get_compiled_pkg(
         if let Some((compiler_diagnostics, failure)) = diagnostics {
             let lsp_diagnostics =
                 lsp_diagnostics(&compiler_diagnostics.into_codespan_format(), &mapped_files);
-            // start with empty diagnostics for all files and replace them with actual diagnostics
-            // only for files that have failures/warnings so that diagnostics for all other files
-            // (that no longer have failures/warnings) are reset
+            // start with empty diagnostics for all files and replace them with actual
+            // diagnostics only for files that have failures/warnings so that
+            // diagnostics for all other files (that no longer have
+            // failures/warnings) are reset
             ide_diagnostics.extend(lsp_diagnostics);
             if failure {
                 // just return diagnostics as we don't have typed AST that we can use to compute
@@ -390,8 +390,8 @@ pub fn get_compiled_pkg(
             }
         }
     }
-    // uwrap's are safe - this function returns earlier (during diagnostics processing)
-    // when failing to produce the ASTs
+    // uwrap's are safe - this function returns earlier (during diagnostics
+    // processing) when failing to produce the ASTs
     let (parsed_program, typed_program_modules) = if full_compilation {
         (parsed_ast.unwrap(), typed_ast.unwrap().modules)
     } else if files_to_compile.is_empty() {
@@ -482,7 +482,8 @@ fn merge_user_programs(
     file_hashes_new: Arc<BTreeMap<PathBuf, FileHash>>,
     files_to_compile: BTreeSet<PathBuf>,
 ) -> (P::Program, UniqueMap<ModuleIdent, ModuleDefinition>) {
-    // unraps are safe as this function only called when cached compiled program exists
+    // unraps are safe as this function only called when cached compiled program
+    // exists
     let cached_info = cached_info_opt.unwrap();
     let compiled_program = cached_info.program.unwrap();
     let file_hashes_cached = cached_info.file_hashes;
@@ -492,8 +493,8 @@ fn merge_user_programs(
     // incremental compilation as only function bodies are omitted
     parsed_program_cached.named_address_maps = parsed_program_new.named_address_maps;
     // remove modules from user code that belong to modified files (use new
-    // file hashes - if cached module's hash is on the list of new file hashes, it means
-    // that nothing changed)
+    // file hashes - if cached module's hash is on the list of new file hashes, it
+    // means that nothing changed)
     parsed_program_cached.source_definitions.retain(|pkg_def| {
         !is_parsed_pkg_modified(pkg_def, &files_to_compile, file_hashes_new.clone())
     });
@@ -504,8 +505,8 @@ fn merge_user_programs(
         }
     }
     typed_modules_cached = typed_modules_cached_filtered;
-    // add new modules from user code (use cached file hashes - if new module's hash is on the list of
-    // cached file hashes, it means that nothing' changed)
+    // add new modules from user code (use cached file hashes - if new module's hash
+    // is on the list of cached file hashes, it means that nothing' changed)
     for pkg_def in parsed_program_new.source_definitions {
         if is_parsed_pkg_modified(&pkg_def, &files_to_compile, file_hashes_cached.clone()) {
             parsed_program_cached.source_definitions.push(pkg_def);
