@@ -517,7 +517,7 @@ pub enum IotaError {
         new_epoch: EpochId,
         locked_by_tx: TransactionDigest,
     },
-    #[error("Transaction {digest:?} was recently submitted; duplicate resubmission suppressed.")]
+    #[error("Transaction {digest:?} was recently submitted; duplicate resubmission suppressed")]
     RecentlyResubmitted { digest: TransactionDigest },
     #[error("{TRANSACTION_NOT_FOUND_MSG_PREFIX} [{digest}]")]
     TransactionNotFound { digest: TransactionDigest },

@@ -201,11 +201,8 @@ impl ValidatorService {
         // signature verification so resubmission storms are short-circuited
         // cheaply; the soft-lock acquisition below remains the authoritative,
         // atomic gate for duplicates racing past this probe.
-        if let Some(elapsed) = soft_locks.check_in_flight(&tx_digest) {
+        if soft_locks.check_in_flight(&tx_digest) {
             metrics.num_rejected_tx_recently_resubmitted.inc();
-            metrics
-                .recently_resubmitted_interval
-                .observe(elapsed.as_secs_f64());
             let error = IotaError::RecentlyResubmitted { digest: tx_digest };
             let weight = normalize(&error);
             return (TxStatusUpdate::Rejected { error }, weight);

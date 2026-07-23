@@ -76,7 +76,9 @@ struct Inner {
     tx_to_objects: HashMap<TransactionDigest, Vec<ObjectReference>>,
 }
 
-/// In-memory soft locks for pre-consensus owned-object conflict detection.
+/// In-memory soft locks that detect pre-consensus owned-object conflicts and
+/// suppress duplicate resubmissions of a transaction whose locks are still
+/// held.
 ///
 /// Not persisted — crash recovery starts with a clean table.
 /// Post-consensus validation is the authoritative conflict resolver.
@@ -300,16 +302,15 @@ impl PreConsensusSoftLocks {
         self.lock_count.load(Ordering::Relaxed)
     }
 
-    /// Returns the elapsed time since `tx_digest` soft-locked its objects, if
-    /// the transaction is still in flight on this validator (locks held and
-    /// unexpired). Returns `None` for unknown, released, or expired digests,
-    /// and always `None` when disabled.
-    pub fn check_in_flight(&self, tx_digest: &TransactionDigest) -> Option<Duration> {
+    /// Returns whether `tx_digest` is still in flight on this validator — its
+    /// soft locks are held and unexpired. `false` for unknown, released, or
+    /// expired digests, and always `false` when disabled.
+    pub fn check_in_flight(&self, tx_digest: &TransactionDigest) -> bool {
         if !self.enabled {
-            return None;
+            return false;
         }
         let inner = self.inner.lock();
-        Self::in_flight_elapsed(&inner, tx_digest, Instant::now(), self.lock_ttl)
+        Self::in_flight_elapsed(&inner, tx_digest, Instant::now(), self.lock_ttl).is_some()
     }
 
     /// Drops all entries.  Called at epoch boundary.
@@ -526,14 +527,14 @@ mod tests {
         let obj = obj_ref(1, 1);
         let tx = digest(1);
 
-        assert!(table.check_in_flight(&tx).is_none());
+        assert!(!table.check_in_flight(&tx));
         table.try_acquire(tx, &[obj]).unwrap();
         assert!(
-            table.check_in_flight(&tx).is_some(),
+            table.check_in_flight(&tx),
             "digest with held locks must be reported in flight"
         );
         table.release(&tx);
-        assert!(table.check_in_flight(&tx).is_none());
+        assert!(!table.check_in_flight(&tx));
     }
 
     #[test]
@@ -542,7 +543,7 @@ mod tests {
         let tx = digest(1);
         table.try_acquire(tx, &[obj_ref(1, 1)]).unwrap();
         assert!(
-            table.check_in_flight(&tx).is_none(),
+            !table.check_in_flight(&tx),
             "expired locks must not count as in flight"
         );
     }
@@ -553,7 +554,7 @@ mod tests {
         let tx = digest(1);
         table.try_acquire(tx, &[obj_ref(1, 1)]).unwrap();
         table.try_acquire(tx, &[obj_ref(1, 1)]).unwrap();
-        assert!(table.check_in_flight(&tx).is_none());
+        assert!(!table.check_in_flight(&tx));
     }
 
     #[test]
