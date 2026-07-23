@@ -8,7 +8,7 @@ tags:
 
 # View Functions
 
-A _ Move View Function_ is a standardized interface for enabling ergonomic and application-specific queries to on-chain state. Move view functions are developer defined on-chain read API that can be easily queried off-chain without requiring transaction signing or state mutation. In a Move module, the view function is annotated with the `#[view]` attribute.  
+A _Move View Function_ is a standardized interface for enabling ergonomic and application-specific queries to on-chain state. Move view functions are developer defined on-chain read API that can be easily queried off-chain without requiring transaction signing or state mutation. In a Move module, the view function is annotated with the `#[view]` attribute.  
 The attribute marks the function as **read-only**: it may inspect on-chain state but cannot modify it. IOTA enforces this guarantee at both compile time and verifier time, and records it on-chain, so that off-chain consumers can rely on a function being a view without trusting its author.
 
 ## Why view functions exist
