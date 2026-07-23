@@ -276,6 +276,10 @@ where
     /// transaction again. Unlike `drive_transaction` there is no retry loop
     /// to bound, so no timeout is taken: the certifier's per-request
     /// timeouts already bound the call.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the current committee is empty.
     #[instrument(level = "error", skip_all, err(level = "debug"), fields(tx_digest = ?tx_digest))]
     pub async fn certify_transaction(
         &self,
