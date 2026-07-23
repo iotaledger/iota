@@ -8,7 +8,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use lsp_types::Position;
-
 use move_command_line_common::files::FileHash;
 use move_compiler::{
     expansion::ast::{ModuleIdent, ModuleIdent_},

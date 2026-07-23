@@ -2,19 +2,10 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! This module contains the implementation of the symbolication runner, which is responsible
-//! for coordinating the symbolication process between different threads
-//! in the analyzer.
+//! This module contains the implementation of the symbolication runner, which
+//! is responsible for coordinating the symbolication process between different
+//! threads in the analyzer.
 
-use crate::symbols::{
-    Symbols,
-    compilation::{MANIFEST_FILE_NAME, PrecomputedPkgInfo},
-    get_symbols,
-};
-
-use anyhow::{Result, anyhow};
-use crossbeam::channel::Sender;
-use lsp_types::Diagnostic;
 use std::{
     collections::{BTreeMap, BTreeSet},
     path::{Path, PathBuf},
@@ -22,11 +13,20 @@ use std::{
     thread,
     time::Duration,
 };
+
+use anyhow::{Result, anyhow};
+use crossbeam::channel::Sender;
+use lsp_types::Diagnostic;
+use move_compiler::linters::LintLevel;
+use move_package::source_package::parsed_manifest::Dependencies;
 use sysinfo::{Pid, ProcessesToUpdate, System};
 use vfs::VfsPath;
 
-use move_compiler::linters::LintLevel;
-use move_package::source_package::parsed_manifest::Dependencies;
+use crate::symbols::{
+    Symbols,
+    compilation::{MANIFEST_FILE_NAME, PrecomputedPkgInfo},
+    get_symbols,
+};
 
 #[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd)]
 pub enum RunnerState {
@@ -203,9 +203,10 @@ impl SymbolicatorRunner {
                 }
                 continue;
             };
-            // The mutext value is only set by the `on_text_document_sync_notification` handler
-            // and can only contain a valid Move file path, so we simply collect a set of Move
-            // file paths here to pass them to the symbolicator.
+            // The mutext value is only set by the `on_text_document_sync_notification`
+            // handler and can only contain a valid Move file path, so we simply
+            // collect a set of Move file paths here to pass them to the
+            // symbolicator.
             let modfied_files = pkgs_to_analyze.entry(root_dir.clone()).or_default();
             modfied_files.insert(starting_path.clone());
         }
@@ -239,7 +240,8 @@ impl SymbolicatorRunner {
         cvar.notify_one();
     }
 
-    /// Finds manifest file in a (sub)directory of the starting path passed as argument
+    /// Finds manifest file in a (sub)directory of the starting path passed as
+    /// argument
     pub fn root_dir(starting_path: &Path) -> Option<PathBuf> {
         let mut current_path_opt = Some(starting_path);
         while current_path_opt.is_some() {

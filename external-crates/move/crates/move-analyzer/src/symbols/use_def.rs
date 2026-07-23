@@ -2,7 +2,8 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! This module contains logic for storing information about both the use identifier (source file is specified wherever an instance of this
+//! This module contains logic for storing information about both the use
+//! identifier (source file is specified wherever an instance of this
 //! struct is used) and the definition identifier
 
 use std::{
@@ -11,7 +12,6 @@ use std::{
 };
 
 use lsp_types::Position;
-
 use move_command_line_common::files::FileHash;
 use move_compiler::shared::files::MappedFiles;
 use move_ir_types::location::*;
@@ -19,8 +19,8 @@ use move_symbol_pool::Symbol;
 
 #[derive(Debug, Clone, Eq)]
 pub struct UseDef {
-    /// Column where the (use) identifier location starts on a given line (use this field for
-    /// sorting uses on the line)
+    /// Column where the (use) identifier location starts on a given line (use
+    /// this field for sorting uses on the line)
     pub col_start: u32,
     /// Column where the (use) identifier location ends on a given line
     pub col_end: u32,
@@ -31,7 +31,8 @@ pub struct UseDef {
 }
 
 type LineOffset = u32;
-/// Maps a line number to a list of use-def-s on a given line (use-def set is sorted by col_start)
+/// Maps a line number to a list of use-def-s on a given line (use-def set is
+/// sorted by col_start)
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct UseDefMap(BTreeMap<LineOffset, BTreeSet<UseDef>>);
 
@@ -134,7 +135,8 @@ impl UseDef {
         }
     }
 
-    /// Given a UseDef, modify just the use name and location (to make it represent an alias).
+    /// Given a UseDef, modify just the use name and location (to make it
+    /// represent an alias).
     pub fn rename_use(
         &mut self,
         references: &mut References,

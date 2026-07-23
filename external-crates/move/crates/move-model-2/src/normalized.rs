@@ -2,10 +2,11 @@
 // Modifications Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::collections::BTreeMap;
+
 use move_binary_format::{CompiledModule, normalized};
 use move_core_types::{account_address::AccountAddress, identifier::IdentStr};
 use move_symbol_pool::Symbol;
-use std::collections::BTreeMap;
 
 #[derive(Debug)]
 pub struct Packages {
@@ -50,7 +51,8 @@ impl Packages {
             let module = Module::new(
                 &mut SymbolPool,
                 compiled_module,
-                /* include code */ true,
+                // include code
+                true,
             );
             let package = packages
                 .entry(*module.address())
