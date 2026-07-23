@@ -74,7 +74,7 @@ curl --location --request POST 'https://api.devnet.iota.cafe' \
 }
 ```
 
-For the exact parameter and result schemas, see the [`iota_view` reference](/iota-api-ref#iota_view).
+For the exact parameter and result schemas, see the [`iota_view` reference](/iota-api-ref#iota_view). For a runnable version that publishes the package and makes each of these calls with `curl` against a local network, see the [shell script](#full-example-code) below.
 
 ### Error Cases
 
@@ -200,4 +200,9 @@ The complete Rust SDK example, including publishing the package:
 The complete TypeScript SDK example:
 
 ```ts file=<rootDir>/docs/examples/typescript/src/view-functions/call-view-function.ts
+```
+
+A shell script that publishes the package with the `iota` CLI and calls each view over JSON-RPC with `curl` against a local network:
+
+```bash file=<rootDir>/docs/examples/shell/call-view-function.sh
 ```
