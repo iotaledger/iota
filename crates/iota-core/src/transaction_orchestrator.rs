@@ -328,13 +328,11 @@ where
             (Driver::Transaction(td), false) => {
                 let td = td.clone();
                 let in_flight_transactions = self.in_flight_transactions.clone();
-                let validator_state = self.validator_state.clone();
                 // Detached for the same reason as above.
                 let result = join_submission_task(spawn_monitored_task!(
                     Self::submit_with_transaction_driver(
                         td,
                         in_flight_transactions,
-                        validator_state,
                         request,
                         client_addr,
                         false,
@@ -358,9 +356,11 @@ where
         };
 
         // `needs_cache_rebuild` is derived from finality, not caller intent:
-        // the QD fallback path returns `Certified` (no rebuild needed) even
-        // when the caller asked for `WaitForLocalExecution`, while only the
-        // TD skip-cert engine produces `UncertifiedSingleValidator`. The
+        // the QD fallback path — and a duplicate submission inheriting the
+        // outcome of an in-flight certifying submission — returns `Certified`
+        // (no rebuild needed) even when the caller asked for
+        // `WaitForLocalExecution`, while only the TD skip-cert engine
+        // produces `UncertifiedSingleValidator`. The
         // checkpoint sequence comes from `submit_with_checkpoint_race`, which
         // relies on `executed_transactions_to_checkpoint` being written
         // strictly after every tx's effects — so a `Some(seq)` here implies
@@ -405,9 +405,10 @@ where
             }
             true
         } else {
-            // QD path: response is already 2f+1 certified, just confirm local
-            // execution finished. Removable once QD is dropped from the
-            // fullnode.
+            // The response is already 2f+1 certified — from the QuorumDriver,
+            // or inherited by a duplicate submission from an in-flight
+            // certifying submission — so just confirm local execution
+            // finished.
             let ok = Self::wait_for_finalized_tx_executed_locally_with_timeout(
                 &self.validator_state,
                 &transaction,
@@ -660,7 +661,6 @@ where
             Driver::Transaction(td) => {
                 let td = td.clone();
                 let in_flight_transactions = self.in_flight_transactions.clone();
-                let validator_state = self.validator_state.clone();
                 // v1 does not do an internal wait; callers (e.g. the gRPC
                 // execution service) are responsible for their own
                 // `wait_for_checkpoint_inclusion` when they need it, and will
@@ -671,7 +671,6 @@ where
                 join_submission_task(spawn_monitored_task!(Self::submit_with_transaction_driver(
                     td,
                     in_flight_transactions,
-                    validator_state,
                     request,
                     client_addr,
                     skip_certification,
@@ -729,7 +728,6 @@ where
         let driver = Self::submit_with_transaction_driver(
             td,
             in_flight_transactions,
-            validator_state.clone(),
             request,
             client_addr,
             true,
@@ -777,7 +775,6 @@ where
     async fn submit_with_transaction_driver(
         td: Arc<TransactionDriver<A>>,
         in_flight_transactions: InFlightTransactions,
-        validator_state: Arc<AuthorityState>,
         request: ExecuteTransactionRequestV1,
         client_addr: Option<SocketAddr>,
         skip_certification: bool,
@@ -799,9 +796,10 @@ where
                 );
                 return Self::await_in_flight_transaction(
                     receiver,
-                    &validator_state,
+                    &td,
                     tx_digest,
                     &request,
+                    client_addr,
                     skip_certification,
                 )
                 .await;
@@ -837,38 +835,44 @@ where
 
         let td_response = Arc::new(td_response);
         guard.publish(Ok(td_response.clone()));
+        // Dropping the guard closes the channel, releasing its copy of the
+        // response unless a duplicate submission still holds a receiver — in
+        // the common no-duplicate case the response is then moved into the
+        // reply instead of cloned.
+        drop(guard);
+        let td_response = Arc::try_unwrap(td_response).unwrap_or_else(|shared| (*shared).clone());
 
-        Ok(Self::response_from_driver_response(&td_response, &request))
+        Ok(Self::response_from_driver_response(td_response, &request))
     }
 
     /// Build a caller-specific response from a driver response, honoring the
     /// caller's include flags.
     fn response_from_driver_response(
-        td_response: &QuorumTransactionResponse,
+        td_response: QuorumTransactionResponse,
         request: &ExecuteTransactionRequestV1,
     ) -> ExecuteTransactionResponseV1 {
+        let QuorumTransactionResponse {
+            effects,
+            events,
+            input_objects,
+            output_objects,
+            auxiliary_data,
+        } = td_response;
         ExecuteTransactionResponseV1 {
-            effects: convert_td_to_qd_effects(td_response.effects.clone()),
-            events: if request.include_events {
-                td_response.events.clone()
-            } else {
-                None
-            },
-            input_objects: if request.include_input_objects {
-                td_response.input_objects.clone()
-            } else {
-                None
-            },
-            output_objects: if request.include_output_objects {
-                td_response.output_objects.clone()
-            } else {
-                None
-            },
-            auxiliary_data: if request.include_auxiliary_data {
-                td_response.auxiliary_data.clone()
-            } else {
-                None
-            },
+            effects: convert_td_to_qd_effects(effects),
+            events: request.include_events.then_some(events).flatten(),
+            input_objects: request
+                .include_input_objects
+                .then_some(input_objects)
+                .flatten(),
+            output_objects: request
+                .include_output_objects
+                .then_some(output_objects)
+                .flatten(),
+            auxiliary_data: request
+                .include_auxiliary_data
+                .then_some(auxiliary_data)
+                .flatten(),
         }
     }
 
@@ -881,60 +885,60 @@ where
     ///   from the shared driver response with this caller's include flags.
     /// - It succeeded with `UncertifiedSingleValidator` effects but this caller
     ///   did not opt into skip-certification (so nothing downstream reconciles
-    ///   them against the cache): wait for checkpoint inclusion and rebuild
-    ///   from the authoritative local cache instead — uncertified data must
-    ///   never reach a caller that expects certified effects.
+    ///   them against the cache): run the effects-certification step for the
+    ///   digest — the transaction is already in consensus, only the 2f+1
+    ///   certification is missing — and respond from its certified result.
     /// - Nothing was published within `WAIT_FOR_FINALITY_TIMEOUT`, or the
     ///   in-flight submission's task died without publishing (panic or
     ///   shutdown): `TimeoutBeforeFinality`, so the client retries.
     async fn await_in_flight_transaction(
         mut receiver: watch::Receiver<Option<InFlightSubmissionResult>>,
-        validator_state: &Arc<AuthorityState>,
+        td: &Arc<TransactionDriver<A>>,
         tx_digest: TransactionDigest,
         request: &ExecuteTransactionRequestV1,
+        client_addr: Option<SocketAddr>,
         skip_certification: bool,
     ) -> Result<ExecuteTransactionResponseV1, QuorumDriverError> {
-        let outcome = {
-            let outcome_ref = tokio::time::timeout(
-                WAIT_FOR_FINALITY_TIMEOUT,
-                receiver.wait_for(|outcome| outcome.is_some()),
-            )
-            .await
-            .map_err(|_elapsed| QuorumDriverError::TimeoutBeforeFinality)?
-            .map_err(|_closed| QuorumDriverError::TimeoutBeforeFinality)?;
-            // `wait_for` only returns a value matching its predicate, so the
-            // `None` arm is unreachable; mapped to a retriable error instead
-            // of panicking.
-            (*outcome_ref)
-                .clone()
-                .ok_or(QuorumDriverError::TimeoutBeforeFinality)?
-        };
-
-        let td_response = outcome?;
+        // Timeout elapsed, channel closed (the driving task died without
+        // publishing), and the not-yet-published `None` (unreachable past
+        // `wait_for`) all surface as the same retriable timeout.
+        let td_response = tokio::time::timeout(
+            WAIT_FOR_FINALITY_TIMEOUT,
+            receiver.wait_for(|outcome| outcome.is_some()),
+        )
+        .await
+        .ok()
+        .and_then(|received| received.ok())
+        .and_then(|outcome| outcome.clone())
+        .ok_or(QuorumDriverError::TimeoutBeforeFinality)??;
 
         let uncertified = matches!(
             td_response.effects.finality_info,
             TdEffectsFinalityInfo::UncertifiedSingleValidator(_)
         );
         if uncertified && !skip_certification {
-            let digests = [tx_digest];
-            let seq = validator_state
-                .wait_for_checkpoint_inclusion(&digests, WAIT_FOR_FINALITY_TIMEOUT)
+            // The in-flight submission already drove the transaction into
+            // consensus; only the 2f+1 effects certification is missing for
+            // this caller. Certify the effects directly instead of starting
+            // a second committee-wide submission or waiting for a checkpoint
+            // inclusion the caller never asked for.
+            let certified = td
+                .certify_transaction(
+                    tx_digest,
+                    SubmitTransactionOptions {
+                        forwarded_client_addr: client_addr,
+                        ..Default::default()
+                    },
+                )
                 .await
-                .ok()
-                .and_then(|inclusion| inclusion.get(&tx_digest).map(|&(seq, _)| seq))
-                .ok_or(QuorumDriverError::TimeoutBeforeFinality)?;
-            return Self::build_response_from_cache(
-                validator_state,
-                tx_digest,
-                seq,
-                request.include_events,
-                request.include_input_objects,
-                request.include_output_objects,
-            );
+                .map_err(map_td_error_to_qd)?;
+            return Ok(Self::response_from_driver_response(certified, request));
         }
 
-        Ok(Self::response_from_driver_response(&td_response, request))
+        Ok(Self::response_from_driver_response(
+            (*td_response).clone(),
+            request,
+        ))
     }
 
     /// Submit a transaction via the QuorumDriver. `transaction` must be the
@@ -1779,7 +1783,6 @@ impl TransactionSubmissionGuard {
             let mut in_flight = in_flight_transactions.lock();
             match in_flight.entry(tx_digest) {
                 Entry::Occupied(entry) => {
-                    debug!(?tx_digest, "transaction already being processed");
                     return TransactionSubmission::AlreadyInFlight(entry.get().clone());
                 }
                 Entry::Vacant(entry) => {
