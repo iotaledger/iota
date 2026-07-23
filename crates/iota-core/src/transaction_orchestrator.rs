@@ -731,7 +731,7 @@ where
         tokio::pin!(checkpoint_inclusion);
         let driver = Self::submit_with_transaction_driver(
             td,
-            in_flight_transactions.clone(),
+            in_flight_transactions,
             validator_state.clone(),
             request,
             client_addr,
@@ -755,16 +755,11 @@ where
             }
             checkpoint_result = &mut checkpoint_inclusion => {
                 metrics.skip_effect_cert_checkpoint_overrode_driver.inc();
+                // Dropping the cancelled driver closes the in-flight outcome
+                // channel; duplicate submissions fall back to waiting for
+                // checkpoint inclusion, which this race winning guarantees
+                // resolves immediately.
                 let seq = checkpoint_result.ok().and_then(seq_for_tx);
-                // The driver future is dropped without publishing; hand the
-                // checkpoint outcome to any duplicate submissions instead.
-                if let Some(seq) = seq {
-                    publish_in_flight_outcome(
-                        &in_flight_transactions,
-                        tx_digest,
-                        Ok(InFlightOutcome::Checkpointed(seq)),
-                    );
-                }
                 (None, seq)
             }
         };
@@ -851,7 +846,7 @@ where
         debug!(?tx_digest, "TransactionDriver submission succeeded");
 
         let td_response = Arc::new(td_response);
-        guard.publish(Ok(InFlightOutcome::Response(td_response.clone())));
+        guard.publish(Ok(td_response.clone()));
         // Dropping the guard closes the channel, releasing its copy of the
         // response unless a duplicate submission still holds a receiver — in
         // the common no-duplicate case the response is then moved into the
@@ -895,24 +890,13 @@ where
 
     /// Await the outcome of an already in-flight submission of `tx_digest`
     /// instead of starting a second committee-wide submission for the same
-    /// transaction:
-    ///
-    /// - The in-flight submission failed: its error is returned as-is.
-    /// - It succeeded with effects this caller can use: the response is rebuilt
-    ///   from the shared driver response with this caller's include flags.
-    /// - It succeeded with `UncertifiedSingleValidator` effects but this caller
-    ///   did not opt into skip-certification (so nothing downstream reconciles
-    ///   them against the cache): run the effects-certification step for the
-    ///   digest — the transaction is already in consensus, only the 2f+1
-    ///   certification is missing — and respond from its certified result.
-    /// - Its checkpoint race observed the transaction in a local checkpoint and
-    ///   cancelled the driver, publishing the checkpoint sequence: the response
-    ///   is built from the authoritative local cache.
-    /// - It went away without publishing (panic or shutdown): fall back to
-    ///   waiting for checkpoint inclusion and answer from the cache, as if no
-    ///   in-flight submission had been found.
-    /// - Nothing was published within `WAIT_FOR_FINALITY_TIMEOUT`:
-    ///   `TimeoutBeforeFinality`, so the client retries.
+    /// transaction. Resolves to that submission's outcome — running the
+    /// effects-certification step first if the outcome does not satisfy this
+    /// caller — falls back to waiting for checkpoint inclusion if the
+    /// driving submission went away without publishing one (checkpoint-race
+    /// cancellation, panic, or shutdown), and returns
+    /// `TimeoutBeforeFinality` if nothing is published within
+    /// `WAIT_FOR_FINALITY_TIMEOUT`.
     async fn await_in_flight_transaction(
         mut receiver: watch::Receiver<Option<InFlightSubmissionResult>>,
         td: &Arc<TransactionDriver<A>>,
@@ -936,29 +920,15 @@ where
         .and_then(|outcome_ref| outcome_ref.clone());
 
         let Some(outcome) = published else {
-            // Channel closed without an outcome: the driving submission's
-            // task died without publishing (panic or shutdown). Checkpoint
-            // inclusion is the only remaining signal of the outcome.
+            // Channel closed without an outcome: the driving submission went
+            // away without publishing — routinely because its checkpoint
+            // race observed the transaction in a local checkpoint and
+            // cancelled it, exceptionally on panic or shutdown. Checkpoint
+            // inclusion is the remaining signal of the outcome.
             return Self::response_from_checkpoint_inclusion(validator_state, tx_digest, request)
                 .await;
         };
-        let td_response = match outcome? {
-            // The checkpoint race cancelled the driver after observing the
-            // transaction in a local checkpoint; the cache is authoritative
-            // and the response it yields carries certified (`Checkpointed`)
-            // finality, satisfying every caller.
-            InFlightOutcome::Checkpointed(seq) => {
-                return Self::build_response_from_cache(
-                    validator_state,
-                    tx_digest,
-                    seq,
-                    request.include_events,
-                    request.include_input_objects,
-                    request.include_output_objects,
-                );
-            }
-            InFlightOutcome::Response(td_response) => td_response,
-        };
+        let td_response = outcome?;
 
         let uncertified = matches!(
             td_response.effects.finality_info,
@@ -1827,35 +1797,15 @@ fn read_cached_transaction_data(
 /// driver response, or the local checkpoint the transaction was observed in
 /// when the checkpoint race cancelled the driver (the cache is then the
 /// authoritative source of the effects).
-#[derive(Clone, Debug)]
-enum InFlightOutcome {
-    Response(Arc<QuorumTransactionResponse>),
-    Checkpointed(CheckpointSequenceNumber),
-}
-
 /// Outcome of an in-flight driver submission, shared with concurrent
 /// submissions of the same digest.
-type InFlightSubmissionResult = Result<InFlightOutcome, QuorumDriverError>;
+type InFlightSubmissionResult = Result<Arc<QuorumTransactionResponse>, QuorumDriverError>;
 
 /// Digests currently being driven to finality by the TransactionDriver,
-/// each with a channel through which the driving submission (or the
-/// checkpoint race that cancels it) publishes its outcome to concurrent
-/// duplicates.
+/// each with a channel through which the driving submission publishes its
+/// outcome to concurrent duplicates.
 type InFlightTransactions =
     Arc<Mutex<HashMap<TransactionDigest, watch::Sender<Option<InFlightSubmissionResult>>>>>;
-
-/// Publish `result` to duplicate submissions of `tx_digest`, if its
-/// in-flight entry still exists. A send into a channel without subscribers
-/// just means there is no duplicate to notify.
-fn publish_in_flight_outcome(
-    in_flight_transactions: &InFlightTransactions,
-    tx_digest: TransactionDigest,
-    result: InFlightSubmissionResult,
-) {
-    if let Some(sender) = in_flight_transactions.lock().get(&tx_digest) {
-        let _ = sender.send(Some(result));
-    }
-}
 
 /// Result of trying to register a submission of a digest in the in-flight
 /// map: either this caller drives the committee-wide submission, or another
@@ -1870,13 +1820,11 @@ enum TransactionSubmission {
 /// concurrent submissions of the same digest deduplicate.
 ///
 /// Held only by the driving submission, which must `publish` its outcome so
-/// concurrent duplicates can return it. The outcome channel's sender lives
-/// in the in-flight map itself, so the checkpoint race can publish a
-/// `Checkpointed` outcome when it cancels the driver without owning the
-/// guard. Dropping the guard removes the digest from the in-flight map on
-/// every exit path (success, error, timeout, and cancellation); receivers
-/// subscribed before removal still observe a published outcome, and if the
-/// entry is removed without any outcome (panic or shutdown) the closed
+/// concurrent duplicates can return it. Dropping the guard removes the
+/// digest from the in-flight map on every exit path (success, error,
+/// timeout, and cancellation); receivers subscribed before removal still
+/// observe a published outcome, and if the entry is removed without any
+/// outcome (checkpoint-race cancellation, panic, or shutdown) the closed
 /// channel tells duplicates to fall back to checkpoint inclusion.
 struct TransactionSubmissionGuard {
     in_flight_transactions: InFlightTransactions,
@@ -1908,8 +1856,12 @@ impl TransactionSubmissionGuard {
     }
 
     /// Publish the submission outcome to concurrent duplicate submissions.
+    /// A send into a channel without subscribers just means there is no
+    /// duplicate to notify.
     fn publish(&self, result: InFlightSubmissionResult) {
-        publish_in_flight_outcome(&self.in_flight_transactions, self.tx_digest, result);
+        if let Some(sender) = self.in_flight_transactions.lock().get(&self.tx_digest) {
+            let _ = sender.send(Some(result));
+        }
     }
 }
 
@@ -1993,27 +1945,5 @@ mod tests {
 
         // The digest can be driven again once the entry is gone.
         let _guard = acquire_driving(&in_flight, tx_digest);
-    }
-
-    #[tokio::test]
-    async fn checkpoint_outcome_reaches_duplicate_without_the_guard() {
-        let in_flight = InFlightTransactions::default();
-        let tx_digest = TransactionDigest::random();
-
-        let guard = acquire_driving(&in_flight, tx_digest);
-        let mut receiver = acquire_duplicate(&in_flight, tx_digest);
-
-        // The checkpoint race publishes through the map after cancelling the
-        // driver, without owning the guard.
-        publish_in_flight_outcome(&in_flight, tx_digest, Ok(InFlightOutcome::Checkpointed(42)));
-        drop(guard);
-
-        let outcome = receiver
-            .wait_for(|outcome| outcome.is_some())
-            .await
-            .expect("outcome was published before the sender dropped")
-            .clone()
-            .expect("wait_for only returns once the outcome is Some");
-        assert!(matches!(outcome, Ok(InFlightOutcome::Checkpointed(42))));
     }
 }
