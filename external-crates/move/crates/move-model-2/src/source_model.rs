@@ -2,13 +2,8 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{
-    TModuleId,
-    model::{self, NamedConstantData, PackageData},
-    normalized,
-    source_kind::WithSource,
-    summary,
-};
+use std::{cell::OnceCell, collections::BTreeMap, path::PathBuf, sync::Arc};
+
 use move_compiler::{
     compiled_unit::CompiledUnit,
     expansion::ast as E,
@@ -20,7 +15,14 @@ use move_compiler::{
 };
 use move_core_types::{account_address::AccountAddress, runtime_value};
 use move_symbol_pool::Symbol;
-use std::{cell::OnceCell, collections::BTreeMap, path::PathBuf, sync::Arc};
+
+use crate::{
+    TModuleId,
+    model::{self, NamedConstantData, PackageData},
+    normalized,
+    source_kind::WithSource,
+    summary,
+};
 
 pub type Model = model::Model<WithSource>;
 pub type Package<'a> = model::Package<'a, WithSource>;
@@ -293,8 +295,8 @@ impl<'a> NamedConstant<'a> {
     }
 
     pub fn value(&self) -> &'a runtime_value::MoveValue {
-        // we normally don't write delegates into ProgramInfo, but we are doing so here for parity
-        // with CompiledConstant
+        // we normally don't write delegates into ProgramInfo, but we are doing so here
+        // for parity with CompiledConstant
         self.info().value.get().unwrap()
     }
 }

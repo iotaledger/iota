@@ -396,17 +396,17 @@ error[Iota E02011]: invalid 'view' function signature
 253 │     public macro fun view_macro($x: u64): u64 {
     │            ----- View functions cannot be declared as macro functions
 
-error[E10003]: invalid attribute value
+error[E02015]: invalid attribute
     ┌─ tests/iota_mode/move_2024/typing/view_function/invalid.move:257:7
     │
 257 │     #[view = 1]
-    │       ^^^^^^^^ Only plain #[view] attribute is supported.
+    │       ^^^^^^^^ Attribute 'view' does not support assignment. Expected '#[view]' with no arguments
 
-error[E10003]: invalid attribute value
+error[E02015]: invalid attribute
     ┌─ tests/iota_mode/move_2024/typing/view_function/invalid.move:262:7
     │
 262 │     #[view(version = 1)]
-    │       ^^^^^^^^^^^^^^^^^ Only plain #[view] attribute is supported.
+    │       ^^^^^^^^^^^^^^^^^ Attribute 'view' does not support parameters. Expected '#[view]' with no arguments
 
 error[Iota E02011]: invalid 'view' function signature
     ┌─ tests/iota_mode/move_2024/typing/view_function/invalid.move:267:7

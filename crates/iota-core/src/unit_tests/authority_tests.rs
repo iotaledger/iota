@@ -69,6 +69,7 @@ use iota_types::{
 use move_binary_format::{
     CompiledModule,
     file_format::{self, AddressIdentifierIndex, IdentifierIndex, ModuleHandle},
+    file_format_common::BinaryConstants,
 };
 use move_core_types::account_address::AccountAddress;
 use rand::{
@@ -2120,6 +2121,85 @@ async fn test_package_size_limit() {
         panic!("expected transaction to fail")
     };
     assert!(matches!(error, ExecutionError::PackageTooBig { .. }));
+}
+
+// Test that publishing a module with "unpublishable" magic fails
+#[tokio::test]
+async fn test_publish_module_with_unpublishable_magic() {
+    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let gas_payment_object_id = ObjectId::random();
+    let gas_payment_object =
+        Object::with_id_owner_gas_for_testing(gas_payment_object_id, sender, u64::MAX);
+    let gas_payment_object_ref = gas_payment_object.object_ref();
+
+    let module = file_format::empty_unpublishable_module();
+    let mut module_bytes = Vec::new();
+    module
+        .serialize_with_version(module.version, &mut module_bytes)
+        .unwrap();
+    let module_bytes = vec![module_bytes];
+
+    let authority = init_state_with_objects(vec![gas_payment_object]).await;
+    let rgp = authority.reference_gas_price_for_testing().unwrap();
+    let data = TransactionData::new_module(
+        sender,
+        gas_payment_object_ref,
+        module_bytes,
+        vec![], // no dependencies
+        rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
+        rgp,
+    );
+    let transaction = to_sender_signed_transaction(data, &sender_key);
+    let signed_effects = send_and_confirm_transaction(&authority, transaction)
+        .await
+        .unwrap()
+        .1;
+    let ExecutionStatus::Failure { error, command: _ } = signed_effects.status() else {
+        panic!("expected transaction to fail")
+    };
+    assert!(matches!(
+        error,
+        ExecutionError::VmVerificationOrDeserializationError
+    ));
+}
+
+// Test that swapping the "unpublishable" magic back to the normal magic makes
+// the module publishable again.
+#[tokio::test]
+async fn test_publish_module_with_unpublishable_magic_swapped() {
+    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let gas_payment_object_id = ObjectId::random();
+    let gas_payment_object =
+        Object::with_id_owner_gas_for_testing(gas_payment_object_id, sender, u64::MAX);
+    let gas_payment_object_ref = gas_payment_object.object_ref();
+
+    let module = file_format::empty_unpublishable_module();
+    let mut module_bytes = Vec::new();
+    module
+        .serialize_with_version(module.version, &mut module_bytes)
+        .unwrap();
+    module_bytes.splice(
+        0..BinaryConstants::MOVE_MAGIC_SIZE,
+        BinaryConstants::MOVE_MAGIC,
+    );
+    let module_bytes = vec![module_bytes];
+
+    let authority = init_state_with_objects(vec![gas_payment_object]).await;
+    let rgp = authority.reference_gas_price_for_testing().unwrap();
+    let data = TransactionData::new_module(
+        sender,
+        gas_payment_object_ref,
+        module_bytes,
+        vec![], // no dependencies
+        rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
+        rgp,
+    );
+    let transaction = to_sender_signed_transaction(data, &sender_key);
+    let signed_effects = send_and_confirm_transaction(&authority, transaction)
+        .await
+        .unwrap()
+        .1;
+    assert_eq!(signed_effects.status(), &ExecutionStatus::Success);
 }
 
 #[tokio::test]

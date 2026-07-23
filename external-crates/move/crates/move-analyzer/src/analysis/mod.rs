@@ -2,6 +2,19 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::collections::BTreeMap;
+
+use im::ordmap::OrdMap;
+use lsp_types::Position;
+use move_compiler::{
+    expansion::ast::ModuleIdent,
+    parser::ast as P,
+    shared::{NamedAddressMap, files::MappedFiles, unique_map::UniqueMap},
+    typing::{ast::ModuleDefinition, visitor::TypingVisitorContext},
+};
+use move_ir_types::location::Loc;
+use move_symbol_pool::Symbol;
+
 use crate::{
     compiler_info::CompilerInfo,
     symbols::{
