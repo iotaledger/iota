@@ -293,6 +293,11 @@ public fun active_attestor_count_for_testing(wrapper: &mut IotaSystemState): u64
 }
 
 #[test_only]
+public fun attestor_registry_exists_for_testing(wrapper: &IotaSystemState): bool {
+    dynamic_field::exists_(&wrapper.id, attestor_registry::registry_key())
+}
+
+#[test_only]
 public fun slash_attestor_for_testing(
     wrapper: &mut IotaSystemState,
     attestor_address: address,
