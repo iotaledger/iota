@@ -116,6 +116,9 @@ x-common-validator: &common-validator
   environment: &common-env
     - RUST_BACKTRACE=1
     - RUST_LOG=${IOTA_NODE_RUST_LOG:-info,iota_core=debug,iota_network=debug,iota_node=debug,jsonrpsee=error}
+    # Export all metrics; since #12105 the default /metrics output is dashboard-tier
+    # (warn) only, which hides the histograms the stress/probe scrapers read.
+    - METRICS_FILTER=${METRICS_FILTER:-trace}
     - RPC_WORKER_THREAD=12
     - NEW_CHECKPOINT_WARNING_TIMEOUT_MS=30000
     - NEW_CHECKPOINT_PANIC_TIMEOUT_MS=60000
