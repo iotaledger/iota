@@ -3752,9 +3752,9 @@ impl AuthorityPerEpochStore {
         // current_commit_sequenced_consensus_transactions to preserve consensus
         // DAG ordering during conflict resolution. The deferred-loading paths
         // below do the same. After validate_and_resolve_conflicts runs on the
-        // combined list, we partition back into regular/randomness — unless a
-        // single tracker schedules all transactions, in which case the list
-        // stays combined and only the outputs are split.
+        // combined list, we partition back into regular/randomness — unless the
+        // combined congestion tracker schedules all transactions, in which
+        // case the list stays combined and only the outputs are split.
         let total_user_tx_count = current_commit_sequenced_consensus_transactions.len()
             + current_commit_sequenced_randomness_transactions.len()
             + previously_deferred_tx_digests.len();
@@ -3838,10 +3838,10 @@ impl AuthorityPerEpochStore {
         // after the consensus output is quarantined.
         let congestion_control_parameters = CongestionControlParameters::new(&self.protocol_config);
 
-        // When execution-worker congestion control is active, a single tracker
-        // schedules ALL transactions (regular and randomness-using) from a
-        // single, combined list in one gas-price order.
-        let single_congestion_tracker = congestion_control_parameters
+        // When execution-worker congestion control is active, one combined
+        // tracker schedules ALL transactions (regular and randomness-using)
+        // from a combined list in one gas-price order.
+        let use_combined_congestion_tracker = congestion_control_parameters
             .max_concurrent_execution_workers()
             .is_some();
 
@@ -3883,10 +3883,10 @@ impl AuthorityPerEpochStore {
             }
 
             // Split back for downstream processing (separate reordering and
-            // congestion tracking) — unless a single tracker schedules all
-            // transactions, in which case the combined, conflict-resolved list
-            // continues through scheduling as-is.
-            if !single_congestion_tracker {
+            // congestion tracking) — unless the combined tracker schedules
+            // all transactions, in which case the combined, conflict-resolved
+            // list continues through scheduling as-is.
+            if !use_combined_congestion_tracker {
                 let (regular, randomness): (Vec<_>, Vec<_>) = sequenced_transactions
                     .into_iter()
                     .partition(|tx| !tx.0.is_user_tx_with_randomness());
@@ -3894,16 +3894,16 @@ impl AuthorityPerEpochStore {
                 sequenced_randomness_transactions = randomness;
             }
         }
-        // A single tracker implies the PCOOL flow (enforced by the
+        // The combined tracker implies the PCOOL flow (enforced by the
         // protocol config), under which all user transactions are in
         // `sequenced_transactions` and the partition-back is skipped.
         debug_assert!(
-            !single_congestion_tracker || sequenced_randomness_transactions.is_empty(),
-            "with a single congestion tracker all transactions are scheduled from the combined list"
+            !use_combined_congestion_tracker || sequenced_randomness_transactions.is_empty(),
+            "with the combined congestion tracker all transactions are scheduled from one list"
         );
 
         // Save roots for checkpoint generation. One set for most tx, one for
-        // randomness tx. Classified per transaction because with a single
+        // randomness tx. Classified per transaction because with the combined
         // tracker, randomness transactions are scheduled from the combined
         // list but still belong in the randomness checkpoint.
         let mut roots: BTreeSet<_> = system_transactions
@@ -3936,8 +3936,9 @@ impl AuthorityPerEpochStore {
             })
             .collect();
 
-        // Order transactions by gas price. With a single congestion tracker
-        // this is one order across regular and randomness-using transactions.
+        // Order transactions by gas price. With the combined congestion
+        // tracker this is one order across regular and randomness-using
+        // transactions.
         PostConsensusTxReorder::reorder(
             &mut sequenced_transactions,
             self.protocol_config.consensus_transaction_ordering(),
@@ -3958,7 +3959,7 @@ impl AuthorityPerEpochStore {
                 .load_initial_worker_debt(self, consensus_commit_info.round)?,
             congestion_control_parameters.clone(),
         );
-        let shared_object_using_randomness_congestion_tracker = if single_congestion_tracker {
+        let shared_object_using_randomness_congestion_tracker = if use_combined_congestion_tracker {
             None
         } else {
             Some(SharedObjectCongestionTracker::new(
@@ -4402,9 +4403,10 @@ impl AuthorityPerEpochStore {
     pub(crate) async fn process_consensus_transactions<C: CheckpointServiceNotify>(
         &self,
         output: &mut ConsensusCommitOutput,
-        // With a single congestion tracker, this contains ALL transactions
-        // (including those using randomness) and `randomness_transactions` is
-        // empty. The returned lists are always split by randomness use.
+        // With the combined congestion tracker, this contains ALL
+        // transactions (including those using randomness) and
+        // `randomness_transactions` is empty. The returned lists are always
+        // split by randomness use.
         non_randomness_transactions: &[VerifiedSequencedConsensusTransaction],
         randomness_transactions: &[VerifiedSequencedConsensusTransaction],
         end_of_publish_transactions: &[VerifiedSequencedConsensusTransaction],
@@ -4419,7 +4421,7 @@ impl AuthorityPerEpochStore {
         randomness_round: Option<RandomnessRound>,
         authority_metrics: &Arc<AuthorityMetrics>,
         mut shared_object_congestion_tracker: SharedObjectCongestionTracker,
-        // `None` when a single tracker schedules all transactions.
+        // `None` when the combined tracker schedules all transactions.
         mut shared_object_using_randomness_congestion_tracker: Option<
             SharedObjectCongestionTracker,
         >,
@@ -4500,8 +4502,8 @@ impl AuthorityPerEpochStore {
                     &mut suggested_gas_price_calculator,
                 ),
                 // Randomness transactions arm is only reached in the two-tracker mode because the
-                // sgp calculator is directly linked to the congestion tracker so single tracker
-                // means single sgp calculator.
+                // sgp calculator is directly linked to the congestion tracker, so the combined
+                // tracker uses one combined calculator.
                 Either::Right(tx) => (
                     tx,
                     shared_object_using_randomness_congestion_tracker
