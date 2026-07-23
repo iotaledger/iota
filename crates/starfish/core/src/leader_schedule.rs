@@ -764,8 +764,8 @@ impl LeaderSwapTable {
         let bad_threshold = protocol_config.bad_nodes_normalized_score_threshold() as u128;
 
         let total_stake = context.committee.total_stake();
-        // Theoretical maximum distributed-vote score for one authority over the
-        // window: one vote per committed leader, each witnessed by all stake.
+        // Theoretical maximum score for one authority over the window: at most
+        // one vote per committed leader, each witnessed by all stake.
         let max_possible = reputation_scores.commit_range.size() as u128 * total_stake as u128;
 
         // Nothing to normalize against, so make no swaps.

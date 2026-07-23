@@ -580,8 +580,8 @@ struct FeatureFlags {
     consensus_enable_sliding_window_leader_schedule: bool,
 
     // If true, Starfish selects "bad" leader-schedule nodes by absolute
-    // normalized distributed-vote performance (below a low threshold), bounded
-    // by a stake overflow clamp, with a minimum-stake floor on the good
+    // normalized reputation score: exclude validators below a low threshold,
+    // capped at a maximum number of validators, and keep a minimum-size good
     // (swap-in) pool; when false, the fixed stake cut by rank is used.
     #[serde(skip_serializing_if = "is_false")]
     consensus_enable_absolute_score_bad_nodes: bool,
@@ -1474,15 +1474,15 @@ pub struct ProtocolConfig {
     consensus_leader_schedule_window_size: Option<u32>,
 
     /// High threshold (percent) for the absolute leader-schedule selection: an
-    /// authority whose distributed-vote score, normalized to the window's
-    /// theoretical maximum, is at or above this is a "good" (swap-in) node.
+    /// authority whose reputation score, normalized to the window's theoretical
+    /// maximum, is at or above this is a "good" (swap-in) node.
     /// When unset, defaults to 90. Consulted only when
     /// `consensus_enable_absolute_score_bad_nodes` is set.
     consensus_good_nodes_normalized_score_threshold: Option<u64>,
 
     /// Low threshold (percent) for the absolute leader-schedule selection: an
-    /// authority whose normalized distributed-vote score is strictly below this
-    /// is a "bad" node. When unset, defaults to 50. Consulted only when
+    /// authority whose normalized reputation score is strictly below this is a
+    /// "bad" node. When unset, defaults to 50. Consulted only when
     /// `consensus_enable_absolute_score_bad_nodes` is set.
     consensus_bad_nodes_normalized_score_threshold: Option<u64>,
 
