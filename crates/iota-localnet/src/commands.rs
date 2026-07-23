@@ -944,9 +944,12 @@ async fn genesis(
                 keystore.save()?;
 
                 // Calculate extra allocations (validator, faucet)
+                let validator_low_stake_threshold = GenesisConfig::default()
+                    .protocol_config()
+                    .validator_low_stake_threshold();
                 let validator_extra = num_validators as u64
                     * (iota_swarm_config::genesis_config::DEFAULT_GAS_AMOUNT
-                        + iota_types::governance::VALIDATOR_LOW_STAKE_THRESHOLD_NANOS);
+                        + validator_low_stake_threshold);
                 let mut faucet_extra = 0u64;
                 if with_faucet {
                     faucet_extra = iota_swarm_config::genesis_config::DEFAULT_GAS_AMOUNT

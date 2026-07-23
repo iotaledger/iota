@@ -27,7 +27,7 @@ fn main() -> anyhow::Result<()> {
 
     // Custom TokenDistributionSchedule
     let mut schedule = TokenDistributionScheduleBuilder::new();
-    schedule.default_allocation_for_validators(validators.clone());
+    schedule.default_allocation_for_validators(validators.clone(), builder.protocol_version());
     builder = builder.with_token_distribution_schedule(schedule.build());
 
     // Add keys (builds it for the first time)

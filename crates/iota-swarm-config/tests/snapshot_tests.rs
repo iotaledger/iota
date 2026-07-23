@@ -86,12 +86,18 @@ fn populated_genesis_snapshot_matches() {
         address_from_iota_pub_key(account_key.public()),
     );
 
+    // No custom protocol version is configured for this genesis, so it builds at
+    // the default `GenesisCeremonyParameters::new()` version
+    // (`ProtocolVersion::MAX`).
+    let protocol_version = GenesisCeremonyParameters::new().protocol_version;
+
     let token_distribution_schedule = {
         let mut builder = TokenDistributionScheduleBuilder::new();
         for allocation in allocations {
             builder.add_allocation(allocation);
         }
-        builder.default_allocation_for_validators(Some(validator.account_address));
+        builder
+            .default_allocation_for_validators(Some(validator.account_address), protocol_version);
         builder.build()
     };
 
@@ -100,6 +106,7 @@ fn populated_genesis_snapshot_matches() {
         .add_validator(validator, pop)
         .with_parameters(GenesisCeremonyParameters {
             chain_start_timestamp_ms: 10,
+            protocol_version,
             ..GenesisCeremonyParameters::new()
         })
         .add_validator_signature(&authority_key)
