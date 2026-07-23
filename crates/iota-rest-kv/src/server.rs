@@ -21,7 +21,7 @@ use tower_http::{
     request_id::{MakeRequestUuid, PropagateRequestIdLayer, SetRequestIdLayer},
     trace::TraceLayer,
 };
-use tracing::{Span, field};
+use tracing::{Level, Span, field};
 
 const REQUEST_ID_HEADER: HeaderName = HeaderName::from_static("x-request-id");
 
@@ -126,34 +126,43 @@ async fn fallback() -> impl IntoResponse {
     ApiError::NotFound
 }
 
-/// Creates the tracing span that wraps a single request.
+/// Creates a tracing span that wraps a single request.
 ///
-/// - `request_id` is the unique identifier for this request.
-/// - `method` is the HTTP method of the request (e.g. `GET`, `POST`).
-/// - `route` is the matched route template (e.g. `/{item_type}/{key}`)
-/// - `uri` carries the concrete request path data (e.g.
-///   `/txa/MMwf19j7eGrynrHP4Upp71-yvbJbr-GpqnRYU8LoqFk`).
-/// - The `error` field starts empty and is recorded by
-///   [`ApiError::into_response`] when the request fails.
+/// - If `DEBUG` logging is enabled, a detailed span is created containing:
+///   - `request_id`: Extracted from the request header (or empty if missing).
+///   - `method`: The HTTP method of the request.
+///   - `route`: The matched route template (falling back to the raw URI path).
+///   - `uri`: The concrete request path data.
+///   - `error`: Starts empty and is recorded by [`ApiError::into_response`]
+///     when the request fails.
+/// - Otherwise, a lighter span is created containing only `uri` and `error`.
 fn make_request_span(request: &Request) -> Span {
-    let request_id = request
-        .headers()
-        .get(REQUEST_ID_HEADER)
-        .and_then(|value| value.to_str().ok())
-        .unwrap_or_default();
-    let route = request
-        .extensions()
-        .get::<MatchedPath>()
-        .map_or_else(|| request.uri().path(), MatchedPath::as_str);
+    if tracing::span_enabled!(Level::DEBUG) {
+        let request_id = request
+            .headers()
+            .get(REQUEST_ID_HEADER)
+            .and_then(|value| value.to_str().ok())
+            .unwrap_or_default();
+        let route = request
+            .extensions()
+            .get::<MatchedPath>()
+            .map_or_else(|| request.uri().path(), MatchedPath::as_str);
 
-    tracing::info_span!(
-        "request",
-        request_id,
-        method = %request.method(),
-        route,
-        uri = %request.uri(),
-        error = field::Empty,
-    )
+        tracing::debug_span!(
+            "request",
+            request_id,
+            method = %request.method(),
+            route,
+            uri = %request.uri(),
+            error = field::Empty,
+        )
+    } else {
+        tracing::info_span!(
+            "request",
+            uri = %request.uri(),
+            error = field::Empty,
+        )
+    }
 }
 
 /// Logs the completion of a request, choosing the level by status code range.
