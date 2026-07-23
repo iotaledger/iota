@@ -37,7 +37,7 @@ use crate::{
     },
     metrics::IndexerMetrics,
     models::{
-        display::{StoredDisplay, display_id_from_event},
+        display::{StoredDisplay, display_type_and_id_from_event},
         epoch::{EndOfEpochUpdate, StartOfEpochUpdate, extract_epoch_info_event},
         obj_indices::StoredObjectVersion,
         objects::StoredBackwardHistoryObject,
@@ -414,15 +414,17 @@ impl PrimaryWorker {
         // get indexed normally. To prevent this, we fall back to the contents of the
         // created object itself, while ensuring `VersionUpdated` events still take
         // precedence.
-        for display in events
-            .iter()
-            .filter_map(display_id_from_event)
-            .filter_map(|id| output_objects.iter().find(|object| object.id() == id))
-            .filter_map(StoredDisplay::try_from_object)
-        {
-            db_displays
-                .entry(display.object_type.clone())
-                .or_insert(display);
+        for (object_type, display_id) in events.iter().filter_map(display_type_and_id_from_event) {
+            if db_displays.contains_key(&object_type) {
+                continue;
+            }
+            if let Some(display) = output_objects
+                .iter()
+                .find(|object| object.id() == display_id)
+                .and_then(StoredDisplay::try_from_object)
+            {
+                db_displays.insert(object_type, display);
+            }
         }
 
         // Input Objects
