@@ -3332,16 +3332,6 @@ impl ProtocolConfig {
                     // Also expose `is_feature_enabled` and `get_attr<T>` to
                     // iota_system via a new iota_system::protocol_config
                     // module.
-
-                    if chain != Chain::Testnet && chain != Chain::Mainnet {
-                        // Attestor registry parameters (devnet only for now),
-                        // read from Move via get_attr.
-                        cfg.min_attestor_joining_bond = Some(2_000_000_000_000);
-                        cfg.attestor_low_bond_threshold = Some(1_000_000_000_000);
-                        cfg.max_attestor_count = Some(1_000);
-                        cfg.attestor_max_inactivity_epochs = Some(7);
-                        cfg.attestor_inactivity_penalty = Some(500_000_000_000);
-                    }
                 }
                 31 => {
                     cfg.feature_flags.validator_metadata_verify_v2 = true;
@@ -3430,6 +3420,16 @@ impl ProtocolConfig {
                     // resolution. Set on all chains; inert where the P-COOL flow
                     // is off.
                     cfg.feature_flags.pcool_skip_immutable_object_locks = true;
+
+                    if chain != Chain::Testnet && chain != Chain::Mainnet {
+                        // Attestor registry parameters (devnet only for now),
+                        // read from Move via get_attr.
+                        cfg.min_attestor_joining_bond = Some(2_000_000_000_000);
+                        cfg.attestor_low_bond_threshold = Some(1_000_000_000_000);
+                        cfg.max_attestor_count = Some(1_000);
+                        cfg.attestor_max_inactivity_epochs = Some(7);
+                        cfg.attestor_inactivity_penalty = Some(500_000_000_000);
+                    }
                 }
                 // Use this template when making changes:
                 //
