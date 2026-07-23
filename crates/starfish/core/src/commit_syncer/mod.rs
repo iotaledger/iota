@@ -366,11 +366,11 @@ pub(crate) fn verify_commits(
             .map_err(ConsensusError::MalformedHeader)
             .inspect_err(|e| {
                 // Author is unknown when deserialization fails — blame the peer.
-                misbehavior_store.record_faulty_block_header(peer, peer, e);
+                misbehavior_store.record_faulty_block(peer, peer, e);
             })?;
         // The block signature needs to be verified.
         if let Err(e) = block_verifier.verify(&signed_block_header) {
-            misbehavior_store.record_faulty_block_header(peer, signed_block_header.author(), &e);
+            misbehavior_store.record_faulty_block(peer, signed_block_header.author(), &e);
             return Err(e);
         }
         for vote in signed_block_header.commit_votes() {
