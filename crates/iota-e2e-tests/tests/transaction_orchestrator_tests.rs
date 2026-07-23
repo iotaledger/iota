@@ -829,6 +829,74 @@ async fn test_pcool_duplicate_submission_inherits_failure() -> Result<(), anyhow
     Ok(())
 }
 
+/// A duplicate that requires certified effects (v1 without checkpoint
+/// waiting) joining an in-flight skip-cert submission must not inherit the
+/// uncertified single-validator effects: it certifies the effects itself and
+/// returns certified finality.
+#[sim_test]
+async fn test_pcool_duplicate_requiring_certification_returns_certified_effects()
+-> Result<(), anyhow::Error> {
+    let _env_guard = enable_pcool_env();
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(true);
+        config
+    });
+
+    let mut test_cluster = TestClusterBuilder::new().build().await;
+    let context = &mut test_cluster.wallet;
+    let handle = &test_cluster.fullnode_handle.iota_node;
+    let orchestrator = handle.with(|n| n.transaction_orchestrator().as_ref().unwrap().clone());
+
+    let txn = batch_make_transfer_transactions(context, 1)
+        .await
+        .pop()
+        .expect("gas objects should produce at least one tx");
+
+    let request = |txn: Transaction| ExecuteTransactionRequestV1 {
+        transaction: txn,
+        include_events: false,
+        include_input_objects: false,
+        include_output_objects: false,
+        include_auxiliary_data: false,
+    };
+
+    // `WaitForLocalExecution` drives a skip-cert submission; the head start
+    // lets the v1 call below join it as a duplicate instead of driving its
+    // own submission.
+    let (driving, duplicate) = tokio::join!(
+        orchestrator.execute_transaction_block(
+            request(txn.clone()),
+            ExecuteTransactionRequestType::WaitForLocalExecution,
+            Some(make_socket_addr()),
+        ),
+        async {
+            tokio::time::sleep(Duration::from_millis(100)).await;
+            orchestrator
+                .execute_transaction_v1(request(txn.clone()), false, Some(make_socket_addr()))
+                .await
+        },
+    );
+
+    let (driving_response, _) = driving?;
+    let duplicate_response = duplicate?;
+
+    assert!(
+        !matches!(
+            duplicate_response.effects.finality_info,
+            EffectsFinalityInfo::UncertifiedSingleValidator(_)
+        ),
+        "a certification-requiring duplicate must never see uncertified effects, got {:?}",
+        duplicate_response.effects.finality_info
+    );
+    assert_eq!(
+        driving_response.effects.effects.transaction_digest(),
+        duplicate_response.effects.effects.transaction_digest(),
+        "the duplicate must resolve to the same finalized effects"
+    );
+
+    Ok(())
+}
+
 /// Without consensus quorum, the skip-cert path can never observe checkpoint
 /// inclusion. The orchestrator must surface this as `TimeoutBeforeFinality`
 /// (a retriable transient), not `QuorumDriverInternal` — the latter would
