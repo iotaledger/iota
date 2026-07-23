@@ -4,6 +4,22 @@
 
 //! This module contains code responsible for handling symbols-related requests.
 
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    path::{Path, PathBuf},
+    vec,
+};
+
+use lsp_server::{Message, Request, RequestId, Response};
+use lsp_types::{
+    DocumentSymbol, DocumentSymbolParams, GotoDefinitionParams, Hover, HoverContents, HoverParams,
+    Location, MarkupContent, MarkupKind, Position, Range, ReferenceParams, SymbolKind,
+    request::GotoTypeDefinitionParams,
+};
+use move_compiler::naming::ast::Type_;
+use move_ir_types::location::*;
+use url::Url;
+
 use crate::{
     context::Context,
     symbols::{
@@ -15,22 +31,6 @@ use crate::{
     },
     utils::lsp_position_to_loc,
 };
-
-use lsp_server::{Message, Request, RequestId, Response};
-use lsp_types::{
-    DocumentSymbol, DocumentSymbolParams, GotoDefinitionParams, Hover, HoverContents, HoverParams,
-    Location, MarkupContent, MarkupKind, Position, Range, ReferenceParams, SymbolKind,
-    request::GotoTypeDefinitionParams,
-};
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    path::{Path, PathBuf},
-    vec,
-};
-use url::Url;
-
-use move_compiler::naming::ast::Type_;
-use move_ir_types::location::*;
 
 /// Handles go-to-def request of the language server
 pub fn on_go_to_def_request(context: &Context, request: &Request) {
@@ -226,8 +226,8 @@ pub fn on_use_request(
         result = Some(serde_json::to_value(Option::<lsp_types::Location>::None).unwrap());
     }
 
-    // unwrap will succeed based on the logic above which the compiler is unable to figure out
-    // without using Option
+    // unwrap will succeed based on the logic above which the compiler is unable to
+    // figure out without using Option
     let response = Response::new_ok(id, result.unwrap());
     if let Err(err) = context.connection.sender.send(Message::Response(response)) {
         eprintln!("could not send use response: {:?}", err);
@@ -354,7 +354,8 @@ pub fn on_document_symbol_request(context: &Context, request: &Request) {
             });
         }
     }
-    // unwrap will succeed based on the logic above which the compiler is unable to figure out
+    // unwrap will succeed based on the logic above which the compiler is unable to
+    // figure out
     let response = Response::new_ok(request.id.clone(), defs);
     if let Err(err) = context.connection.sender.send(Message::Response(response)) {
         eprintln!("could not send use response: {:?}", err);
@@ -417,8 +418,8 @@ pub fn on_hover_markup(info: &DefInfo) -> MarkupContent {
 
 fn def_ide_location(def_loc: &Loc, symbols: &Symbols) -> Location {
     // TODO: Do we need beginning and end of the definition? Does not seem to make a
-    // difference from the IDE perspective as the cursor goes to the beginning anyway (at
-    // least in VSCode).
+    // difference from the IDE perspective as the cursor goes to the beginning
+    // anyway (at least in VSCode).
     let span = symbols.files.position_opt(def_loc).unwrap();
     let range = Range {
         start: span.start.into(),

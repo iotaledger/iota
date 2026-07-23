@@ -65,7 +65,7 @@ Mocha.suite('LSP', () => {
         assert.deepStrictEqual(syms[0]?.children[2].name, 'some_other_struct');
         assert.deepStrictEqual(syms[0]?.children[3]?.kind, lc.SymbolKind.Function);
         assert.deepStrictEqual(syms[0]?.children[3].name, 'this_is_a_test');
-        assert.deepStrictEqual(syms[0]?.children[3]?.detail, '["test", "expected_failure"]');
+        assert.deepStrictEqual(syms[0]?.children[3]?.detail, '["expected_failure", "test"]');
     });
 
     Mocha.test('textDocument/hover for definition in the same module', async () => {
