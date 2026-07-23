@@ -205,7 +205,8 @@ pub fn name_chain_completions(
                 ChainComponentInfo::new(leading_name.loc, next_kind),
                 chain_kind,
                 &path_entries,
-                /* path_index */ 0,
+                // path_index
+                0,
                 colon_colon_triggered,
                 inside_use,
                 &mut completions,
@@ -1140,8 +1141,8 @@ fn all_packages(symbols: &Symbols, info: &AliasAutocompleteInfo) -> BTreeSet<Str
     addresses
 }
 
-/// Computes a list of all possible kinds of the first chain component that are already
-/// in scope (were already imported).
+/// Computes a list of all possible kinds of the first chain component that are
+/// already in scope (were already imported).
 fn first_in_scope_name_chain_component_kind(
     symbols: &Symbols,
     info: &AliasAutocompleteInfo,

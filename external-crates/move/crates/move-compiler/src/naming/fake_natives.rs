@@ -18,7 +18,10 @@ use crate::{
     expansion::ast::{Address, ModuleIdent, ModuleIdent_},
     naming::ast as N,
     parser::ast::FunctionName,
-    shared::{Identifier, known_attributes::NativeAttribute},
+    shared::{
+        Identifier,
+        known_attributes::{AttributeKind_, BytecodeInstructionAttribute},
+    },
 };
 
 /// verify fake native attribute usage usage
@@ -30,7 +33,7 @@ pub fn function(
 ) {
     let loc = match function
         .attributes
-        .get_loc_(&NativeAttribute::BytecodeInstruction.into())
+        .get_loc_(&AttributeKind_::BytecodeInstruction)
     {
         None => return,
         Some(loc) => *loc,
@@ -38,7 +41,7 @@ pub fn function(
     if resolve_builtin(&module, &function_name).is_none() {
         let attr_msg = format!(
             "Invalid usage of '{}' attribute to map function to bytecode instruction.",
-            NativeAttribute::BYTECODE_INSTRUCTION
+            BytecodeInstructionAttribute::BYTECODE_INSTRUCTION
         );
         let name_msg = format!(
             "No known mapping of '{}::{}' to bytecode instruction",
@@ -56,7 +59,7 @@ pub fn function(
         N::FunctionBody_::Defined(_) => {
             let attr_msg = format!(
                 "Invalid usage of '{}' attribute on non-native function",
-                NativeAttribute::BYTECODE_INSTRUCTION
+                BytecodeInstructionAttribute::BYTECODE_INSTRUCTION
             );
             let diag = diag!(Attributes::InvalidBytecodeInst, (loc, attr_msg));
             reporter.add_diag(diag);
