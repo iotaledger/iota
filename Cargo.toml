@@ -118,6 +118,7 @@ members = [
   "crates/iota-network-stack",
   "crates/iota-node",
   "crates/iota-node-storage",
+  "crates/iota-node-transaction-builder",
   "crates/iota-open-rpc",
   "crates/iota-open-rpc-macros",
   "crates/iota-package-alt",
@@ -431,6 +432,7 @@ iota-network = { path = "crates/iota-network" }
 iota-network-stack = { path = "crates/iota-network-stack" }
 iota-node = { path = "crates/iota-node" }
 iota-node-storage = { path = "crates/iota-node-storage" }
+iota-node-transaction-builder = { path = "crates/iota-node-transaction-builder" }
 iota-open-rpc = { path = "crates/iota-open-rpc" }
 iota-open-rpc-macros = { path = "crates/iota-open-rpc-macros" }
 iota-package-dump = { path = "crates/iota-package-dump" }

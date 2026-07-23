@@ -1,0 +1,27 @@
+# Copyright (c) 2026 IOTA Stiftung
+# SPDX-License-Identifier: Apache-2.0
+[package]
+name = "iota-node-transaction-builder"
+version.workspace = true
+authors = ["IOTA Foundation <info@iota.org>"]
+edition = "2021"
+license = "Apache-2.0"
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+# external dependencies
+bcs.workspace = true
+thiserror.workspace = true
+tokio = { workspace = true, features = ["time"] }
+tracing.workspace = true
+
+# internal dependencies
+iota-node-storage.workspace = true
+iota-protocol-config.workspace = true
+iota-sdk-transaction-builder.workspace = true
+iota-sdk-types.workspace = true
+iota-types.workspace = true
+typed-store-error.workspace = true

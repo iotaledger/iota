@@ -53,6 +53,7 @@
 /crates/iota-network-stack/ @iotaledger/node
 /crates/iota-node/ @iotaledger/node
 /crates/iota-node-storage/ @iotaledger/node
+/crates/iota-node-transaction-builder/ @iotaledger/node
 /crates/iota-open-rpc/ @iotaledger/infrastructure
 /crates/iota-open-rpc-macros/ @iotaledger/dev-tools
 /crates/iota-package-alt/ @iotaledger/vm-language

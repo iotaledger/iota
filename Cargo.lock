@@ -6033,6 +6033,7 @@ dependencies = [
  "iota-sdk-crypto",
  "iota-sdk-grpc-client",
  "iota-sdk-grpc-types",
+ "iota-sdk-transaction-builder",
  "iota-sdk-types",
  "iota-simulator",
  "iota-snapshot",
@@ -7192,6 +7193,7 @@ dependencies = [
  "iota-names",
  "iota-network",
  "iota-network-stack",
+ "iota-node-transaction-builder",
  "iota-protocol-config",
  "iota-sdk-types",
  "iota-simulator",
@@ -7222,6 +7224,22 @@ dependencies = [
  "iota-sdk-types",
  "iota-types",
  "move-core-types",
+]
+
+[[package]]
+name = "iota-node-transaction-builder"
+version = "1.29.0-alpha"
+dependencies = [
+ "bcs",
+ "iota-node-storage",
+ "iota-protocol-config",
+ "iota-sdk-transaction-builder",
+ "iota-sdk-types",
+ "iota-types",
+ "thiserror 1.0.64",
+ "tokio",
+ "tracing",
+ "typed-store-error",
 ]
 
 [[package]]
