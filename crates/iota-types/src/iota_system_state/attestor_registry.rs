@@ -8,13 +8,23 @@
 
 use std::collections::HashMap;
 
-use iota_sdk_types::{Address, Identifier, ObjectId, StructTag};
+use fastcrypto::{
+    ed25519::{Ed25519PublicKey, Ed25519Signature},
+    hash::HashFunction,
+    secp256k1::{Secp256k1PublicKey, Secp256k1Signature},
+    secp256r1::{Secp256r1PublicKey, Secp256r1Signature},
+    traits::{ToFromBytes, VerifyingKey},
+};
+use iota_sdk_types::{
+    Address, Identifier, ObjectId, StructTag,
+    crypto::{Intent, IntentMessage, IntentScope},
+};
 use serde::{Deserialize, Serialize};
 
 use crate::{
     IOTA_SYSTEM_STATE_OBJECT_ID, MoveTypeTagTrait, TypeTag,
     balance::Balance,
-    crypto::{PublicKey, SignatureScheme},
+    crypto::{DefaultHash, IotaKeyPair, IotaSignature, PublicKey, Signature, SignatureScheme},
     dynamic_field::{derive_dynamic_field_id, get_dynamic_field_from_store},
     error::IotaError,
     storage::ObjectStore,
@@ -79,6 +89,70 @@ pub fn verify_attestor_pubkey(pubkey: &[u8]) -> Result<(), u64> {
         }
         _ => Err(E_INVALID_ATTESTOR_PUBKEY),
     }
+}
+
+/// Abort code for a proof-of-possession that does not verify; matches
+/// `EInvalidProofOfPossession` in `iota_system::attestor_registry`.
+pub const E_INVALID_PROOF_OF_POSSESSION: u64 = 8;
+
+fn attestor_pop_digest(pubkey: &[u8], sender: Address) -> [u8; 32] {
+    let mut msg = pubkey.to_vec();
+    msg.extend_from_slice(sender.as_ref());
+    let intent_msg = IntentMessage::new(Intent::iota_app(IntentScope::ProofOfPossession), msg);
+    let mut hasher = DefaultHash::default();
+    hasher.update(bcs::to_bytes(&intent_msg).expect("BCS serialization of bytes cannot fail"));
+    hasher.finalize().digest
+}
+
+/// Verify a raw-signature proof of possession for an attestor signing key.
+/// The signed payload is
+/// `bcs(IntentMessage(ProofOfPossession, pubkey || sender))`, mirroring the
+/// validator proof of possession. Expects `pubkey` to have already passed
+/// [`verify_attestor_pubkey`].
+pub fn verify_attestor_pop(pubkey: &[u8], pop: &[u8], sender: Address) -> Result<(), u64> {
+    let Some((&flag, raw_key)) = pubkey.split_first() else {
+        return Err(E_INVALID_PROOF_OF_POSSESSION);
+    };
+    let scheme = SignatureScheme::from_byte(flag).map_err(|_| E_INVALID_PROOF_OF_POSSESSION)?;
+    let digest = attestor_pop_digest(pubkey, sender);
+    let verified = match scheme {
+        SignatureScheme::Ed25519 => {
+            let pk = Ed25519PublicKey::from_bytes(raw_key);
+            let sig = Ed25519Signature::from_bytes(pop);
+            matches!((pk, sig), (Ok(pk), Ok(sig)) if pk.verify(&digest, &sig).is_ok())
+        }
+        SignatureScheme::Secp256k1 => {
+            let pk = Secp256k1PublicKey::from_bytes(raw_key);
+            let sig = Secp256k1Signature::from_bytes(pop);
+            matches!((pk, sig), (Ok(pk), Ok(sig)) if pk.verify(&digest, &sig).is_ok())
+        }
+        SignatureScheme::Secp256r1 => {
+            let pk = Secp256r1PublicKey::from_bytes(raw_key);
+            let sig = Secp256r1Signature::from_bytes(pop);
+            matches!((pk, sig), (Ok(pk), Ok(sig)) if pk.verify(&digest, &sig).is_ok())
+        }
+        _ => false,
+    };
+    if verified {
+        Ok(())
+    } else {
+        Err(E_INVALID_PROOF_OF_POSSESSION)
+    }
+}
+
+/// Generate the raw-signature proof of possession accepted by
+/// `iota_system::register_attestor` / `rotate_attestor_key` for `keypair`'s
+/// public key bound to `sender`.
+pub fn generate_attestor_proof_of_possession(keypair: &IotaKeyPair, sender: Address) -> Vec<u8> {
+    let pk = keypair.public();
+    let mut pubkey = vec![pk.flag()];
+    pubkey.extend_from_slice(pk.as_ref());
+    let mut msg = pubkey;
+    msg.extend_from_slice(sender.as_ref());
+    let intent_msg = IntentMessage::new(Intent::iota_app(IntentScope::ProofOfPossession), msg);
+    let sig = Signature::new_secure(&intent_msg, keypair);
+    // Strip the composite `flag || sig || pubkey` down to the raw signature.
+    sig.to_bytes()[1..65].to_vec()
 }
 
 /// Per-epoch snapshot entry for an active attestor, carried by
@@ -226,7 +300,7 @@ mod tests {
     };
     use rand::{SeedableRng, rngs::StdRng};
 
-    use crate::crypto::{IotaKeyPair, KeypairTraits};
+    use crate::crypto::{IotaKeyPair, KeypairTraits, get_key_pair_from_rng};
 
     /// `flag || raw_key` encoding for a public key.
     fn flagged(pk: &PublicKey) -> Vec<u8> {
@@ -237,6 +311,19 @@ mod tests {
 
     fn seeded_rng() -> StdRng {
         StdRng::from_seed([7u8; 32])
+    }
+
+    fn test_keypairs() -> Vec<IotaKeyPair> {
+        let mut rng = StdRng::from_seed([42; 32]);
+        vec![
+            IotaKeyPair::Ed25519(get_key_pair_from_rng::<Ed25519KeyPair, _>(&mut rng).1),
+            IotaKeyPair::Secp256k1(get_key_pair_from_rng::<Secp256k1KeyPair, _>(&mut rng).1),
+            IotaKeyPair::Secp256r1(get_key_pair_from_rng::<Secp256r1KeyPair, _>(&mut rng).1),
+        ]
+    }
+
+    fn attestor_pubkey(kp: &IotaKeyPair) -> Vec<u8> {
+        flagged(&kp.public())
     }
 
     #[test]
@@ -301,5 +388,51 @@ mod tests {
         let empty = AttestorSet::empty(3);
         assert!(empty.is_empty());
         assert_eq!(empty.epoch(), 3);
+    }
+
+    #[test]
+    fn pop_roundtrip_all_plain_schemes() {
+        let sender = Address::from_short_hex("0xA1").unwrap();
+        for kp in test_keypairs() {
+            let pubkey = attestor_pubkey(&kp);
+            let pop = generate_attestor_proof_of_possession(&kp, sender);
+            assert_eq!(pop.len(), 64);
+            verify_attestor_pubkey(&pubkey).unwrap();
+            verify_attestor_pop(&pubkey, &pop, sender).unwrap();
+        }
+    }
+
+    #[test]
+    fn pop_rejects_wrong_sender() {
+        let sender = Address::from_short_hex("0xA1").unwrap();
+        let other = Address::from_short_hex("0xA2").unwrap();
+        for kp in test_keypairs() {
+            let pubkey = attestor_pubkey(&kp);
+            let pop = generate_attestor_proof_of_possession(&kp, sender);
+            assert_eq!(
+                verify_attestor_pop(&pubkey, &pop, other),
+                Err(E_INVALID_PROOF_OF_POSSESSION)
+            );
+        }
+    }
+
+    #[test]
+    fn pop_rejects_wrong_key_and_garbage() {
+        let sender = Address::from_short_hex("0xA1").unwrap();
+        let kps = test_keypairs();
+        let pubkey = attestor_pubkey(&kps[0]);
+        let pop_other_key = generate_attestor_proof_of_possession(&kps[1], sender);
+        assert_eq!(
+            verify_attestor_pop(&pubkey, &pop_other_key, sender),
+            Err(E_INVALID_PROOF_OF_POSSESSION)
+        );
+        assert_eq!(
+            verify_attestor_pop(&pubkey, &[0u8; 64], sender),
+            Err(E_INVALID_PROOF_OF_POSSESSION)
+        );
+        assert_eq!(
+            verify_attestor_pop(&pubkey, &[], sender),
+            Err(E_INVALID_PROOF_OF_POSSESSION)
+        );
     }
 }
