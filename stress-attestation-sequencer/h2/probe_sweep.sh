@@ -88,10 +88,10 @@ for p in "${points[@]}"; do
   read -r n size <<<"$p"
   i=$((i + 1))
   label="slow-n${n}-s${size}"
-  # Keep the network up for every point except the last (WIPE=no); tear down at
-  # the end. Override by exporting WIPE before calling probe_sweep.sh.
+  # Keep the network up between points (WIPE=no); tear down after the last
+  # one. Override by exporting WIPE before calling probe_sweep.sh.
   wipe="${WIPE:-no}"
-  [[ $i -eq $total && -z "${WIPE:-}" ]] && wipe=no # default: leave up even at end
+  [[ $i -eq $total && -z "${WIPE:-}" ]] && wipe=yes # default: tear down at the end
   echo "[$(date +%H:%M:%S)] ($i/$total) probe $label -> logs/$label.log"
   SLOW_N="$n" SLOW_SIZE="$size" WIPE="$wipe" "$SCRIPT_DIR/probe.sh" >"$LOGDIR/$label.log" 2>&1 &&
     echo "    ✓ done" || echo "    ✗ FAILED — tail logs/$label.log"
