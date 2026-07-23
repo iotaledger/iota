@@ -1914,6 +1914,17 @@ impl ProtocolConfig {
         res
     }
 
+    /// Number of committed subdags the leader-schedule reputation scores are
+    /// aggregated over: the sliding window when enabled, otherwise the rotation
+    /// interval (V2 accumulates one interval's worth of commits per schedule).
+    pub fn scoring_window_commits(&self) -> u32 {
+        if self.consensus_enable_sliding_window_leader_schedule() {
+            self.leader_schedule_window_size()
+        } else {
+            self.commits_per_schedule()
+        }
+    }
+
     pub fn consensus_enable_absolute_score_bad_nodes(&self) -> bool {
         let res = self.feature_flags.consensus_enable_absolute_score_bad_nodes;
         assert!(
