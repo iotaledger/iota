@@ -456,7 +456,6 @@ pub async fn setup_single_workflow<W: Worker + 'static>(
     initial_checkpoint_number: CheckpointSequenceNumber,
     concurrency: usize,
     reader_options: Option<ReaderOptions>,
-    ingestion_limit: Option<IngestionLimit>,
 ) -> IngestionResult<(
     impl Future<Output = IngestionResult<ExecutorProgress>>,
     CancellationToken,
@@ -472,9 +471,6 @@ pub async fn setup_single_workflow<W: Worker + 'static>(
         Default::default(),
     );
     executor.register(worker_pool).await?;
-    if let Some(limit) = ingestion_limit {
-        executor.with_ingestion_limit(limit);
-    }
     Ok((
         executor.run_with_config(CheckpointReaderConfig {
             reader_options: reader_options.unwrap_or_default(),

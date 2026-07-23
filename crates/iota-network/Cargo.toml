@@ -24,6 +24,7 @@ rand.workspace = true
 serde.workspace = true
 tap.workspace = true
 tokio = { workspace = true, features = ["rt", "macros", "sync", "time"] }
+tokio-util.workspace = true
 tonic.workspace = true
 tonic-prost.workspace = true
 tower.workspace = true

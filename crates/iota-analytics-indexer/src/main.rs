@@ -48,7 +48,6 @@ async fn main() -> Result<()> {
         watermark,
         1,
         Some(reader_options),
-        None,
     )
     .await?;
 

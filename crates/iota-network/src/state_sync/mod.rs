@@ -67,9 +67,13 @@ use std::{
 
 use anemo::{PeerId, Request, Response, Result, types::PeerEvent};
 use anyhow::{anyhow, bail};
-use futures::{FutureExt, StreamExt, stream::FuturesOrdered};
+use futures::{Future, FutureExt, StreamExt, stream::FuturesOrdered};
 use iota_config::p2p::StateSyncConfig;
-use iota_data_ingestion_core::reader::v2::RemoteUrl;
+use iota_data_ingestion_core::{
+    DataIngestionMetrics, IndexerExecutor, IngestionLimit, IngestionResult, ReaderOptions,
+    ShimProgressStore, Worker, WorkerPool,
+    reader::v2::{CheckpointReaderConfig, RemoteUrl},
+};
 use iota_sdk_types::{CheckpointDigest, checkpoint::EndOfEpochData};
 use iota_types::{
     committee::Committee,
@@ -79,12 +83,14 @@ use iota_types::{
     },
     storage::WriteStore,
 };
+use prometheus_filtered::Registry;
 use rand::Rng;
 use tap::{Pipe, TapFallible, TapOptional};
 use tokio::{
     sync::{broadcast, mpsc, oneshot, watch},
     task::{AbortHandle, JoinSet},
 };
+use tokio_util::sync::CancellationToken;
 use tracing::{debug, info, instrument, trace, warn};
 
 mod generated {
@@ -103,7 +109,6 @@ pub use generated::{
     state_sync_server::{StateSync, StateSyncServer},
 };
 use iota_config::node::CheckpointArchiveConfig;
-use iota_data_ingestion_core::{IngestionLimit, ReaderOptions, setup_single_workflow};
 use iota_storage::verify_checkpoint;
 use metrics::Metrics;
 use server::CheckpointContentsDownloadLimitLayer;
@@ -1243,6 +1248,41 @@ where
     Ok(())
 }
 
+async fn setup_data_ingestion_executor<W: Worker + 'static>(
+    worker: W,
+    remote_store_url: RemoteUrl,
+    initial_checkpoint_number: CheckpointSequenceNumber,
+    concurrency: usize,
+    reader_options: Option<ReaderOptions>,
+    ingestion_limit: Option<IngestionLimit>,
+) -> IngestionResult<(
+    impl Future<Output = IngestionResult<HashMap<String, CheckpointSequenceNumber>>>,
+    CancellationToken,
+)> {
+    let metrics = DataIngestionMetrics::new(&Registry::new());
+    let progress_store = ShimProgressStore(initial_checkpoint_number);
+    let token = CancellationToken::new();
+    let mut executor = IndexerExecutor::new(progress_store, 1, metrics, token.child_token());
+    let worker_pool = WorkerPool::new(
+        worker,
+        "data_ingestion_executor".to_string(),
+        concurrency,
+        Default::default(),
+    );
+    executor.register(worker_pool).await?;
+    if let Some(limit) = ingestion_limit {
+        executor.with_ingestion_limit(limit);
+    }
+    Ok((
+        executor.run_with_config(CheckpointReaderConfig {
+            reader_options: reader_options.unwrap_or_default(),
+            ingestion_path: None,
+            remote_store_url: Some(remote_store_url),
+        }),
+        token,
+    ))
+}
+
 /// Syncs checkpoint contents from checkpoint archive if the
 /// highest_synced_checkpoint < lowest_checkpoint among peers. The requesting
 /// checkpoint range is from highest_synced_checkpoint+1 to lowest_checkpoint.
@@ -1328,7 +1368,7 @@ async fn sync_checkpoint_contents_from_checkpoint_archive_iteration<S>(
         };
         // Keep a clone for the final log; the original is moved into StateSyncWorker.
         let store_for_log = store.clone();
-        let setup_result = setup_single_workflow(
+        let setup_result = setup_data_ingestion_executor(
             StateSyncWorker(store, metrics),
             RemoteUrl::HybridHistoricalStore {
                 historical_url: checkpoint_archive_config.url.clone(),
