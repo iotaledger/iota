@@ -14,6 +14,7 @@ use iota::test_scenario::{Self, Scenario};
 use iota::test_utils::{Self, assert_eq};
 use iota_system::iota_system::{Self, IotaSystemState};
 use iota_system::iota_system_state_inner;
+use iota_system::protocol_config;
 use iota_system::staking_pool::{StakedIota, StakingPoolV1};
 use iota_system::validator::{Self, ValidatorV1};
 
@@ -81,11 +82,6 @@ public fun create_iota_system_state_for_testing(
 ) {
     let system_parameters = iota_system_state_inner::create_system_parameters(
         42, // epoch_duration_ms, doesn't matter what number we put here
-        150, // max_validator_count
-        1, // min_validator_joining_stake
-        1, // validator_low_stake_threshold
-        0, // validator_very_low_stake_threshold
-        7, // validator_low_stake_grace_period
         ctx,
     );
 
@@ -103,6 +99,13 @@ public fun create_iota_system_state_for_testing(
         storage_fund_amount * NANOS_PER_IOTA,
         ctx,
     );
+
+    // Test validators are created with small stakes (see `create_validator_for_testing`),
+    // well below the real protocol-config thresholds. Override both so the general
+    // advance-epoch helpers don't kick them out; `advance_epoch_with_stake_thresholds`
+    // overrides these again with caller-supplied values where that's the point of the test.
+    protocol_config::set_attr_for_testing(b"validator_low_stake_threshold", 1u64);
+    protocol_config::set_attr_for_testing(b"validator_very_low_stake_threshold", 0u64);
 
     iota_system::create(
         object::new(ctx), // it doesn't matter what ID iota system state has in tests
