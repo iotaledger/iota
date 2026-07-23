@@ -14,8 +14,9 @@
 //!
 //! Filter syntax: comma-separated `pattern=LEVEL` directives, where `LEVEL`
 //! is one of `off`, `warn`, `info`, `debug`, `trace`. A bare `LEVEL` token
-//! (no `pattern=`) matches every metric — as an env or runtime directive it
-//! replaces the whole filter. A pattern matches if it is a
+//! (no `pattern=`) and its reserved `default=LEVEL` spelling both set the
+//! global default: the level for the metrics no other directive matches. A
+//! pattern matches if it is a
 //! prefix of the metric name OR is a component/prefix of the calling module
 //! path (e.g. `traffic_controller` matches
 //! `iota_core::traffic_controller::metrics`). When several directives
@@ -99,7 +100,8 @@ const DEFAULT_THRESHOLD: u8 = MetricLevel::Trace.verbosity();
 
 #[derive(Clone)]
 struct FilterDirective {
-    /// Empty string means global catch-all.
+    /// Empty string means the global default: it matches every metric but
+    /// loses to any other matching directive.
     pattern: String,
     /// Metrics matched by this directive are exposed iff their verbosity is
     /// `<= threshold`. `off=0`, `warn=1`, `info=2`, `debug=3`, `trace=4`.
@@ -168,12 +170,6 @@ impl DirectiveSet {
     /// apply and the usual most-specific-pattern-wins matching decides each
     /// metric.
     fn merged(&self, over: &Self) -> Self {
-        if over.directives.iter().any(|dir| dir.pattern.is_empty()) {
-            return Self {
-                directives: over.directives.clone(),
-                display: over.display.clone(),
-            };
-        }
         Self {
             directives: merge_directives(&self.directives, &over.directives),
             display: merge_directives(&self.display, &over.display),
@@ -208,11 +204,15 @@ pub fn directive_parts(s: &str) -> impl Iterator<Item = &str> + '_ {
     s.split(',').map(str::trim).filter(|part| !part.is_empty())
 }
 
-/// Splits one directive into its `(pattern, level)` parts; a directive
-/// without `=` is a bare level with an empty (global catch-all) pattern.
+/// Splits one directive into its `(pattern, level)` parts. Two equivalent
+/// spellings yield the empty (global default) pattern: a bare level (no `=`)
+/// and the reserved `default` pattern, which normalizes to it here.
 pub fn split_directive(part: &str) -> (&str, &str) {
     match part.rfind('=') {
-        Some(eq) => (part[..eq].trim(), part[eq + 1..].trim()),
+        Some(eq) => match part[..eq].trim() {
+            "default" => ("", part[eq + 1..].trim()),
+            pattern => (pattern, part[eq + 1..].trim()),
+        },
         None => ("", part.trim()),
     }
 }
@@ -245,8 +245,8 @@ fn parse_directive(part: &str) -> std::result::Result<FilterDirective, String> {
     })
 }
 
-/// Renders directives back into their canonical `pattern=LEVEL` string, the
-/// inverse of [`parse_directive`].
+/// Renders directives back into their canonical `pattern=LEVEL` string. The
+/// empty pattern renders as `default=LEVEL`.
 fn render_directives(directives: &[FilterDirective]) -> String {
     fn token(threshold: u8) -> &'static str {
         match threshold {
@@ -261,7 +261,7 @@ fn render_directives(directives: &[FilterDirective]) -> String {
         .iter()
         .map(|dir| {
             if dir.pattern.is_empty() {
-                token(dir.threshold).to_owned()
+                format!("default={}", token(dir.threshold))
             } else {
                 format!("{}={}", dir.pattern, token(dir.threshold))
             }
@@ -274,7 +274,7 @@ fn render_directives(directives: &[FilterDirective]) -> String {
 /// directive's threshold, or `None` when no directive matches.
 ///
 /// A directive matches when its pattern is:
-/// 1. Empty — global default.
+/// 1. Empty (a bare level, or its `default=LEVEL` spelling) — global default.
 /// 2. A metric name prefix — `name.starts_with(pattern)`.
 /// 3. A module path prefix — `module.starts_with(pattern)`.
 /// 4. An exact module component — `module` contains `"::{pattern}"`.
@@ -505,7 +505,10 @@ impl Registry {
             let want = threshold(&runtime.directives, name, &recorded.module)
                 >= recorded.level.verbosity();
             if want {
-                let _ = self.register(recorded.collector.clone_box());
+                match self.register(recorded.collector.clone_box()) {
+                    Ok(()) | Err(prometheus::Error::AlreadyReg) => {}
+                    Err(err) => warn!("failed to register metric {name}: {err}"),
+                }
             } else {
                 let _ = self.unregister(recorded.collector.clone_box());
             }
@@ -967,15 +970,20 @@ mod tests {
             "iota_core::authority=off,iota_core=info,starfish=info"
         );
 
-        // A bare env level matches everything at its layer's highest
-        // precedence: a full override, replacing the config directives.
+        // A bare env level is the `default=LEVEL` spelling: it replaces the
+        // config's global default, while the config's more specific
+        // directives keep applying.
         let filter = super::Filter::from_sources(
             super::FilterSource::new("info,iota_core=warn"),
             Some(super::FilterSource::new("trace")),
         );
-        assert!(filter.is_exposed("x", "iota_core::authority", Trace));
+        assert!(filter.is_exposed("x", "iota_core::authority", Warn));
+        assert!(!filter.is_exposed("x", "iota_core::authority", Info));
         assert!(filter.is_exposed("x", "m", Trace));
-        assert_eq!(filter.startup_filter_string(), "trace");
+        assert_eq!(
+            filter.startup_filter_string(),
+            "iota_core=warn,default=trace"
+        );
 
         // A blank env var contributes no directives, so the config directives
         // still apply.
@@ -1256,9 +1264,11 @@ mod runtime_filter_tests {
         set_runtime(&reg, "");
         assert_eq!(gathered_names(&reg), ["g_b"]);
 
-        // A bare level replaces the whole filter: a full temporary override.
+        // A bare level is the `default=LEVEL` spelling: it raises the global
+        // default but never out-ranks a more specific startup directive, so
+        // `g_a=off` keeps hiding g_a.
         set_runtime(&reg, "trace");
-        assert_eq!(gathered_names(&reg), ["g_a", "g_b"]);
+        assert_eq!(gathered_names(&reg), ["g_b"]);
 
         reset_runtime(&reg);
         assert_eq!(gathered_names(&reg), ["g_b"]);
@@ -1294,33 +1304,71 @@ mod runtime_filter_tests {
             "iota_core=warn,iota_core::authority::sub=off,iota_core::authority=trace"
         );
 
-        // A bare level replaces the whole filter; more specific directives in
-        // the same override still apply on top of it.
+        // A bare level merges like `default=LEVEL`: the more specific
+        // startup directives keep applying beneath it, beside the override's
+        // other directives.
         let filter = Filter::parse("g_a=off,g_b=warn");
         filter
             .set_runtime_filter(FilterSource::new("trace,g_c=off"))
             .unwrap();
-        assert!(filter.is_exposed("g_a", "m", Trace));
-        assert!(filter.is_exposed("g_b", "m", Trace));
+        assert!(!filter.is_exposed("g_a", "m", Warn));
+        assert!(filter.is_exposed("g_b", "m", Warn));
+        assert!(!filter.is_exposed("g_b", "m", Debug));
         assert!(!filter.is_exposed("g_c", "m", Warn));
-        assert_eq!(filter.filter_string(), "trace,g_c=off");
+        assert!(filter.is_exposed("other", "m", Trace));
+        assert_eq!(
+            filter.filter_string(),
+            "g_a=off,g_b=warn,default=trace,g_c=off"
+        );
 
-        // A bare level in the override's directives replaces the display as
-        // a whole too (e.g. an expanded `default=LEVEL` group directive).
+        // The two spellings are interchangeable in the display too: a bare
+        // override level replaces the `default=LEVEL` display directive and
+        // renders back as `default=LEVEL`.
         let filter = Filter::from_sources(
             FilterSource::with_display("info,g_a=off", "default=info,g_a=off"),
             None,
         );
         filter
-            .set_runtime_filter(FilterSource::with_display("trace", "default=trace"))
+            .set_runtime_filter(FilterSource::new("trace"))
             .unwrap();
-        assert!(filter.is_exposed("g_a", "m", Trace));
-        assert_eq!(filter.filter_string(), "default=trace");
+        assert!(!filter.is_exposed("g_a", "m", Warn));
+        assert!(filter.is_exposed("x", "m", Trace));
+        assert_eq!(filter.filter_string(), "g_a=off,default=trace");
 
         // Reset restores the startup directives.
         filter.reset_runtime_filter();
         assert_eq!(filter.filter_string(), filter.startup_filter_string());
         assert!(!filter.is_exposed("g_a", "m", Warn));
+    }
+
+    #[test]
+    fn default_pattern_replaces_only_the_global_default() {
+        use MetricLevel::{Trace, Warn};
+
+        // `default=LEVEL` (equally, a bare `LEVEL`) replaces the startup
+        // global default and leaves the other startup directives in place.
+        let filter = Filter::parse("info,g_a=off");
+        filter
+            .set_runtime_filter(FilterSource::new("default=trace"))
+            .unwrap();
+        assert!(!filter.is_exposed("g_a", "m", Warn));
+        assert!(filter.is_exposed("x", "m", Trace));
+        assert_eq!(filter.filter_string(), "g_a=off,default=trace");
+
+        // The same holds for the env source over the config's directives.
+        let filter = Filter::from_sources(
+            FilterSource::new("info,g_a=off"),
+            Some(FilterSource::new("default=trace")),
+        );
+        assert!(!filter.is_exposed("g_a", "m", Warn));
+        assert!(filter.is_exposed("x", "m", Trace));
+        assert_eq!(filter.startup_filter_string(), "g_a=off,default=trace");
+
+        // `default` matches as the global default, not as a module named
+        // "default": any real pattern is more specific.
+        let filter = Filter::parse("default=off,p2p=warn");
+        assert!(filter.is_exposed("x", "p2p::discovery", Warn));
+        assert!(!filter.is_exposed("x", "other_module", Warn));
     }
 
     #[test]
@@ -1365,11 +1413,11 @@ mod runtime_filter_tests {
         // always be POSTed back through the strict runtime setter.
         let filter = Filter::parse("foo=bogus, typed_store=warn ,info");
         let startup = filter.startup_filter_string();
-        assert_eq!(startup, "typed_store=warn,info");
+        assert_eq!(startup, "typed_store=warn,default=info");
         filter
             .set_runtime_filter(FilterSource::new(&startup))
             .unwrap();
-        assert_eq!(filter.filter_string(), "typed_store=warn,info");
+        assert_eq!(filter.filter_string(), "typed_store=warn,default=info");
     }
 
     #[test]

@@ -20,9 +20,9 @@
 //! - `debug` exposes everything except `trace`-tagged metrics;
 //! - `trace` exposes everything.
 //!
-//! Metrics whose module belongs to no group are covered by the `default`
-//! threshold (`info` unless configured), rendered as the leading catch-all
-//! directive.
+//! Metrics whose module belongs to no other group form the `default` group,
+//! covered by the `default` threshold (`info` unless configured), rendered
+//! as the leading `default=LEVEL` directive.
 //!
 //! The levels never affect collection: a filter-based group's metrics are
 //! registered and keep collecting regardless of the configured level.
@@ -282,12 +282,9 @@ impl MetricGroups {
         })
     }
 
-    /// Renders the levels into a `METRICS_FILTER`-style directive string: the
-    /// `default` threshold as the catch-all directive, then one directive per
-    /// group module (including the hardware group's). The group levels
-    /// override the catch-all for their modules, being more specific.
+    /// Renders the levels into a `METRICS_FILTER`-style directive string.
     pub fn to_filter_string(&self) -> String {
-        let mut directives = vec![level_string(self.default).to_owned()];
+        let mut directives = vec![format!("default={}", level_string(self.default))];
         for (level, modules) in self.group_modules() {
             for module in modules {
                 directives.push(format!("{module}={}", level_string(level)));
@@ -340,14 +337,12 @@ impl MetricGroups {
     fn expand_directive(part: &str) -> Result<Vec<String>, String> {
         prometheus_filtered::validate_directive(part)?;
         let (pattern, level) = prometheus_filtered::split_directive(part);
-        if pattern == "default" {
-            return Ok(vec![level.to_owned()]);
-        }
         Ok(match Self::modules_for_group(pattern) {
             Some(modules) => modules
                 .iter()
                 .map(|module| format!("{module}={level}"))
                 .collect(),
+            // A raw module path, metric-name prefix, or bare global level passes through unchanged.
             None => vec![part.to_owned()],
         })
     }
@@ -392,9 +387,9 @@ mod tests {
     fn metric_groups_default_trims_to_warn_tagged() {
         // The default (all groups `warn`) renders `{module}=warn` for every
         // group's modules, so only the `warn`-tagged metrics are exposed;
-        // non-grouped modules fall to the `info` catch-all.
+        // non-grouped modules fall to the `default` group's `info`.
         let filter_string = MetricGroups::default().to_filter_string();
-        assert!(filter_string.starts_with("info,"));
+        assert!(filter_string.starts_with("default=info,"));
         assert!(filter_string.contains("starfish_core=warn"));
         assert!(filter_string.contains("iota_core::execution_cache=warn"));
         assert!(filter_string.contains("iota_grpc_server=warn"));
@@ -435,7 +430,7 @@ mod tests {
             ..all_trace()
         };
         let filter_string = groups.to_filter_string();
-        assert!(filter_string.starts_with("trace,"));
+        assert!(filter_string.starts_with("default=trace,"));
         assert!(filter_string.contains("iota_core::execution_cache=warn"));
         assert!(filter_string.contains("iota_core::checkpoints=debug"));
         assert!(filter_string.contains("iota_core::epoch::epoch_metrics=off"));
@@ -447,9 +442,9 @@ mod tests {
         assert!(!filter.is_exposed("x", "iota_core::checkpoints", MetricLevel::Trace));
         assert!(!filter.is_exposed("x", "iota_core::epoch::epoch_metrics", MetricLevel::Warn));
         // `trace` groups expose everything — their directives are rendered,
-        // not skipped, so they are not clipped by the catch-all.
+        // not skipped, so they are not clipped by the `default` level.
         assert!(filter.is_exposed("x", "iota_core::quorum_driver", MetricLevel::Trace));
-        // Ungrouped modules follow the `default` catch-all (`trace` here).
+        // Ungrouped modules follow the `default` level (`trace` here).
         assert!(filter.is_exposed("x", "iota_node::some_module", MetricLevel::Trace));
     }
 
@@ -552,7 +547,9 @@ mod tests {
             "typed_store=warn,uptime=off,trace"
         );
         assert_eq!(MetricGroups::expand_directives("").unwrap(), "");
-        // The `default` group becomes the bare catch-all level.
+        // The reserved `default` pattern passes through unexpanded; it sets
+        // the `default` group's level and leaves the group directives in
+        // place.
         assert_eq!(
             MetricGroups::expand_directives("default=info,traffic-control=off").unwrap(),
             "info,iota_core::traffic_controller=off,iota_config::node_config_metrics=off"
@@ -599,6 +596,31 @@ mod tests {
         assert!(display.contains("hardware=off"), "{display}");
         assert!(display.contains("p2p=warn"), "{display}");
         assert!(!display.contains("runtime=warn"), "{display}");
+    }
+
+    #[test]
+    fn runtime_default_override_touches_only_ungrouped_modules() {
+        use prometheus_filtered::FilterSource;
+
+        // `default=LEVEL` raises the level of the ungrouped modules while
+        // every group keeps its configured level — the same meaning `default`
+        // has in the config's `metrics.groups` section.
+        let groups = MetricGroups::default();
+        let filter = prometheus_filtered::Filter::from_sources(
+            FilterSource::with_display(&groups.to_filter_string(), &groups.to_display_string()),
+            None,
+        );
+        let expanded = MetricGroups::expand_directives("default=trace").unwrap();
+        filter
+            .set_runtime_filter(FilterSource::with_display(&expanded, "default=trace"))
+            .unwrap();
+
+        assert!(filter.is_exposed("x", "iota_node::some_module", MetricLevel::Trace));
+        assert!(!filter.is_exposed("x", "starfish_core::metrics", MetricLevel::Info));
+        let display = filter.filter_string();
+        assert!(display.contains("default=trace"), "{display}");
+        assert!(display.contains("consensus=warn"), "{display}");
+        assert!(!display.contains("default=info"), "{display}");
     }
 
     #[test]

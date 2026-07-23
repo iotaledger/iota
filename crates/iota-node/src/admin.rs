@@ -90,8 +90,8 @@ use crate::IotaNode;
 // The override is merged over the startup directives: an override directive
 // replaces the startup directive with the same pattern, and otherwise the
 // most specific matching pattern decides each metric, whichever source it
-// came from. A bare level (e.g. `trace`) replaces the whole filter. Each
-// POST starts from the startup directives again rather than stacking on the
+// came from. Each POST
+// starts from the startup directives again rather than stacking on the
 // previous override.
 //
 //   $ curl -X POST 'http://127.0.0.1:1337/metrics/filters' -d 'consensus=off,typed_store=warn'
@@ -620,8 +620,10 @@ async fn get_metrics_filter(State(state): State<Arc<AppState>>) -> (StatusCode, 
         StatusCode::OK,
         format!(
             "metrics exposure filter:\n\
-             {}\n",
+             current: {}\n\
+             startup: {}\n",
             or_none(filter.filter_string()),
+            or_none(filter.startup_filter_string()),
         ),
     )
 }

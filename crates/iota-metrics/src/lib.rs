@@ -560,6 +560,8 @@ pub struct RegistryService {
     default_registry: Registry,
     registries_by_id: Arc<DashMap<Uuid, Registry>>,
     filter: Arc<Filter>,
+    /// Serializes filter updates and the reconciles they trigger.
+    reconcile_lock: Arc<Mutex<()>>,
 }
 
 impl RegistryService {
@@ -570,6 +572,7 @@ impl RegistryService {
             filter: default_registry.filter(),
             default_registry,
             registries_by_id: Arc::new(DashMap::new()),
+            reconcile_lock: Arc::new(Mutex::new(())),
         }
     }
 
@@ -597,13 +600,18 @@ impl RegistryService {
     // registry - we expected a removal to happen explicitly.
     pub fn add(&self, registry: Registry) -> RegistryID {
         let registry_id = Uuid::new_v4();
+        let _guard = self.reconcile_lock.lock();
         if self
             .registries_by_id
-            .insert(registry_id, registry)
+            .insert(registry_id, registry.clone())
             .is_some()
         {
             panic!("Other Registry already detected for the same id {registry_id}");
         }
+        // The registry may have been populated before a filter change whose
+        // reconcile pass could not see it yet; re-evaluate it now so its
+        // membership matches the filter currently in effect.
+        registry.reconcile();
 
         registry_id
     }
@@ -640,6 +648,7 @@ impl RegistryService {
         directives: &str,
         display: &str,
     ) -> std::result::Result<(), String> {
+        let _guard = self.reconcile_lock.lock();
         self.filter
             .set_runtime_filter(prometheus_filtered::FilterSource::with_display(
                 directives, display,
@@ -651,6 +660,7 @@ impl RegistryService {
     /// Drops the runtime override on the shared filter and reconciles every
     /// registry back to its startup exposure.
     pub fn reset_runtime_filter(&self) {
+        let _guard = self.reconcile_lock.lock();
         self.filter.reset_runtime_filter();
         self.reconcile_all();
     }
