@@ -164,7 +164,7 @@ impl PreConsensusSoftLocks {
         // again. Locks are released once consensus processes or drops the
         // transaction (or on submit failure), which is exactly when
         // resubmission becomes meaningful.
-        if Self::in_flight_elapsed(&inner, &tx_digest, now, ttl).is_some() {
+        if Self::is_in_flight(&inner, &tx_digest, now, ttl) {
             return Err(IotaError::RecentlyResubmitted { digest: tx_digest });
         }
 
@@ -310,7 +310,7 @@ impl PreConsensusSoftLocks {
             return false;
         }
         let inner = self.inner.lock();
-        Self::in_flight_elapsed(&inner, tx_digest, Instant::now(), self.lock_ttl).is_some()
+        Self::is_in_flight(&inner, tx_digest, Instant::now(), self.lock_ttl)
     }
 
     /// Drops all entries.  Called at epoch boundary.
@@ -365,29 +365,25 @@ impl PreConsensusSoftLocks {
 
     // -- private helpers -----------------------------------------------------
 
-    /// Returns the elapsed time since `tx_digest` acquired its locks if at
-    /// least one of them is still held by this digest and unexpired.
+    /// Returns whether `tx_digest` still holds at least one unexpired lock —
+    /// i.e. the transaction is in flight on this validator.
     ///
     /// Operates on the `Inner` already borrowed from the outer mutex so
     /// callers can combine the check with a mutation in one critical section.
-    fn in_flight_elapsed(
+    fn is_in_flight(
         inner: &Inner,
         tx_digest: &TransactionDigest,
         now: Instant,
         lock_ttl: Duration,
-    ) -> Option<Duration> {
-        inner
-            .tx_to_objects
-            .get(tx_digest)?
-            .iter()
-            .find_map(|obj_ref| {
-                let record = inner.locks.get(obj_ref)?;
-                if record.digest != *tx_digest {
-                    return None;
-                }
-                let elapsed = now.duration_since(record.acquired_at);
-                (elapsed < lock_ttl).then_some(elapsed)
+    ) -> bool {
+        let Some(obj_refs) = inner.tx_to_objects.get(tx_digest) else {
+            return false;
+        };
+        obj_refs.iter().any(|obj_ref| {
+            inner.locks.get(obj_ref).is_some_and(|record| {
+                record.digest == *tx_digest && now.duration_since(record.acquired_at) < lock_ttl
             })
+        })
     }
 
     /// Test-and-set a single object lock in the forward index.
