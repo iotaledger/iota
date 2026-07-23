@@ -70,9 +70,9 @@ pub fn verify_attestor_pubkey(pubkey: &[u8]) -> Result<(), u64> {
     let Some((&flag, key_bytes)) = pubkey.split_first() else {
         return Err(E_INVALID_ATTESTOR_PUBKEY);
     };
-    let scheme = SignatureScheme::from_flag_byte(&flag).map_err(|_| E_INVALID_ATTESTOR_PUBKEY)?;
+    let scheme = SignatureScheme::from_byte(flag).map_err(|_| E_INVALID_ATTESTOR_PUBKEY)?;
     match scheme {
-        SignatureScheme::ED25519 | SignatureScheme::Secp256k1 | SignatureScheme::Secp256r1 => {
+        SignatureScheme::Ed25519 | SignatureScheme::Secp256k1 | SignatureScheme::Secp256r1 => {
             PublicKey::try_from_bytes(scheme, key_bytes)
                 .map(|_| ())
                 .map_err(|_| E_INVALID_ATTESTOR_PUBKEY)
