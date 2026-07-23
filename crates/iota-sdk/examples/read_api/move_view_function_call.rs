@@ -23,7 +23,7 @@ use iota_json::IotaJsonValue;
 use iota_json_rpc_api::WriteApiClient;
 use iota_move_build::{BuildConfig, ProtocolBuildConfig};
 use iota_sdk::{
-    rpc_types::{IotaTypeTag, ObjectChange},
+    rpc_types::{IotaTransactionBlockEffectsAPI, IotaTypeTag, ObjectChange},
     types::{
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         transaction::{TransactionData, TransactionDataAPI},
@@ -43,7 +43,7 @@ async fn main() -> Result<(), anyhow::Error> {
         .await?
         .data[0]
         .coin_object_id;
-    let gas_budget = 50_000_000;
+    let gas_budget = 500_000_000;
 
     let package_path = [
         env!("CARGO_MANIFEST_DIR"),
@@ -78,6 +78,12 @@ async fn main() -> Result<(), anyhow::Error> {
         )
         .await?;
     let publish_response = sign_and_execute_transaction(&client, &sender, tx_data).await?;
+    if publish_response.status_ok() != Some(true) {
+        anyhow::bail!(
+            "publishing the package failed: {:?}",
+            publish_response.effects.map(|e| e.into_status())
+        );
+    }
 
     let object_changes = publish_response.object_changes.unwrap();
     let package_id = object_changes
