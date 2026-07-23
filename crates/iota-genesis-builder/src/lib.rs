@@ -298,6 +298,7 @@ impl Builder {
                         Delegations::new_for_validators_with_default_allocation(
                             self.validators.values().map(|v| v.info.iota_address()),
                             *delegator,
+                            self.parameters.protocol_version,
                         )
                     }
                     None => bail!("no delegator/s assigned with a migration"),
@@ -351,6 +352,7 @@ impl Builder {
             // Case 1.2
             TokenDistributionSchedule::new_for_validators_with_default_allocation(
                 self.validators.values().map(|v| v.info.iota_address()),
+                self.parameters.protocol_version,
             )
         } else {
             // Case 2.2
@@ -385,6 +387,7 @@ impl Builder {
         token_distribution_schedule
             .check_minimum_stake_for_validators(
                 self.validators.values().map(|v| v.info.iota_address()),
+                self.parameters.protocol_version,
             )
             .expect("all validators should have the required stake");
 
@@ -501,6 +504,7 @@ impl Builder {
             token_distribution_schedule.validate();
             token_distribution_schedule.check_minimum_stake_for_validators(
                 self.validators.values().map(|v| v.info.iota_address()),
+                self.parameters.protocol_version,
             )?;
         }
 
@@ -1816,6 +1820,7 @@ mod test {
         local_ip_utils,
         node::{DEFAULT_COMMISSION_RATE, DEFAULT_VALIDATOR_GAS_PRICE},
     };
+    use iota_protocol_config::ProtocolVersion;
     use iota_sdk_types::Address;
     use iota_types::{
         base_types::address_from_iota_pub_key,
@@ -1829,10 +1834,12 @@ mod test {
 
     #[test]
     fn allocation_csv() {
-        let schedule = TokenDistributionSchedule::new_for_validators_with_default_allocation([
-            Address::random(),
-            Address::random(),
-        ]);
+        // No genesis is being built in this test, so there is no protocol version to
+        // thread through; use the current version.
+        let schedule = TokenDistributionSchedule::new_for_validators_with_default_allocation(
+            [Address::random(), Address::random()],
+            ProtocolVersion::MAX,
+        );
         let mut output = Vec::new();
 
         schedule.to_csv(&mut output).unwrap();
