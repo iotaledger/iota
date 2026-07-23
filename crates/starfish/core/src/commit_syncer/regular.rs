@@ -585,7 +585,7 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
                     // errors (wrong count/ref) which classify as Untracked. When
                     // per-header faults become observable here, record them as peer
                     // misbehavior via
-                    // `inner.misbehavior_store.record_faulty_block_header`.
+                    // `inner.misbehavior_store.record_faulty_block`.
                     verify_fetched_headers(
                         target_authority,
                         request_block_refs,

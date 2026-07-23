@@ -26,8 +26,9 @@ use iota_json_rpc_types::{
 use iota_open_rpc::ExamplePairing;
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_sdk_types::{
-    Address, CheckpointDigest, Identifier, ObjectDigest, ObjectId, ObjectReference, Owner,
-    StructTag, TransactionDigest, TransactionEventsDigest, TypeTag, Version, gas::GasCostSummary,
+    Address, CheckpointDigest, Identifier, MoveStruct, ObjectDigest, ObjectId, ObjectReference,
+    Owner, StructTag, TransactionDigest, TransactionEventsDigest, TypeTag, Version,
+    gas::GasCostSummary,
 };
 use iota_types::{
     balance::Supply,
@@ -39,7 +40,7 @@ use iota_types::{
     gas_coin::GasCoin,
     id::UID,
     iota_sdk_types_conversions::struct_tag_sdk_to_core,
-    object::{MoveObject, MoveObjectExt},
+    object::MoveStructExt,
     parse_iota_struct_tag,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::ExecuteTransactionRequestType,
@@ -1200,7 +1201,7 @@ impl RpcExampleProvider {
             content: Some(
                 IotaParsedData::try_from_object(
                     {
-                        MoveObject::new_from_execution_with_limit(
+                        MoveStruct::new_from_execution_with_limit(
                             struct_tag.clone(),
                             Version::from_u64(1),
                             contents,

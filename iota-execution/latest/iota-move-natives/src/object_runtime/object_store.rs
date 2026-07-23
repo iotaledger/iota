@@ -8,13 +8,10 @@ use std::{
 };
 
 use iota_protocol_config::{LimitThresholdCrossed, ProtocolConfig, check_limit_by_meter};
-use iota_sdk_types::{ObjectData, ObjectId, Owner, StructTag, Version};
+use iota_sdk_types::{MoveStruct, ObjectData, ObjectId, Owner, StructTag, Version};
 use iota_types::{
-    committee::EpochId,
-    error::VMMemoryLimitExceededSubStatusCode,
-    execution::DynamicallyLoadedObjectMetadata,
-    metrics::LimitsMetrics,
-    object::{MoveObject, Object},
+    committee::EpochId, error::VMMemoryLimitExceededSubStatusCode,
+    execution::DynamicallyLoadedObjectMetadata, metrics::LimitsMetrics, object::Object,
     storage::ChildObjectResolver,
 };
 use move_binary_format::errors::{PartialVMError, PartialVMResult};
@@ -190,7 +187,7 @@ impl Inner<'_> {
         owner: ObjectId,
         child: ObjectId,
         version: Version,
-    ) -> PartialVMResult<LoadedWithMetadataResult<MoveObject>> {
+    ) -> PartialVMResult<LoadedWithMetadataResult<MoveStruct>> {
         let child_opt = self
             .resolver
             .get_object_received_at_version(&owner, &child, version, self.current_epoch_id)
@@ -241,7 +238,7 @@ impl Inner<'_> {
                         ),
                     ));
                 }
-                ObjectData::Struct(mo @ MoveObject { .. }) => Some((mo, loaded_metadata)),
+                ObjectData::Struct(mo @ MoveStruct { .. }) => Some((mo, loaded_metadata)),
             }
         } else {
             None
@@ -253,7 +250,7 @@ impl Inner<'_> {
         &mut self,
         parent: ObjectId,
         child: ObjectId,
-    ) -> PartialVMResult<Option<&MoveObject>> {
+    ) -> PartialVMResult<Option<&MoveStruct>> {
         let cached_objects_count = self.cached_objects.len() as u64;
         let parents_root_version = self.root_version.get(&parent).copied();
         let had_parent_root_version = parents_root_version.is_some();
@@ -387,7 +384,7 @@ impl Inner<'_> {
 }
 
 fn deserialize_move_object(
-    obj: &MoveObject,
+    obj: &MoveStruct,
     child_ty: &Type,
     child_ty_layout: &R::MoveTypeLayout,
     child_struct_tag: StructTag,

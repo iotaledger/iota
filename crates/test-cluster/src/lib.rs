@@ -31,7 +31,7 @@ use iota_json_rpc_types::{
 };
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore, Keystore};
 use iota_node::IotaNodeHandle;
-use iota_protocol_config::{Chain, ProtocolVersion};
+use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_sdk::{
     IotaClient, IotaClientBuilder,
     apis::QuorumDriverApi,
@@ -57,7 +57,6 @@ use iota_types::{
     crypto::{AccountKeyPair, IotaKeyPair, get_key_pair},
     effects::{TransactionEffects, TransactionEvents},
     error::IotaResult,
-    governance::MIN_VALIDATOR_JOINING_STAKE_NANOS,
     iota_system_state::{
         IotaSystemState, IotaSystemStateTrait,
         epoch_start_iota_system_state::EpochStartSystemStateTrait,
@@ -555,6 +554,12 @@ impl TestCluster {
             })
             .max()
             .expect("at least one node must be up to get highest protocol version")
+    }
+
+    /// The protocol config for the highest observed protocol version in the
+    /// test cluster.
+    pub fn protocol_config(&self) -> ProtocolConfig {
+        ProtocolConfig::get_for_version(self.highest_protocol_version(), Chain::Unknown)
     }
 
     pub async fn test_transaction_builder(&self) -> TestTransactionBuilder {
@@ -1195,11 +1200,15 @@ impl TestClusterBuilder {
         mut self,
         addresses: impl IntoIterator<Item = Address>,
     ) -> Self {
+        let min_validator_joining_stake = self
+            .get_or_init_genesis_config()
+            .protocol_config()
+            .min_validator_joining_stake();
         self.get_or_init_genesis_config()
             .accounts
             .extend(addresses.into_iter().map(|address| AccountConfig {
                 address: Some(address),
-                gas_amounts: vec![DEFAULT_GAS_AMOUNT, MIN_VALIDATOR_JOINING_STAKE_NANOS],
+                gas_amounts: vec![DEFAULT_GAS_AMOUNT, min_validator_joining_stake],
             }));
         self
     }

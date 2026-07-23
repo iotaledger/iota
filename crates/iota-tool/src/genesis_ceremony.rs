@@ -144,6 +144,14 @@ pub async fn run(cmd: Ceremony) -> Result<()> {
 
     let protocol_version = ProtocolVersion::new(cmd.protocol_version);
 
+    if protocol_version.as_u64() < 32 {
+        bail!(
+            "the current framework requires protocol version >= 32: validator parameters live \
+             in the protocol config (got {})",
+            protocol_version.as_u64()
+        );
+    }
+
     match cmd.command {
         CeremonyCommand::Init => {
             let builder = Builder::new().with_protocol_version(protocol_version);

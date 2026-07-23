@@ -6,7 +6,7 @@
 
 use anyhow::anyhow;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{Address, ObjectData, ObjectId, Owner, Version};
+use iota_sdk_types::{Address, MoveStruct, ObjectData, ObjectId, Owner, Version};
 use iota_stardust_types::block::output::{
     NftOutput as StardustNft, feature::Irc27Metadata as StardustIrc27,
 };
@@ -15,7 +15,7 @@ use iota_types::{
     base_types::TxContext,
     collection_types::{Bag, Entry, VecMap},
     id::UID,
-    object::{MoveObject, MoveObjectExt, Object},
+    object::{MoveStructExt, Object},
     stardust::{
         coin_type::CoinType,
         output::{
@@ -258,7 +258,7 @@ impl NftExt for Nft {
     ) -> anyhow::Result<Object> {
         // Construct the Nft object.
         let move_nft_object = {
-            MoveObject::new_from_execution(
+            MoveStruct::new_from_execution(
                 Nft::tag(),
                 version,
                 bcs::to_bytes(&self)?,
@@ -336,7 +336,7 @@ impl NftOutputExt for NftOutput {
     ) -> anyhow::Result<Object> {
         // Construct the Nft Output object.
         let move_nft_output_object = {
-            MoveObject::new_from_execution(
+            MoveStruct::new_from_execution(
                 NftOutput::tag(coin_type.to_type_tag()),
                 version,
                 bcs::to_bytes(&self)?,

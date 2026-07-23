@@ -29,8 +29,9 @@ use test_cluster::TestClusterBuilder;
 /// This test uses the TestCluster which has limitations on how the validators
 /// can be set up. Only the validator committee size can be changed, but not
 /// their initial stakes, so this complicates the test a little. We use the
-/// default number of 4 validators and their initial stake of
-/// VALIDATOR_LOW_STAKE_THRESHOLD_NANOS. Note that in this case, each validator
+/// default number of 4 validators and their initial stake of the
+/// `validator_low_stake_threshold` protocol config parameter. Note that in
+/// this case, each validator
 /// has 25% of the total voting power which results in each pool getting 25% of
 /// the subsidy. In order to get the total stake up to the 3.5B IOTA, we
 /// would have to add that amount of stake to *each* pool. But: APY is
