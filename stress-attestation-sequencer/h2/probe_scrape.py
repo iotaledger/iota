@@ -14,9 +14,10 @@ across validators, and derives:
     value (`_sum` accumulates exact values; no bucket rounding). Reported for
     both `attested_computation_units` and `actual_computation_units`; they should
     match (attestation predicts the cost exactly for these transactions).
-  - internal execution time (`authority_state_internal_execution_latency`, pure
-    post-consensus VM execution): mean = Δ_sum / Δ_count (exact), std estimated
-    from the histogram bucket deltas (bucket-resolution), sem = std / sqrt(N).
+  - internal execution time (`authority_state_internal_execution_latency_user`,
+    pure post-consensus VM execution, user transactions only): mean =
+    Δ_sum / Δ_count (exact), std estimated from the histogram bucket deltas
+    (bucket-resolution), sem = std / sqrt(N).
 
 Pure stdlib (urllib/json) — runs on system python3, no venv. Mirrors the
 query/reset-trim approach of ../h1/dump_timeseries.py.
@@ -36,7 +37,11 @@ import sys
 import urllib.parse
 import urllib.request
 
-EXEC = "authority_state_internal_execution_latency"  # seconds; pure VM execution
+# Seconds; pure post-consensus execution, USER transactions only. The plain
+# (non-_user) histogram pools system transactions (commit prologues etc.) that
+# run continuously at ~100/s across the network and dwarf the ~500 spam
+# observations, dragging the mean toward their ~0.2 ms cost.
+EXEC = "authority_state_internal_execution_latency_user"
 ATTESTED = "attested_computation_units"  # scheduling input (gas units)
 ACTUAL = "actual_computation_units"  # measured after execution (gas units)
 

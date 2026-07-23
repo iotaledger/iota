@@ -144,11 +144,13 @@ wait_for_fullnode() {
   exit 1
 }
 
-# Pooled executed-tx counter across all scraped nodes; empty until Prometheus
-# has scraped at least one node exposing it.
+# Pooled executed USER-tx counter across all scraped nodes; empty until
+# Prometheus has scraped at least one node exposing it. Must be the user-only
+# histogram: the all-tx counter advances forever on background system
+# transactions (commit prologues etc.), so it never goes quiet.
 exec_count() {
   curl -sG --max-time 5 "$PROM/api/v1/query" \
-    --data-urlencode 'query=sum(authority_state_internal_execution_latency_count)' |
+    --data-urlencode 'query=sum(authority_state_internal_execution_latency_user_count)' |
     python3 -c 'import json,sys
 r = json.load(sys.stdin).get("data", {}).get("result", [])
 print(r[0]["value"][1] if r else "")' 2>/dev/null
