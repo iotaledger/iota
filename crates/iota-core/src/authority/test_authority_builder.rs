@@ -333,7 +333,7 @@ impl<'a> TestAuthorityBuilder<'a> {
         let index_store = if self.disable_indexer {
             None
         } else {
-            Some(Arc::new(
+            Some(
                 IndexStore::new(
                     storage_dir.join("indexes"),
                     &registry,
@@ -346,7 +346,7 @@ impl<'a> TestAuthorityBuilder<'a> {
                     cache_traits.backing_package_store.clone(),
                 )
                 .await,
-            ))
+            )
         };
         let grpc_indexes_store = if self.disable_indexer {
             None
