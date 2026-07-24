@@ -110,23 +110,31 @@ impl StoredDisplay {
     }
 }
 
-/// Extracts, from a `0x2::display::DisplayCreated<T>` event, the canonical
-/// name of `T` together with the `ObjectId` of the created `Display<T>`
-/// object.
+/// Extracts the canonical name of `T` from the type of a
+/// `0x2::display::DisplayCreated<T>` event, without touching the event
+/// contents.
 ///
 /// Returns `None` if the provided event is of a different type.
-pub fn display_type_and_id_from_event(event: &Event) -> Option<(String, ObjectId)> {
+pub fn displayed_type_from_created_event(event: &Event) -> Option<String> {
     if !event.type_.is_display_created() {
         return None;
     }
     let [TypeTag::Struct(displayed_type)] = event.type_.type_params() else {
         return None;
     };
+    Some(displayed_type.to_canonical_string(/* with_prefix */ true))
+}
+
+/// Extracts the `ObjectId` of the created `Display<T>` object from the
+/// contents of a `0x2::display::DisplayCreated<T>` event.
+///
+/// Returns `None` if the provided event is of a different type.
+pub fn display_id_from_created_event(event: &Event) -> Option<ObjectId> {
+    if !event.type_.is_display_created() {
+        return None;
+    }
     let created_event: ID = bcs::from_bytes(&event.contents).ok()?;
-    Some((
-        displayed_type.to_canonical_string(/* with_prefix */ true),
-        created_event.bytes,
-    ))
+    Some(created_event.bytes)
 }
 
 /// Returns whether `struct_tag` is of `0x2::display::Display` type.
@@ -161,7 +169,7 @@ mod tests {
     }
 
     #[test]
-    fn parse_display_created_event_extracts_type_and_id() {
+    fn display_created_event_helpers_extract_type_and_id() {
         let displayed_type = displayed_type();
         let display_id = ObjectId::random();
         let event = display_event(
@@ -170,17 +178,19 @@ mod tests {
         );
 
         assert_eq!(
-            display_type_and_id_from_event(&event),
-            Some((displayed_type.to_canonical_string(true), display_id))
+            displayed_type_from_created_event(&event),
+            Some(displayed_type.to_canonical_string(true))
         );
+        assert_eq!(display_id_from_created_event(&event), Some(display_id));
     }
 
     #[test]
-    fn parse_display_created_event_ignores_other_events() {
+    fn display_created_event_helpers_ignore_other_events() {
         let event = display_event(
             StructTag::new_display_version_updated(displayed_type()),
             vec![],
         );
-        assert_eq!(display_type_and_id_from_event(&event), None);
+        assert_eq!(displayed_type_from_created_event(&event), None);
+        assert_eq!(display_id_from_created_event(&event), None);
     }
 }

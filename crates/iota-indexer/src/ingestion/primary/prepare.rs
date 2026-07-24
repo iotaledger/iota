@@ -37,7 +37,9 @@ use crate::{
     },
     metrics::IndexerMetrics,
     models::{
-        display::{StoredDisplay, display_type_and_id_from_event},
+        display::{
+            StoredDisplay, display_id_from_created_event, displayed_type_from_created_event,
+        },
         epoch::{EndOfEpochUpdate, StartOfEpochUpdate, extract_epoch_info_event},
         obj_indices::StoredObjectVersion,
         objects::StoredBackwardHistoryObject,
@@ -412,15 +414,21 @@ impl PrimaryWorker {
         // `display::new` only emits a `DisplayCreated` event with no fields. If an
         // author creates a `Display<T>` but never calls `update_version`, it wouldn't
         // get indexed normally. To prevent this, we fall back to the contents of the
-        // created object itself, while ensuring `VersionUpdated` events still take
-        // precedence.
-        for (object_type, display_id) in events.iter().filter_map(display_type_and_id_from_event) {
+        // created object itself for types with no `VersionUpdated` event in this
+        // transaction.
+        for event in events.iter() {
+            let Some(object_type) = displayed_type_from_created_event(event) else {
+                continue;
+            };
             if db_displays.contains_key(&object_type) {
                 continue;
             }
-            if let Some(display) = output_objects
-                .iter()
-                .find(|object| object.id() == display_id)
+            if let Some(display) = display_id_from_created_event(event)
+                .and_then(|display_id| {
+                    output_objects
+                        .iter()
+                        .find(|object| object.id() == display_id)
+                })
                 .and_then(StoredDisplay::try_from_object)
             {
                 db_displays.insert(object_type, display);
