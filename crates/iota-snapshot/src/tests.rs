@@ -23,6 +23,7 @@ use iota_core::{
     checkpoints::CheckpointStore,
     global_state_hasher::GlobalStateHasher,
     grpc_indexes::{GRPC_INDEXES_DIR, GrpcIndexesStore, OwnerTypeFilter},
+    jsonrpc_index::{IndexStore, JsonRpcIndexRestorer},
 };
 use iota_sdk_types::{
     Address, CheckpointCommitment, CheckpointDigest, GasCostSummary, ObjectId, TransactionDigest,
@@ -49,8 +50,8 @@ use prometheus_filtered::Registry;
 use crate::{
     EPOCH_INFO_FILE_MAGIC, EpochInfo, EpochInfoV1, EpochInfoV1Entry, FileCompression, FileMetadata,
     FileType, MAGIC_BYTES, MANIFEST_FILE_MAGIC, Manifest, ManifestV2, OBJECT_REF_BYTES,
-    reader::StateSnapshotReaderV1, restore::RestoreWithGrpcIndexes,
-    uploader::StateSnapshotUploader, verify_epoch_info_chain, writer::StateSnapshotWriterV1,
+    reader::StateSnapshotReaderV1, restore::RestoreWithIndexes, uploader::StateSnapshotUploader,
+    verify_epoch_info_chain, writer::StateSnapshotWriterV1,
 };
 
 /// A fresh `CheckpointStore` seeded with fully-populated `epoch_info` rows for
@@ -543,13 +544,13 @@ async fn snapshot_epoch_info_round_trip() -> Result<(), anyhow::Error> {
     epoch_info_round_trip(dir.path(), 2).await
 }
 
-/// Restoring through [`RestoreWithGrpcIndexes`] must build the gRPC
+/// Restoring through [`RestoreWithIndexes`] must build the gRPC and JSON-RPC
 /// live-state indexes from the same object stream that fills the perpetual
 /// tables: the restored live object set matches the source, address-owned
-/// objects come back owner-indexed, and `finalize_restore` leaves the store
-/// initialized.
+/// objects come back owner-indexed in both stores, and the finalize steps
+/// leave the stores initialized.
 #[tokio::test]
-async fn snapshot_restore_builds_grpc_indexes() -> Result<(), anyhow::Error> {
+async fn snapshot_restore_builds_index_stores() -> Result<(), anyhow::Error> {
     let dir = iota_common::tempdir();
     let tmp_dir = dir.path();
 
@@ -612,10 +613,15 @@ async fn snapshot_restore_builds_grpc_indexes() -> Result<(), anyhow::Error> {
     let restored_perpetual_db = AuthorityPerpetualTables::open(&tmp_dir.join("restored_db"), None);
     let restored_grpc = GrpcIndexesStore::new_without_init(tmp_dir.join(GRPC_INDEXES_DIR));
     let grpc_restorer = restored_grpc.live_object_restorer(100);
+    let restored_jsonrpc = JsonRpcIndexRestorer::open(tmp_dir.join("indexes"))?;
     let (_abort_handle, abort_registration) = AbortHandle::new_pair();
     snapshot_reader
         .read_to_db(
-            &RestoreWithGrpcIndexes::new(&restored_perpetual_db, &grpc_restorer),
+            &RestoreWithIndexes::new(
+                &restored_perpetual_db,
+                Some(&grpc_restorer),
+                Some(&restored_jsonrpc),
+            ),
             abort_registration,
             None,
         )
@@ -632,10 +638,25 @@ async fn snapshot_restore_builds_grpc_indexes() -> Result<(), anyhow::Error> {
         .collect::<Result<_, _>>()?;
     assert_eq!(restored_ids, owned_ids);
 
-    // Finalize the restored store. The chain-verify + epoch-row seed step
-    // needs a real boundary's proof bundle and is exercised in
+    // Finalize the restored stores. The gRPC chain-verify + epoch-row seed
+    // step needs a real boundary's proof bundle and is exercised in
     // `iota-e2e-tests`.
     restored_grpc.finalize_restore(0)?;
+    restored_jsonrpc.finalize(0).await?;
+
+    // Every address-owned object is owner-indexed in the restored JSON-RPC
+    // store as well.
+    let restored_jsonrpc = IndexStore::new_without_init(
+        tmp_dir.join("indexes"),
+        &prometheus_filtered::Registry::default(),
+        Some(128),
+    );
+    let restored_ids: HashSet<ObjectId> = restored_jsonrpc
+        .get_owner_objects(owner, None, 10, None)?
+        .into_iter()
+        .map(|info| info.object_id)
+        .collect();
+    assert_eq!(restored_ids, owned_ids);
     Ok(())
 }
 

@@ -19,9 +19,7 @@ use std::{
 use bincode::Options;
 use either::Either;
 use iota_common::try_iterator_ext::TryIteratorExt;
-use iota_execution::Executor;
 use iota_json_rpc_types::{IotaMoveValue, IotaObjectDataFilter, TransactionFilter};
-use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_sdk_types::{
     Address, ObjectDigest, ObjectId, ObjectReference, Owner, StructTag, TransactionDigest,
     TransactionEffects, TransactionEvents, TransactionEventsDigest, TypeTag, Version,
@@ -29,18 +27,17 @@ use iota_sdk_types::{
 use iota_storage::{mutex_table::MutexTable, sharded_lru::ShardedLruCache};
 use iota_types::{
     base_types::{ObjectInfo, TxSequenceNumber},
-    dynamic_field::{self, DynamicFieldInfo, DynamicFieldName, visitor as DFV},
+    dynamic_field::{DynamicFieldInfo, DynamicFieldName, visitor as DFV},
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
     error::{IotaError, IotaResult, UserInputError},
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     inner_temporary_store::TxCoins,
     iota_sdk_types_conversions::type_tag_core_to_sdk,
-    iota_system_state::{IotaSystemStateTrait, get_iota_system_state},
     layout_resolver::LayoutResolver,
     messages_checkpoint::{CheckpointContentsExt, CheckpointSequenceNumber},
     object::{Object, bounded_visitor::BoundedVisitor},
     parse_iota_struct_tag,
-    storage::{BackingPackageStore, ObjectStore, PackageObject, error::Error as StorageError},
+    storage::{ObjectStore, error::Error as StorageError},
     transaction::{TransactionAPI, TransactionEnvelope},
 };
 use itertools::Itertools;
@@ -65,7 +62,7 @@ use typed_store::{
 };
 
 use crate::{
-    authority::{AuthorityStore, authority_per_epoch_store::AuthorityPerEpochStore},
+    authority::AuthorityStore,
     checkpoints::CheckpointStore,
     par_index_live_object_set::{LiveObjectIndexer, ParMakeLiveObjectIndexer},
 };
@@ -107,7 +104,7 @@ pub struct ObjectIndexChanges {
     pub deleted_owners: Vec<OwnerIndexKey>,
     pub deleted_dynamic_fields: Vec<DynamicFieldKey>,
     pub new_owners: Vec<(OwnerIndexKey, ObjectInfo)>,
-    pub new_dynamic_fields: Vec<(DynamicFieldKey, DynamicFieldInfo)>,
+    pub new_dynamic_fields: Vec<DynamicFieldKey>,
 }
 
 /// Per-transaction inputs for the history tables of the index batch. Unlike
@@ -279,12 +276,13 @@ pub struct IndexStoreTables {
 
     coin_index: DBMap<CoinIndexKey, CoinInfo>,
 
-    /// This is an index of object references to currently existing dynamic
-    /// field object, indexed by the composite key of the object ID of their
-    /// parent and the object ID of the dynamic field object. This composite
-    /// index allows an efficient iterator to list all objects currently owned
-    /// by a specific object, and their object reference.
-    dynamic_field_index: DBMap<DynamicFieldKey, DynamicFieldInfo>,
+    /// An index of the currently existing dynamic fields, keyed by the
+    /// object ID of their parent and the object ID of the `Field` object.
+    /// Allows an efficient iterator to list all dynamic fields of a specific
+    /// parent. Only the key is stored; field metadata is resolved on demand
+    /// from the object store at query time, so indexing needs no layout
+    /// resolution.
+    dynamic_field_index: DBMap<DynamicFieldKey, ()>,
 
     event_order: DBMap<EventId, EventIndex>,
 
@@ -308,6 +306,25 @@ impl IndexStoreTables {
 
     pub fn coin_index(&self) -> &DBMap<CoinIndexKey, CoinInfo> {
         &self.coin_index
+    }
+
+    /// Opens the tables with tuned bulk-ingestion options (WAL disabled,
+    /// unordered writes) for a full rebuild or a formal-snapshot restore.
+    /// Writes must be flushed before the database closes, and serving
+    /// queries requires a reopen with default options.
+    fn open_for_bulk_ingestion(path: PathBuf) -> Self {
+        let bulk_options = bulk_ingestion_options();
+        // Apply the per-column-family bulk options to every table.
+        let mut table_config = BTreeMap::new();
+        for table_name in Self::describe_tables().into_keys() {
+            table_config.insert(table_name, bulk_options.column_family_options.clone());
+        }
+        Self::open_tables_read_write(
+            path,
+            MetricConf::new("index"),
+            Some(bulk_options.db_options),
+            Some(DBMapTableConfigMap::new(table_config)),
+        )
     }
 
     /// Seeds the `meta` row on the first open of an empty database, so a
@@ -363,8 +380,6 @@ impl IndexStoreTables {
         &mut self,
         authority_store: &AuthorityStore,
         checkpoint_store: &CheckpointStore,
-        epoch_store: &AuthorityPerEpochStore,
-        package_store: &Arc<dyn BackingPackageStore + Send + Sync>,
         batch_size_limit: usize,
     ) -> Result<(), StorageError> {
         info!("Initializing JSON-RPC indexes");
@@ -384,12 +399,7 @@ impl IndexStoreTables {
         // Live-state tables from the current live object set. The history
         // tables are not built here: `backfill_history` fills them in the
         // background once the node is up, resuming from `history_watermark`.
-        self.index_live_object_set(
-            authority_store,
-            epoch_store.executor(),
-            package_store,
-            batch_size_limit,
-        )?;
+        self.index_live_object_set(authority_store, batch_size_limit)?;
 
         self.history_watermark.insert(
             &(),
@@ -516,15 +526,10 @@ impl IndexStoreTables {
     fn index_live_object_set(
         &self,
         authority_store: &AuthorityStore,
-        executor: &Arc<dyn Executor + Send + Sync>,
-        package_store: &Arc<dyn BackingPackageStore + Send + Sync>,
         batch_size_limit: usize,
     ) -> Result<(), StorageError> {
         let indexer = JsonRpcLiveObjectSetIndexer {
             tables: self,
-            authority_store,
-            executor,
-            package_store,
             batch_size_limit,
         };
         crate::par_index_live_object_set::par_index_live_object_set(authority_store, &indexer)
@@ -760,7 +765,10 @@ impl IndexStoreTables {
 
         batch.insert_batch(
             &self.dynamic_field_index,
-            object_index_changes.new_dynamic_fields,
+            object_index_changes
+                .new_dynamic_fields
+                .into_iter()
+                .map(|key| (key, ())),
         )?;
 
         Ok(())
@@ -917,13 +925,7 @@ fn transaction_coins(tx: &CheckpointTransaction) -> TxCoins {
     (input_coins, written_coins)
 }
 
-fn process_object_index(
-    tx: &CheckpointTransaction,
-    object_store: &dyn ObjectStore,
-    layout_resolver: &mut dyn LayoutResolver,
-) -> IotaResult<ObjectIndexChanges> {
-    let written: BTreeMap<_, _> = tx.output_objects.iter().map(|o| (o.id(), o)).collect();
-
+fn process_object_index(tx: &CheckpointTransaction) -> ObjectIndexChanges {
     let mut deleted_owners = vec![];
     let mut deleted_dynamic_fields = vec![];
     for removed_object in tx.removed_objects_pre_version() {
@@ -962,40 +964,38 @@ fn process_object_index(
                 new_owners.push(((addr, object.id()), ObjectInfo::from_object(object)));
             }
             Owner::Object(parent) => {
-                let Some(df_info) = try_create_dynamic_field_info(
-                    object,
-                    &written,
-                    object_store,
-                    layout_resolver,
-                )
-                .unwrap_or_else(|e| {
-                    error!(
-                        "try_create_dynamic_field_info should not fail, {}, new_object={:?}",
-                        e, object
-                    );
-                    None
-                }) else {
-                    // Skip indexing for non dynamic field objects.
-                    continue;
-                };
-                new_dynamic_fields.push(((parent, object.id()), df_info))
+                if is_dynamic_field(object) {
+                    new_dynamic_fields.push((parent, object.id()))
+                }
             }
             Owner::Shared(_) | Owner::Immutable => {}
             _ => unimplemented!("a new Owner enum variant was added and needs to be handled"),
         }
     }
 
-    Ok(ObjectIndexChanges {
+    ObjectIndexChanges {
         deleted_owners,
         deleted_dynamic_fields,
         new_owners,
         new_dynamic_fields,
-    })
+    }
 }
 
+/// Whether the object is a `Field` object of a dynamic field — the only
+/// objects the dynamic-field index stores.
+fn is_dynamic_field(object: &Object) -> bool {
+    object
+        .data
+        .as_opt_struct()
+        .is_some_and(|move_object| move_object.struct_tag().is_dynamic_field())
+}
+
+/// Resolves a `Field` object into the [`DynamicFieldInfo`] served by the
+/// JSON-RPC API. Runs at query time — the index stores only the field keys.
+/// Returns `None` when `o` is not a `Field` object or its layout cannot be
+/// resolved.
 pub(crate) fn try_create_dynamic_field_info(
     o: &Object,
-    written: &BTreeMap<ObjectId, &Object>,
     object_store: &dyn ObjectStore,
     resolver: &mut dyn LayoutResolver,
 ) -> IotaResult<Option<DynamicFieldInfo>> {
@@ -1004,7 +1004,7 @@ pub(crate) fn try_create_dynamic_field_info(
         return Ok(None);
     };
 
-    // We only index dynamic field objects
+    // Only dynamic field objects are resolvable
     if !move_object.struct_tag().is_dynamic_field() {
         return Ok(None);
     }
@@ -1065,33 +1065,22 @@ pub(crate) fn try_create_dynamic_field_info(
             // Find the actual object from storage using the object id obtained from the
             // wrapper.
 
-            // Try to find the object in the written objects first.
-            let (version, digest, object_type) = if let Some(object) = written.get(&object_id) {
-                (
-                    object.version(),
-                    object.digest(),
-                    object.data.opt_object_type().unwrap().clone(),
-                )
-            } else {
-                // If not found, try to find it in the database. The child is
-                // written at the wrapper's version when the field is added,
-                // but that historic version may since have been pruned; the
-                // child of a live field is itself live, so fall back to its
-                // latest version.
-                let object = match object_store.try_get_object_by_key(&object_id, o.version())? {
-                    Some(object) => object,
-                    None => object_store.try_get_object(&object_id)?.ok_or(
-                        UserInputError::ObjectNotFound {
-                            object_id,
-                            version: None,
-                        },
-                    )?,
-                };
-                let version = object.version();
-                let digest = object.digest();
-                let object_type = object.data.opt_object_type().unwrap().clone();
-                (version, digest, object_type)
+            // The child is written at the wrapper's version when the field
+            // is added, but that historic version may since have been
+            // pruned; the child of a live field is itself live, so fall
+            // back to its latest version.
+            let object = match object_store.try_get_object_by_key(&object_id, o.version())? {
+                Some(object) => object,
+                None => object_store.try_get_object(&object_id)?.ok_or(
+                    UserInputError::ObjectNotFound {
+                        object_id,
+                        version: None,
+                    },
+                )?,
             };
+            let version = object.version();
+            let digest = object.digest();
+            let object_type = object.data.opt_object_type().unwrap().clone();
 
             DynamicFieldInfo {
                 name,
@@ -1106,24 +1095,10 @@ pub(crate) fn try_create_dynamic_field_info(
     }))
 }
 
-/// Serves package objects straight from the object store — for the restore
-/// build, where no execution cache exists. Packages are immutable live
-/// objects, so the latest version is the only version.
-struct PackagesFromObjectStore(Arc<AuthorityStore>);
-
-impl BackingPackageStore for PackagesFromObjectStore {
-    fn get_package_object(&self, package_id: &ObjectId) -> IotaResult<Option<PackageObject>> {
-        Ok(self.0.try_get_object(package_id)?.map(PackageObject::new))
-    }
-}
-
 /// Builds the live-state indexes (owner, coin, dynamic field) from a parallel
 /// scan of the live object set during `init`.
 struct JsonRpcLiveObjectSetIndexer<'a> {
     tables: &'a IndexStoreTables,
-    authority_store: &'a AuthorityStore,
-    executor: &'a Arc<dyn Executor + Send + Sync>,
-    package_store: &'a Arc<dyn BackingPackageStore + Send + Sync>,
     batch_size_limit: usize,
 }
 
@@ -1137,21 +1112,16 @@ impl ParMakeLiveObjectIndexer for JsonRpcLiveObjectSetIndexer<'_> {
         JsonRpcLiveObjectIndexer {
             tables: self.tables,
             batch: self.tables.owner_index.batch(),
-            object_store: self.authority_store,
-            layout_resolver: self
-                .executor
-                .type_layout_resolver(Box::new(self.package_store.clone())),
             batch_size_limit: self.batch_size_limit,
         }
     }
 }
 
-/// One worker's indexer within a [`JsonRpcLiveObjectSetIndexer`] run.
+/// One worker's indexer within a [`JsonRpcLiveObjectSetIndexer`] run, and the
+/// per-partition indexer of a formal-snapshot restore.
 struct JsonRpcLiveObjectIndexer<'a> {
     tables: &'a IndexStoreTables,
     batch: DBBatch,
-    object_store: &'a AuthorityStore,
-    layout_resolver: Box<dyn LayoutResolver + 'a>,
     batch_size_limit: usize,
 }
 
@@ -1175,22 +1145,10 @@ impl LiveObjectIndexer for JsonRpcLiveObjectIndexer<'_> {
                 }
             }
             Owner::Object(parent) => {
-                if let Some(field_info) = try_create_dynamic_field_info(
-                    &object,
-                    &BTreeMap::new(),
-                    self.object_store,
-                    self.layout_resolver.as_mut(),
-                )
-                .unwrap_or_else(|e| {
-                    error!(
-                        "try_create_dynamic_field_info should not fail, {}, object={:?}",
-                        e, object
-                    );
-                    None
-                }) {
+                if is_dynamic_field(&object) {
                     self.batch.insert_batch(
                         &self.tables.dynamic_field_index,
-                        [((parent, object.id()), field_info)],
+                        [((parent, object.id()), ())],
                     )?;
                 }
             }
@@ -1214,6 +1172,99 @@ impl LiveObjectIndexer for JsonRpcLiveObjectIndexer<'_> {
     }
 }
 
+/// The JSON-RPC index tables opened for a formal-snapshot restore.
+///
+/// Hands out per-partition indexers that tee the restore's live objects into
+/// the live-state tables, and a finalize step that seeds the markers so a
+/// node opens the store in place instead of rebuilding. Mirrors the gRPC
+/// index restore; the dynamic-field index stores only field keys, so the tee
+/// needs no layout resolution and no ordering guarantee within the object
+/// stream.
+pub struct JsonRpcIndexRestorer {
+    tables: IndexStoreTables,
+    batch_size_limit: usize,
+}
+
+impl JsonRpcIndexRestorer {
+    /// Opens the store with bulk-ingestion options and stamps it with this
+    /// schema version. `meta` is written now and `watermark` only in
+    /// [`Self::finalize`], so a node opening a store from a restore that
+    /// crashed in between wipes and rebuilds it.
+    pub fn open(path: PathBuf) -> Result<Self, TypedStoreError> {
+        let tables = IndexStoreTables::open_for_bulk_ingestion(path);
+        tables.meta.insert(
+            &(),
+            &MetadataInfo {
+                version: CURRENT_DB_VERSION,
+            },
+        )?;
+        Ok(Self {
+            tables,
+            batch_size_limit: bulk_ingestion_options().batch_size_limit,
+        })
+    }
+
+    /// Returns an indexer for one partition of the snapshot's live objects.
+    pub fn partition_indexer(&self) -> JsonRpcPartitionIndexer<'_> {
+        JsonRpcPartitionIndexer(JsonRpcLiveObjectIndexer {
+            tables: &self.tables,
+            batch: self.tables.owner_index.batch(),
+            batch_size_limit: self.batch_size_limit,
+        })
+    }
+
+    /// Seeds the markers so a node opens the store in place, flushes the
+    /// WAL-less bulk writes, and closes the database. `restore_checkpoint`
+    /// is the restore's highest executed checkpoint; no history below it
+    /// exists locally, so there is nothing for the background replay to
+    /// backfill.
+    ///
+    /// Callers must have restored the complete live object set first,
+    /// through [`Self::partition_indexer`].
+    pub async fn finalize(
+        self,
+        restore_checkpoint: CheckpointSequenceNumber,
+    ) -> Result<(), StorageError> {
+        let Self { tables, .. } = self;
+        tables
+            .history_watermark
+            .insert(&(), &restore_checkpoint.saturating_add(1))?;
+        tables.watermark.insert(&(), &restore_checkpoint)?;
+        // WAL is disabled for the bulk writes; make them durable before the
+        // database closes.
+        tables.meta.flush_all()?;
+
+        // Release every RocksDB handle before returning, so the caller can
+        // move the database directory.
+        let weak_db = Arc::downgrade(&tables.meta.db);
+        drop(tables);
+        let deadline = Instant::now() + Duration::from_secs(30);
+        while weak_db.strong_count() != 0 {
+            if Instant::now() > deadline {
+                return Err(StorageError::custom(
+                    "unable to close the JSON-RPC index database after the restore",
+                ));
+            }
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+        Ok(())
+    }
+}
+
+/// Indexer for one partition of a formal-snapshot restore's live objects.
+pub struct JsonRpcPartitionIndexer<'a>(JsonRpcLiveObjectIndexer<'a>);
+
+impl JsonRpcPartitionIndexer<'_> {
+    pub fn index_object(&mut self, object: Object) -> Result<(), StorageError> {
+        self.0.index_object(object)
+    }
+
+    /// Writes the partition's remaining batch.
+    pub fn finish(self) -> Result<(), StorageError> {
+        self.0.finish()
+    }
+}
+
 impl IndexStore {
     /// Opens the store, wiping it and rebuilding the live-state tables first
     /// when the indexes are missing or stale (e.g. on the first start after
@@ -1231,8 +1282,6 @@ impl IndexStore {
         max_type_length: Option<u64>,
         authority_store: &Arc<AuthorityStore>,
         checkpoint_store: &Arc<CheckpointStore>,
-        epoch_store: &Arc<AuthorityPerEpochStore>,
-        package_store: Arc<dyn BackingPackageStore + Send + Sync>,
     ) -> Arc<Self> {
         let pruner_watermark = Arc::new(AtomicU64::new(0));
         let compaction_metrics = JsonRpcCompactionMetrics::new(registry);
@@ -1243,7 +1292,6 @@ impl IndexStore {
             .expect("failed to initialize index tables");
 
         if tables.needs_to_do_initialization(checkpoint_store) {
-            let batch_size_limit;
             let mut init_tables = {
                 drop(tables);
                 safe_drop_db(path.clone(), Duration::from_secs(30))
@@ -1253,39 +1301,18 @@ impl IndexStore {
                 // Open the empty DB with tuned bulk ingestion options to
                 // speed up the initial indexing. The DB is reopened with default options
                 // afterwards.
-                let bulk_options = bulk_ingestion_options();
-                batch_size_limit = bulk_options.batch_size_limit;
-
-                // Apply the per-column-family bulk options to every table.
-                let mut table_config = BTreeMap::new();
-                for table_name in IndexStoreTables::describe_tables().into_keys() {
-                    table_config.insert(table_name, bulk_options.column_family_options.clone());
-                }
-
-                IndexStoreTables::open_tables_read_write(
-                    path.clone(),
-                    MetricConf::new("index"),
-                    Some(bulk_options.db_options),
-                    Some(DBMapTableConfigMap::new(table_config)),
-                )
+                IndexStoreTables::open_for_bulk_ingestion(path.clone())
             };
+            let batch_size_limit = bulk_ingestion_options().batch_size_limit;
 
             // The rebuild scans and writes RocksDB for a long time; keep it
             // off the async runtime's worker threads.
             let init_tables = tokio::task::spawn_blocking({
                 let authority_store = authority_store.clone();
                 let checkpoint_store = checkpoint_store.clone();
-                let epoch_store = epoch_store.clone();
-                let package_store = package_store.clone();
                 move || {
                     init_tables
-                        .init(
-                            &authority_store,
-                            &checkpoint_store,
-                            &epoch_store,
-                            &package_store,
-                            batch_size_limit,
-                        )
+                        .init(&authority_store, &checkpoint_store, batch_size_limit)
                         .expect("unable to initialize JSON-RPC index");
                     init_tables
                 }
@@ -1391,95 +1418,6 @@ impl IndexStore {
         if let Some(task) = task {
             task.await.expect("history backfill task failed");
         }
-    }
-
-    /// Builds the JSON-RPC index database for a formal-snapshot restore by
-    /// scanning the restored live object set, and seeds the markers so a
-    /// node opens it in place instead of rebuilding.
-    ///
-    /// Must run after all objects are restored: dynamic-field indexing loads
-    /// child objects and package layouts, and the snapshot's object stream
-    /// orders objects arbitrarily. `restore_checkpoint` is the restore's
-    /// highest executed checkpoint; no history below it exists locally, so
-    /// there is nothing for the background replay to backfill. The database
-    /// is closed again before this returns.
-    pub async fn build_for_restore(
-        path: PathBuf,
-        authority_store: &Arc<AuthorityStore>,
-        chain: Chain,
-        restore_checkpoint: CheckpointSequenceNumber,
-    ) -> Result<(), StorageError> {
-        let system_state = get_iota_system_state(authority_store.as_ref())
-            .map_err(|e| StorageError::custom(e.to_string()))?;
-        let protocol_config = ProtocolConfig::get_for_version(
-            ProtocolVersion::new(system_state.protocol_version()),
-            chain,
-        );
-        let executor = iota_execution::executor(&protocol_config, true, None)
-            .map_err(|e| StorageError::custom(e.to_string()))?;
-
-        let bulk_options = bulk_ingestion_options();
-        let batch_size_limit = bulk_options.batch_size_limit;
-        let mut table_config = BTreeMap::new();
-        for table_name in IndexStoreTables::describe_tables().into_keys() {
-            table_config.insert(table_name, bulk_options.column_family_options.clone());
-        }
-        let tables = IndexStoreTables::open_tables_read_write(
-            path,
-            MetricConf::new("index"),
-            Some(bulk_options.db_options),
-            Some(DBMapTableConfigMap::new(table_config)),
-        );
-
-        info!("Building JSON-RPC indexes from the restored live object set");
-        let tables = tokio::task::spawn_blocking({
-            let authority_store = authority_store.clone();
-            move || -> Result<IndexStoreTables, StorageError> {
-                // `meta` first, `watermark` last: a node opening a store from
-                // a restore that crashed in between wipes and rebuilds it.
-                tables.meta.insert(
-                    &(),
-                    &MetadataInfo {
-                        version: CURRENT_DB_VERSION,
-                    },
-                )?;
-                let package_store: Arc<dyn BackingPackageStore + Send + Sync> =
-                    Arc::new(PackagesFromObjectStore(authority_store.clone()));
-                tables.index_live_object_set(
-                    &authority_store,
-                    &executor,
-                    &package_store,
-                    batch_size_limit,
-                )?;
-                tables
-                    .history_watermark
-                    .insert(&(), &restore_checkpoint.saturating_add(1))?;
-                tables.watermark.insert(&(), &restore_checkpoint)?;
-                // WAL is disabled for the bulk writes; make them durable
-                // before the database closes.
-                tables.meta.flush_all()?;
-                Ok(tables)
-            }
-        })
-        .await
-        .expect("JSON-RPC index restore task failed")?;
-
-        // Release every RocksDB handle before returning, so the caller can
-        // move the database directory.
-        let weak_db = Arc::downgrade(&tables.meta.db);
-        drop(tables);
-        let deadline = Instant::now() + Duration::from_secs(30);
-        while weak_db.strong_count() != 0 {
-            if Instant::now() > deadline {
-                return Err(StorageError::custom(
-                    "unable to close the JSON-RPC index database after the restore build",
-                ));
-            }
-            tokio::time::sleep(Duration::from_millis(100)).await;
-        }
-
-        info!("Finished building JSON-RPC indexes for the restore");
-        Ok(())
     }
 
     /// Opens the store without the init logic of [`Self::new`] — for tests.
@@ -1669,13 +1607,7 @@ impl IndexStore {
     ///
     /// Must be called for each checkpoint in sequence order, so that
     /// transaction sequence numbers follow checkpoint order.
-    pub fn index_checkpoint(
-        &self,
-        checkpoint: &CheckpointData,
-        object_store: &dyn ObjectStore,
-        layout_resolver: &mut dyn LayoutResolver,
-        index_coins: bool,
-    ) -> IotaResult {
+    pub fn index_checkpoint(&self, checkpoint: &CheckpointData, index_coins: bool) -> IotaResult {
         let checkpoint_seq = checkpoint.checkpoint_summary.sequence_number;
         let timestamp_ms = checkpoint.checkpoint_summary.timestamp_ms;
 
@@ -1698,7 +1630,7 @@ impl IndexStore {
             self.tables
                 .index_tx(&mut batch, sequence, timestamp_ms, data)?;
 
-            let object_index_changes = process_object_index(tx, object_store, layout_resolver)?;
+            let object_index_changes = process_object_index(tx);
             let tx_coins = index_coins.then(|| transaction_coins(tx));
             self.tables.index_object_changes(
                 &mut batch,
@@ -2308,12 +2240,14 @@ impl IndexStore {
         }
     }
 
-    pub fn get_dynamic_fields_iterator(
+    /// Ids of the `Field` objects of the dynamic fields under `object`, in
+    /// id order. Field metadata is resolved from the object store by the
+    /// caller; the index stores only the keys.
+    pub fn get_dynamic_field_ids_iterator(
         &self,
         object: ObjectId,
         cursor: Option<ObjectId>,
-    ) -> IotaResult<impl Iterator<Item = Result<(ObjectId, DynamicFieldInfo), TypedStoreError>> + '_>
-    {
+    ) -> IotaResult<impl Iterator<Item = Result<ObjectId, TypedStoreError>> + '_> {
         debug!(?object, "get_dynamic_fields");
         Ok(self
             .tables
@@ -2321,59 +2255,15 @@ impl IndexStore {
             .safe_iter_with_prefix_from(&object, &cursor.unwrap_or(ObjectId::ZERO))
             // skip an extra b/c the cursor is exclusive
             .skip(usize::from(cursor.is_some()))
-            .map_ok(|((_, c), object_info)| (c, object_info)))
+            .map_ok(|((_, field_id), ())| field_id))
     }
 
-    pub fn get_dynamic_field_object_id(
-        &self,
-        object: ObjectId,
-        name_type: TypeTag,
-        name_bcs_bytes: &[u8],
-    ) -> IotaResult<Option<ObjectId>> {
-        debug!(?object, "get_dynamic_field_object_id");
-        let dynamic_field_id =
-            dynamic_field::derive_dynamic_field_id(object, &name_type, name_bcs_bytes).map_err(
-                |e| {
-                    IotaError::Unknown(format!(
-                        "Unable to generate dynamic field id. Got error: {e:?}"
-                    ))
-                },
-            )?;
-
-        if let Some(info) = self
+    /// Whether `field_id` is an indexed dynamic field of `object`.
+    pub fn dynamic_field_exists(&self, object: ObjectId, field_id: ObjectId) -> IotaResult<bool> {
+        Ok(self
             .tables
             .dynamic_field_index
-            .get(&(object, dynamic_field_id))?
-        {
-            // info.object_id != dynamic_field_id ==> is_wrapper
-            debug_assert!(
-                info.object_id == dynamic_field_id
-                    || matches!(name_type, TypeTag::Struct(tag) if DynamicFieldInfo::is_dynamic_object_field_wrapper(&tag))
-            );
-            return Ok(Some(info.object_id));
-        }
-
-        let dynamic_object_field_struct = DynamicFieldInfo::dynamic_object_field_wrapper(name_type);
-        let dynamic_object_field_type = TypeTag::Struct(Box::new(dynamic_object_field_struct));
-        let dynamic_object_field_id = dynamic_field::derive_dynamic_field_id(
-            object,
-            &dynamic_object_field_type,
-            name_bcs_bytes,
-        )
-        .map_err(|e| {
-            IotaError::Unknown(format!(
-                "Unable to generate dynamic field id. Got error: {e:?}"
-            ))
-        })?;
-        if let Some(info) = self
-            .tables
-            .dynamic_field_index
-            .get(&(object, dynamic_object_field_id))?
-        {
-            return Ok(Some(info.object_id));
-        }
-
-        Ok(None)
+            .contains_key(&(object, field_id))?)
     }
 
     pub fn get_owner_objects(
@@ -2724,34 +2614,16 @@ mod tests {
         committee::EpochId,
         crypto::AuthorityStrongQuorumSignInfo,
         effects::TransactionEffectsAPI,
-        error::IotaError,
         gas_coin::GAS,
-        in_memory_storage::InMemoryStorage,
-        layout_resolver::LayoutResolver,
         message_envelope::Envelope,
         messages_checkpoint::{CheckpointContentsExt, VerifiedCheckpoint},
         test_checkpoint_data_builder::TestCheckpointDataBuilder,
     };
-    use move_core_types::annotated_value::MoveDatatypeLayout;
     use prometheus_filtered::Registry;
     use typed_store::Map;
 
     use super::IndexStore;
     use crate::checkpoints::CheckpointStore;
-
-    /// The tests only index coin objects, which never need layout resolution.
-    struct NoLayoutResolver;
-
-    impl LayoutResolver for NoLayoutResolver {
-        fn get_annotated_layout(
-            &mut self,
-            _struct_tag: &StructTag,
-        ) -> Result<MoveDatatypeLayout, IotaError> {
-            Err(IotaError::Unknown(
-                "no layout resolution in tests".to_string(),
-            ))
-        }
-    }
 
     /// An executed (non-boundary) checkpoint for seeding a test
     /// `CheckpointStore`, with a placeholder signature.
@@ -2937,8 +2809,6 @@ mod tests {
             Some(128),
             &authority_state.database_for_testing(),
             checkpoint_store,
-            &authority_state.epoch_store_for_testing(),
-            authority_state.get_backing_package_store().clone(),
         )
         .await;
         index_store.wait_for_history_backfill_for_testing().await;
@@ -2980,56 +2850,71 @@ mod tests {
     }
 
     /// A formal-snapshot restore builds the JSON-RPC index from the restored
-    /// live object set (`build_for_restore`); a node then opens it in place
-    /// instead of rebuilding, and the history backfill has nothing to do.
+    /// live object set (`JsonRpcIndexRestorer`); a node then opens it in
+    /// place instead of rebuilding, and the history backfill has nothing to
+    /// do. Dynamic fields are indexed by key only, so the tee needs no
+    /// layouts and no particular object order.
     #[tokio::test]
-    async fn test_build_for_restore_is_adopted_on_open() {
-        use iota_types::base_types::dbg_addr;
+    async fn test_restore_built_store_is_adopted_on_open() {
+        use iota_sdk_types::{MoveStruct, Owner, TransactionDigest, Version};
+        use iota_types::{
+            base_types::dbg_addr,
+            object::{MoveStructExt, Object},
+        };
 
-        let authority_state = crate::authority::test_authority_builder::TestAuthorityBuilder::new()
-            .insert_genesis_checkpoint()
-            .build()
-            .await;
+        let dir = iota_common::tempdir();
+        let checkpoint_store = CheckpointStore::new(&dir.path().join("checkpoints"));
+        // The restore marks the restore checkpoint both executed and pruned.
+        let restore_checkpoint = executed_checkpoint(0, 5);
+        checkpoint_store
+            .insert_verified_checkpoint(&restore_checkpoint)
+            .unwrap();
+        checkpoint_store
+            .update_highest_executed_checkpoint(&restore_checkpoint)
+            .unwrap();
+        checkpoint_store
+            .update_highest_pruned_checkpoint(&restore_checkpoint)
+            .unwrap();
 
         let owner = dbg_addr(1);
-        let gas_object =
-            iota_types::object::Object::with_id_owner_for_testing(ObjectId::random(), owner);
-        authority_state.insert_genesis_objects(std::slice::from_ref(&gas_object));
+        let gas_object = Object::new_gas_with_balance_and_owner_for_testing(100, owner);
+        let parent = ObjectId::random();
+        let field_id = ObjectId::random();
+        let mut field_contents = field_id.into_bytes().to_vec();
+        field_contents.extend_from_slice(&7u64.to_le_bytes()); // name
+        field_contents.extend_from_slice(&8u64.to_le_bytes()); // value
+        let field_object = Object::new_move(
+            MoveStruct::new_from_execution_with_limit(
+                "0x2::dynamic_field::Field<u64,u64>"
+                    .parse::<StructTag>()
+                    .unwrap(),
+                Version::MIN_VALID_INCL,
+                field_contents,
+                256,
+            )
+            .unwrap(),
+            Owner::Object(parent),
+            TransactionDigest::ZERO,
+        );
 
-        let checkpoint_store = &authority_state.checkpoint_store;
-        let genesis_checkpoint = checkpoint_store
-            .get_checkpoint_by_sequence_number(0)
-            .unwrap()
-            .unwrap();
-        // The restore marks the restore checkpoint both executed and pruned.
-        checkpoint_store
-            .update_highest_executed_checkpoint(&genesis_checkpoint)
-            .unwrap();
-        checkpoint_store
-            .update_highest_pruned_checkpoint(&genesis_checkpoint)
-            .unwrap();
-
-        let index_dir = iota_common::tempdir();
-        IndexStore::build_for_restore(
-            index_dir.path().to_path_buf(),
-            &authority_state.database_for_testing(),
-            iota_protocol_config::Chain::Unknown,
-            0,
-        )
-        .await
-        .unwrap();
+        // Tee the objects into the restorer, as the snapshot's partition
+        // downloads do.
+        let index_dir = dir.path().join("indexes");
+        let restorer = super::JsonRpcIndexRestorer::open(index_dir.clone()).unwrap();
+        let mut partition = restorer.partition_indexer();
+        partition.index_object(gas_object.clone()).unwrap();
+        partition.index_object(field_object).unwrap();
+        partition.finish().unwrap();
+        restorer.finalize(5).await.unwrap();
 
         // Plant a sentinel row: if it survives the open below, the store was
         // adopted rather than wiped and rebuilt into equal-looking data.
-        let sentinel = iota_sdk_types::TransactionDigest::random();
+        let sentinel = TransactionDigest::random();
         {
-            let built = IndexStore::new_without_init(
-                index_dir.path().to_path_buf(),
-                &Registry::default(),
-                Some(128),
-            );
+            let built =
+                IndexStore::new_without_init(index_dir.clone(), &Registry::default(), Some(128));
             assert!(
-                !built.tables.needs_to_do_initialization(checkpoint_store),
+                !built.tables.needs_to_do_initialization(&checkpoint_store),
                 "a restore-built store must need no rebuild"
             );
             built
@@ -3044,14 +2929,23 @@ mod tests {
             }
         }
 
+        let authority_store = crate::authority::AuthorityStore::open_no_genesis(
+            std::sync::Arc::new(
+                crate::authority::authority_store_tables::AuthorityPerpetualTables::open(
+                    &dir.path().join("store"),
+                    None,
+                ),
+            ),
+            false,
+            &Registry::default(),
+        )
+        .unwrap();
         let index_store = IndexStore::new(
-            index_dir.path().to_path_buf(),
+            index_dir,
             &Registry::default(),
             Some(128),
-            &authority_state.database_for_testing(),
-            checkpoint_store,
-            &authority_state.epoch_store_for_testing(),
-            authority_state.get_backing_package_store().clone(),
+            &authority_store,
+            &checkpoint_store,
         )
         .await;
         index_store.wait_for_history_backfill_for_testing().await;
@@ -3062,7 +2956,7 @@ mod tests {
             "the restored database must be opened in place, not rebuilt"
         );
 
-        // The owner and coin tables were built from the live object set.
+        // The owner and coin tables were built from the teed objects.
         let owned: Vec<_> = index_store
             .get_owner_objects(owner, None, 10, None)
             .unwrap();
@@ -3073,21 +2967,20 @@ mod tests {
             .unwrap();
         assert_eq!(balance.num_coins, 1);
 
-        // Dynamic-field indexing resolved layouts during the restore build:
-        // the system state's versioned inner object is a dynamic field of
-        // `0x5`.
-        let system_state_fields = index_store
-            .get_dynamic_fields_iterator(iota_types::IOTA_SYSTEM_STATE_OBJECT_ID, None)
+        // The dynamic field was indexed by key, without layout resolution.
+        let field_ids: Vec<_> = index_store
+            .get_dynamic_field_ids_iterator(parent, None)
             .unwrap()
-            .count();
-        assert!(system_state_fields > 0);
+            .collect::<Result<_, _>>()
+            .unwrap();
+        assert_eq!(field_ids, vec![field_id]);
 
         // Watermark at the restore checkpoint, history one past it — nothing
         // for the backfill to replay.
-        assert_eq!(index_store.tables.watermark.get(&()).unwrap(), Some(0));
+        assert_eq!(index_store.tables.watermark.get(&()).unwrap(), Some(5));
         assert_eq!(
             index_store.tables.history_watermark.get(&()).unwrap(),
-            Some(1)
+            Some(6)
         );
     }
 
@@ -3117,8 +3010,6 @@ mod tests {
             Some(128),
             &authority_state.database_for_testing(),
             checkpoint_store,
-            &authority_state.epoch_store_for_testing(),
-            authority_state.get_backing_package_store().clone(),
         )
         .await;
         index_store.wait_for_history_backfill_for_testing().await;
@@ -3164,8 +3055,6 @@ mod tests {
             Some(128),
             &authority_state.database_for_testing(),
             checkpoint_store,
-            &authority_state.epoch_store_for_testing(),
-            authority_state.get_backing_package_store().clone(),
         )
         .await;
         index_store.wait_for_history_backfill_for_testing().await;
@@ -3236,7 +3125,6 @@ mod tests {
             &Registry::default(),
             Some(128),
         );
-        let object_store = InMemoryStorage::new(vec![]);
         let address = TestCheckpointDataBuilder::derive_address(1);
 
         let mut builder = TestCheckpointDataBuilder::new(0).start_transaction(0);
@@ -3245,7 +3133,7 @@ mod tests {
         }
         let mut builder = builder.finish_transaction();
         let checkpoint = builder.build_checkpoint();
-        index_store.index_checkpoint(&checkpoint, &object_store, &mut NoLayoutResolver, true)?;
+        index_store.index_checkpoint(&checkpoint, true)?;
         index_store.commit_update_for_checkpoint(0)?;
 
         let balance_from_db = IndexStore::get_balance_from_db(
@@ -3271,7 +3159,7 @@ mod tests {
         }
         let mut builder = builder.finish_transaction();
         let checkpoint = builder.build_checkpoint();
-        index_store.index_checkpoint(&checkpoint, &object_store, &mut NoLayoutResolver, true)?;
+        index_store.index_checkpoint(&checkpoint, true)?;
         index_store.commit_update_for_checkpoint(1)?;
 
         let balance_from_db = IndexStore::get_balance_from_db(
@@ -3313,7 +3201,6 @@ mod tests {
             &Registry::default(),
             Some(128),
         );
-        let object_store = InMemoryStorage::new(vec![]);
         let address = TestCheckpointDataBuilder::derive_address(1);
 
         let mut builder = TestCheckpointDataBuilder::new(0)
@@ -3323,13 +3210,13 @@ mod tests {
         let checkpoint = builder.build_checkpoint();
         let digest = *checkpoint.transactions[0].effects.transaction_digest();
 
-        index_store.index_checkpoint(&checkpoint, &object_store, &mut NoLayoutResolver, true)?;
+        index_store.index_checkpoint(&checkpoint, true)?;
         index_store.commit_update_for_checkpoint(0)?;
         assert_eq!(index_store.get_transaction_seq(&digest)?, Some(0));
         assert_eq!(index_store.tables.watermark.get(&())?, Some(0));
 
         // Replay the same checkpoint.
-        index_store.index_checkpoint(&checkpoint, &object_store, &mut NoLayoutResolver, true)?;
+        index_store.index_checkpoint(&checkpoint, true)?;
         index_store.commit_update_for_checkpoint(0)?;
 
         assert_eq!(index_store.get_transaction_seq(&digest)?, Some(0));
