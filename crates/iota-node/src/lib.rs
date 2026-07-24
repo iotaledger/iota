@@ -607,8 +607,6 @@ impl IotaNode {
                         .max_move_identifier_len_as_option(),
                     &store,
                     &checkpoint_store,
-                    &epoch_store,
-                    cache_traits.backing_package_store.clone(),
                 )
                 .await,
             )
