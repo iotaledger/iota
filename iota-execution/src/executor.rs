@@ -113,6 +113,10 @@ pub trait Executor {
         transaction_digest: TransactionDigest,
         // BCS-serialized `TransactionData` bytes for the auth context.
         auth_context_data: AuthContextData,
+        // A structural Move-authentication failure resolved before execution. When
+        // set, authentication is skipped and this error becomes the transaction's
+        // failure effect.
+        pre_authentication_error: Option<ExecutionError>,
         // Tracing
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> (

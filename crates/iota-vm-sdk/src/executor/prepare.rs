@@ -395,6 +395,7 @@ pub(super) fn execute_with_move_authenticators(
             signer,
             transaction.digest(),
             auth_context_data.clone(),
+            None,
             trace_builder_opt,
         );
 

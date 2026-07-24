@@ -313,6 +313,10 @@ mod checked {
         transaction_signer: Address,
         transaction_digest: TransactionDigest,
         auth_context_data: AuthContextData,
+        // A structural Move-authentication failure resolved before execution. When
+        // set, authentication is skipped and this error becomes the transaction's
+        // failure effect.
+        pre_authentication_error: Option<ExecutionError>,
         // Tracing
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
         // VM
@@ -449,6 +453,15 @@ mod checked {
 
         let authentication_execution_result =
             report_authentication_error(authentication_execution_result, protocol_config);
+
+        // A structural Move-authentication failure resolved before execution takes
+        // precedence. In that case `authenticators` is empty (authentication did not
+        // run), so the pre-authentication error becomes the transaction's failure
+        // effect.
+        let authentication_execution_result = match pre_authentication_error {
+            Some(error) => Err(error),
+            None => authentication_execution_result,
+        };
 
         // TODO: enhance the way the authenticator error is propagated https://github.com/iotaledger/iota/issues/11986
         // Capture whether authentication failed before the result is moved into the

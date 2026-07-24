@@ -78,7 +78,7 @@ use iota_types::{
         InputSharedObject, SignedTransactionEffects, TransactionEffects, TransactionEffectsAPI,
         TransactionEffectsExt, TransactionEvents, VerifiedSignedTransactionEffects,
     },
-    error::{ExecutionError, IotaError, IotaResult, UserInputError},
+    error::{ExecutionError, ExecutionErrorKind, IotaError, IotaResult, UserInputError},
     event::{EventID, SystemEpochInfoEvent},
     executable_transaction::VerifiedExecutableTransaction,
     execution_config_utils::to_binary_config,
@@ -1270,6 +1270,7 @@ impl AuthorityState {
                     signer,
                     tx_digest,
                     auth_context_data,
+                    None,
                     &mut None,
                 );
             (inner_temp_store, effects, authentication_failed)
@@ -2133,44 +2134,32 @@ impl AuthorityState {
                 "Move authenticators amount must match the number of authenticator inputs"
             );
 
-            let per_authenticator_inputs = move_authenticators
-                .iter()
-                .zip(per_authenticator_inputs)
-                .map(
-                    |(move_authenticator, (authenticator_input_objects, account_object))| {
-                        // Check basic `object_to_authenticate` preconditions and get its
-                        // components.
-                        let (
-                            auth_account_object_id,
-                            auth_account_object_seq_number,
-                            auth_account_object_digest,
-                        ) = move_authenticator
+            // Resolve each authenticator's account function ref. Generalizing #12375:
+            // a structural failure here (bad signer / account / version, or a missing
+            // authenticator ref) used to `.expect()` and halt the validator during
+            // execution. Under the attestation flow it is now surfaced as a
+            // pre-authentication error, so the transaction resolves to an
+            // `InvalidAttestation` failure effect instead of panicking.
+            let (per_authenticator_input_objects, resolved_function_refs): (Vec<_>, Vec<_>) =
+                move_authenticators
+                    .iter()
+                    .zip(per_authenticator_inputs)
+                    .map(|(move_authenticator, (authenticator_input_objects, account_object))| {
+                        let function_ref = move_authenticator
                             .object_to_authenticate_components()
-                            .expect("the object to authenticate is validated before consensus and cannot be invalid during execution");
-
-                        let signer = move_authenticator.address();
-
-                        let authenticator_function_ref_for_execution = self
-                            .check_move_account_for_execution(
-                                auth_account_object_id,
-                                auth_account_object_seq_number,
-                                auth_account_object_digest,
-                                account_object,
-                                &signer,
-                            );
-
-                        (
-                            authenticator_input_objects,
-                            authenticator_function_ref_for_execution,
-                        )
-                    },
-                )
-                .collect::<Vec<_>>();
-
-            let per_authenticator_input_objects = per_authenticator_inputs
-                .iter()
-                .map(|(authenticator_input_objects, _)| authenticator_input_objects.clone())
-                .collect::<Vec<_>>();
+                            .map_err(IotaError::from)
+                            .and_then(|(id, seq_number, digest)| {
+                                self.check_move_account_for_execution(
+                                    id,
+                                    seq_number,
+                                    digest,
+                                    account_object,
+                                    &move_authenticator.address(),
+                                )
+                            });
+                        (authenticator_input_objects, function_ref)
+                    })
+                    .unzip();
 
             // Serialize the TransactionData for the auth context.
             let tx_data_bytes =
@@ -2179,7 +2168,8 @@ impl AuthorityState {
             let (sender_auth_digest, sponsor_auth_digest) =
                 transaction.data().compute_auth_digests()?;
 
-            // Check the `MoveAuthenticator` input objects.
+            // Check the `MoveAuthenticator` input objects. These are needed to build the
+            // effect whether or not authentication ultimately runs.
             // The `MoveAuthenticator` receiving objects are checked on the signing step.
             // `max_auth_gas` is used here as a Move authenticator gas budget until it is
             // not a part of the transaction data.
@@ -2197,50 +2187,90 @@ impl AuthorityState {
                 reference_gas_price,
             )?;
 
-            debug_assert_eq!(
-                move_authenticators.len(),
-                per_authenticator_checked_input_objects.len(),
-                "Move authenticators amount must match the number of checked authenticator inputs"
-            );
-
-            let move_authenticators = move_authenticators
-                .into_iter()
-                .zip(per_authenticator_inputs)
-                .zip(per_authenticator_checked_input_objects)
-                .map(
-                    |(
-                        (move_authenticator, (_, authenticator_function_ref_for_execution)),
-                        authenticator_checked_input_objects,
-                    )| {
-                        (
-                            move_authenticator.to_owned(),
-                            authenticator_function_ref_for_execution,
-                            authenticator_checked_input_objects,
-                        )
-                    },
-                )
-                .collect::<Vec<_>>();
-
             let owned_object_refs = authenticator_and_tx_checked_input_objects
                 .inner()
                 .filter_owned_objects();
             self.check_owned_locks(&owned_object_refs)?;
 
-            let (sender_authenticator_function_ref, sponsor_authenticator_function_ref) =
-                extract_auth_fun_refs(signer, gas_data.owner, |address| {
-                    move_authenticators
-                        .iter()
-                        .find(|t| t.0.address() == address)
-                        .map(|t| t.1.authenticator_function_ref.clone())
-                });
+            // Turn the per-authenticator resolution results into either the
+            // authenticators to run or a single pre-authentication error.
+            let (move_authenticators, auth_context_data, pre_authentication_error) =
+                match resolved_function_refs
+                    .into_iter()
+                    .collect::<IotaResult<Vec<_>>>()
+                {
+                    Ok(function_refs) => {
+                        debug_assert_eq!(
+                            move_authenticators.len(),
+                            per_authenticator_checked_input_objects.len(),
+                            "Move authenticators amount must match the number of checked authenticator inputs"
+                        );
 
-            let auth_context_data = AuthContextData {
-                transaction_data_bytes: tx_data_bytes,
-                sender_auth_digest,
-                sponsor_auth_digest,
-                sender_authenticator_function_ref,
-                sponsor_authenticator_function_ref,
-            };
+                        let move_authenticators = move_authenticators
+                            .into_iter()
+                            .zip(function_refs)
+                            .zip(per_authenticator_checked_input_objects)
+                            .map(
+                                |(
+                                    (move_authenticator, authenticator_function_ref_for_execution),
+                                    authenticator_checked_input_objects,
+                                )| {
+                                    (
+                                        move_authenticator.to_owned(),
+                                        authenticator_function_ref_for_execution,
+                                        authenticator_checked_input_objects,
+                                    )
+                                },
+                            )
+                            .collect::<Vec<_>>();
+
+                        let (
+                            sender_authenticator_function_ref,
+                            sponsor_authenticator_function_ref,
+                        ) = extract_auth_fun_refs(signer, gas_data.owner, |address| {
+                            move_authenticators
+                                .iter()
+                                .find(|t| t.0.address() == address)
+                                .map(|t| t.1.authenticator_function_ref.clone())
+                        });
+
+                        let auth_context_data = AuthContextData {
+                            transaction_data_bytes: tx_data_bytes,
+                            sender_auth_digest,
+                            sponsor_auth_digest,
+                            sender_authenticator_function_ref,
+                            sponsor_authenticator_function_ref,
+                        };
+
+                        (move_authenticators, auth_context_data, None)
+                    }
+                    Err(error) if protocol_config.enable_validator_attestation() => {
+                        // Structural authentication failure under the attestation flow.
+                        // Authentication cannot run, so skip it and let the transaction
+                        // execute to an `InvalidAttestation` failure effect.
+                        let auth_context_data = AuthContextData {
+                            transaction_data_bytes: tx_data_bytes,
+                            sender_auth_digest,
+                            sponsor_auth_digest,
+                            sender_authenticator_function_ref: None,
+                            sponsor_authenticator_function_ref: None,
+                        };
+
+                        (
+                            Vec::new(),
+                            auth_context_data,
+                            Some(ExecutionError::new_with_source(
+                                ExecutionErrorKind::InvalidAttestation,
+                                error,
+                            )),
+                        )
+                    }
+                    Err(error) => {
+                        // Without the attestation flow these structural checks are
+                        // re-validated before execution and cannot fail here.
+                        panic!("move account checks cannot fail during execution: {error:?}");
+                    }
+                };
 
             let (
                 inner_temp_store,
@@ -2268,6 +2298,7 @@ impl AuthorityState {
                     signer,
                     tx_digest,
                     auth_context_data,
+                    pre_authentication_error,
                     &mut None,
                 );
             (inner_temp_store, gas_status, effects, execution_error_opt)
@@ -5877,7 +5908,7 @@ impl AuthorityState {
         auth_account_object_digest: Option<ObjectDigest>,
         account_object: ObjectReadResult,
         signer: &Address,
-    ) -> AuthenticatorFunctionRefForExecution {
+    ) -> IotaResult<AuthenticatorFunctionRefForExecution> {
         self.check_move_account(
             auth_account_object_id,
             auth_account_object_seq_number,
@@ -5886,7 +5917,6 @@ impl AuthorityState {
             signer,
             true,
         )
-        .expect("move account checks cannot fail during execution")
     }
 
     /// Resolves the account's `AuthenticatorFunctionRef` on the validation

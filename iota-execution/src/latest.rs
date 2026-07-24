@@ -202,6 +202,7 @@ impl executor::Executor for Executor {
         transaction_signer: Address,
         transaction_digest: TransactionDigest,
         auth_context_data: AuthContextData,
+        pre_authentication_error: Option<ExecutionError>,
         // Tracing
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> (
@@ -227,6 +228,7 @@ impl executor::Executor for Executor {
             transaction_signer,
             transaction_digest,
             auth_context_data,
+            pre_authentication_error,
             trace_builder_opt,
             &self.0,
         )
