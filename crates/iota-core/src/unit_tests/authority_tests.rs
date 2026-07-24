@@ -3842,8 +3842,6 @@ async fn test_jsonrpc_index_rebuild_on_open() {
         Some(128),
         &authority_state.database_for_testing(),
         checkpoint_store,
-        &authority_state.epoch_store_for_testing(),
-        authority_state.get_backing_package_store().clone(),
     )
     .await;
 
@@ -3935,8 +3933,6 @@ async fn test_jsonrpc_index_rebuild_replays_object_pruned_checkpoints() {
         Some(128),
         &authority_state.database_for_testing(),
         checkpoint_store,
-        &authority_state.epoch_store_for_testing(),
-        authority_state.get_backing_package_store().clone(),
     )
     .await;
 
@@ -3989,8 +3985,6 @@ async fn test_jsonrpc_index_rebuild_skips_contents_pruned_checkpoints() {
         Some(128),
         &authority_state.database_for_testing(),
         checkpoint_store,
-        &authority_state.epoch_store_for_testing(),
-        authority_state.get_backing_package_store().clone(),
     )
     .await;
 
@@ -4327,7 +4321,6 @@ async fn test_dynamic_object_field_child_lookup_falls_back_to_latest() {
     ));
     let info = crate::jsonrpc_index::try_create_dynamic_field_info(
         &wrapper,
-        &std::collections::BTreeMap::new(),
         authority_state.get_object_store().as_ref(),
         layout_resolver.as_mut(),
     )
