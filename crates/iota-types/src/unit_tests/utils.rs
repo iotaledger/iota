@@ -9,7 +9,9 @@ use iota_sdk_crypto::{
     Signer as _, ToFromBytes as _, ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey,
     secp256r1::Secp256r1PrivateKey, simple::SimpleKeypair,
 };
-use iota_sdk_types::{Address, ObjectId, SimpleSignature, TransactionKind, crypto::Intent};
+use iota_sdk_types::{
+    Address, ObjectId, SimpleSignature, TransactionKind, UserSignature, crypto::Intent,
+};
 use rand::{SeedableRng, rngs::StdRng};
 
 use crate::{
@@ -22,7 +24,6 @@ use crate::{
     multisig::{MultiSig, MultiSigPublicKey, MultisigMember},
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    signature::UserSignature,
     transaction::{
         SenderSignedData, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, Transaction, TransactionData,
         TransactionDataAPI,
@@ -221,13 +222,12 @@ pub fn make_sponsored_regular_sig_tx() -> (Transaction, Address, Address) {
 
 mod move_authenticator {
     use fastcrypto::hash::HashFunction;
-    use iota_sdk_types::{Address, Digest, SharedObjectReference};
+    use iota_sdk_types::{Address, Digest, SharedObjectReference, UserSignature};
+    pub use iota_sdk_types::{MoveAuthenticator, MoveAuthenticatorV1};
 
-    pub use crate::move_authenticator::{MoveAuthenticator, MoveAuthenticatorV1};
     use crate::{
         crypto::DefaultHash,
         object::OBJECT_START_VERSION,
-        signature::UserSignature,
         transaction::{SenderSignedData, Transaction},
         utils::{make_sponsored_transaction_data, make_transaction_data},
     };
@@ -292,9 +292,9 @@ pub use move_authenticator::*;
 
 mod passkey {
     use iota_sdk_crypto::{Signer, secp256r1::Secp256r1PrivateKey};
+    use iota_sdk_types::{UserSignature, crypto::PasskeyAuthenticator};
 
     use super::*;
-    use crate::{passkey_authenticator::PasskeyAuthenticator, signature::UserSignature};
 
     /// Build a [`UserSignature::PasskeyAuthenticator`] backed by a
     /// freshly-generated Secp256r1 key pair, for use in tests.

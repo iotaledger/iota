@@ -7,15 +7,13 @@ use std::net::SocketAddr;
 use iota_core::authority_client::validator::ValidatorAPI;
 use iota_macros::sim_test;
 use iota_sdk_types::{
-    Address,
-    crypto::{Intent, IntentMessage, SimpleSignature},
+    Address, SignatureScheme, UserSignature,
+    crypto::{Intent, IntentMessage, PasskeyAuthenticator, SimpleSignature},
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    crypto::{PublicKey, SignatureScheme},
+    crypto::PublicKey,
     error::{IotaError, IotaResult, UserInputError},
-    passkey_authenticator::PasskeyAuthenticator,
-    signature::UserSignature,
     transaction::{Transaction, TransactionData},
 };
 use p256::pkcs8::DecodePublicKey;

@@ -1737,3 +1737,262 @@ async fn already_executed_tx_locked_by_different_digest_is_fatal() {
     )
     .await;
 }
+
+// ---------------------------------------------------------------------------
+// Governance deny rule tests
+// ---------------------------------------------------------------------------
+
+/// Activates `rules` on the epoch store by recording a proposal from this
+/// (sole, full-stake) validator through the quarantine push path. A strictly
+/// higher `generation` supersedes a previously activated set.
+fn activate_deny_rules(
+    epoch_store: &Arc<crate::authority::authority_per_epoch_store::AuthorityPerEpochStore>,
+    rules: iota_types::deny_rule_governance::DenyRuleSet,
+    generation: u64,
+) {
+    let mut output = ConsensusCommitOutput::new(0);
+    output.record_deny_rule_proposal(
+        iota_types::messages_consensus::TransactionDenyRuleProposal {
+            authority: epoch_store.name,
+            generation,
+            proposed_rules: rules,
+        },
+    );
+    output.set_default_commit_stats_for_testing();
+    epoch_store.push_consensus_output_for_tests(output);
+}
+
+/// With `deny_rule_governance` enabled, post-consensus validation drops a
+/// transaction whose sender is denied by the consensus-governed active set.
+#[sim_test]
+async fn post_consensus_validation_uses_governance_rules_when_enabled() {
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(true);
+        config.set_deny_rule_governance_for_testing(true);
+        config
+    });
+
+    let (sender, sender_key): (Address, AccountKeyPair) = get_key_pair();
+    let recipient = get_key_pair::<AccountKeyPair>().0;
+    let object_id = ObjectId::random();
+    let gas_id = ObjectId::random();
+    let (authority, _) = init_state_with_objects_and_object_basics(vec![
+        Object::with_id_owner_for_testing(object_id, sender),
+        Object::with_id_owner_for_testing(gas_id, sender),
+    ])
+    .await;
+    let epoch_store = authority.epoch_store_for_testing();
+
+    activate_deny_rules(
+        &epoch_store,
+        iota_types::deny_rule_governance::DenyRuleSet {
+            denied_addresses: [sender].into(),
+            ..Default::default()
+        },
+        1,
+    );
+
+    let object_ref = authority.get_object(&object_id).unwrap().object_ref();
+    let gas_ref = authority.get_object(&gas_id).unwrap().object_ref();
+    let rgp = authority.reference_gas_price_for_testing().unwrap();
+    let tx =
+        make_transfer_object_transaction(object_ref, gas_ref, sender, &sender_key, recipient, rgp);
+    let digest = *tx.digest();
+    let mut transactions = vec![make_user_tx_v1(tx)];
+
+    let (dropped, locks, _) = post_consensus_validation::validate_and_resolve_conflicts(
+        &authority,
+        &epoch_store,
+        &mut transactions,
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(dropped.len(), 1);
+    assert_eq!(dropped[0].0, digest);
+    assert!(matches!(
+        &dropped[0].1,
+        IotaError::UserInput {
+            error: UserInputError::TransactionDenied { .. }
+        }
+    ));
+    assert!(transactions.is_empty());
+    assert!(locks.is_empty(), "dropped transaction must not take locks");
+}
+
+/// With `deny_rule_governance` enabled and active rules denying an unrelated
+/// address, a non-denied sender's transaction is kept and takes its locks.
+#[sim_test]
+async fn post_consensus_validation_keeps_non_denied_transactions() {
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(true);
+        config.set_deny_rule_governance_for_testing(true);
+        config
+    });
+
+    let (sender, sender_key): (Address, AccountKeyPair) = get_key_pair();
+    let recipient = get_key_pair::<AccountKeyPair>().0;
+    let object_id = ObjectId::random();
+    let gas_id = ObjectId::random();
+    let (authority, _) = init_state_with_objects_and_object_basics(vec![
+        Object::with_id_owner_for_testing(object_id, sender),
+        Object::with_id_owner_for_testing(gas_id, sender),
+    ])
+    .await;
+    let epoch_store = authority.epoch_store_for_testing();
+
+    activate_deny_rules(
+        &epoch_store,
+        iota_types::deny_rule_governance::DenyRuleSet {
+            denied_addresses: [get_key_pair::<AccountKeyPair>().0].into(),
+            ..Default::default()
+        },
+        1,
+    );
+
+    let object_ref = authority.get_object(&object_id).unwrap().object_ref();
+    let gas_ref = authority.get_object(&gas_id).unwrap().object_ref();
+    let rgp = authority.reference_gas_price_for_testing().unwrap();
+    let tx =
+        make_transfer_object_transaction(object_ref, gas_ref, sender, &sender_key, recipient, rgp);
+    let mut transactions = vec![make_user_tx_v1(tx)];
+
+    let (dropped, locks, _) = post_consensus_validation::validate_and_resolve_conflicts(
+        &authority,
+        &epoch_store,
+        &mut transactions,
+    )
+    .await
+    .unwrap();
+
+    assert!(dropped.is_empty(), "{dropped:?}");
+    assert_eq!(transactions.len(), 1, "non-denied transaction must be kept");
+    assert_eq!(
+        locks.len(),
+        2,
+        "kept transaction must lock its owned inputs"
+    );
+}
+
+/// With `deny_rule_governance` disabled, the same active set is ignored and
+/// validation falls back to the (empty) local config.
+#[sim_test]
+async fn post_consensus_validation_uses_local_config_when_disabled() {
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(true);
+        config
+    });
+
+    let (sender, sender_key): (Address, AccountKeyPair) = get_key_pair();
+    let recipient = get_key_pair::<AccountKeyPair>().0;
+    let object_id = ObjectId::random();
+    let gas_id = ObjectId::random();
+    let (authority, _) = init_state_with_objects_and_object_basics(vec![
+        Object::with_id_owner_for_testing(object_id, sender),
+        Object::with_id_owner_for_testing(gas_id, sender),
+    ])
+    .await;
+    let epoch_store = authority.epoch_store_for_testing();
+
+    activate_deny_rules(
+        &epoch_store,
+        iota_types::deny_rule_governance::DenyRuleSet {
+            denied_addresses: [sender].into(),
+            ..Default::default()
+        },
+        1,
+    );
+
+    let object_ref = authority.get_object(&object_id).unwrap().object_ref();
+    let gas_ref = authority.get_object(&gas_id).unwrap().object_ref();
+    let rgp = authority.reference_gas_price_for_testing().unwrap();
+    let tx =
+        make_transfer_object_transaction(object_ref, gas_ref, sender, &sender_key, recipient, rgp);
+    let mut transactions = vec![make_user_tx_v1(tx)];
+
+    let (dropped, locks, _) = post_consensus_validation::validate_and_resolve_conflicts(
+        &authority,
+        &epoch_store,
+        &mut transactions,
+    )
+    .await
+    .unwrap();
+
+    assert!(dropped.is_empty());
+    assert_eq!(transactions.len(), 1);
+    assert_eq!(locks.len(), 2);
+}
+
+/// A sender denied by the active set is dropped, and after a newer-generation
+/// proposal withdraws the rules the same sender's transaction is kept.
+#[sim_test]
+async fn post_consensus_validation_applies_relaxed_rules() {
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(true);
+        config.set_deny_rule_governance_for_testing(true);
+        config
+    });
+
+    let (sender, sender_key): (Address, AccountKeyPair) = get_key_pair();
+    let recipient = get_key_pair::<AccountKeyPair>().0;
+    let object_id = ObjectId::random();
+    let gas_id = ObjectId::random();
+    let (authority, _) = init_state_with_objects_and_object_basics(vec![
+        Object::with_id_owner_for_testing(object_id, sender),
+        Object::with_id_owner_for_testing(gas_id, sender),
+    ])
+    .await;
+    let epoch_store = authority.epoch_store_for_testing();
+
+    activate_deny_rules(
+        &epoch_store,
+        iota_types::deny_rule_governance::DenyRuleSet {
+            denied_addresses: [sender].into(),
+            ..Default::default()
+        },
+        1,
+    );
+
+    let object_ref = authority.get_object(&object_id).unwrap().object_ref();
+    let gas_ref = authority.get_object(&gas_id).unwrap().object_ref();
+    let rgp = authority.reference_gas_price_for_testing().unwrap();
+    let tx =
+        make_transfer_object_transaction(object_ref, gas_ref, sender, &sender_key, recipient, rgp);
+    let mut transactions = vec![make_user_tx_v1(tx)];
+
+    let (dropped, locks, _) = post_consensus_validation::validate_and_resolve_conflicts(
+        &authority,
+        &epoch_store,
+        &mut transactions,
+    )
+    .await
+    .unwrap();
+    assert_eq!(dropped.len(), 1, "denied sender must be dropped");
+    assert!(locks.is_empty());
+
+    // Withdraw the rules with a newer-generation empty proposal.
+    activate_deny_rules(&epoch_store, Default::default(), 2);
+
+    // The dropped transaction did not execute, so the same object refs are
+    // still current for a fresh transaction (distinct digest via a new
+    // recipient) from the no-longer-denied sender.
+    let recipient = get_key_pair::<AccountKeyPair>().0;
+    let tx =
+        make_transfer_object_transaction(object_ref, gas_ref, sender, &sender_key, recipient, rgp);
+    let mut transactions = vec![make_user_tx_v1(tx)];
+
+    let (dropped, locks, _) = post_consensus_validation::validate_and_resolve_conflicts(
+        &authority,
+        &epoch_store,
+        &mut transactions,
+    )
+    .await
+    .unwrap();
+    assert!(dropped.is_empty(), "{dropped:?}");
+    assert_eq!(
+        transactions.len(),
+        1,
+        "previously denied sender must be kept after withdrawal"
+    );
+    assert_eq!(locks.len(), 2);
+}

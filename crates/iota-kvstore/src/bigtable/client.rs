@@ -13,13 +13,13 @@ use iota_bigtable::{
         row_range::{EndKey, StartKey},
     },
 };
-use iota_sdk_types::{Address, CheckpointDigest, TransactionDigest};
+use iota_sdk_types::{
+    Address, CheckpointDigest, TransactionDigest, checkpoint::CheckpointContents,
+};
 use iota_types::{
     effects::{TransactionEffects, TransactionEvents},
     full_checkpoint_content::CheckpointData,
-    messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointContents, CheckpointSequenceNumber,
-    },
+    messages_checkpoint::{CertifiedCheckpointSummary, CheckpointSequenceNumber},
     object::Object,
     storage::ObjectKey,
     transaction::Transaction,

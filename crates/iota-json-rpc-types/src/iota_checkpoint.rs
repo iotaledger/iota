@@ -4,7 +4,9 @@
 
 use iota_protocol_config::ProtocolVersion;
 use iota_sdk_types::{
-    CheckpointDigest, Digest, TransactionDigest, gas::GasCostSummary,
+    CheckpointDigest, Digest, TransactionDigest,
+    checkpoint::{CheckpointCommitment, CheckpointContents, CheckpointSummary, EndOfEpochData},
+    gas::GasCostSummary,
     validator::ValidatorCommitteeMember,
 };
 use iota_types::{
@@ -13,8 +15,8 @@ use iota_types::{
     crypto::AggregateAuthoritySignature,
     iota_serde::BigInt,
     messages_checkpoint::{
-        CheckpointCommitment, CheckpointContents, CheckpointContentsExt, CheckpointSequenceNumber,
-        CheckpointSummary, CheckpointTimestamp, ECMHLiveObjectSetDigest, EndOfEpochData,
+        CheckpointContentsExt, CheckpointSequenceNumber, CheckpointTimestamp,
+        ECMHLiveObjectSetDigest,
     },
 };
 use schemars::JsonSchema;

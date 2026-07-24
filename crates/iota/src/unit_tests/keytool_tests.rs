@@ -12,13 +12,13 @@ use fastcrypto::{
 };
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore, InMemKeystore, Keystore, StoredKey};
 use iota_sdk_types::{
-    Address, ObjectDigest, ObjectId, ObjectReference, Version,
+    Address, ObjectDigest, ObjectId, ObjectReference, SignatureScheme, Version,
     crypto::{Intent, IntentScope, PublicKey, UserSignature},
 };
 use iota_types::{
     crypto::{
-        AuthorityKeyPair, EncodeDecodeBase64, IotaKeyPair, Signature, SignatureScheme,
-        get_key_pair, get_key_pair_from_rng,
+        AuthorityKeyPair, EncodeDecodeBase64, IotaKeyPair, Signature, get_key_pair,
+        get_key_pair_from_rng,
     },
     transaction::{TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionData, TransactionDataAPI},
 };

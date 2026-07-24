@@ -23,6 +23,7 @@ use tracing::warn;
 use crate::{
     base_types::{AuthorityName, ConciseableName},
     crypto::{AuthoritySignature, DefaultHash, default_hash},
+    deny_rule_governance::DenyRuleSet,
     message_envelope::{Envelope, Message, VerifiedEnvelope},
     messages_checkpoint::{CheckpointSequenceNumber, CheckpointSignatureMessage},
     supported_protocol_versions::{
@@ -58,6 +59,7 @@ pub enum ConsensusTransactionKey {
     /// P-COOL user transaction key (by transaction digest).
     UserTransaction(TransactionDigest),
     OverloadNotificationV1(AuthorityName, u64 /* generation */),
+    TransactionDenyRuleProposal(AuthorityName, u64 /* generation */),
     // New entries should be added at the end to preserve serialization compatibility. DO NOT
     // CHANGE THE ORDER OF EXISTING ENTRIES!
 }
@@ -103,6 +105,13 @@ impl Debug for ConsensusTransactionKey {
                 write!(
                     f,
                     "OverloadNotificationV1({:?}, gen={generation:?})",
+                    name.concise()
+                )
+            }
+            Self::TransactionDenyRuleProposal(name, generation) => {
+                write!(
+                    f,
+                    "TransactionDenyRuleProposal({:?}, gen={generation:?})",
                     name.concise()
                 )
             }
@@ -223,6 +232,23 @@ impl SignedAuthorityCapabilitiesV1 {
     }
 }
 
+/// A validator's full-state proposal for the network transaction deny rules,
+/// announced through consensus.
+///
+/// Each proposal carries the authority's complete proposed rule set; the latest
+/// generation per authority supersedes earlier ones. The active rule set the
+/// network enforces is the stake-weighted aggregate of all current proposals.
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct TransactionDenyRuleProposal {
+    /// The authority announcing this proposal.
+    pub authority: AuthorityName,
+    /// Per-authority counter used to deduplicate proposals; a higher generation
+    /// supersedes earlier proposals from the same authority.
+    pub generation: u64,
+    /// The complete set of rules this authority proposes.
+    pub proposed_rules: DenyRuleSet,
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum ConsensusTransactionKind {
     CertifiedTransaction(Box<CertifiedTransaction>),
@@ -253,6 +279,10 @@ pub enum ConsensusTransactionKind {
         u64, // generation
         u8,  // percentage
     ),
+    /// A validator's full-state deny rule proposal. Unsigned: the sender is
+    /// authenticated as the consensus block author and must match
+    /// `TransactionDenyRuleProposal::authority`.
+    TransactionDenyRuleProposal(TransactionDenyRuleProposal),
     // New entries should be added at the end to preserve serialization compatibility. DO NOT
     // CHANGE THE ORDER OF EXISTING ENTRIES!
 }
@@ -279,7 +309,8 @@ impl ConsensusTransactionKind {
             | Self::RandomnessDkgMessage(..)
             | Self::RandomnessDkgConfirmation(..)
             | Self::MisbehaviorReport(_)
-            | Self::OverloadNotificationV1(..) => None,
+            | Self::OverloadNotificationV1(..)
+            | Self::TransactionDenyRuleProposal(_) => None,
             #[allow(deprecated)]
             Self::NewJWKFetchedDeprecated => None,
         }
@@ -311,7 +342,8 @@ impl ConsensusTransactionKind {
             | Self::RandomnessDkgMessage(..)
             | Self::RandomnessDkgConfirmation(..)
             | Self::MisbehaviorReport(_)
-            | Self::OverloadNotificationV1(..) => None,
+            | Self::OverloadNotificationV1(..)
+            | Self::TransactionDenyRuleProposal(_) => None,
             #[allow(deprecated)]
             Self::NewJWKFetchedDeprecated => None,
         }
@@ -336,7 +368,8 @@ impl ConsensusTransactionKind {
             | Self::CapabilityNotificationV1(_)
             | Self::SignedCapabilityNotificationV1(_)
             | Self::MisbehaviorReport(_)
-            | Self::OverloadNotificationV1(..) => false,
+            | Self::OverloadNotificationV1(..)
+            | Self::TransactionDenyRuleProposal(_) => false,
             #[allow(deprecated)]
             Self::NewJWKFetchedDeprecated => false,
         }
@@ -669,6 +702,16 @@ impl ConsensusTransaction {
         }
     }
 
+    pub fn new_transaction_deny_rule_proposal(proposal: TransactionDenyRuleProposal) -> Self {
+        let mut hasher = DefaultHasher::new();
+        proposal.hash(&mut hasher);
+        let tracking_id = hasher.finish().to_le_bytes();
+        Self {
+            tracking_id,
+            kind: ConsensusTransactionKind::TransactionDenyRuleProposal(proposal),
+        }
+    }
+
     pub fn get_tracking_id(&self) -> u64 {
         (&self.tracking_id[..])
             .read_u64::<BigEndian>()
@@ -721,6 +764,12 @@ impl ConsensusTransaction {
             }
             ConsensusTransactionKind::OverloadNotificationV1(authority, generation, _) => {
                 ConsensusTransactionKey::OverloadNotificationV1(*authority, *generation)
+            }
+            ConsensusTransactionKind::TransactionDenyRuleProposal(proposal) => {
+                ConsensusTransactionKey::TransactionDenyRuleProposal(
+                    proposal.authority,
+                    proposal.generation,
+                )
             }
         }
     }
@@ -825,5 +874,99 @@ mod tests {
             legacy_bytes, new_bytes,
             "ConsensusTransactionKind::MisbehaviorReport wire format must not change — testnet is live"
         );
+    }
+
+    /// Pins `ConsensusTransactionKind::TransactionDenyRuleProposal`'s variant
+    /// tag (11) and body layout: `(authority, generation, DenyRuleSet)`
+    /// with the rule set's fields in declaration order. Reordering enum
+    /// variants or `DenyRuleSet` fields breaks nodes on the old build.
+    #[test]
+    fn deny_rule_proposal_consensus_kind_wire_format_unchanged() {
+        use std::collections::BTreeSet;
+
+        use iota_sdk_types::{Address, ObjectId};
+
+        use crate::deny_rule_governance::DenyRuleSet;
+
+        let authority = AuthorityName::default();
+        let address = Address::new([7u8; 32]);
+        let object = ObjectId::new([8u8; 32]);
+        let package = ObjectId::new([9u8; 32]);
+
+        // Six one-hot switch patterns: a single sample can't pin the order of
+        // equal-valued booleans, so pin each switch position separately. The
+        // deny lists get distinct contents for the same reason.
+        for hot in 0..6usize {
+            let switch = |i: usize| i == hot;
+            let proposal = TransactionDenyRuleProposal {
+                authority,
+                generation: 42,
+                proposed_rules: DenyRuleSet {
+                    denied_addresses: [address].into(),
+                    denied_objects: [object].into(),
+                    denied_packages: [package].into(),
+                    package_publish_disabled: switch(0),
+                    package_upgrade_disabled: switch(1),
+                    shared_object_disabled: switch(2),
+                    user_transaction_disabled: switch(3),
+                    receiving_objects_disabled: switch(4),
+                    move_authenticator_disabled: switch(5),
+                },
+            };
+            let new_bytes = bcs::to_bytes(&ConsensusTransactionKind::TransactionDenyRuleProposal(
+                proposal,
+            ))
+            .unwrap();
+
+            let mut legacy_bytes = vec![11u8];
+            legacy_bytes.extend(
+                bcs::to_bytes(&(
+                    authority,
+                    42u64,
+                    (
+                        BTreeSet::from([address]),
+                        BTreeSet::from([object]),
+                        BTreeSet::from([package]),
+                        switch(0), // package_publish_disabled
+                        switch(1), // package_upgrade_disabled
+                        switch(2), // shared_object_disabled
+                        switch(3), // user_transaction_disabled
+                        switch(4), // receiving_objects_disabled
+                        switch(5), // move_authenticator_disabled
+                    ),
+                ))
+                .unwrap(),
+            );
+
+            assert_eq!(
+                legacy_bytes, new_bytes,
+                "ConsensusTransactionKind::TransactionDenyRuleProposal wire format must not \
+                 change (switch {hot})"
+            );
+        }
+    }
+
+    /// The proposal round-trips through BCS unchanged.
+    #[test]
+    fn deny_rule_proposal_bcs_round_trip() {
+        use iota_sdk_types::{Address, ObjectId};
+
+        use crate::deny_rule_governance::DenyRuleSet;
+
+        let proposal = TransactionDenyRuleProposal {
+            authority: AuthorityName::default(),
+            generation: 42,
+            proposed_rules: DenyRuleSet {
+                denied_addresses: [Address::new([1u8; 32])].into(),
+                denied_objects: [ObjectId::new([2u8; 32])].into(),
+                denied_packages: [ObjectId::new([3u8; 32])].into(),
+                package_publish_disabled: true,
+                shared_object_disabled: true,
+                receiving_objects_disabled: true,
+                ..Default::default()
+            },
+        };
+        let bytes = bcs::to_bytes(&proposal).unwrap();
+        assert_eq!(proposal, bcs::from_bytes(&bytes).unwrap());
     }
 }

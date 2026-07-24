@@ -12,11 +12,8 @@ use iota_keys::{
     key_derive::generate_new_key,
     keystore::{AccountKeystore, FileBasedKeystore, InMemKeystore, Keystore, LegacyAlias},
 };
-use iota_sdk_types::Address;
-use iota_types::{
-    base_types::IOTA_ADDRESS_LENGTH,
-    crypto::{DefaultHash, SignatureScheme},
-};
+use iota_sdk_types::{Address, SignatureScheme};
+use iota_types::{base_types::IOTA_ADDRESS_LENGTH, crypto::DefaultHash};
 use tempfile::TempDir;
 
 #[test]

@@ -2,8 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-pub use iota_sdk_types::UserSignature;
-use iota_sdk_types::{Address, crypto::IntentMessage};
+use iota_sdk_types::{Address, UserSignature, crypto::IntentMessage};
 use serde::Serialize;
 
 use crate::error::IotaResult;

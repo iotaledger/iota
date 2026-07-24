@@ -583,6 +583,7 @@ impl RegulatedCoinEnv {
             .handle_transaction_validation_checks(
                 &VerifiedTransaction::new_unchecked(transaction.clone()),
                 &epoch_store,
+                &self.env.authority.config.transaction_deny_config,
                 epoch_gated_coin_deny_list,
             )
             .await

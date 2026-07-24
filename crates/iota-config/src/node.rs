@@ -4,7 +4,6 @@
 
 use std::{
     net::{IpAddr, Ipv4Addr, SocketAddr},
-    num::NonZeroUsize,
     path::{Path, PathBuf},
     sync::Arc,
     time::Duration,
@@ -184,14 +183,8 @@ pub struct NodeConfig {
     #[serde(default)]
     pub state_debug_dump_config: StateDebugDumpConfig,
 
-    /// Configuration for writing state archive. If `ObjectStorage`
-    /// config is provided, `ArchiveWriter` will be created
-    /// for checkpoints archival.
     #[serde(default)]
-    pub state_archive_write_config: StateArchiveConfig,
-
-    #[serde(default)]
-    pub state_archive_read_config: Vec<StateArchiveConfig>,
+    pub checkpoint_archive_config: Option<CheckpointArchiveConfig>,
 
     /// Determines if snapshot should be uploaded to the remote storage.
     #[serde(default)]
@@ -743,10 +736,6 @@ impl NodeConfig {
         self.db_path.join("db_checkpoints")
     }
 
-    pub fn archive_path(&self) -> PathBuf {
-        self.db_path.join("archive")
-    }
-
     pub fn snapshot_path(&self) -> PathBuf {
         self.db_path.join("snapshot")
     }
@@ -780,21 +769,8 @@ impl NodeConfig {
         (&self.account_key_pair.keypair().public()).into()
     }
 
-    pub fn archive_reader_config(&self) -> Vec<ArchiveReaderConfig> {
-        self.state_archive_read_config
-            .iter()
-            .flat_map(|config| {
-                config
-                    .object_store_config
-                    .as_ref()
-                    .map(|remote_store_config| ArchiveReaderConfig {
-                        remote_store_config: remote_store_config.clone(),
-                        download_concurrency: NonZeroUsize::new(config.concurrency)
-                            .unwrap_or(NonZeroUsize::new(5).unwrap()),
-                        use_for_pruning_watermark: config.use_for_pruning_watermark,
-                    })
-            })
-            .collect()
+    pub fn checkpoint_archive_config(&self) -> Option<&CheckpointArchiveConfig> {
+        self.checkpoint_archive_config.as_ref()
     }
 
     pub fn jsonrpc_server_type(&self) -> ServerType {
@@ -1131,20 +1107,20 @@ pub struct DBCheckpointConfig {
     pub prune_and_compact_before_upload: Option<bool>,
 }
 
-#[derive(Debug, Clone)]
-pub struct ArchiveReaderConfig {
-    pub remote_store_config: ObjectStoreConfig,
-    pub download_concurrency: NonZeroUsize,
-    pub use_for_pruning_watermark: bool,
+fn default_checkpoint_archive_download_concurrency() -> usize {
+    10
 }
 
-#[derive(Default, Debug, Clone, Deserialize, Serialize)]
+/// Configuration for backfilling checkpoint contents from the
+/// checkpoint archive when peers no longer serve the required range.
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
-pub struct StateArchiveConfig {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub object_store_config: Option<ObjectStoreConfig>,
-    pub concurrency: usize,
-    pub use_for_pruning_watermark: bool,
+pub struct CheckpointArchiveConfig {
+    /// URL of the checkpoint archive to backfill from.
+    pub url: String,
+    /// Non-zero number of checkpoints to download in parallel.
+    #[serde(default = "default_checkpoint_archive_download_concurrency")]
+    pub download_concurrency: usize,
 }
 
 /// Configuration for the per-epoch state-snapshot publisher.

@@ -4,6 +4,7 @@
 use std::{thread, time, vec};
 
 use hex::ToHex;
+use iota_sdk_types::SignatureScheme;
 use tracing::debug;
 mod transport;
 use serde::Serialize;
@@ -15,10 +16,7 @@ use iota_sdk_types::{
     Address,
     crypto::{Intent, IntentMessage},
 };
-use iota_types::{
-    crypto::{Signature, SignatureScheme},
-    object::Object,
-};
+use iota_types::{crypto::Signature, object::Object};
 
 pub use crate::api::{get_public_key::PublicKeyResult, get_version::Version};
 use crate::{

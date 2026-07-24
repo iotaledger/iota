@@ -7,6 +7,7 @@ use std::{collections::HashMap, sync::Arc};
 use iota_config::genesis::Genesis;
 use iota_sdk_types::{
     CheckpointDigest,
+    checkpoint::{CheckpointSummary, EndOfEpochData},
     crypto::{Intent, IntentMessage, IntentScope},
 };
 use iota_types::{
@@ -17,9 +18,9 @@ use iota_types::{
         KeypairTraits,
     },
     messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointSequenceNumber, CheckpointSummary,
-        CheckpointTimestamp, CheckpointVersionSpecificData, EndOfEpochData, FullCheckpointContents,
-        VerifiedCheckpoint, VerifiedCheckpointContents,
+        CertifiedCheckpointSummary, CheckpointSequenceNumber, CheckpointTimestamp,
+        CheckpointVersionSpecificData, FullCheckpointContents, VerifiedCheckpoint,
+        VerifiedCheckpointContents,
     },
 };
 

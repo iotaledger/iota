@@ -24,7 +24,10 @@ use iota_core::{
     global_state_hasher::GlobalStateHasher,
     grpc_indexes::{GRPC_INDEXES_DIR, GrpcIndexesStore, OwnerTypeFilter},
 };
-use iota_sdk_types::{Address, CheckpointDigest, GasCostSummary, ObjectId, TransactionDigest};
+use iota_sdk_types::{
+    Address, CheckpointDigest, GasCostSummary, ObjectId, TransactionDigest,
+    checkpoint::{CheckpointContents, CheckpointSummary, EndOfEpochData},
+};
 use iota_types::{
     committee::{Committee, EpochId},
     crypto::AuthorityKeyPair,
@@ -33,8 +36,8 @@ use iota_types::{
     global_state_hash::GlobalStateHash,
     iota_system_state::IotaSystemState,
     messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointContents, CheckpointContentsExt, CheckpointSummary,
-        ECMHLiveObjectSetDigest, EndOfEpochData, SignedCheckpointSummary,
+        CertifiedCheckpointSummary, CheckpointContentsExt, ECMHLiveObjectSetDigest,
+        SignedCheckpointSummary,
     },
     object::Object,
     storage::EpochInfoV2,

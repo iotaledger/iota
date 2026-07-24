@@ -140,6 +140,18 @@ impl IotaTxValidator {
                         )));
                     }
                 }
+
+                // No explicit size cap on the proposed rules: the proposal is
+                // bounded by `max_transaction_size_bytes` (256 KiB), enforced
+                // on every received block by starfish's block verifier.
+                ConsensusTransactionKind::TransactionDenyRuleProposal(_) => {
+                    if !self.epoch_store.protocol_config().deny_rule_governance() {
+                        return Err(IotaError::UnsupportedFeature {
+                            error: "TransactionDenyRuleProposal not supported at current protocol version"
+                                .into(),
+                        });
+                    }
+                }
             }
         }
 
@@ -257,7 +269,7 @@ mod tests {
 
     use iota_macros::sim_test;
     use iota_protocol_config::Chain;
-    use iota_sdk_types::ObjectId;
+    use iota_sdk_types::{ObjectId, UserSignature};
     use iota_types::{
         error::IotaError,
         messages_consensus::{
@@ -265,7 +277,6 @@ mod tests {
             VersionedMisbehaviorReport,
         },
         object::Object,
-        signature::UserSignature,
         transaction::SenderSignedTransactionAPI,
     };
     use starfish_core::TransactionVerifier as _;
@@ -431,6 +442,11 @@ mod tests {
                 ConsensusTransactionKind::OverloadNotificationV1(_, _, _) => {
                     Some(config.enable_pcool_flow())
                 }
+
+                // Gated behind `deny_rule_governance`.
+                ConsensusTransactionKind::TransactionDenyRuleProposal(_) => {
+                    Some(config.deny_rule_governance())
+                }
             }
         }
 
@@ -489,6 +505,16 @@ mod tests {
             (
                 "OverloadNotificationV1",
                 ConsensusTransactionKind::OverloadNotificationV1(authority, 0, 50),
+            ),
+            (
+                "TransactionDenyRuleProposal",
+                ConsensusTransactionKind::TransactionDenyRuleProposal(
+                    iota_types::messages_consensus::TransactionDenyRuleProposal {
+                        authority,
+                        generation: 0,
+                        proposed_rules: Default::default(),
+                    },
+                ),
             ),
         ];
 

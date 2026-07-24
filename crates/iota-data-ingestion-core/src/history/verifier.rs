@@ -18,7 +18,7 @@
 //! The most prominent use of this logic is the verification of formal
 //! snapshots. This is done by comparing the elliptic-curve multiset hash (ECMH)
 //! of the live objects included in the snapshot against the
-//! [`CheckpointCommitment`](iota_types::messages_checkpoint::CheckpointCommitment)
+//! [`CheckpointCommitment`](iota_sdk_types::checkpoint::CheckpointCommitment)
 //! stored in the last checkpoint of the respective epoch.
 
 use futures::{Stream, stream::TryStreamExt};
