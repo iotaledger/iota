@@ -350,7 +350,7 @@ mod tests {
         );
         // not a valid curve point (right length, garbage bytes)
         let mut garbage = vec![0u8];
-        garbage.extend(std::iter::repeat(0xAB).take(32));
+        garbage.extend(std::iter::repeat_n(0xAB, 32));
         assert_eq!(verify_attestor_pubkey(&garbage), Err(E_INVALID_ATTESTOR_PUBKEY));
         // non-plain scheme flags: multisig (3), bls (4), zklogin (5), passkey (6)
         for flag in [3u8, 4, 5, 6] {
