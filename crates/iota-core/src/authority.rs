@@ -24,7 +24,6 @@ use fastcrypto::{
     encoding::{Base58, Encoding},
     hash::MultisetHash,
 };
-use iota_archival::reader::ArchiveReaderBalancer;
 use iota_common::{debug_fatal, fatal};
 use iota_config::{
     NodeConfig,
@@ -3296,7 +3295,6 @@ impl AuthorityState {
     }
 
     #[expect(clippy::disallowed_methods)] // allow unbounded_channel()
-    #[expect(clippy::too_many_arguments)]
     pub async fn new(
         name: AuthorityName,
         secret: StableSyncAuthoritySigner,
@@ -3312,7 +3310,6 @@ impl AuthorityState {
         genesis_objects: &[Object],
         db_checkpoint_config: &DBCheckpointConfig,
         config: NodeConfig,
-        archive_readers: ArchiveReaderBalancer,
         validator_tx_finalizer: Option<Arc<ValidatorTxFinalizer<NetworkAuthorityClient>>>,
         chain_identifier: ChainIdentifier,
         pruner_db: Option<Arc<AuthorityPrunerTables>>,
@@ -3351,7 +3348,6 @@ impl AuthorityState {
             epoch_store.committee().authority_exists(&name),
             epoch_store.epoch_start_state().epoch_duration_ms(),
             prometheus_registry,
-            archive_readers,
             pruner_db,
             checkpoint_progress_tracker.clone(),
         );
@@ -3477,8 +3473,6 @@ impl AuthorityState {
         config: NodeConfig,
         metrics: Arc<AuthorityStorePruningMetrics>,
     ) -> anyhow::Result<()> {
-        let archive_readers =
-            ArchiveReaderBalancer::new(config.archive_reader_config(), &Registry::default())?;
         AuthorityStorePruner::prune_checkpoints_for_eligible_epochs(
             &self.database_for_testing().perpetual_tables,
             &self.checkpoint_store,
@@ -3486,7 +3480,6 @@ impl AuthorityState {
             None,
             config.authority_store_pruning_config,
             metrics,
-            archive_readers,
             EPOCH_DURATION_MS_FOR_TESTING,
             self.checkpoint_progress_tracker.as_ref(),
         )

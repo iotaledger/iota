@@ -35,7 +35,6 @@ url.workspace = true
 
 # internal dependencies
 bin-version.workspace = true
-iota-archival.workspace = true
 iota-config.workspace = true
 iota-data-ingestion-core.workspace = true
 iota-graphql-rpc-client.workspace = true
@@ -44,7 +43,6 @@ iota-package-resolver.workspace = true
 iota-sdk.workspace = true
 iota-sdk-types.workspace = true
 iota-types.workspace = true
-prometheus-filtered.workspace = true
 telemetry-subscribers.workspace = true
 
 [dev-dependencies]

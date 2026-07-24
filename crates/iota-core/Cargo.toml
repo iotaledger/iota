@@ -60,7 +60,6 @@ tracing.workspace = true
 twox-hash = "1.6"
 
 # internal dependencies
-iota-archival.workspace = true
 iota-authority-aggregation.workspace = true
 iota-common.workspace = true
 iota-config.workspace = true
@@ -103,7 +102,7 @@ clap.workspace = true
 criterion.workspace = true
 expect-test.workspace = true
 fs_extra.workspace = true
-more-asserts.workspace = true
+more-asserts = "0.3.1"
 num-bigint = "0.4.4"
 pretty_assertions.workspace = true
 rstest.workspace = true

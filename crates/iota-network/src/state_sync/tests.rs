@@ -2,27 +2,30 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::HashMap, num::NonZeroUsize, time::Duration};
+use std::{collections::HashMap, time::Duration};
 
 use anemo::{PeerId, Request};
-use anyhow::bail;
-use iota_archival::{reader::ArchiveReaderBalancer, writer::ArchiveWriter};
-use iota_config::{
-    node::ArchiveReaderConfig,
-    object_storage_config::{ObjectStoreConfig, ObjectStoreType},
-    p2p::StateSyncConfig,
+use anyhow::anyhow;
+use bytes::Bytes;
+use iota_config::{node::CheckpointArchiveConfig, p2p::StateSyncConfig};
+use iota_data_ingestion_core::history::{
+    CHECKPOINT_FILE_MAGIC,
+    manifest::{Manifest, create_file_metadata_from_bytes, finalize_manifest},
 };
 use iota_sdk_types::CheckpointDigest;
-use iota_storage::{FileCompression, StorageFormat};
+use iota_storage::{
+    FileCompression, StorageFormat,
+    blob::{Blob, BlobEncoding},
+};
 use iota_swarm_config::test_utils::{
     CommitteeFixture, MakeCheckpointResults, empty_contents, random_contents,
 };
 use iota_types::{
     committee::{Committee, EpochId},
+    full_checkpoint_content::CheckpointData,
     messages_checkpoint::{VerifiedCheckpoint, VerifiedCheckpointContents},
     storage::{ReadStore, SharedInMemoryStore, WriteStore},
 };
-use prometheus_filtered::Registry;
 use tokio::time::{Instant, timeout};
 
 use crate::{
@@ -295,91 +298,76 @@ async fn isolated_sync_job() {
 }
 
 #[tokio::test]
-async fn test_state_sync_using_archive() -> anyhow::Result<()> {
-    // Build mock data
-    let (committee, (ordered_checkpoints, _, sequence_number_to_digest, checkpoints)) =
-        make_committee_and_checkpoints(0, 4, 100, None, empty_contents);
-    // Initialize archive store with all checkpoints
-    let tmp_dir = iota_common::tempdir();
-    let local_path = tmp_dir.path().join("local_dir");
-    let remote_path = tmp_dir.path().join("remote_dir");
-    let local_store_config = ObjectStoreConfig {
-        object_store: Some(ObjectStoreType::File),
-        directory: Some(local_path.clone()),
-        ..Default::default()
-    };
-    let remote_store_config = ObjectStoreConfig {
-        object_store: Some(ObjectStoreType::File),
-        directory: Some(remote_path.clone()),
-        ..Default::default()
-    };
-    let archive_writer = ArchiveWriter::new(
-        local_store_config.clone(),
-        remote_store_config.clone(),
-        FileCompression::Zstd,
-        StorageFormat::Blob,
-        Duration::from_secs(1),
-        20,
-        &Registry::default(),
-    )
-    .await?;
-    let test_store = store_with_genesis_state(
-        ordered_checkpoints.first().cloned().unwrap(),
-        empty_contents(),
-        committee.committee().to_owned(),
-    );
-    // We ensure that only a part of the data exists in the archive store (and no
-    // new checkpoints after sequence number >= 50 are written to the archive
-    // store). This is to test the fact that a node can download latest
-    // checkpoints from a peer and back fill missing older data from archive
-    for checkpoint in &ordered_checkpoints[0..50] {
-        test_store.inner_mut().insert_checkpoint(checkpoint);
-    }
-    let kill = archive_writer.start(test_store).await?;
-    let archive_reader_config = ArchiveReaderConfig {
-        remote_store_config,
-        download_concurrency: NonZeroUsize::new(1).unwrap(),
-        use_for_pruning_watermark: false,
-    };
+async fn test_state_sync_using_checkpoint_archive() -> anyhow::Result<()> {
+    telemetry_subscribers::init_for_testing();
+    let committee = CommitteeFixture::generate(rand::rngs::OsRng, 0, 4);
+    // build mock data
+    let (ordered_checkpoints, ordered_contents, sequence_number_to_digest, checkpoints) =
+        committee.make_empty_checkpoints(100, None);
+    let temp_dir = iota_common::tempdir();
     // We will delete all checkpoints older than this checkpoint on Node 2
     let oldest_checkpoint_to_keep: u64 = 10;
-    let archive_readers =
-        ArchiveReaderBalancer::new(vec![archive_reader_config], &Registry::default())?;
-    let archive_reader = archive_readers.pick_one_random(0..u64::MAX).await.unwrap();
-    loop {
-        archive_reader.sync_manifest_once().await?;
-        if let Ok(latest_available_checkpoint_in_archive) =
-            archive_reader.latest_available_checkpoint().await
-        {
-            // We only need enough checkpoints to be in archive store for this test
-            if latest_available_checkpoint_in_archive >= oldest_checkpoint_to_keep {
-                break;
-            }
+
+    // Create archive files for the first `oldest_checkpoint_to_keep` checkpoints
+    {
+        let mut chk_buf: Vec<u8> = Vec::new();
+        chk_buf.extend_from_slice(&CHECKPOINT_FILE_MAGIC.to_be_bytes());
+        chk_buf.push(StorageFormat::Blob as u8);
+        chk_buf.push(FileCompression::None as u8);
+
+        for i in 0..(oldest_checkpoint_to_keep as usize) {
+            let checkpoint_data = CheckpointData {
+                checkpoint_summary: ordered_checkpoints[i].clone().into_inner(),
+                checkpoint_contents: ordered_contents[i].clone().into_checkpoint_contents(),
+                transactions: vec![],
+            };
+            Blob::encode(&checkpoint_data, BlobEncoding::Bcs)?.write(&mut chk_buf)?;
         }
-        tokio::time::sleep(Duration::from_secs(1)).await;
+
+        let chk_bytes = Bytes::from(chk_buf.clone());
+        let file_metadata =
+            create_file_metadata_from_bytes(chk_bytes, 0..oldest_checkpoint_to_keep)?;
+        std::fs::write(temp_dir.path().join("0.chk"), &chk_buf)?;
+
+        let mut manifest = Manifest::new(0);
+        manifest.update(oldest_checkpoint_to_keep, file_metadata);
+        let manifest_bytes = finalize_manifest(manifest)?;
+        std::fs::write(temp_dir.path().join("MANIFEST"), &manifest_bytes[..])?;
     }
+    let checkpoint_archive_config = CheckpointArchiveConfig {
+        download_concurrency: 1,
+        url: format!("file://{}", temp_dir.path().display()),
+    };
     // Build and connect two nodes where Node 1 will be given access to an archive
     // store Node 2 will prune older checkpoints, so Node 1 is forced to
-    // backfill from the archive. Genesis is initialized in each store before it
-    // is passed to the builder.
+    // backfill from the archive
     let store_1 = store_with_genesis_state(
         ordered_checkpoints.first().cloned().unwrap(),
         empty_contents(),
         committee.committee().to_owned(),
     );
+    let (builder, state_sync_router) = Builder::new()
+        .store(store_1)
+        .config(StateSyncConfig {
+            // Shorten the retry delay so pruned-checkpoint tasks quickly discover
+            // that the archive has already advanced highest_synced past them.
+            wait_interval_when_no_peer_to_sync_content_ms: Some(10),
+            ..StateSyncConfig::randomized_for_testing()
+        })
+        .checkpoint_archive_config(Some(checkpoint_archive_config))
+        .build();
+    let network_1 = build_network(|router| router.add_rpc_service(state_sync_router));
+    let (event_loop_1, _handle_1) = builder.build(network_1.clone());
     let store_2 = store_with_genesis_state(
         ordered_checkpoints.first().cloned().unwrap(),
         empty_contents(),
         committee.committee().to_owned(),
     );
-    let (builder, server) = Builder::new()
-        .store(store_1)
-        .archive_readers(archive_readers)
+    let (builder, state_sync_router) = Builder::new()
+        .store(store_2)
+        .config(StateSyncConfig::randomized_for_testing())
         .build();
-    let network_1 = build_network(|router| router.add_rpc_service(server));
-    let (event_loop_1, _handle_1) = builder.build(network_1.clone());
-    let (builder, server) = Builder::new().store(store_2).build();
-    let network_2 = build_network(|router| router.add_rpc_service(server));
+    let network_2 = build_network(|router| router.add_rpc_service(state_sync_router));
     let (event_loop_2, _handle_2) = builder.build(network_2.clone());
     network_1.connect(network_2.local_addr()).await.unwrap();
 
@@ -465,12 +453,13 @@ async fn test_state_sync_using_archive() -> anyhow::Result<()> {
                 }
             }
         }
-        if total_time.elapsed() > Duration::from_secs(120) {
-            bail!("Test timed out");
+        if total_time.elapsed() > Duration::from_secs(20) {
+            return Err(anyhow!("Test timed out"));
         }
         tokio::time::sleep(Duration::from_secs(1)).await;
     }
-    kill.send(())?;
+    // make sure temp_dir lives long enough
+    drop(temp_dir);
     Ok(())
 }
 
