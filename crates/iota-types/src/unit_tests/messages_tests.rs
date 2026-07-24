@@ -14,7 +14,7 @@ use fastcrypto::{
 };
 use iota_sdk_crypto::{ed25519::Ed25519PrivateKey, simple::SimpleKeypair};
 use iota_sdk_types::{
-    Address, ExecutionStatus, GasPayment, Owner, SharedObjectReference, StructTag,
+    Address, ExecutionStatus, GasPayment, Owner, SharedObjectReference, SignatureScheme, StructTag,
     TransactionEventsDigest, gas::GasCostSummary,
 };
 use roaring::RoaringBitmap;
@@ -25,8 +25,7 @@ use crate::{
     committee::Committee,
     crypto::{
         AccountKeyPair, AuthorityKeyPair, AuthorityPublicKeyBytes, AuthoritySignInfoTrait,
-        IotaAuthoritySignature, IotaKeyPair, IotaSignature, SignatureScheme,
-        VerificationObligation,
+        IotaAuthoritySignature, IotaKeyPair, IotaSignature, VerificationObligation,
         bcs_signable_test::{Foo, get_obligation_input},
         get_key_pair,
     },

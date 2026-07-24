@@ -27,21 +27,20 @@ use iota_keys::keystore::AccountKeystore;
 use iota_macros::sim_test;
 use iota_protocol_config::{PerObjectCongestionControlMode, ProtocolConfig};
 use iota_sdk_types::{
-    Address, Argument, ExecutionError, Identifier, MoveLocation, ObjectId, ObjectReference, Owner,
-    ProgrammableTransaction, SharedObjectReference, TypeTag, crypto::Intent,
+    Address, Argument, ExecutionError, Identifier, MoveAuthenticatorV1, MoveLocation, ObjectId,
+    ObjectReference, Owner, ProgrammableTransaction, SharedObjectReference, SignatureScheme,
+    TypeTag, UserSignature, crypto::Intent,
 };
 use iota_test_transaction_builder::publish_package;
 use iota_types::{
     IOTA_FRAMEWORK_PACKAGE_ID,
-    crypto::{PublicKey, SignatureScheme},
+    crypto::PublicKey,
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
     error::{IotaError, UserInputError},
     messages_grpc::{HandleCertificateRequestV1, HandleTransactionResponse},
-    move_authenticator::MoveAuthenticatorV1,
     move_package,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::QuorumDriverResponse,
-    signature::UserSignature,
     storage::WriteKind,
     transaction::{
         CallArg, TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, Transaction, TransactionData,

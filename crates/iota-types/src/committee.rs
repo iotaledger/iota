@@ -569,11 +569,12 @@ impl CommitteeChainVerifier {
 #[cfg(test)]
 mod test {
     use fastcrypto::traits::KeyPair;
+    use iota_sdk_types::checkpoint::{CheckpointSummary, EndOfEpochData};
 
     use super::*;
     use crate::{
         crypto::{AuthorityKeyPair, get_key_pair},
-        messages_checkpoint::{CheckpointSummary, EndOfEpochData, SignedCheckpointSummary},
+        messages_checkpoint::SignedCheckpointSummary,
         utils::make_committee_key,
     };
 

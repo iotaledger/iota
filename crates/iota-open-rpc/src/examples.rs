@@ -27,7 +27,7 @@ use iota_open_rpc::ExamplePairing;
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_sdk_types::{
     Address, CheckpointDigest, Identifier, MoveStruct, ObjectDigest, ObjectId, ObjectReference,
-    Owner, StructTag, TransactionDigest, TransactionEventsDigest, TypeTag, Version,
+    Owner, StructTag, TransactionDigest, TransactionEventsDigest, TypeTag, UserSignature, Version,
     gas::GasCostSummary,
 };
 use iota_types::{
@@ -44,7 +44,6 @@ use iota_types::{
     parse_iota_struct_tag,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::ExecuteTransactionRequestType,
-    signature::UserSignature,
     transaction::{CallArg, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionData, TransactionDataAPI},
     utils::to_sender_signed_transaction,
 };

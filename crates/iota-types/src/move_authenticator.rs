@@ -5,10 +5,9 @@ use std::collections::HashSet;
 
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    Address, ObjectId, ObjectReference, SharedObjectReference, TypeTag, Version,
-    crypto::IntentMessage,
+    Address, MoveAuthenticator, MoveAuthenticatorV1, ObjectDigest, ObjectId, ObjectReference,
+    SharedObjectReference, TypeTag, Version, crypto::IntentMessage,
 };
-pub use iota_sdk_types::{MoveAuthenticator, MoveAuthenticatorV1, ObjectDigest};
 use serde::Serialize;
 
 use crate::{

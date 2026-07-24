@@ -18,6 +18,7 @@ use iota_grpc_types::{
 use iota_node_storage::GrpcStateReader;
 use iota_sdk_types::{
     Address, CheckpointDigest, ObjectId, StructTag, TransactionDigest, TypeTag, Version,
+    checkpoint::CheckpointContents,
 };
 use iota_types::{
     base_types::VersionNumber,
@@ -26,7 +27,7 @@ use iota_types::{
         CheckpointData as IotaTypesCheckpointData,
         CheckpointTransaction as IotaTypesCheckpointTransaction,
     },
-    messages_checkpoint::{CertifiedCheckpointSummary, CheckpointContents},
+    messages_checkpoint::CertifiedCheckpointSummary,
     object::Object,
     storage::error::Kind,
 };

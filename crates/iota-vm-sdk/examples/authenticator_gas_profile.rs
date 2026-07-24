@@ -18,10 +18,10 @@ use std::path::PathBuf;
 
 use anyhow::{Context, Result};
 use fastcrypto::encoding::{Base64, Encoding};
+use iota_sdk_types::UserSignature;
 use iota_types::{
     effects::TransactionEffectsAPI,
     object::Object,
-    signature::UserSignature,
     transaction::{SenderSignedData, TransactionData, TransactionDataAPI},
 };
 use iota_vm_sdk::{

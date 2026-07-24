@@ -20,10 +20,10 @@ use iota_sdk_types::{
     Address, Argument, CancelledTransaction, CertificateDigest, Command, ConsensusCommitDigest,
     ConsensusCommitPrologueV1, ConsensusDeterminedVersionAssignments, EndOfEpochTransactionKind,
     Event, GasPayment, GenesisObject, GenesisTransaction, Identifier, Input, MakeMoveVector,
-    MergeCoins, MoveCall, MoveStruct, ObjectDigest, ObjectId, ObjectReference, Owner,
-    ProgrammableTransaction, Publish, RandomnessRound, RandomnessStateUpdate,
+    MergeCoins, MoveAuthenticator, MoveCall, MoveStruct, ObjectDigest, ObjectId, ObjectReference,
+    Owner, ProgrammableTransaction, Publish, RandomnessRound, RandomnessStateUpdate,
     SharedObjectReference, SplitCoins, TransactionDigest, TransactionExpiration, TransactionKind,
-    TransferObjects, TypeTag, Upgrade, Version,
+    TransferObjects, TypeTag, Upgrade, UserSignature, Version,
     crypto::{Intent, IntentMessage, IntentScope},
 };
 pub use iota_sdk_types::{
@@ -48,10 +48,10 @@ use crate::{
     execution::SharedInput,
     message_envelope::{Envelope, Message, TrustedEnvelope, VerifiedEnvelope},
     messages_checkpoint::CheckpointTimestamp,
-    move_authenticator::{MoveAuthenticator, MoveAuthenticatorExt},
+    move_authenticator::MoveAuthenticatorExt,
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    signature::{UserSignature, VerifyParams},
+    signature::VerifyParams,
     signature_verification::verify_sender_signed_data_message_signatures,
 };
 
