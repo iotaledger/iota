@@ -73,7 +73,7 @@ use iota_types::{
     deny_list_v1::check_coin_deny_list_v1,
     deny_rule_governance::DenyRuleConfig,
     digests::ChainIdentifier,
-    dynamic_field::DynamicFieldInfo,
+    dynamic_field::{self, DynamicFieldInfo},
     effects::{
         InputSharedObject, SignedTransactionEffects, TransactionEffects, TransactionEffectsAPI,
         TransactionEffectsExt, TransactionEvents, VerifiedSignedTransactionEffects,
@@ -170,7 +170,7 @@ use crate::{
     execution_driver::execution_process,
     global_state_hasher::{GlobalStateHashStore, GlobalStateHasher},
     grpc_indexes::{GRPC_INDEXES_DIR, GrpcIndexesStore},
-    jsonrpc_index::{CoinInfo, IndexStore},
+    jsonrpc_index::{CoinInfo, IndexStore, try_create_dynamic_field_info},
     metrics::{LatencyObserver, RateTracker},
     module_cache_metrics::ResolverMetrics,
     overload_monitor::{
@@ -2726,18 +2726,8 @@ impl AuthorityState {
             return Ok(());
         };
 
-        let mut layout_resolver =
-            epoch_store
-                .executor()
-                .type_layout_resolver(Box::new(PackageStoreWithFallback::new(
-                    checkpoint,
-                    self.get_backing_package_store(),
-                )));
-
         indexes.index_checkpoint(
             checkpoint,
-            self.get_object_store().as_ref(),
-            layout_resolver.as_mut(),
             // Coin balances are only served by fullnodes, so validators skip
             // the coin index.
             !self.is_committee_validator(epoch_store),
@@ -3864,24 +3854,37 @@ impl AuthorityState {
         cursor: Option<ObjectId>,
         limit: usize,
     ) -> IotaResult<Vec<(ObjectId, DynamicFieldInfo)>> {
-        Ok(self
-            .get_dynamic_fields_iterator(owner, cursor)?
-            .take(limit)
-            .collect::<Result<Vec<_>, _>>()?)
-    }
+        let Some(indexes) = &self.indexes else {
+            return Err(IotaError::IndexStoreNotAvailable);
+        };
+        let epoch_store = self.load_epoch_store_one_call_per_task();
+        let mut layout_resolver = epoch_store
+            .executor()
+            .type_layout_resolver(Box::new(self.get_backing_package_store().clone()));
+        let object_store = self.get_object_store();
 
-    fn get_dynamic_fields_iterator(
-        &self,
-        owner: ObjectId,
-        // If `Some`, the query will start from the next item after the specified cursor
-        cursor: Option<ObjectId>,
-    ) -> IotaResult<impl Iterator<Item = Result<(ObjectId, DynamicFieldInfo), TypedStoreError>> + '_>
-    {
-        if let Some(indexes) = &self.indexes {
-            indexes.get_dynamic_fields_iterator(owner, cursor)
-        } else {
-            Err(IotaError::IndexStoreNotAvailable)
+        let mut fields = Vec::new();
+        for field_id in indexes.get_dynamic_field_ids_iterator(owner, cursor)? {
+            if fields.len() >= limit {
+                break;
+            }
+            let field_id = field_id?;
+            // The index and the object store are read at different times; a
+            // field deleted in between is omitted, like an unresolvable one.
+            let Some(field_object) = object_store.try_get_object(&field_id)? else {
+                continue;
+            };
+            match try_create_dynamic_field_info(
+                &field_object,
+                object_store.as_ref(),
+                layout_resolver.as_mut(),
+            ) {
+                Ok(Some(info)) => fields.push((field_id, info)),
+                Ok(None) => {}
+                Err(e) => warn!(?field_id, "failed to resolve dynamic field: {e}"),
+            }
         }
+        Ok(fields)
     }
 
     #[instrument(level = "trace", skip_all)]
@@ -3891,11 +3894,44 @@ impl AuthorityState {
         name_type: TypeTag,
         name_bcs_bytes: &[u8],
     ) -> IotaResult<Option<ObjectId>> {
-        if let Some(indexes) = &self.indexes {
-            indexes.get_dynamic_field_object_id(owner, name_type, name_bcs_bytes)
-        } else {
-            Err(IotaError::IndexStoreNotAvailable)
+        let Some(indexes) = &self.indexes else {
+            return Err(IotaError::IndexStoreNotAvailable);
+        };
+        let derive = |name_type: &TypeTag| {
+            dynamic_field::derive_dynamic_field_id(owner, name_type, name_bcs_bytes).map_err(|e| {
+                IotaError::Unknown(format!(
+                    "Unable to generate dynamic field id. Got error: {e:?}"
+                ))
+            })
+        };
+
+        let dynamic_field_id = derive(&name_type)?;
+        if indexes.dynamic_field_exists(owner, dynamic_field_id)? {
+            return Ok(Some(dynamic_field_id));
         }
+
+        // A dynamic object field is indexed under its `Field` wrapper, which
+        // stores the id of the value object the caller is after.
+        let wrapper_type = TypeTag::Struct(Box::new(
+            DynamicFieldInfo::dynamic_object_field_wrapper(name_type),
+        ));
+        let wrapper_id = derive(&wrapper_type)?;
+        if !indexes.dynamic_field_exists(owner, wrapper_id)? {
+            return Ok(None);
+        }
+        let Some(wrapper_object) = self.get_object_store().try_get_object(&wrapper_id)? else {
+            return Ok(None);
+        };
+        let epoch_store = self.load_epoch_store_one_call_per_task();
+        let mut layout_resolver = epoch_store
+            .executor()
+            .type_layout_resolver(Box::new(self.get_backing_package_store().clone()));
+        Ok(try_create_dynamic_field_info(
+            &wrapper_object,
+            self.get_object_store().as_ref(),
+            layout_resolver.as_mut(),
+        )?
+        .map(|info| info.object_id))
     }
 
     #[instrument(level = "trace", skip_all)]
