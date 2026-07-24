@@ -6,14 +6,17 @@ use std::{sync::Arc, time::Instant};
 
 use prometheus_filtered::{
     Counter, CounterVec, GaugeVec, Histogram, HistogramVec, IntCounter, IntCounterVec, IntGauge,
-    IntGaugeVec, MetricLevel, Registry, exponential_buckets, register_counter_vec_with_registry,
+    IntGaugeVec, MetricLevel, Registry, register_counter_vec_with_registry,
     register_counter_with_registry, register_gauge_vec_with_registry,
     register_histogram_vec_with_registry, register_histogram_with_registry,
     register_int_counter_vec_with_registry, register_int_counter_with_registry,
     register_int_gauge_vec_with_registry, register_int_gauge_with_registry,
 };
 
-use crate::network::metrics::NetworkMetrics;
+use crate::{
+    network::metrics::NetworkMetrics,
+    quantile_gauge::{QuantileGauge, QuantileGaugeVec},
+};
 
 // starts from 1μs, 50μs, 100μs...
 const FINE_GRAINED_LATENCY_SEC_BUCKETS: &[f64] = &[
@@ -205,7 +208,8 @@ pub(crate) struct NodeMetrics {
     pub(crate) block_proposal_leader_wait_ms: IntCounterVec,
     pub(crate) block_proposal_leader_wait_count: IntCounterVec,
     pub(crate) block_timestamp_drift_ms: IntCounterVec,
-    pub(crate) latency_to_process_stream: HistogramVec,
+    pub(crate) latency_to_process_stream: QuantileGauge,
+    pub(crate) latency_to_process_stream_by_peer: SumCountVec,
     pub(crate) blocks_per_commit_count: SumCountVec,
     pub(crate) core_add_blocks_batch_size: SumCount,
     pub(crate) core_add_block_headers_batch_size: SumCount,
@@ -293,7 +297,8 @@ pub(crate) struct NodeMetrics {
     pub(crate) transactions_synchronizer_missing_transactions_by_authority: IntCounterVec,
     pub(crate) transactions_synchronizer_current_missing_transactions_by_authority: IntGaugeVec,
     pub(crate) transactions_synchronizer_periodic_inflight: IntGauge,
-    pub(crate) transactions_synchronizer_fetch_latency: HistogramVec,
+    pub(crate) transactions_synchronizer_fetch_latency: QuantileGauge,
+    pub(crate) transactions_synchronizer_fetch_latency_by_peer: SumCountVec,
     pub(crate) transactions_synchronizer_success_by_peer: IntCounterVec,
     pub(crate) transactions_synchronizer_failure_by_peer: IntCounterVec,
     pub(crate) transactions_synchronizer_inflight_requests: IntGauge,
@@ -304,7 +309,7 @@ pub(crate) struct NodeMetrics {
     pub(crate) transaction_commit_latency: Histogram,
     pub(crate) block_headers_suspensions: IntCounterVec,
     pub(crate) block_header_unsuspensions: IntCounterVec,
-    pub(crate) suspended_block_header_time: HistogramVec,
+    pub(crate) suspended_block_header_time: QuantileGaugeVec,
     pub(crate) block_manager_suspended_block_headers: IntGauge,
     pub(crate) block_manager_suspended_blocks: IntGauge,
     pub(crate) block_manager_missing_ancestors: IntGauge,
@@ -437,14 +442,20 @@ impl NodeMetrics {
                 registry,
                 MetricLevel::Warn,
             ),
-            latency_to_process_stream: register_histogram_vec_with_registry!(
+            latency_to_process_stream: QuantileGauge::register(
+                "latency_to_process_stream",
+                "The latency between block creation and processing stream from peer",
+                module_path!(),
+                registry,
+                MetricLevel::Warn,
+            ),
+            latency_to_process_stream_by_peer: SumCountVec::register(
                 "latency_to_process_stream",
                 "The latency between block creation and processing stream from peer",
                 &["peer"],
-                exponential_buckets(0.002, 1.5, 18).unwrap(),
-                registry;
+                registry,
                 MetricLevel::Warn,
-            ).unwrap(),
+            ),
             highest_verified_authority_round: register_int_gauge_vec_with_registry!(
                 "highest_verified_authority_round",
                 "The highest round of received verified block for the corresponding authority",
@@ -1073,13 +1084,14 @@ impl NodeMetrics {
                 &["authority"],
                 registry,
             ).unwrap(),
-            suspended_block_header_time: register_histogram_vec_with_registry!(
+            suspended_block_header_time: QuantileGaugeVec::register(
                 "suspended_block_header_time",
                 "The time for which a block header remains suspended",
-                &["authority"],
-                registry;
+                "authority",
+                module_path!(),
+                registry,
                 MetricLevel::Warn,
-            ).unwrap(),
+            ),
             block_manager_suspended_block_headers: register_int_gauge_with_registry!(
                 "block_manager_suspended_block_headers",
                 "The number of block headers currently suspended in the block manager",
@@ -1321,14 +1333,20 @@ impl NodeMetrics {
                 MetricLevel::Warn,
             ),
             // New metrics for transaction synchronizer
-            transactions_synchronizer_fetch_latency: register_histogram_vec_with_registry!(
+            transactions_synchronizer_fetch_latency: QuantileGauge::register(
+                "transaction_synchronizer_fetch_latency",
+                "The time taken to fetch transactions from a peer",
+                module_path!(),
+                registry,
+                MetricLevel::Warn,
+            ),
+            transactions_synchronizer_fetch_latency_by_peer: SumCountVec::register(
                 "transaction_synchronizer_fetch_latency",
                 "The time taken to fetch transactions from a peer",
                 &["peer", "type"],
-                LATENCY_SEC_BUCKETS.to_vec(),
-                registry;
+                registry,
                 MetricLevel::Warn,
-            ).unwrap(),
+            ),
             transactions_synchronizer_success_by_peer: register_int_counter_vec_with_registry!(
                 "transaction_synchronizer_success_by_peer",
                 "Number of successful transaction fetches per peer",
