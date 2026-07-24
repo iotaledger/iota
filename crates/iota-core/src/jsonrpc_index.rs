@@ -10,7 +10,7 @@ use std::{
     collections::{BTreeMap, HashMap, HashSet},
     path::{Path, PathBuf},
     sync::{
-        Arc, Mutex,
+        Arc,
         atomic::{AtomicU64, Ordering},
     },
     time::{Duration, Instant},
@@ -44,7 +44,7 @@ use itertools::Itertools;
 use move_core_types::{
     account_address::AccountAddress, identifier::Identifier, language_storage::ModuleId,
 };
-use parking_lot::ArcMutexGuard;
+use parking_lot::{ArcMutexGuard, Mutex};
 use prometheus_filtered::{
     IntCounter, IntCounterVec, Registry, register_int_counter_vec_with_registry,
     register_int_counter_with_registry,
@@ -909,7 +909,8 @@ fn process_object_index(
             Owner::Object(object_id) => {
                 deleted_dynamic_fields.push((object_id, removed_object.id()))
             }
-            _ => {}
+            Owner::Shared(_) | Owner::Immutable => {}
+            _ => unimplemented!("a new Owner enum variant was added and needs to be handled"),
         }
     }
 
@@ -925,7 +926,10 @@ fn process_object_index(
                     Owner::Object(object_id) => {
                         deleted_dynamic_fields.push((object_id, old_object.id()))
                     }
-                    _ => {}
+                    Owner::Shared(_) | Owner::Immutable => {}
+                    _ => {
+                        unimplemented!("a new Owner enum variant was added and needs to be handled")
+                    }
                 }
             }
         }
@@ -953,7 +957,8 @@ fn process_object_index(
                 };
                 new_dynamic_fields.push(((parent, object.id()), df_info))
             }
-            _ => {}
+            Owner::Shared(_) | Owner::Immutable => {}
+            _ => unimplemented!("a new Owner enum variant was added and needs to be handled"),
         }
     }
 
@@ -1187,7 +1192,7 @@ impl IndexStore {
         registry: &Registry,
         max_type_length: Option<u64>,
         authority_store: &Arc<AuthorityStore>,
-        checkpoint_store: &CheckpointStore,
+        checkpoint_store: &Arc<CheckpointStore>,
         epoch_store: &Arc<AuthorityPerEpochStore>,
         package_store: Arc<dyn BackingPackageStore + Send + Sync>,
     ) -> Self {
@@ -1227,15 +1232,28 @@ impl IndexStore {
                 )
             };
 
-            init_tables
-                .init(
-                    authority_store,
-                    checkpoint_store,
-                    epoch_store,
-                    &package_store,
-                    batch_size_limit,
-                )
-                .expect("unable to initialize JSON-RPC index");
+            // The rebuild scans and writes RocksDB for a long time; keep it
+            // off the async runtime's worker threads.
+            let init_tables = tokio::task::spawn_blocking({
+                let authority_store = authority_store.clone();
+                let checkpoint_store = checkpoint_store.clone();
+                let epoch_store = epoch_store.clone();
+                let package_store = package_store.clone();
+                move || {
+                    init_tables
+                        .init(
+                            &authority_store,
+                            &checkpoint_store,
+                            &epoch_store,
+                            &package_store,
+                            batch_size_limit,
+                        )
+                        .expect("unable to initialize JSON-RPC index");
+                    init_tables
+                }
+            })
+            .await
+            .expect("JSON-RPC index initialization task failed");
 
             // Flush all data to disk before dropping tables. This is critical because
             // WAL is disabled for the bulk writes during initialization. Flushing any
@@ -1285,10 +1303,17 @@ impl IndexStore {
             .get(&())
             .expect("failed to initialize index tables")
             .and_then(|watermark| {
-                checkpoint_store
+                let checkpoint = checkpoint_store
                     .get_checkpoint_by_sequence_number(watermark)
-                    .expect("checkpoint store read cannot fail")
-                    .map(|checkpoint| checkpoint.network_total_transactions)
+                    .expect("checkpoint store read cannot fail");
+                if checkpoint.is_none() {
+                    warn!(
+                        watermark,
+                        "indexed watermark checkpoint not found; transaction numbering falls \
+                         back to the local index rows"
+                    );
+                }
+                checkpoint.map(|checkpoint| checkpoint.network_total_transactions)
             })
             .unwrap_or(0);
 
@@ -1522,7 +1547,7 @@ impl IndexStore {
         }
         batch.insert_batch(&self.tables.watermark, [((), checkpoint_seq)])?;
 
-        let mut pending_updates = self.pending_updates.lock().unwrap();
+        let mut pending_updates = self.pending_updates.lock();
         assert!(
             pending_updates
                 .last_key_value()
@@ -1551,7 +1576,7 @@ impl IndexStore {
         &self,
         checkpoint_seq: CheckpointSequenceNumber,
     ) -> IotaResult {
-        let next_update = self.pending_updates.lock().unwrap().pop_first();
+        let next_update = self.pending_updates.lock().pop_first();
         let (staged_seq, update) =
             next_update.expect("commit_update_for_checkpoint called without a staged update");
         assert_eq!(
