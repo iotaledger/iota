@@ -9,9 +9,7 @@ use iota_types::{
     layout_resolver::LayoutResolver,
     storage::{BackingPackageStore, PackageObject},
 };
-use move_core_types::{
-    account_address::AccountAddress, annotated_value as A, resolver::ResourceResolver,
-};
+use move_core_types::annotated_value as A;
 use move_vm_runtime::move_vm::MoveVM;
 
 use crate::programmable_transactions::{context::load_type_from_struct, linkage_view::LinkageView};
@@ -24,9 +22,8 @@ pub struct TypeLayoutResolver<'state, 'vm> {
     linkage_view: LinkageView<'state>,
 }
 
-/// Implements IotaResolver traits by providing null implementations for module
-/// and resource resolution and delegating backing package resolution to the
-/// trait object.
+/// Implements IotaResolver traits by providing a null implementation for module
+/// resolution and delegating backing package resolution to the trait object.
 struct NullIotaResolver<'state>(Box<dyn TypeLayoutStore + 'state>);
 
 impl<'state, 'vm> TypeLayoutResolver<'state, 'vm> {
@@ -60,17 +57,5 @@ impl LayoutResolver for TypeLayoutResolver<'_, '_> {
 impl BackingPackageStore for NullIotaResolver<'_> {
     fn get_package_object(&self, package_id: &ObjectId) -> IotaResult<Option<PackageObject>> {
         self.0.get_package_object(package_id)
-    }
-}
-
-impl ResourceResolver for NullIotaResolver<'_> {
-    type Error = IotaError;
-
-    fn get_resource(
-        &self,
-        _address: &AccountAddress,
-        _type: &move_core_types::language_storage::StructTag,
-    ) -> Result<Option<Vec<u8>>, Self::Error> {
-        Ok(None)
     }
 }
