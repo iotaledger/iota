@@ -28,20 +28,17 @@ use iota_storage::{mutex_table::MutexTable, sharded_lru::ShardedLruCache};
 use iota_types::{
     base_types::{ObjectInfo, TxSequenceNumber},
     dynamic_field::{self, DynamicFieldInfo, DynamicFieldName, visitor as DFV},
-    effects::{TransactionEffectsAPI, TransactionEffectsExt, TransactionEvents},
+    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt, TransactionEvents},
     error::{IotaError, IotaResult, UserInputError},
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
-    inner_temporary_store::{PackageStoreWithFallback, TxCoins},
+    inner_temporary_store::TxCoins,
     iota_sdk_types_conversions::type_tag_core_to_sdk,
     layout_resolver::LayoutResolver,
     messages_checkpoint::{CheckpointContentsExt, CheckpointSequenceNumber},
     object::{Object, bounded_visitor::BoundedVisitor},
     parse_iota_struct_tag,
-    storage::{
-        BackingPackageStore, ObjectStore, error::Error as StorageError,
-        get_transaction_input_objects, get_transaction_output_objects,
-    },
-    transaction::TransactionDataAPI,
+    storage::{BackingPackageStore, ObjectStore, error::Error as StorageError},
+    transaction::{Transaction, TransactionDataAPI},
 };
 use itertools::Itertools;
 use move_core_types::{
@@ -105,8 +102,9 @@ pub struct ObjectIndexChanges {
     pub new_dynamic_fields: Vec<(DynamicFieldKey, DynamicFieldInfo)>,
 }
 
-/// Per-transaction inputs for the index batch, extracted from executed
-/// checkpoint data.
+/// Per-transaction inputs for the history tables of the index batch. Unlike
+/// the live-state tables (owner, coin, dynamic field), these need only the
+/// transaction, its effects, and its events — no object contents.
 struct TransactionIndexData {
     digest: TransactionDigest,
     sender: Address,
@@ -114,8 +112,6 @@ struct TransactionIndexData {
     mutated_objects: Vec<(ObjectReference, Owner)>,
     move_functions: Vec<(ObjectId, String, String)>,
     events: TransactionEvents,
-    object_index_changes: ObjectIndexChanges,
-    tx_coins: Option<TxCoins>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -345,20 +341,14 @@ impl IndexStoreTables {
     /// bound has overtaken the upper).
     fn transaction_index_range(
         &self,
-        authority_store: &AuthorityStore,
         checkpoint_store: &CheckpointStore,
         highest_executed_checkpoint: Option<CheckpointSequenceNumber>,
     ) -> Result<Option<std::ops::RangeInclusive<CheckpointSequenceNumber>>, StorageError> {
-        // Replay loads each transaction's input/output objects in addition to
-        // the checkpoint data, and the object pruner advances independently of
-        // the checkpoint-contents pruner, so the range must clear both.
+        // Replay reads each transaction, its effects, and its events, all of
+        // which are pruned together with the checkpoint contents — the object
+        // pruner does not bound it.
         let lowest = checkpoint_store
             .get_highest_pruned_checkpoint_seq_number()?
-            .max(
-                authority_store
-                    .perpetual_tables
-                    .get_highest_pruned_checkpoint()?,
-            )
             .map(|c| c.saturating_add(1))
             .unwrap_or(0);
         Ok(highest_executed_checkpoint
@@ -394,20 +384,11 @@ impl IndexStoreTables {
             checkpoint_store.get_highest_executed_checkpoint_seq_number()?;
 
         // Phase 1 — history-derived tables, replayed over the checkpoints
-        // whose full data is still locally available.
-        let tx_range = self.transaction_index_range(
-            authority_store,
-            checkpoint_store,
-            highest_executed_checkpoint,
-        )?;
+        // whose data is still locally available.
+        let tx_range =
+            self.transaction_index_range(checkpoint_store, highest_executed_checkpoint)?;
         if let Some(range) = tx_range {
-            self.index_historical_checkpoints(
-                authority_store,
-                checkpoint_store,
-                epoch_store,
-                package_store,
-                range,
-            )?;
+            self.index_historical_checkpoints(authority_store, checkpoint_store, range)?;
         }
 
         // Phase 2 — live-state tables from the current live object set.
@@ -426,17 +407,17 @@ impl IndexStoreTables {
         Ok(())
     }
 
-    /// Replays the full data of every checkpoint in `checkpoint_range` in
-    /// order. Transactions are numbered by their position in the network
-    /// transaction order, derived from each checkpoint's transaction total,
-    /// so numbering stays canonical whatever range is locally available.
+    /// Replays every checkpoint in `checkpoint_range` in order, writing only
+    /// the history tables; the live-state tables are covered by the
+    /// live-object scan. Transactions are numbered by their position in the
+    /// network transaction order, derived from each checkpoint's transaction
+    /// total, so numbering stays canonical whatever range is locally
+    /// available.
     #[tracing::instrument(skip_all)]
     fn index_historical_checkpoints(
         &self,
         authority_store: &AuthorityStore,
         checkpoint_store: &CheckpointStore,
-        epoch_store: &AuthorityPerEpochStore,
-        package_store: &Arc<dyn BackingPackageStore + Send + Sync>,
         checkpoint_range: std::ops::RangeInclusive<CheckpointSequenceNumber>,
     ) -> Result<(), StorageError> {
         info!(
@@ -446,28 +427,48 @@ impl IndexStoreTables {
         let start_time = Instant::now();
 
         for checkpoint_seq in checkpoint_range {
-            let checkpoint =
-                load_checkpoint_data(authority_store, checkpoint_store, checkpoint_seq)?;
-            let mut layout_resolver = epoch_store.executor().type_layout_resolver(Box::new(
-                PackageStoreWithFallback::new(&checkpoint, package_store),
-            ));
-            let first_sequence_number = checkpoint.checkpoint_summary.network_total_transactions
-                - checkpoint.transactions.len() as u64;
+            let summary = checkpoint_store
+                .get_checkpoint_by_sequence_number(checkpoint_seq)?
+                .ok_or_else(|| {
+                    StorageError::missing(format!("missing checkpoint {checkpoint_seq}"))
+                })?;
+            let contents = checkpoint_store
+                .get_checkpoint_contents(&summary.content_digest)?
+                .ok_or_else(|| {
+                    StorageError::missing(format!("missing checkpoint contents {checkpoint_seq}"))
+                })?;
+            let first_sequence_number =
+                summary.network_total_transactions - contents.iter().len() as u64;
 
             let mut batch = self.transactions_from_addr.batch();
-            let mut coin_changes = BTreeMap::new();
-            for (sequence, tx) in (first_sequence_number..).zip(&checkpoint.transactions) {
-                let data =
-                    transaction_index_data(tx, authority_store, layout_resolver.as_mut(), true)
-                        .map_err(|e| StorageError::custom(e.to_string()))?;
-                self.index_tx(
-                    &mut batch,
-                    &mut coin_changes,
-                    sequence,
-                    checkpoint.checkpoint_summary.timestamp_ms,
-                    data,
-                )
-                .map_err(|e| StorageError::custom(e.to_string()))?;
+            for (sequence, digests) in (first_sequence_number..).zip(contents.iter()) {
+                let transaction = authority_store
+                    .get_transaction_block(&digests.transaction)?
+                    .ok_or_else(|| {
+                        StorageError::missing(format!(
+                            "missing transaction {}",
+                            digests.transaction
+                        ))
+                    })?
+                    .into_inner();
+                let effects = authority_store
+                    .get_effects(&digests.effects)
+                    .map_err(|e| StorageError::custom(e.to_string()))?
+                    .ok_or_else(|| {
+                        StorageError::missing(format!("missing effects {}", digests.effects))
+                    })?;
+                let events = if effects.events_digest().is_some() {
+                    Some(authority_store.get_events(&digests.transaction)?.ok_or_else(
+                        || StorageError::missing(format!("missing events {}", digests.transaction)),
+                    )?)
+                } else {
+                    None
+                };
+
+                let data = transaction_index_data(&transaction, &effects, events.as_ref())
+                    .map_err(|e| StorageError::custom(e.to_string()))?;
+                self.index_tx(&mut batch, sequence, summary.timestamp_ms, data)
+                    .map_err(|e| StorageError::custom(e.to_string()))?;
             }
             batch
                 .write_opt(&bulk_ingestion_write_options())
@@ -581,11 +582,10 @@ impl IndexStoreTables {
         Ok(())
     }
 
-    /// Appends one transaction's index rows to a checkpoint's batch.
+    /// Appends one transaction's history-table rows to a checkpoint's batch.
     fn index_tx(
         &self,
         batch: &mut DBBatch,
-        coin_changes: &mut BTreeMap<CoinIndexKey, (TypeTag, Option<CoinInfo>)>,
         sequence: TxSequenceNumber,
         timestamp_ms: u64,
         tx: TransactionIndexData,
@@ -597,8 +597,6 @@ impl IndexStoreTables {
             mutated_objects,
             move_functions,
             events,
-            object_index_changes,
-            tx_coins,
         } = tx;
 
         batch.insert_batch(&self.transaction_order, std::iter::once((sequence, digest)))?;
@@ -636,29 +634,6 @@ impl IndexStoreTables {
                     .into_opt_address()
                     .map(|addr| ((addr, sequence), digest))
             }),
-        )?;
-
-        // Coin Index
-        self.index_coin(
-            &digest,
-            batch,
-            &object_index_changes,
-            tx_coins,
-            coin_changes,
-        )?;
-
-        // Owner index
-        batch.delete_batch(&self.owner_index, object_index_changes.deleted_owners)?;
-        batch.delete_batch(
-            &self.dynamic_field_index,
-            object_index_changes.deleted_dynamic_fields,
-        )?;
-
-        batch.insert_batch(&self.owner_index, object_index_changes.new_owners)?;
-
-        batch.insert_batch(
-            &self.dynamic_field_index,
-            object_index_changes.new_dynamic_fields,
         )?;
 
         // events
@@ -729,6 +704,34 @@ impl IndexStoreTables {
                     (event_digest, digest, timestamp_ms),
                 )
             }),
+        )?;
+
+        Ok(())
+    }
+
+    /// Appends one transaction's owner, dynamic-field, and coin index rows to
+    /// a checkpoint's batch.
+    fn index_object_changes(
+        &self,
+        batch: &mut DBBatch,
+        coin_changes: &mut BTreeMap<CoinIndexKey, (TypeTag, Option<CoinInfo>)>,
+        digest: &TransactionDigest,
+        object_index_changes: ObjectIndexChanges,
+        tx_coins: Option<TxCoins>,
+    ) -> IotaResult {
+        self.index_coin(digest, batch, &object_index_changes, tx_coins, coin_changes)?;
+
+        batch.delete_batch(&self.owner_index, object_index_changes.deleted_owners)?;
+        batch.delete_batch(
+            &self.dynamic_field_index,
+            object_index_changes.deleted_dynamic_fields,
+        )?;
+
+        batch.insert_batch(&self.owner_index, object_index_changes.new_owners)?;
+
+        batch.insert_batch(
+            &self.dynamic_field_index,
+            object_index_changes.new_dynamic_fields,
         )?;
 
         Ok(())
@@ -837,45 +840,23 @@ fn coin_index_table_default_config() -> DBOptions {
         .disable_write_throttling()
 }
 
-/// Extracts one transaction's index inputs from executed checkpoint data.
-///
-/// `object_store` backs dynamic-object-field value lookups for objects not
-/// written by the transaction itself. `index_coins` controls whether coin
-/// index inputs are extracted (only fullnodes serve balances).
+/// Extracts one transaction's history-table index inputs.
 fn transaction_index_data(
-    tx: &CheckpointTransaction,
-    object_store: &dyn ObjectStore,
-    layout_resolver: &mut dyn LayoutResolver,
-    index_coins: bool,
+    transaction: &Transaction,
+    effects: &TransactionEffects,
+    events: Option<&TransactionEvents>,
 ) -> IotaResult<TransactionIndexData> {
-    let tx_data = &tx.transaction.intent_message().value;
-    let object_index_changes = process_object_index(tx, object_store, layout_resolver)?;
-    let tx_coins = index_coins.then(|| {
-        let input_coins = tx
-            .input_objects
-            .iter()
-            .filter(|o| o.is_coin())
-            .map(|o| (o.id(), o.clone()))
-            .collect();
-        let written_coins = tx
-            .output_objects
-            .iter()
-            .filter(|o| o.is_coin())
-            .map(|o| (o.id(), o.clone()))
-            .collect();
-        (input_coins, written_coins)
-    });
+    let tx_data = &transaction.intent_message().value;
 
     Ok(TransactionIndexData {
-        digest: *tx.effects.transaction_digest(),
+        digest: *effects.transaction_digest(),
         sender: tx_data.sender(),
         active_inputs: tx_data
             .input_objects()?
             .iter()
             .map(|o| o.object_id())
             .collect(),
-        mutated_objects: tx
-            .effects
+        mutated_objects: effects
             .all_changed_objects()
             .into_iter()
             .map(|(obj_ref, owner, _kind)| (obj_ref, owner))
@@ -885,10 +866,25 @@ fn transaction_index_data(
             .into_iter()
             .map(|(package, module, function)| (*package, module.to_owned(), function.to_owned()))
             .collect(),
-        events: tx.events.clone().unwrap_or_default(),
-        object_index_changes,
-        tx_coins,
+        events: events.cloned().unwrap_or_default(),
     })
+}
+
+/// Coin objects touched by the transaction, as inputs for the coin index.
+fn transaction_coins(tx: &CheckpointTransaction) -> TxCoins {
+    let input_coins = tx
+        .input_objects
+        .iter()
+        .filter(|o| o.is_coin())
+        .map(|o| (o.id(), o.clone()))
+        .collect();
+    let written_coins = tx
+        .output_objects
+        .iter()
+        .filter(|o| o.is_coin())
+        .map(|o| (o.id(), o.clone()))
+        .collect();
+    (input_coins, written_coins)
 }
 
 fn process_object_index(
@@ -1073,62 +1069,6 @@ pub(crate) fn try_create_dynamic_field_info(
             }
         }
     }))
-}
-
-/// Loads the full data of an executed checkpoint from the local stores.
-fn load_checkpoint_data(
-    authority_store: &AuthorityStore,
-    checkpoint_store: &CheckpointStore,
-    checkpoint_seq: CheckpointSequenceNumber,
-) -> Result<CheckpointData, StorageError> {
-    let summary = checkpoint_store
-        .get_checkpoint_by_sequence_number(checkpoint_seq)?
-        .ok_or_else(|| StorageError::missing(format!("missing checkpoint {checkpoint_seq}")))?;
-    let contents = checkpoint_store
-        .get_checkpoint_contents(&summary.content_digest)?
-        .ok_or_else(|| {
-            StorageError::missing(format!("missing checkpoint contents {checkpoint_seq}"))
-        })?;
-
-    let mut transactions = Vec::with_capacity(contents.iter().len());
-    for digests in contents.iter() {
-        let transaction = authority_store
-            .get_transaction_block(&digests.transaction)?
-            .ok_or_else(|| {
-                StorageError::missing(format!("missing transaction {}", digests.transaction))
-            })?
-            .into_inner();
-        let effects = authority_store
-            .get_effects(&digests.effects)
-            .map_err(|e| StorageError::custom(e.to_string()))?
-            .ok_or_else(|| StorageError::missing(format!("missing effects {}", digests.effects)))?;
-        let events = if effects.events_digest().is_some() {
-            Some(
-                authority_store
-                    .get_events(&digests.transaction)?
-                    .ok_or_else(|| {
-                        StorageError::missing(format!("missing events {}", digests.transaction))
-                    })?,
-            )
-        } else {
-            None
-        };
-        let input_objects = get_transaction_input_objects(authority_store, &effects)?;
-        let output_objects = get_transaction_output_objects(authority_store, &effects)?;
-        transactions.push(CheckpointTransaction {
-            transaction,
-            effects,
-            events,
-            input_objects,
-            output_objects,
-        });
-    }
-
-    Ok(CheckpointData {
-        checkpoint_summary: summary.into_inner(),
-        checkpoint_contents: contents,
-        transactions,
-    })
 }
 
 /// Builds the live-state indexes (owner, coin, dynamic field) from a parallel
@@ -1557,10 +1497,21 @@ impl IndexStore {
             if indexed_seq.is_some() {
                 continue;
             }
-            let data = transaction_index_data(tx, object_store, layout_resolver, index_coins)?;
+            let data = transaction_index_data(&tx.transaction, &tx.effects, tx.events.as_ref())?;
+            let digest = data.digest;
             let sequence = self.next_sequence_number.fetch_add(1, Ordering::SeqCst);
             self.tables
-                .index_tx(&mut batch, &mut coin_changes, sequence, timestamp_ms, data)?;
+                .index_tx(&mut batch, sequence, timestamp_ms, data)?;
+
+            let object_index_changes = process_object_index(tx, object_store, layout_resolver)?;
+            let tx_coins = index_coins.then(|| transaction_coins(tx));
+            self.tables.index_object_changes(
+                &mut batch,
+                &mut coin_changes,
+                &digest,
+                object_index_changes,
+                tx_coins,
+            )?;
         }
         batch.insert_batch(&self.tables.watermark, [((), checkpoint_seq)])?;
 

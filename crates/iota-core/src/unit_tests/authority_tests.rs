@@ -3496,11 +3496,13 @@ async fn test_jsonrpc_index_rebuild_on_open() {
     assert_eq!(balance.num_coins, 1);
 }
 
-/// History replay must not reach below the object pruner's watermark: pruned
-/// nodes no longer hold the input objects of old transactions, even where the
-/// checkpoint data itself is still retained.
+/// History replay only writes the history tables, so it needs no input or
+/// output objects: it must cover checkpoints the object pruner has advanced
+/// past, even when the objects themselves are gone from the store.
 #[tokio::test]
-async fn test_jsonrpc_index_rebuild_skips_object_pruned_checkpoints() {
+async fn test_jsonrpc_index_rebuild_replays_object_pruned_checkpoints() {
+    use typed_store::Map;
+
     let authority_state = TestAuthorityBuilder::new()
         .insert_genesis_checkpoint()
         .build()
@@ -3527,6 +3529,29 @@ async fn test_jsonrpc_index_rebuild_skips_object_pruned_checkpoints() {
         .set_highest_pruned_checkpoint_without_wb(0)
         .unwrap();
 
+    // Delete one of the genesis transaction's output objects, as the object
+    // pruner would: replay must succeed without it.
+    let genesis_contents = checkpoint_store
+        .get_checkpoint_contents(&genesis_checkpoint.content_digest)
+        .unwrap()
+        .unwrap();
+    let genesis_digests = genesis_contents.iter().next().unwrap();
+    let genesis_effects = authority_state
+        .database_for_testing()
+        .get_effects(&genesis_digests.effects)
+        .unwrap()
+        .unwrap();
+    let pruned_ref = genesis_effects.created()[0].0;
+    authority_state
+        .database_for_testing()
+        .perpetual_tables
+        .objects
+        .remove(&iota_types::storage::ObjectKey(
+            pruned_ref.object_id,
+            pruned_ref.version,
+        ))
+        .unwrap();
+
     let index_dir = iota_common::tempdir();
     let index_store = crate::jsonrpc_index::IndexStore::new(
         index_dir.path().to_path_buf(),
@@ -3539,7 +3564,60 @@ async fn test_jsonrpc_index_rebuild_skips_object_pruned_checkpoints() {
     )
     .await;
 
-    // The genesis transaction is below the object watermark — not replayed.
+    // The genesis transaction is replayed despite the object pruning.
+    let genesis_tx_digest = genesis_digests.transaction;
+    assert_eq!(
+        index_store.get_transaction_seq(&genesis_tx_digest).unwrap(),
+        Some(0)
+    );
+
+    // The live-object scan populates the live-state tables.
+    let owned: Vec<_> = index_store
+        .get_owner_objects(owner, None, 10, None)
+        .unwrap();
+    assert_eq!(owned.len(), 1);
+    assert_eq!(owned[0].object_id, gas_object.id());
+}
+
+/// History replay is bounded by the checkpoint-contents pruner: below its
+/// watermark the transactions and effects are gone, so those checkpoints are
+/// skipped while the live-object scan still covers the live state.
+#[tokio::test]
+async fn test_jsonrpc_index_rebuild_skips_contents_pruned_checkpoints() {
+    let authority_state = TestAuthorityBuilder::new()
+        .insert_genesis_checkpoint()
+        .build()
+        .await;
+
+    let owner = dbg_addr(1);
+    let gas_object = Object::with_id_owner_for_testing(ObjectId::random(), owner);
+    authority_state.insert_genesis_objects(std::slice::from_ref(&gas_object));
+
+    let checkpoint_store = &authority_state.checkpoint_store;
+    let genesis_checkpoint = checkpoint_store
+        .get_checkpoint_by_sequence_number(0)
+        .unwrap()
+        .unwrap();
+    checkpoint_store
+        .update_highest_executed_checkpoint(&genesis_checkpoint)
+        .unwrap();
+    checkpoint_store
+        .update_highest_pruned_checkpoint(&genesis_checkpoint)
+        .unwrap();
+
+    let index_dir = iota_common::tempdir();
+    let index_store = crate::jsonrpc_index::IndexStore::new(
+        index_dir.path().to_path_buf(),
+        &prometheus_filtered::Registry::default(),
+        Some(128),
+        &authority_state.database_for_testing(),
+        checkpoint_store,
+        &authority_state.epoch_store_for_testing(),
+        authority_state.get_backing_package_store().clone(),
+    )
+    .await;
+
+    // The genesis transaction is below the contents watermark — not replayed.
     let genesis_contents = checkpoint_store
         .get_checkpoint_contents(&genesis_checkpoint.content_digest)
         .unwrap()
