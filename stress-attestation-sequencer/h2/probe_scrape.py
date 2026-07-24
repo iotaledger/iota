@@ -147,6 +147,21 @@ if ex is None:
     )
     sys.exit(1)
 exec_mean_ms, exec_std_ms, exec_sem_ms, n = ex
+
+# The stress client sometimes fails to sustain its target rate (down to zero
+# successful transactions on a bad point); a short window then averages setup
+# noise instead of the workload and must not land in the CSV. 100 spam txs
+# executed on 4 validators + 1 fullnode give ~500 samples; anything well below
+# that means the point is invalid — refuse it so the sweep marks it FAILED.
+min_samples = int(os.environ.get("MIN_SAMPLES", "450"))
+if n < min_samples:
+    print(
+        f"probe_scrape: only {n} execution samples (< {min_samples}) — the "
+        "stress client under-delivered (check its report in the point log); "
+        "re-run this point. Row NOT appended.",
+        file=sys.stderr,
+    )
+    sys.exit(1)
 attested = cu_mean(ATTESTED)
 actual = cu_mean(ACTUAL)
 
