@@ -7,9 +7,15 @@
 //! `enable_validator_attestation` and `enable_pcool_flow`).
 //! Own binary so the process-wide env override does not race others.
 
-use fastcrypto::encoding::{Encoding, Hex};
+use fastcrypto::ed25519::Ed25519KeyPair;
 use iota_macros::sim_test;
-use iota_types::{IOTA_SYSTEM_PACKAGE_ID, transaction::CallArg};
+use iota_types::{
+    IOTA_SYSTEM_PACKAGE_ID,
+    crypto::{IotaKeyPair, get_key_pair_from_rng},
+    iota_system_state::attestor_registry::generate_attestor_proof_of_possession,
+    transaction::CallArg,
+};
+use rand::{SeedableRng, rngs::StdRng};
 use test_cluster::TestClusterBuilder;
 
 /// Sets protocol-config overrides via process-wide env vars for the duration
@@ -80,9 +86,15 @@ async fn test_attestor_registry_lifecycle() {
     let gas = gas_objects[0];
     let bond = gas_objects[1];
 
-    // A real `flag || raw_key` ed25519 public key (on-curve validated).
-    let attestor_pubkey =
-        Hex::decode("00d04a166e8dcd71127be0012f3e882c9b8c355af7d43dd98f8200b69eb17e312f").unwrap();
+    // A dedicated attestor signing key with a proof of possession bound to
+    // the registering account.
+    let attestor_keypair = IotaKeyPair::Ed25519(
+        get_key_pair_from_rng::<Ed25519KeyPair, _>(&mut StdRng::from_seed([7; 32])).1,
+    );
+    let pk = attestor_keypair.public();
+    let mut attestor_pubkey = vec![pk.flag()];
+    attestor_pubkey.extend_from_slice(pk.as_ref());
+    let proof_of_possession = generate_attestor_proof_of_possession(&attestor_keypair, sender);
 
     let tx_data = test_cluster
         .test_transaction_builder_with_gas_object(sender, gas)
@@ -95,6 +107,7 @@ async fn test_attestor_registry_lifecycle() {
                 CallArg::IOTA_SYSTEM_MUTABLE,
                 CallArg::ImmutableOrOwned(bond),
                 CallArg::pure(&attestor_pubkey),
+                CallArg::pure(&proof_of_possession),
             ],
         )
         .build();
