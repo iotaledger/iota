@@ -170,12 +170,12 @@ curl -i -X POST 'https://graphql.devnet.iota.cafe' \
 
 The Rust SDK exposes `iota_view` as `view_function_call` on the JSON-RPC client. This example publishes a package with `#[view]` functions and calls the non-generic `counter::value`:
 
-```rust file=<rootDir>/crates/iota-sdk/examples/read_api/move_view_function_call.rs#L102-L110
+```rust file=<rootDir>/crates/iota-sdk/examples/read_api/move_view_function_call.rs#L108-L116
 ```
 
 The type arguments are the second parameter. This call reads the generic `vault::item` view, filling in the type argument (`Coin<IOTA>`) alongside the object argument:
 
-```rust file=<rootDir>/crates/iota-sdk/examples/read_api/move_view_function_call.rs#L168-L180
+```rust file=<rootDir>/crates/iota-sdk/examples/read_api/move_view_function_call.rs#L176-L186
 ```
 
 ## Call from the TypeScript SDK
