@@ -23,6 +23,7 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WHICH="${1:-all}"
 LOGDIR="$SCRIPT_DIR/logs"
+RETRIES="${RETRIES:-3}" # extra attempts per failed point
 mkdir -p "$LOGDIR"
 
 # "n size" pairs. Ladder: product in {100,200,500,...,2M} at size=100. The top
@@ -93,17 +94,23 @@ for p in "${points[@]}"; do
   wipe="${WIPE:-no}"
   [[ $i -eq $total && -z "${WIPE:-}" ]] && wipe=yes # default: tear down at the end
   echo "[$(date +%H:%M:%S)] ($i/$total) probe $label -> logs/$label.log"
-  if SLOW_N="$n" SLOW_SIZE="$size" WIPE="$wipe" "$SCRIPT_DIR/probe.sh" >"$LOGDIR/$label.log" 2>&1; then
-    echo "    ✓ done"
-  else
-    # Transient submit-path stalls fail the odd point (the scrape guard keeps
-    # bad rows out of the CSV); one immediate retry usually lands it.
-    echo "    ✗ failed — retrying once"
-    if SLOW_N="$n" SLOW_SIZE="$size" WIPE="$wipe" "$SCRIPT_DIR/probe.sh" >>"$LOGDIR/$label.log" 2>&1; then
-      echo "    ✓ done (retry)"
+  # Transient submit-path stalls fail the odd point (the scrape guard keeps
+  # bad rows out of the CSV); immediate retries usually land it. All attempts
+  # append to the same point log.
+  ok=""
+  for attempt in $(seq 1 $((1 + RETRIES))); do
+    if ((attempt > 1)); then
+      echo "    ✗ failed — retry $((attempt - 1))/$RETRIES"
+      SLOW_N="$n" SLOW_SIZE="$size" WIPE="$wipe" "$SCRIPT_DIR/probe.sh" >>"$LOGDIR/$label.log" 2>&1 && ok=1
     else
-      echo "    ✗ FAILED twice — tail logs/$label.log"
+      SLOW_N="$n" SLOW_SIZE="$size" WIPE="$wipe" "$SCRIPT_DIR/probe.sh" >"$LOGDIR/$label.log" 2>&1 && ok=1
     fi
+    [[ -n "$ok" ]] && break
+  done
+  if [[ -n "$ok" ]]; then
+    if ((attempt == 1)); then echo "    ✓ done"; else echo "    ✓ done (attempt $attempt)"; fi
+  else
+    echo "    ✗ FAILED after $((1 + RETRIES)) attempts — tail logs/$label.log"
   fi
 done
 
