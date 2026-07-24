@@ -2,14 +2,19 @@
 
 The probe (`probe.sh`, swept by `probe_sweep.sh`) characterizes one
 `slow::slow(n, size)` point at low rate: the per-transaction computation units
-(attested + actual, the values `TotalComputationUnits` schedules on) and the
-internal Move-VM execution time. The computation units select the W5 cost points
-and set the per-object limits for the H2 mode comparison; see `README.md`.
+(**attested** — metered during the attestation dry-run, the value
+`TotalComputationUnits` schedules on — plus **actual**, metered at
+post-consensus execution) and the internal Move-VM execution time. The
+workload is the owned-object slow variant (W4 in `../stress-plan.md`), so for
+this workload, both attested and actual computation units should match, since
+no state can change between the dry-run and execution; how these numbers feed
+the H2 mode comparison is described in `README.md`.
 
-The grid is a geometric ladder of the product `n·size` (size fixed at 100,
-varying n, product 100 → 2M) plus a split-invariance check (product 40000 at
-three n/size splits). Each point ran 20 s at 5 QPS (100 transactions), the same
-on both machines. The same 21-point sweep ran on two machines:
+The sweep grid is a geometric ladder of the product `n × size` (`size` fixed at
+100, varying `n`, product 100 → 2M) plus a split-invariance check (product
+40000 at three `n / size` splits). Each point ran 20 s at 5 QPS (100
+transactions in total), the same on both machines. The same 21-point sweep ran
+on two machines:
 
 | machine | CPU | arch | boost | cores |
 | --- | --- | --- | --- | --- |
@@ -19,51 +24,29 @@ on both machines. The same 21-point sweep ran on two machines:
 `compare_machines.py` reproduces the cross-machine table below;
 `plot_calibration.py` reproduces the figures.
 
-## How the probe measures (and what changed since the first run)
+## How the probe measures
 
-The client is the `stress` benchmark running **in-docker on the private
-network**, submitting **directly to the validators** via the transaction driver
-— the attested `submit_tx` path (attestation happens in the validator's
-handler regardless of the caller). Every measured value comes from
-validator-side Prometheus histograms, pooled over the 4 validators and
-differenced over the point's measurement window:
+The client is the `stress` benchmark running in-docker on the private network,
+submitting *directly to the validators* via the transaction driver (the
+attested `submit_tx` path). Every measured value comes from validator-side
+Prometheus histograms, pooled over the 4 validators and differenced over the
+point's measurement window:
 
 - **Computation units** — `attested_computation_units` /
   `actual_computation_units`, `Δ_sum / Δ_count`. Only attested user
   transactions touch these histograms, and the workload is deterministic, so
   the mean is the exact per-transaction value.
-- **Internal execution time** — `authority_state_internal_execution_latency_user`,
-  pure post-consensus execution, **user transactions only**. This histogram was
-  added for the probe: the pre-existing all-transactions histogram pools the
-  network's constant stream of system transactions (commit prologues etc.),
-  which outnumber a low-rate workload ~30:1 and drag the mean toward their
+- **Internal execution time** —
+  `authority_state_internal_execution_latency_user`, pure post-consensus
+  execution, **user transactions only**. This histogram was added for the
+  probe: the pre-existing all-transactions histogram pools the network's
+  constant stream of system transactions (commit prologues etc.), which
+  outnumber a low-rate workload ~30:1 and drag the mean toward their
   sub-millisecond cost.
 
-Correctness machinery, added after the first calibration run went wrong in
-instructive ways:
-
-- The window opens only after Prometheus has scraped the validators, and closes
-  only once the user-transaction execution counter stays flat across
-  consecutive scrapes — so the window is complete on any hardware, with no
-  tuned sleeps.
-- A row is recorded only if the window holds ≥400 of the ~412 expected samples
-  (100 transactions × 4 validators + client setup), i.e. ≥97 % delivery; an
-  under-delivered point fails loudly and is retried instead of writing a
-  plausible-looking but polluted row.
-- Every sweep starts from a freshly bootstrapped network and tears it down at
-  the end, so no run can inherit another run's backlog.
-
-Every row below has exactly 412 samples.
-
-> [!WARNING]
-> The July 6 numbers in this file's earlier revision had two defects. (1) The
-> execution-time column was pooled from the all-transactions histogram, so it
-> mostly averaged system transactions — e.g. the WS ceiling was reported as
-> ≈23 ms when the true per-transaction cost is ≈149 ms; the cross-machine
-> ratios were likewise computed on diluted values. (2) The EPYC ceiling rows
-> were polluted by window contamination. The computation-unit columns were
-> exact then and are bit-identical now — only the execution-time analysis is
-> superseded by this revision.
+Every row below has exactly 412 samples: the point's 100 transactions executed
+on each of the 4 validators (400), plus the client's 3 setup transactions,
+likewise executed on all 4 validators.
 
 ---
 
@@ -122,50 +105,45 @@ Every row below has exactly 412 samples.
 | 20000 | 100 | 2,000,000 | 4,854,398 | 148.998 | 1.776 | 412 |
 
 > [!NOTE]
-> At the ceiling (product ≥ 850k) every transaction aborts out-of-gas at the
+> At the ceiling (product ≥ 850k), every transaction aborts out-of-gas at the
 > metering cap; the abort still costs the full execution time, which is what
-> the plateau rows measure. Unlike the July run, the ceiling rows are clean on
-> both machines (the drain and the delivery guard keep each window complete
-> and uncontaminated).
+> the plateau rows measure.
 
 ---
 
 ## Findings
 
 **1. CUs sit at the floor, rise superlinearly, then hit a hard ceiling.** For
-product ≤ 5,000 every point bills at 1,000 — one `gas_rounding_step` — so small
-workloads are indistinguishable on cost. From product 10,000 upward CUs rise
-steeply (3,913 → 15,563 → … → 2,810,709 at product 500,000), roughly quadratic
-in the product at first and flattening toward linear. At the top they hit a
-ceiling: product 700k → 3.98M, then 850k through 2M all pin at the *same*
-4,854,398 — a five-point plateau. The metered CU flatlines just under the 5M
-`max_gas_computation_bucket`, because the VM computation budget is
-`min(gas_budget, 5M × gas_price)` — past ≈850k product a transaction can't meter
-more, it caps (and aborts out-of-gas) at ≈4.85M. The wide, well-separated CU
-range below the ceiling is what gives the mode comparison distinct gas buckets
-to calibrate against.
+product ≤ 5,000, every point bills at 1,000 — one `gas_rounding_step` — so
+light workloads are indistinguishable on computation cost. From product 10,000
+upward, CUs rise steeply (3,913 → 15,563 → … → 2,810,709 at product 500,000) —
+**up to cubic** between products 20k and 40k (×2 product → ×8 CU), flattening
+toward linear higher up. At the top, they hit a ceiling: product 700k → 3.98M,
+then 850k through 2M all pin at the *same* 4,854,398 — a five-point plateau.
+The metered CU flatlines just under the 5M `max_gas_computation_bucket`,
+because the VM computation budget is `min(gas_budget, 5M × gas_price)` — past
+≈850k product a transaction can't meter more, it caps (and aborts out-of-gas)
+at ≈4.85M. The wide, well-separated CU range below the ceiling is what gives
+the mode comparison distinct gas buckets to calibrate against.
 
-**2. The product is the cost axis; the n/size split barely matters.** At product
-40,000 the three splits (100×400, 200×200, 400×100) give CUs within 2.4 %
-(123,330 / 124,301 / 126,243) and exec times within ≈11 % on both machines. So
-`n·size` sets the cost; more vectors at equal product cost marginally more.
-This validates the product as the single W5 cost axis.
+**2. The product is the cost axis; the `n / size` split barely matters.** At
+product 40,000, the three splits (100×400, 200×200, 400×100) give CUs within
+2.4 % (123,330 / 124,301 / 126,243) and execution times within ≈11 % on both
+machines. So `n × size` sets the cost; more vectors at equal product cost
+marginally more. This validates the product as the workload's single cost axis.
 
 ![CUs and execution time vs product](results/summary_plots/cu_exec_vs_product.png)
 
 *Top: computation units vs product — one curve, since CUs are
-machine-independent; hollow squares are the product-40000 splits, which land on
-the curve; the top five rungs (850k–2M) flatline just under the 5M computation
-cap (red). Bottom: internal execution time vs product, per machine (both to
-product 2M).*
+machine-independent; the square markers are the product-40000 splits, which
+land on the curve; the top five points (850k–2M) flatten just under the 5M
+computation cap (red). Bottom: internal execution time vs product, per machine
+(both to product 2M).*
 
 **3. CUs are machine-independent; execution time is not.** Every CU matches to
-the digit across both machines — and across node builds and client setups: the
-same values came out bit-identical before and after a rebase of the node, and
-with the client submitting via the fullnode or directly to validators.
-Computation units are protocol-defined gas metering, not wall-clock. Execution
-time, in contrast, is the single-threaded Move-VM cost, so it tracks per-core
-performance:
+the digit across both machines — computation units are protocol-defined gas
+metering, not wall-clock. Execution time, in contrast, is the single-threaded
+Move-VM cost, so it tracks per-core performance:
 
 | product | n×size | CU | EPYC exec (ms) | WS exec (ms) | WS/EPYC |
 | --- | --- | --- | --- | --- | --- |
@@ -195,7 +173,8 @@ The WS runs 1.8–4.8× faster per transaction, and the ratio is U-shaped rather
 than flat:
 
 - **Fixed-overhead floor** (product ≤ 1,000): ratio ≈ 0.31–0.38 (WS ≈2.6–3.2×
-  faster). Exec here is mostly per-tx overhead (≈0.23 ms WS vs ≈0.61 ms EPYC).
+  faster). Execution here is mostly per-transaction overhead (≈0.23 ms WS vs
+  ≈0.61 ms EPYC).
 - **Compute-bound middle** (product 10k–100k): ratio dips to ≈ 0.21–0.25 (WS
   ≈4–4.8× faster). Raw Move-VM compute dominates and the WS's higher clock,
   newer core, and 3D V-Cache win big — well beyond the ≈1.5× clock ratio alone.
@@ -206,14 +185,14 @@ than flat:
   is solid; the mechanism is inference.)
 
 At the ceiling both machines are flat and clean: WS ≈146–152 ms, EPYC
-≈270–284 ms across all five plateau rungs.
+≈270–284 ms across all five plateau points.
 
 ![Execution time vs CUs](results/summary_plots/exec_vs_cu.png)
 
 *Internal execution time vs computation units, per machine. The vertical
-cluster at CU = 1,000 is the gas-rounding floor: exec time still rises with the
-real work (the product) while the billed CU stays pinned at the floor. The
-points piled at CU ≈ 4.85M are the ceiling plateau.*
+cluster at CU = 1,000 is the gas-rounding floor: execution time still rises
+with the real work (the product) while the billed CU stays pinned at the floor.
+The points piled at CU ≈ 4.85M are the ceiling plateau.*
 
 **4. At ceiling costs, even 5 QPS is heavy load for the attested submit path.**
 A byproduct of getting the probe reliable, relevant to the H2/H3 experiment
@@ -235,6 +214,6 @@ delivery counts, never assumed from the target rate.
 
 The takeaway for cross-machine reading: computation units transfer exactly, but
 per-transaction latency does not. The EPYC's strength is core count (48c) for
-parallel throughput, not per-tx speed — so it lags the high-clock desktop on
+parallel throughput, not per-transaction speed — so it lags the high-clock desktop on
 anything gated on single-transaction execution, by 2× at the ceiling and up to
 almost 5× in the compute-bound middle of the range.

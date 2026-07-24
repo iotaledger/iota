@@ -12,8 +12,9 @@ across validators, and derives:
   - computation units: mean = Δ_sum / Δ_count. The workload is deterministic, so
     every transaction is identical and this mean IS the exact per-transaction
     value (`_sum` accumulates exact values; no bucket rounding). Reported for
-    both `attested_computation_units` and `actual_computation_units`; they should
-    match (attestation predicts the cost exactly for these transactions).
+    both `attested_computation_units` and `actual_computation_units`; for
+    owned-object txs they should match (shared-object state could change
+    between the dry-run and execution).
   - internal execution time (`authority_state_internal_execution_latency_user`,
     pure post-consensus VM execution, user transactions only): mean =
     Δ_sum / Δ_count (exact), std estimated from the histogram bucket deltas
@@ -89,7 +90,7 @@ def delta(series):
 
 
 def hist_mean_count(base):
-    """(Δ_sum, Δ_count) pooled across validator series for a histogram base name."""
+    """(Δ_sum, Δ_count) pooled across validator series for a histogram base."""
     return (
         delta(query_range(f"{base}_sum{JOBS}")),
         delta(query_range(f"{base}_count{JOBS}")),
@@ -158,11 +159,11 @@ if ex is None:
 exec_mean_ms, exec_std_ms, exec_sem_ms, n = ex
 
 # The stress client sometimes fails to sustain its target rate (down to zero
-# successful transactions on a bad point); a short window then averages setup
-# noise instead of the workload and must not land in the CSV. 100 spam txs
-# executed on 4 validators give ~400 samples (plus a few setup txs); anything
-# below that means the point is invalid — refuse it so the sweep marks it
-# FAILED.
+# successful transactions on a bad point); the window would then hold far fewer
+# samples than the workload and must not land in the CSV. 100 workload txs
+# executed on 4 validators give 400 samples (the warmup/setup txs are excluded
+# by the window baseline); require the full 400 so any under-delivery is refused
+# and the sweep marks it FAILED.
 min_samples = int(os.environ.get("MIN_SAMPLES", "400"))
 if n < min_samples:
     print(

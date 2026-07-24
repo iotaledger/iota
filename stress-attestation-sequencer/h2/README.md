@@ -12,9 +12,11 @@ limit_CU = limit_txcount × (attested CU per transaction)
 ```
 
 This directory currently holds the **calibration pre-step**: a probe that maps
-`slow::slow(n, size)` → (computation units, execution time). Its output selects
-the W5 cost points and sets those limits. Shared network scripts (`start.sh`,
-`cleanup.sh`, `bootstrap.sh`) live one level up in `../`.
+`slow::slow(n, size)` → (computation units, execution time), running the
+owned-object variant of the workload (W4 in `../stress-plan.md`). Its output
+picks the (n, size) settings for the mode comparison — which runs the
+shared-object variant (W5) — and sets those limits. Shared network scripts
+(`start.sh`, `cleanup.sh`, `bootstrap.sh`) live one level up in `../`.
 
 ## Calibration pre-step
 
@@ -43,17 +45,19 @@ attested_cu, actual_cu, exec_mean_ms, exec_std_ms, exec_sem_ms
 
 - **Computation units** — `mean = Δ_sum / Δ_count` of
   `attested_computation_units` and `actual_computation_units`. The workload is
-  deterministic, so this mean is the exact per-transaction value; the two should
-  match (attestation predicts the cost exactly here). This is the number the
-  mode calibration needs.
-- **Internal execution time** — `authority_state_internal_execution_latency_user`
-  (pure post-consensus VM execution, user transactions only, pooled across the
-  validators; the fullnode's checkpoint-replay executions are excluded): `mean ±
-  sem`, plus `std` (from histogram bucket deltas) and sample count `N`. Low
-  rate ⇒ no queueing ⇒ this is the intrinsic unloaded per-transaction cost. The `_user`
-  histogram exists because the all-transactions one pools the network's constant
-  stream of system transactions (commit prologues etc.), which outnumber the
-  spam ~30:1 and drag the mean toward their sub-ms cost.
+  deterministic, so this mean is the exact per-transaction value; for the
+  probe's owned-object transactions the two should match, since no state can
+  change between the attestation dry-run and execution (with shared objects
+  it can — untested so far). This is the number the mode calibration needs.
+- **Internal execution time** —
+  `authority_state_internal_execution_latency_user` (pure post-consensus VM
+  execution, user transactions only, pooled across the validators; the
+  fullnode's checkpoint-replay executions are excluded): `mean ± sem`, plus
+  `std` (from histogram bucket deltas) and sample count `N`. Low rate ⇒ no
+  queueing ⇒ this is the intrinsic unloaded per-transaction cost. The `_user`
+  histogram exists because the all-transactions one pools the network's
+  constant stream of system transactions (commit prologues etc.), which
+  outnumber the spam ~30:1 and drag the mean toward their sub-ms cost.
 
 ### Why a geometric grid
 

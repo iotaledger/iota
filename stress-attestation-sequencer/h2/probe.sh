@@ -3,10 +3,14 @@
 # probe.sh — H2 calibration pre-step: characterize ONE slow::slow(n, size) point.
 #
 # Fires a short, low-rate `slow` spam and reports the per-transaction computation
-# units (attested + actual, the values TotalComputationUnits schedules on) and
-# the internal execution time (mean ± sem, plus std). Repeated invocations sweep
-# the (n, size) space and accumulate results/calibration-<machine>.csv, which then selects
-# the W5 cost points and sets the per-object limits for the H2 mode comparison.
+# units (attested — metered during the attestation dry-run, the value
+# TotalComputationUnits schedules on — plus actual, metered at post-consensus
+# execution; for owned-object txs the two should match) and the internal
+# execution time (mean ± sem, plus std). Repeated invocations sweep the
+# (n, size) space and accumulate results/calibration-<machine>.csv, from which
+# the (n, size) settings and per-object limits for the H2 mode comparison get
+# picked. The probe runs the owned slow variant (W4 in ../stress-plan.md); the
+# mode comparison runs the shared variant (W5).
 #
 # Unlike ../h1/run.sh this does NOT do an A/B two-run flow and does NOT wipe or
 # re-bootstrap between invocations: it reuses a running network so a sweep is
@@ -306,15 +310,30 @@ else
     "${WORKLOAD_ARGS[@]}") 2>"$STRESS_LOG"
 fi
 echo "  - stress stderr -> $(rel "$STRESS_LOG")"
+submit_end=$(date +%s)
 
 wait_for_drain
 end=$(date +%s)
+
+# Exclude the warmup. The gas-coin setup transactions run during client init,
+# before the timed benchmark phase; that phase is the last DURATION seconds of
+# the run, so the baseline (submission end − DURATION) is when spamming started.
+# A histogram delta from there subtracts the setup txs out — they sit in the
+# pre-baseline cumulative counts — leaving the mean over the identical workload
+# transactions only. Falls back to the full window if DURATION is not `Ns`.
+dur_secs="${DURATION%s}"
+if [[ "$dur_secs" =~ ^[0-9]+$ ]]; then
+  window_start=$((submit_end - dur_secs))
+else
+  echo "${YELLOW}  - DURATION='$DURATION' not in Ns form; measuring the whole window (setup included).${RESET}" >&2
+  window_start="$start"
+fi
 
 banner "== measure =="
 PROM="$PROM" \
   CFG_slow_n="$SLOW_N" CFG_slow_size="$SLOW_SIZE" CFG_product="$PRODUCT" \
   CFG_shared="$SLOW_SHARED" CFG_qps="$QPS" CFG_duration="$DURATION" \
-  python3 "$SCRIPT_DIR/probe_scrape.py" "$start" "$end" "$TS_STEP" "$CSV_OUT"
+  python3 "$SCRIPT_DIR/probe_scrape.py" "$window_start" "$end" "$TS_STEP" "$CSV_OUT"
 
 # End-of-run wipe: default NO so the next probe reuses the network. WIPE=yes
 # forces teardown; interactively we prompt (default no); non-interactively we keep.
