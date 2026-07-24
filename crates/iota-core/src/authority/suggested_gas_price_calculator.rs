@@ -2580,8 +2580,7 @@ mod tests {
         let parameters = worker_test_parameters(1, 2);
         let mut tracker =
             SharedObjectCongestionTracker::new(vec![], Vec::new(), parameters.clone());
-        let mut calculator =
-            SuggestedGasPriceCalculator::new(parameters.clone(), REFERENCE_GAS_PRICE);
+        let mut calculator = SuggestedGasPriceCalculator::new(parameters, REFERENCE_GAS_PRICE);
 
         schedule_transaction(&mut tracker, &mut calculator, &[], 3_000);
 
@@ -2717,8 +2716,7 @@ mod tests {
         let parameters = worker_test_parameters(1, 2);
         let mut tracker =
             SharedObjectCongestionTracker::new(vec![], Vec::new(), parameters.clone());
-        let mut calculator =
-            SuggestedGasPriceCalculator::new(parameters.clone(), REFERENCE_GAS_PRICE);
+        let mut calculator = SuggestedGasPriceCalculator::new(parameters, REFERENCE_GAS_PRICE);
         schedule_transaction(&mut tracker, &mut calculator, &[(object, true)], 3_000);
         schedule_transaction(&mut tracker, &mut calculator, &[], 2_500);
 

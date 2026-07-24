@@ -445,7 +445,7 @@ pub(crate) enum SchedulingResult {
 ///
 /// Cancelled transactions still pass through the execution engine to unlock
 /// owned objects, but they are not executed as normally. The reason is used by
-/// `SharedObjVerManager` when assigning shared object versions to determine
+/// `SharedObjVerManager` when assigning cancellation versions to determine
 /// the appropriate cancellation behavior (e.g., whether to include a suggested
 /// gas price in the cancellation error).
 ///
@@ -456,9 +456,12 @@ pub(crate) enum SchedulingResult {
 /// certificates. The renaming is safe and backward-compatible since this is a
 /// fully internal type.
 pub enum CancelConsensusTransactionReason {
-    /// Transaction was cancelled due to shared-object congestion.
-    CongestionOnObjects {
-        /// List of IDs of congested shared objects.
+    /// Transaction was cancelled due to congestion: either on objects it
+    /// touches, or on the execution-worker pool.
+    Congested {
+        /// IDs of the congested objects the transaction touches. Empty when
+        /// the execution-worker pool, rather than any object, was congested
+        /// and the transaction has no shared inputs.
         congested_objects: Vec<ObjectId>,
 
         /// Optional suggested gas price from the gas price feedback
@@ -4197,7 +4200,7 @@ impl AuthorityPerEpochStore {
         let mut shared_input_next_version = HashMap::new();
         for txn in transactions.iter() {
             match cancelled_txns.get(txn.digest()) {
-                Some(CancelConsensusTransactionReason::CongestionOnObjects { .. })
+                Some(CancelConsensusTransactionReason::Congested { .. })
                 | Some(CancelConsensusTransactionReason::DkgFailed) => {
                     let version_assignments = SharedObjVerManager::assign_versions_for_transaction(
                         txn,
@@ -5322,6 +5325,22 @@ impl AuthorityPerEpochStore {
                             }
                         } else {
                             // Cancel the transaction that has been deferred for too long.
+                            //
+                            // A deferral caused by execution-worker congestion reports no
+                            // congested objects. Cancellation is signalled through assigned
+                            // versions on the transaction's shared inputs, so treat all of
+                            // them as congested; the suggested gas price is what matters to
+                            // the client either way. A transaction without shared inputs is
+                            // handled in version assignment via its gas object instead.
+                            let congested_objects = if congested_objects.is_empty() {
+                                verified_executable_tx
+                                    .shared_input_objects()
+                                    .iter()
+                                    .map(|obj| obj.object_id)
+                                    .collect()
+                            } else {
+                                congested_objects
+                            };
                             debug!(
                                 "Cancelling verified executable transaction {:?} with deferral \
                                     key {deferral_key:?} due to congestion on objects \
@@ -5333,7 +5352,7 @@ impl AuthorityPerEpochStore {
 
                             ConsensusTransactionResult::Cancelled((
                                 verified_executable_tx,
-                                CancelConsensusTransactionReason::CongestionOnObjects {
+                                CancelConsensusTransactionReason::Congested {
                                     congested_objects,
                                     suggested_gas_price,
                                 },

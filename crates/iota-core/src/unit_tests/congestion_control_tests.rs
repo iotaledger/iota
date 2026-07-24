@@ -37,7 +37,9 @@ use crate::{
             CongestionControlParameters, PreviouslyDeferredTransactions,
             consensus_quarantine::ConsensusCommitOutput,
         },
-        authority_test_utils::{init_state_with_ids, init_transfer_transaction},
+        authority_test_utils::{
+            init_state_with_ids, init_state_with_objects, init_transfer_transaction,
+        },
         authority_tests::{
             build_programmable_transaction, certify_shared_obj_transaction_no_execution,
             execute_programmable_transaction, send_and_confirm_transaction_,
@@ -51,7 +53,9 @@ use crate::{
         test_authority_builder::TestAuthorityBuilder,
     },
     checkpoints::CheckpointServiceNoop,
-    consensus_handler::{ConsensusCommitInfo, VerifiedSequencedConsensusTransaction},
+    consensus_handler::{
+        ConsensusCommitInfo, SequencedConsensusTransaction, VerifiedSequencedConsensusTransaction,
+    },
     move_call,
     test_utils::set_scheduler_env,
 };
@@ -1185,5 +1189,316 @@ async fn test_combined_tracker_schedules_randomness_with_regular_transactions() 
             .consensus_handler_cancelled_transactions
             .get(),
         0
+    );
+}
+
+// An owned-object-only transaction that cannot be scheduled within the
+// execution-worker limit is deferred and, once past the deferral limit,
+// cancelled: it is still executed, charged gas, and produces failure effects
+// carrying a suggested gas price, so it reaches checkpoints and bumps its
+// owned object versions like any other executed transaction. Re-executing it
+// from those effects on a second authority (the checkpoint replay path) must
+// reproduce identical effects.
+#[sim_test]
+async fn test_execution_worker_congestion_cancels_owned_object_only_tx() {
+    telemetry_subscribers::init_for_testing();
+
+    // One execution worker and a per-commit limit of one transaction, so only
+    // one transaction can be scheduled per commit; no deferral allowance, so
+    // the transaction that does not fit is cancelled immediately.
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(true);
+        config.set_per_object_congestion_control_mode_for_testing(
+            PerObjectCongestionControlMode::TotalTxCount,
+        );
+        config.set_max_accumulated_txn_cost_per_object_in_mysticeti_commit_for_testing(1);
+        config.set_max_congestion_limit_overshoot_per_commit_for_testing(0);
+        config.set_max_concurrent_execution_workers_for_testing(1);
+        config.set_max_deferral_rounds_for_congestion_control_for_testing(0);
+        config
+    });
+
+    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let object_1_id = ObjectId::random();
+    let object_2_id = ObjectId::random();
+    let gas_1_id = ObjectId::random();
+    let gas_2_id = ObjectId::random();
+    let authority = init_state_with_ids(vec![
+        (sender, object_1_id),
+        (sender, object_2_id),
+        (sender, gas_1_id),
+        (sender, gas_2_id),
+    ])
+    .await;
+    let epoch_store = authority.epoch_store_for_testing();
+    let rgp = authority.reference_gas_price_for_testing().unwrap();
+
+    // Snapshot the genesis objects for the replaying authority before
+    // anything executes.
+    let genesis_objects: Vec<Object> = [object_1_id, object_2_id, gas_1_id, gas_2_id]
+        .iter()
+        .map(|id| authority.get_object(id).unwrap())
+        .collect();
+
+    // Two owned-object-only transfer transactions with no object overlap.
+    let mut transactions = Vec::new();
+    for (object_id, gas_id) in [(object_1_id, gas_1_id), (object_2_id, gas_2_id)] {
+        let object = authority.get_object(&object_id).unwrap();
+        let gas = authority.get_object(&gas_id).unwrap();
+        transactions.push(init_transfer_transaction(
+            &authority,
+            sender,
+            &sender_key,
+            dbg_addr(2),
+            object.object_ref(),
+            gas.object_ref(),
+            rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+            rgp,
+        ));
+    }
+
+    let sequenced_transactions = transactions
+        .iter()
+        .map(|tx| {
+            SequencedConsensusTransaction::new_test(ConsensusTransaction {
+                kind: ConsensusTransactionKind::UserTransactionV1(Box::new(tx.clone().into())),
+                tracking_id: Default::default(),
+            })
+        })
+        .collect();
+
+    let checkpoint_service = Arc::new(CheckpointServiceNoop {});
+    let executable_transactions = epoch_store
+        .process_consensus_transactions_for_tests(
+            sequenced_transactions,
+            &checkpoint_service,
+            authority.get_object_cache_reader().as_ref(),
+            authority.get_transaction_cache_reader().as_ref(),
+            &authority.metrics,
+            true,
+            authority.as_ref(),
+        )
+        .await
+        .unwrap();
+
+    // Both transactions are scheduled for execution: one normally, the other
+    // in cancelled mode.
+    assert_eq!(executable_transactions.len(), 2);
+
+    let mut cancelled = Vec::new();
+    for tx in &executable_transactions {
+        let (effects, _) = authority
+            .try_execute_immediately(tx, None, &epoch_store)
+            .unwrap();
+        let is_cancelled = match effects.status() {
+            ExecutionStatus::Success => false,
+            ExecutionStatus::Failure {
+                error:
+                    ExecutionError::ExecutionCanceledDueToSharedObjectCongestionV2 {
+                        congested_objects,
+                        suggested_gas_price,
+                    },
+                command: None,
+            } => {
+                // The execution-worker pool is congested, not any particular
+                // object, so no congested objects are reported. The suggested
+                // gas price must beat the competing transaction's price.
+                assert!(congested_objects.is_empty());
+                assert!(*suggested_gas_price > rgp);
+                true
+            }
+            other => panic!("expected success or congestion cancellation, got {other:?}"),
+        };
+        if is_cancelled {
+            cancelled.push((tx.clone(), effects));
+        }
+    }
+    assert_eq!(
+        cancelled.len(),
+        1,
+        "exactly one transaction fits the single execution worker"
+    );
+    let (cancelled_tx, effects) = cancelled.pop().unwrap();
+
+    // The cancelled execution charged gas (the gas object was mutated), and
+    // the cancellation left no shared object entries in the effects.
+    let gas_object_id = cancelled_tx.transaction().gas()[0].object_id;
+    assert!(
+        effects
+            .mutated()
+            .iter()
+            .any(|(obj_ref, _)| obj_ref.object_id == gas_object_id)
+    );
+    assert!(effects.input_shared_objects().is_empty());
+
+    // Re-execute from the effects on a second authority holding the same
+    // genesis objects: the gas object cancellation is reconstructed from the
+    // execution status and must reproduce identical effects.
+    let authority_2 = init_state_with_objects(genesis_objects).await;
+    let epoch_store_2 = authority_2.epoch_store_for_testing();
+    epoch_store_2
+        .acquire_shared_version_assignments_from_effects(
+            &cancelled_tx,
+            &effects,
+            authority_2.get_object_cache_reader().as_ref(),
+        )
+        .unwrap();
+    let (effects_2, _) = authority_2
+        .try_execute_immediately(&cancelled_tx, None, &epoch_store_2)
+        .unwrap();
+    assert_eq!(effects, effects_2);
+}
+
+// A transaction with shared inputs deferred by execution-worker congestion
+// (rather than congestion on its objects) reports no congested objects from
+// the scheduler. Once past the deferral limit it is cancelled through the
+// existing shared object cancellation path, with all of its shared inputs
+// treated as congested.
+#[sim_test]
+async fn test_execution_worker_congestion_cancels_shared_object_tx() {
+    telemetry_subscribers::init_for_testing();
+
+    // The congestion limit fits exactly one default transaction per commit,
+    // with a single execution worker and no overshoot: of two transactions
+    // touching disjoint objects, one is scheduled and the other is deferred
+    // by the worker limit alone and then cancelled (no deferral allowance).
+    let default_tx_gas_budget = TEST_ONLY_GAS_UNIT * TEST_ONLY_GAS_PRICE;
+    let mut test_setup = TestSetup::new(default_tx_gas_budget, 0).await;
+    test_setup
+        .protocol_config
+        .set_enable_pcool_flow_for_testing(true);
+    test_setup
+        .protocol_config
+        .set_max_concurrent_execution_workers_for_testing(1);
+
+    let shared_object_1 = test_setup.create_shared_object().await;
+    let shared_object_2 = test_setup.create_shared_object().await;
+    let owned_object_1 = test_setup.create_owned_object().await;
+    let owned_object_2 = test_setup.create_owned_object().await;
+
+    // A second gas object so the two transactions have disjoint inputs.
+    let gas_2_id = ObjectId::random();
+    let gas_2 = Object::with_id_owner_for_testing(gas_2_id, test_setup.sender);
+    test_setup
+        .setup_authority_state
+        .insert_genesis_object(gas_2);
+
+    let genesis_objects = test_setup
+        .create_genesis_objects_for_new_authority_state(&[
+            shared_object_1.object_id,
+            shared_object_2.object_id,
+            owned_object_1.object_id,
+            owned_object_2.object_id,
+            gas_2_id,
+        ])
+        .await;
+
+    let authority_state = TestAuthorityBuilder::new()
+        .with_reference_gas_price(TEST_ONLY_GAS_PRICE)
+        .with_protocol_config(test_setup.protocol_config.clone())
+        .build()
+        .await;
+    authority_state.insert_genesis_objects(&genesis_objects);
+    let epoch_store = authority_state.epoch_store_for_testing();
+
+    // Each transaction touches its own shared object, owned object, and gas
+    // object.
+    let mut transactions = Vec::new();
+    for (shared_object, owned_object_id, gas_id) in [
+        (
+            &shared_object_1,
+            owned_object_1.object_id,
+            test_setup.gas_object_id,
+        ),
+        (&shared_object_2, owned_object_2.object_id, gas_2_id),
+    ] {
+        transactions.push(
+            build_test_transaction(
+                &authority_state,
+                &test_setup.package,
+                &test_setup.sender,
+                &test_setup.sender_key,
+                &gas_id,
+                &[(shared_object.object_id, shared_object.version)],
+                &authority_state
+                    .get_object(&owned_object_id)
+                    .unwrap()
+                    .object_ref(),
+                TEST_ONLY_GAS_UNIT,
+            )
+            .await,
+        );
+    }
+
+    let sequenced_transactions = transactions
+        .iter()
+        .map(|tx| {
+            SequencedConsensusTransaction::new_test(ConsensusTransaction {
+                kind: ConsensusTransactionKind::UserTransactionV1(Box::new(tx.clone())),
+                tracking_id: Default::default(),
+            })
+        })
+        .collect();
+
+    let checkpoint_service = Arc::new(CheckpointServiceNoop {});
+    let executable_transactions = epoch_store
+        .process_consensus_transactions_for_tests(
+            sequenced_transactions,
+            &checkpoint_service,
+            authority_state.get_object_cache_reader().as_ref(),
+            authority_state.get_transaction_cache_reader().as_ref(),
+            &authority_state.metrics,
+            true,
+            authority_state.as_ref(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(executable_transactions.len(), 2);
+
+    let shared_input_of = |digest| {
+        transactions
+            .iter()
+            .zip([&shared_object_1, &shared_object_2])
+            .find(|(tx, _)| tx.digest() == digest)
+            .map(|(_, shared_object)| shared_object.object_id)
+            .unwrap()
+    };
+
+    let mut cancellations = 0;
+    for tx in &executable_transactions {
+        let (effects, _) = authority_state
+            .try_execute_immediately(tx, None, &epoch_store)
+            .unwrap();
+        let shared_input = shared_input_of(tx.digest());
+        match effects.status() {
+            ExecutionStatus::Success => {}
+            ExecutionStatus::Failure {
+                error:
+                    ExecutionError::ExecutionCanceledDueToSharedObjectCongestionV2 {
+                        congested_objects,
+                        suggested_gas_price,
+                    },
+                command: None,
+            } => {
+                // The worker pool, not an object, was congested, so all of
+                // the transaction's shared inputs are treated as congested.
+                assert_eq!(congested_objects, &vec![shared_input]);
+                assert!(*suggested_gas_price > 0);
+                assert_eq!(
+                    effects.input_shared_objects(),
+                    vec![InputSharedObject::Cancelled(
+                        shared_input,
+                        Version::new_congested_with_suggested_gas_price(*suggested_gas_price)
+                            .unwrap()
+                    )]
+                );
+                cancellations += 1;
+            }
+            other => panic!("expected success or congestion cancellation, got {other:?}"),
+        }
+    }
+    assert_eq!(
+        cancellations, 1,
+        "exactly one transaction fits the single execution worker"
     );
 }

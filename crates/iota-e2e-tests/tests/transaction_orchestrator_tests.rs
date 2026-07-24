@@ -1317,30 +1317,32 @@ async fn test_submission_survives_caller_abort() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-/// Extracts the suggested gas price from an execution-worker congestion
-/// error, if that is what `error` is.
-fn congested_suggested_gas_price(error: &QuorumDriverError) -> Option<u64> {
-    if let QuorumDriverError::NonRecoverableTransactionError { errors } = error {
-        errors.iter().find_map(|(error, _, _)| match error {
-            IotaError::ValidatorTransactionCongested {
-                suggested_gas_price,
-            } => Some(*suggested_gas_price),
-            _ => None,
-        })
-    } else {
-        None
+/// Extracts the suggested gas price from congestion-cancellation effects, if
+/// that is what `effects` carry.
+fn cancelled_congestion_suggested_gas_price(
+    effects: &iota_types::effects::TransactionEffects,
+) -> Option<u64> {
+    match effects.status() {
+        iota_sdk_types::ExecutionStatus::Failure {
+            error:
+                iota_sdk_types::ExecutionError::ExecutionCancelledDueToSharedObjectCongestionV2 {
+                    suggested_gas_price,
+                    ..
+                },
+            ..
+        } => Some(*suggested_gas_price),
+        _ => None,
     }
 }
 
 /// End-to-end execution-worker congestion: with a single execution worker and
 /// a per-commit limit of one transaction, a burst of owned-object-only
-/// transfers overloads the sequencer on every validator. Shed transactions
-/// must surface to the submitting client as `ValidatorTransactionCongested`
-/// with a suggested gas price, and resubmitting with the same gas object at
-/// that price (a different digest) must succeed — proving the dropped
-/// transaction's owned-object locks were released. The four validators
-/// independently agreeing on the shed set is implicitly verified: the cluster
-/// would stall or fork otherwise.
+/// transfers overloads the sequencer on every validator. Transactions past
+/// the deferral limit are cancelled: they still execute (charging gas) and
+/// the client receives certified failure effects carrying a suggested gas
+/// price. Resubmitting with the charged gas object at that price must
+/// succeed. The four validators independently agreeing on the cancelled set
+/// is implicitly verified: the cluster would stall or fork otherwise.
 #[sim_test]
 async fn test_execution_worker_congestion_end_to_end() -> Result<(), anyhow::Error> {
     telemetry_subscribers::init_for_testing();
@@ -1348,7 +1350,7 @@ async fn test_execution_worker_congestion_end_to_end() -> Result<(), anyhow::Err
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
         config.set_enable_pcool_flow_for_testing(true);
         config.set_per_object_congestion_control_mode_for_testing(
-            PerObjectCongestionControlMode::TotalTxCount,
+            iota_protocol_config::PerObjectCongestionControlMode::TotalTxCount,
         );
         config.set_max_accumulated_txn_cost_per_object_in_mysticeti_commit_for_testing(1);
         config.set_max_congestion_limit_overshoot_per_commit_for_testing(0);
@@ -1365,10 +1367,11 @@ async fn test_execution_worker_congestion_end_to_end() -> Result<(), anyhow::Err
     let recipient = iota_types::crypto::get_key_pair::<iota_types::crypto::AccountKeyPair>().0;
 
     // Submit bursts of concurrent transfers (each using a distinct gas object)
-    // until one is shed: only one transaction fits per commit, so any commit
-    // carrying two or more sheds the rest. Retry with fresh object references
-    // in the unlikely case a burst spreads across single-transaction commits.
-    let mut congested: Option<(Address, ObjectReference, u64)> = None;
+    // until one is cancelled: only one transaction fits per commit, so any
+    // commit carrying two or more cancels the rest. Retry with fresh object
+    // references in the unlikely case a burst spreads across
+    // single-transaction commits.
+    let mut congested: Option<(iota_sdk_types::Address, ObjectReference, u64)> = None;
     'bursts: for _ in 0..5 {
         let accounts_and_objs = context.get_all_accounts_and_gas_objects().await?;
         let batch: Vec<_> = accounts_and_objs
@@ -1400,33 +1403,49 @@ async fn test_execution_worker_congestion_end_to_end() -> Result<(), anyhow::Err
         });
         let results = futures::future::join_all(submissions).await;
 
-        assert!(
-            results.iter().any(|result| result.is_ok()),
-            "at least one transaction per commit must be scheduled"
-        );
         for ((address, obj), result) in batch.iter().zip(&results) {
-            if let Err(error) = result {
-                let suggested_gas_price = congested_suggested_gas_price(error)
-                    .unwrap_or_else(|| panic!("expected congestion shed, got {error:?}"));
-                // The shed transaction lost the single worker to a competitor
-                // paying the reference gas price, so the worker clearing price
-                // is exactly that, and the suggestion is one above it — always
-                // strictly above what the shed transaction paid.
-                assert_eq!(suggested_gas_price, rgp + 1);
-                congested = Some((*address, *obj, suggested_gas_price));
-                break 'bursts;
+            // Cancelled transactions still finalize with certified effects,
+            // so every submission must succeed at the transport level.
+            let (response, _) = result
+                .as_ref()
+                .expect("cancelled transactions still return certified effects");
+            let effects = &response.effects.effects;
+            if effects.status().is_success() {
+                continue;
             }
+            let suggested_gas_price = cancelled_congestion_suggested_gas_price(effects)
+                .unwrap_or_else(|| {
+                    panic!(
+                        "expected congestion cancellation, got {:?}",
+                        effects.status()
+                    )
+                });
+            // The cancelled transaction lost the single worker to a
+            // competitor paying the reference gas price, so the worker
+            // clearing price is exactly that, and the suggestion is one
+            // above it — always strictly above what the cancelled
+            // transaction paid.
+            assert_eq!(suggested_gas_price, rgp + 1);
+            // The cancelled execution charged gas, so the gas object's
+            // version moved: take the current reference from the certified
+            // effects (the fullnode's own object view may lag behind them).
+            let (gas_object, _) = *effects
+                .mutated()
+                .iter()
+                .find(|(obj_ref, _)| obj_ref.object_id == obj.object_id)
+                .expect("the cancelled execution charges the gas object");
+            congested = Some((*address, gas_object, suggested_gas_price));
+            break 'bursts;
         }
     }
     let (address, gas_object, suggested_gas_price) =
         congested.expect("bursts of 10 concurrent transactions should overload a 1-tx commit");
-    info!(?gas_object, suggested_gas_price, "transaction was shed");
+    info!(
+        ?gas_object,
+        suggested_gas_price, "transaction was cancelled"
+    );
 
-    // Resubmit with the same (untouched) gas object at exactly the suggested
-    // gas price. The higher price yields a different digest (a byte-identical
-    // resubmission would be answered with the cached drop status), and without
-    // lock release this would be rejected with `ObjectLockConflict` against
-    // the dropped transaction.
+    // Resubmit with the charged gas object at the suggested gas price.
     let gas_price = suggested_gas_price;
     let data = iota_types::transaction::TransactionData::new_transfer_iota(
         recipient,
@@ -1450,7 +1469,7 @@ async fn test_execution_worker_congestion_end_to_end() -> Result<(), anyhow::Err
             Some(make_socket_addr()),
         )
         .await
-        .expect("resubmission at the suggested gas price should be scheduled");
+        .expect("resubmission at the suggested gas price should be accepted");
     assert!(response.effects.effects.status().is_success());
 
     Ok(())
