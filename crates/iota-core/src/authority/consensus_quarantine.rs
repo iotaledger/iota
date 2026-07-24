@@ -13,10 +13,9 @@ use iota_sdk_types::{
 };
 use iota_types::{
     base_types::AuthorityName,
-    deny_rule_governance::DenyRuleProposal,
     error::IotaResult,
     messages_checkpoint::{CheckpointContentsExt, CheckpointSequenceNumber},
-    messages_consensus::VersionedDkgConfirmation,
+    messages_consensus::{TransactionDenyRuleProposal, VersionedDkgConfirmation},
     transaction::SenderSignedTransactionAPI,
 };
 use moka::{policy::EvictionPolicy, sync::SegmentedCache as MokaCache};
@@ -101,7 +100,7 @@ pub(crate) struct ConsensusCommitOutput {
     // Newest deny rule proposal from each authority received during this
     // commit. Flushed to `deny_rule_proposals` atomically with
     // `last_consensus_stats`.
-    deny_rule_proposals: BTreeMap<AuthorityName, DenyRuleProposal>,
+    deny_rule_proposals: BTreeMap<AuthorityName, TransactionDenyRuleProposal>,
 }
 
 impl ConsensusCommitOutput {
@@ -247,10 +246,7 @@ impl ConsensusCommitOutput {
     }
 
     /// Records `proposal`, keeping the newest generation per authority.
-    // TODO(#10749): remove cfg(test) once the consensus handler records
-    // proposals.
-    #[cfg(test)]
-    pub fn record_deny_rule_proposal(&mut self, proposal: DenyRuleProposal) {
+    pub fn record_deny_rule_proposal(&mut self, proposal: TransactionDenyRuleProposal) {
         if self
             .deny_rule_proposals
             .get(&proposal.authority)
@@ -603,7 +599,7 @@ pub(crate) struct ConsensusOutputQuarantine {
     // like `cached_overload_notifications`: seeded at construction, advanced
     // as commits are flushed, overlaid with queued commits by
     // `current_deny_rule_proposals`.
-    cached_deny_rule_proposals: BTreeMap<AuthorityName, DenyRuleProposal>,
+    cached_deny_rule_proposals: BTreeMap<AuthorityName, TransactionDenyRuleProposal>,
 
     metrics: Arc<EpochMetrics>,
 }
@@ -612,7 +608,7 @@ impl ConsensusOutputQuarantine {
     pub(super) fn new(
         highest_executed_checkpoint: CheckpointSequenceNumber,
         cached_overload_notifications: HashMap<AuthorityName, u8>,
-        cached_deny_rule_proposals: BTreeMap<AuthorityName, DenyRuleProposal>,
+        cached_deny_rule_proposals: BTreeMap<AuthorityName, TransactionDenyRuleProposal>,
         authority_metrics: Arc<EpochMetrics>,
     ) -> Self {
         Self {
@@ -646,7 +642,16 @@ impl ConsensusOutputQuarantine {
         self.insert_congestion_control_debts(&output);
         self.insert_processed_consensus_messages(&output);
         self.insert_owned_object_locks(&output);
+        let has_deny_rule_proposals = !output.deny_rule_proposals.is_empty();
         self.output_queue.push_back(output);
+
+        // Recompute the active deny rules whenever a commit recorded
+        // proposals, so the set applies from the next commit on. Computed
+        // inline: `epoch_store` methods that take the quarantine lock would
+        // self-deadlock here.
+        if has_deny_rule_proposals {
+            epoch_store.store_active_transaction_deny_rules(&self.current_deny_rule_proposals());
+        }
 
         self.metrics
             .consensus_quarantine_queue_size
@@ -1017,7 +1022,9 @@ impl ConsensusOutputQuarantine {
     /// Returns the current deny rule proposals keyed by authority: the
     /// in-memory cache of the persisted table with every queued
     /// (processed-but-not-yet-flushed) commit's proposals layered on top.
-    pub(super) fn current_deny_rule_proposals(&self) -> BTreeMap<AuthorityName, DenyRuleProposal> {
+    pub(super) fn current_deny_rule_proposals(
+        &self,
+    ) -> BTreeMap<AuthorityName, TransactionDenyRuleProposal> {
         let mut proposals = self.cached_deny_rule_proposals.clone();
         for output in &self.output_queue {
             for (authority, proposal) in &output.deny_rule_proposals {
@@ -1040,7 +1047,10 @@ impl ConsensusOutputQuarantine {
     }
 
     #[cfg(test)]
-    pub(super) fn apply_cached_deny_rule_proposal_for_test(&mut self, proposal: DenyRuleProposal) {
+    pub(super) fn apply_cached_deny_rule_proposal_for_test(
+        &mut self,
+        proposal: TransactionDenyRuleProposal,
+    ) {
         self.cached_deny_rule_proposals
             .insert(proposal.authority, proposal);
     }
