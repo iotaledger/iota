@@ -68,7 +68,7 @@ use iota_core::{
     execution_scheduler::ExecutionSchedulerAPI,
     global_state_hasher::{GlobalStateHashMetrics, GlobalStateHasher},
     grpc_indexes::{GRPC_INDEXES_DIR, GrpcIndexesStore},
-    jsonrpc_index::IndexStore,
+    jsonrpc_index::{IndexStore, JSONRPC_INDEXES_DIR},
     module_cache_metrics::ResolverMetrics,
     overload_monitor::{consensus_queue_overload_monitor, overload_monitor},
     safe_client::SafeClientMetricsBase,
@@ -600,7 +600,7 @@ impl IotaNode {
             info!("creating index store");
             Some(
                 IndexStore::new(
-                    config.db_path().join("indexes"),
+                    config.db_path().join(JSONRPC_INDEXES_DIR),
                     &prometheus_registry,
                     epoch_store
                         .protocol_config()
