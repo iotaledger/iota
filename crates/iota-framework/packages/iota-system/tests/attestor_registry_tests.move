@@ -23,18 +23,43 @@ fun make_pubkey(flag: u8, len: u64): vector<u8> {
 }
 
 fun ed25519_pubkey(): vector<u8> { ed25519_key() }
-// Real `flag || raw_key` public keys (the native does on-curve validation,
-// so arbitrary bytes are rejected). Generated from seeded keypairs.
+// Seed-derived `flag || raw_key` public keys with proofs of possession.
+// Regenerate with:
+// cargo nextest run -p iota-types --lib print_attestor_move_fixtures --no-capture
 fun ed25519_key(): vector<u8> {
-    x"00d04a166e8dcd71127be0012f3e882c9b8c355af7d43dd98f8200b69eb17e312f"
+    x"00876edc0d843534980747592afce708167a0b6516b0b9be7fd6eb864d05c0ba61"
 }
 
 fun secp256k1_key(): vector<u8> {
-    x"0102770632ba449f7f0f6d7e8173ee8cdeee0c1676a4f02a9c10b877b2c022126a1d"
+    x"0102253bda0005e6d0332d8f59bfadc6c682ae3a6797acda0b01bfcd078e371977d9"
 }
 
 fun secp256r1_key(): vector<u8> {
-    x"0202187de95d431e456a4a1a6837f732d94c21ceec701ae551025042d2f2e96ae05c"
+    x"02029b0265bc7ce0a9d1303493aa0e7acee45fad24ea8b70664779ef0c9ac98ccb19"
+}
+
+fun ed25519_pop_a1(): vector<u8> {
+    x"22c37e6607d82edc3a8d3882af50a3f57e83cb7b0070a362849b4000090073c725328eb7019d130c36525038c5e39631865d97233f63c789488dfba93e5da20a"
+}
+
+fun ed25519_pop_a2(): vector<u8> {
+    x"c7f8391a213927491731a7a66313f8e05ec5d353025ef4d8076d333b20b19e9b4b6b3869591adf5515d3e45961a0e5c291964d53a1dda6f369335f049f2f2d08"
+}
+
+fun ed25519_pop_a3(): vector<u8> {
+    x"97826aab998f19f2316a75e6dc51bff491ff0797d922dbadb183b47ab676f850cac8abaa92fa162e03993a6180623ae3458cafd1a95d66eeacfcc0988f6caf09"
+}
+
+fun secp256k1_pop_a1(): vector<u8> {
+    x"e891902ea9f087fd8999cdd46c90624130b5214d4b0110614d9a499994d2d7b970154aa37e91430d12e6006c27b0a0edc7af8254d939be7647645afcbd9aee72"
+}
+
+fun secp256k1_pop_a2(): vector<u8> {
+    x"c303e6d9233fb8786b247a1b4e2aeaa2a3b44fa49d6fad53d86ac80ef978d22b16e2e006fd1b41a0542c1ada63c883aaa7a6a4d6cf4e02ed67689fc5e6e07574"
+}
+
+fun secp256r1_pop_a3(): vector<u8> {
+    x"836bc4dd6711e234fa480a3c478dd49b161854aa5da7a5f9838ac244d853afdc7c851015628d6b61d6dce73cb2d80f6a7e7ccefc8392e77c7075c6d5e1fca2d1"
 }
 
 fun pubkey_a(): vector<u8> { ed25519_key() }
@@ -50,9 +75,27 @@ fun pubkey_b(): vector<u8> { secp256k1_key() }
 #[test]
 fun test_register_accepts_all_plain_schemes() {
     let mut registry = attestor_registry::new();
-    registry.register(balance::create_for_testing(MIN_JOINING_BOND), ed25519_key(), @0xA1, 5);
-    registry.register(balance::create_for_testing(MIN_JOINING_BOND), secp256k1_key(), @0xA2, 5);
-    registry.register(balance::create_for_testing(MIN_JOINING_BOND), secp256r1_key(), @0xA3, 5);
+    registry.register(
+        balance::create_for_testing(MIN_JOINING_BOND),
+        ed25519_key(),
+        ed25519_pop_a1(),
+        @0xA1,
+        5,
+    );
+    registry.register(
+        balance::create_for_testing(MIN_JOINING_BOND),
+        secp256k1_key(),
+        secp256k1_pop_a2(),
+        @0xA2,
+        5,
+    );
+    registry.register(
+        balance::create_for_testing(MIN_JOINING_BOND),
+        secp256r1_key(),
+        secp256r1_pop_a3(),
+        @0xA3,
+        5,
+    );
     assert!(registry.pending_count() == 3);
     registry.destroy_for_testing();
 }
@@ -61,14 +104,20 @@ fun test_register_accepts_all_plain_schemes() {
 fun test_register_rejects_wrong_length() {
     let mut registry = attestor_registry::new();
     // ed25519 flag with a 33-byte key (must be 32)
-    registry.register(balance::create_for_testing(MIN_JOINING_BOND), make_pubkey(0x00, 33), @0xA1, 5);
+    registry.register(
+        balance::create_for_testing(MIN_JOINING_BOND),
+        make_pubkey(0x00, 33),
+        vector[],
+        @0xA1,
+        5,
+    );
     abort 0
 }
 
 #[test, expected_failure(abort_code = attestor_registry::EInvalidPubkey)]
 fun test_register_rejects_empty_pubkey() {
     let mut registry = attestor_registry::new();
-    registry.register(balance::create_for_testing(MIN_JOINING_BOND), vector[], @0xA1, 5);
+    registry.register(balance::create_for_testing(MIN_JOINING_BOND), vector[], vector[], @0xA1, 5);
     abort 0
 }
 
@@ -80,6 +129,7 @@ fun test_register_lands_in_pending() {
     registry.register(
         balance::create_for_testing(MIN_JOINING_BOND),
         ed25519_pubkey(),
+        ed25519_pop_a1(),
         @0xA1,
         5,
     );
@@ -94,6 +144,7 @@ fun test_register_rejects_low_bond() {
     registry.register(
         balance::create_for_testing(MIN_JOINING_BOND - 1),
         ed25519_pubkey(),
+        vector[],
         @0xA1,
         5,
     );
@@ -106,6 +157,7 @@ fun test_register_rejects_bad_pubkey() {
     registry.register(
         balance::create_for_testing(MIN_JOINING_BOND),
         make_pubkey(0x03, 32),
+        vector[],
         @0xA1,
         5,
     );
@@ -115,8 +167,20 @@ fun test_register_rejects_bad_pubkey() {
 #[test, expected_failure(abort_code = attestor_registry::EAlreadyRegistered)]
 fun test_register_rejects_duplicate_pending() {
     let mut registry = attestor_registry::new();
-    registry.register(balance::create_for_testing(MIN_JOINING_BOND), ed25519_pubkey(), @0xA1, 5);
-    registry.register(balance::create_for_testing(MIN_JOINING_BOND), ed25519_pubkey(), @0xA1, 5);
+    registry.register(
+        balance::create_for_testing(MIN_JOINING_BOND),
+        ed25519_pubkey(),
+        ed25519_pop_a1(),
+        @0xA1,
+        5,
+    );
+    registry.register(
+        balance::create_for_testing(MIN_JOINING_BOND),
+        ed25519_pubkey(),
+        ed25519_pop_a1(),
+        @0xA1,
+        5,
+    );
     abort 0
 }
 
@@ -133,6 +197,7 @@ fun test_register_rejects_at_max_count() {
     registry.register(
         balance::create_for_testing(MIN_JOINING_BOND),
         ed25519_pubkey(),
+        vector[],
         @0xFFFF,
         5,
     );
@@ -144,7 +209,13 @@ fun test_register_rejects_at_max_count() {
 #[test]
 fun test_deregister_pending_refunds_immediately() {
     let mut registry = attestor_registry::new();
-    registry.register(balance::create_for_testing(MIN_JOINING_BOND), ed25519_pubkey(), @0xA1, 5);
+    registry.register(
+        balance::create_for_testing(MIN_JOINING_BOND),
+        ed25519_pubkey(),
+        ed25519_pop_a1(),
+        @0xA1,
+        5,
+    );
     let mut refund = registry.deregister(@0xA1, 5);
     assert!(refund.is_some());
     let bal = refund.extract();
@@ -158,7 +229,13 @@ fun test_deregister_pending_refunds_immediately() {
 #[test]
 fun test_deregister_active_is_requested_not_immediate() {
     let mut registry = attestor_registry::new();
-    registry.register(balance::create_for_testing(MIN_JOINING_BOND), ed25519_pubkey(), @0xA1, 5);
+    registry.register(
+        balance::create_for_testing(MIN_JOINING_BOND),
+        ed25519_pubkey(),
+        ed25519_pop_a1(),
+        @0xA1,
+        5,
+    );
     registry.activate_for_testing();
     let refund = registry.deregister(@0xA1, 6);
     assert!(refund.is_none());
@@ -170,7 +247,13 @@ fun test_deregister_active_is_requested_not_immediate() {
 #[test, expected_failure(abort_code = attestor_registry::EAlreadyDeregistering)]
 fun test_double_deregister_aborts() {
     let mut registry = attestor_registry::new();
-    registry.register(balance::create_for_testing(MIN_JOINING_BOND), ed25519_pubkey(), @0xA1, 5);
+    registry.register(
+        balance::create_for_testing(MIN_JOINING_BOND),
+        ed25519_pubkey(),
+        ed25519_pop_a1(),
+        @0xA1,
+        5,
+    );
     registry.activate_for_testing();
     let r1 = registry.deregister(@0xA1, 6);
     r1.destroy_none();
@@ -188,11 +271,23 @@ fun test_deregister_unknown_aborts() {
 #[test, expected_failure(abort_code = attestor_registry::EAlreadyRegistered)]
 fun test_reregister_while_exiting_rejected() {
     let mut registry = attestor_registry::new();
-    registry.register(balance::create_for_testing(MIN_JOINING_BOND), ed25519_pubkey(), @0xA1, 5);
+    registry.register(
+        balance::create_for_testing(MIN_JOINING_BOND),
+        ed25519_pubkey(),
+        ed25519_pop_a1(),
+        @0xA1,
+        5,
+    );
     registry.activate_for_testing();
     let r = registry.deregister(@0xA1, 6);
     r.destroy_none();
-    registry.register(balance::create_for_testing(MIN_JOINING_BOND), ed25519_pubkey(), @0xA1, 6);
+    registry.register(
+        balance::create_for_testing(MIN_JOINING_BOND),
+        ed25519_pubkey(),
+        ed25519_pop_a1(),
+        @0xA1,
+        6,
+    );
     abort 0
 }
 
@@ -201,7 +296,13 @@ fun test_reregister_while_exiting_rejected() {
 #[test]
 fun test_deposit_increases_bond_for_active_and_pending() {
     let mut registry = attestor_registry::new();
-    registry.register(balance::create_for_testing(MIN_JOINING_BOND), ed25519_pubkey(), @0xA1, 5);
+    registry.register(
+        balance::create_for_testing(MIN_JOINING_BOND),
+        ed25519_pubkey(),
+        ed25519_pop_a1(),
+        @0xA1,
+        5,
+    );
     registry.deposit(@0xA1, balance::create_for_testing(500), 5);
     registry.activate_for_testing();
     registry.deposit(@0xA1, balance::create_for_testing(500), 6);
@@ -219,9 +320,15 @@ fun test_deposit_unknown_aborts() {
 #[test]
 fun test_rotate_key_stages_replacement() {
     let mut registry = attestor_registry::new();
-    registry.register(balance::create_for_testing(MIN_JOINING_BOND), ed25519_pubkey(), @0xA1, 5);
+    registry.register(
+        balance::create_for_testing(MIN_JOINING_BOND),
+        ed25519_pubkey(),
+        ed25519_pop_a1(),
+        @0xA1,
+        5,
+    );
     registry.activate_for_testing();
-    registry.rotate_key(@0xA1, pubkey_b(), 6);
+    registry.rotate_key(@0xA1, pubkey_b(), secp256k1_pop_a1(), 6);
     assert!(registry.active_attestors()[0].attestor_pubkey() == ed25519_pubkey());
     registry.destroy_for_testing();
 }
@@ -229,28 +336,72 @@ fun test_rotate_key_stages_replacement() {
 #[test, expected_failure(abort_code = attestor_registry::ENotActiveAttestor)]
 fun test_rotate_key_rejected_for_pending() {
     let mut registry = attestor_registry::new();
-    registry.register(balance::create_for_testing(MIN_JOINING_BOND), ed25519_pubkey(), @0xA1, 5);
-    registry.rotate_key(@0xA1, pubkey_b(), 5);
+    registry.register(
+        balance::create_for_testing(MIN_JOINING_BOND),
+        ed25519_pubkey(),
+        ed25519_pop_a1(),
+        @0xA1,
+        5,
+    );
+    registry.rotate_key(@0xA1, pubkey_b(), vector[], 5);
     abort 0
 }
 
 #[test, expected_failure(abort_code = attestor_registry::EAlreadyDeregistering)]
 fun test_rotate_key_rejected_while_exiting() {
     let mut registry = attestor_registry::new();
-    registry.register(balance::create_for_testing(MIN_JOINING_BOND), ed25519_pubkey(), @0xA1, 5);
+    registry.register(
+        balance::create_for_testing(MIN_JOINING_BOND),
+        ed25519_pubkey(),
+        ed25519_pop_a1(),
+        @0xA1,
+        5,
+    );
     registry.activate_for_testing();
     let r = registry.deregister(@0xA1, 6);
     r.destroy_none();
-    registry.rotate_key(@0xA1, pubkey_b(), 6);
+    registry.rotate_key(@0xA1, pubkey_b(), vector[], 6);
     abort 0
 }
 
 #[test, expected_failure(abort_code = attestor_registry::EInvalidPubkey)]
 fun test_rotate_key_rejects_bad_pubkey() {
     let mut registry = attestor_registry::new();
-    registry.register(balance::create_for_testing(MIN_JOINING_BOND), ed25519_pubkey(), @0xA1, 5);
+    registry.register(
+        balance::create_for_testing(MIN_JOINING_BOND),
+        ed25519_pubkey(),
+        ed25519_pop_a1(),
+        @0xA1,
+        5,
+    );
     registry.activate_for_testing();
-    registry.rotate_key(@0xA1, make_pubkey(0x09, 32), 6);
+    registry.rotate_key(@0xA1, make_pubkey(0x09, 32), vector[], 6);
+    abort 0
+}
+
+#[test, expected_failure(abort_code = attestor_registry::EInvalidProofOfPossession)]
+fun test_register_rejects_missing_pop() {
+    let mut registry = attestor_registry::new();
+    registry.register(
+        balance::create_for_testing(MIN_JOINING_BOND),
+        ed25519_key(),
+        vector[],
+        @0xA1,
+        5,
+    );
+    abort 0
+}
+
+#[test, expected_failure(abort_code = attestor_registry::EInvalidProofOfPossession)]
+fun test_register_rejects_pop_for_other_sender() {
+    let mut registry = attestor_registry::new();
+    registry.register(
+        balance::create_for_testing(MIN_JOINING_BOND),
+        ed25519_key(),
+        ed25519_pop_a2(),
+        @0xA1,
+        5,
+    );
     abort 0
 }
 
@@ -260,8 +411,20 @@ fun test_rotate_key_rejects_bad_pubkey() {
 fun test_advance_epoch_activates_pending_in_registration_order() {
     let mut registry = attestor_registry::new();
     let mut ctx = tx_context::dummy();
-    registry.register(balance::create_for_testing(MIN_JOINING_BOND), pubkey_a(), @0xA1, 5);
-    registry.register(balance::create_for_testing(MIN_JOINING_BOND), pubkey_b(), @0xA2, 5);
+    registry.register(
+        balance::create_for_testing(MIN_JOINING_BOND),
+        pubkey_a(),
+        ed25519_pop_a1(),
+        @0xA1,
+        5,
+    );
+    registry.register(
+        balance::create_for_testing(MIN_JOINING_BOND),
+        pubkey_b(),
+        secp256k1_pop_a2(),
+        @0xA2,
+        5,
+    );
     let evicted = registry.advance_epoch(6, &mut ctx);
     assert!(evicted.value() == 0);
     evicted.destroy_zero();
@@ -277,9 +440,27 @@ fun test_advance_epoch_activates_pending_in_registration_order() {
 fun test_advance_epoch_processes_removals_preserving_order() {
     let mut registry = attestor_registry::new();
     let mut ctx = tx_context::dummy();
-    registry.register(balance::create_for_testing(MIN_JOINING_BOND), pubkey_a(), @0xA1, 5);
-    registry.register(balance::create_for_testing(MIN_JOINING_BOND), pubkey_a(), @0xA2, 5);
-    registry.register(balance::create_for_testing(MIN_JOINING_BOND), pubkey_a(), @0xA3, 5);
+    registry.register(
+        balance::create_for_testing(MIN_JOINING_BOND),
+        pubkey_a(),
+        ed25519_pop_a1(),
+        @0xA1,
+        5,
+    );
+    registry.register(
+        balance::create_for_testing(MIN_JOINING_BOND),
+        pubkey_a(),
+        ed25519_pop_a2(),
+        @0xA2,
+        5,
+    );
+    registry.register(
+        balance::create_for_testing(MIN_JOINING_BOND),
+        pubkey_a(),
+        ed25519_pop_a3(),
+        @0xA3,
+        5,
+    );
     registry.advance_epoch(6, &mut ctx).destroy_zero();
     registry.deregister(@0xA2, 6).destroy_none();
     registry.advance_epoch(7, &mut ctx).destroy_zero();
@@ -293,9 +474,15 @@ fun test_advance_epoch_processes_removals_preserving_order() {
 fun test_advance_epoch_applies_staged_rotation_in_place() {
     let mut registry = attestor_registry::new();
     let mut ctx = tx_context::dummy();
-    registry.register(balance::create_for_testing(MIN_JOINING_BOND), pubkey_a(), @0xA1, 5);
+    registry.register(
+        balance::create_for_testing(MIN_JOINING_BOND),
+        pubkey_a(),
+        ed25519_pop_a1(),
+        @0xA1,
+        5,
+    );
     registry.advance_epoch(6, &mut ctx).destroy_zero();
-    registry.rotate_key(@0xA1, pubkey_b(), 6);
+    registry.rotate_key(@0xA1, pubkey_b(), secp256k1_pop_a1(), 6);
     registry.advance_epoch(7, &mut ctx).destroy_zero();
     assert!(registry.active_attestors()[0].attestor_pubkey() == pubkey_b());
     registry.destroy_for_testing();
@@ -305,7 +492,13 @@ fun test_advance_epoch_applies_staged_rotation_in_place() {
 fun test_low_bond_eviction_burns_remaining_bond() {
     let mut registry = attestor_registry::new();
     let mut ctx = tx_context::dummy();
-    registry.register(balance::create_for_testing(MIN_JOINING_BOND), pubkey_a(), @0xA1, 5);
+    registry.register(
+        balance::create_for_testing(MIN_JOINING_BOND),
+        pubkey_a(),
+        ed25519_pop_a1(),
+        @0xA1,
+        5,
+    );
     registry.advance_epoch(6, &mut ctx).destroy_zero();
     let slashed = registry.slash(@0xA1, MIN_JOINING_BOND - LOW_BOND_THRESHOLD + 1);
     assert!(slashed.value() == MIN_JOINING_BOND - LOW_BOND_THRESHOLD + 1);
@@ -321,7 +514,13 @@ fun test_low_bond_eviction_burns_remaining_bond() {
 fun test_eviction_wins_over_voluntary_removal() {
     let mut registry = attestor_registry::new();
     let mut ctx = tx_context::dummy();
-    registry.register(balance::create_for_testing(MIN_JOINING_BOND), pubkey_a(), @0xA1, 5);
+    registry.register(
+        balance::create_for_testing(MIN_JOINING_BOND),
+        pubkey_a(),
+        ed25519_pop_a1(),
+        @0xA1,
+        5,
+    );
     registry.advance_epoch(6, &mut ctx).destroy_zero();
     registry.deregister(@0xA1, 6).destroy_none();
     registry.slash(@0xA1, MIN_JOINING_BOND).destroy_for_testing();
@@ -335,7 +534,13 @@ fun test_eviction_wins_over_voluntary_removal() {
 fun test_topup_prevents_eviction() {
     let mut registry = attestor_registry::new();
     let mut ctx = tx_context::dummy();
-    registry.register(balance::create_for_testing(MIN_JOINING_BOND), pubkey_a(), @0xA1, 5);
+    registry.register(
+        balance::create_for_testing(MIN_JOINING_BOND),
+        pubkey_a(),
+        ed25519_pop_a1(),
+        @0xA1,
+        5,
+    );
     registry.advance_epoch(6, &mut ctx).destroy_zero();
     registry.slash(@0xA1, MIN_JOINING_BOND - 1).destroy_for_testing();
     registry.deposit(@0xA1, balance::create_for_testing(LOW_BOND_THRESHOLD), 6);
@@ -351,7 +556,13 @@ fun test_topup_prevents_eviction() {
 fun test_last_active_epoch_initialized_to_activation_epoch() {
     let mut registry = attestor_registry::new();
     let mut ctx = tx_context::dummy();
-    registry.register(balance::create_for_testing(MIN_JOINING_BOND), pubkey_a(), @0xA1, 5);
+    registry.register(
+        balance::create_for_testing(MIN_JOINING_BOND),
+        pubkey_a(),
+        ed25519_pop_a1(),
+        @0xA1,
+        5,
+    );
     registry.advance_epoch(6, &mut ctx).destroy_zero();
     assert!(registry.active_attestors()[0].last_active_epoch() == 6);
     registry.destroy_for_testing();
@@ -361,7 +572,13 @@ fun test_last_active_epoch_initialized_to_activation_epoch() {
 fun test_refresh_activity_updates_last_active_epoch() {
     let mut registry = attestor_registry::new();
     let mut ctx = tx_context::dummy();
-    registry.register(balance::create_for_testing(MIN_JOINING_BOND), pubkey_a(), @0xA1, 5);
+    registry.register(
+        balance::create_for_testing(MIN_JOINING_BOND),
+        pubkey_a(),
+        ed25519_pop_a1(),
+        @0xA1,
+        5,
+    );
     registry.advance_epoch(6, &mut ctx).destroy_zero();
     registry.refresh_activity(vector[0], 9);
     assert!(registry.active_attestors()[0].last_active_epoch() == 9);
@@ -372,7 +589,13 @@ fun test_refresh_activity_updates_last_active_epoch() {
 fun test_refresh_activity_skips_out_of_range_and_tolerates_duplicates() {
     let mut registry = attestor_registry::new();
     let mut ctx = tx_context::dummy();
-    registry.register(balance::create_for_testing(MIN_JOINING_BOND), pubkey_a(), @0xA1, 5);
+    registry.register(
+        balance::create_for_testing(MIN_JOINING_BOND),
+        pubkey_a(),
+        ed25519_pop_a1(),
+        @0xA1,
+        5,
+    );
     registry.advance_epoch(6, &mut ctx).destroy_zero();
     // Out-of-range index 7 is skipped, duplicate 0s are idempotent; no abort.
     registry.refresh_activity(vector[7, 0, 0], 9);
@@ -384,7 +607,13 @@ fun test_refresh_activity_skips_out_of_range_and_tolerates_duplicates() {
 fun test_refresh_activity_empty_list_is_noop() {
     let mut registry = attestor_registry::new();
     let mut ctx = tx_context::dummy();
-    registry.register(balance::create_for_testing(MIN_JOINING_BOND), pubkey_a(), @0xA1, 5);
+    registry.register(
+        balance::create_for_testing(MIN_JOINING_BOND),
+        pubkey_a(),
+        ed25519_pop_a1(),
+        @0xA1,
+        5,
+    );
     registry.advance_epoch(6, &mut ctx).destroy_zero();
     registry.refresh_activity(vector[], 9);
     assert!(registry.active_attestors()[0].last_active_epoch() == 6);
@@ -395,7 +624,13 @@ fun test_refresh_activity_empty_list_is_noop() {
 fun test_attestor_survives_exactly_the_inactivity_window() {
     let mut registry = attestor_registry::new();
     let mut ctx = tx_context::dummy();
-    registry.register(balance::create_for_testing(MIN_JOINING_BOND), pubkey_a(), @0xA1, 5);
+    registry.register(
+        balance::create_for_testing(MIN_JOINING_BOND),
+        pubkey_a(),
+        ed25519_pop_a1(),
+        @0xA1,
+        5,
+    );
     registry.advance_epoch(6, &mut ctx).destroy_zero();
     // last_active = 6; at the boundary starting 6 + window the gap is not
     // yet strictly greater than the window, so the attestor survives.
@@ -408,7 +643,13 @@ fun test_attestor_survives_exactly_the_inactivity_window() {
 fun test_inactive_attestor_dropped_with_penalty_after_window() {
     let mut registry = attestor_registry::new();
     let mut ctx = tx_context::dummy();
-    registry.register(balance::create_for_testing(MIN_JOINING_BOND), pubkey_a(), @0xA1, 5);
+    registry.register(
+        balance::create_for_testing(MIN_JOINING_BOND),
+        pubkey_a(),
+        ed25519_pop_a1(),
+        @0xA1,
+        5,
+    );
     registry.advance_epoch(6, &mut ctx).destroy_zero();
     // Gap is window + 1: dropped; only the penalty is burned.
     let evicted = registry.advance_epoch(6 + MAX_INACTIVITY_EPOCHS + 1, &mut ctx);
@@ -422,7 +663,13 @@ fun test_inactive_attestor_dropped_with_penalty_after_window() {
 fun test_refreshed_attestor_survives_past_the_window() {
     let mut registry = attestor_registry::new();
     let mut ctx = tx_context::dummy();
-    registry.register(balance::create_for_testing(MIN_JOINING_BOND), pubkey_a(), @0xA1, 5);
+    registry.register(
+        balance::create_for_testing(MIN_JOINING_BOND),
+        pubkey_a(),
+        ed25519_pop_a1(),
+        @0xA1,
+        5,
+    );
     registry.advance_epoch(6, &mut ctx).destroy_zero();
     registry.refresh_activity(vector[0], 13);
     registry.advance_epoch(6 + MAX_INACTIVITY_EPOCHS + 1, &mut ctx).destroy_zero();
@@ -439,7 +686,13 @@ fun test_refreshed_attestor_survives_past_the_window() {
 fun test_inactivity_penalty_beats_pending_deregistration() {
     let mut registry = attestor_registry::new();
     let mut ctx = tx_context::dummy();
-    registry.register(balance::create_for_testing(MIN_JOINING_BOND), pubkey_a(), @0xA1, 5);
+    registry.register(
+        balance::create_for_testing(MIN_JOINING_BOND),
+        pubkey_a(),
+        ed25519_pop_a1(),
+        @0xA1,
+        5,
+    );
     registry.advance_epoch(6, &mut ctx).destroy_zero();
     registry.deregister(@0xA1, 6).destroy_none();
     // Inactive AND deregistering: the penalty is still charged.
@@ -454,7 +707,13 @@ fun test_inactivity_penalty_beats_pending_deregistration() {
 fun test_eviction_beats_inactivity() {
     let mut registry = attestor_registry::new();
     let mut ctx = tx_context::dummy();
-    registry.register(balance::create_for_testing(MIN_JOINING_BOND), pubkey_a(), @0xA1, 5);
+    registry.register(
+        balance::create_for_testing(MIN_JOINING_BOND),
+        pubkey_a(),
+        ed25519_pop_a1(),
+        @0xA1,
+        5,
+    );
     registry.advance_epoch(6, &mut ctx).destroy_zero();
     registry.slash(@0xA1, MIN_JOINING_BOND - LOW_BOND_THRESHOLD + 1).destroy_for_testing();
     // Low bond AND inactive: full remaining bond is burned, not just the penalty.
@@ -469,7 +728,13 @@ fun test_eviction_beats_inactivity() {
 fun test_deregistration_within_window_refunds_in_full() {
     let mut registry = attestor_registry::new();
     let mut ctx = tx_context::dummy();
-    registry.register(balance::create_for_testing(MIN_JOINING_BOND), pubkey_a(), @0xA1, 5);
+    registry.register(
+        balance::create_for_testing(MIN_JOINING_BOND),
+        pubkey_a(),
+        ed25519_pop_a1(),
+        @0xA1,
+        5,
+    );
     registry.advance_epoch(6, &mut ctx).destroy_zero();
     registry.deregister(@0xA1, 6).destroy_none();
     // Still within the window: a plain voluntary removal, nothing burned.
@@ -482,7 +747,13 @@ fun test_deregistration_within_window_refunds_in_full() {
 fun test_penalty_charged_from_bond_at_exactly_the_eviction_threshold() {
     let mut registry = attestor_registry::new();
     let mut ctx = tx_context::dummy();
-    registry.register(balance::create_for_testing(MIN_JOINING_BOND), pubkey_a(), @0xA1, 5);
+    registry.register(
+        balance::create_for_testing(MIN_JOINING_BOND),
+        pubkey_a(),
+        ed25519_pop_a1(),
+        @0xA1,
+        5,
+    );
     registry.advance_epoch(6, &mut ctx).destroy_zero();
     // Bond exactly at the threshold is NOT evicted (the check is strict
     // less-than); the inactivity penalty applies instead.
@@ -498,9 +769,15 @@ fun test_penalty_charged_from_bond_at_exactly_the_eviction_threshold() {
 fun test_inactivity_drop_discards_staged_rotation() {
     let mut registry = attestor_registry::new();
     let mut ctx = tx_context::dummy();
-    registry.register(balance::create_for_testing(MIN_JOINING_BOND), pubkey_a(), @0xA1, 5);
+    registry.register(
+        balance::create_for_testing(MIN_JOINING_BOND),
+        pubkey_a(),
+        ed25519_pop_a1(),
+        @0xA1,
+        5,
+    );
     registry.advance_epoch(6, &mut ctx).destroy_zero();
-    registry.rotate_key(@0xA1, pubkey_b(), 6);
+    registry.rotate_key(@0xA1, pubkey_b(), secp256k1_pop_a1(), 6);
     let evicted = registry.advance_epoch(6 + MAX_INACTIVITY_EPOCHS + 1, &mut ctx);
     evicted.destroy_for_testing();
     assert!(registry.active_count() == 0);
@@ -511,11 +788,23 @@ fun test_inactivity_drop_discards_staged_rotation() {
 fun test_dropped_address_can_reregister() {
     let mut registry = attestor_registry::new();
     let mut ctx = tx_context::dummy();
-    registry.register(balance::create_for_testing(MIN_JOINING_BOND), pubkey_a(), @0xA1, 5);
+    registry.register(
+        balance::create_for_testing(MIN_JOINING_BOND),
+        pubkey_a(),
+        ed25519_pop_a1(),
+        @0xA1,
+        5,
+    );
     registry.advance_epoch(6, &mut ctx).destroy_zero();
     let dropped_at = 6 + MAX_INACTIVITY_EPOCHS + 1;
     registry.advance_epoch(dropped_at, &mut ctx).destroy_for_testing();
-    registry.register(balance::create_for_testing(MIN_JOINING_BOND), pubkey_a(), @0xA1, dropped_at);
+    registry.register(
+        balance::create_for_testing(MIN_JOINING_BOND),
+        pubkey_a(),
+        ed25519_pop_a1(),
+        @0xA1,
+        dropped_at,
+    );
     assert!(registry.pending_count() == 1);
     registry.destroy_for_testing();
 }
@@ -524,9 +813,27 @@ fun test_dropped_address_can_reregister() {
 fun test_mixed_exit_reasons_in_one_boundary() {
     let mut registry = attestor_registry::new();
     let mut ctx = tx_context::dummy();
-    registry.register(balance::create_for_testing(MIN_JOINING_BOND), ed25519_key(), @0xA1, 5);
-    registry.register(balance::create_for_testing(MIN_JOINING_BOND), secp256k1_key(), @0xA2, 5);
-    registry.register(balance::create_for_testing(MIN_JOINING_BOND), secp256r1_key(), @0xA3, 5);
+    registry.register(
+        balance::create_for_testing(MIN_JOINING_BOND),
+        ed25519_key(),
+        ed25519_pop_a1(),
+        @0xA1,
+        5,
+    );
+    registry.register(
+        balance::create_for_testing(MIN_JOINING_BOND),
+        secp256k1_key(),
+        secp256k1_pop_a2(),
+        @0xA2,
+        5,
+    );
+    registry.register(
+        balance::create_for_testing(MIN_JOINING_BOND),
+        secp256r1_key(),
+        secp256r1_pop_a3(),
+        @0xA3,
+        5,
+    );
     registry.advance_epoch(6, &mut ctx).destroy_zero();
     // A1: low bond -> evicted (burn all). A2: untouched -> inactivity
     // (penalty). A3: refreshed + deregistering -> voluntary (full refund).

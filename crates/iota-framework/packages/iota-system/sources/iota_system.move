@@ -230,12 +230,14 @@ fun load_attestor_registry_mut(self: &mut IotaSystemState): &mut AttestorRegistr
 }
 
 /// Register the sender as an attestor with a dedicated signing key
-/// (`flag || raw pubkey`, plain schemes only), locking `bond`
-/// (>= MIN_ATTESTOR_JOINING_BOND). Takes effect at the next epoch boundary.
+/// (`flag || raw pubkey`, plain schemes only) and its proof of possession,
+/// locking `bond` (>= MIN_ATTESTOR_JOINING_BOND). Takes effect at the next
+/// epoch boundary.
 public entry fun register_attestor(
     wrapper: &mut IotaSystemState,
     bond: Coin<IOTA>,
     attestor_pubkey: vector<u8>,
+    proof_of_possession: vector<u8>,
     ctx: &mut TxContext,
 ) {
     attestor_registry::assert_feature_enabled();
@@ -244,6 +246,7 @@ public entry fun register_attestor(
     load_attestor_registry_mut(wrapper).register(
         bond.into_balance(),
         attestor_pubkey,
+        proof_of_possession,
         sender,
         epoch,
     );
@@ -274,17 +277,23 @@ public entry fun deposit_attestor_bond(
     load_attestor_registry_mut(wrapper).deposit(sender, additional.into_balance(), epoch);
 }
 
-/// Stage a replacement signing key for the sender's active entry; applied
-/// in place at the next epoch boundary.
+/// Stage a replacement signing key and its proof of possession for the
+/// sender's active entry; applied in place at the next epoch boundary.
 public entry fun rotate_attestor_key(
     wrapper: &mut IotaSystemState,
     new_pubkey: vector<u8>,
+    proof_of_possession: vector<u8>,
     ctx: &mut TxContext,
 ) {
     attestor_registry::assert_feature_enabled();
     let sender = ctx.sender();
     let epoch = ctx.epoch();
-    load_attestor_registry_mut(wrapper).rotate_key(sender, new_pubkey, epoch);
+    load_attestor_registry_mut(wrapper).rotate_key(
+        sender,
+        new_pubkey,
+        proof_of_possession,
+        epoch,
+    );
 }
 
 #[test_only]

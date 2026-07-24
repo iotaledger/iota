@@ -17,9 +17,14 @@ const ATTESTOR: address = @0x42;
 const MIN_JOINING_BOND: u64 = 2_000_000_000_000;
 const ENABLE_EXTERNAL_ATTESTATION_FLAG: vector<u8> = b"enable_external_attestation";
 
-// Real `flag || raw_key` ed25519 key; the native rejects arbitrary bytes.
+// Seed-derived key + proof of possession for @0x42; regenerate with:
+// cargo nextest run -p iota-types --lib print_attestor_move_fixtures --no-capture
 fun ed25519_pubkey(): vector<u8> {
-    x"00d04a166e8dcd71127be0012f3e882c9b8c355af7d43dd98f8200b69eb17e312f"
+    x"00876edc0d843534980747592afce708167a0b6516b0b9be7fd6eb864d05c0ba61"
+}
+
+fun ed25519_pop(): vector<u8> {
+    x"52a490fc6f760bd35b621542705b15230283e36f54456bcbe10a45bc4318e4d51e053716633f328ebb7d069e125163ae067b53cec268893f8a364c37525eeb04"
 }
 
 #[test, expected_failure(abort_code = attestor_registry::EFeatureNotEnabled)]
@@ -32,7 +37,13 @@ fun test_register_attestor_requires_feature_flag() {
     scenario.next_tx(ATTESTOR);
     let mut system_state = scenario.take_shared<IotaSystemState>();
     let bond = coin::mint_for_testing<IOTA>(MIN_JOINING_BOND, scenario.ctx());
-    iota_system::register_attestor(&mut system_state, bond, ed25519_pubkey(), scenario.ctx());
+    iota_system::register_attestor(
+        &mut system_state,
+        bond,
+        ed25519_pubkey(),
+        ed25519_pop(),
+        scenario.ctx(),
+    );
     test_scenario::return_shared(system_state);
     scenario_val.end();
 }
@@ -82,7 +93,13 @@ fun test_register_activate_deregister_refund_through_system() {
     {
         let mut system_state = scenario.take_shared<IotaSystemState>();
         let bond = coin::mint_for_testing<IOTA>(MIN_JOINING_BOND, scenario.ctx());
-        iota_system::register_attestor(&mut system_state, bond, ed25519_pubkey(), scenario.ctx());
+        iota_system::register_attestor(
+            &mut system_state,
+            bond,
+            ed25519_pubkey(),
+            ed25519_pop(),
+            scenario.ctx(),
+        );
         assert!(iota_system::active_attestor_count_for_testing(&mut system_state) == 0);
         test_scenario::return_shared(system_state);
     };
@@ -129,7 +146,13 @@ fun test_low_bond_eviction_through_system() {
     {
         let mut system_state = scenario.take_shared<IotaSystemState>();
         let bond = coin::mint_for_testing<IOTA>(MIN_JOINING_BOND, scenario.ctx());
-        iota_system::register_attestor(&mut system_state, bond, ed25519_pubkey(), scenario.ctx());
+        iota_system::register_attestor(
+            &mut system_state,
+            bond,
+            ed25519_pubkey(),
+            ed25519_pop(),
+            scenario.ctx(),
+        );
         test_scenario::return_shared(system_state);
     };
     advance_epoch(scenario);

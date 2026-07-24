@@ -3,8 +3,12 @@
 
 use std::collections::VecDeque;
 
-use iota_types::iota_system_state::attestor_registry::verify_attestor_pubkey;
+use iota_sdk_types::Address;
+use iota_types::iota_system_state::attestor_registry::{
+    verify_attestor_pop, verify_attestor_pubkey,
+};
 use move_binary_format::errors::PartialVMResult;
+use move_core_types::account_address::AccountAddress;
 use move_vm_runtime::{native_charge_gas_early_exit, native_functions::NativeContext};
 use move_vm_types::{
     loaded_data::runtime_types::Type, natives::function::NativeResult, pop_arg, values::Value,
@@ -16,17 +20,21 @@ use crate::NativesCostTable;
 /// ****************************************************************************
 /// native fun validate_attestor_pubkey
 /// Implementation of the Move native function
-/// `validate_attestor_pubkey(pubkey: vector<u8>)`.
+/// `validate_attestor_pubkey(pubkey: vector<u8>, proof_of_possession:
+/// vector<u8>, sender: address)`.
 ///
 /// Delegates to `iota_types::iota_system_state::attestor_registry::
-/// verify_attestor_pubkey`, which validates the `flag || raw_key` encoding
-/// against the iota-rust-sdk public-key types (plain schemes only). Mirrors
+/// verify_attestor_pubkey` and `verify_attestor_pop`, which validate the
+/// `flag || raw_key` encoding and the raw-signature proof of possession
+/// against the iota-rust-sdk public-key types (plain schemes only). Aborts
+/// with `EInvalidPubkey` (3) or `EInvalidProofOfPossession` (8). Mirrors
 /// `validator::validate_metadata_bcs` delegating to
 /// `ValidatorMetadataV1::verify`.
 ///
 /// gas cost: reuses the validator metadata validation cost params
 ///   validator_validate_metadata_cost_base
-///     + validator_validate_metadata_data_cost_per_byte * pubkey.len()
+///     + validator_validate_metadata_data_cost_per_byte * (pubkey.len() +
+///       proof_of_possession.len())
 /// ****************************************************************************
 pub fn validate_attestor_pubkey(
     context: &mut NativeContext,
@@ -34,7 +42,7 @@ pub fn validate_attestor_pubkey(
     mut args: VecDeque<Value>,
 ) -> PartialVMResult<NativeResult> {
     debug_assert!(ty_args.is_empty());
-    debug_assert!(args.len() == 1);
+    debug_assert!(args.len() == 3);
 
     let cost_params = context
         .extensions_mut()
@@ -44,17 +52,24 @@ pub fn validate_attestor_pubkey(
 
     native_charge_gas_early_exit!(context, cost_params.validator_validate_metadata_cost_base);
 
+    // Args are popped in reverse declaration order.
+    let sender = pop_arg!(args, AccountAddress);
+    let pop = pop_arg!(args, Vec<u8>);
     let pubkey = pop_arg!(args, Vec<u8>);
 
     native_charge_gas_early_exit!(
         context,
         cost_params.validator_validate_metadata_data_cost_per_byte
-            * (pubkey.len() as u64).into()
+            * ((pubkey.len() + pop.len()) as u64).into()
     );
 
     let cost = context.gas_used();
 
     if let Err(err_code) = verify_attestor_pubkey(&pubkey) {
+        return Ok(NativeResult::err(cost, err_code));
+    }
+    let sender = Address::new(sender.into_bytes());
+    if let Err(err_code) = verify_attestor_pop(&pubkey, &pop, sender) {
         return Ok(NativeResult::err(cost, err_code));
     }
 

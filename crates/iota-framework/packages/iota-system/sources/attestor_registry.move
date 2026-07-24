@@ -48,6 +48,9 @@ const EAlreadyRegistered: u64 = 4;
 const ENotAnAttestor: u64 = 5;
 const EAlreadyDeregistering: u64 = 6;
 const ENotActiveAttestor: u64 = 7;
+// Returned by the validate_attestor_pubkey native, not asserted in Move.
+#[allow(unused_const)]
+const EInvalidProofOfPossession: u64 = 8;
 
 /// Key for the attestor registry dynamic field on the IotaSystemState UID.
 public struct AttestorRegistryKey has copy, drop, store {}
@@ -165,9 +168,15 @@ public(package) fun new(): AttestorRegistryV1 {
 
 // === Pubkey validation ===
 
-/// Validate a `flag || raw_key` attestor signing key (plain schemes only).
-/// Aborts with `EInvalidPubkey` otherwise. Implemented as a native.
-native fun validate_attestor_pubkey(pubkey: vector<u8>);
+/// Validate a `flag || raw_key` attestor signing key (plain schemes only)
+/// and its proof of possession: the raw signature by that key over
+/// `bcs(IntentMessage(ProofOfPossession, pubkey || sender))`. Aborts with
+/// `EInvalidPubkey` / `EInvalidProofOfPossession`. Implemented as a native.
+native fun validate_attestor_pubkey(
+    pubkey: vector<u8>,
+    proof_of_possession: vector<u8>,
+    sender: address,
+);
 
 // === Lookup helpers ===
 
@@ -187,6 +196,7 @@ public(package) fun register(
     self: &mut AttestorRegistryV1,
     bond: Balance<IOTA>,
     attestor_pubkey: vector<u8>,
+    proof_of_possession: vector<u8>,
     sender: address,
     current_epoch: u64,
 ) {
@@ -199,7 +209,7 @@ public(package) fun register(
             < protocol_config::get_attr(MAX_ATTESTOR_COUNT_PARAM),
         ETooManyAttestors,
     );
-    validate_attestor_pubkey(attestor_pubkey);
+    validate_attestor_pubkey(attestor_pubkey, proof_of_possession, sender);
     // An entry scheduled for removal is still in `active_attestors` until
     // the boundary, so this also blocks re-registering while exiting.
     assert!(find_active(self, sender).is_none(), EAlreadyRegistered);
@@ -335,13 +345,14 @@ public(package) fun rotate_key(
     self: &mut AttestorRegistryV1,
     sender: address,
     new_pubkey: vector<u8>,
+    proof_of_possession: vector<u8>,
     current_epoch: u64,
 ) {
     let active_idx = find_active(self, sender);
     assert!(active_idx.is_some(), ENotActiveAttestor);
     let idx = active_idx.destroy_some();
     assert!(!self.pending_removals.contains(&idx), EAlreadyDeregistering);
-    validate_attestor_pubkey(new_pubkey);
+    validate_attestor_pubkey(new_pubkey, proof_of_possession, sender);
     let new_pubkey_for_event = new_pubkey;
     let entry = &mut self.active_attestors[idx];
     entry.next_epoch_attestor_pubkey = option::some(new_pubkey_for_event);

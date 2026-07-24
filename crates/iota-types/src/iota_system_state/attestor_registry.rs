@@ -13,7 +13,6 @@ use fastcrypto::{
     hash::HashFunction,
     secp256k1::{Secp256k1PublicKey, Secp256k1Signature},
     secp256r1::{Secp256r1PublicKey, Secp256r1Signature},
-    traits::{ToFromBytes, VerifyingKey},
 };
 use iota_sdk_types::{
     Address, Identifier, ObjectId, StructTag,
@@ -24,7 +23,10 @@ use serde::{Deserialize, Serialize};
 use crate::{
     IOTA_SYSTEM_STATE_OBJECT_ID, MoveTypeTagTrait, TypeTag,
     balance::Balance,
-    crypto::{DefaultHash, IotaKeyPair, IotaSignature, PublicKey, Signature, SignatureScheme},
+    crypto::{
+        DefaultHash, IotaKeyPair, IotaSignature, PublicKey, Signature, SignatureScheme,
+        ToFromBytes, VerifyingKey,
+    },
     dynamic_field::{derive_dynamic_field_id, get_dynamic_field_from_store},
     error::IotaError,
     storage::ObjectStore,
@@ -322,10 +324,6 @@ mod tests {
         ]
     }
 
-    fn attestor_pubkey(kp: &IotaKeyPair) -> Vec<u8> {
-        flagged(&kp.public())
-    }
-
     #[test]
     fn verify_attestor_pubkey_accepts_plain_schemes() {
         let mut rng = seeded_rng();
@@ -394,7 +392,7 @@ mod tests {
     fn pop_roundtrip_all_plain_schemes() {
         let sender = Address::from_short_hex("0xA1").unwrap();
         for kp in test_keypairs() {
-            let pubkey = attestor_pubkey(&kp);
+            let pubkey = flagged(&kp.public());
             let pop = generate_attestor_proof_of_possession(&kp, sender);
             assert_eq!(pop.len(), 64);
             verify_attestor_pubkey(&pubkey).unwrap();
@@ -407,7 +405,7 @@ mod tests {
         let sender = Address::from_short_hex("0xA1").unwrap();
         let other = Address::from_short_hex("0xA2").unwrap();
         for kp in test_keypairs() {
-            let pubkey = attestor_pubkey(&kp);
+            let pubkey = flagged(&kp.public());
             let pop = generate_attestor_proof_of_possession(&kp, sender);
             assert_eq!(
                 verify_attestor_pop(&pubkey, &pop, other),
@@ -420,19 +418,54 @@ mod tests {
     fn pop_rejects_wrong_key_and_garbage() {
         let sender = Address::from_short_hex("0xA1").unwrap();
         let kps = test_keypairs();
-        let pubkey = attestor_pubkey(&kps[0]);
-        let pop_other_key = generate_attestor_proof_of_possession(&kps[1], sender);
-        assert_eq!(
-            verify_attestor_pop(&pubkey, &pop_other_key, sender),
-            Err(E_INVALID_PROOF_OF_POSSESSION)
-        );
-        assert_eq!(
-            verify_attestor_pop(&pubkey, &[0u8; 64], sender),
-            Err(E_INVALID_PROOF_OF_POSSESSION)
-        );
-        assert_eq!(
-            verify_attestor_pop(&pubkey, &[], sender),
-            Err(E_INVALID_PROOF_OF_POSSESSION)
+        for i in 0..kps.len() {
+            let pubkey = flagged(&kps[i].public());
+            let other_kp = &kps[(i + 1) % kps.len()];
+            let pop_other_key = generate_attestor_proof_of_possession(other_kp, sender);
+            assert_eq!(
+                verify_attestor_pop(&pubkey, &pop_other_key, sender),
+                Err(E_INVALID_PROOF_OF_POSSESSION)
+            );
+            assert_eq!(
+                verify_attestor_pop(&pubkey, &[0u8; 64], sender),
+                Err(E_INVALID_PROOF_OF_POSSESSION)
+            );
+            assert_eq!(
+                verify_attestor_pop(&pubkey, &[], sender),
+                Err(E_INVALID_PROOF_OF_POSSESSION)
+            );
+        }
+    }
+
+    /// Prints the Move test fixtures. The keypairs are derived from the
+    /// fixed seed in `test_keypairs`, so the printed values are stable;
+    /// run with:
+    /// `cargo nextest run -p iota-types --lib print_attestor_move_fixtures
+    /// --no-capture`
+    #[test]
+    fn print_attestor_move_fixtures() {
+        let senders = [
+            ("A1", Address::from_short_hex("0xA1").unwrap()),
+            ("A2", Address::from_short_hex("0xA2").unwrap()),
+            ("A3", Address::from_short_hex("0xA3").unwrap()),
+        ];
+        for kp in test_keypairs() {
+            let pubkey = flagged(&kp.public());
+            println!(
+                "// scheme flag {}: x\"{}\"",
+                pubkey[0],
+                hex::encode(&pubkey)
+            );
+            for (name, sender) in senders {
+                let pop = generate_attestor_proof_of_possession(&kp, sender);
+                println!("//   pop for @0x{name}: x\"{}\"", hex::encode(pop));
+            }
+        }
+        let scenario_sender = Address::from_short_hex("0x42").unwrap();
+        let kp = &test_keypairs()[0];
+        println!(
+            "// scenario pop (ed25519, @0x42): x\"{}\"",
+            hex::encode(generate_attestor_proof_of_possession(kp, scenario_sender))
         );
     }
 }
