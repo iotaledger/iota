@@ -11,7 +11,6 @@ use std::{
 
 use anyhow::anyhow;
 use bincode::Options;
-use iota_archival::reader::ArchiveReaderBalancer;
 use iota_config::node::AuthorityStorePruningConfig;
 use iota_metrics::{monitored_scope, spawn_monitored_task};
 use iota_sdk_types::{CheckpointDigest, ObjectId, Version, checkpoint::CheckpointContents};
@@ -461,7 +460,6 @@ impl AuthorityStorePruner {
         pruner_db: Option<&Arc<AuthorityPrunerTables>>,
         config: AuthorityStorePruningConfig,
         metrics: Arc<AuthorityStorePruningMetrics>,
-        archive_readers: ArchiveReaderBalancer,
         epoch_duration_ms: u64,
         progress_tracker: Option<&Arc<CheckpointProgressTracker>>,
     ) -> anyhow::Result<()> {
@@ -469,15 +467,10 @@ impl AuthorityStorePruner {
         let pruned_checkpoint_number = checkpoint_store
             .get_highest_pruned_checkpoint_seq_number()?
             .unwrap_or(0);
-        let (last_executed_checkpoint, last_executed_timestamp_ms) = checkpoint_store
+        let (mut max_eligible_checkpoint, last_executed_timestamp_ms) = checkpoint_store
             .get_highest_executed_checkpoint()?
             .map(|c| (c.sequence_number(), c.timestamp_ms))
             .unwrap_or_default();
-        let latest_archived_checkpoint = archive_readers
-            .get_archive_watermark()
-            .await?
-            .unwrap_or(u64::MAX);
-        let mut max_eligible_checkpoint = min(latest_archived_checkpoint, last_executed_checkpoint);
         if config.num_epochs_to_retain != u64::MAX {
             max_eligible_checkpoint = min(
                 max_eligible_checkpoint,
@@ -769,7 +762,6 @@ impl AuthorityStorePruner {
         jsonrpc_index: Option<Arc<IndexStore>>,
         pruner_db: Option<Arc<AuthorityPrunerTables>>,
         metrics: Arc<AuthorityStorePruningMetrics>,
-        archive_readers: ArchiveReaderBalancer,
         progress_tracker: Option<Arc<CheckpointProgressTracker>>,
         mut executed_rx: watch::Receiver<CheckpointSequenceNumber>,
     ) -> Sender<()> {
@@ -905,7 +897,6 @@ impl AuthorityStorePruner {
                         pruner_db.as_ref(),
                         config.clone(),
                         metrics.clone(),
-                        archive_readers.clone(),
                         epoch_duration_ms,
                         progress_tracker.as_ref(),
                     )
@@ -960,7 +951,6 @@ impl AuthorityStorePruner {
         is_validator: bool,
         epoch_duration_ms: u64,
         registry: &Registry,
-        archive_readers: ArchiveReaderBalancer,
         pruner_db: Option<Arc<AuthorityPrunerTables>>,
         progress_tracker: Option<Arc<CheckpointProgressTracker>>,
     ) -> Self {
@@ -991,7 +981,6 @@ impl AuthorityStorePruner {
                 jsonrpc_index,
                 pruner_db,
                 AuthorityStorePruningMetrics::new(registry),
-                archive_readers,
                 progress_tracker,
                 executed_rx,
             ),

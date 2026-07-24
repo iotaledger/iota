@@ -10,10 +10,7 @@ use std::{
 
 use backoff::backoff::Backoff;
 use futures::{StreamExt, TryStreamExt};
-use iota_config::{
-    node::ArchiveReaderConfig,
-    object_storage_config::{ObjectStoreConfig, ObjectStoreType},
-};
+use iota_config::object_storage_config::{ObjectStoreConfig, ObjectStoreType};
 use iota_grpc_client::Client as GrpcClient;
 use iota_metrics::spawn_monitored_task;
 use iota_types::{
@@ -36,7 +33,7 @@ use crate::{
     IngestionError, IngestionResult, MAX_CHECKPOINTS_IN_PROGRESS,
     config::CheckpointReaderConfigExt,
     create_remote_store_client,
-    history::reader::HistoricalReader,
+    history::reader::{HistoricalReader, HistoricalReaderConfig},
     reader::{
         ReaderOptions,
         common::DataLimiter,
@@ -132,11 +129,10 @@ impl RemoteStore {
                         ..Default::default()
                     }
                 };
-                let config = ArchiveReaderConfig {
+                let config = HistoricalReaderConfig {
                     download_concurrency: NonZeroUsize::new(batch_size)
                         .expect("batch size must be greater than zero"),
                     remote_store_config,
-                    use_for_pruning_watermark: false,
                 };
                 let historical = HistoricalReader::new(config)
                     .inspect_err(|e| error!("unable to instantiate historical reader: {e}"))?;

@@ -34,18 +34,3 @@ state-snapshot-write-config:
     directory: "/opt/iota/formal_snapshot"
     object-store-connection-limit: 20
   concurrency: 5
-# archive mode
-state-archive-write-config:
-  object-store-config:
-    object-store: "File"
-    directory: "/opt/iota/archive"
-    object-store-connection-limit: 20
-  concurrency: 5
-  use-for-pruning-watermark: false
-state-archive-read-config:
-  - object-store-config:
-      object-store: "File"
-      directory: "/opt/iota/archive"
-      object-store-connection-limit: 20
-    concurrency: 5
-    use-for-pruning-watermark: true

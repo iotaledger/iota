@@ -9,7 +9,6 @@
 /crates/iota-adapter-transactional-tests/ @iotaledger/vm-language
 /crates/iota-analytics-indexer/ @iotaledger/infrastructure
 /crates/iota-analytics-indexer-derive/ @iotaledger/infrastructure
-/crates/iota-archival/ @iotaledger/node
 /crates/iota-authority-aggregation/ @iotaledger/node @iotaledger/consensus
 /crates/iota-cluster-test/ @iotaledger/infrastructure
 /crates/iota-common/ @iotaledger/core-protocol
