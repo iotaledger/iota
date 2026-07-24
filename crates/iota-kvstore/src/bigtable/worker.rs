@@ -68,7 +68,7 @@ pub enum Table {
     TransactionsByAddress,
     /// Stores a mapping of
     /// [`CheckpointSequenceNumber`](iota_types::messages_checkpoint::CheckpointSequenceNumber)
-    /// to [`CheckpointContents`](iota_types::messages_checkpoint::CheckpointContents) and [`CertifiedCheckpointSummary`](iota_types::messages_checkpoint::CertifiedCheckpointSummary) for
+    /// to [`CheckpointContents`](iota_sdk_types::checkpoint::CheckpointContents) and [`CertifiedCheckpointSummary`](iota_types::messages_checkpoint::CertifiedCheckpointSummary) for
     /// every checkpoint.
     Checkpoints,
     /// Stores a mapping of

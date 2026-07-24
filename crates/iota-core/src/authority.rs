@@ -46,9 +46,10 @@ use iota_metrics::{
 };
 use iota_sdk_types::{
     Address, CheckpointContentsDigest, CheckpointDigest, Digest, EndOfEpochTransactionKind, Event,
-    ExecutionStatus, GasPayment, MoveStruct, ObjectDigest, ObjectId, ObjectReference, Owner,
-    RandomnessRound, StructTag, SystemPackage, TransactionDigest, TransactionEffectsDigest,
-    TransactionExpiration, TransactionKind, TypeTag, Version,
+    ExecutionStatus, GasPayment, MoveAuthenticator, MoveStruct, ObjectDigest, ObjectId,
+    ObjectReference, Owner, RandomnessRound, StructTag, SystemPackage, TransactionDigest,
+    TransactionEffectsDigest, TransactionExpiration, TransactionKind, TypeTag, Version,
+    checkpoint::{CheckpointCommitment, CheckpointContents, CheckpointSummary},
     crypto::{Intent, IntentAppId, IntentMessage, IntentScope, IntentVersion},
     gas::GasCostSummary,
 };
@@ -71,6 +72,7 @@ use iota_types::{
     committee::{Committee, EpochId, ProtocolVersion},
     crypto::{AuthorityPublicKey, AuthoritySignInfo, AuthoritySignature, Signer},
     deny_list_v1::check_coin_deny_list_v1,
+    deny_rule_governance::DenyRuleConfig,
     digests::ChainIdentifier,
     dynamic_field::{DynamicFieldInfo, DynamicFieldName, visitor as DFV},
     effects::{
@@ -96,10 +98,9 @@ use iota_types::{
     layout_resolver::{LayoutResolver, into_struct_layout},
     message_envelope::Message,
     messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointCommitment, CheckpointContents,
-        CheckpointContentsExt, CheckpointRequest, CheckpointResponse, CheckpointSequenceNumber,
-        CheckpointSummary, CheckpointSummaryResponse, CheckpointTimestamp, ECMHLiveObjectSetDigest,
-        VerifiedCheckpoint,
+        CertifiedCheckpointSummary, CheckpointContentsExt, CheckpointRequest, CheckpointResponse,
+        CheckpointSequenceNumber, CheckpointSummaryResponse, CheckpointTimestamp,
+        ECMHLiveObjectSetDigest, VerifiedCheckpoint,
     },
     messages_consensus::AuthorityCapabilitiesV1,
     messages_grpc::{
@@ -108,7 +109,7 @@ use iota_types::{
         TransactionStatus,
     },
     metrics::{BytecodeVerifierMetrics, LimitsMetrics},
-    move_authenticator::{MoveAuthenticator, MoveAuthenticatorExt},
+    move_authenticator::MoveAuthenticatorExt,
     object::{
         MoveStructExt, OBJECT_START_VERSION, Object, ObjectRead, PastObjectRead,
         bounded_visitor::BoundedVisitor,
@@ -958,6 +959,12 @@ impl AuthorityState {
     /// MoveAuthenticator checks. Returns the owned object refs for optional
     /// version validation. Does NOT acquire locks or sign the transaction.
     ///
+    /// `deny_config` is the deny rule source to enforce, chosen per caller:
+    /// the local config alone, the local config combined with the governance
+    /// rules (admission), or the governance-derived active set alone
+    /// (post-consensus) — the latter two when `deny_rule_governance` is
+    /// enabled.
+    ///
     /// `epoch_gated_coin_deny_list` selects how the coin deny list is read:
     /// `false` reads the latest value, so denials apply immediately - for
     /// validator-local admission (signing); `true` reads the value settled
@@ -985,6 +992,7 @@ impl AuthorityState {
         &self,
         transaction: &VerifiedTransaction,
         epoch_store: &Arc<AuthorityPerEpochStore>,
+        deny_config: &dyn DenyRuleConfig,
         epoch_gated_coin_deny_list: bool,
     ) -> IotaResult<Vec<ObjectReference>> {
         let protocol_config = epoch_store.protocol_config();
@@ -1002,7 +1010,7 @@ impl AuthorityState {
             transaction.signatures(),
             &transaction.input_objects()?,
             &tx.receiving_objects(),
-            &self.config.transaction_deny_config,
+            deny_config,
             self.get_backing_package_store().as_ref(),
         )?;
 
@@ -1173,6 +1181,7 @@ impl AuthorityState {
             .handle_transaction_validation_checks(
                 &transaction,
                 epoch_store,
+                &self.config.transaction_deny_config,
                 // Latest-value coin deny-list read: admission is validator-local,
                 // and denials should take effect immediately. Unlike the P-COOL
                 // submission path, no post-consensus re-check follows - this is

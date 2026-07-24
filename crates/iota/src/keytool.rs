@@ -37,18 +37,18 @@ use iota_keys::{
 use iota_ledger::Ledger;
 use iota_sdk_crypto::{Signer as _, ToFromBytes as _, ed25519::Ed25519PrivateKey};
 use iota_sdk_types::{
-    Address, SenderSignedTransaction, Transaction,
-    crypto::{Intent, IntentMessage, PublicKey as SdkPublicKey, UserSignature},
+    Address, SenderSignedTransaction, SignatureScheme, Transaction,
+    crypto::{
+        Intent, IntentMessage, PasskeyAuthenticator, PublicKey as SdkPublicKey, UserSignature,
+    },
 };
 use iota_types::{
     crypto::{
-        DefaultHash, EncodeDecodeBase64, IotaKeyPair, PublicKey, Signature, SignatureScheme,
-        get_authority_key_pair,
+        DefaultHash, EncodeDecodeBase64, IotaKeyPair, PublicKey, Signature, get_authority_key_pair,
     },
     error::IotaResult,
     move_authenticator::MoveAuthenticatorExt,
     multisig::{MultiSig, MultiSigPublicKey, MultisigMember, ThresholdUnit, WeightUnit},
-    passkey_authenticator::PasskeyAuthenticator,
     signature::{AuthenticatorTrait, VerifyParams},
     transaction::{SenderSignedData, TransactionData, TransactionDataAPI},
 };

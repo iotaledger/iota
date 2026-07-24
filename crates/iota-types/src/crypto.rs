@@ -36,13 +36,8 @@ use iota_sdk_crypto::{
     SignatureError, ToFromBytes as _, Verifier, ed25519::Ed25519PrivateKey,
     secp256k1::Secp256k1PrivateKey, secp256r1::Secp256r1PrivateKey, simple::SimpleVerifier,
 };
-// Signature schemes and their flag bytes. Sourced from the SDK so the node
-// shares a single definition with clients. Flag `0x05` (the removed zkLogin
-// authenticator, never enabled on IOTA) stays reserved: the SDK rejects it in
-// `SignatureScheme::from_byte`.
-pub use iota_sdk_types::SignatureScheme;
 use iota_sdk_types::{
-    Address, UserSignature,
+    Address, SignatureScheme, UserSignature,
     crypto::{Intent, IntentMessage, IntentScope},
 };
 use rand::{
@@ -1236,8 +1231,8 @@ mod bcs_signable {
 
     pub trait BcsSignable: serde::Serialize + serde::de::DeserializeOwned {}
     impl BcsSignable for crate::committee::Committee {}
-    impl BcsSignable for crate::messages_checkpoint::CheckpointSummary {}
-    impl BcsSignable for crate::messages_checkpoint::CheckpointContents {}
+    impl BcsSignable for iota_sdk_types::checkpoint::CheckpointSummary {}
+    impl BcsSignable for iota_sdk_types::checkpoint::CheckpointContents {}
     #[cfg(not(target_arch = "wasm32"))]
     impl BcsSignable for crate::messages_consensus::VersionedMisbehaviorReport {}
 

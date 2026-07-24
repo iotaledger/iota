@@ -12,7 +12,9 @@ use fastcrypto::hash::MultisetHash;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
     CheckpointContentsDigest, CheckpointContentsV1, CheckpointDigest, Digest, RandomnessRound,
-    checkpoint::CheckpointTransactionInfo,
+    checkpoint::{
+        CheckpointContents, CheckpointSummary, CheckpointTransactionInfo, EndOfEpochData,
+    },
     crypto::{Intent, IntentScope, UserSignature},
     gas::GasCostSummary,
 };
@@ -81,8 +83,6 @@ pub struct CheckpointResponse {
 
 // The constituent parts of checkpoints, signed and certified
 
-pub use iota_sdk_types::checkpoint::CheckpointCommitment;
-
 /// The Sha256 digest of an EllipticCurveMultisetHash committing to the live
 /// object set.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -103,8 +103,6 @@ impl Default for ECMHLiveObjectSetDigest {
         GlobalStateHash::default().digest().into()
     }
 }
-
-pub use iota_sdk_types::checkpoint::{CheckpointSummary, EndOfEpochData};
 
 impl Message for CheckpointSummary {
     type DigestType = CheckpointDigest;
@@ -339,8 +337,6 @@ impl CheckpointSignatureMessage {
         self.summary.verify_authority_signatures(committee)
     }
 }
-
-pub use iota_sdk_types::checkpoint::CheckpointContents;
 
 fn execution_digests(info: &CheckpointTransactionInfo) -> ExecutionDigests {
     ExecutionDigests {

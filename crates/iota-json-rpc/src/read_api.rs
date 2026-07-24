@@ -1458,7 +1458,11 @@ mod tests {
     use std::collections::HashMap;
 
     use iota_protocol_config::ProtocolConfig;
-    use iota_sdk_types::{CheckpointDigest, TransactionEffectsDigest, gas::GasCostSummary};
+    use iota_sdk_types::{
+        CheckpointDigest, TransactionEffectsDigest,
+        checkpoint::{CheckpointContents, CheckpointSummary},
+        gas::GasCostSummary,
+    };
     use iota_storage::{
         key_value_store::{
             KVStoreCheckpointData, KVStoreTransactionData, TransactionKeyValueStoreTrait,
@@ -1472,8 +1476,7 @@ mod tests {
         error::IotaResult,
         message_envelope::Envelope,
         messages_checkpoint::{
-            CertifiedCheckpointSummary, CheckpointContents, CheckpointContentsExt,
-            CheckpointSummary, CheckpointSummaryExt,
+            CertifiedCheckpointSummary, CheckpointContentsExt, CheckpointSummaryExt,
         },
         object::Object,
         storage::ObjectKey,

@@ -10,7 +10,7 @@ use std::{
 use iota_config::genesis;
 use iota_sdk_types::{
     Address, CheckpointContentsDigest, CheckpointDigest, ObjectId, ObjectReference, Owner,
-    TransactionDigest, Version,
+    TransactionDigest, Version, checkpoint::CheckpointContents,
 };
 use iota_types::{
     base_types::AuthorityName,
@@ -18,7 +18,7 @@ use iota_types::{
     crypto::{AccountKeyPair, AuthorityKeyPair},
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     error::IotaError,
-    messages_checkpoint::{CheckpointContents, CheckpointSequenceNumber, VerifiedCheckpoint},
+    messages_checkpoint::{CheckpointSequenceNumber, VerifiedCheckpoint},
     object::Object,
     storage::{
         BackingPackageStore, ChildObjectResolver, ObjectStore, PackageObject, ReadStore,
@@ -436,18 +436,14 @@ impl ReadStore for InMemoryStore {
     fn try_get_checkpoint_contents_by_digest(
         &self,
         digest: &CheckpointContentsDigest,
-    ) -> iota_types::storage::error::Result<
-        Option<iota_types::messages_checkpoint::CheckpointContents>,
-    > {
+    ) -> iota_types::storage::error::Result<Option<CheckpointContents>> {
         Ok(self.get_checkpoint_contents(digest).cloned())
     }
 
     fn try_get_checkpoint_contents_by_sequence_number(
         &self,
         sequence_number: iota_types::messages_checkpoint::CheckpointSequenceNumber,
-    ) -> iota_types::storage::error::Result<
-        Option<iota_types::messages_checkpoint::CheckpointContents>,
-    > {
+    ) -> iota_types::storage::error::Result<Option<CheckpointContents>> {
         Ok(self
             .get_checkpoint_by_sequence_number(sequence_number)
             .and_then(|c| self.get_checkpoint_contents(&c.content_digest).cloned()))

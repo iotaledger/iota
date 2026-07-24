@@ -10,8 +10,8 @@ use fastcrypto::{
     rsa::{Base64UrlUnpadded, Encoding as _},
 };
 use iota_sdk_types::{
-    Address, ObjectId,
-    crypto::{Intent, IntentMessage, SimpleSignature},
+    Address, ObjectId, SignatureScheme, UserSignature,
+    crypto::{Intent, IntentMessage, PasskeyAuthenticator, SimpleSignature},
 };
 use p256::pkcs8::DecodePublicKey;
 use passkey_authenticator::{Authenticator, UserCheck, UserValidationMethod};
@@ -31,10 +31,9 @@ use url::Url;
 
 use crate::{
     base_types::dbg_addr,
-    crypto::{DefaultHash, PublicKey, SignatureScheme},
+    crypto::{DefaultHash, PublicKey},
     object::Object,
-    passkey_authenticator::PasskeyAuthenticator,
-    signature::{AuthenticatorTrait, UserSignature},
+    signature::AuthenticatorTrait,
     transaction::{TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionData, TransactionDataAPI},
 };
 

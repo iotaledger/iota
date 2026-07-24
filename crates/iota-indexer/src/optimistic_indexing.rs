@@ -7,11 +7,10 @@ use downcast::Any;
 use fastcrypto::encoding::Base64;
 use iota_grpc_client::{Client as GrpcClient, ReadMask, read_mask_fields::TransactionField};
 use iota_grpc_types::v1::transaction::ExecutedTransaction;
-use iota_sdk_types::{ObjectId, TransactionDigest, Version};
+use iota_sdk_types::{ObjectId, TransactionDigest, UserSignature, Version};
 use iota_types::{
     effects::TransactionEffectsAPI,
     full_checkpoint_content::CheckpointTransaction,
-    signature::UserSignature,
     transaction::{Transaction, TransactionData},
 };
 

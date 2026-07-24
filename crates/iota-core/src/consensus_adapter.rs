@@ -822,6 +822,7 @@ impl ConsensusAdapter {
                     | ConsensusTransactionKind::RandomnessDkgMessage(_, _)
                     | ConsensusTransactionKind::RandomnessDkgConfirmation(_, _)
                     | ConsensusTransactionKind::OverloadNotificationV1(_, _, _)
+                    | ConsensusTransactionKind::TransactionDenyRuleProposal(_)
             ) {
             let transaction_keys = transaction_keys.clone();
             Some(CancelOnDrop(spawn_monitored_task!(async {

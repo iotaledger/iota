@@ -19,8 +19,8 @@ use iota_json_rpc_types::{
 use iota_protocol_config::{Chain, ProtocolConfig};
 use iota_sdk::{IotaClient, IotaClientBuilder};
 use iota_sdk_types::{
-    GasPayment, ObjectData, ObjectDigest, ObjectId, ObjectReference, Owner, StructTag,
-    TransactionDigest, TransactionKind, Version,
+    GasPayment, MoveAuthenticator, ObjectData, ObjectDigest, ObjectId, ObjectReference, Owner,
+    StructTag, TransactionDigest, TransactionKind, Version,
 };
 use iota_types::{
     IOTA_DENY_LIST_OBJECT_ID,
@@ -41,7 +41,7 @@ use iota_types::{
     iota_sdk_types_conversions::struct_tag_core_to_sdk,
     message_envelope::Message,
     metrics::LimitsMetrics,
-    move_authenticator::{MoveAuthenticator, MoveAuthenticatorExt},
+    move_authenticator::MoveAuthenticatorExt,
     object::Object,
     storage::{
         BackingPackageStore, ChildObjectResolver, ObjectStore, PackageObject, get_module,

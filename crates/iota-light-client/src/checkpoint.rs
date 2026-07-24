@@ -16,7 +16,9 @@ use iota_archival::reader::{ArchiveReader, ArchiveReaderMetrics};
 use iota_config::{genesis::Genesis, node::ArchiveReaderConfig};
 use iota_json_rpc_types::CheckpointId;
 use iota_sdk::IotaClientBuilder;
-use iota_sdk_types::{CheckpointContentsDigest, CheckpointDigest, TransactionDigest};
+use iota_sdk_types::{
+    CheckpointContentsDigest, CheckpointDigest, TransactionDigest, checkpoint::CheckpointContents,
+};
 use iota_types::{
     committee::{Committee, CommitteeChainVerifier},
     messages_checkpoint::{CertifiedCheckpointSummary, VerifiedCheckpoint},
@@ -438,18 +440,14 @@ impl ReadStore for CheckpointSummaryFileStore {
     fn try_get_checkpoint_contents_by_digest(
         &self,
         _: &CheckpointContentsDigest,
-    ) -> iota_types::storage::error::Result<
-        Option<iota_types::messages_checkpoint::CheckpointContents>,
-    > {
+    ) -> iota_types::storage::error::Result<Option<CheckpointContents>> {
         unimplemented!()
     }
 
     fn try_get_checkpoint_contents_by_sequence_number(
         &self,
         _: iota_types::messages_checkpoint::CheckpointSequenceNumber,
-    ) -> iota_types::storage::error::Result<
-        Option<iota_types::messages_checkpoint::CheckpointContents>,
-    > {
+    ) -> iota_types::storage::error::Result<Option<CheckpointContents>> {
         unimplemented!()
     }
 
@@ -513,13 +511,14 @@ impl ObjectStore for CheckpointSummaryFileStore {
 
 #[cfg(test)]
 mod tests {
-    use iota_sdk_types::gas::GasCostSummary;
+    use iota_sdk_types::{
+        checkpoint::{CheckpointContents, CheckpointSummary},
+        gas::GasCostSummary,
+    };
     use iota_types::{
         crypto::AuthorityQuorumSignInfo,
         message_envelope::Envelope,
-        messages_checkpoint::{
-            CheckpointContents, CheckpointContentsExt, CheckpointSummary, CheckpointSummaryExt,
-        },
+        messages_checkpoint::{CheckpointContentsExt, CheckpointSummaryExt},
         supported_protocol_versions::ProtocolConfig,
     };
     use roaring::RoaringBitmap;

@@ -7296,3 +7296,162 @@ async fn test_consensus_queue_graduated_load_shedding() {
         "in certificate mode, no graduated shedding expected below/at hard limit",
     );
 }
+
+/// Builds an authority with the deny-rule-governance protocol flag toggled.
+async fn authority_with_deny_rule_governance(enabled: bool) -> Arc<AuthorityState> {
+    let mut protocol_config =
+        ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
+    if enabled {
+        protocol_config.set_deny_rule_governance_for_testing(true);
+    }
+    TestAuthorityBuilder::new()
+        .with_protocol_config(protocol_config)
+        .build()
+        .await
+}
+
+/// A `TransactionDenyRuleProposal` whose declared authority matches `author` is
+/// recorded through the consensus pipeline and its rules become active for the
+/// next commit; a proposal whose author does not match the consensus block
+/// author is dropped by `verify_consensus_transaction`.
+#[tokio::test]
+async fn deny_rule_proposal_through_consensus_updates_active_set() {
+    use iota_sdk_types::Address;
+    use iota_types::{
+        deny_rule_governance::{DenyRuleConfig, DenyRuleSet},
+        messages_consensus::TransactionDenyRuleProposal,
+    };
+
+    let authority = authority_with_deny_rule_governance(true).await;
+    let epoch_store = authority.epoch_store_for_testing();
+    // Single-validator test committee: this authority holds all stake and
+    // clears both the f+1 and 2f+1 thresholds alone.
+    let me = epoch_store.name;
+    let checkpoint_service = Arc::new(CheckpointServiceNoop {});
+
+    // Drive a proposal through consensus, authored by this validator.
+    let denied = Address::new([9u8; 32]);
+    let proposal = TransactionDenyRuleProposal {
+        authority: me,
+        generation: 1,
+        proposed_rules: DenyRuleSet {
+            denied_addresses: [denied].into(),
+            user_transaction_disabled: true,
+            ..Default::default()
+        },
+    };
+    let sequenced = SequencedConsensusTransaction {
+        certificate_author_index: 0,
+        certificate_author: me,
+        consensus_index: Default::default(),
+        transaction: crate::consensus_handler::SequencedConsensusTransactionKind::External(
+            ConsensusTransaction::new_transaction_deny_rule_proposal(proposal),
+        ),
+    };
+    epoch_store
+        .process_consensus_transactions_for_tests(
+            vec![sequenced],
+            &checkpoint_service,
+            authority.get_object_cache_reader().as_ref(),
+            authority.get_transaction_cache_reader().as_ref(),
+            &authority.metrics,
+            true,
+            authority.as_ref(),
+        )
+        .await
+        .unwrap();
+
+    // Recorded and aggregated: the rules are active for subsequent commits.
+    let active = epoch_store.get_active_transaction_deny_rules();
+    assert!(active.is_address_denied(&denied));
+    assert!(active.user_transaction_disabled());
+
+    // A proposal whose declared authority does not match the consensus block
+    // author is dropped before recording, leaving the active set unchanged.
+    let other = AuthorityName::ZERO;
+    let forged = TransactionDenyRuleProposal {
+        authority: other,
+        generation: 2,
+        proposed_rules: rules_denying(Address::new([1u8; 32])),
+    };
+    let sequenced = SequencedConsensusTransaction {
+        certificate_author_index: 0,
+        certificate_author: me, // author != forged.authority
+        consensus_index: Default::default(),
+        transaction: crate::consensus_handler::SequencedConsensusTransactionKind::External(
+            ConsensusTransaction::new_transaction_deny_rule_proposal(forged),
+        ),
+    };
+    epoch_store
+        .process_consensus_transactions_for_tests(
+            vec![sequenced],
+            &checkpoint_service,
+            authority.get_object_cache_reader().as_ref(),
+            authority.get_transaction_cache_reader().as_ref(),
+            &authority.metrics,
+            true,
+            authority.as_ref(),
+        )
+        .await
+        .unwrap();
+
+    let active = epoch_store.get_active_transaction_deny_rules();
+    assert!(!active.is_address_denied(&Address::new([1u8; 32])));
+    assert!(active.is_address_denied(&denied)); // original still in force
+}
+
+/// With the feature flag disabled, a well-formed proposal is ignored by the
+/// consensus handler and never affects the active set.
+#[tokio::test]
+async fn deny_rule_proposal_ignored_when_flag_disabled() {
+    use iota_sdk_types::Address;
+    use iota_types::{
+        deny_rule_governance::DenyRuleConfig, messages_consensus::TransactionDenyRuleProposal,
+    };
+
+    let authority = authority_with_deny_rule_governance(false).await;
+    let epoch_store = authority.epoch_store_for_testing();
+    let me = epoch_store.name;
+
+    let denied = Address::new([9u8; 32]);
+    let proposal = TransactionDenyRuleProposal {
+        authority: me,
+        generation: 1,
+        proposed_rules: rules_denying(denied),
+    };
+    let sequenced = SequencedConsensusTransaction {
+        certificate_author_index: 0,
+        certificate_author: me,
+        consensus_index: Default::default(),
+        transaction: crate::consensus_handler::SequencedConsensusTransactionKind::External(
+            ConsensusTransaction::new_transaction_deny_rule_proposal(proposal),
+        ),
+    };
+    epoch_store
+        .process_consensus_transactions_for_tests(
+            vec![sequenced],
+            &Arc::new(CheckpointServiceNoop {}),
+            authority.get_object_cache_reader().as_ref(),
+            authority.get_transaction_cache_reader().as_ref(),
+            &authority.metrics,
+            true,
+            authority.as_ref(),
+        )
+        .await
+        .unwrap();
+
+    assert!(
+        !epoch_store
+            .get_active_transaction_deny_rules()
+            .is_address_denied(&denied)
+    );
+}
+
+fn rules_denying(
+    address: iota_sdk_types::Address,
+) -> iota_types::deny_rule_governance::DenyRuleSet {
+    iota_types::deny_rule_governance::DenyRuleSet {
+        denied_addresses: [address].into(),
+        ..Default::default()
+    }
+}

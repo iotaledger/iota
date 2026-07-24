@@ -15,7 +15,10 @@ use fastcrypto::{
     hash::HashFunction,
 };
 use iota_protocol_config::{Chain, ProtocolConfig};
-use iota_sdk_types::{Address, ObjectId};
+use iota_sdk_types::{
+    Address, ObjectId,
+    checkpoint::{CheckpointContents, CheckpointSummary},
+};
 use iota_types::{
     clock::Clock,
     committee::{Committee, CommitteeWithNetworkMetadata, EpochId, ProtocolVersion},
@@ -27,9 +30,7 @@ use iota_types::{
         IotaSystemState, IotaSystemStateTrait, IotaSystemStateWrapper, IotaValidatorGenesis,
         get_iota_system_state, get_iota_system_state_wrapper,
     },
-    messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointContents, CheckpointSummary, VerifiedCheckpoint,
-    },
+    messages_checkpoint::{CertifiedCheckpointSummary, VerifiedCheckpoint},
     object::Object,
     storage::ObjectStore,
     transaction::Transaction,

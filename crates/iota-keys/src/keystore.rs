@@ -18,12 +18,12 @@ use iota_sdk_crypto::{
     ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey, secp256r1::Secp256r1PrivateKey,
 };
 use iota_sdk_types::{
-    Address,
+    Address, SignatureScheme,
     crypto::{Intent, IntentMessage},
 };
 use iota_types::crypto::{
-    EncodeDecodeBase64, IotaKeyPair, IotaSignature, PublicKey, Signature, SignatureScheme,
-    enum_dispatch, get_key_pair_from_rng,
+    EncodeDecodeBase64, IotaKeyPair, IotaSignature, PublicKey, Signature, enum_dispatch,
+    get_key_pair_from_rng,
 };
 use rand::{SeedableRng, rngs::StdRng};
 use regex::Regex;

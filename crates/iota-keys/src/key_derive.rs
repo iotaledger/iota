@@ -9,11 +9,8 @@ use iota_sdk_crypto::{
     ToFromBytes as _, ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey,
     secp256r1::Secp256r1PrivateKey,
 };
-use iota_sdk_types::Address;
-use iota_types::{
-    crypto::{IotaKeyPair, SignatureScheme},
-    error::IotaError,
-};
+use iota_sdk_types::{Address, SignatureScheme};
+use iota_types::{crypto::IotaKeyPair, error::IotaError};
 use slip10_ed25519::derive_ed25519_private_key;
 
 pub const DERIVATION_PATH_COIN_TYPE: u32 = 4218;

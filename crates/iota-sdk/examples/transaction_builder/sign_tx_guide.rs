@@ -22,7 +22,6 @@ use iota_sdk::{
     types::{
         crypto::{IotaKeyPair, IotaSignature, Signature, get_key_pair_from_rng},
         programmable_transaction_builder::ProgrammableTransactionBuilder,
-        signature::UserSignature,
         transaction::{TransactionData, TransactionDataAPI},
     },
 };
@@ -30,7 +29,7 @@ use iota_sdk_crypto::{
     Signer as _, ToFromBytes as _, ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey,
     secp256r1::Secp256r1PrivateKey,
 };
-use iota_sdk_types::Address;
+use iota_sdk_types::{Address, UserSignature};
 use rand::{SeedableRng, rngs::StdRng};
 use utils::request_tokens_from_faucet;
 

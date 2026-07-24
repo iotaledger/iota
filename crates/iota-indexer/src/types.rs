@@ -8,7 +8,9 @@ use iota_json_rpc_types::{
 };
 use iota_sdk_types::{
     Address, CheckpointContentsDigest, CheckpointDigest, ObjectDigest, ObjectId, Owner, StructTag,
-    TransactionDigest, TypeTag, Version, move_package::MovePackage,
+    TransactionDigest, TypeTag, Version,
+    checkpoint::{CheckpointCommitment, CheckpointContents, EndOfEpochData},
+    move_package::MovePackage,
 };
 use iota_types::{
     crypto::AggregateAuthoritySignature,
@@ -16,9 +18,7 @@ use iota_types::{
     effects::TransactionEffects,
     event::{SystemEpochInfoEvent, SystemEpochInfoEventV1, SystemEpochInfoEventV2},
     iota_serde::{IotaStructTag, IotaTypeTag},
-    messages_checkpoint::{
-        CheckpointCommitment, CheckpointContentsExt, CheckpointSequenceNumber, EndOfEpochData,
-    },
+    messages_checkpoint::{CheckpointContentsExt, CheckpointSequenceNumber},
     object::Object,
     transaction::SenderSignedData,
 };
@@ -61,7 +61,7 @@ pub struct IndexedCheckpoint {
 impl IndexedCheckpoint {
     pub fn from_iota_checkpoint(
         checkpoint: &iota_types::messages_checkpoint::CertifiedCheckpointSummary,
-        contents: &iota_types::messages_checkpoint::CheckpointContents,
+        contents: &CheckpointContents,
         successful_tx_num: usize,
     ) -> Self {
         let total_gas_cost = checkpoint.epoch_rolling_gas_cost_summary.computation_cost as i64
