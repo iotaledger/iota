@@ -93,8 +93,18 @@ for p in "${points[@]}"; do
   wipe="${WIPE:-no}"
   [[ $i -eq $total && -z "${WIPE:-}" ]] && wipe=yes # default: tear down at the end
   echo "[$(date +%H:%M:%S)] ($i/$total) probe $label -> logs/$label.log"
-  SLOW_N="$n" SLOW_SIZE="$size" WIPE="$wipe" "$SCRIPT_DIR/probe.sh" >"$LOGDIR/$label.log" 2>&1 &&
-    echo "    ✓ done" || echo "    ✗ FAILED — tail logs/$label.log"
+  if SLOW_N="$n" SLOW_SIZE="$size" WIPE="$wipe" "$SCRIPT_DIR/probe.sh" >"$LOGDIR/$label.log" 2>&1; then
+    echo "    ✓ done"
+  else
+    # Transient submit-path stalls fail the odd point (the scrape guard keeps
+    # bad rows out of the CSV); one immediate retry usually lands it.
+    echo "    ✗ failed — retrying once"
+    if SLOW_N="$n" SLOW_SIZE="$size" WIPE="$wipe" "$SCRIPT_DIR/probe.sh" >>"$LOGDIR/$label.log" 2>&1; then
+      echo "    ✓ done (retry)"
+    else
+      echo "    ✗ FAILED twice — tail logs/$label.log"
+    fi
+  fi
 done
 
 echo
