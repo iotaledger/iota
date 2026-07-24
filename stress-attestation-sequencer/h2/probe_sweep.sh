@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 #
 # probe_sweep.sh — run probe.sh over the H2 calibration grid, accumulating
-# results/calibration-<machine>.csv. Brings the network up on the first probe and REUSES
-# it for the rest (probe.sh never wipes between points), so the whole sweep runs
-# on one network. Tears everything down only at the very end (WIPE=yes on the
-# last probe).
+# results/calibration-<machine>.csv. Tears down any leftover network first
+# (a previous failed run may have leaked one, still churning its backlog),
+# brings a fresh one up on the first probe, REUSES it for all points, and
+# tears everything down at the end regardless of point failures (WIPE=no
+# keeps it up for debugging).
 #
 # Grid: a geometric ladder of the product n*size (computation units are strongly
 # superlinear in the product, so a log ladder samples evenly in log-CU). Kept at
@@ -83,16 +84,21 @@ sudo -v || {
 done) &
 trap 'kill %1 2>/dev/null' EXIT
 
+TOOLS_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# Every sweep starts from a clean network. A previous run that ended in failing
+# points leaves its network up (probe.sh exits before its wipe step) still
+# churning undelivered ceiling-cost transactions; reusing it fails the early
+# points of the next sweep.
+echo "[$(date +%H:%M:%S)] tearing down any leftover network (fresh start)"
+sudo "$TOOLS_DIR/cleanup.sh" >"$LOGDIR/sweep-cleanup.log" 2>&1 || true
+
 total=${#points[@]}
 i=0
 for p in "${points[@]}"; do
   read -r n size <<<"$p"
   i=$((i + 1))
   label="slow-n${n}-s${size}"
-  # Keep the network up between points (WIPE=no); tear down after the last
-  # one. Override by exporting WIPE before calling probe_sweep.sh.
-  wipe="${WIPE:-no}"
-  [[ $i -eq $total && -z "${WIPE:-}" ]] && wipe=yes # default: tear down at the end
   echo "[$(date +%H:%M:%S)] ($i/$total) probe $label -> logs/$label.log"
   # Transient submit-path stalls fail the odd point (the scrape guard keeps
   # bad rows out of the CSV); immediate retries usually land it. All attempts
@@ -101,9 +107,9 @@ for p in "${points[@]}"; do
   for attempt in $(seq 1 $((1 + RETRIES))); do
     if ((attempt > 1)); then
       echo "    ✗ failed — retry $((attempt - 1))/$RETRIES"
-      SLOW_N="$n" SLOW_SIZE="$size" WIPE="$wipe" "$SCRIPT_DIR/probe.sh" >>"$LOGDIR/$label.log" 2>&1 && ok=1
+      SLOW_N="$n" SLOW_SIZE="$size" WIPE=no "$SCRIPT_DIR/probe.sh" >>"$LOGDIR/$label.log" 2>&1 && ok=1
     else
-      SLOW_N="$n" SLOW_SIZE="$size" WIPE="$wipe" "$SCRIPT_DIR/probe.sh" >"$LOGDIR/$label.log" 2>&1 && ok=1
+      SLOW_N="$n" SLOW_SIZE="$size" WIPE=no "$SCRIPT_DIR/probe.sh" >"$LOGDIR/$label.log" 2>&1 && ok=1
     fi
     [[ -n "$ok" ]] && break
   done
@@ -113,6 +119,15 @@ for p in "${points[@]}"; do
     echo "    ✗ FAILED after $((1 + RETRIES)) attempts — tail logs/$label.log"
   fi
 done
+
+echo
+# Tear down unconditionally: tying teardown to the LAST point's probe meant a
+# failing last point leaked the network (probe.sh exits before its wipe step),
+# poisoning the next sweep. WIPE=no keeps it up for debugging.
+if [[ "${WIPE:-yes}" != no && "${WIPE:-yes}" != n ]]; then
+  echo "[$(date +%H:%M:%S)] tearing down network + monitoring"
+  sudo "$TOOLS_DIR/cleanup.sh" >>"$LOGDIR/sweep-cleanup.log" 2>&1 || true
+fi
 
 echo
 # The CSV name carries probe.sh's CPU slug; report the file it actually wrote.
