@@ -11,14 +11,17 @@
 # must be signed; the read-only view calls are plain `iota_view` JSON-RPC
 # requests made with `curl`.
 #
+# The script is self-contained: it generates a throwaway wallet in a temporary
+# config directory (IOTA_CONFIG_DIR) and funds it from the faucet, so it never
+# touches your real `~/.iota` wallet or its active environment. The temporary
+# wallet is removed when the script exits.
+#
 # Prerequisites:
 #   - A running local network with a faucet, e.g.:
 #       cargo run --release --bin iota-localnet -- start --force-regenesis --with-faucet
 #   - A current `iota` CLI that understands `#[view]`. By default the script uses
 #     the binary built from this repo (target/release/iota, else target/debug);
 #     override with IOTA=/path/to/iota. An older CLI silently drops `#[view]`.
-#   - The CLI's active environment must point at the local network (JSON-RPC on
-#     127.0.0.1:9000); view metadata is not recorded on testnet or mainnet.
 #   - `jq` and `curl` on PATH.
 #
 # Overrides via environment variables: IOTA, RPC_URL, FAUCET_URL, GAS_BUDGET.
@@ -95,8 +98,17 @@ if ! rpc iota_getChainIdentifier '[]' | jq -e '.result' >/dev/null 2>&1; then
     exit 1
 fi
 
+# Generate a throwaway wallet in a temporary config directory so the script does
+# not read or modify the user's real `~/.iota` wallet. `new-env` bootstraps a
+# fresh config on an empty directory (the piped `0` selects the ed25519 key
+# scheme for the generated address); `switch` makes the local network active.
+export IOTA_CONFIG_DIR="$(mktemp -d)"
+trap 'rm -rf "$IOTA_CONFIG_DIR"' EXIT
+echo "==> Creating a throwaway wallet in $IOTA_CONFIG_DIR"
+echo "0" | "$IOTA" client new-env --alias localnet --rpc "$RPC_URL" >/dev/null 2>&1 || true
+"$IOTA" client switch --env localnet >/dev/null
 SENDER="$($IOTA client active-address)"
-echo "==> Active address: $SENDER"
+echo "==> Address: $SENDER"
 
 echo "==> Requesting gas from the faucet"
 curl -sS -X POST "$FAUCET_URL" \
