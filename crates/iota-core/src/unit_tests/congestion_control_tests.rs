@@ -3,15 +3,16 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::sync::Arc;
+use std::{collections::BTreeSet, sync::Arc};
 
 use iota_macros::{register_fail_point_arg, sim_test};
 use iota_protocol_config::{
     Chain, PerObjectCongestionControlMode, ProtocolConfig, ProtocolVersion,
 };
 use iota_sdk_types::{
-    Address, ExecutionError, ExecutionStatus, ObjectId, ObjectReference, SharedObjectReference,
-    TransactionDigest, TransactionEffects, Version,
+    Address, ExecutionError, ExecutionStatus, Identifier, ObjectId, ObjectReference,
+    RandomnessRound, SharedObjectReference, Transaction, TransactionDigest, TransactionEffects,
+    Version,
 };
 use iota_types::{
     base_types::dbg_addr,
@@ -22,13 +23,21 @@ use iota_types::{
     messages_consensus::{ConsensusTransaction, ConsensusTransactionKind},
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{CallArg, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionEnvelope},
+    randomness_state::get_randomness_state_obj_initial_shared_version,
+    transaction::{
+        CallArg, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS, TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+        TransactionAPI as _, TransactionEnvelope, TransactionKey, VerifiedTransaction,
+    },
+    utils::to_sender_signed_transaction,
 };
 
 use crate::{
     authority::{
         AuthorityState,
-        authority_per_epoch_store::CongestionControlParameters,
+        authority_per_epoch_store::{
+            CongestionControlParameters, PreviouslyDeferredTransactions,
+            consensus_quarantine::ConsensusCommitOutput,
+        },
         authority_test_utils::{init_state_with_ids, init_transfer_transaction},
         authority_tests::{
             build_programmable_transaction, certify_shared_obj_transaction_no_execution,
@@ -43,7 +52,9 @@ use crate::{
         test_authority_builder::TestAuthorityBuilder,
     },
     checkpoints::CheckpointServiceNoop,
-    consensus_handler::SequencedConsensusTransaction,
+    consensus_handler::{
+        ConsensusCommitInfo, SequencedConsensusTransaction, VerifiedSequencedConsensusTransaction,
+    },
     move_call,
     test_utils::set_scheduler_env,
 };
@@ -1390,4 +1401,219 @@ async fn test_execution_worker_congestion_drop_releases_owned_object_locks() {
         "resubmission must not be blocked by the dropped transaction's lock"
     );
     assert_eq!(executable_transactions[0].digest(), resubmitted.digest());
+}
+
+// A randomness-using transaction scheduled through the combined congestion
+// tracker, competing with a regular transaction for the single execution
+// worker. `process_consensus_transactions` is driven directly with
+// `randomness_round: Some(..)` (the commit boundary's DKG gate cannot be
+// passed in a unit test), and with the combined list pre-ordered by gas price
+// the way `PostConsensusTxReorder` orders it in production. Covers both
+// directions of the competition and the split of scheduled transactions and
+// checkpoint roots by randomness use.
+#[tokio::test]
+async fn test_combined_tracker_schedules_randomness_with_regular_transactions() {
+    telemetry_subscribers::init_for_testing();
+
+    // One execution worker and a per-commit budget of one transaction (each
+    // costs one unit under TotalTxCount), so exactly one transaction per
+    // commit is scheduled and the other is deferred.
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(true);
+        config.set_per_object_congestion_control_mode_for_testing(
+            PerObjectCongestionControlMode::TotalTxCount,
+        );
+        config.set_max_accumulated_txn_cost_per_object_in_mysticeti_commit_for_testing(1);
+        config.set_max_congestion_limit_overshoot_per_commit_for_testing(0);
+        config.set_max_concurrent_execution_workers_for_testing(1);
+        config.set_max_deferral_rounds_for_congestion_control_for_testing(10);
+        config
+    });
+
+    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let object_1_id = ObjectId::random();
+    let object_2_id = ObjectId::random();
+    let gas_ids: Vec<ObjectId> = (0..4).map(|_| ObjectId::random()).collect();
+    let mut genesis = vec![(sender, object_1_id), (sender, object_2_id)];
+    genesis.extend(gas_ids.iter().map(|id| (sender, *id)));
+    let authority = init_state_with_ids(genesis).await;
+    let epoch_store = authority.epoch_store_for_testing();
+    let rgp = authority.reference_gas_price_for_testing().unwrap();
+
+    let random_version =
+        get_randomness_state_obj_initial_shared_version(authority.get_object_store()).unwrap();
+
+    // A randomness-using transaction: takes the singleton Randomness object at
+    // `0x8` by immutable reference. Never executed here (only scheduled), so a
+    // placeholder move call is enough to declare the input.
+    let make_randomness_tx = |gas_id: &ObjectId, gas_price: u64| {
+        let gas = authority.get_object(gas_id).unwrap();
+        let data = Transaction::new_move_call(
+            sender,
+            ObjectId::FRAMEWORK,
+            Identifier::from_static("object_basics"),
+            Identifier::from_static("set_value"),
+            vec![],
+            gas.object_ref(),
+            vec![
+                CallArg::Shared(SharedObjectReference::new(
+                    ObjectId::RANDOMNESS_STATE,
+                    random_version,
+                    false,
+                )),
+                CallArg::Pure(16u64.to_le_bytes().to_vec()),
+            ],
+            gas_price * TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS,
+            gas_price,
+        )
+        .unwrap();
+        epoch_store
+            .verify_transaction(to_sender_signed_transaction(data, &sender_key))
+            .unwrap()
+    };
+    let make_regular_tx = |object_id: &ObjectId, gas_id: &ObjectId, gas_price: u64| {
+        let object = authority.get_object(object_id).unwrap();
+        let gas = authority.get_object(gas_id).unwrap();
+        init_transfer_transaction(
+            &authority,
+            sender,
+            &sender_key,
+            dbg_addr(2),
+            object.object_ref(),
+            gas.object_ref(),
+            gas_price * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+            gas_price,
+        )
+    };
+    let seq = |tx: &VerifiedTransaction| {
+        VerifiedSequencedConsensusTransaction::new_test(ConsensusTransaction {
+            kind: ConsensusTransactionKind::UserTransactionV1(Box::new(tx.clone().into())),
+            tracking_id: Default::default(),
+        })
+    };
+
+    // Runs one commit's scheduling over the combined (gas-price-ordered) list
+    // and returns the scheduled digests split by randomness use plus the
+    // final checkpoint root sets.
+    let schedule = |combined: Vec<VerifiedSequencedConsensusTransaction>, round: u64| {
+        let epoch_store = epoch_store.clone();
+        let authority = &authority;
+        async move {
+            let mut output = ConsensusCommitOutput::new(round);
+            // Roots are prefilled per transaction by randomness use, as the
+            // commit boundary does; scheduling filters out deferred ones.
+            let mut non_randomness_roots = BTreeSet::new();
+            let mut randomness_roots = BTreeSet::new();
+            for tx in &combined {
+                let digest = tx.0.transaction.executable_transaction_digest().unwrap();
+                if tx.0.is_user_tx_with_randomness() {
+                    randomness_roots.insert(TransactionKey::Digest(digest));
+                } else {
+                    non_randomness_roots.insert(TransactionKey::Digest(digest));
+                }
+            }
+            let protocol_config = epoch_store.protocol_config();
+            let mut congestion_control_parameters = CongestionControlParameters::new_for_test(
+                PerObjectCongestionControlMode::TotalTxCount,
+                protocol_config.congestion_control_min_free_execution_slot(),
+                protocol_config.max_accumulated_txn_cost_per_object_in_mysticeti_commit_as_option(),
+                protocol_config.max_congestion_limit_overshoot_per_commit_as_option(),
+                protocol_config.max_gas_price(),
+                protocol_config.congestion_limit_overshoot_in_gas_price_feedback_mechanism(),
+                protocol_config.separate_gas_price_feedback_mechanism_for_randomness(),
+            );
+            congestion_control_parameters.set_max_concurrent_execution_workers_for_test(1);
+            let tracker = new_congestion_tracker_with_initial_value_for_test(
+                &[],
+                congestion_control_parameters,
+            );
+            let (non_randomness, randomness, _notifications, _reconfig, _final_round, _root) =
+                epoch_store
+                    .process_consensus_transactions(
+                        &mut output,
+                        &combined,
+                        &[],
+                        &[],
+                        &Arc::new(CheckpointServiceNoop {}),
+                        authority.get_object_cache_reader().as_ref(),
+                        &ConsensusCommitInfo::new_for_test(round, 0, true),
+                        &mut non_randomness_roots,
+                        &mut randomness_roots,
+                        PreviouslyDeferredTransactions::default(),
+                        None,
+                        false,
+                        Some(RandomnessRound::new(0)),
+                        &authority.metrics,
+                        tracker,
+                        // Combined mode: no separate randomness tracker.
+                        None,
+                    )
+                    .await
+                    .unwrap();
+            (
+                non_randomness
+                    .iter()
+                    .map(|tx| *tx.digest())
+                    .collect::<Vec<_>>(),
+                randomness.iter().map(|tx| *tx.digest()).collect::<Vec<_>>(),
+                non_randomness_roots,
+                randomness_roots,
+            )
+        }
+    };
+
+    // The higher-priced randomness transaction wins the single worker slot;
+    // the regular transaction is deferred and filtered from the roots.
+    let randomness_high = make_randomness_tx(&gas_ids[0], 2 * rgp);
+    let regular_low = make_regular_tx(&object_1_id, &gas_ids[1], rgp);
+    let (non_randomness, randomness, non_randomness_roots, randomness_roots) =
+        schedule(vec![seq(&randomness_high), seq(&regular_low)], 1).await;
+    assert_eq!(
+        randomness,
+        vec![*randomness_high.digest()],
+        "the randomness transaction must be scheduled through the combined tracker"
+    );
+    assert!(
+        non_randomness.is_empty(),
+        "the regular transaction must be deferred by the shared worker budget"
+    );
+    assert_eq!(
+        randomness_roots,
+        BTreeSet::from([TransactionKey::Digest(*randomness_high.digest())])
+    );
+    assert!(non_randomness_roots.is_empty());
+
+    // The other direction: the higher-priced regular transaction wins, and
+    // the randomness transaction is deferred by congestion even though
+    // randomness is available this round.
+    let regular_high = make_regular_tx(&object_2_id, &gas_ids[2], 2 * rgp);
+    let randomness_low = make_randomness_tx(&gas_ids[3], rgp);
+    let (non_randomness, randomness, non_randomness_roots, randomness_roots) =
+        schedule(vec![seq(&regular_high), seq(&randomness_low)], 2).await;
+    assert_eq!(non_randomness, vec![*regular_high.digest()]);
+    assert!(
+        randomness.is_empty(),
+        "the randomness transaction must be deferred by congestion, not scheduled"
+    );
+    assert_eq!(
+        non_randomness_roots,
+        BTreeSet::from([TransactionKey::Digest(*regular_high.digest())])
+    );
+    assert!(randomness_roots.is_empty());
+
+    // Both losers were deferred (within the deferral limit), not dropped.
+    assert_eq!(
+        authority
+            .metrics
+            .consensus_handler_deferred_transactions
+            .get(),
+        2
+    );
+    assert_eq!(
+        authority
+            .metrics
+            .consensus_handler_congestion_dropped_transactions
+            .get(),
+        0
+    );
 }
