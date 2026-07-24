@@ -108,7 +108,13 @@ for p in "${points[@]}"; do
 done
 
 echo
-echo "sweep complete -> results/calibration-<machine>.csv"
+# The CSV name carries probe.sh's CPU slug; report the file it actually wrote.
+csv="$(ls -t "$SCRIPT_DIR/results"/calibration-*.csv 2>/dev/null | head -1)"
+if [[ -n "$csv" ]]; then
+  echo "sweep complete -> ${csv#"$SCRIPT_DIR"/}"
+else
+  echo "sweep complete — no calibration CSV written (every point failed?)"
+fi
 
 # Recompute the markdown tables and redraw the figures from the fresh CSV.
 # Tables are pure stdlib; figures need a matplotlib venv (reuse ../h1/.venv).
