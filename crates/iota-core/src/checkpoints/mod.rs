@@ -1028,6 +1028,23 @@ struct BuiltCheckpoint {
     full_contents: Option<FullCheckpointContents>,
 }
 
+#[derive(Debug)]
+pub enum CheckpointBuilderError {
+    ChangeEpochTxAlreadyExecuted,
+    SystemPackagesMissing,
+    Retry(anyhow::Error),
+}
+
+impl<IotaError: std::error::Error + Send + Sync + 'static> From<IotaError>
+    for CheckpointBuilderError
+{
+    fn from(e: IotaError) -> Self {
+        Self::Retry(e.into())
+    }
+}
+
+pub type CheckpointBuilderResult<T = ()> = Result<T, CheckpointBuilderError>;
+
 pub struct CheckpointBuilder {
     state: Arc<AuthorityState>,
     store: Arc<CheckpointStore>,
@@ -1117,13 +1134,29 @@ impl CheckpointBuilder {
         }
         info!("Starting CheckpointBuilder");
         loop {
-            self.maybe_build_checkpoints().await;
+            match self.maybe_build_checkpoints().await {
+                Ok(()) => {}
+                err @ Err(
+                    CheckpointBuilderError::ChangeEpochTxAlreadyExecuted
+                    | CheckpointBuilderError::SystemPackagesMissing,
+                ) => {
+                    info!("CheckpointBuilder stopping: {:?}", err);
+                    return;
+                }
+                Err(CheckpointBuilderError::Retry(inner)) => {
+                    let msg = format!("{:?}", inner);
+                    debug_fatal!("Error while making checkpoint, will retry in 1s: {}", msg);
+                    tokio::time::sleep(Duration::from_secs(1)).await;
+                    self.metrics.checkpoint_errors.inc();
+                    continue;
+                }
+            }
 
             self.notify.notified().await;
         }
     }
 
-    async fn maybe_build_checkpoints(&mut self) {
+    async fn maybe_build_checkpoints(&mut self) -> CheckpointBuilderResult {
         let _scope = monitored_scope("BuildCheckpoints");
 
         // Collect info about the most recently built checkpoint.
@@ -1221,46 +1254,28 @@ impl CheckpointBuilder {
                 "Making checkpoint with commit height range"
             );
 
-            match self
+            let seq = self
                 .make_checkpoint(std::mem::take(&mut grouped_pending_checkpoints))
-                .await
-            {
-                Ok(seq) => {
-                    // Count only on success; a failed build retries the same
-                    // group and would otherwise double-count it.
-                    self.metrics
-                        .commits_per_checkpoint
-                        .observe(commits_in_checkpoint as f64);
-                    // Advance the window anchor to the highest checkpoint just
-                    // built (a single call may emit several when chunked).
-                    last_seq = Some(seq);
-                    self.last_built.send_if_modified(|cur| {
-                        // when rebuilding checkpoints at startup, seq can be for an old checkpoint
-                        if seq > *cur {
-                            *cur = seq;
-                            true
-                        } else {
-                            false
-                        }
-                    });
-                }
-                Err(e) => {
-                    let msg = format!("{:?}", e);
-                    // This particular error is expected to happen from time to time. Any other
-                    // error during checkpoint building is most likely a bug.
-                    if msg.contains("change epoch tx has already been executed via state sync") {
-                        info!(
-                            "change epoch tx has already been executed via state sync. Checkpoint builder will be shut down briefly"
-                        );
-                    } else {
-                        debug_fatal!("Error while making checkpoint, will retry in 1s: {}", msg);
-                    }
+                .await?;
 
-                    tokio::time::sleep(Duration::from_secs(1)).await;
-                    self.metrics.checkpoint_errors.inc();
-                    return;
+            // Count only on success; a failed build retries the same
+            // group and would otherwise double-count it.
+            self.metrics
+                .commits_per_checkpoint
+                .observe(commits_in_checkpoint as f64);
+            // Advance the window anchor to the highest checkpoint just
+            // built (a single call may emit several when chunked).
+            last_seq = Some(seq);
+            self.last_built.send_if_modified(|cur| {
+                // when rebuilding checkpoints at startup, seq can be for an old checkpoint
+                if seq > *cur {
+                    *cur = seq;
+                    true
+                } else {
+                    false
                 }
-            }
+            });
+
             // Ensure that the task can be cancelled at end of epoch, even if no other await
             // yields execution.
             tokio::task::yield_now().await;
@@ -1269,6 +1284,8 @@ impl CheckpointBuilder {
             "Waiting for more checkpoints from consensus after processing {last_height:?}; {} pending checkpoints left unprocessed until next interval",
             grouped_pending_checkpoints.len(),
         );
+
+        Ok(())
     }
 
     #[instrument(level = "debug", skip_all, fields(last_height = pendings.last().unwrap().details().checkpoint_height
@@ -1276,7 +1293,7 @@ impl CheckpointBuilder {
     async fn make_checkpoint(
         &self,
         pendings: Vec<PendingCheckpoint>,
-    ) -> anyhow::Result<CheckpointSequenceNumber> {
+    ) -> CheckpointBuilderResult<CheckpointSequenceNumber> {
         let _scope = monitored_scope("CheckpointBuilder::make_checkpoint");
         let last_details = pendings.last().unwrap().details().clone();
 
@@ -1568,7 +1585,8 @@ impl CheckpointBuilder {
         &self,
         transactions_effects_and_sizes: Vec<(Transaction, TransactionEffects, usize)>,
         signatures: Vec<Vec<UserSignature>>,
-    ) -> anyhow::Result<Vec<Vec<(Transaction, TransactionEffects, Vec<UserSignature>)>>> {
+    ) -> CheckpointBuilderResult<Vec<Vec<(Transaction, TransactionEffects, Vec<UserSignature>)>>>
+    {
         let _guard = monitored_scope("CheckpointBuilder::split_checkpoint_chunks");
         let mut chunks = Vec::new();
         let mut chunk = Vec::new();
@@ -1651,7 +1669,7 @@ impl CheckpointBuilder {
         all_effects: Vec<TransactionEffects>,
         details: &PendingCheckpointInfo,
         all_roots: &HashSet<TransactionDigest>,
-    ) -> anyhow::Result<NonEmpty<BuiltCheckpoint>> {
+    ) -> CheckpointBuilderResult<NonEmpty<BuiltCheckpoint>> {
         let _scope = monitored_scope("CheckpointBuilder::create_checkpoints");
 
         let total = all_effects.len();
@@ -1989,7 +2007,7 @@ impl CheckpointBuilder {
         signatures: &mut Vec<Vec<UserSignature>>,
         checkpoint: CheckpointSequenceNumber,
         scores: Vec<u64>,
-    ) -> anyhow::Result<(IotaSystemState, Option<SystemEpochInfoEvent>)> {
+    ) -> CheckpointBuilderResult<(IotaSystemState, Option<SystemEpochInfoEvent>)> {
         let (system_state, system_epoch_info_event, effects) = self
             .state
             .create_and_execute_advance_epoch_tx(

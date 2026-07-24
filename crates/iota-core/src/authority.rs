@@ -15,7 +15,6 @@ use std::{
     vec,
 };
 
-use anyhow::bail;
 use arc_swap::{ArcSwap, Guard};
 use async_trait::async_trait;
 use authority_per_epoch_store::TxLockGuard;
@@ -163,7 +162,7 @@ use crate::{
     },
     authority_client::NetworkAuthorityClient,
     checkpoint_progress_tracker::CheckpointProgressTracker,
-    checkpoints::CheckpointStore,
+    checkpoints::{CheckpointBuilderError, CheckpointBuilderResult, CheckpointStore},
     congestion_tracker::CongestionTracker,
     consensus_adapter::ConsensusAdapter,
     epoch::committee_store::CommitteeStore,
@@ -5326,7 +5325,7 @@ impl AuthorityState {
         checkpoint: CheckpointSequenceNumber,
         epoch_start_timestamp_ms: CheckpointTimestamp,
         scores: Vec<u64>,
-    ) -> anyhow::Result<(
+    ) -> CheckpointBuilderResult<(
         IotaSystemState,
         Option<SystemEpochInfoEvent>,
         TransactionEffects,
@@ -5373,7 +5372,7 @@ impl AuthorityState {
             //   packages, reconfigure, and most likely shut down in the new epoch (this
             //   validator likely doesn't support the new protocol version, or else it
             //   should have had the packages.)
-            bail!("missing system packages: cannot form ChangeEpochTx");
+            return Err(CheckpointBuilderError::SystemPackagesMissing);
         };
 
         // Use ChangeEpochV3 or ChangeEpochV4 when the feature flags are enabled and
@@ -5511,7 +5510,7 @@ impl AuthorityState {
             .try_is_tx_already_executed(tx_digest)?
         {
             warn!("change epoch tx has already been executed via state sync");
-            bail!("change epoch tx has already been executed via state sync",);
+            return Err(CheckpointBuilderError::ChangeEpochTxAlreadyExecuted);
         }
 
         let execution_guard = self.execution_lock_for_executable_transaction(&executable_tx)?;
@@ -5551,11 +5550,7 @@ impl AuthorityState {
         // able to deliver to the transaction to CheckpointExecutor after it is
         // included in a certified checkpoint.
         self.get_state_sync_store()
-            .try_insert_transaction_and_effects(&tx, &effects)
-            .map_err(|err| {
-                let err: anyhow::Error = err.into();
-                err
-            })?;
+            .try_insert_transaction_and_effects(&tx, &effects)?;
 
         info!(
             "Effects summary of the change epoch transaction: {:?}",
