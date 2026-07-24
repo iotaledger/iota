@@ -23,7 +23,6 @@ use std::{
 
 use diffy::create_patch;
 use iota_common::{debug_fatal, fatal, random::get_rng, sync::notify_read::NotifyRead};
-use iota_macros::fail_point;
 use iota_metrics::{MonitoredFutureExt, monitored_future, monitored_scope};
 use iota_network::default_iota_network_config;
 use iota_sdk_types::{
@@ -1246,7 +1245,17 @@ impl CheckpointBuilder {
                     });
                 }
                 Err(e) => {
-                    error!("Error while making checkpoint, will retry in 1s: {:?}", e);
+                    let msg = format!("{:?}", e);
+                    // This particular error is expected to happen from time to time. Any other
+                    // error during checkpoint building is most likely a bug.
+                    if msg.contains("change epoch tx has already been executed via state sync") {
+                        info!(
+                            "change epoch tx has already been executed via state sync. Checkpoint builder will be shut down briefly"
+                        );
+                    } else {
+                        debug_fatal!("Error while making checkpoint, will retry in 1s: {}", msg);
+                    }
+
                     tokio::time::sleep(Duration::from_secs(1)).await;
                     self.metrics.checkpoint_errors.inc();
                     return;
@@ -2182,7 +2191,7 @@ impl CheckpointAggregator {
         info!("Starting CheckpointAggregator");
         loop {
             if let Err(e) = self.run_and_notify().await {
-                error!(
+                debug_fatal!(
                     "Error while aggregating checkpoint, will retry in 1s: {:?}",
                     e
                 );
@@ -2399,9 +2408,9 @@ impl CheckpointSignatureAggregator {
                     format!("{digest} (total stake: {total_stake})")
                 })
                 .collect::<Vec<String>>();
-            error!(
-                checkpoint_seq = self.summary.sequence_number,
-                "Split brain detected in checkpoint signature aggregation! Remaining stake: {:?}, Digests by stake: {:?}",
+            debug_fatal!(
+                "Split brain detected in checkpoint signature aggregation for checkpoint {:?}. Remaining stake: {:?}, Digests by stake: {:?}",
+                self.summary.sequence_number,
                 self.signatures_by_digest.uncommitted_stake(),
                 digests_by_stake_messages,
             );
@@ -2594,8 +2603,6 @@ async fn diagnose_split_brain(
     let mut file = File::create(checkpoint_fork_file_path).unwrap();
     write!(file, "{fork_logs_text}").unwrap();
     debug!("{}", fork_logs_text);
-
-    fail_point!("split_brain_reached");
 }
 
 pub trait CheckpointServiceNotify {
