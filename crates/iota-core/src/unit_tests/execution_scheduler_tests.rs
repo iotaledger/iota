@@ -813,6 +813,102 @@ async fn execution_scheduler_schedules_already_resolved_randomness_key() {
     assert_eq!(pending.execution_env.assigned_versions, assigned_versions);
 }
 
+/// A mixed batch must not couple plain transactions to keyed schedulables: the
+/// plain transaction (inputs available) is dispatched immediately, while the
+/// keyed schedulable stays parked until its key resolves. This pins the
+/// partition in `enqueue` — a real consensus commit mixes user transactions
+/// and the round's `RandomnessStateUpdate` in one call, and funneling the
+/// whole batch through the key-resolution task would stall every user
+/// transaction of the commit behind the randomness round.
+#[tokio::test(flavor = "current_thread", start_paused = true)]
+async fn execution_scheduler_mixed_batch_dispatches_plain_transaction_immediately() {
+    let (owner, _keypair) = deterministic_random_account_key();
+    let gas_object = Object::with_id_owner_for_testing(ObjectId::random(), owner);
+    let state = init_state_with_objects(vec![gas_object.clone()]).await;
+    let epoch_store = state.epoch_store_for_testing();
+    let (execution_scheduler, mut rx_ready_transactions) = make_execution_scheduler(&state);
+
+    let round = RandomnessRound::new(5);
+    let transaction = make_transaction(gas_object, vec![]);
+    execution_scheduler.enqueue(
+        vec![
+            (
+                Schedulable::Transaction(transaction.clone()),
+                ExecutionEnv::new(),
+            ),
+            (
+                Schedulable::RandomnessStateUpdate(epoch_store.epoch(), round),
+                ExecutionEnv::new()
+                    .with_assigned_versions(randomness_assigned_versions(&epoch_store)),
+            ),
+        ],
+        &epoch_store,
+    );
+
+    // The plain transaction is dispatched immediately...
+    let ready = rx_ready_transactions.recv().await.unwrap();
+    assert_eq!(ready.transaction.digest(), transaction.digest());
+
+    // ...while the keyed schedulable stays parked on its unresolved key.
+    sleep(Duration::from_secs(1)).await;
+    assert!(rx_ready_transactions.try_recv().is_err());
+
+    // Resolving the key releases it.
+    let randomness_tx = make_randomness_state_update(&epoch_store, 5);
+    state.get_cache_commit().persist_transaction(&randomness_tx);
+    epoch_store
+        .insert_tx_key(
+            TransactionKey::RandomnessRound(epoch_store.epoch(), round),
+            *randomness_tx.digest(),
+        )
+        .unwrap();
+    let ready = rx_ready_transactions.recv().await.unwrap();
+    assert_eq!(ready.transaction.digest(), randomness_tx.digest());
+}
+
+/// KNOWN failure-mode asymmetry, pinned deliberately: a shared-object
+/// transaction enqueued without its shared version assignment (what the
+/// consensus handler produces via `unwrap_or_default` when a key is missing
+/// from the commit's assignments) panics in `get_input_object_keys` — the
+/// safety check against executing on unassigned versions. Under the
+/// `ExecutionScheduler` that panic happens inside the detached
+/// per-transaction task, where the runtime swallows it: the transaction is
+/// silently dropped, nothing is dispatched and nothing stays pending. The
+/// `TransactionManager` counterpart
+/// (`transaction_manager_missing_shared_version_assignment_panics`) crashes
+/// loudly in the caller instead. If the scheduler ever learns to surface this
+/// error, this test must change with it.
+#[tokio::test(flavor = "current_thread", start_paused = true)]
+async fn execution_scheduler_missing_shared_version_assignment_drops_transaction() {
+    let (owner, _keypair) = deterministic_random_account_key();
+    let gas_object = Object::with_id_owner_for_testing(ObjectId::random(), owner);
+    let shared_object = Object::shared_for_testing();
+    let state = init_state_with_objects(vec![gas_object.clone(), shared_object.clone()]).await;
+    let (execution_scheduler, mut rx_ready_transactions) = make_execution_scheduler(&state);
+
+    // The shared object IS available in the cache at the version declared in
+    // the call arg; only the version assignment is missing. If a future
+    // refactor stops panicking and falls back to the declared version, the
+    // transaction becomes dispatchable and the try_recv assertion below fails,
+    // making the behavior change visible.
+    let shared_arg = CallArg::Shared(SharedObjectReference::new(
+        shared_object.id(),
+        shared_object.version(),
+        true,
+    ));
+    let transaction = make_transaction(gas_object, vec![shared_arg]);
+    execution_scheduler.enqueue_transactions(
+        vec![(transaction, ExecutionEnv::new())],
+        &state.epoch_store_for_testing(),
+    );
+
+    // The per-transaction task panics (a backtrace in the test output is
+    // expected) and the transaction vanishes without a trace.
+    sleep(Duration::from_secs(1)).await;
+    assert!(rx_ready_transactions.try_recv().is_err());
+    assert_eq!(execution_scheduler.num_pending_transactions(), 0);
+}
+
 /// The task waiting on a keyed schedulable runs under `within_alive_epoch`:
 /// terminating the epoch must cancel it, so a key resolved after the epoch
 /// ended dispatches nothing.

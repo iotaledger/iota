@@ -756,6 +756,82 @@ mod tests {
         );
     }
 
+    /// Cancellation is looked up by digest, but a randomness state update
+    /// transaction is keyed by `TransactionKey::RandomnessRound`, whose
+    /// `as_digest()` is `None` — so an entry in `cancelled_txns` holding the
+    /// update's REAL digest must be ignored: the update is assigned the
+    /// current randomness object version (not `RANDOMNESS_UNAVAILABLE`) and
+    /// still bumps it for subsequent readers. A refactor that reverts to a raw
+    /// digest lookup would start silently cancelling randomness state updates.
+    #[tokio::test]
+    async fn test_assign_versions_ignores_cancellation_for_randomness_round_keyed_transaction() {
+        let authority = TestAuthorityBuilder::new().build().await;
+        let epoch_store = authority.epoch_store_for_testing();
+        let randomness_obj_version = epoch_store
+            .epoch_start_config()
+            .randomness_obj_initial_shared_version();
+        let round = RandomnessRound::new(1);
+        let randomness_state_update = VerifiedExecutableTransaction::new_system(
+            VerifiedTransaction::new_randomness_state_update(
+                epoch_store.epoch(),
+                round,
+                vec![],
+                randomness_obj_version,
+            ),
+            epoch_store.epoch(),
+        );
+        let reader = generate_shared_objs_tx_with_gas_version(
+            &[(ObjectId::RANDOMNESS_STATE, randomness_obj_version, false)],
+            3,
+        );
+        let cancelled_txns: BTreeMap<TransactionDigest, CancelConsensusTransactionReason> = [(
+            *randomness_state_update.digest(),
+            CancelConsensusTransactionReason::DkgFailed,
+        )]
+        .into_iter()
+        .collect();
+        let assignables = [
+            Schedulable::Transaction(&randomness_state_update),
+            Schedulable::Transaction(&reader),
+        ];
+
+        let ConsensusSharedObjVerAssignment {
+            shared_input_next_versions,
+            assigned_versions,
+        } = SharedObjVerManager::assign_versions_from_consensus(
+            &epoch_store,
+            authority.get_object_cache_reader().as_ref(),
+            assignables.iter(),
+            &cancelled_txns,
+        )
+        .unwrap();
+
+        let next_randomness_obj_version = randomness_obj_version.next().unwrap();
+        assert_eq!(
+            shared_input_next_versions,
+            HashMap::from([(ObjectId::RANDOMNESS_STATE, next_randomness_obj_version)])
+        );
+        assert_eq!(
+            assigned_versions.0,
+            vec![
+                (
+                    TransactionKey::RandomnessRound(epoch_store.epoch(), round),
+                    vec![VersionAssignment::new(
+                        ObjectId::RANDOMNESS_STATE,
+                        randomness_obj_version
+                    )]
+                ),
+                (
+                    reader.key(),
+                    vec![VersionAssignment::new(
+                        ObjectId::RANDOMNESS_STATE,
+                        next_randomness_obj_version
+                    )]
+                ),
+            ]
+        );
+    }
+
     // Tests shared object version assignment for cancelled transaction.
     #[tokio::test]
     async fn test_assign_versions_from_consensus_with_cancellation() {
@@ -927,6 +1003,115 @@ mod tests {
                         ),
                         VersionAssignment::new(id2, Version::CANCELED_READ)
                     ]
+                ),
+            ]
+        );
+    }
+
+    /// A virtual `Schedulable::RandomnessStateUpdate` and a
+    /// congestion-cancelled transaction in the same batch — the shape of a
+    /// real commit — must not disturb each other's version accounting: the
+    /// virtual schedulable takes the current randomness object version and
+    /// bumps it once; the cancelled transaction gets its special versions
+    /// without bumping anything (neither the congested object nor the
+    /// randomness object it reads); a trailing reader sees the bumped
+    /// randomness version. The existing tests cover each half only in
+    /// isolation.
+    #[tokio::test]
+    async fn test_assign_versions_from_consensus_with_virtual_schedulable_and_cancellation() {
+        let shared_object = Object::shared_for_testing();
+        let id = shared_object.id();
+        let init_shared_version = shared_object
+            .owner
+            .into_opt_shared()
+            .expect("expected shared object");
+        let authority = TestAuthorityBuilder::new()
+            .with_starting_objects(std::slice::from_ref(&shared_object))
+            .build()
+            .await;
+        let epoch_store = authority.epoch_store_for_testing();
+        let randomness_obj_version = epoch_store
+            .epoch_start_config()
+            .randomness_obj_initial_shared_version();
+        let round = RandomnessRound::new(1);
+
+        let cancelled_tx = generate_shared_objs_tx_with_gas_version(
+            &[
+                (id, init_shared_version, true),
+                (ObjectId::RANDOMNESS_STATE, randomness_obj_version, false),
+            ],
+            5,
+        );
+        let reader = generate_shared_objs_tx_with_gas_version(
+            &[(ObjectId::RANDOMNESS_STATE, randomness_obj_version, false)],
+            3,
+        );
+        let suggested_gas_price = 1_000;
+        let cancelled_txns: BTreeMap<TransactionDigest, CancelConsensusTransactionReason> = [(
+            *cancelled_tx.digest(),
+            CancelConsensusTransactionReason::CongestionOnObjects {
+                congested_objects: vec![id],
+                suggested_gas_price: Some(suggested_gas_price),
+            },
+        )]
+        .into_iter()
+        .collect();
+
+        let mut assignables: Vec<Schedulable<&VerifiedExecutableTransaction>> =
+            vec![Schedulable::RandomnessStateUpdate(
+                epoch_store.epoch(),
+                round,
+            )];
+        assignables.push(Schedulable::Transaction(&cancelled_tx));
+        assignables.push(Schedulable::Transaction(&reader));
+
+        let ConsensusSharedObjVerAssignment {
+            shared_input_next_versions,
+            assigned_versions,
+        } = SharedObjVerManager::assign_versions_from_consensus(
+            &epoch_store,
+            authority.get_object_cache_reader().as_ref(),
+            assignables.iter(),
+            &cancelled_txns,
+        )
+        .unwrap();
+
+        let next_randomness_obj_version = randomness_obj_version.next().unwrap();
+        assert_eq!(
+            shared_input_next_versions,
+            HashMap::from([
+                // The cancelled transaction must not have bumped it.
+                (id, init_shared_version),
+                (ObjectId::RANDOMNESS_STATE, next_randomness_obj_version),
+            ])
+        );
+        assert_eq!(
+            assigned_versions.0,
+            vec![
+                (
+                    TransactionKey::RandomnessRound(epoch_store.epoch(), round),
+                    vec![VersionAssignment::new(
+                        ObjectId::RANDOMNESS_STATE,
+                        randomness_obj_version
+                    )]
+                ),
+                (
+                    cancelled_tx.key(),
+                    vec![
+                        VersionAssignment::new(
+                            id,
+                            Version::new_congested_with_suggested_gas_price(suggested_gas_price)
+                                .unwrap(),
+                        ),
+                        VersionAssignment::new(ObjectId::RANDOMNESS_STATE, Version::CANCELED_READ),
+                    ]
+                ),
+                (
+                    reader.key(),
+                    vec![VersionAssignment::new(
+                        ObjectId::RANDOMNESS_STATE,
+                        next_randomness_obj_version
+                    )]
                 ),
             ]
         );

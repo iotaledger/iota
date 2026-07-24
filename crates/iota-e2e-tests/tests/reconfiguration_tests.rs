@@ -98,6 +98,35 @@ async fn basic_reconfig_end_to_end_test() {
     test_cluster.force_new_epoch().await;
 }
 
+// The reconfiguration tests in this file run on the default scheduler
+// (TransactionManager). With every node on the ExecutionScheduler, the
+// end-of-epoch checkpoint executes the change-epoch transaction through the
+// scheduler's detached per-transaction task — a failure there (the task
+// panicking or being cancelled while the old epoch closes) makes the
+// transaction vanish silently and stalls reconfiguration without an error.
+// `force_new_epoch` waits for every node to reach the next epoch, so it is
+// the liveness assertion.
+#[sim_test]
+async fn test_reconfig_with_execution_scheduler() {
+    // Selected at node construction; set before the cluster is built. The
+    // opt-out variable is cleared too since it takes precedence.
+    // Process-per-test isolation keeps this from leaking to other tests.
+    std::env::set_var("ENABLE_EXECUTION_SCHEDULER", "1");
+    std::env::remove_var("ENABLE_TRANSACTION_MANAGER");
+    let test_cluster = TestClusterBuilder::new().build().await;
+    for handle in test_cluster.all_node_handles() {
+        handle.with(|node| {
+            assert!(
+                node.state().uses_execution_scheduler(),
+                "every node must run the ExecutionScheduler for this test to exercise the \
+                 epoch boundary under it"
+            );
+        });
+    }
+
+    test_cluster.force_new_epoch().await;
+}
+
 #[sim_test]
 async fn test_transaction_expiration() {
     let test_cluster = TestClusterBuilder::new().build().await;

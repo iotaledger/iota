@@ -3,9 +3,13 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::time::Duration;
+
+use iota_json_rpc_types::{IotaExecutionStatus, IotaTransactionBlockEffectsAPI};
 use iota_macros::sim_test;
 use iota_sdk_types::ObjectId;
-use test_cluster::TestClusterBuilder;
+use iota_test_transaction_builder::{emit_new_random_u128, publish_basics_package};
+use test_cluster::{TestCluster, TestClusterBuilder};
 
 #[sim_test]
 async fn test_check_randomness_state_object_exists() {
@@ -23,4 +27,83 @@ async fn test_check_randomness_state_object_exists() {
                 .expect("randomness state object should exist");
         });
     }
+}
+
+/// Builds a cluster with every node pinned to the requested scheduler. Both
+/// env vars are set explicitly so the choice is pinned regardless of
+/// `DEFAULT_USE_EXECUTION_SCHEDULER` (`ENABLE_TRANSACTION_MANAGER` is the
+/// opt-out and takes precedence). Read at node construction under the
+/// simulator (single process), so this selects the scheduler cluster-wide;
+/// nextest/simtest isolate each test in its own process, so it does not leak.
+async fn build_cluster_with_scheduler(use_execution_scheduler: bool) -> TestCluster {
+    if use_execution_scheduler {
+        std::env::set_var("ENABLE_EXECUTION_SCHEDULER", "1");
+        std::env::remove_var("ENABLE_TRANSACTION_MANAGER");
+    } else {
+        std::env::set_var("ENABLE_TRANSACTION_MANAGER", "1");
+        std::env::remove_var("ENABLE_EXECUTION_SCHEDULER");
+    }
+    let test_cluster = TestClusterBuilder::new()
+        // Long epoch so reconfiguration never races the first randomness round.
+        .with_epoch_duration_ms(600_000)
+        .build()
+        .await;
+    for handle in test_cluster.all_node_handles() {
+        handle.with(|node| {
+            assert_eq!(
+                node.state().uses_execution_scheduler(),
+                use_execution_scheduler,
+                "scheduler mismatch: expected execution_scheduler={use_execution_scheduler}"
+            );
+        });
+    }
+    test_cluster
+}
+
+/// A user transaction reading the `Random` object travels the whole
+/// randomness pipeline: it is deferred until a randomness round opens for its
+/// commit, the round's `RandomnessStateUpdate` — enqueued as a keyed
+/// schedulable before the transaction exists — executes with its assigned
+/// version, and the user transaction then executes on the bumped version and
+/// reaches finality. A break anywhere in that chain (the key never resolving,
+/// the round's update losing its version assignment) leaves the user
+/// transaction waiting forever, so the wait is bounded to fail loudly.
+async fn run_randomness_using_transaction_reaches_finality(use_execution_scheduler: bool) {
+    let test_cluster = build_cluster_with_scheduler(use_execution_scheduler).await;
+
+    let package_ref = publish_basics_package(&test_cluster.wallet).await;
+
+    // The bound covers DKG completion plus the first randomness round with a
+    // wide margin (simulated time, so a healthy run never waits it out).
+    let response = tokio::time::timeout(
+        Duration::from_secs(300),
+        emit_new_random_u128(&test_cluster.wallet, package_ref.object_id),
+    )
+    .await
+    .expect("randomness-using transaction did not reach finality");
+
+    assert_eq!(
+        *response.effects.as_ref().unwrap().status(),
+        IotaExecutionStatus::Success,
+        "randomness-using transaction failed: {:?}",
+        response.effects.as_ref().unwrap().status()
+    );
+    // The emitted event proves the transaction actually consumed a random
+    // value rather than merely executing.
+    let events = response.events.unwrap();
+    assert_eq!(1, events.data.len(), "expected 1 event: {:?}", events.data);
+    assert_eq!(
+        "RandomU128Event",
+        events.data[0].type_.name().to_string().as_str()
+    );
+}
+
+#[sim_test]
+async fn test_randomness_using_transaction_reaches_finality_transaction_manager() {
+    run_randomness_using_transaction_reaches_finality(false).await;
+}
+
+#[sim_test]
+async fn test_randomness_using_transaction_reaches_finality_execution_scheduler() {
+    run_randomness_using_transaction_reaches_finality(true).await;
 }

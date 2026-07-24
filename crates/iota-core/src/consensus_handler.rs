@@ -940,7 +940,8 @@ mod tests {
     use iota_types::{
         base_types::{AuthorityName, random_object_ref},
         committee::Committee,
-        crypto::{AccountPrivateKey, get_key_pair},
+        crypto::{AccountPrivateKey, deterministic_random_account_key, get_key_pair},
+        effects::TransactionEffectsAPI,
         messages_consensus::{
             AuthorityCapabilitiesV1, ConsensusTransaction, ConsensusTransactionKind,
         },
@@ -1115,6 +1116,163 @@ mod tests {
             let last_consensus_stats_2 = consensus_handler.last_consensus_stats.clone();
             assert_eq!(last_consensus_stats_1, last_consensus_stats_2);
         }
+    }
+
+    /// A commit mixing a shared-object certificate with an owned-object-only
+    /// certificate: the shared one gets its versions from the commit's
+    /// assignments, while the owned one has no entry there (version assignment
+    /// skips transactions without shared inputs) and must fall back to an
+    /// empty `ExecutionEnv` — the `unwrap_or_default()` in
+    /// `AsyncTransactionScheduler::run`. Both must execute: replacing the
+    /// fallback with a panic would lose every owned-only transaction of a
+    /// commit, and pairing envs positionally instead of by key would hand the
+    /// shared certificate's versions to the owned one. The effects assertions
+    /// below catch the mispairing deterministically.
+    #[tokio::test(flavor = "current_thread", start_paused = true)]
+    async fn test_consensus_handler_mixed_owned_and_shared_commit() {
+        // GIVEN
+        let (sender, keypair) = deterministic_random_account_key();
+        let mut objects = test_gas_objects();
+        let shared_object = Object::shared_for_testing();
+        let owned_object = Object::with_id_owner_for_testing(ObjectId::random(), sender);
+        let owned_gas_object = Object::with_id_owner_for_testing(ObjectId::random(), sender);
+        objects.push(shared_object.clone());
+        objects.push(owned_object.clone());
+        objects.push(owned_gas_object.clone());
+
+        let network_config =
+            iota_swarm_config::network_config_builder::ConfigBuilder::new_with_temp_dir()
+                .with_objects(objects.clone())
+                .build();
+
+        let state = TestAuthorityBuilder::new()
+            .with_network_config(&network_config, 0)
+            .build()
+            .await;
+
+        let epoch_store = state.epoch_store_for_testing().clone();
+        let new_epoch_start_state = epoch_store.epoch_start_state();
+        let consensus_committee = get_consensus_committee(new_epoch_start_state);
+
+        let metrics = Arc::new(AuthorityMetrics::new(&Registry::new()));
+        let backpressure_manager = BackpressureManager::new_for_tests();
+
+        let mut consensus_handler = ConsensusHandler::new(
+            epoch_store.clone(),
+            state.clone(),
+            Arc::new(CheckpointServiceNoop {}),
+            state.execution_scheduler().clone(),
+            state.get_object_cache_reader().clone(),
+            Arc::new(ArcSwap::default()),
+            consensus_committee.clone(),
+            metrics,
+            backpressure_manager.subscribe(),
+        );
+
+        // AND one shared-object certificate...
+        let shared_certificate = test_certificates(&state, shared_object.clone())
+            .await
+            .swap_remove(0);
+
+        // ...and one owned-object-only certificate (a transfer).
+        let (recipient, _): (Address, AccountPrivateKey) = get_key_pair();
+        let rgp = epoch_store.reference_gas_price();
+        let owned_ref = state.get_object(&owned_object.id()).unwrap().object_ref();
+        let gas_ref = state
+            .get_object(&owned_gas_object.id())
+            .unwrap()
+            .object_ref();
+        let transfer_data = Transaction::new_transfer(
+            recipient,
+            owned_ref,
+            sender,
+            gas_ref,
+            rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+            rgp,
+        );
+        let transfer_transaction = epoch_store
+            .verify_transaction(to_sender_signed_transaction(transfer_data, &keypair))
+            .unwrap();
+        let response = state
+            .handle_transaction(&epoch_store, transfer_transaction.clone())
+            .await
+            .unwrap();
+        let vote = response.status.into_signed_for_testing();
+        let owned_certificate = CertifiedTransaction::new(
+            transfer_transaction.into_message(),
+            vec![vote],
+            &state.clone_committee_for_testing(),
+        )
+        .unwrap();
+
+        // AND a consensus output committing both.
+        let certificates = [shared_certificate.clone(), owned_certificate.clone()];
+        let mut headers = Vec::new();
+        let mut subdag_transactions = Vec::new();
+        for (i, certificate) in certificates.iter().enumerate() {
+            let transaction_bytes = bcs::to_bytes(&ConsensusTransaction::new_certificate_message(
+                &state.name,
+                certificate.clone(),
+            ))
+            .unwrap();
+            let header = VerifiedBlockHeader::new_for_test(
+                TestBlockHeader::new(100 + i as u32, (i % consensus_committee.size()) as u8)
+                    .build(),
+            );
+            let tx_batch = VerifiedTransactions::new_for_test(
+                &header,
+                vec![starfish_core::Transaction::new(transaction_bytes)],
+            );
+            headers.push(header);
+            subdag_transactions.push(tx_batch);
+        }
+        let leader_header = headers[0].clone();
+        let committed_header_refs: Vec<_> = headers.iter().map(|h| h.reference()).collect();
+        let committed_sub_dag = CommittedSubDag::new(
+            leader_header.reference(),
+            headers.clone(),
+            committed_header_refs,
+            subdag_transactions,
+            leader_header.timestamp_ms(),
+            CommitRef::new(10, CommitDigest::MIN),
+            vec![],
+            vec![],
+        );
+
+        // WHEN processing the consensus output
+        consensus_handler
+            .handle_consensus_output_for_test(committed_sub_dag)
+            .await;
+
+        // THEN both certificates execute. Bounded so a lost or mispaired env
+        // fails clearly instead of hanging.
+        let digests = [*shared_certificate.digest(), *owned_certificate.digest()];
+        let effects = tokio::time::timeout(
+            Duration::from_secs(60),
+            state
+                .get_transaction_cache_reader()
+                .notify_read_executed_effects_for_testing("", &digests),
+        )
+        .await
+        .expect("both certificates of the mixed commit must execute");
+
+        // AND the shared certificate executed on the consensus-assigned shared
+        // object version, while the owned certificate touched no shared input.
+        let shared_effects = &effects[0];
+        let owned_effects = &effects[1];
+        assert_eq!(
+            shared_effects
+                .input_shared_objects()
+                .into_iter()
+                .map(|iso| iso.id_and_version())
+                .collect::<Vec<_>>(),
+            vec![(shared_object.id(), shared_object.version())]
+        );
+        assert!(
+            owned_effects.input_shared_objects().is_empty(),
+            "the owned-only certificate must not have been executed with the shared \
+             certificate's version assignments"
+        );
     }
 
     #[tokio::test(flavor = "current_thread", start_paused = true)]

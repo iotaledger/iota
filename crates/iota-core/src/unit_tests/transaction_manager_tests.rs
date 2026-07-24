@@ -967,6 +967,116 @@ async fn transaction_manager_parks_randomness_schedulable_until_key_resolves() {
     assert!(rx_ready_transactions.try_recv().is_err());
 }
 
+/// Two keyed schedulables parked at once must be released selectively:
+/// resolving one round's key dispatches only that round's transaction, with
+/// the env parked under that key, leaving the other round parked. The manager
+/// parks envs in a per-key map (`pending_transaction_keys`) and
+/// `notify_transaction_key` removes exactly one entry — this pins that
+/// removal and the key→env pairing (distinct expected effects digests would
+/// expose cross-wiring).
+#[tokio::test(flavor = "current_thread", start_paused = true)]
+async fn transaction_manager_releases_each_parked_key_with_its_own_env() {
+    let state = init_state_with_objects(vec![]).await;
+    let epoch_store = state.epoch_store_for_testing();
+    let (transaction_manager, mut rx_ready_transactions) = make_transaction_manager(&state);
+
+    let assigned_versions = vec![VersionAssignment::new(
+        ObjectId::RANDOMNESS_STATE,
+        epoch_store
+            .epoch_start_config()
+            .randomness_obj_initial_shared_version(),
+    )];
+    let round_1 = RandomnessRound::new(1);
+    let round_2 = RandomnessRound::new(2);
+    let expected_1 = TransactionEffectsDigest::new([7; 32]);
+    let expected_2 = TransactionEffectsDigest::new([8; 32]);
+    transaction_manager.enqueue(
+        vec![
+            (
+                Schedulable::RandomnessStateUpdate(epoch_store.epoch(), round_1),
+                ExecutionEnv::new()
+                    .with_assigned_versions(assigned_versions.clone())
+                    .with_expected_effects_digest(expected_1),
+            ),
+            (
+                Schedulable::RandomnessStateUpdate(epoch_store.epoch(), round_2),
+                ExecutionEnv::new()
+                    .with_assigned_versions(assigned_versions)
+                    .with_expected_effects_digest(expected_2),
+            ),
+        ],
+        &epoch_store,
+    );
+
+    // Neither transaction exists yet: both keys are parked.
+    sleep(Duration::from_secs(1)).await;
+    assert!(rx_ready_transactions.try_recv().is_err());
+
+    let transaction_1 = make_randomness_state_update(&epoch_store, 1);
+    let transaction_2 = make_randomness_state_update(&epoch_store, 2);
+    for transaction in [&transaction_1, &transaction_2] {
+        state.get_cache_commit().persist_transaction(transaction);
+    }
+
+    // Resolving round 1 must release ONLY round 1, with round 1's env.
+    let key_1 = TransactionKey::RandomnessRound(epoch_store.epoch(), round_1);
+    epoch_store
+        .insert_tx_key(key_1, *transaction_1.digest())
+        .unwrap();
+    transaction_manager.notify_transaction_key(&epoch_store, key_1, *transaction_1.digest());
+    let pending = rx_ready_transactions.recv().await.unwrap();
+    assert_eq!(pending.transaction.digest(), transaction_1.digest());
+    assert_eq!(
+        pending.execution_env.expected_effects_digest,
+        Some(expected_1)
+    );
+
+    sleep(Duration::from_secs(1)).await;
+    assert!(
+        rx_ready_transactions.try_recv().is_err(),
+        "round 2 must stay parked until its own key resolves"
+    );
+
+    let key_2 = TransactionKey::RandomnessRound(epoch_store.epoch(), round_2);
+    epoch_store
+        .insert_tx_key(key_2, *transaction_2.digest())
+        .unwrap();
+    transaction_manager.notify_transaction_key(&epoch_store, key_2, *transaction_2.digest());
+    let pending = rx_ready_transactions.recv().await.unwrap();
+    assert_eq!(pending.transaction.digest(), transaction_2.digest());
+    assert_eq!(
+        pending.execution_env.expected_effects_digest,
+        Some(expected_2)
+    );
+}
+
+/// The loud half of the failure-mode asymmetry pinned by
+/// `execution_scheduler_missing_shared_version_assignment_drops_transaction`
+/// (execution_scheduler_tests.rs): enqueueing a shared-object transaction
+/// without its shared version assignment panics synchronously in the caller,
+/// via the safety check in `get_input_object_keys` that prevents executing a
+/// shared-object transaction on unassigned versions (a fork risk).
+#[tokio::test(flavor = "current_thread", start_paused = true)]
+#[should_panic(expected = "Shared object version should have been assigned")]
+async fn transaction_manager_missing_shared_version_assignment_panics() {
+    let (owner, _keypair) = deterministic_random_account_key();
+    let gas_object = Object::with_id_owner_for_testing(ObjectId::random(), owner);
+    let shared_object = Object::shared_for_testing();
+    let state = init_state_with_objects(vec![gas_object.clone(), shared_object.clone()]).await;
+    let (transaction_manager, _rx_ready_transactions) = make_transaction_manager(&state);
+
+    let shared_arg = CallArg::Shared(SharedObjectReference::new(
+        shared_object.id(),
+        shared_object.version(),
+        true,
+    ));
+    let transaction = make_transaction(gas_object, vec![shared_arg]);
+    transaction_manager.enqueue_transactions(
+        vec![(transaction, ExecutionEnv::new())],
+        &state.epoch_store_for_testing(),
+    );
+}
+
 /// A key that already resolves to a digest at enqueue time (crash recovery:
 /// the persistent `transaction_key_to_digest` table survived a restart while
 /// the in-memory parking map did not) must be scheduled immediately, without
