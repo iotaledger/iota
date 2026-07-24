@@ -1129,6 +1129,15 @@ async fn test_orchestrator_rejects_expired_transaction() {
 /// transaction is provably still stuck (no quorum can possibly have been
 /// reached yet); quorum is then restored and finality is confirmed
 /// independently of the aborted caller.
+///
+/// Checkpoint inclusion alone cannot isolate the detached task: the
+/// submission typically reaches a live validator's consensus adapter before
+/// the abort, and the validator carries it to finality once quorum is
+/// restored even if the fullnode-side task died. The in-flight map is the
+/// fullnode-side signal — a cancelled submission drops its guard and removes
+/// the entry — so the test asserts the digest stays in flight across the
+/// abort and that a duplicate submitted while quorum is still broken joins
+/// the surviving submission instead of driving its own.
 #[sim_test]
 async fn test_submission_survives_caller_abort() -> Result<(), anyhow::Error> {
     let _env_guard = enable_pcool_env();
@@ -1155,14 +1164,18 @@ async fn test_submission_survives_caller_abort() -> Result<(), anyhow::Error> {
     test_cluster.stop_node(&validator_addresses[0]);
     test_cluster.stop_node(&validator_addresses[1]);
 
-    let caller_task = tokio::spawn(async move {
-        orchestrator
-            .execute_transaction_block(
-                ExecuteTransactionRequestV1::new(txn),
-                ExecuteTransactionRequestType::WaitForLocalExecution,
-                Some(make_socket_addr()),
-            )
-            .await
+    let caller_task = tokio::spawn({
+        let orchestrator = orchestrator.clone();
+        let txn = txn.clone();
+        async move {
+            orchestrator
+                .execute_transaction_block(
+                    ExecuteTransactionRequestV1::new(txn),
+                    ExecuteTransactionRequestType::WaitForLocalExecution,
+                    Some(make_socket_addr()),
+                )
+                .await
+        }
     });
     tokio::time::sleep(Duration::from_secs(1)).await;
     caller_task.abort();
@@ -1173,6 +1186,33 @@ async fn test_submission_survives_caller_abort() -> Result<(), anyhow::Error> {
             .is_cancelled(),
         "caller task should have been aborted, not have panicked"
     );
+    assert_eq!(
+        orchestrator.in_flight_duplicates_for_testing(&digest),
+        Some(0),
+        "the submission must still be in flight after the caller abort"
+    );
+
+    // A duplicate submitted while quorum is still broken must join the
+    // surviving submission instead of driving a second committee-wide one.
+    let duplicate_task = tokio::spawn({
+        let orchestrator = orchestrator.clone();
+        let txn = txn.clone();
+        async move {
+            orchestrator
+                .execute_transaction_block(
+                    ExecuteTransactionRequestV1::new(txn),
+                    ExecuteTransactionRequestType::WaitForLocalExecution,
+                    Some(make_socket_addr()),
+                )
+                .await
+        }
+    });
+    tokio::time::sleep(Duration::from_secs(1)).await;
+    assert_eq!(
+        orchestrator.in_flight_duplicates_for_testing(&digest),
+        Some(1),
+        "the duplicate must await the in-flight submission's outcome"
+    );
 
     // Restore quorum. The detached task inside the orchestrator — never
     // aborted — should still be retrying submission on its own and drive the
@@ -1180,6 +1220,23 @@ async fn test_submission_survives_caller_abort() -> Result<(), anyhow::Error> {
     tokio::join!(
         test_cluster.start_node(&validator_addresses[0]),
         test_cluster.start_node(&validator_addresses[1]),
+    );
+
+    let (duplicate_response, _) = duplicate_task
+        .await
+        .expect("duplicate task should not panic")?;
+    assert!(
+        matches!(
+            duplicate_response.effects.finality_info,
+            EffectsFinalityInfo::Checkpointed(_, _)
+        ),
+        "the duplicate should resolve to Checkpointed via the surviving submission, got {:?}",
+        duplicate_response.effects.finality_info
+    );
+    assert_eq!(
+        duplicate_response.effects.effects.transaction_digest(),
+        &digest,
+        "the duplicate must return the aborted caller's transaction"
     );
 
     let inclusion = handle

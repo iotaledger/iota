@@ -1340,6 +1340,16 @@ where
     pub fn load_all_pending_transactions(&self) -> IotaResult<Vec<VerifiedTransaction>> {
         self.pending_tx_log.load_all_pending_transactions()
     }
+
+    /// Reports whether a driver submission of `tx_digest` is in flight, and
+    /// if so how many duplicate submissions are awaiting its outcome.
+    #[cfg(any(test, feature = "test-utils"))]
+    pub fn in_flight_duplicates_for_testing(&self, tx_digest: &TransactionDigest) -> Option<usize> {
+        self.in_flight_transactions
+            .lock()
+            .get(tx_digest)
+            .map(|sender| sender.receiver_count())
+    }
 }
 
 /// Convert a `QuorumDriverResponse` (contains
