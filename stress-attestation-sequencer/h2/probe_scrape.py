@@ -50,6 +50,12 @@ prom = os.environ.get("PROM", "http://localhost:9090")
 cfg = {k[4:]: v for k, v in os.environ.items() if k.startswith("CFG_")}
 
 
+# Only validator series: the fullnode re-executes everything during checkpoint
+# sync and would add a 5th sample per transaction; the calibration measures
+# validator-side execution.
+JOBS = '{job=~"Validator_.*"}'
+
+
 def query_range(q):
     url = (
         prom
@@ -83,8 +89,11 @@ def delta(series):
 
 
 def hist_mean_count(base):
-    """(Δ_sum, Δ_count) pooled across all series for a histogram base name."""
-    return delta(query_range(f"{base}_sum")), delta(query_range(f"{base}_count"))
+    """(Δ_sum, Δ_count) pooled across validator series for a histogram base name."""
+    return (
+        delta(query_range(f"{base}_sum{JOBS}")),
+        delta(query_range(f"{base}_count{JOBS}")),
+    )
 
 
 def bucket_deltas(base):
@@ -95,7 +104,7 @@ def bucket_deltas(base):
     represented by the midpoint of its (lower, upper] edge. The unbounded +Inf
     bucket is represented by the last finite `le` (best available)."""
     by_le = {}
-    for s in query_range(f"{base}_bucket"):
+    for s in query_range(f"{base}_bucket{JOBS}"):
         le = s["metric"].get("le")
         if le is None:
             continue
@@ -151,9 +160,10 @@ exec_mean_ms, exec_std_ms, exec_sem_ms, n = ex
 # The stress client sometimes fails to sustain its target rate (down to zero
 # successful transactions on a bad point); a short window then averages setup
 # noise instead of the workload and must not land in the CSV. 100 spam txs
-# executed on 4 validators + 1 fullnode give ~500 samples; anything well below
-# that means the point is invalid — refuse it so the sweep marks it FAILED.
-min_samples = int(os.environ.get("MIN_SAMPLES", "450"))
+# executed on 4 validators give ~400 samples (plus a few setup txs); anything
+# below that means the point is invalid — refuse it so the sweep marks it
+# FAILED.
+min_samples = int(os.environ.get("MIN_SAMPLES", "400"))
 if n < min_samples:
     print(
         f"probe_scrape: only {n} execution samples (< {min_samples}) — the "

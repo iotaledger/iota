@@ -47,9 +47,10 @@ attested_cu, actual_cu, exec_mean_ms, exec_std_ms, exec_sem_ms
   match (attestation predicts the cost exactly here). This is the number the
   mode calibration needs.
 - **Internal execution time** — `authority_state_internal_execution_latency_user`
-  (pure post-consensus VM execution, user transactions only): `mean ± sem`, plus
-  `std` (from histogram bucket deltas) and sample count `N`. Low rate ⇒ no
-  queueing ⇒ this is the intrinsic unloaded per-transaction cost. The `_user`
+  (pure post-consensus VM execution, user transactions only, pooled across the
+  validators; the fullnode's checkpoint-replay executions are excluded): `mean ±
+  sem`, plus `std` (from histogram bucket deltas) and sample count `N`. Low
+  rate ⇒ no queueing ⇒ this is the intrinsic unloaded per-transaction cost. The `_user`
   histogram exists because the all-transactions one pools the network's constant
   stream of system transactions (commit prologues etc.), which outnumber the
   spam ~30:1 and drag the mean toward their sub-ms cost.
