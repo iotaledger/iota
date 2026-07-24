@@ -1330,7 +1330,7 @@ impl NodeMetrics {
                 "uptime",
                 "Total node uptime",
                 registry,
-                MetricLevel::Warn,
+                MetricLevel::Debug,
             ),
             // New metrics for transaction synchronizer
             transactions_synchronizer_fetch_latency: QuantileGauge::register(
