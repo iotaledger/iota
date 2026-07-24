@@ -78,13 +78,13 @@ DIRECT="${DIRECT:-false}"
 N="${N:-4}"
 NUM_CLIENT_THREADS="${NUM_CLIENT_THREADS:-12}"
 NUM_TRANSFER_ACCOUNTS="${NUM_TRANSFER_ACCOUNTS:-4}"
-# Payload slots per worker = its qps share x this ratio; a worker stops
-# submitting (silently) once every slot waits on a response, so the ratio sets
-# how slow end-to-end responses may get before delivery collapses. 2 (=2s at
-# 1 qps/worker) sat exactly at the EPYC ceiling's ~2s pipeline (attestation
-# dry-run + consensus + execution + fullnode replay) and points kept
-# under-delivering; 5 gives headroom without changing the submission rate.
-IN_FLIGHT_RATIO="${IN_FLIGHT_RATIO:-5}"
+# Payload slots per worker = its qps share x this ratio. This is ALSO the
+# client's only back-pressure: a worker stops submitting once every slot waits
+# on a response. Keep it at 2 — raising it to 5 removed the self-throttling
+# and let retries stack ~25 concurrent ceiling-cost txs onto an already-slow
+# network, which snowballed (delivered 55 -> 30 -> 0 across attempts on the
+# WS). Under-delivered points are cheaper to retry than to prevent.
+IN_FLIGHT_RATIO="${IN_FLIGHT_RATIO:-2}"
 NUM_WORKERS="${NUM_WORKERS:-24}"
 NUM_TARGET_VALIDATORS="${NUM_TARGET_VALIDATORS:-}"
 PROM="${PROM:-http://localhost:9090}"
