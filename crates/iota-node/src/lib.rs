@@ -598,7 +598,7 @@ impl IotaNode {
 
         let index_store = if is_full_node && config.enable_index_processing {
             info!("creating index store");
-            Some(Arc::new(
+            Some(
                 IndexStore::new(
                     config.db_path().join("indexes"),
                     &prometheus_registry,
@@ -611,7 +611,7 @@ impl IotaNode {
                     cache_traits.backing_package_store.clone(),
                 )
                 .await,
-            ))
+            )
         } else {
             None
         };

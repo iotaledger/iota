@@ -3723,8 +3723,9 @@ async fn test_store_get_dynamic_field() {
 
 /// A node that starts with executed checkpoints but no index database — the
 /// state after a formal-snapshot restore — must rebuild the JSON-RPC indexes
-/// on open: history replay covers the genesis transaction, and the
-/// live-object scan covers objects outside any local checkpoint.
+/// on open: the live-object scan covers objects outside any local checkpoint
+/// before the open returns, and the background history replay covers the
+/// genesis transaction.
 #[tokio::test]
 async fn test_jsonrpc_index_rebuild_on_open() {
     let authority_state = TestAuthorityBuilder::new()
@@ -3759,18 +3760,8 @@ async fn test_jsonrpc_index_rebuild_on_open() {
     )
     .await;
 
-    // History replay indexed the genesis transaction.
-    let genesis_contents = checkpoint_store
-        .get_checkpoint_contents(&genesis_checkpoint.contents_digest)
-        .unwrap()
-        .unwrap();
-    let genesis_tx_digest = genesis_contents.iter().next().unwrap().transaction;
-    assert_eq!(
-        index_store.get_transaction_seq(&genesis_tx_digest).unwrap(),
-        Some(0)
-    );
-
-    // The live-object scan indexed the object that is in no local checkpoint.
+    // The live-object scan finished before the open returned: the object
+    // that is in no local checkpoint is already indexed.
     let owned: Vec<_> = index_store
         .get_owner_objects(owner, None, 10, None)
         .unwrap();
@@ -3780,6 +3771,18 @@ async fn test_jsonrpc_index_rebuild_on_open() {
         .get_balance(owner, TypeTag::from(StructTag::new_gas()))
         .unwrap();
     assert_eq!(balance.num_coins, 1);
+
+    // The background history replay indexes the genesis transaction.
+    index_store.wait_for_history_backfill_for_testing().await;
+    let genesis_contents = checkpoint_store
+        .get_checkpoint_contents(&genesis_checkpoint.contents_digest)
+        .unwrap()
+        .unwrap();
+    let genesis_tx_digest = genesis_contents.iter().next().unwrap().transaction;
+    assert_eq!(
+        index_store.get_transaction_seq(&genesis_tx_digest).unwrap(),
+        Some(0)
+    );
 }
 
 /// History replay only writes the history tables, so it needs no input or
@@ -3827,7 +3830,7 @@ async fn test_jsonrpc_index_rebuild_replays_object_pruned_checkpoints() {
         .get_effects(&genesis_digests.effects)
         .unwrap()
         .unwrap();
-    let pruned_ref = genesis_effects.created()[0].0;
+    let pruned_ref = genesis_effects.created()[0].reference;
     authority_state
         .database_for_testing()
         .perpetual_tables
@@ -3851,6 +3854,7 @@ async fn test_jsonrpc_index_rebuild_replays_object_pruned_checkpoints() {
     .await;
 
     // The genesis transaction is replayed despite the object pruning.
+    index_store.wait_for_history_backfill_for_testing().await;
     let genesis_tx_digest = genesis_digests.transaction;
     assert_eq!(
         index_store.get_transaction_seq(&genesis_tx_digest).unwrap(),
@@ -3904,6 +3908,7 @@ async fn test_jsonrpc_index_rebuild_skips_contents_pruned_checkpoints() {
     .await;
 
     // The genesis transaction is below the contents watermark — not replayed.
+    index_store.wait_for_history_backfill_for_testing().await;
     let genesis_contents = checkpoint_store
         .get_checkpoint_contents(&genesis_checkpoint.contents_digest)
         .unwrap()
@@ -4164,7 +4169,7 @@ async fn test_dynamic_object_field_child_lookup_falls_back_to_latest() {
     use iota_sdk_types::ObjectData;
     use iota_types::object::MoveStructExt;
 
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas_object_id = ObjectId::random();
     let (authority_state, object_basics) =
         init_state_with_ids_and_object_basics(vec![(sender, gas_object_id)]).await;
@@ -4188,8 +4193,8 @@ async fn test_dynamic_object_field_child_lookup_falls_back_to_latest() {
     )
     .await
     .unwrap();
-    let outer_v0 = create_outer_effects.created()[0].0;
-    let inner_v0 = create_inner_effects.created()[0].0;
+    let outer_v0 = create_outer_effects.created()[0].reference;
+    let inner_v0 = create_inner_effects.created()[0].reference;
 
     let add_txn = to_sender_signed_transaction(
         Transaction::new_move_call(
@@ -4198,7 +4203,7 @@ async fn test_dynamic_object_field_child_lookup_falls_back_to_latest() {
             Identifier::from_static("object_basics"),
             Identifier::from_static("add_ofield"),
             vec![],
-            create_inner_effects.gas_object().0,
+            create_inner_effects.gas_object().reference,
             vec![
                 CallArg::ImmutableOrOwned(outer_v0),
                 CallArg::ImmutableOrOwned(inner_v0),
@@ -4220,7 +4225,7 @@ async fn test_dynamic_object_field_child_lookup_falls_back_to_latest() {
     // no row at the wrapper's version, exactly as after the child's historic
     // version was pruned.
     let mut wrapper = authority_state
-        .get_object(&add_effects.created()[0].0.object_id)
+        .get_object(&add_effects.created()[0].reference.object_id)
         .unwrap();
     let child = authority_state.get_object(&inner_v0.object_id).unwrap();
     let bumped = wrapper.version().next().unwrap();
