@@ -16,6 +16,7 @@ use iota_config::{
     ExecutionCacheConfig, IOTA_GENESIS_FILENAME, NodeConfig,
     node::{AuthorityOverloadConfig, DBCheckpointConfig, GrpcApiConfig, RunWithRange},
     p2p::DiscoveryConfig,
+    transaction_deny_config::TransactionDenyConfig,
 };
 use iota_macros::nondeterministic;
 use iota_names::config::IotaNamesConfig;
@@ -61,6 +62,7 @@ pub struct SwarmBuilder<R = OsRng> {
     db_checkpoint_config: DBCheckpointConfig,
     num_unpruned_validators: Option<usize>,
     authority_overload_config: Option<AuthorityOverloadConfig>,
+    transaction_deny_config: Option<TransactionDenyConfig>,
     execution_cache_config: Option<ExecutionCacheConfig>,
     data_ingestion_dir: Option<PathBuf>,
     fullnode_run_with_range: Option<RunWithRange>,
@@ -96,6 +98,7 @@ impl SwarmBuilder {
             db_checkpoint_config: DBCheckpointConfig::default(),
             num_unpruned_validators: None,
             authority_overload_config: None,
+            transaction_deny_config: None,
             execution_cache_config: None,
             data_ingestion_dir: None,
             fullnode_run_with_range: None,
@@ -133,6 +136,7 @@ impl<R> SwarmBuilder<R> {
             db_checkpoint_config: self.db_checkpoint_config,
             num_unpruned_validators: self.num_unpruned_validators,
             authority_overload_config: self.authority_overload_config,
+            transaction_deny_config: self.transaction_deny_config,
             execution_cache_config: self.execution_cache_config,
             data_ingestion_dir: self.data_ingestion_dir,
             fullnode_run_with_range: self.fullnode_run_with_range,
@@ -292,6 +296,15 @@ impl<R> SwarmBuilder<R> {
         self
     }
 
+    pub fn with_transaction_deny_config(
+        mut self,
+        transaction_deny_config: TransactionDenyConfig,
+    ) -> Self {
+        assert!(self.network_config.is_none());
+        self.transaction_deny_config = Some(transaction_deny_config);
+        self
+    }
+
     pub fn with_execution_cache_config(
         mut self,
         execution_cache_config: ExecutionCacheConfig,
@@ -402,6 +415,11 @@ impl<R: rand::RngCore + rand::CryptoRng> SwarmBuilder<R> {
             if let Some(authority_overload_config) = self.authority_overload_config {
                 config_builder =
                     config_builder.with_authority_overload_config(authority_overload_config);
+            }
+
+            if let Some(transaction_deny_config) = self.transaction_deny_config {
+                config_builder =
+                    config_builder.with_transaction_deny_config(transaction_deny_config);
             }
 
             if let Some(execution_cache_config) = self.execution_cache_config {

@@ -249,6 +249,30 @@ pub struct TransactionDenyRuleProposal {
     pub proposed_rules: DenyRuleSet,
 }
 
+impl TransactionDenyRuleProposal {
+    /// Creates a proposal with a wall-clock generation, so a resubmission
+    /// supersedes this authority's earlier proposals. Pass the generation of
+    /// this authority's currently recorded proposal (if any) so the new one
+    /// stays newer even after a backward wall-clock step.
+    pub fn new(
+        authority: AuthorityName,
+        proposed_rules: DenyRuleSet,
+        last_generation: Option<u64>,
+    ) -> Self {
+        let now: u64 = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("IOTA did not exist prior to 1970")
+            .as_millis()
+            .try_into()
+            .expect("This build of iota is not supported in the year 500,000,000");
+        Self {
+            authority,
+            generation: now.max(last_generation.map_or(0, |g| g.saturating_add(1))),
+            proposed_rules,
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum ConsensusTransactionKind {
     CertifiedTransaction(Box<CertifiedTransaction>),
@@ -968,5 +992,21 @@ mod tests {
         };
         let bytes = bcs::to_bytes(&proposal).unwrap();
         assert_eq!(proposal, bcs::from_bytes(&bytes).unwrap());
+    }
+
+    /// The generation is wall-clock time, but never regresses below a
+    /// recorded proposal's generation even if the clock stepped backward.
+    #[test]
+    fn proposal_generation_supersedes_last_generation() {
+        use crate::deny_rule_governance::DenyRuleSet;
+
+        let authority = AuthorityName::default();
+        let fresh = TransactionDenyRuleProposal::new(authority, DenyRuleSet::default(), None);
+        assert!(fresh.generation > 0);
+
+        let far_future = fresh.generation + 1_000_000_000;
+        let successor =
+            TransactionDenyRuleProposal::new(authority, DenyRuleSet::default(), Some(far_future));
+        assert_eq!(successor.generation, far_future + 1);
     }
 }

@@ -20,6 +20,7 @@ use iota_config::{
         default_full_checkpoint_contents_cache_size_mb,
     },
     p2p::{DiscoveryConfig, P2pConfig, SeedPeer, StateSyncConfig},
+    transaction_deny_config::TransactionDenyConfig,
     verifier_signing_config::VerifierSigningConfig,
 };
 use iota_names::config::IotaNamesConfig;
@@ -45,6 +46,7 @@ pub struct ValidatorConfigBuilder {
     supported_protocol_versions: Option<SupportedProtocolVersions>,
     force_unpruned_checkpoints: bool,
     authority_overload_config: Option<AuthorityOverloadConfig>,
+    transaction_deny_config: Option<TransactionDenyConfig>,
     execution_cache_config: Option<ExecutionCacheConfig>,
     data_ingestion_dir: Option<PathBuf>,
     policy_config: Option<PolicyConfig>,
@@ -90,6 +92,11 @@ impl ValidatorConfigBuilder {
 
     pub fn with_authority_overload_config(mut self, config: AuthorityOverloadConfig) -> Self {
         self.authority_overload_config = Some(config);
+        self
+    }
+
+    pub fn with_transaction_deny_config(mut self, config: TransactionDenyConfig) -> Self {
+        self.transaction_deny_config = Some(config);
         self
     }
 
@@ -217,7 +224,7 @@ impl ValidatorConfigBuilder {
             // By default, expensive checks will be enabled in debug build, but not in release
             // build.
             expensive_safety_check_config: ExpensiveSafetyCheckConfig::default(),
-            transaction_deny_config: Default::default(),
+            transaction_deny_config: self.transaction_deny_config.unwrap_or_default(),
             certificate_deny_config: Default::default(),
             state_debug_dump_config: Default::default(),
             checkpoint_archive_config: None,
