@@ -2872,6 +2872,137 @@ mod tests {
         );
     }
 
+    /// A stale database (here: written by another schema version) is wiped
+    /// and rebuilt through the full open path — bulk-ingestion open, flush,
+    /// reopen with default options — and none of its rows survive.
+    #[tokio::test]
+    async fn test_stale_database_is_wiped_and_rebuilt_on_open() {
+        let authority_state = crate::authority::test_authority_builder::TestAuthorityBuilder::new()
+            .insert_genesis_checkpoint()
+            .build()
+            .await;
+
+        let checkpoint_store = &authority_state.checkpoint_store;
+        let genesis_checkpoint = checkpoint_store
+            .get_checkpoint_by_sequence_number(0)
+            .unwrap()
+            .unwrap();
+        checkpoint_store
+            .update_highest_executed_checkpoint(&genesis_checkpoint)
+            .unwrap();
+
+        let index_dir = iota_common::tempdir();
+        let index_store = IndexStore::new(
+            index_dir.path().to_path_buf(),
+            &Registry::default(),
+            Some(128),
+            &authority_state.database_for_testing(),
+            checkpoint_store,
+            &authority_state.epoch_store_for_testing(),
+            authority_state.get_backing_package_store().clone(),
+        )
+        .await;
+        index_store.wait_for_history_backfill_for_testing().await;
+
+        let genesis_contents = checkpoint_store
+            .get_checkpoint_contents(&genesis_checkpoint.content_digest)
+            .unwrap()
+            .unwrap();
+        let genesis_tx_digest = genesis_contents.iter().next().unwrap().transaction;
+        assert_eq!(
+            index_store.get_transaction_seq(&genesis_tx_digest).unwrap(),
+            Some(0)
+        );
+
+        // Poison the store and mark it as written by another schema version.
+        let poison_digest = iota_sdk_types::TransactionDigest::random();
+        index_store
+            .tables
+            .transactions_seq
+            .insert(&poison_digest, &999)
+            .unwrap();
+        index_store
+            .tables
+            .meta
+            .insert(
+                &(),
+                &super::MetadataInfo {
+                    version: super::CURRENT_DB_VERSION + 1,
+                },
+            )
+            .unwrap();
+
+        // Release the database before reopening the same path.
+        let weak_db = std::sync::Arc::downgrade(&index_store.tables.meta.db);
+        drop(index_store);
+        while weak_db.strong_count() != 0 {
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+
+        let index_store = IndexStore::new(
+            index_dir.path().to_path_buf(),
+            &Registry::default(),
+            Some(128),
+            &authority_state.database_for_testing(),
+            checkpoint_store,
+            &authority_state.epoch_store_for_testing(),
+            authority_state.get_backing_package_store().clone(),
+        )
+        .await;
+        index_store.wait_for_history_backfill_for_testing().await;
+
+        assert_eq!(
+            index_store.get_transaction_seq(&poison_digest).unwrap(),
+            None,
+            "stale rows must not survive the rebuild"
+        );
+        assert_eq!(
+            index_store.get_transaction_seq(&genesis_tx_digest).unwrap(),
+            Some(0)
+        );
+        assert_eq!(
+            index_store
+                .tables
+                .meta
+                .get(&())
+                .unwrap()
+                .map(|meta| meta.version),
+            Some(super::CURRENT_DB_VERSION)
+        );
+        assert_eq!(index_store.tables.watermark.get(&()).unwrap(), Some(0));
+        assert_eq!(
+            index_store.tables.history_watermark.get(&()).unwrap(),
+            Some(0)
+        );
+    }
+
+    /// After a crash between an index commit and the executed-watermark bump,
+    /// the index watermark is ahead of `highest_executed_checkpoint` on
+    /// restart. That must not trigger a rebuild: the replayed checkpoint is
+    /// skipped through the already-indexed check instead.
+    #[tokio::test]
+    async fn test_watermark_ahead_of_executed_needs_no_rebuild() {
+        let tmp_dir = iota_common::tempdir();
+        let cp_dir = iota_common::tempdir();
+        let checkpoint_store = CheckpointStore::new(&cp_dir.path().join("checkpoints"));
+        mark_checkpoint_executed(&checkpoint_store, 5);
+
+        let index_store = IndexStore::new_without_init(
+            tmp_dir.path().to_path_buf(),
+            &Registry::default(),
+            Some(128),
+        );
+        index_store.tables.seed_meta().unwrap();
+        index_store.tables.watermark.insert(&(), &6).unwrap();
+
+        assert!(
+            !index_store
+                .tables
+                .needs_to_do_initialization(&checkpoint_store),
+            "an index watermark ahead of the executed watermark must not trigger a rebuild"
+        );
+    }
+
     #[tokio::test]
     async fn test_index_cache() -> anyhow::Result<()> {
         // This test indexes a checkpoint where 10 coins each with balance 100
