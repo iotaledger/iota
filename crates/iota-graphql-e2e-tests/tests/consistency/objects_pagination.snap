@@ -11,7 +11,7 @@ task 1, lines 16-29:
 //# publish
 created: object(1,0)
 mutated: object(0,2)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 5168000
@@ -22,7 +22,7 @@ task 2, line 31:
 //# run Test::M1::create --args 0 @A
 created: object(2,0)
 mutated: object(0,2)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 2287600
@@ -33,7 +33,7 @@ task 3, line 33:
 //# run Test::M1::create --args 1 @A
 created: object(3,0)
 mutated: object(0,2)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 2287600
@@ -78,7 +78,7 @@ task 6, line 67:
 //# run Test::M1::create --args 2 @A
 created: object(6,0)
 mutated: object(0,2)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 2287600
@@ -89,7 +89,7 @@ task 7, line 69:
 //# run Test::M1::create --args 3 @A
 created: object(7,0)
 mutated: object(0,2)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 2287600
@@ -256,7 +256,7 @@ task 12, lines 147-148:
 //# programmable --sender A --inputs object(2,0) object(3,0) object(6,0) object(7,0) @B
 //> TransferObjects([Input(0), Input(1), Input(2), Input(3)], Input(4))
 mutated: object(0,0), object(2,0), object(3,0), object(6,0), object(7,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 6209200

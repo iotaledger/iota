@@ -10,7 +10,7 @@ task 1, lines 12-88:
 //# publish
 created: object(1,0)
 mutated: object(0,1)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 12889600
@@ -21,7 +21,7 @@ task 2, line 90:
 //# run test::m1::create --sender A
 created: object(2,0), object(2,1), object(2,2)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 4658800
@@ -32,7 +32,7 @@ task 3, line 92:
 //# run test::m1::test_dof --args object(2,2) receiving(2,0) receiving(2,1) --sender A
 mutated: object(0,0), object(2,0), object(2,2)
 deleted: object(2,1)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 3442800
@@ -43,7 +43,7 @@ task 4, line 94:
 //# run test::m1::create --sender A
 created: object(4,0), object(4,1), object(4,2)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 4658800
@@ -54,7 +54,7 @@ task 5, line 96:
 //# run test::m1::test_df --args object(4,2) receiving(4,0) receiving(4,1) --sender A
 mutated: object(0,0), object(4,0), object(4,2)
 deleted: object(4,1)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 3442800
@@ -65,7 +65,7 @@ task 6, line 98:
 //# run test::m1::create --sender A
 created: object(6,0), object(6,1), object(6,2)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 4658800
@@ -77,7 +77,7 @@ task 7, line 100:
 created: object(7,0)
 mutated: object(0,0), object(6,2)
 wrapped: object(6,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 4028000
@@ -88,7 +88,7 @@ task 8, line 102:
 //# run test::m1::create --sender A
 created: object(8,0), object(8,1), object(8,2)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 4658800
@@ -100,7 +100,7 @@ task 9, line 104:
 created: object(9,0)
 mutated: object(0,0), object(8,2)
 wrapped: object(8,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 4028000

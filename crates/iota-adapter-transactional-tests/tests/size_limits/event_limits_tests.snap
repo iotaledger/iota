@@ -7,7 +7,7 @@ task 1, lines 9-56:
 //# publish
 created: object(1,0)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 7303600
@@ -18,7 +18,7 @@ task 2, lines 57-59:
 //# run Test::M1::emit_n_small_events --args 1 --gas-budget 100000000000000 --summarize
 events: 1
 mutated: 1
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 980400
@@ -29,7 +29,7 @@ task 3, lines 60-62:
 //# run Test::M1::emit_n_small_events --args 1024 --gas-budget 100000000000000 --summarize
 events: 50
 mutated: 1
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 53000000
 ├── Computation Cost Burned: 53000000
 ├── Storage Cost: 980400
@@ -50,7 +50,7 @@ task 6, lines 69-71:
 //# run Test::M1::emit_event_with_size --args 200000 --gas-budget 100000000000000 --summarize
 events: 1
 mutated: 1
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1394000000
 ├── Computation Cost Burned: 1394000000
 ├── Storage Cost: 980400
@@ -61,7 +61,7 @@ task 7, lines 72-74:
 //# run Test::M1::emit_event_with_size --args 256000 --gas-budget 100000000000000 --summarize
 events: 1
 mutated: 1
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1815000000
 ├── Computation Cost Burned: 1815000000
 ├── Storage Cost: 980400

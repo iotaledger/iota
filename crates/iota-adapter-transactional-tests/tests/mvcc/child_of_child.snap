@@ -10,7 +10,7 @@ task 1, lines 9-67:
 //# publish
 created: object(1,0)
 mutated: object(0,1)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 9211200
@@ -23,7 +23,7 @@ task 2, lines 69-71:
 //> TransferObjects([Result(0)], Input(0))
 created: object(2,0), object(2,1), object(2,2), object(2,3), object(2,4)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 9705200
@@ -47,7 +47,7 @@ task 4, lines 75-76:
 //# programmable --sender A --inputs object(2,3) 1 2 3
 //> test::m::set(Input(0), Input(1), Input(2), Input(3))
 mutated: object(0,0), object(2,2), object(2,3), object(2,4)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 4810800
@@ -72,7 +72,7 @@ task 6, lines 80-81:
 //> test::m::remove(Input(0))
 mutated: object(0,0), object(2,3)
 deleted: object(2,0), object(2,2)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 2257200
@@ -96,7 +96,7 @@ task 8, lines 88-89:
 //# programmable --sender A --inputs object(2,3)@2 0 0 vector[0] --dev-inspect
 //> test::m::check(Input(0), Input(1), Input(2), Input(3))
 mutated: object(_), object(2,3)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 2257200
@@ -107,7 +107,7 @@ task 9, lines 91-92:
 //# programmable --sender A --inputs object(2,3)@3 1 2 vector[3] --dev-inspect
 //> test::m::check(Input(0), Input(1), Input(2), Input(3))
 mutated: object(_), object(2,3)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 2257200
@@ -119,7 +119,7 @@ task 10, lines 94-98:
 //> test::m::check(Input(0), Input(1), Input(2), Input(3))
 // dev-inspect with 'check' and _incorrect_ values
 mutated: object(_), object(2,3)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 2257200

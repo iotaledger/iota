@@ -10,7 +10,7 @@ task 1, lines 7-16:
 //# publish
 created: object(1,0)
 mutated: object(0,1)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 700000
 ├── Storage Cost: 5023600
@@ -22,7 +22,7 @@ task 2, lines 18-20:
 // success, gas price(800) higher than reference gas price(700) + 100
 //> test::gas_test::gas_checks(Input(0), Input(1))
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 800000
 ├── Computation Cost Burned: 700000
 ├── Storage Cost: 980400
@@ -34,7 +34,7 @@ task 3, lines 22-24:
 // success, gas price(2000) higher than reference gas price(700) + 100
 //> test::gas_test::gas_checks(Input(0), Input(1))
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 2000000
 ├── Computation Cost Burned: 700000
 ├── Storage Cost: 980400

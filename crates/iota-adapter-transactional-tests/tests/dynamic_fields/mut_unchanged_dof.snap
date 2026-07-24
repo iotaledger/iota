@@ -10,7 +10,7 @@ task 1, lines 10-51:
 //# publish
 created: object(1,0)
 mutated: object(0,1)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 8618400
@@ -21,7 +21,7 @@ task 2, line 53:
 //# run test::m1::create --sender A
 created: object(2,0), object(2,1), object(2,2), object(2,3), object(2,4), object(2,5)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 11346800
@@ -55,7 +55,7 @@ Contents: test::m1::Object {
 task 5, line 61:
 //# run test::m1::borrow_mut --sender A --args object(2,4)
 mutated: object(0,0), object(2,4)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 2226800
@@ -65,7 +65,7 @@ Gas Cost Summary
 task 6, line 63:
 //# run test::m1::borrow_mut --sender A --args object(2,5)
 mutated: object(0,0), object(2,5)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 2226800
@@ -75,7 +75,7 @@ Gas Cost Summary
 task 7, line 65:
 //# run test::m1::add_remove --sender A --args object(2,4)
 mutated: object(0,0), object(2,4)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 2226800
@@ -85,7 +85,7 @@ Gas Cost Summary
 task 8, line 67:
 //# run test::m1::add_remove --sender A --args object(2,5)
 mutated: object(0,0), object(2,5)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 2226800
@@ -95,7 +95,7 @@ Gas Cost Summary
 task 9, line 69:
 //# run test::m1::write_back --sender A --args object(2,4)
 mutated: object(0,0), object(2,4)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 2226800
@@ -105,7 +105,7 @@ Gas Cost Summary
 task 10, line 71:
 //# run test::m1::write_back --sender A --args object(2,5)
 mutated: object(0,0), object(2,5)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 2226800

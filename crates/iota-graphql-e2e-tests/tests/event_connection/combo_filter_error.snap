@@ -10,7 +10,7 @@ task 1, lines 10-29:
 //# publish
 created: object(1,0)
 mutated: object(0,2)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 5373200
@@ -21,7 +21,7 @@ task 2, line 31:
 //# run Test::M2::emit_emit_a --sender A --args 20
 events: Event { package_id: ObjectId("Test"), module: Identifier("M2"), sender: Address("A"), type_: StructTag { address: Address("Test"), module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: "FAAAAAAAAAA=" }
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 980400

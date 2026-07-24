@@ -11,7 +11,7 @@ task 1, lines 10-54:
 created: object(1,0), object(1,1), object(1,2), object(1,3), object(1,4), object(1,5)
 mutated: object(0,0)
 unchanged_shared: 0x0000000000000000000000000000000000000000000000000000000000000403
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 20383200
@@ -23,7 +23,7 @@ task 2, lines 55-57:
 events: Event { package_id: ObjectId("iota"), module: Identifier("coin"), sender: Address("A"), type_: StructTag { address: Address("iota"), module: Identifier("deny_list"), name: Identifier("PerTypeConfigCreated"), type_params: [] }, contents: "AAAAAAAAAABgNzQ0ZmIwYzlhMWM2MDg1NTczOWZhNWJiZGUwZThiNWQzNGY3OTVlNjU2MDUwMmFiZDRiYWM1NzQwODY1MWI3Mjo6cmVndWxhdGVkX2NvaW46OlJFR1VMQVRFRF9DT0lOHCTGWUNpW4cLrkUe8mAu7252jz1Waesaq3xFu6t6IDk=" }
 created: object(2,0), object(2,1), object(2,2)
 mutated: 0x0000000000000000000000000000000000000000000000000000000000000403, object(0,0), object(1,2)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 12144800
@@ -34,7 +34,7 @@ task 3, lines 58-60:
 //# run iota::coin::deny_list_v1_enable_global_pause --args object(0x403) object(1,2) --type-args test::regulated_coin::REGULATED_COIN --sender A
 created: object(3,0)
 mutated: 0x0000000000000000000000000000000000000000000000000000000000000403, object(0,0), object(1,2)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 6627200
@@ -112,7 +112,7 @@ Epoch advanced: 1
 task 7, lines 68-70:
 //# run iota::coin::deny_list_v1_remove --args object(0x403) object(1,2) @B --type-args test::regulated_coin::REGULATED_COIN --sender A
 mutated: 0x0000000000000000000000000000000000000000000000000000000000000403, object(0,0), object(1,2), object(2,1)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 6832400
@@ -122,7 +122,7 @@ Gas Cost Summary
 task 8, lines 71-73:
 //# run iota::coin::deny_list_v1_disable_global_pause --args object(0x403) object(1,2) --type-args test::regulated_coin::REGULATED_COIN --sender A
 mutated: 0x0000000000000000000000000000000000000000000000000000000000000403, object(0,0), object(1,2), object(3,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 6627200
@@ -201,7 +201,7 @@ task 12, lines 81-83:
 //# run iota::coin::deny_list_v1_remove --args object(0x403) object(1,2) @B --type-args test::regulated_coin::REGULATED_COIN --sender A
 mutated: 0x0000000000000000000000000000000000000000000000000000000000000403, object(0,0), object(1,2)
 deleted: object(2,1)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 4377600
@@ -212,7 +212,7 @@ task 13, lines 84-86:
 //# run iota::coin::deny_list_v1_disable_global_pause --args object(0x403) object(1,2) --type-args test::regulated_coin::REGULATED_COIN --sender A
 mutated: 0x0000000000000000000000000000000000000000000000000000000000000403, object(0,0), object(1,2)
 deleted: object(3,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 4377600
@@ -231,7 +231,7 @@ task 16, lines 92-94:
 //# run test::regulated_coin::assert_address_deny_status --args immshared(0x403) @B false --sender A
 mutated: object(0,0)
 unchanged_shared: 0x0000000000000000000000000000000000000000000000000000000000000403
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 980400
@@ -242,7 +242,7 @@ task 17, line 95:
 //# run test::regulated_coin::assert_global_pause_status --args immshared(0x403) false --sender A
 mutated: object(0,0)
 unchanged_shared: 0x0000000000000000000000000000000000000000000000000000000000000403
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 980400

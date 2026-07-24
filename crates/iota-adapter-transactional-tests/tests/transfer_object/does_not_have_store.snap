@@ -10,7 +10,7 @@ task 1, lines 9-26:
 //# publish
 created: object(1,0)
 mutated: object(0,2)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 5776000
@@ -21,7 +21,7 @@ task 2, line 28:
 //# run test::m::mint_s --sender A
 created: object(2,0)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 2181200
@@ -61,7 +61,7 @@ task 6, line 39:
 //# run test::m::mint_cup --type-args test::m::S --sender A
 created: object(6,0)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 2485200

@@ -10,7 +10,7 @@ task 1, lines 7-38:
 //# publish
 created: object(1,0)
 mutated: object(0,1)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 7174400
@@ -21,7 +21,7 @@ task 2, line 40:
 //# run tto::M1::start
 created: object(2,0), object(2,1)
 mutated: object(0,1)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 3397200
@@ -32,7 +32,7 @@ task 3, line 42:
 //# run tto::M1::middle --sender A
 created: object(3,0)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 2188800
@@ -66,7 +66,7 @@ Contents: tto::M1::B {
 task 6, line 49:
 //# run tto::M1::send_back --args object(2,0) receiving(2,1)
 mutated: object(0,1), object(2,0), object(2,1)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 3397200
@@ -105,7 +105,7 @@ Debug of error: MoveAbort { location: MoveLocation { package: ObjectId("iota"), 
 task 10, lines 59-61:
 //# run tto::M1::send_back --args object(2,0) receiving(2,1)@4
 mutated: object(0,1), object(2,0), object(2,1)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 3397200
@@ -120,7 +120,7 @@ Execution Error: MoveAbort: Move Runtime Abort. Location: iota::transfer::receiv
 task 12, line 65:
 //# run tto::M1::send_back --args object(2,0) receiving(2,1)@6
 mutated: object(0,1), object(2,0), object(2,1)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 3397200

@@ -10,7 +10,7 @@ task 1, lines 7-29:
 //# publish --sender A
 created: object(1,0), object(1,1)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 7926800
@@ -23,7 +23,7 @@ task 2, lines 31-33:
 //> TransferObjects([Result(0)], Input(1))
 created: object(2,0)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 1960800
@@ -34,7 +34,7 @@ task 3, line 35:
 //# run test::coin_in_vec::deposit --args object(1,0) object(2,0) --sender A
 mutated: object(0,0), object(1,0)
 wrapped: object(2,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 2614400
@@ -45,7 +45,7 @@ task 4, line 37:
 //# run test::coin_in_vec::withdraw --args object(1,0) --sender A
 mutated: object(0,0), object(1,0)
 unwrapped: object(2,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 3290800

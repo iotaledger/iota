@@ -10,7 +10,7 @@ task 1, lines 9-168:
 //# publish
 created: object(1,0)
 mutated: object(0,1)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 18156400
@@ -23,7 +23,7 @@ task 2, lines 170-172:
 //> TransferObjects([Result(0)], Input(0))
 created: object(2,0), object(2,1), object(2,2), object(2,3), object(2,4), object(2,5), object(2,6), object(2,7), object(2,8), object(2,9), object(2,10), object(2,11), object(2,12), object(2,13), object(2,14), object(2,15), object(2,16)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 33865600
@@ -105,7 +105,7 @@ task 4, lines 176-177:
 //# programmable --sender A --inputs object(2,8) 112
 //> test::m::set(Input(0), Input(1))
 mutated: object(0,0), object(2,8), object(2,9), object(2,10), object(2,11), object(2,12), object(2,13), object(2,14), object(2,15), object(2,16)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 14288000
@@ -188,7 +188,7 @@ task 6, lines 181-182:
 //> test::m::remove(Input(0))
 mutated: object(0,0), object(2,8)
 deleted: object(2,0), object(2,1), object(2,2), object(2,3), object(2,4), object(2,5), object(2,6), object(2,7), object(2,9), object(2,10), object(2,11), object(2,12), object(2,13), object(2,14), object(2,15), object(2,16)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 3952000
@@ -270,7 +270,7 @@ task 8, lines 188-189:
 //# programmable --sender A --inputs object(2,8)@2 vector[0] --dev-inspect
 //> test::m::check(Input(0), Input(1))
 mutated: object(_), object(2,8)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 3952000
@@ -281,7 +281,7 @@ task 9, lines 191-192:
 //# programmable --sender A --inputs object(2,8)@3 vector[112] --dev-inspect
 //> test::m::check(Input(0), Input(1))
 mutated: object(_), object(2,8)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 3952000
@@ -294,7 +294,7 @@ task 10, lines 194-199:
 // dev-inspect with 'check' and _incorrect_ values
 // Should fail since the field exists but with a different field.
 mutated: object(_), object(2,8)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 3952000

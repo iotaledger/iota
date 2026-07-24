@@ -11,7 +11,7 @@ task 1, lines 11-73:
 created: object(1,0), object(1,1), object(1,2), object(1,3), object(1,4), object(1,5)
 mutated: object(0,0)
 unchanged_shared: 0x0000000000000000000000000000000000000000000000000000000000000403
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 21918400
@@ -23,7 +23,7 @@ task 2, lines 74-76:
 created: object(2,0)
 mutated: object(0,0), object(1,0)
 unchanged_shared: 0x0000000000000000000000000000000000000000000000000000000000000403
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 3914000
@@ -35,7 +35,7 @@ task 3, lines 77-79:
 created: object(3,0)
 mutated: object(0,0), object(1,0)
 unchanged_shared: 0x0000000000000000000000000000000000000000000000000000000000000403
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 4096400
@@ -47,7 +47,7 @@ task 4, lines 80-82:
 created: object(4,0)
 mutated: object(0,0), object(1,0)
 unchanged_shared: 0x0000000000000000000000000000000000000000000000000000000000000403
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 4096400
@@ -59,7 +59,7 @@ task 5, lines 83-85:
 events: Event { package_id: ObjectId("iota"), module: Identifier("coin"), sender: Address("A"), type_: StructTag { address: Address("iota"), module: Identifier("deny_list"), name: Identifier("PerTypeConfigCreated"), type_params: [] }, contents: "AAAAAAAAAABgZGJiMjA5OWM3MjNlZWU2YjJhNDIyYmFlYjRlN2RlMzhmNGRmYTZhODcwOTAyNjA0MzhmMzA3NmE0NWExMTM2Mjo6cmVndWxhdGVkX2NvaW46OlJFR1VMQVRFRF9DT0lO+lOiPMkwSR0AXOhQpA5Z3qek4GyC8p4DM6xvLWh8j+k=" }
 created: object(5,0), object(5,1), object(5,2)
 mutated: 0x0000000000000000000000000000000000000000000000000000000000000403, object(0,0), object(1,2)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 11939600
@@ -70,7 +70,7 @@ task 6, lines 86-88:
 //# run test::regulated_coin::assert_global_pause_status --args immshared(0x403) true --sender A
 mutated: object(0,0)
 unchanged_shared: 0x0000000000000000000000000000000000000000000000000000000000000403
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 980400
@@ -95,7 +95,7 @@ mutated: object(0,0)
 unwrapped: object(10,0)
 deleted: object(3,0)
 unchanged_shared: 0x0000000000000000000000000000000000000000000000000000000000000403
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 2447200
@@ -119,7 +119,7 @@ task 14, lines 111-113:
 //# run test::regulated_coin::assert_global_pause_status --args immshared(0x403) true --sender A
 mutated: object(0,0)
 unchanged_shared: 0x0000000000000000000000000000000000000000000000000000000000000403
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 980400
@@ -129,7 +129,7 @@ Gas Cost Summary
 task 15, lines 114-116:
 //# run iota::coin::deny_list_v1_disable_global_pause --args object(0x403) object(1,2) --type-args test::regulated_coin::REGULATED_COIN --sender A
 mutated: 0x0000000000000000000000000000000000000000000000000000000000000403, object(0,0), object(1,2), object(5,1)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 6627200
@@ -140,7 +140,7 @@ task 16, lines 117-119:
 //# run test::regulated_coin::assert_global_pause_status --args immshared(0x403) false --sender A
 mutated: object(0,0)
 unchanged_shared: 0x0000000000000000000000000000000000000000000000000000000000000403
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 980400
@@ -157,7 +157,7 @@ task 18, lines 123-126:
 created: object(18,0)
 mutated: object(0,0)
 wrapped: object(1,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 2629600
@@ -179,7 +179,7 @@ mutated: object(0,0)
 unwrapped: object(1,0)
 deleted: object(18,0)
 unchanged_shared: 0x0000000000000000000000000000000000000000000000000000000000000403
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 2447200

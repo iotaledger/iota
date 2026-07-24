@@ -10,7 +10,7 @@ task 1, lines 10-78:
 //# publish
 created: object(1,0)
 mutated: object(0,1)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 12198000
@@ -21,7 +21,7 @@ task 2, line 80:
 //# run a::m::t0 --sender A
 created: object(2,0)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 2196400
@@ -32,7 +32,7 @@ task 3, line 82:
 //# run a::m::t1 --sender A --args object(2,0)
 created: object(3,0), object(3,1), object(3,2)
 mutated: object(0,0), object(2,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 6475200
@@ -42,7 +42,7 @@ Gas Cost Summary
 task 4, line 84:
 //# run a::m::t2 --sender A --args object(2,0)
 mutated: object(0,0), object(2,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 2196400
@@ -52,7 +52,7 @@ Gas Cost Summary
 task 5, line 86:
 //# run a::m::t3 --sender A --args object(2,0)
 mutated: object(0,0), object(2,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 2196400
@@ -62,7 +62,7 @@ Gas Cost Summary
 task 6, line 88:
 //# run a::m::t4 --sender A --args object(2,0)
 mutated: object(0,0), object(2,0), object(3,0), object(3,1), object(3,2)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 6475200
@@ -72,7 +72,7 @@ Gas Cost Summary
 task 7, line 90:
 //# run a::m::t5 --sender A --args object(2,0)
 mutated: object(0,0), object(2,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 2196400
@@ -83,7 +83,7 @@ task 8, line 92:
 //# run a::m::t6 --sender A --args object(2,0)
 mutated: object(0,0), object(2,0)
 deleted: object(3,1), object(3,2)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 2196400
@@ -93,7 +93,7 @@ Gas Cost Summary
 task 9, line 94:
 //# run a::m::t7 --sender A --args object(2,0)
 mutated: object(0,0), object(2,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 2196400
@@ -104,7 +104,7 @@ task 10, line 96:
 //# run a::m::t8 --sender A --args object(2,0)
 mutated: object(0,0)
 deleted: object(2,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 980400

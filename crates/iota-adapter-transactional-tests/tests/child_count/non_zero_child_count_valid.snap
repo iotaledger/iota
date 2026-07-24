@@ -10,7 +10,7 @@ task 1, lines 10-46:
 //# publish
 created: object(1,0)
 mutated: object(0,2)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 6969200
@@ -21,7 +21,7 @@ task 2, line 48:
 //# run test::m::mint_and_share --sender A
 created: object(2,0), object(2,1), object(2,2)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 5829200
@@ -44,7 +44,7 @@ task 4, line 56:
 //# run test::m::mint --sender A
 created: object(4,0), object(4,1), object(4,2)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 5829200
@@ -54,7 +54,7 @@ Gas Cost Summary
 task 5, line 58:
 //# run test::m::transfer --sender A --args object(4,1) @B
 mutated: object(0,0), object(4,1)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 2181200
@@ -77,7 +77,7 @@ task 7, line 66:
 //# run test::m::mint --sender A
 created: object(7,0), object(7,1), object(7,2)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 5829200
@@ -87,7 +87,7 @@ Gas Cost Summary
 task 8, line 68:
 //# transfer-object 7,1 --sender A --recipient B
 mutated: object(0,0), object(7,1)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 2181200

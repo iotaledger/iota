@@ -7,7 +7,7 @@ task 1, lines 7-58:
 //# publish
 created: object(1,0)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 8884400
@@ -18,7 +18,7 @@ task 2, line 60:
 //# run t2::o2::create
 created: object(2,0)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 2211600
@@ -29,7 +29,7 @@ task 3, line 62:
 //# run t2::o2::create
 created: object(3,0)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 2211600
@@ -95,7 +95,7 @@ task 10, line 88:
 //# run t2::o2::mint_shared_coin
 created: object(10,0)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 1960800

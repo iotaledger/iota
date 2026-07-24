@@ -10,7 +10,7 @@ task 1, lines 7-15:
 //# publish --upgradeable --sender A
 created: object(1,0), object(1,1)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 7364400
@@ -296,7 +296,7 @@ task 6, lines 175-184:
 //# upgrade --package P0 --upgrade-capability 1,0 --sender A
 created: object(6,0)
 mutated: object(0,0), object(1,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 8124400

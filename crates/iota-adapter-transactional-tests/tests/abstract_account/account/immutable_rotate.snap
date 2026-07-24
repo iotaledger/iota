@@ -11,7 +11,7 @@ task 1, line 8:
 Output for 'crates/iota-adapter-transactional-tests/data/account_abstraction/simple_abstract_account.move':
 created: object(2,0)
 mutated: object(0,1)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 9971200
@@ -22,7 +22,7 @@ task 2, lines 10-19:
 //# publish --sender A --dependencies simple_abstract_account
 created: object(3,0), object(3,1), object(3,2), object(3,3), object(3,4), object(3,5)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 20352800
@@ -34,7 +34,7 @@ task 3, line 21:
 events: Event { package_id: ObjectId("simple_abstract_account"), module: Identifier("abstract_account"), sender: Address("A"), type_: StructTag { address: Address("iota"), module: Identifier("account"), name: Identifier("MutableAccountCreated"), type_params: [Struct(StructTag { address: Address("simple_abstract_account"), module: Identifier("abstract_account"), name: Identifier("AbstractAccount"), type_params: [] })] }, contents: "EXmtklLbsNyeDs8mXz4qnOwqAtRu9dLT7qhZxqGiiHM/XagdH381DOTkAUmR8UgK+mCdjDWpi4KwPrOa2bf55QxhdXRoZW50aWNhdGUNYXV0aGVudGljYXRlMQ==" }
 created: object(4,0), object(4,1), object(4,2)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 6855200
@@ -57,7 +57,7 @@ task 5, lines 25-26:
 //# abstract --account immshared(4,2) --ptb-inputs object(4,2) object(3,5) "authenticate" "authenticate2"
 events: Event { package_id: ObjectId("simple_abstract_account"), module: Identifier("abstract_account"), sender: Address("fake(4,2)"), type_: StructTag { address: Address("iota"), module: Identifier("account"), name: Identifier("AuthenticatorFunctionRefV1Rotated"), type_params: [Struct(StructTag { address: Address("simple_abstract_account"), module: Identifier("abstract_account"), name: Identifier("AbstractAccount"), type_params: [] })] }, contents: "EXmtklLbsNyeDs8mXz4qnOwqAtRu9dLT7qhZxqGiiHM/XagdH381DOTkAUmR8UgK+mCdjDWpi4KwPrOa2bf55QxhdXRoZW50aWNhdGUNYXV0aGVudGljYXRlMT9dqB0ffzUM5OQBSZHxSAr6YJ2MNamLgrA+s5rZt/nlDGF1dGhlbnRpY2F0ZQ1hdXRoZW50aWNhdGUy" }
 mutated: object(4,0), object(4,1), object(4,2)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 5874800

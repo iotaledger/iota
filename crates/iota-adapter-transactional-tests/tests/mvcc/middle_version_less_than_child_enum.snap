@@ -10,7 +10,7 @@ task 1, lines 9-77:
 //# publish
 created: object(1,0)
 mutated: object(0,1)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 9310000
@@ -24,7 +24,7 @@ task 2, lines 79-83:
 // All 3 objects have version 2
 created: object(2,0), object(2,1), object(2,2)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 6285200
@@ -91,7 +91,7 @@ task 6, lines 91-94:
 //> test::m::set(Input(0), Input(1))
 // The middle object has version 2, while the root and modified leaf have version 3
 mutated: object(0,0), object(2,0), object(2,2)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 4271200
@@ -157,7 +157,7 @@ task 10, lines 105-106:
 //# programmable --sender A --inputs object(2,2) 112
 //> test::m::check(Input(0), Input(1))
 mutated: object(0,0), object(2,2)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 2257200

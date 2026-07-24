@@ -267,7 +267,7 @@ task 9, lines 124-141:
 //# publish
 created: object(9,0)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 4453600

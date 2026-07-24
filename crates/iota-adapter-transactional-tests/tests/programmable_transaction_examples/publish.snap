@@ -15,7 +15,7 @@ task 3, lines 29-34:
 //> TransferObjects([Result(1), Result(3)], Input(1))
 created: object(3,0), object(3,1), object(3,2), object(3,3), object(3,4)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 8846400
@@ -35,7 +35,7 @@ task 8, lines 44-46:
 //> 0: q::m::x();
 //> p::m::foo(Result(0))
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 980400
@@ -46,7 +46,7 @@ task 9, lines 48-53:
 //# publish --dependencies p q
 created: object(9,0)
 mutated: object(0,1)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 5213600
@@ -56,7 +56,7 @@ Gas Cost Summary
 task 10, line 55:
 //# run r::all::foo_x
 mutated: object(0,1)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 980400

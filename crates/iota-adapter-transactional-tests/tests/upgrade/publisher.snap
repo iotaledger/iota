@@ -10,7 +10,7 @@ task 1, lines 7-17:
 //# publish --upgradeable --sender A
 created: object(1,0), object(1,1), object(1,2)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 8534800
@@ -21,7 +21,7 @@ task 2, lines 19-34:
 //# upgrade --package A0 --upgrade-capability 1,1 --sender A
 created: object(2,0)
 mutated: object(0,0), object(1,1)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 7676000
@@ -31,7 +31,7 @@ Gas Cost Summary
 task 3, line 36:
 //# run A1::m::test --type-args A0::m::A --args object(1,0) --sender A
 mutated: object(0,0), object(1,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 2796800
@@ -41,7 +41,7 @@ Gas Cost Summary
 task 4, line 38:
 //# run A1::m::test --type-args A1::m::B --args object(1,0) --sender A
 mutated: object(0,0), object(1,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 2796800

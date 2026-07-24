@@ -10,7 +10,7 @@ task 1, lines 9-40:
 //# publish
 created: object(1,0)
 mutated: object(0,1)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 7470800
@@ -21,7 +21,7 @@ task 2, line 42:
 //# run a::m::mint --sender A
 created: object(2,0), object(2,1), object(2,2)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 5859600
@@ -46,7 +46,7 @@ created: object(4,0)
 mutated: object(0,0), object(2,1)
 deleted: object(2,2)
 wrapped: object(2,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 4134400
@@ -57,7 +57,7 @@ task 5, line 49:
 //# run a::m::mint --sender A
 created: object(5,0), object(5,1), object(5,2)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 5859600
@@ -86,7 +86,7 @@ task 7, line 53:
 //# run a::m::take_and_destroy --sender A --args object(5,1)
 mutated: object(0,0), object(5,1)
 deleted: object(5,0), object(5,2)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 2196400
@@ -97,7 +97,7 @@ task 8, line 56:
 //# run a::m::mint --sender A
 created: object(8,0), object(8,1), object(8,2)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 5859600
@@ -126,7 +126,7 @@ task 10, line 60:
 //# run a::m::take_and_take --sender A --args object(8,0)
 mutated: object(0,0), object(8,0), object(8,1)
 deleted: object(8,2)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 3412400

@@ -10,7 +10,7 @@ task 1, lines 10-38:
 //# publish
 created: object(1,0)
 mutated: object(0,2)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 5829200
@@ -21,7 +21,7 @@ task 2, line 40:
 //# run test::m::create --sender A
 created: object(2,0)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 2424400
@@ -33,7 +33,7 @@ task 3, line 42:
 mutated: object(0,0)
 deleted: object(2,0)
 unwrapped_then_deleted: object(_)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 980400

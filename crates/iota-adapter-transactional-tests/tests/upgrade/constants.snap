@@ -10,7 +10,7 @@ task 1, lines 7-17:
 //# publish --upgradeable --sender A
 created: object(1,0), object(1,1)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 5912800
@@ -21,7 +21,7 @@ task 2, lines 19-29:
 //# upgrade --package V0 --upgrade-capability 1,1 --sender A --policy compatible
 created: object(2,0)
 mutated: object(0,0), object(1,1)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 5912800
@@ -32,7 +32,7 @@ task 3, lines 31-43:
 //# upgrade --package V1 --upgrade-capability 1,1 --sender A --policy additive
 created: object(3,0)
 mutated: object(0,0), object(1,1)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 5912800
@@ -53,7 +53,7 @@ task 6, lines 70-88:
 //# upgrade --package V2 --upgrade-capability 1,1 --sender A --policy additive
 created: object(6,0)
 mutated: object(0,0), object(1,1)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 6353600
@@ -64,7 +64,7 @@ task 7, lines 89-104:
 //# upgrade --package V3 --upgrade-capability 1,1 --sender A --policy additive
 created: object(7,0)
 mutated: object(0,0), object(1,1)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 6277600
@@ -75,7 +75,7 @@ task 8, lines 105-119:
 //# upgrade --package V4 --upgrade-capability 1,1 --sender A --policy dep_only
 created: object(8,0)
 mutated: object(0,0), object(1,1)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 6194000
@@ -86,7 +86,7 @@ task 9, lines 120-133:
 //# upgrade --package V5 --upgrade-capability 1,1 --sender A --policy dep_only
 created: object(9,0)
 mutated: object(0,0), object(1,1)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 6277600

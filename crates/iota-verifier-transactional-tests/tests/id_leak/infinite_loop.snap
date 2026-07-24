@@ -7,7 +7,7 @@ task 0, lines 7-29:
 //# publish
 created: object(1,0)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 4962800
@@ -18,7 +18,7 @@ task 1, lines 31-60:
 //# publish
 created: object(2,0)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 5160400

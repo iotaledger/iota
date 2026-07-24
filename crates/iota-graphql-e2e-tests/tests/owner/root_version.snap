@@ -10,7 +10,7 @@ task 1, lines 7-87:
 //# publish
 created: object(1,0)
 mutated: object(0,1)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 10579200
@@ -21,7 +21,7 @@ task 2, lines 89-90:
 //# run P0::M::new_o
 created: object(2,0)
 mutated: object(0,1)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 2249600
@@ -32,7 +32,7 @@ task 3, lines 92-93:
 //# run P0::M::new_w
 created: object(3,0)
 mutated: object(0,1)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 2242000
@@ -43,7 +43,7 @@ task 4, lines 95-96:
 //# run P0::M::new_dof
 created: object(4,0)
 mutated: object(0,1)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 2257200
@@ -54,7 +54,7 @@ task 5, lines 98-99:
 //# run P0::M::new_dof
 created: object(5,0)
 mutated: object(0,1)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 2257200
@@ -66,7 +66,7 @@ task 6, lines 102-105:
 created: object(6,0), object(6,1)
 mutated: object(0,1), object(2,0), object(4,0), object(5,0)
 wrapped: object(3,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 9895200
@@ -101,7 +101,7 @@ Contents: P0::M::O {
 task 8, lines 111-112:
 //# run P0::M::touch_root --args object(2,0)
 mutated: object(0,1), object(2,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 2553600
@@ -111,7 +111,7 @@ Gas Cost Summary
 task 9, lines 114-115:
 //# run P0::M::touch_wrapped --args object(2,0)
 mutated: object(0,1), object(2,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 2553600
@@ -121,7 +121,7 @@ Gas Cost Summary
 task 10, lines 117-118:
 //# run P0::M::touch_inner --args object(2,0)
 mutated: object(0,1), object(2,0), object(4,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 3830400
@@ -131,7 +131,7 @@ Gas Cost Summary
 task 11, lines 120-121:
 //# run P0::M::touch_outer --args object(2,0)
 mutated: object(0,1), object(2,0), object(5,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 3830400

@@ -7,7 +7,7 @@ task 1, lines 6-21:
 //# publish
 created: object(1,0)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 4575200
@@ -18,7 +18,7 @@ task 3, lines 25-40:
 //# publish --dependencies test
 created: object(3,0)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 5988800
@@ -29,7 +29,7 @@ task 4, lines 42-56:
 //# publish --dependencies test
 created: object(4,0)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 5320000

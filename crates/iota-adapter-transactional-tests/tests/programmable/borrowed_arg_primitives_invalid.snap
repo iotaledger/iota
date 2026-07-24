@@ -16,7 +16,7 @@ task 2, lines 12-13:
 //# programmable --sender B --inputs @A
 //> TransferObjects([Gas], Input(0))
 mutated: object(0,1)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 980400

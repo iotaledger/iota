@@ -10,7 +10,7 @@ task 1, lines 10-25:
 //# publish
 created: object(1,0)
 mutated: object(0,3)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 5646800
@@ -24,7 +24,7 @@ task 2, lines 27-31:
 // let's get ourselves a coin worth 1000
 created: object(2,0)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 1960800
@@ -35,7 +35,7 @@ task 3, line 32:
 //# run iota::pay::split_and_transfer --type-args iota::iota::IOTA --args object(2,0) 1000 @A --sender A
 created: object(3,0)
 mutated: object(0,0), object(2,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 2941200

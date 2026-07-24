@@ -7,7 +7,7 @@ task 1, lines 9-43:
 //# publish
 created: object(1,0)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 4484000
@@ -17,7 +17,7 @@ Gas Cost Summary
 task 2, line 45:
 //# run test::m::t1 --args true
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 980400
@@ -27,7 +27,7 @@ Gas Cost Summary
 task 3, line 47:
 //# run test::m::t2 --args true
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 980400

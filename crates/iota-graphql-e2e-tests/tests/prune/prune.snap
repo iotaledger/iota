@@ -7,7 +7,7 @@ task 1, lines 7-26:
 //# publish
 created: object(1,0)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 5563200
@@ -18,7 +18,7 @@ task 2, line 28:
 //# run Test::M1::create --args 0 @A
 created: object(2,0)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 2287600
@@ -37,7 +37,7 @@ task 5, line 34:
 //# run Test::M1::create --args 1 @A
 created: object(5,0)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 2287600
@@ -56,7 +56,7 @@ task 8, line 40:
 //# run Test::M1::create --args 2 @A
 created: object(8,0)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 2287600

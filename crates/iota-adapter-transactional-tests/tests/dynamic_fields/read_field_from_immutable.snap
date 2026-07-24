@@ -10,7 +10,7 @@ task 1, lines 10-29:
 //# publish
 created: object(1,0)
 mutated: object(0,1)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 6125600
@@ -21,7 +21,7 @@ task 2, line 31:
 //# run a::m::add_then_freeze --sender A
 created: object(2,0), object(2,1)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 3655600
@@ -31,7 +31,7 @@ Gas Cost Summary
 task 3, line 33:
 //# run a::m::read_from_frozen --sender A --args object(2,0)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 980400

@@ -10,7 +10,7 @@ task 1, lines 7-26:
 //# publish
 created: object(1,0)
 mutated: object(0,1)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 5738000
@@ -20,7 +20,7 @@ Gas Cost Summary
 task 2, lines 28-31:
 //# run Test::M::ascii_arg --sender A --args b"SomeString"
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 980400
@@ -30,7 +30,7 @@ Gas Cost Summary
 task 3, lines 33-36:
 //# run Test::M::ascii_arg --sender A --args "SomeString"
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 980400
@@ -40,7 +40,7 @@ Gas Cost Summary
 task 4, lines 38-46:
 //# run Test::M::ascii_vec_arg --sender A --args vector[b"Some",b"String"]
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 980400

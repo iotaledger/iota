@@ -10,7 +10,7 @@ task 1, lines 9-112:
 //# publish
 created: object(1,0)
 mutated: object(0,1)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 12638800
@@ -20,7 +20,7 @@ Gas Cost Summary
 task 2, line 114:
 //# run Test::M::prim_vec_len --sender A --args vector[7,42]
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 980400
@@ -31,7 +31,7 @@ task 3, lines 116-120:
 //# run Test::M::mint --sender A --args 42
 created: object(3,0)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 2257200
@@ -42,7 +42,7 @@ task 4, line 122:
 //# run Test::M::obj_vec_destroy --sender A --args vector[object(3,0)]
 mutated: object(0,0)
 deleted: object(3,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 980400
@@ -53,7 +53,7 @@ task 5, line 124:
 //# run Test::M::mint --sender A --args 42
 created: object(5,0)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 2257200
@@ -64,7 +64,7 @@ task 6, line 126:
 //# run Test::M::mint_child --sender A --args 42 object(5,0)
 created: object(6,0), object(6,1)
 mutated: object(0,0), object(5,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 5981200
@@ -79,7 +79,7 @@ task 8, line 134:
 //# run Test::M::mint_another --sender A --args 42
 created: object(8,0)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 2310400
@@ -95,7 +95,7 @@ task 10, line 141:
 //# run Test::M::mint_another --sender A --args 42
 created: object(10,0)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 2310400
@@ -106,7 +106,7 @@ task 11, line 143:
 //# run Test::M::mint --sender A --args 42
 created: object(11,0)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 2257200
@@ -122,7 +122,7 @@ task 13, line 150:
 //# run Test::M::mint_shared --sender A --args 42
 created: object(13,0)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 2257200
@@ -133,7 +133,7 @@ task 14, lines 152-155:
 //# run Test::M::obj_vec_destroy --sender A --args vector[object(13,0)]
 mutated: object(0,0)
 deleted: object(13,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 980400
@@ -144,7 +144,7 @@ task 15, line 157:
 //# run Test::M::mint --sender A --args 42
 created: object(15,0)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 2257200
@@ -160,7 +160,7 @@ task 17, line 164:
 //# run Test::M::mint --sender A --args 42
 created: object(17,0)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 2257200

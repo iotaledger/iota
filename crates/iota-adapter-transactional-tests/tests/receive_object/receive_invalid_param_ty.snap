@@ -7,7 +7,7 @@ task 1, lines 7-42:
 //# publish
 created: object(1,0)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 8512000
@@ -18,7 +18,7 @@ task 2, line 44:
 //# run tto::M1::start
 created: object(2,0), object(2,1)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 3397200
@@ -86,7 +86,7 @@ Execution Error: CommandArgumentError: Invalid command argument at 0. The type o
 task 12, line 64:
 //# run tto::M1::receiver6 --args receiving(2,0)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 980400

@@ -10,7 +10,7 @@ task 1, lines 23-36:
 //# publish
 created: object(1,0)
 mutated: object(0,2)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 5168000
@@ -25,7 +25,7 @@ task 3, line 40:
 //# run Test::M1::create --args 0 @A --sender A
 created: object(3,0)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 2287600
@@ -85,7 +85,7 @@ task 7, line 64:
 //# run Test::M1::create --args 0 @A --sender A
 created: object(7,0)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 2287600
@@ -100,7 +100,7 @@ task 9, line 68:
 //# run Test::M1::create --args 0 @A --sender A
 created: object(9,0)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 2287600
@@ -115,7 +115,7 @@ task 11, line 72:
 //# run Test::M1::create --args 0 @A --sender A
 created: object(11,0)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 2287600
@@ -134,7 +134,7 @@ task 14, line 78:
 //# run Test::M1::create --args 0 @A --sender A
 created: object(14,0)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 2287600
@@ -149,7 +149,7 @@ task 16, line 82:
 //# run Test::M1::create --args 0 @A --sender A
 created: object(16,0)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 2287600
@@ -164,7 +164,7 @@ task 18, line 86:
 //# run Test::M1::create --args 0 @A --sender A
 created: object(18,0)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 2287600

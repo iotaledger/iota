@@ -10,7 +10,7 @@ task 1, lines 7-77:
 //# publish
 created: object(1,0)
 mutated: object(0,1)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 12517200
@@ -21,7 +21,7 @@ task 2, line 79:
 //# run tto::M1::start --sender A
 created: object(2,0), object(2,1), object(2,2), object(2,3), object(2,4), object(2,5), object(2,6), object(2,7)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 15230400
@@ -256,7 +256,7 @@ task 12, line 101:
 created: object(12,0)
 mutated: object(0,0), object(2,6)
 wrapped: object(2,4)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 4256000
@@ -268,7 +268,7 @@ task 13, line 103:
 created: object(13,0)
 mutated: object(0,0), object(2,6)
 wrapped: object(2,7)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 4833600

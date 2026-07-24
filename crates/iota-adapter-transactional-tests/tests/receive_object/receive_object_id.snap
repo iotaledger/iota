@@ -7,7 +7,7 @@ task 1, lines 7-30:
 //# publish
 created: object(1,0)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 6642400
@@ -18,7 +18,7 @@ task 2, line 32:
 //# run tto::M1::start
 created: object(2,0), object(2,1)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 3397200
@@ -52,7 +52,7 @@ Contents: tto::M1::B {
 task 5, line 38:
 //# run tto::M1::receiver --args receiving(2,1)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 980400
@@ -63,7 +63,7 @@ task 6, lines 40-41:
 //# programmable --inputs receiving(2,1)
 //> iota::transfer::receiving_object_id<tto::M1::B>(Input(0))
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 980400
@@ -74,7 +74,7 @@ task 7, lines 43-44:
 //# programmable --inputs receiving(2,1)
 //> tto::M1::receiver(Input(0))
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 980400

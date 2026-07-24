@@ -10,7 +10,7 @@ task 1, lines 9-118:
 //# publish
 created: object(1,0)
 mutated: object(0,1)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 12198000
@@ -23,7 +23,7 @@ task 2, lines 120-122:
 //> TransferObjects([Result(0)], Input(0))
 created: object(2,0), object(2,1), object(2,2), object(2,3), object(2,4), object(2,5), object(2,6), object(2,7), object(2,8)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 15564800
@@ -89,7 +89,7 @@ task 4, lines 126-127:
 //# programmable --sender A --inputs object(2,8) 112
 //> test::m::set(Input(0), Input(1))
 mutated: object(0,0), object(2,0), object(2,1), object(2,2), object(2,3), object(2,4), object(2,5), object(2,6), object(2,7), object(2,8)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 15564800
@@ -156,7 +156,7 @@ task 6, lines 131-132:
 //> test::m::remove(Input(0))
 mutated: object(0,0), object(2,8)
 deleted: object(2,0), object(2,1), object(2,2), object(2,3), object(2,4), object(2,5), object(2,6), object(2,7)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 3891200
@@ -222,7 +222,7 @@ task 8, lines 139-140:
 //# programmable --sender A --inputs object(2,8)@2 vector[0] --dev-inspect
 //> test::m::check(Input(0), Input(1))
 mutated: object(_), object(2,8)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 500000
 ├── Computation Cost Burned: 500000
 ├── Storage Cost: 3891200
@@ -233,7 +233,7 @@ task 9, lines 142-143:
 //# programmable --sender A --inputs object(2,8)@3 vector[112] --dev-inspect
 //> test::m::check(Input(0), Input(1))
 mutated: object(_), object(2,8)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 500000
 ├── Computation Cost Burned: 500000
 ├── Storage Cost: 3891200
@@ -245,7 +245,7 @@ task 10, lines 145-149:
 //> test::m::check(Input(0), Input(1))
 // dev-inspect with 'check' and _incorrect_ values
 mutated: object(_), object(2,8)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 500000
 ├── Computation Cost Burned: 500000
 ├── Storage Cost: 3891200

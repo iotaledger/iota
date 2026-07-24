@@ -7,7 +7,7 @@ task 1, lines 7-35:
 //# publish
 created: object(1,0)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 7136400
@@ -18,7 +18,7 @@ task 2, line 37:
 //# run tto::M1::start
 created: object(2,0), object(2,1)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 3397200
@@ -30,7 +30,7 @@ task 3, lines 39-42:
 //> tto::M1::send_back(Input(0), Input(1))
 // Include the receiving argument, but don't use it at the PTB level
 mutated: object(0,0), object(2,0), object(2,1)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 3397200
@@ -43,7 +43,7 @@ task 4, lines 43-47:
 // Include the receiving argument, but don't use it at the Move level. The
 // receiving object should not be mutated by this.
 mutated: object(0,0), object(2,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 2188800
@@ -54,7 +54,7 @@ task 5, lines 48-49:
 //# programmable --inputs object(2,0) receiving(2,1)
 //> tto::M1::nop_with_receiver(Input(0), Input(1))
 mutated: object(0,0), object(2,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 2188800

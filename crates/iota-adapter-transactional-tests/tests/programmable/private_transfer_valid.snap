@@ -10,7 +10,7 @@ task 1, lines 9-13:
 //# publish
 created: object(1,0)
 mutated: object(0,1)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 4620800
@@ -23,7 +23,7 @@ task 2, lines 15-17:
 //> iota::transfer::public_transfer<test::m1::Pub>(Result(0), Input(0));
 created: object(2,0)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 2204000
@@ -48,7 +48,7 @@ task 4, lines 21-23:
 //> iota::transfer::public_share_object<test::m1::Pub>(Result(0));
 created: object(4,0)
 mutated: object(0,1)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 2204000
@@ -73,7 +73,7 @@ task 6, lines 27-29:
 //> iota::transfer::public_freeze_object<test::m1::Pub>(Result(0));
 created: object(6,0)
 mutated: object(0,1)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 2204000

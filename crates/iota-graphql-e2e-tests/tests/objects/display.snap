@@ -11,7 +11,7 @@ task 1, lines 7-131:
 events: Event { package_id: ObjectId("Test"), module: Identifier("boars"), sender: Address("A"), type_: StructTag { address: Address("iota"), module: Identifier("display"), name: Identifier("DisplayCreated"), type_params: [Struct(StructTag { address: Address("Test"), module: Identifier("boars"), name: Identifier("Boar"), type_params: [] })] }, contents: "EcBrwZzxdqiOkbu50qhafT3j98GzPKa5P4knl93mZH4=" }
 created: object(1,0), object(1,1), object(1,2)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 21447200
@@ -30,7 +30,7 @@ task 4, line 137:
 //# run Test::boars::create_bear --sender A
 created: object(4,0)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 3541600
@@ -41,7 +41,7 @@ task 5, line 139:
 //# run Test::boars::update_display_faulty --sender A --args object(1,1)
 events: Event { package_id: ObjectId("Test"), module: Identifier("boars"), sender: Address("A"), type_: StructTag { address: Address("iota"), module: Identifier("display"), name: Identifier("VersionUpdated"), type_params: [Struct(StructTag { address: Address("Test"), module: Identifier("boars"), name: Identifier("Boar"), type_params: [] })] }, contents: "EcBrwZzxdqiOkbu50qhafT3j98GzPKa5P4knl93mZH4BAAMHdmVjdG9ycwV7dmVjfQNpZGQFe2lkZH0FbmFtZWUHe25hbWVlfQ==" }
 mutated: object(0,0), object(1,1)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 2926000
@@ -92,7 +92,7 @@ task 9, line 160:
 //# run Test::boars::single_add --sender A --args object(1,1)
 events: Event { package_id: ObjectId("Test"), module: Identifier("boars"), sender: Address("A"), type_: StructTag { address: Address("iota"), module: Identifier("display"), name: Identifier("VersionUpdated"), type_params: [Struct(StructTag { address: Address("Test"), module: Identifier("boars"), name: Identifier("Boar"), type_params: [] })] }, contents: "EcBrwZzxdqiOkbu50qhafT3j98GzPKa5P4knl93mZH4CAAQHdmVjdG9ycwV7dmVjfQNpZGQFe2lkZH0FbmFtZWUHe25hbWVlfQRudW1zBntudW1zfQ==" }
 mutated: object(0,0), object(1,1)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 3017200
@@ -148,7 +148,7 @@ task 13, line 181:
 //# run Test::boars::multi_add --sender A --args object(1,1)
 events: Event { package_id: ObjectId("Test"), module: Identifier("boars"), sender: Address("A"), type_: StructTag { address: Address("iota"), module: Identifier("display"), name: Identifier("VersionUpdated"), type_params: [Struct(StructTag { address: Address("Test"), module: Identifier("boars"), name: Identifier("Boar"), type_params: [] })] }, contents: "EcBrwZzxdqiOkbu50qhafT3j98GzPKa5P4knl93mZH4DAA8HdmVjdG9ycwV7dmVjfQNpZGQFe2lkZH0FbmFtZWUHe25hbWVlfQRudW1zBntudW1zfQVib29scwd7Ym9vbHN9BWJ1eWVyB3tidXllcn0EbmFtZQZ7bmFtZX0HY3JlYXRvcgl7Y3JlYXRvcn0FcHJpY2UHe3ByaWNlfQtwcm9qZWN0X3VybDpVbmlxdWUgQm9hciBmcm9tIHRoZSBCb2FycyBjb2xsZWN0aW9uIHdpdGgge25hbWV9IGFuZCB7aWR9CGJhc2VfdXJsIGh0dHBzOi8vZ2V0LWEtYm9hci5jb20ve2ltZ191cmx9C25vX3RlbXBsYXRlF2h0dHBzOi8vZ2V0LWEtYm9hci5jb20vA2FnZRV7bWV0YWRhdGEubmVzdGVkLmFnZX0IZnVsbF91cmwKe2Z1bGxfdXJsfQ1lc2NhcGVfc3ludGF4CFx7bmFtZVx9" }
 mutated: object(0,0), object(1,1)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 5221200

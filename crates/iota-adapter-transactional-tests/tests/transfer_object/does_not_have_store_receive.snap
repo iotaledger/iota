@@ -10,7 +10,7 @@ task 1, lines 10-78:
 //# publish
 created: object(1,0)
 mutated: object(0,2)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 9652000
@@ -21,7 +21,7 @@ task 2, line 80:
 //# run test::m::mint_s --sender A
 created: object(2,0), object(2,1)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 3420000
@@ -58,7 +58,7 @@ task 5, lines 86-88:
 //> 1: test::m::destroy_s(Result(0));
 mutated: object(0,0), object(2,0)
 deleted: object(2,1)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 2219200
@@ -69,7 +69,7 @@ task 6, line 90:
 //# run test::m::mint_cup --sender A --type-args u64
 created: object(6,0), object(6,1)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 3442800
@@ -107,7 +107,7 @@ task 9, lines 96-100:
 // Try to directly call `public_receive` and `receive` on an object without public transfer.
 mutated: object(0,0), object(6,1)
 deleted: object(6,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 2219200
@@ -118,7 +118,7 @@ task 10, line 102:
 //# run test::m::mint_s --sender A
 created: object(10,0), object(10,1)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 3420000
@@ -170,7 +170,7 @@ task 15, line 120:
 //# run test::m::mint_store --sender A
 created: object(15,0), object(15,1)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 3450400
@@ -217,7 +217,7 @@ task 19, lines 131-135:
 //> 3: iota::object::delete(Result(0));
 mutated: object(0,0)
 deleted: object(15,0), object(15,1)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 980400

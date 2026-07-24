@@ -10,7 +10,7 @@ task 1, lines 7-13:
 //# publish --upgradeable --sender A
 created: object(1,0), object(1,1)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 6201600
@@ -21,7 +21,7 @@ task 2, lines 15-25:
 //# upgrade --package Test_DepV1 --upgrade-capability 1,1 --sender A
 created: object(2,0)
 mutated: object(0,0), object(1,1)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 6505600
@@ -32,7 +32,7 @@ task 3, lines 27-33:
 //# publish --upgradeable --dependencies Test_DepV1 --sender A
 created: object(3,0), object(3,1)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 6186400
@@ -43,7 +43,7 @@ task 4, lines 35-42:
 //# upgrade --package Test_V1 --upgrade-capability 3,1 --dependencies Test_DepV2 --sender A
 created: object(4,0)
 mutated: object(0,0), object(3,1)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 6232000

@@ -10,7 +10,7 @@ task 1, lines 9-10:
 //# programmable --sender C --inputs @A
 //> TransferObjects([Gas], Input(0))
 mutated: object(0,2)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 980400
@@ -35,7 +35,7 @@ Contents: iota::coin::Coin<iota::iota::IOTA> {
 task 3, line 14:
 //# transfer-object 0,2 --sender A --recipient B
 mutated: object(0,0), object(0,2)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 1960800

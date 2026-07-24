@@ -10,7 +10,7 @@ task 1, lines 7-59:
 //# publish
 created: object(1,0)
 mutated: object(0,1)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 10526000
@@ -21,7 +21,7 @@ task 2, line 61:
 //# run tto::M1::start --sender A
 created: object(2,0), object(2,1), object(2,2), object(2,3)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 7235200
@@ -89,7 +89,7 @@ task 7, line 71:
 //# run tto::M1::receive --args object(2,2) receiving(2,3) --sender A
 created: object(7,0)
 mutated: object(0,0), object(2,2), object(2,3)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 5966000
@@ -157,7 +157,7 @@ task 12, lines 82-83:
 //# programmable --sender A --inputs object(2,2) 1 2 3
 //> tto::M1::set(Input(0), Input(1), Input(2), Input(3))
 mutated: object(0,0), object(2,1), object(2,2), object(2,3)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 4788000
@@ -227,7 +227,7 @@ task 17, lines 94-97:
 // dev-inspect with 'check' and correct values
 mutated: object(0,0), object(2,2)
 deleted: object(2,0), object(2,1)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 2249600
@@ -238,7 +238,7 @@ task 18, lines 99-100:
 //# programmable --sender A --inputs object(2,2)@3 0 0 vector[0] --dev-inspect
 //> tto::M1::check(Input(0), Input(1), Input(2), Input(3))
 mutated: object(_), object(2,2)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 2249600
@@ -249,7 +249,7 @@ task 19, lines 102-103:
 //# programmable --sender A --inputs object(2,2)@4 1 2 vector[3] --dev-inspect
 //> tto::M1::check(Input(0), Input(1), Input(2), Input(3))
 mutated: object(_), object(2,2)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 2249600
@@ -261,7 +261,7 @@ task 20, lines 105-108:
 //> tto::M1::check(Input(0), Input(1), Input(2), Input(3))
 // dev-inspect with 'check' and _incorrect_ values
 mutated: object(_), object(2,2)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 2249600

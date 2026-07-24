@@ -10,7 +10,7 @@ task 1, lines 7-57:
 //# publish --upgradeable --sender A
 created: object(1,0), object(1,1)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 11293600
@@ -31,7 +31,7 @@ task 4, lines 162-212:
 //# upgrade --package V0 --upgrade-capability 1,1 --sender A --policy additive
 created: object(4,0)
 mutated: object(0,0), object(1,1)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 11293600
@@ -47,7 +47,7 @@ task 6, lines 266-318:
 //# upgrade --package V1 --upgrade-capability 1,1 --sender A --policy additive
 created: object(6,0)
 mutated: object(0,0), object(1,1)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 12068800
@@ -58,7 +58,7 @@ task 7, lines 319-371:
 //# upgrade --package V2 --upgrade-capability 1,1 --sender A --policy dep_only
 created: object(7,0)
 mutated: object(0,0), object(1,1)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 12068800
@@ -69,7 +69,7 @@ task 8, lines 372-422:
 //# upgrade --package V3 --upgrade-capability 1,1 --sender A --policy additive
 created: object(8,0)
 mutated: object(0,0), object(1,1)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 12068800

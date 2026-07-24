@@ -10,7 +10,7 @@ task 1, lines 7-31:
 //# publish
 created: object(1,0)
 mutated: object(0,1)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 5624000
@@ -23,7 +23,7 @@ task 2, lines 33-35:
 //> TransferObjects([Result(0)], Input(0))
 created: object(2,0)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 2196400
@@ -37,7 +37,7 @@ task 3, lines 37-39:
 created: object(3,0)
 mutated: object(0,0)
 wrapped: object(2,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 2439600
@@ -51,7 +51,7 @@ task 4, lines 41-43:
 mutated: object(0,0)
 unwrapped: object(2,0)
 deleted: object(3,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 2196400
@@ -79,7 +79,7 @@ task 7, lines 57-59:
 //> TransferObjects([Result(0)], Input(0))
 created: object(7,0)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 2196400
@@ -93,7 +93,7 @@ task 8, lines 61-63:
 created: object(8,0)
 mutated: object(0,0)
 wrapped: object(7,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 2439600
@@ -122,7 +122,7 @@ task 11, lines 77-79:
 mutated: object(0,0)
 unwrapped: object(7,0)
 deleted: object(8,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 2196400

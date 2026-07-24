@@ -18,7 +18,7 @@ task 3, lines 13-38:
 //# publish --sender A --gas-budget 9999999999
 created: object(3,0)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 5912800
@@ -29,7 +29,7 @@ task 4, line 40:
 //# run P0::m::new --sender A
 created: object(4,0)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1441000000
 ├── Computation Cost Burned: 1441000000
 ├── Storage Cost: 1932254400
@@ -40,7 +40,7 @@ task 5, line 42:
 //# run P0::m::new --sender A
 created: object(5,0)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1441000000
 ├── Computation Cost Burned: 1441000000
 ├── Storage Cost: 1932254400
@@ -51,7 +51,7 @@ task 6, line 44:
 //# run P0::m::new --sender A
 created: object(6,0)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1441000000
 ├── Computation Cost Burned: 1441000000
 ├── Storage Cost: 1932254400
@@ -62,7 +62,7 @@ task 7, line 46:
 //# run P0::m::new --sender A
 created: object(7,0)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1441000000
 ├── Computation Cost Burned: 1441000000
 ├── Storage Cost: 1932254400
@@ -102,7 +102,7 @@ task 11, line 68:
 //# run P0::m::new --sender A
 created: object(11,0)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1441000000
 ├── Computation Cost Burned: 1441000000
 ├── Storage Cost: 1932254400
@@ -113,7 +113,7 @@ task 12, line 70:
 //# run P0::m::new --sender A
 created: object(12,0)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1441000000
 ├── Computation Cost Burned: 1441000000
 ├── Storage Cost: 1932254400
@@ -124,7 +124,7 @@ task 13, line 72:
 //# run P0::m::new --sender A
 created: object(13,0)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1441000000
 ├── Computation Cost Burned: 1441000000
 ├── Storage Cost: 1932254400
@@ -135,7 +135,7 @@ task 14, line 74:
 //# run P0::m::new --sender A
 created: object(14,0)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1441000000
 ├── Computation Cost Burned: 1441000000
 ├── Storage Cost: 1932254400
@@ -146,7 +146,7 @@ task 15, line 76:
 //# run P0::m::new --sender A
 created: object(15,0)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1441000000
 ├── Computation Cost Burned: 1441000000
 ├── Storage Cost: 1932254400
@@ -157,7 +157,7 @@ task 16, line 78:
 //# run P0::m::new --sender A
 created: object(16,0)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1441000000
 ├── Computation Cost Burned: 1441000000
 ├── Storage Cost: 1932254400
@@ -168,7 +168,7 @@ task 17, line 80:
 //# run P0::m::new --sender A
 created: object(17,0)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1441000000
 ├── Computation Cost Burned: 1441000000
 ├── Storage Cost: 1932254400
@@ -179,7 +179,7 @@ task 18, line 82:
 //# run P0::m::new --sender A
 created: object(18,0)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1441000000
 ├── Computation Cost Burned: 1441000000
 ├── Storage Cost: 1932254400
@@ -190,7 +190,7 @@ task 19, line 84:
 //# run P0::m::new --sender A
 created: object(19,0)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1441000000
 ├── Computation Cost Burned: 1441000000
 ├── Storage Cost: 1932254400
@@ -201,7 +201,7 @@ task 20, line 86:
 //# run P0::m::new --sender A
 created: object(20,0)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1441000000
 ├── Computation Cost Burned: 1441000000
 ├── Storage Cost: 1932254400
@@ -212,7 +212,7 @@ task 21, line 88:
 //# run P0::m::new --sender A
 created: object(21,0)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1441000000
 ├── Computation Cost Burned: 1441000000
 ├── Storage Cost: 1932254400
@@ -223,7 +223,7 @@ task 22, line 90:
 //# run P0::m::new --sender A
 created: object(22,0)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1441000000
 ├── Computation Cost Burned: 1441000000
 ├── Storage Cost: 1932254400
@@ -234,7 +234,7 @@ task 23, line 92:
 //# run P0::m::new --sender A
 created: object(23,0)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1441000000
 ├── Computation Cost Burned: 1441000000
 ├── Storage Cost: 1932254400
@@ -245,7 +245,7 @@ task 24, line 94:
 //# run P0::m::new --sender A
 created: object(24,0)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1441000000
 ├── Computation Cost Burned: 1441000000
 ├── Storage Cost: 1932254400
@@ -256,7 +256,7 @@ task 25, line 96:
 //# run P0::m::new --sender A
 created: object(25,0)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1441000000
 ├── Computation Cost Burned: 1441000000
 ├── Storage Cost: 1932254400

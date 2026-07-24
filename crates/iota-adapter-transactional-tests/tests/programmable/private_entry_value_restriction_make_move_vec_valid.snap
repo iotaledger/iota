@@ -10,7 +10,7 @@ task 1, lines 10-27:
 //# publish
 created: object(1,0)
 mutated: object(0,1)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 6239600
@@ -25,7 +25,7 @@ task 2, lines 29-33:
 //> TransferObjects([Result(0), Result(1), Result(2)], Input(0))
 created: object(2,0), object(2,1), object(2,2)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 4605600
@@ -40,7 +40,7 @@ task 3, lines 35-39:
 //> test::m1::priv2(Result(2))
 mutated: object(0,0)
 deleted: object(2,0), object(2,1), object(2,2)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 980400
@@ -53,7 +53,7 @@ task 4, lines 41-44:
 //> 1: MakeMoveVec<u64>([Input(0), Input(1), Input(2)]);
 //> test::m1::priv3(Result(1))
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 980400

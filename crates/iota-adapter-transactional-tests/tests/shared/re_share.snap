@@ -7,7 +7,7 @@ task 1, lines 9-30:
 //# publish
 created: object(1,0)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 5874800
@@ -18,7 +18,7 @@ task 2, line 32:
 //# run t2::o2::create
 created: object(2,0)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 2211600
@@ -40,7 +40,7 @@ Contents: t2::o2::Obj2 {
 task 4, line 36:
 //# run t2::o2::mut_o2 --args object(2,0)
 mutated: object(0,0), object(2,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 2211600
@@ -62,7 +62,7 @@ Contents: t2::o2::Obj2 {
 task 6, line 40:
 //# run t2::o2::re_share_o2 --args object(2,0)
 mutated: object(0,0), object(2,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 2211600
@@ -84,7 +84,7 @@ Contents: t2::o2::Obj2 {
 task 8, line 44:
 //# run t2::o2::re_share_non_public_o2 --args object(2,0)
 mutated: object(0,0), object(2,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 2211600
@@ -106,7 +106,7 @@ Contents: t2::o2::Obj2 {
 task 10, line 48:
 //# run t2::o2::mut_o2 --args object(2,0)
 mutated: object(0,0), object(2,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 2211600

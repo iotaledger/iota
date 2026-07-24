@@ -10,7 +10,7 @@ task 1, lines 9-27:
 //# publish
 created: object(1,0)
 mutated: object(0,1)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 5449200
@@ -28,7 +28,7 @@ task 2, lines 28-37:
 //> test::m1::eat(NestedResult(4,1), NestedResult(4,0), NestedResult(4,1));
 // invalid
 mutated: object(0,1)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 980400

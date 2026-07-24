@@ -10,7 +10,7 @@ task 1, lines 7-27:
 //# publish
 created: object(1,0)
 mutated: object(0,2)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 6072400
@@ -20,7 +20,7 @@ Gas Cost Summary
 task 2, lines 28-30:
 //# run test::sponsor::is_sponsored --sender A --args false
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 980400
@@ -47,7 +47,7 @@ task 6, lines 40-43:
 //> test::sponsor::is_sponsored(Input(0))
 // abort(101), sponsored transaction
 mutated: object(0,1)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 980400
@@ -72,7 +72,7 @@ task 9, lines 52-53:
 //# programmable --sender A --sponsor B --inputs @B
 //> test::sponsor::check_sponsor(Input(0))
 mutated: object(0,1)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 980400

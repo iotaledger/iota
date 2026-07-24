@@ -11,7 +11,7 @@ task 1, lines 14-49:
 created: object(1,0), object(1,1), object(1,2), object(1,3), object(1,4), object(1,5)
 mutated: object(0,0)
 unchanged_shared: 0x0000000000000000000000000000000000000000000000000000000000000403
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 19425600
@@ -36,7 +36,7 @@ task 3, lines 53-55:
 created: object(3,0)
 mutated: object(0,0), object(1,0)
 unchanged_shared: 0x0000000000000000000000000000000000000000000000000000000000000403
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 3914000
@@ -48,7 +48,7 @@ task 4, lines 56-58:
 events: Event { package_id: ObjectId("iota"), module: Identifier("coin"), sender: Address("A"), type_: StructTag { address: Address("iota"), module: Identifier("deny_list"), name: Identifier("PerTypeConfigCreated"), type_params: [] }, contents: "AAAAAAAAAABgMWM5ODkxOTJjYjc4NTFmMjYxY2EzNTdjY2Q3MTBmM2U5NzI5NmNlNzNmNWYwNzBjZDZhMDQ5ZjExMjRmZTYxYzo6cmVndWxhdGVkX2NvaW46OlJFR1VMQVRFRF9DT0lO4wVX8xFDME7fpHmIYq5Q0vlRvOkFHNORlATL98qK4yA=" }
 created: object(4,0), object(4,1), object(4,2)
 mutated: 0x0000000000000000000000000000000000000000000000000000000000000403, object(0,0), object(1,2)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 12144800
@@ -59,7 +59,7 @@ task 5, lines 59-61:
 //# run test::regulated_coin::assert_address_deny_status --args immshared(0x403) @B true --sender A
 mutated: object(0,0)
 unchanged_shared: 0x0000000000000000000000000000000000000000000000000000000000000403
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 980400
@@ -78,7 +78,7 @@ task 8, lines 68-70:
 //# run iota::coin::deny_list_v1_remove --args object(0x403) object(1,2) @B --type-args test::regulated_coin::REGULATED_COIN --sender A
 mutated: 0x0000000000000000000000000000000000000000000000000000000000000403, object(0,0), object(1,2)
 deleted: object(4,1)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 4377600
@@ -89,7 +89,7 @@ task 9, lines 71-73:
 //# run test::regulated_coin::assert_address_deny_status --args immshared(0x403) @B false --sender A
 mutated: object(0,0)
 unchanged_shared: 0x0000000000000000000000000000000000000000000000000000000000000403
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 980400
@@ -100,7 +100,7 @@ task 10, line 74:
 //# transfer-object 3,0 --sender B --recipient A
 mutated: object(0,1), object(3,0)
 unchanged_shared: 0x0000000000000000000000000000000000000000000000000000000000000403
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 2447200

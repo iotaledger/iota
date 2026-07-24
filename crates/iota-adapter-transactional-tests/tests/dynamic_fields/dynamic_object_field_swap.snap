@@ -10,7 +10,7 @@ task 1, lines 7-60:
 //# publish
 created: object(1,0)
 mutated: object(0,1)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 8930000
@@ -21,7 +21,7 @@ task 2, line 62:
 //# run test::m::parent --sender A
 created: object(2,0)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 2454800
@@ -32,7 +32,7 @@ task 3, line 64:
 //# run test::m::child --sender A
 created: object(3,0)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 2272400
@@ -43,7 +43,7 @@ task 4, line 66:
 //# run test::m::add_field --sender A --args object(2,0) object(3,0)
 created: object(4,0)
 mutated: object(0,0), object(2,0), object(3,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 6194000
@@ -68,7 +68,7 @@ task 6, line 70:
 created: object(6,0)
 mutated: object(0,0), object(2,0), object(3,0)
 deleted: object(4,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 5221200

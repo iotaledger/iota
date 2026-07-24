@@ -7,7 +7,7 @@ task 1, lines 7-33:
 //# publish
 created: object(1,0)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 7166800
@@ -18,7 +18,7 @@ task 2, line 35:
 //# run tto::M1::start
 created: object(2,0), object(2,1)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 3397200
@@ -54,7 +54,7 @@ task 5, lines 42-44:
 //> tto::M1::pass_through(Input(1));
 //> tto::M1::receiver(Input(0), Input(1));
 mutated: object(0,0), object(2,0), object(2,1)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 3397200

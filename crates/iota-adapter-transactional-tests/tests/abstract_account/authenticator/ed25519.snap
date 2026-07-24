@@ -11,7 +11,7 @@ task 1, line 8:
 Output for 'crates/iota-adapter-transactional-tests/data/account_abstraction/abstract_account_with_pub_key.move':
 created: object(2,0)
 mutated: object(0,1)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 9348000
@@ -22,7 +22,7 @@ task 2, lines 10-34:
 //# publish --sender A --dependencies abstract_account_with_pub_key
 created: object(3,0), object(3,1), object(3,2), object(3,3), object(3,4), object(3,5)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 20094400
@@ -34,7 +34,7 @@ task 3, line 36:
 events: Event { package_id: ObjectId("abstract_account_with_pub_key"), module: Identifier("abstract_account"), sender: Address("A"), type_: StructTag { address: Address("iota"), module: Identifier("account"), name: Identifier("MutableAccountCreated"), type_params: [Struct(StructTag { address: Address("abstract_account_with_pub_key"), module: Identifier("abstract_account"), name: Identifier("AbstractAccount"), type_params: [] })] }, contents: "TheXUVpQgtTDabyKj1V5LT8gOqfNRzJqwLcgWzGeJPBtSXbdP3rrIb6VW1QSIkBJbISbYr6iWXlVBqamihqbtQxhdXRoZW50aWNhdGUUYXV0aGVudGljYXRlX2VkMjU1MTk=" }
 created: object(4,0), object(4,1), object(4,2), object(4,3)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 9006000
@@ -58,7 +58,7 @@ task 5, lines 40-42:
 created: object(6,0)
 mutated: object(4,1)
 unchanged_shared: object(4,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 1960800

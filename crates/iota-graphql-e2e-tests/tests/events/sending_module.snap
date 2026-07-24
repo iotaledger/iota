@@ -10,7 +10,7 @@ task 1, lines 8-13:
 //# publish --upgradeable --sender A
 created: object(1,0), object(1,1)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 5312400
@@ -21,7 +21,7 @@ task 2, lines 14-27:
 //# upgrade --package Test --upgrade-capability 1,1 --sender A
 created: object(2,0)
 mutated: object(0,0), object(1,1)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 6786800
@@ -32,7 +32,7 @@ task 3, line 28:
 //# run Test::M1::emit --sender A
 events: Event { package_id: ObjectId("Test"), module: Identifier("M1"), sender: Address("A"), type_: StructTag { address: Address("fake(1,0)"), module: Identifier("M0"), name: Identifier("Event"), type_params: [] }, contents: "KgAAAAAAAAA=" }
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 980400

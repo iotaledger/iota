@@ -10,7 +10,7 @@ task 1, lines 10-23:
 //# publish
 created: object(1,0)
 mutated: object(0,2)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 5798800
@@ -24,7 +24,7 @@ task 2, lines 25-29:
 // let's get ourselves a coin worth 1000
 created: object(2,0)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 1960800
@@ -35,7 +35,7 @@ task 3, line 30:
 //# run iota::pay::split_and_transfer --type-args iota::iota::IOTA --args object(2,0) 1000 @A --sender A
 created: object(3,0)
 mutated: object(0,0), object(2,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 2941200
@@ -63,7 +63,7 @@ task 5, lines 35-37:
 //> TransferObjects([NestedResult(0,0)], Input(2));
 created: object(5,0)
 mutated: object(0,0), object(3,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 2941200
@@ -106,7 +106,7 @@ task 8, lines 45-47:
 //> TransferObjects([NestedResult(0,0), NestedResult(0,1)], Input(2));
 created: object(8,0), object(8,1)
 mutated: object(0,0), object(3,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 3921600
@@ -165,7 +165,7 @@ task 12, lines 56-59:
 //> TransferObjects([NestedResult(1,0), NestedResult(1,1)], Input(2));
 created: object(12,0), object(12,1)
 mutated: object(0,0), object(3,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 3921600
@@ -225,7 +225,7 @@ task 16, lines 69-73:
 //> test::m1::transfer_(Result(2), Input(2));
 created: object(16,0), object(16,1)
 mutated: object(0,0), object(3,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 3921600

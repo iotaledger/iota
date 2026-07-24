@@ -10,7 +10,7 @@ task 1, lines 11-33:
 //# publish --sender A
 created: object(1,0), object(1,1)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 12600800
@@ -20,7 +20,7 @@ Gas Cost Summary
 task 2, line 35:
 //# run test::no_module_dynamic_metadata::assert_inline_metadata --sender A --args object(1,0)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 980400

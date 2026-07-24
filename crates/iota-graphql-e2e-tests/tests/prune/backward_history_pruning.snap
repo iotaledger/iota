@@ -10,7 +10,7 @@ task 1, lines 6-35:
 //# publish
 created: object(1,0)
 mutated: object(0,1)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 6315600
@@ -23,7 +23,7 @@ task 2, lines 37-39:
 //> TransferObjects([Result(0)], Input(0))
 created: object(2,0)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 2257200
@@ -41,7 +41,7 @@ task 4, lines 43-45:
 created: object(4,0)
 mutated: object(0,0)
 wrapped: object(2,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 2530800
@@ -51,7 +51,7 @@ Gas Cost Summary
 task 5, line 47:
 //# transfer-object 4,0 --sender A --recipient A
 mutated: object(0,0), object(4,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 2530800
@@ -61,7 +61,7 @@ Gas Cost Summary
 task 6, line 49:
 //# transfer-object 4,0 --sender A --recipient A
 mutated: object(0,0), object(4,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 2530800
@@ -71,7 +71,7 @@ Gas Cost Summary
 task 7, line 51:
 //# transfer-object 4,0 --sender A --recipient A
 mutated: object(0,0), object(4,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 2530800
@@ -93,7 +93,7 @@ task 10, lines 57-59:
 mutated: object(0,0)
 unwrapped: object(2,0)
 deleted: object(4,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 2257200
@@ -108,7 +108,7 @@ task 12, lines 63-64:
 //# programmable --sender A --inputs object(2,0)
 //> 0: P0::m::mutate_foo(Input(0));
 mutated: object(0,0), object(2,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 2257200
@@ -158,7 +158,7 @@ task 16, lines 86-88:
 //> TransferObjects([Result(0)], Input(0))
 created: object(16,0)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 2257200
@@ -179,7 +179,7 @@ task 19, lines 94-96:
 //> TransferObjects([Result(0)], Input(0))
 created: object(19,0)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 2257200

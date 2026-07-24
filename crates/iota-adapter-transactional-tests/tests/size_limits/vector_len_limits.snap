@@ -7,7 +7,7 @@ task 1, lines 9-32:
 //# publish
 created: object(1,0)
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 4309200
@@ -17,7 +17,7 @@ Gas Cost Summary
 task 2, lines 33-35:
 //# run Test::M1::push_n_items --args 1 --gas-budget 100000000000000
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 980400
@@ -27,7 +27,7 @@ Gas Cost Summary
 task 3, lines 36-38:
 //# run Test::M1::push_n_items --args 256 --gas-budget 100000000000000
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 980400
@@ -37,7 +37,7 @@ Gas Cost Summary
 task 4, lines 39-41:
 //# run Test::M1::push_n_items --args 262144 --gas-budget 100000000000000
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 4088000000
 ├── Computation Cost Burned: 4088000000
 ├── Storage Cost: 980400

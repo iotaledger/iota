@@ -10,7 +10,7 @@ task 1, lines 7-25:
 //# publish
 created: object(1,0)
 mutated: object(0,1)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 6004000
@@ -20,7 +20,7 @@ Gas Cost Summary
 task 2, lines 27-30:
 //# run Test::M::utf8_arg --sender A --args b"SomeStringPlusSomeString"
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 980400
@@ -30,7 +30,7 @@ Gas Cost Summary
 task 3, lines 32-35:
 //# run Test::M::utf8_arg --sender A --args "SomeStringPlusSomeString"
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 980400
@@ -40,7 +40,7 @@ Gas Cost Summary
 task 4, lines 37-40:
 //# run Test::M::utf8_arg --sender A --args "çå∞≠¢õß∂ƒ∫"
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 980400
@@ -50,7 +50,7 @@ Gas Cost Summary
 task 5, lines 42-45:
 //# run Test::M::utf8_vec_arg --sender A --args vector[b"SomeStringPlus",b"SomeString"]
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 980400
@@ -60,7 +60,7 @@ Gas Cost Summary
 task 6, lines 47-50:
 //# run Test::M::utf8_vec_arg --sender A --args vector["SomeStringPlus","SomeString"]
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 980400
@@ -70,7 +70,7 @@ Gas Cost Summary
 task 7, line 52:
 //# run Test::M::utf8_vec_arg --sender A --args vector["çå∞≠¢","õß∂ƒ∫"]
 mutated: object(0,0)
-Gas Cost Summary
+gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 980400
