@@ -353,11 +353,6 @@ fn find_existing_lock(
     if let Some(&locker) = current_commit_locks.get(obj_ref) {
         return Ok(Some(locker));
     }
-    // A released lock (holder dropped for execution congestion) masks both
-    // the quarantine and any stale entry still in the lock table.
-    if epoch_store.is_owned_object_lock_released(obj_ref) {
-        return Ok(None);
-    }
     if let Some(locker) = epoch_store.get_quarantined_owned_object_lock(obj_ref) {
         return Ok(Some(locker));
     }

@@ -533,17 +533,6 @@ pub enum ConsensusTransactionResult {
             CancelConsensusTransactionReason,
         ),
     ),
-
-    /// A transaction shed due to execution congestion under the PCOOL
-    /// flow. Unlike `Cancelled`, it is neither executed nor checkpointed: the
-    /// submitter is notified out-of-band via the dropped-tx status cache with
-    /// `error` (carrying a suggested gas price) and must resubmit a new
-    /// transaction. Its owned-object soft locks are released by the normal
-    /// post-quarantine soft-lock release.
-    Dropped {
-        transaction: VerifiedExecutableTransaction,
-        error: IotaError,
-    },
 }
 
 /// ConsensusStats is versioned because we may iterate on the struct, and it is
@@ -3185,15 +3174,6 @@ impl AuthorityPerEpochStore {
             .get_owned_object_lock(obj_ref)
     }
 
-    /// Whether a quarantined commit released the lock on `obj_ref` (its
-    /// holder was dropped for execution congestion). While true, any entry
-    /// still in the lock table is stale and must be ignored.
-    pub fn is_owned_object_lock_released(&self, obj_ref: &ObjectReference) -> bool {
-        self.consensus_quarantine
-            .read()
-            .owned_object_lock_released(obj_ref)
-    }
-
     pub(crate) fn get_randomness_last_round_timestamp(
         &self,
     ) -> IotaResult<Option<CheckpointTimestamp>> {
@@ -4443,11 +4423,6 @@ impl AuthorityPerEpochStore {
         let mut deferred_txns: BTreeMap<DeferralKey, Vec<DeferredTransaction>> = BTreeMap::new();
         let mut cancelled_txns: BTreeMap<TransactionDigest, CancelConsensusTransactionReason> =
             BTreeMap::new();
-        // Transactions shed for execution congestion under the PCOOL flow.
-        // Fed to `dropped_tx_status_cache.insert_and_notify` after the loop so
-        // the submitter's `await_consensus_or_checkpoint` wait is woken; these
-        // transactions are neither executed nor checkpointed.
-        let mut congestion_dropped: Vec<(TransactionDigest, IotaError)> = Vec::new();
 
         fail_point_arg!(
             "initial_congestion_tracker",
@@ -4586,24 +4561,6 @@ impl AuthorityPerEpochStore {
                         sequenced_non_randomness.push((transaction, start_time));
                     }
                 }
-                ConsensusTransactionResult::Dropped { transaction, error } => {
-                    notifications.push(key.clone());
-                    // Not scheduled for execution and not checkpointed; remove
-                    // it from the checkpoint roots like a deferred transaction.
-                    filter_roots = true;
-                    // Release its owned-object locks so the resubmitted
-                    // (different digest) transaction is not blocked.
-                    let owned_inputs = transaction
-                        .transaction()
-                        .input_objects()?
-                        .into_iter()
-                        .filter_map(|input| match input {
-                            InputObjectKind::ImmOrOwnedMoveObject(obj_ref) => Some(obj_ref),
-                            _ => None,
-                        });
-                    output.release_owned_object_locks_of(*transaction.digest(), owned_inputs);
-                    congestion_dropped.push((*transaction.digest(), error));
-                }
                 ConsensusTransactionResult::RandomnessConsensusMessage => {
                     randomness_state_updated = true;
                     notifications.push(key.clone());
@@ -4632,14 +4589,6 @@ impl AuthorityPerEpochStore {
                     randomness_roots.remove(&txn_key);
                 }
             }
-        }
-
-        // Notify submitters of transactions shed for execution congestion. Their
-        // owned-object soft locks are released by the post-quarantine soft-lock
-        // release, the same as for any other sequenced PCOOL transaction.
-        if !congestion_dropped.is_empty() {
-            self.dropped_tx_status_cache
-                .insert_and_notify(&congestion_dropped);
         }
 
         // sort the sequenced transactions based on their start_time from the
@@ -4689,9 +4638,6 @@ impl AuthorityPerEpochStore {
         authority_metrics
             .consensus_handler_cancelled_transactions
             .inc_by(cancelled_txns.len() as u64);
-        authority_metrics
-            .consensus_handler_congestion_dropped_transactions
-            .inc_by(congestion_dropped.len() as u64);
         authority_metrics
             .consensus_handler_max_object_costs
             .with_label_values(&["regular_commit"])
@@ -5373,45 +5319,6 @@ impl AuthorityPerEpochStore {
                             ConsensusTransactionResult::Deferred {
                                 deferral_key,
                                 suggested_gas_price,
-                            }
-                        } else if self
-                            .protocol_config
-                            .concurrent_execution_workers()
-                            .is_some()
-                        {
-                            // Drop the shed transaction instead of checkpointing
-                            // it: it is not executed, and the submitter is notified
-                            // out-of-band with a suggested gas price.
-                            let suggested_gas_price =
-                                suggested_gas_price.unwrap_or_else(|| self.reference_gas_price());
-                            let actual_gas_price =
-                                verified_executable_tx.transaction().gas_price();
-                            debug!(
-                                "Dropping verified executable transaction {:?} with deferral key \
-                                    {deferral_key:?} due to congestion on objects \
-                                    {congested_objects:?}: actual gas price: {actual_gas_price}, \
-                                    suggested gas price: {suggested_gas_price}",
-                                verified_executable_tx.digest(),
-                            );
-
-                            // A transaction already priced at the maximum cannot bid
-                            // higher, so no resubmission would clear the congestion.
-                            // Report the ceiling instead of echoing the same price,
-                            // which the client cannot act on.
-                            let max_gas_price = self.protocol_config.max_gas_price();
-                            let error = if actual_gas_price >= max_gas_price {
-                                IotaError::ValidatorTransactionCongestedAtMaxGasPrice {
-                                    max_gas_price,
-                                }
-                            } else {
-                                IotaError::ValidatorTransactionCongested {
-                                    suggested_gas_price,
-                                }
-                            };
-
-                            ConsensusTransactionResult::Dropped {
-                                transaction: verified_executable_tx,
-                                error,
                             }
                         } else {
                             // Cancel the transaction that has been deferred for too long.

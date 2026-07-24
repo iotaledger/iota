@@ -312,11 +312,6 @@ pub struct AuthorityMetrics {
     pub consensus_handler_deferred_transactions: IntCounter,
     pub consensus_handler_congested_transactions: IntCounter,
     pub consensus_handler_cancelled_transactions: IntCounter,
-    /// Number of user transactions shed during a consensus commit because
-    /// they exceeded the deferral limit under execution-worker congestion
-    /// control. Distinct from the validation and load-shedding dropped
-    /// counters.
-    pub consensus_handler_congestion_dropped_transactions: IntCounter,
     /// Number of user transactions dropped during a consensus commit because
     /// post-consensus conflict/lock validation rejected them. Distinct from
     /// `consensus_handler_load_shedding_dropped_transactions`.
@@ -764,11 +759,6 @@ impl AuthorityMetrics {
             consensus_handler_cancelled_transactions: register_int_counter_with_registry!(
                 "consensus_handler_cancelled_transactions",
                 "Number of transactions cancelled by consensus handler",
-                registry,
-            ).unwrap(),
-            consensus_handler_congestion_dropped_transactions: register_int_counter_with_registry!(
-                "consensus_handler_congestion_dropped_transactions",
-                "Number of user transactions shed past the deferral limit under execution-worker congestion control",
                 registry,
             ).unwrap(),
             consensus_handler_validation_dropped_transactions: register_int_counter_with_registry!(

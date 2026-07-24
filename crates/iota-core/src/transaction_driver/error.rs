@@ -87,15 +87,6 @@ pub enum TransactionDriverError {
         submission_non_retriable_errors: AggregatedRequestErrors,
         submission_retriable_errors: AggregatedRequestErrors,
     },
-    /// Transaction shed due to execution congestion. The client should resubmit
-    /// a new transaction with a gas price of at least `suggested_gas_price`.
-    /// Non-retriable by the driver itself (the same signed bytes would be
-    /// shed again at the same price).
-    Congested { suggested_gas_price: u64 },
-    /// Transaction shed due to execution congestion while already priced at the
-    /// maximum gas price. No resubmission at a higher price is possible, so the
-    /// client must wait for congestion to clear. Non-retriable.
-    CongestedAtMaxGasPrice { max_gas_price: u64 },
     /// Transaction execution observed multiple effects digests, and it is no
     /// longer possible to certify any of them.
     /// Non-retriable.
@@ -166,10 +157,6 @@ impl TransactionDriverError {
                 ErrorCategory::Unavailable
             }
             TransactionDriverError::SubmittedButFetchFailed { .. } => ErrorCategory::Unavailable,
-            TransactionDriverError::Congested { .. }
-            | TransactionDriverError::CongestedAtMaxGasPrice { .. } => {
-                ErrorCategory::TransactionCongested
-            }
         }
     }
 
@@ -294,23 +281,6 @@ impl std::fmt::Display for TransactionDriverError {
                     validator.concise()
                 )
             }
-            TransactionDriverError::Congested {
-                suggested_gas_price,
-            } => {
-                write!(
-                    f,
-                    "Transaction shed due to execution congestion (non-retriable). Resubmit a new \
-                    transaction with a gas price of at least {suggested_gas_price}."
-                )
-            }
-            TransactionDriverError::CongestedAtMaxGasPrice { max_gas_price } => {
-                write!(
-                    f,
-                    "Transaction shed due to execution congestion (non-retriable) while already at \
-                    the maximum gas price of {max_gas_price}. Resubmitting at a higher gas price is \
-                    not possible; retry once congestion clears."
-                )
-            }
         }
     }
 }
@@ -357,82 +327,6 @@ fn format_transaction_request_error(error: &TransactionRequestError) -> String {
         },
         _ => error.to_string(),
     }
-}
-
-/// Outcome of checking whether rejections are dominated by execution
-/// congestion, and whether the congestion feedback can be trusted yet.
-#[derive(Debug, PartialEq, Eq)]
-pub(crate) enum CongestionCheck {
-    /// Congestion rejections do not account for a validity threshold of the
-    /// rejection stake — the rejections point at something other than
-    /// congestion.
-    Contradicted,
-    /// A single reported (variant, price) is backed by at least a validity
-    /// threshold of stake, so the error can be surfaced to the client.
-    Corroborated(TransactionDriverError),
-    /// Rejections are congestion-dominated, but the reported values disagree:
-    /// none has validity-threshold backing. Honest reports are identical, so
-    /// disagreement implies a dishonest reporter; honest validators that have
-    /// not yet processed the dropping commit (they respond without a
-    /// congestion report) can keep the honest value below threshold backing.
-    /// The caller should keep collecting responses until either a value is
-    /// corroborated or a quorum of stake has responded, and then surface the
-    /// aggregated rejections without endorsing any reported price.
-    Uncorroborated,
-}
-
-/// Checks whether congestion rejections account for a validity threshold of
-/// the rejection stake, and if so whether a single reported (variant, price)
-/// is backed by that much stake.
-///
-/// Honest reports are identical (the shed decision is deterministic per
-/// commit), so a value backed by a validity threshold of stake includes an
-/// honest validator and is the honest value; a dishonest reporter can only
-/// delay corroboration, never corrupt it. No uncorroborated value is ever
-/// endorsed — rather than guess, callers surface the aggregated rejections
-/// and leave the resubmission price to the client.
-pub(crate) fn check_congestion(
-    errors: &[(AuthorityName, StakeUnit, TransactionRequestError)],
-    validity_threshold: StakeUnit,
-) -> CongestionCheck {
-    // Supporting stake per reported (price, at_max) value.
-    let mut support: BTreeMap<(u64, bool), StakeUnit> = BTreeMap::new();
-    let mut congested_stake: StakeUnit = 0;
-    for (_, stake, error) in errors {
-        let report = match error {
-            TransactionRequestError::RejectedAtValidator(
-                IotaError::ValidatorTransactionCongested {
-                    suggested_gas_price,
-                },
-            ) => (*suggested_gas_price, false),
-            TransactionRequestError::RejectedAtValidator(
-                IotaError::ValidatorTransactionCongestedAtMaxGasPrice { max_gas_price },
-            ) => (*max_gas_price, true),
-            _ => continue,
-        };
-        congested_stake += *stake;
-        *support.entry(report).or_default() += *stake;
-    }
-    if congested_stake < validity_threshold {
-        return CongestionCheck::Contradicted;
-    }
-    // At most one value can have validity-threshold support: all honest
-    // congested reports are identical, and dishonest stake alone stays below
-    // the threshold.
-    for ((price, at_max), stake) in &support {
-        if *stake >= validity_threshold {
-            return CongestionCheck::Corroborated(if *at_max {
-                TransactionDriverError::CongestedAtMaxGasPrice {
-                    max_gas_price: *price,
-                }
-            } else {
-                TransactionDriverError::Congested {
-                    suggested_gas_price: *price,
-                }
-            });
-        }
-    }
-    CongestionCheck::Uncorroborated
 }
 
 pub(crate) fn aggregate_request_errors(
@@ -492,174 +386,5 @@ impl AggregatedEffectsDigests {
     #[cfg(test)]
     pub fn total_stake(&self) -> StakeUnit {
         self.digests.iter().map(|(_, _, stake)| stake).sum()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use iota_types::crypto::{AuthorityKeyPair, KeypairTraits, get_key_pair};
-
-    use super::*;
-
-    fn congested_error(suggested_gas_price: u64) -> TransactionRequestError {
-        TransactionRequestError::RejectedAtValidator(IotaError::ValidatorTransactionCongested {
-            suggested_gas_price,
-        })
-    }
-
-    fn congested_at_max_error(max_gas_price: u64) -> TransactionRequestError {
-        TransactionRequestError::RejectedAtValidator(
-            IotaError::ValidatorTransactionCongestedAtMaxGasPrice { max_gas_price },
-        )
-    }
-
-    fn random_authority() -> AuthorityName {
-        let (_, key_pair): (_, AuthorityKeyPair) = get_key_pair();
-        key_pair.public().into()
-    }
-
-    #[test]
-    fn validator_transaction_congested_is_not_submission_retriable() {
-        let error = IotaError::ValidatorTransactionCongested {
-            suggested_gas_price: 1000,
-        };
-        assert_eq!(error.is_retryable(), (false, true));
-        assert_eq!(error.categorize(), ErrorCategory::TransactionCongested);
-        assert!(!error.categorize().is_submission_retriable());
-        assert!(!congested_error(1000).is_submission_retriable());
-    }
-
-    #[test]
-    fn congested_driver_error_is_not_submission_retriable() {
-        let error = TransactionDriverError::Congested {
-            suggested_gas_price: 1000,
-        };
-        assert_eq!(error.categorize(), ErrorCategory::TransactionCongested);
-        assert!(!error.is_submission_retriable());
-    }
-
-    #[test]
-    fn congested_at_max_gas_price_driver_error_is_not_submission_retriable() {
-        let error = TransactionDriverError::CongestedAtMaxGasPrice {
-            max_gas_price: 1000,
-        };
-        assert_eq!(error.categorize(), ErrorCategory::TransactionCongested);
-        assert!(!error.is_submission_retriable());
-    }
-
-    #[test]
-    fn check_congestion_requires_validity_threshold() {
-        let errors = vec![
-            (random_authority(), 1, congested_error(1000)),
-            (random_authority(), 1, congested_error(1000)),
-            (
-                random_authority(),
-                1,
-                TransactionRequestError::RejectedAtValidator(IotaError::TransactionExpired),
-            ),
-        ];
-
-        // Congested stake (2) at the threshold and agreeing on the price:
-        // the agreed value is surfaced; other errors don't count toward it.
-        assert_eq!(
-            check_congestion(&errors, 2),
-            CongestionCheck::Corroborated(TransactionDriverError::Congested {
-                suggested_gas_price: 1000
-            })
-        );
-        // Congested stake below the threshold.
-        assert_eq!(check_congestion(&errors, 3), CongestionCheck::Contradicted);
-        // No congested errors at all.
-        assert_eq!(
-            check_congestion(&errors[2..], 1),
-            CongestionCheck::Contradicted
-        );
-    }
-
-    #[test]
-    fn check_congestion_at_max_gas_price_needs_threshold_support() {
-        // An agreed at-max-gas-price report is surfaced as such.
-        let errors = vec![(random_authority(), 2, congested_at_max_error(2000))];
-        assert_eq!(
-            check_congestion(&errors, 2),
-            CongestionCheck::Corroborated(TransactionDriverError::CongestedAtMaxGasPrice {
-                max_gas_price: 2000
-            })
-        );
-    }
-
-    #[test]
-    fn check_congestion_single_high_report_cannot_inflate_price() {
-        // Honest validators (stake 2) report the deterministic price; one
-        // dishonest report (stake 1) cannot raise the suggestion.
-        let errors = vec![
-            (random_authority(), 2, congested_error(1000)),
-            (random_authority(), 1, congested_error(1_000_000)),
-        ];
-        assert_eq!(
-            check_congestion(&errors, 2),
-            CongestionCheck::Corroborated(TransactionDriverError::Congested {
-                suggested_gas_price: 1000
-            })
-        );
-    }
-
-    #[test]
-    fn check_congestion_single_low_report_cannot_deflate_price() {
-        // A dishonest low report (stake 1) does not pull the suggestion under
-        // the price backed by threshold stake.
-        let errors = vec![
-            (random_authority(), 1, congested_error(1)),
-            (random_authority(), 2, congested_error(1000)),
-        ];
-        assert_eq!(
-            check_congestion(&errors, 2),
-            CongestionCheck::Corroborated(TransactionDriverError::Congested {
-                suggested_gas_price: 1000
-            })
-        );
-    }
-
-    #[test]
-    fn check_congestion_single_at_max_report_cannot_flip_variant() {
-        // One dishonest at-max report (stake 1) cannot make the client give
-        // up on resubmission when threshold stake reports a beatable price.
-        let errors = vec![
-            (random_authority(), 2, congested_error(1000)),
-            (random_authority(), 1, congested_at_max_error(2000)),
-        ];
-        assert_eq!(
-            check_congestion(&errors, 2),
-            CongestionCheck::Corroborated(TransactionDriverError::Congested {
-                suggested_gas_price: 1000
-            })
-        );
-    }
-
-    #[test]
-    fn check_congestion_uncorroborated() {
-        // Congestion-dominated but no value has threshold backing: no
-        // reported price is endorsed.
-        let errors = vec![
-            (random_authority(), 1, congested_error(1200)),
-            (random_authority(), 1, congested_at_max_error(2000)),
-        ];
-        assert_eq!(
-            check_congestion(&errors, 2),
-            CongestionCheck::Uncorroborated
-        );
-
-        // Agreement formed by a later response resolves it.
-        let errors = vec![
-            (random_authority(), 1, congested_error(1200)),
-            (random_authority(), 1, congested_at_max_error(2000)),
-            (random_authority(), 1, congested_error(1200)),
-        ];
-        assert_eq!(
-            check_congestion(&errors, 2),
-            CongestionCheck::Corroborated(TransactionDriverError::Congested {
-                suggested_gas_price: 1200
-            })
-        );
     }
 }

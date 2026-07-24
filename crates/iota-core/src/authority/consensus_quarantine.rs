@@ -94,10 +94,6 @@ pub(crate) struct ConsensusCommitOutput {
 
     // P-COOL owned object locks acquired in this commit
     owned_object_locks: HashMap<ObjectReference, LockDetails>,
-    // Owned-object locks released in this commit because their holder was
-    // dropped for execution congestion. Deleted from the lock table when this
-    // commit is written, and masked in the quarantine until then.
-    released_owned_object_locks: Vec<ObjectReference>,
 
     // Latest overload-shed percentage advertised by each authority via
     // OverloadNotificationV1 during this commit. Flushed to
@@ -253,22 +249,6 @@ impl ConsensusCommitOutput {
         self.owned_object_locks = locks;
     }
 
-    /// Releases the owned-object locks held by `holder` on `owned_inputs`,
-    /// because it was dropped for execution congestion. This allows
-    /// resubmission with higher gas price.
-    pub fn release_owned_object_locks_of(
-        &mut self,
-        holder: LockDetails,
-        owned_inputs: impl IntoIterator<Item = ObjectReference>,
-    ) {
-        for obj_ref in owned_inputs {
-            if self.owned_object_locks.get(&obj_ref) == Some(&holder) {
-                self.owned_object_locks.remove(&obj_ref);
-                self.released_owned_object_locks.push(obj_ref);
-            }
-        }
-    }
-
     pub fn record_overload_notification(&mut self, authority: AuthorityName, percentage: u8) {
         self.overload_notifications.insert(authority, percentage);
     }
@@ -418,16 +398,6 @@ impl ConsensusCommitOutput {
                     .map(|(obj_ref, lock)| (obj_ref, LockDetailsWrapper::from(lock))),
             )?;
         }
-        if !self.released_owned_object_locks.is_empty() {
-            // Clears stale copies written by earlier commits (a deferred
-            // transaction re-acquires its locks in every commit it is
-            // reloaded in).
-            batch.delete_batch(
-                &tables.owned_object_locked_transactions,
-                self.released_owned_object_locks,
-            )?;
-        }
-
         batch.insert_batch(
             &tables.authority_overload_notifications,
             self.overload_notifications,
@@ -632,14 +602,6 @@ pub(crate) struct ConsensusOutputQuarantine {
     // P-COOL owned object locks (aggregate across all quarantined commits)
     owned_object_locks: HashMap<ObjectReference, LockDetails>,
 
-    // Tombstones for locks released by a quarantined commit (holder dropped
-    // for execution congestion), keyed by the releasing commit's round. They
-    // mask both this aggregate and the lock table until the releasing commit
-    // is written (which deletes the table entries), so lock lookups see the
-    // release at the same point on every validator. A later re-lock of the
-    // same object reference clears its tombstone.
-    released_owned_object_locks: HashMap<ObjectReference, CommitRound>,
-
     // In-memory cache of the `authority_overload_notifications` table: the most
     // recent load-shedding percentage each authority has broadcast, for the
     // commits that have already been flushed to disk. Loaded once from the
@@ -677,7 +639,6 @@ impl ConsensusOutputQuarantine {
             congestion_control_randomness_object_debts: RefCountedHashMap::new(),
             processed_consensus_messages: RefCountedHashMap::new(),
             owned_object_locks: HashMap::new(),
-            released_owned_object_locks: HashMap::new(),
             cached_overload_notifications,
             cached_deny_rule_proposals,
             metrics: authority_metrics,
@@ -942,44 +903,18 @@ impl ConsensusOutputQuarantine {
 
     fn insert_owned_object_locks(&mut self, output: &ConsensusCommitOutput) {
         for (obj_ref, lock_details) in &output.owned_object_locks {
-            // A re-lock overrides any earlier release of the same reference.
-            self.released_owned_object_locks.remove(obj_ref);
             self.owned_object_locks.insert(*obj_ref, *lock_details);
-        }
-        for obj_ref in &output.released_owned_object_locks {
-            self.owned_object_locks.remove(obj_ref);
-            self.released_owned_object_locks
-                .insert(*obj_ref, output.consensus_round);
         }
     }
 
     fn remove_owned_object_locks(&mut self, output: &ConsensusCommitOutput) {
-        // Only remove an aggregate entry still held by this commit's holder:
-        // after a release, a later quarantined commit may have re-locked the
-        // same reference for a different transaction, and that lock must stay
-        // visible until its own commit is written.
-        for (obj_ref, lock_details) in &output.owned_object_locks {
-            if self.owned_object_locks.get(obj_ref) == Some(lock_details) {
-                self.owned_object_locks.remove(obj_ref);
-            }
-        }
-        // Drop this commit's tombstones: its batch deletes the table entries.
-        // Keep tombstones a later commit re-created for the same reference.
-        for obj_ref in &output.released_owned_object_locks {
-            if self.released_owned_object_locks.get(obj_ref) == Some(&output.consensus_round) {
-                self.released_owned_object_locks.remove(obj_ref);
-            }
+        for obj_ref in output.owned_object_locks.keys() {
+            self.owned_object_locks.remove(obj_ref);
         }
     }
 
     pub(super) fn get_owned_object_lock(&self, obj_ref: &ObjectReference) -> Option<LockDetails> {
         self.owned_object_locks.get(obj_ref).copied()
-    }
-
-    /// Whether a quarantined commit released the lock on `obj_ref`. While
-    /// true, any entry still in the lock table is stale and must be ignored.
-    pub(super) fn owned_object_lock_released(&self, obj_ref: &ObjectReference) -> bool {
-        self.released_owned_object_locks.contains_key(obj_ref)
     }
 
     // Read methods - all methods in this block return data from the quarantine
@@ -1348,137 +1283,5 @@ where
 
     pub fn contains_key(&self, key: &K) -> bool {
         self.map.contains_key(key)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use iota_types::base_types::random_object_ref;
-    use prometheus_filtered::Registry;
-
-    use super::*;
-
-    // Tombstone lifecycle across release -> re-lock -> re-release: popping an
-    // earlier releasing commit must not clear a tombstone that a later commit
-    // re-created for the same object reference (the round guard in
-    // `remove_owned_object_locks`), otherwise the stale lock written by the
-    // re-locking commit would resurface unmasked.
-    #[test]
-    fn test_released_owned_object_lock_tombstone_round_guard() {
-        let mut quarantine =
-            ConsensusOutputQuarantine::new(0, HashMap::new(), EpochMetrics::new(&Registry::new()));
-        let obj_ref = random_object_ref();
-        let tx1 = TransactionDigest::random();
-        let tx2 = TransactionDigest::random();
-
-        // Commit 1: tx1 locks the object.
-        let mut output1 = ConsensusCommitOutput::new(1);
-        output1.set_owned_object_locks(HashMap::from([(obj_ref, tx1)]));
-
-        // Commit 2: tx1, deferred (re-locking) and now past the deferral
-        // limit, is dropped and releases its lock.
-        let mut output2 = ConsensusCommitOutput::new(2);
-        output2.set_owned_object_locks(HashMap::from([(obj_ref, tx1)]));
-        output2.release_owned_object_locks_of(tx1, [obj_ref]);
-
-        // Commit 3: tx2 re-locks the object.
-        let mut output3 = ConsensusCommitOutput::new(3);
-        output3.set_owned_object_locks(HashMap::from([(obj_ref, tx2)]));
-
-        // Commit 4: tx2 is dropped as well and releases its lock.
-        let mut output4 = ConsensusCommitOutput::new(4);
-        output4.set_owned_object_locks(HashMap::from([(obj_ref, tx2)]));
-        output4.release_owned_object_locks_of(tx2, [obj_ref]);
-
-        quarantine.insert_owned_object_locks(&output1);
-        assert_eq!(quarantine.get_owned_object_lock(&obj_ref), Some(tx1));
-        assert!(!quarantine.owned_object_lock_released(&obj_ref));
-
-        quarantine.insert_owned_object_locks(&output2);
-        assert_eq!(quarantine.get_owned_object_lock(&obj_ref), None);
-        assert!(quarantine.owned_object_lock_released(&obj_ref));
-
-        quarantine.insert_owned_object_locks(&output3);
-        assert_eq!(quarantine.get_owned_object_lock(&obj_ref), Some(tx2));
-        assert!(
-            !quarantine.owned_object_lock_released(&obj_ref),
-            "a re-lock must clear the tombstone"
-        );
-
-        quarantine.insert_owned_object_locks(&output4);
-        assert_eq!(quarantine.get_owned_object_lock(&obj_ref), None);
-        assert!(quarantine.owned_object_lock_released(&obj_ref));
-
-        // Pop the commits in order. The tombstone now belongs to commit 4:
-        // popping commit 2, an earlier release of the same reference, must
-        // leave it in place.
-        quarantine.remove_owned_object_locks(&output1);
-        assert!(quarantine.owned_object_lock_released(&obj_ref));
-        quarantine.remove_owned_object_locks(&output2);
-        assert!(
-            quarantine.owned_object_lock_released(&obj_ref),
-            "popping an earlier releasing commit must not clear a later commit's tombstone"
-        );
-        quarantine.remove_owned_object_locks(&output3);
-        assert!(quarantine.owned_object_lock_released(&obj_ref));
-        quarantine.remove_owned_object_locks(&output4);
-        assert!(!quarantine.owned_object_lock_released(&obj_ref));
-        assert_eq!(quarantine.get_owned_object_lock(&obj_ref), None);
-    }
-
-    // Lock -> release -> re-lock across commits 1..3: popping commit 1 while
-    // commit 3 is still quarantined must not remove commit 3's re-lock from
-    // the aggregate (the holder guard in `remove_owned_object_locks`),
-    // otherwise lookups would see the stale lock commit 1 wrote to the table
-    // (or nothing at all once commit 2's release deletes it) instead of the
-    // current holder.
-    #[test]
-    fn test_owned_object_lock_holder_guard() {
-        let mut quarantine =
-            ConsensusOutputQuarantine::new(0, HashMap::new(), EpochMetrics::new(&Registry::new()));
-        let obj_ref = random_object_ref();
-        let tx1 = TransactionDigest::random();
-        let tx2 = TransactionDigest::random();
-
-        // Commit 1: tx1 locks the object.
-        let mut output1 = ConsensusCommitOutput::new(1);
-        output1.set_owned_object_locks(HashMap::from([(obj_ref, tx1)]));
-
-        // Commit 2: tx1, past the deferral limit, is dropped and releases its
-        // lock.
-        let mut output2 = ConsensusCommitOutput::new(2);
-        output2.set_owned_object_locks(HashMap::from([(obj_ref, tx1)]));
-        output2.release_owned_object_locks_of(tx1, [obj_ref]);
-
-        // Commit 3: resubmitted tx2 re-locks the same object reference.
-        let mut output3 = ConsensusCommitOutput::new(3);
-        output3.set_owned_object_locks(HashMap::from([(obj_ref, tx2)]));
-
-        quarantine.insert_owned_object_locks(&output1);
-        quarantine.insert_owned_object_locks(&output2);
-        quarantine.insert_owned_object_locks(&output3);
-        assert_eq!(quarantine.get_owned_object_lock(&obj_ref), Some(tx2));
-        assert!(!quarantine.owned_object_lock_released(&obj_ref));
-
-        // Pop commit 1 while commits 2 and 3 are still quarantined.
-        quarantine.remove_owned_object_locks(&output1);
-        assert_eq!(
-            quarantine.get_owned_object_lock(&obj_ref),
-            Some(tx2),
-            "popping the original locking commit must not remove a later commit's re-lock"
-        );
-        assert!(!quarantine.owned_object_lock_released(&obj_ref));
-
-        // Pop commit 2 (the release); the tombstone was already cleared by
-        // the re-lock, and tx2's lock must still be visible.
-        quarantine.remove_owned_object_locks(&output2);
-        assert_eq!(quarantine.get_owned_object_lock(&obj_ref), Some(tx2));
-        assert!(!quarantine.owned_object_lock_released(&obj_ref));
-
-        // Pop commit 3: its batch writes the lock to the table, so the
-        // aggregate entry goes.
-        quarantine.remove_owned_object_locks(&output3);
-        assert_eq!(quarantine.get_owned_object_lock(&obj_ref), None);
-        assert!(!quarantine.owned_object_lock_released(&obj_ref));
     }
 }
