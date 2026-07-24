@@ -1917,11 +1917,21 @@ impl ProtocolConfig {
 
     pub fn consensus_enable_absolute_score_bad_nodes(&self) -> bool {
         let res = self.feature_flags.consensus_enable_absolute_score_bad_nodes;
-        assert!(
-            !res || self.good_nodes_normalized_score_threshold()
-                > self.bad_nodes_normalized_score_threshold(),
-            "consensus_enable_absolute_score_bad_nodes requires good threshold > bad threshold"
-        );
+        if res {
+            assert!(
+                self.good_nodes_normalized_score_threshold()
+                    > self.bad_nodes_normalized_score_threshold(),
+                "consensus_enable_absolute_score_bad_nodes requires good threshold > bad threshold"
+            );
+            assert!(
+                self.min_good_nodes_percent() >= 1,
+                "consensus_enable_absolute_score_bad_nodes requires min_good_nodes_percent >= 1 so the good pool is non-empty"
+            );
+            assert!(
+                self.min_good_nodes_percent() + self.max_bad_nodes_percent() < 70,
+                "consensus_enable_absolute_score_bad_nodes requires min_good_nodes_percent + max_bad_nodes_percent < 70"
+            );
+        }
         res
     }
 
