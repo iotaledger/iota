@@ -1357,9 +1357,7 @@ async fn sync_checkpoint_contents_from_checkpoint_archive_iteration<S>(
         // and leave `end` onward to normal p2p sync. `MaxCheckpoint(end-1)` makes
         // the executor shut down on its own once it has processed that range.
         //
-        // `MaxCheckpoint` only fires once the reader delivers checkpoint `end`. If
-        // the archive is behind and never serves it, `stall_timeout` makes the
-        // executor give up after 60s without progress and the outer loop retries.
+        // `MaxCheckpoint` only fires once the reader delivers checkpoint `end`.
         let ingestion_limit =
             lowest_checkpoint_on_peers.map(|end| IngestionLimit::MaxCheckpoint(end - 1));
         let reader_options = ReaderOptions {

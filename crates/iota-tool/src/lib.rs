@@ -27,7 +27,6 @@ use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use iota_config::{
     NodeConfig,
     genesis::Genesis,
-    node::ArchiveReaderConfig,
     object_storage_config::{ObjectStoreConfig, ObjectStoreType},
 };
 use iota_core::{
