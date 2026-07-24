@@ -36,13 +36,10 @@
 //!   expensive checks.
 //! - Check #6: `handle_transaction_validation_checks()` for
 //!   `UserTransactionV1`, or for attested `UserTransactionV2` a payload-only
-//!   gas-bounds check (`check_gas_bounds()`, #8a) followed by the
+//!   gas-bounds check (`check_gas_bounds()`) followed by the
 //!   `TransactionDenyConfig` re-check
 //!   (`check_transaction_deny_list_for_attested_tx()`). Drop with error. Only
-//!   reached when all locks are free. The coin deny-list check (#10) is no
-//!   longer run here for attested transactions; it is enforced during execution
-//!   (fail-to-effects), so a stale-attestation view resolves to a failed effect
-//!   rather than a drop.
+//!   reached when all locks are free.
 //! - All passed — acquire locks in the local tracking map, keep transaction.
 
 use std::{
@@ -324,18 +321,16 @@ pub async fn validate_and_resolve_conflicts(
             continue;
         }
 
-        // Check #6: Deny list, gas, ownership, coin deny list, Move
-        // authenticator. Only reached if all locks are free — skips the
-        // expensive object loading for transactions that would be dropped
-        // by the lock conflict check.
+        // Check #6: Validation and deny checks. Only reached when all locks are
+        // free, so the expensive object loading is skipped for transactions the
+        // lock conflict check would drop. The `UserTransactionV1` and attested
+        // `UserTransactionV2` paths diverge; the detail follows.
         //
         // `UserTransactionV1` runs the full
-        // `handle_transaction_validation_checks` (which includes the
-        // `TransactionDenyConfig` deny-list check). For `UserTransactionV2`
-        // (attested transactions) a payload-only gas-bounds check (#8a) and the
+        // `handle_transaction_validation_checks`. For `UserTransactionV2`
+        // (attested transactions) a payload-only gas-bounds check and the
         // `TransactionDenyConfig` deny-list check are run individually (see
-        // below); the coin deny-list check (#10) is enforced during execution
-        // instead of here. The rest of `handle_transaction_validation_checks`
+        // below). The rest of `handle_transaction_validation_checks`
         // is skipped for V2 because it is either re-applied during execution or
         // is not safety-critical to run post-consensus:
         //   - Receiving-object validity: the Move runtime fails the `receive()` call
@@ -381,9 +376,8 @@ pub async fn validate_and_resolve_conflicts(
                 continue;
             }
         } else {
-            // Check #8a: payload-only gas bounds/price. Deterministic drop
-            // before version assignment; balance (#8b) is still checked at
-            // execution.
+            // Payload-only gas bounds/price. Deterministic drop before version assignment;
+            // balance is still checked at execution.
             let txn = transaction.data().transaction();
             if let Err(e) = check_gas_bounds(
                 epoch_store.protocol_config(),

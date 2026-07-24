@@ -416,13 +416,11 @@ async fn test_post_consensus_drops_tx_spending_coin_unpaused_this_epoch() {
     );
 }
 
-// The #10 reorder moved the coin deny-list check for attested transactions from
-// a post-consensus drop to an execution-time failure. This exercises that
-// execution-time path: a transaction spending a regulated coin whose sender is
-// denied must fail to effects with `AddressDeniedForCoin` (issuer charged), not
-// crash the validator. The transaction is executed directly, bypassing the
-// signing-time deny check, to reproduce a stale or lying attestor whose
-// transaction reaches execution.
+// A transaction spending a regulated coin whose sender is denied must fail to
+// effects with `AddressDeniedForCoin` (issuer charged), not crash the
+// validator. The transaction is executed directly, bypassing the signing-time
+// deny check, to reproduce a stale or lying attestor whose transaction reaches
+// execution.
 #[tokio::test]
 async fn test_execution_fails_spending_denied_coin_under_attestation() {
     let guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {

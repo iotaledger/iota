@@ -2014,9 +2014,9 @@ async fn test_v2_cost_out_of_bounds() {
 
 /// A `UserTransactionV2` whose declared gas price or budget is out of the
 /// protocol bounds is dropped post-consensus by the payload-only gas-bounds
-/// check (#8a), before version assignment. The balance check (#8b) still runs
-/// at execution. Two representative cases: gas price below the reference gas
-/// price, and gas budget above the protocol maximum.
+/// check, before version assignment. The balance check still runs at execution.
+/// Two representative cases: gas price below the reference gas price, and gas
+/// budget above the protocol maximum.
 #[sim_test]
 async fn test_v2_gas_bounds_out_of_range_dropped() {
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
@@ -2041,10 +2041,6 @@ async fn test_v2_gas_bounds_out_of_range_dropped() {
     assert!(rgp > 0, "test requires a non-zero reference gas price");
 
     let protocol_config = epoch_store.protocol_config();
-    // attestor_index 0 == certificate_author_index 0 set by new_test → matches,
-    // so each transaction reaches the gas-bounds check rather than being caught
-    // by the attestor verification (Check #3). `min_units` keeps the attested
-    // computation within the valid range for Check #3.
     let min_units = protocol_config
         .base_tx_cost_fixed()
         .min(protocol_config.gas_rounding_step());
