@@ -850,6 +850,15 @@ mod checked {
                 cancelled_objects,
             )?;
 
+            // Coin deny-list check over the input objects for attested
+            // transactions. Enforced here (fail-to-effects, issuer pays) rather
+            // than post-consensus, so a stale-attestation view resolves to an
+            // execution failure instead of being dropped. Gated on the
+            // attestation flag so V1 and historical replay are byte-identical.
+            if protocol_config.enable_validator_attestation() {
+                temporary_store.check_input_coin_deny_list()?;
+            }
+
             // If the pre-execution succeeded, proceed with the main execution loop
             // else propagate the pre-execution error
             let mut execution_result = pre_execution_result_opt.unwrap_or(Ok(())).and_then(|_| {

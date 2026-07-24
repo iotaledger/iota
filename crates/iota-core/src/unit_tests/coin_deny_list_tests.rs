@@ -6,8 +6,8 @@ use std::sync::Arc;
 
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    Address, Identifier, ObjectId, ObjectReference, SharedObjectReference, StructTag,
-    TransactionDigest, TypeTag, Version,
+    Address, ExecutionError, ExecutionStatus, Identifier, ObjectId, ObjectReference,
+    SharedObjectReference, StructTag, TransactionDigest, TypeTag, Version,
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
@@ -19,6 +19,7 @@ use iota_types::{
     },
     effects::{TransactionEffects, TransactionEffectsAPI},
     error::{IotaError, IotaResult, UserInputError},
+    executable_transaction::VerifiedExecutableTransaction,
     messages_consensus::{ConsensusTransaction, ConsensusTransactionKind},
     object::Object,
     transaction::{CallArg, TEST_ONLY_GAS_UNIT_FOR_PUBLISH, Transaction, VerifiedTransaction},
@@ -412,6 +413,62 @@ async fn test_post_consensus_drops_tx_spending_coin_unpaused_this_epoch() {
         ),
         "unexpected drop reason: {:?}",
         dropped[0].1
+    );
+}
+
+// The #10 reorder moved the coin deny-list check for attested transactions from
+// a post-consensus drop to an execution-time failure. This exercises that
+// execution-time path: a transaction spending a regulated coin whose sender is
+// denied must fail to effects with `AddressDeniedForCoin` (issuer charged), not
+// crash the validator. The transaction is executed directly, bypassing the
+// signing-time deny check, to reproduce a stale or lying attestor whose
+// transaction reaches execution.
+#[tokio::test]
+async fn test_execution_fails_spending_denied_coin_under_attestation() {
+    let guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(true);
+        config.set_enable_validator_attestation_for_testing(true);
+        config
+    });
+
+    let env = RegulatedCoinEnv::new().await;
+
+    // Deny the sender; the entry (written in epoch 0) activates in epoch 1.
+    env.deny_sender().await;
+
+    // `reconfigure_for_testing` installs its own config override (carrying the
+    // flags set above into the next epoch) and panics if another override is
+    // still installed.
+    drop(guard);
+    env.reconfigure().await;
+    assert_eq!(env.epoch(), 1);
+
+    // Build the transfer in the denied epoch and execute it directly. Signing
+    // (`handle_transaction`) would reject a denied-coin spend up front, so this
+    // goes through `verify_transaction` (signature only) + direct execution,
+    // reproducing a transaction that reached execution despite being denied.
+    let transfer = env.build_transfer().await;
+    let epoch_store = env.env.authority.epoch_store_for_testing();
+    let verified_tx = epoch_store.verify_transaction(transfer).unwrap();
+    let executable =
+        VerifiedExecutableTransaction::new_from_checkpoint(verified_tx, epoch_store.epoch(), 1);
+
+    let (effects, _execution_error) = env
+        .env
+        .authority
+        .try_execute_immediately(&executable.into(), None, &epoch_store)
+        .unwrap();
+
+    let ExecutionStatus::Failure { error, .. } = effects.status() else {
+        panic!("expected an execution failure, got {:?}", effects.status());
+    };
+    assert!(
+        matches!(error, ExecutionError::AddressDeniedForCoin { .. }),
+        "expected AddressDeniedForCoin, got {error:?}"
+    );
+    assert!(
+        effects.gas_cost_summary().gas_used() > 0,
+        "the issuer must be charged gas for the failed execution"
     );
 }
 

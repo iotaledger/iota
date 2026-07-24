@@ -847,6 +847,24 @@ type ModifiedObjectInfo<'a> = (
 );
 
 impl TemporaryStore<'_> {
+    /// Sender-side coin deny-list check over the transaction's input objects,
+    /// run during execution of attested transactions.
+    ///
+    /// Reuses [`check_coin_deny_list_v1_during_execution`], which checks
+    /// whether each coin's owner is denied for its type — for an owned
+    /// input coin that owner is the sender, so this reproduces the
+    /// sender-side check while returning an [`ExecutionError`] that folds
+    /// into `ExecutionStatus::Failure` rather than aborting a must-execute
+    /// certificate.
+    pub(crate) fn check_input_coin_deny_list(&self) -> Result<(), ExecutionError> {
+        check_coin_deny_list_v1_during_execution(
+            &self.input_objects,
+            self.cur_epoch,
+            self.store.as_object_store(),
+        )
+        .result
+    }
+
     fn get_input_iota(
         &self,
         id: &ObjectId,

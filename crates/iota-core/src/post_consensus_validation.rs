@@ -35,11 +35,14 @@
 //!   tx's own prior-round lock), which is exempt. Cheap; performed before
 //!   expensive checks.
 //! - Check #6: `handle_transaction_validation_checks()` for
-//!   `UserTransactionV1`, or the deny-list and coin deny-list re-checks for
-//!   attested `UserTransactionV2`
-//!   (`check_transaction_deny_list_for_attested_tx()` then
-//!   `check_coin_deny_list_for_attested_tx()`). Drop with error. Only reached
-//!   when all locks are free.
+//!   `UserTransactionV1`, or for attested `UserTransactionV2` a payload-only
+//!   gas-bounds check (`check_gas_bounds()`, #8a) followed by the
+//!   `TransactionDenyConfig` re-check
+//!   (`check_transaction_deny_list_for_attested_tx()`). Drop with error. Only
+//!   reached when all locks are free. The coin deny-list check (#10) is no
+//!   longer run here for attested transactions; it is enforced during execution
+//!   (fail-to-effects), so a stale-attestation view resolves to a failed effect
+//!   rather than a drop.
 //! - All passed — acquire locks in the local tracking map, keep transaction.
 
 use std::{
@@ -51,7 +54,8 @@ use iota_common::fatal;
 use iota_sdk_types::{ObjectReference, TransactionDigest};
 use iota_types::{
     attestation::Attestation,
-    error::{IotaError, IotaResult, UserInputError},
+    error::{IotaError, IotaResult},
+    gas::check_gas_bounds,
     transaction::{
         InputObjectKind, SenderSignedTransactionAPI, TransactionDataAPI, VerifiedTransaction,
     },
@@ -328,11 +332,12 @@ pub async fn validate_and_resolve_conflicts(
         // `UserTransactionV1` runs the full
         // `handle_transaction_validation_checks` (which includes the
         // `TransactionDenyConfig` deny-list check). For `UserTransactionV2`
-        // (attested transactions) two checks are re-run individually — the
-        // deny-list check and the coin deny-list check (see below). The rest
-        // of `handle_transaction_validation_checks` is skipped for V2 because
-        // it is either re-applied during execution or is not safety-critical
-        // to run post-consensus:
+        // (attested transactions) a payload-only gas-bounds check (#8a) and the
+        // `TransactionDenyConfig` deny-list check are run individually (see
+        // below); the coin deny-list check (#10) is enforced during execution
+        // instead of here. The rest of `handle_transaction_validation_checks`
+        // is skipped for V2 because it is either re-applied during execution or
+        // is not safety-critical to run post-consensus:
         //   - Receiving-object validity: the Move runtime fails the `receive()` call
         //     when the ref doesn't match current state.
         //   - Move bytecode verifier on publish: the Move VM re-verifies every newly
@@ -350,11 +355,6 @@ pub async fn validate_and_resolve_conflicts(
         // lists, feature kill-switches): this is a LOCAL check, sourced from
         // each validator's `NodeConfig`. TODO: source the deny config from
         // consensus-agreed state instead of the local `NodeConfig`.
-        //
-        // Coin deny list v1 MUST be re-checked here for attested
-        // transactions: the attestor's view may be stale if a deny-list
-        // update tx was sequenced between attestation and consensus, and
-        // running this check at execution time would crash the validator.
         if attestation.is_none() {
             let verified_tx = VerifiedTransaction::new_from_verified(transaction.clone());
             if let Err(e) = authority_state
@@ -381,6 +381,26 @@ pub async fn validate_and_resolve_conflicts(
                 continue;
             }
         } else {
+            // Check #8a: payload-only gas bounds/price. Deterministic drop
+            // before version assignment; balance (#8b) is still checked at
+            // execution.
+            let txn = transaction.data().transaction();
+            if let Err(e) = check_gas_bounds(
+                epoch_store.protocol_config(),
+                epoch_store.reference_gas_price(),
+                txn.gas_price(),
+                txn.gas_budget(),
+            ) {
+                let e: IotaError = e.into();
+                warn!(
+                    ?digest,
+                    error = ?e,
+                    "UserTransactionV2 failed post-consensus gas bounds check, dropping"
+                );
+                dropped.push((digest, e));
+                keep[i] = false;
+                continue;
+            }
             let verified_tx = VerifiedTransaction::new_from_verified(transaction.clone());
             // Deny-list check (placeholder using the local deny config — see
             // the `TransactionDenyConfig` note in the Check #6 doc above).
@@ -394,32 +414,6 @@ pub async fn validate_and_resolve_conflicts(
                     ?digest,
                     error = ?e,
                     "UserTransactionV2 failed post-consensus deny-list check, dropping"
-                );
-                dropped.push((digest, e));
-                keep[i] = false;
-                continue;
-            }
-            if let Err(e) = authority_state
-                .check_coin_deny_list_for_attested_tx(&verified_tx, epoch_store.epoch())
-            {
-                if e.is_storage_or_epoch_error() {
-                    return Err(e);
-                }
-                // The helper performs two distinct steps; surface which one
-                // failed so triage doesn't mistake a stale-attestation input
-                // for an actual deny-list violation.
-                let reason = match &e {
-                    IotaError::UserInput {
-                        error:
-                            UserInputError::CoinTypeGlobalPause { .. }
-                            | UserInputError::AddressDeniedForCoin { .. },
-                    } => "coin deny-list re-check",
-                    _ => "input load (likely stale attestation)",
-                };
-                warn!(
-                    ?digest,
-                    error = ?e,
-                    "UserTransactionV2 failed post-consensus {reason}, dropping"
                 );
                 dropped.push((digest, e));
                 keep[i] = false;
