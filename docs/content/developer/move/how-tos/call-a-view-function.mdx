@@ -23,6 +23,23 @@ A function can only be called as a view if it is recorded in its module's on-cha
 
 :::
 
+## Before You Begin
+
+The examples on this page publish the `view_functions` package and call its views end-to-end, so they need a network that records view metadata. 
+The runnable examples below are meant to be run on a local network. Follow [Local Development](../../getting-started/local-network.mdx) to start one with a faucet:
+
+```sh
+iota-localnet start --force-regenesis --with-faucet
+```
+
+Each example provisions and funds a wallet for you.
+
+The runnable examples live in the [IOTA repository](https://github.com/iotaledger/iota). With the local network running, execute whichever one you want to follow:
+
+- **Rust SDK:** `cargo run -p iota-sdk --example move_view_function_call`
+- **TypeScript SDK:** `cd docs/examples/typescript && npm install && npm run call-view-function`
+- **Shell script (JSON-RPC with `curl`):** `docs/examples/shell/call-view-function.sh`
+
 ## Call over JSON-RPC
 
 1. Call the [`iota_view`](/iota-api-ref#iota_view) method with the fully qualified function name `<package_id>::<module_name>::<function_name>`, the type arguments (empty for a non-generic view), and the function arguments. Objects are passed by their ID.
