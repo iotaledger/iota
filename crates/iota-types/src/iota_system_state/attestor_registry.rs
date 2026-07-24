@@ -467,5 +467,13 @@ mod tests {
             "// scenario pop (ed25519, @0x42): x\"{}\"",
             hex::encode(generate_attestor_proof_of_possession(kp, scenario_sender))
         );
+        let secp256k1_kp = &test_keypairs()[1];
+        println!(
+            "// scenario pop (secp256k1, @0x42): x\"{}\"",
+            hex::encode(generate_attestor_proof_of_possession(
+                secp256k1_kp,
+                scenario_sender
+            ))
+        );
     }
 }

@@ -27,6 +27,14 @@ fun ed25519_pop(): vector<u8> {
     x"52a490fc6f760bd35b621542705b15230283e36f54456bcbe10a45bc4318e4d51e053716633f328ebb7d069e125163ae067b53cec268893f8a364c37525eeb04"
 }
 
+fun secp256k1_pubkey(): vector<u8> {
+    x"0102253bda0005e6d0332d8f59bfadc6c682ae3a6797acda0b01bfcd078e371977d9"
+}
+
+fun secp256k1_pop(): vector<u8> {
+    x"a0830232f65de7b7127431eaea46780634b19439a4c4e8872733a151af7ffeed31d6957732fe05e7a9ef03915d590e656866873f5812e1fbd7820fd7de687888"
+}
+
 #[test, expected_failure(abort_code = attestor_registry::EFeatureNotEnabled)]
 fun test_register_attestor_requires_feature_flag() {
     protocol_config::set_feature_enabled_for_testing(ENABLE_EXTERNAL_ATTESTATION_FLAG, false);
@@ -132,6 +140,52 @@ fun test_register_activate_deregister_refund_through_system() {
         scenario.return_to_sender(refund);
     };
 
+    scenario_val.end();
+}
+
+#[test]
+fun test_rotate_attestor_key_through_system() {
+    protocol_config::set_feature_enabled_for_testing(ENABLE_EXTERNAL_ATTESTATION_FLAG, true);
+    set_up_iota_system_state(vector[@0x1, @0x2]);
+    let mut scenario_val = test_scenario::begin(ATTESTOR);
+    let scenario = &mut scenario_val;
+
+    scenario.next_tx(ATTESTOR);
+    {
+        let mut system_state = scenario.take_shared<IotaSystemState>();
+        let bond = coin::mint_for_testing<IOTA>(MIN_JOINING_BOND, scenario.ctx());
+        iota_system::register_attestor(
+            &mut system_state,
+            bond,
+            ed25519_pubkey(),
+            ed25519_pop(),
+            scenario.ctx(),
+        );
+        test_scenario::return_shared(system_state);
+    };
+    advance_epoch(scenario);
+
+    // stage a replacement key; a swapped delegation aborts here on EInvalidPubkey
+    scenario.next_tx(ATTESTOR);
+    {
+        let mut system_state = scenario.take_shared<IotaSystemState>();
+        iota_system::rotate_attestor_key(
+            &mut system_state,
+            secp256k1_pubkey(),
+            secp256k1_pop(),
+            scenario.ctx(),
+        );
+        test_scenario::return_shared(system_state);
+    };
+
+    // the staged key is applied in place at the next boundary
+    advance_epoch(scenario);
+    scenario.next_tx(ATTESTOR);
+    {
+        let mut system_state = scenario.take_shared<IotaSystemState>();
+        assert!(iota_system::active_attestor_count_for_testing(&mut system_state) == 1);
+        test_scenario::return_shared(system_state);
+    };
     scenario_val.end();
 }
 
