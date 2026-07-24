@@ -18,7 +18,9 @@
 #
 # Required env: SLOW_N, SLOW_SIZE.
 # Tunables (env): SLOW_SHARED (default false = owned), QPS (default 5),
-#                 DURATION (default 20s), DIRECT (default false), N (validators,
+#                 DURATION (default 20s), DIRECT (default true = in-docker
+#                 client submitting directly to validators, like ../h1; false =
+#                 host binary via the fullnode), N (validators,
 #                 default 4), NUM_CLIENT_THREADS, NUM_TRANSFER_ACCOUNTS,
 #                 IN_FLIGHT_RATIO, NUM_WORKERS, PROM, TS_STEP, DRAIN_POLL_S,
 #                 DRAIN_TIMEOUT_S, WIPE (yes|no; default: prompt interactively,
@@ -74,7 +76,11 @@ rel() { case "$1" in "$REPO_ROOT"/*) printf './%s' "${1#"$REPO_ROOT"/}" ;; *) pr
 SLOW_SHARED="${SLOW_SHARED:-false}"
 QPS="${QPS:-5}"
 DURATION="${DURATION:-20s}"
-DIRECT="${DIRECT:-false}"
+# Default vehicle: the stress client runs IN-DOCKER on the private network
+# (run-stress-docker.sh, same as ../h1) and submits straight to the validators'
+# submit_tx — the attested P-COOL path — with no fullnode hop in the response
+# chain. DIRECT=false falls back to the host-built binary via the fullnode.
+DIRECT="${DIRECT:-true}"
 N="${N:-4}"
 NUM_CLIENT_THREADS="${NUM_CLIENT_THREADS:-12}"
 NUM_TRANSFER_ACCOUNTS="${NUM_TRANSFER_ACCOUNTS:-4}"
@@ -119,8 +125,9 @@ CSV_OUT="$SCRIPT_DIR/results/calibration-$MACHINE.csv"
 WORKLOAD_ARGS=(--transfer-object 0 --slow 100 --slow-n "$SLOW_N" --slow-size "$SLOW_SIZE" --slow-shared "$SLOW_SHARED")
 
 if [[ "$DIRECT" == true ]]; then
-  echo "${YELLOW}NOTE: DIRECT=true publishes the slow Move package in-container; this needs the" >&2
-  echo "      stress image rebuilt with the Move sources baked in (network-benchmark docker/stress).${RESET}" >&2
+  echo "${YELLOW}NOTE: DIRECT=true runs the stress image in-network; it must be built from the" >&2
+  echo "      CURRENT network-benchmark branch (docker/stress/build.sh) — a stale image" >&2
+  echo "      means a stale client (wrong protocol version pin, missing flags).${RESET}" >&2
 fi
 
 RULE="$(printf '%80s' '' | tr ' ' '*')"
@@ -228,41 +235,45 @@ ensure_network() {
   wait_for_fullnode
 }
 
-# Build the stress binary from BENCH_REPO (same as ../h1/run.sh) — always, so a
-# stale binary built earlier on another branch can't slip through. cargo is
-# incremental, so it's a fast no-op when nothing changed.
-banner "== build stress binary =="
-# Guard: the stress binary must come from the intended feature branch. If
-# BENCH_REPO is on a different branch, warn and force-checkout the expected one;
-# abort if that checkout fails (dirty tree / missing branch) so we never build or
-# run on the wrong branch. Override the target with EXPECT_BENCH_BRANCH.
-EXPECT_BENCH_BRANCH="${EXPECT_BENCH_BRANCH:-protocol-research/feat/transaction-attestation-feature-test}"
-if [[ -z "${STRESS_BIN_PATH:-}" && -d "$BENCH_REPO/.git" ]]; then
-  cur_branch="$(git -C "$BENCH_REPO" rev-parse --abbrev-ref HEAD 2>/dev/null || echo '?')"
-  if [[ "$cur_branch" != "$EXPECT_BENCH_BRANCH" ]]; then
-    echo "${YELLOW}network-benchmark on '$cur_branch' — switching to '$EXPECT_BENCH_BRANCH'...${RESET}" >&2
-    git -C "$BENCH_REPO" checkout "$EXPECT_BENCH_BRANCH" || {
-      echo "${RED}ERROR: could not checkout '$EXPECT_BENCH_BRANCH' in $BENCH_REPO" >&2
-      echo "       (uncommitted changes, or branch missing?) — resolve and re-run.${RESET}" >&2
-      exit 1
-    }
+# Host-binary fallback only: build the stress binary from BENCH_REPO (same as
+# ../h1/run.sh) so a stale binary built earlier on another branch can't slip
+# through. The default in-docker path uses the iotaledger/stress image instead —
+# rebuild that with network-benchmark's docker/stress/build.sh when the client
+# changes.
+if [[ "$DIRECT" != true ]]; then
+  banner "== build stress binary =="
+  # Guard: the stress binary must come from the intended feature branch. If
+  # BENCH_REPO is on a different branch, warn and force-checkout the expected one;
+  # abort if that checkout fails (dirty tree / missing branch) so we never build or
+  # run on the wrong branch. Override the target with EXPECT_BENCH_BRANCH.
+  EXPECT_BENCH_BRANCH="${EXPECT_BENCH_BRANCH:-protocol-research/feat/transaction-attestation-feature-test}"
+  if [[ -z "${STRESS_BIN_PATH:-}" && -d "$BENCH_REPO/.git" ]]; then
+    cur_branch="$(git -C "$BENCH_REPO" rev-parse --abbrev-ref HEAD 2>/dev/null || echo '?')"
+    if [[ "$cur_branch" != "$EXPECT_BENCH_BRANCH" ]]; then
+      echo "${YELLOW}network-benchmark on '$cur_branch' — switching to '$EXPECT_BENCH_BRANCH'...${RESET}" >&2
+      git -C "$BENCH_REPO" checkout "$EXPECT_BENCH_BRANCH" || {
+        echo "${RED}ERROR: could not checkout '$EXPECT_BENCH_BRANCH' in $BENCH_REPO" >&2
+        echo "       (uncommitted changes, or branch missing?) — resolve and re-run.${RESET}" >&2
+        exit 1
+      }
+    fi
+    built_branch="$(git -C "$BENCH_REPO" rev-parse --abbrev-ref HEAD)"
+    echo "network-benchmark on $built_branch (HEAD $(git -C "$BENCH_REPO" rev-parse --short HEAD))"
   fi
-  built_branch="$(git -C "$BENCH_REPO" rev-parse --abbrev-ref HEAD)"
-  echo "network-benchmark on $built_branch (HEAD $(git -C "$BENCH_REPO" rev-parse --short HEAD))"
+  if [[ -n "${STRESS_BIN_PATH:-}" ]]; then
+    echo "Using prebuilt stress binary: $STRESS_BIN"
+  else
+    (cd "$BENCH_REPO" && cargo build --release --bin stress)
+  fi
+  [[ -x "$STRESS_BIN" ]] || {
+    echo "${RED}stress binary not found/executable at $STRESS_BIN (build network-benchmark, or set STRESS_BIN_PATH)${RESET}" >&2
+    exit 1
+  }
 fi
-if [[ -n "${STRESS_BIN_PATH:-}" ]]; then
-  echo "Using prebuilt stress binary: $STRESS_BIN"
-else
-  (cd "$BENCH_REPO" && cargo build --release --bin stress)
-fi
-[[ -x "$STRESS_BIN" ]] || {
-  echo "${RED}stress binary not found/executable at $STRESS_BIN (build network-benchmark, or set STRESS_BIN_PATH)${RESET}" >&2
-  exit 1
-}
 
 ensure_network
 
-banner ">>> probe: slow(n=$SLOW_N, size=$SLOW_SIZE) product=$PRODUCT shared=$SLOW_SHARED qps=$QPS dur=$DURATION path=$([[ "$DIRECT" == true ]] && echo direct || echo fullnode)"
+banner ">>> probe: slow(n=$SLOW_N, size=$SLOW_SIZE) product=$PRODUCT shared=$SLOW_SHARED qps=$QPS dur=$DURATION path=$([[ "$DIRECT" == true ]] && echo direct-docker || echo fullnode-host)"
 wait_for_fullnode
 wait_for_first_scrape
 STRESS_LOG="$SCRIPT_DIR/results/probe-last-stress.log"
