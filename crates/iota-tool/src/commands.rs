@@ -317,6 +317,13 @@ pub enum ToolCommand {
         /// of re-indexing the whole restored state on first start.
         #[arg(long)]
         skip_grpc_indexes: bool,
+
+        /// Skip building the JSON-RPC index store during the restore. By
+        /// default it is built from the restored live object set, so a
+        /// fullnode started with `enable-index-processing` opens it in place
+        /// instead of re-indexing the whole restored state on first start.
+        #[arg(long)]
+        skip_jsonrpc_indexes: bool,
     },
 
     /// Backfill the full checkpoint summary history from the checkpoint
@@ -657,6 +664,7 @@ impl ToolCommand {
                 latest,
                 verbose,
                 skip_grpc_indexes,
+                skip_jsonrpc_indexes,
             } => {
                 if !verbose {
                     tracing_handle
@@ -778,6 +786,7 @@ impl ToolCommand {
                     num_parallel_downloads,
                     verify,
                     skip_grpc_indexes,
+                    skip_jsonrpc_indexes,
                 )
                 .await?;
             }

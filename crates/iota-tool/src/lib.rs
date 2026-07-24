@@ -36,6 +36,7 @@ use iota_core::{
     epoch::committee_store::CommitteeStore,
     execution_cache::build_execution_cache_from_env,
     grpc_indexes::{GRPC_INDEXES_DIR, GrpcIndexesStore},
+    jsonrpc_index::{IndexStore, JSONRPC_INDEXES_DIR},
     storage::RocksDbStore,
 };
 use iota_data_ingestion_core::history::reader::{
@@ -834,6 +835,7 @@ pub async fn download_formal_snapshot(
     num_parallel_downloads: usize,
     verify: SnapshotVerifyMode,
     skip_grpc_indexes: bool,
+    skip_jsonrpc_indexes: bool,
 ) -> Result<(), anyhow::Error> {
     let m = MultiProgress::new();
     m.println(format!(
@@ -1038,6 +1040,22 @@ pub async fn download_formal_snapshot(
     let authority_store =
         AuthorityStore::open_no_genesis(perpetual_db.clone(), false, &Registry::default())?;
     checkpoint_store.ensure_current_epoch_info(&authority_store)?;
+
+    // Build the JSON-RPC index store from the restored live object set, so a
+    // fullnode started with `enable-index-processing` opens it in place
+    // instead of re-indexing on first start. This runs after the object
+    // download: dynamic-field indexing loads child objects and package
+    // layouts, and the snapshot's object stream orders objects arbitrarily.
+    // The store closes all its RocksDB handles before the rename below.
+    if !skip_jsonrpc_indexes {
+        IndexStore::build_for_restore(
+            path.join(JSONRPC_INDEXES_DIR),
+            &authority_store,
+            expected_chain_id.chain(),
+            last_checkpoint.sequence_number,
+        )
+        .await?;
+    }
 
     // Finalize the gRPC live-state index store so the node opens it in place
     // instead of re-indexing. Drop all RocksDB handles before the rename below.
