@@ -19,7 +19,9 @@ use std::{
 use bincode::Options;
 use either::Either;
 use iota_common::try_iterator_ext::TryIteratorExt;
+use iota_execution::Executor;
 use iota_json_rpc_types::{IotaMoveValue, IotaObjectDataFilter, TransactionFilter};
+use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_sdk_types::{
     Address, ObjectDigest, ObjectId, ObjectReference, Owner, StructTag, TransactionDigest,
     TransactionEffects, TransactionEvents, TransactionEventsDigest, TypeTag, Version,
@@ -33,11 +35,12 @@ use iota_types::{
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     inner_temporary_store::TxCoins,
     iota_sdk_types_conversions::type_tag_core_to_sdk,
+    iota_system_state::{IotaSystemStateTrait, get_iota_system_state},
     layout_resolver::LayoutResolver,
     messages_checkpoint::{CheckpointContentsExt, CheckpointSequenceNumber},
     object::{Object, bounded_visitor::BoundedVisitor},
     parse_iota_struct_tag,
-    storage::{BackingPackageStore, ObjectStore, error::Error as StorageError},
+    storage::{BackingPackageStore, ObjectStore, PackageObject, error::Error as StorageError},
     transaction::{TransactionAPI, TransactionEnvelope},
 };
 use itertools::Itertools;
@@ -79,6 +82,11 @@ type AllBalance = HashMap<TypeTag, TotalBalance>;
 pub const MAX_TX_RANGE_SIZE: u64 = 4096;
 
 pub const MAX_GET_OWNED_OBJECT_SIZE: usize = 256;
+
+/// Subdirectory of the node's database path holding the JSON-RPC index
+/// store. The formal-snapshot restore builds the store under the same name,
+/// so a restored node opens it in place.
+pub const JSONRPC_INDEXES_DIR: &str = "indexes";
 
 /// Bump this when changing the serialization format of an existing table.
 /// A version mismatch triggers a full re-index via
@@ -378,7 +386,7 @@ impl IndexStoreTables {
         // background once the node is up, resuming from `history_watermark`.
         self.index_live_object_set(
             authority_store,
-            epoch_store,
+            epoch_store.executor(),
             package_store,
             batch_size_limit,
         )?;
@@ -503,19 +511,19 @@ impl IndexStoreTables {
         Ok(())
     }
 
-    /// Phase 2 of `init`: rebuild the live-state indexes (owner, coin,
-    /// dynamic field) by scanning the current live object set in parallel.
+    /// Rebuilds the live-state indexes (owner, coin, dynamic field) by
+    /// scanning the current live object set in parallel.
     fn index_live_object_set(
         &self,
         authority_store: &AuthorityStore,
-        epoch_store: &AuthorityPerEpochStore,
+        executor: &Arc<dyn Executor + Send + Sync>,
         package_store: &Arc<dyn BackingPackageStore + Send + Sync>,
         batch_size_limit: usize,
     ) -> Result<(), StorageError> {
         let indexer = JsonRpcLiveObjectSetIndexer {
             tables: self,
             authority_store,
-            epoch_store,
+            executor,
             package_store,
             batch_size_limit,
         };
@@ -1098,12 +1106,23 @@ pub(crate) fn try_create_dynamic_field_info(
     }))
 }
 
+/// Serves package objects straight from the object store — for the restore
+/// build, where no execution cache exists. Packages are immutable live
+/// objects, so the latest version is the only version.
+struct PackagesFromObjectStore(Arc<AuthorityStore>);
+
+impl BackingPackageStore for PackagesFromObjectStore {
+    fn get_package_object(&self, package_id: &ObjectId) -> IotaResult<Option<PackageObject>> {
+        Ok(self.0.try_get_object(package_id)?.map(PackageObject::new))
+    }
+}
+
 /// Builds the live-state indexes (owner, coin, dynamic field) from a parallel
 /// scan of the live object set during `init`.
 struct JsonRpcLiveObjectSetIndexer<'a> {
     tables: &'a IndexStoreTables,
     authority_store: &'a AuthorityStore,
-    epoch_store: &'a AuthorityPerEpochStore,
+    executor: &'a Arc<dyn Executor + Send + Sync>,
     package_store: &'a Arc<dyn BackingPackageStore + Send + Sync>,
     batch_size_limit: usize,
 }
@@ -1120,8 +1139,7 @@ impl ParMakeLiveObjectIndexer for JsonRpcLiveObjectSetIndexer<'_> {
             batch: self.tables.owner_index.batch(),
             object_store: self.authority_store,
             layout_resolver: self
-                .epoch_store
-                .executor()
+                .executor
                 .type_layout_resolver(Box::new(self.package_store.clone())),
             batch_size_limit: self.batch_size_limit,
         }
@@ -1373,6 +1391,95 @@ impl IndexStore {
         if let Some(task) = task {
             task.await.expect("history backfill task failed");
         }
+    }
+
+    /// Builds the JSON-RPC index database for a formal-snapshot restore by
+    /// scanning the restored live object set, and seeds the markers so a
+    /// node opens it in place instead of rebuilding.
+    ///
+    /// Must run after all objects are restored: dynamic-field indexing loads
+    /// child objects and package layouts, and the snapshot's object stream
+    /// orders objects arbitrarily. `restore_checkpoint` is the restore's
+    /// highest executed checkpoint; no history below it exists locally, so
+    /// there is nothing for the background replay to backfill. The database
+    /// is closed again before this returns.
+    pub async fn build_for_restore(
+        path: PathBuf,
+        authority_store: &Arc<AuthorityStore>,
+        chain: Chain,
+        restore_checkpoint: CheckpointSequenceNumber,
+    ) -> Result<(), StorageError> {
+        let system_state = get_iota_system_state(authority_store.as_ref())
+            .map_err(|e| StorageError::custom(e.to_string()))?;
+        let protocol_config = ProtocolConfig::get_for_version(
+            ProtocolVersion::new(system_state.protocol_version()),
+            chain,
+        );
+        let executor = iota_execution::executor(&protocol_config, true, None)
+            .map_err(|e| StorageError::custom(e.to_string()))?;
+
+        let bulk_options = bulk_ingestion_options();
+        let batch_size_limit = bulk_options.batch_size_limit;
+        let mut table_config = BTreeMap::new();
+        for table_name in IndexStoreTables::describe_tables().into_keys() {
+            table_config.insert(table_name, bulk_options.column_family_options.clone());
+        }
+        let tables = IndexStoreTables::open_tables_read_write(
+            path,
+            MetricConf::new("index"),
+            Some(bulk_options.db_options),
+            Some(DBMapTableConfigMap::new(table_config)),
+        );
+
+        info!("Building JSON-RPC indexes from the restored live object set");
+        let tables = tokio::task::spawn_blocking({
+            let authority_store = authority_store.clone();
+            move || -> Result<IndexStoreTables, StorageError> {
+                // `meta` first, `watermark` last: a node opening a store from
+                // a restore that crashed in between wipes and rebuilds it.
+                tables.meta.insert(
+                    &(),
+                    &MetadataInfo {
+                        version: CURRENT_DB_VERSION,
+                    },
+                )?;
+                let package_store: Arc<dyn BackingPackageStore + Send + Sync> =
+                    Arc::new(PackagesFromObjectStore(authority_store.clone()));
+                tables.index_live_object_set(
+                    &authority_store,
+                    &executor,
+                    &package_store,
+                    batch_size_limit,
+                )?;
+                tables
+                    .history_watermark
+                    .insert(&(), &restore_checkpoint.saturating_add(1))?;
+                tables.watermark.insert(&(), &restore_checkpoint)?;
+                // WAL is disabled for the bulk writes; make them durable
+                // before the database closes.
+                tables.meta.flush_all()?;
+                Ok(tables)
+            }
+        })
+        .await
+        .expect("JSON-RPC index restore task failed")?;
+
+        // Release every RocksDB handle before returning, so the caller can
+        // move the database directory.
+        let weak_db = Arc::downgrade(&tables.meta.db);
+        drop(tables);
+        let deadline = Instant::now() + Duration::from_secs(30);
+        while weak_db.strong_count() != 0 {
+            if Instant::now() > deadline {
+                return Err(StorageError::custom(
+                    "unable to close the JSON-RPC index database after the restore build",
+                ));
+            }
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+
+        info!("Finished building JSON-RPC indexes for the restore");
+        Ok(())
     }
 
     /// Opens the store without the init logic of [`Self::new`] — for tests.
@@ -2872,6 +2979,118 @@ mod tests {
         );
     }
 
+    /// A formal-snapshot restore builds the JSON-RPC index from the restored
+    /// live object set (`build_for_restore`); a node then opens it in place
+    /// instead of rebuilding, and the history backfill has nothing to do.
+    #[tokio::test]
+    async fn test_build_for_restore_is_adopted_on_open() {
+        use iota_types::base_types::dbg_addr;
+
+        let authority_state = crate::authority::test_authority_builder::TestAuthorityBuilder::new()
+            .insert_genesis_checkpoint()
+            .build()
+            .await;
+
+        let owner = dbg_addr(1);
+        let gas_object =
+            iota_types::object::Object::with_id_owner_for_testing(ObjectId::random(), owner);
+        authority_state.insert_genesis_objects(std::slice::from_ref(&gas_object));
+
+        let checkpoint_store = &authority_state.checkpoint_store;
+        let genesis_checkpoint = checkpoint_store
+            .get_checkpoint_by_sequence_number(0)
+            .unwrap()
+            .unwrap();
+        // The restore marks the restore checkpoint both executed and pruned.
+        checkpoint_store
+            .update_highest_executed_checkpoint(&genesis_checkpoint)
+            .unwrap();
+        checkpoint_store
+            .update_highest_pruned_checkpoint(&genesis_checkpoint)
+            .unwrap();
+
+        let index_dir = iota_common::tempdir();
+        IndexStore::build_for_restore(
+            index_dir.path().to_path_buf(),
+            &authority_state.database_for_testing(),
+            iota_protocol_config::Chain::Unknown,
+            0,
+        )
+        .await
+        .unwrap();
+
+        // Plant a sentinel row: if it survives the open below, the store was
+        // adopted rather than wiped and rebuilt into equal-looking data.
+        let sentinel = iota_sdk_types::TransactionDigest::random();
+        {
+            let built = IndexStore::new_without_init(
+                index_dir.path().to_path_buf(),
+                &Registry::default(),
+                Some(128),
+            );
+            assert!(
+                !built.tables.needs_to_do_initialization(checkpoint_store),
+                "a restore-built store must need no rebuild"
+            );
+            built
+                .tables
+                .transactions_seq
+                .insert(&sentinel, &42)
+                .unwrap();
+            let weak_db = std::sync::Arc::downgrade(&built.tables.meta.db);
+            drop(built);
+            while weak_db.strong_count() != 0 {
+                tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+            }
+        }
+
+        let index_store = IndexStore::new(
+            index_dir.path().to_path_buf(),
+            &Registry::default(),
+            Some(128),
+            &authority_state.database_for_testing(),
+            checkpoint_store,
+            &authority_state.epoch_store_for_testing(),
+            authority_state.get_backing_package_store().clone(),
+        )
+        .await;
+        index_store.wait_for_history_backfill_for_testing().await;
+
+        assert_eq!(
+            index_store.get_transaction_seq(&sentinel).unwrap(),
+            Some(42),
+            "the restored database must be opened in place, not rebuilt"
+        );
+
+        // The owner and coin tables were built from the live object set.
+        let owned: Vec<_> = index_store
+            .get_owner_objects(owner, None, 10, None)
+            .unwrap();
+        assert_eq!(owned.len(), 1);
+        assert_eq!(owned[0].object_id, gas_object.id());
+        let balance = index_store
+            .get_balance(owner, iota_types::gas_coin::GAS::type_tag())
+            .unwrap();
+        assert_eq!(balance.num_coins, 1);
+
+        // Dynamic-field indexing resolved layouts during the restore build:
+        // the system state's versioned inner object is a dynamic field of
+        // `0x5`.
+        let system_state_fields = index_store
+            .get_dynamic_fields_iterator(iota_types::IOTA_SYSTEM_STATE_OBJECT_ID, None)
+            .unwrap()
+            .count();
+        assert!(system_state_fields > 0);
+
+        // Watermark at the restore checkpoint, history one past it — nothing
+        // for the backfill to replay.
+        assert_eq!(index_store.tables.watermark.get(&()).unwrap(), Some(0));
+        assert_eq!(
+            index_store.tables.history_watermark.get(&()).unwrap(),
+            Some(1)
+        );
+    }
+
     /// A stale database (here: written by another schema version) is wiped
     /// and rebuilt through the full open path — bulk-ingestion open, flush,
     /// reopen with default options — and none of its rows survive.
@@ -2905,7 +3124,7 @@ mod tests {
         index_store.wait_for_history_backfill_for_testing().await;
 
         let genesis_contents = checkpoint_store
-            .get_checkpoint_contents(&genesis_checkpoint.content_digest)
+            .get_checkpoint_contents(&genesis_checkpoint.contents_digest)
             .unwrap()
             .unwrap();
         let genesis_tx_digest = genesis_contents.iter().next().unwrap().transaction;
