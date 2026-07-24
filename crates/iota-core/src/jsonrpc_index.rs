@@ -219,10 +219,10 @@ pub struct IndexStoreCacheUpdates {
 pub struct IndexStoreTables {
     /// A singleton that stores metadata information on the DB.
     ///
-    /// Written first during a rebuild, while `watermark` is written last, so
-    /// a crashed rebuild (`meta` without `watermark`) can be told apart from
-    /// a database written before per-checkpoint indexing (data without
-    /// `meta`).
+    /// A missing `meta` row (a database from before per-checkpoint indexing)
+    /// or a version mismatch triggers a full re-index. During a rebuild,
+    /// `meta` is written first and `watermark` last, so a crashed rebuild is
+    /// re-detected on the next open.
     meta: DBMap<(), MetadataInfo>,
 
     /// Highest checkpoint sequence number indexed.
@@ -297,30 +297,26 @@ impl IndexStoreTables {
         &self.coin_index
     }
 
-    /// Seeds the `meta` and `watermark` rows on the first open with this
-    /// schema.
+    /// Seeds the `meta` row on the first open of an empty database, so a
+    /// fresh store on a node with no executed checkpoints needs no rebuild.
     ///
     /// A database written before per-checkpoint indexing has data but no
-    /// `meta` row; it is adopted in place, since its content tracks executed
-    /// transactions exactly. Seeding `meta` on brand-new databases too means
-    /// "data without `meta`" cannot occur from here on, so a crashed rebuild
-    /// (`meta` written first, `watermark` last) is always detected.
-    fn seed_meta_and_watermark(&self, checkpoint_store: &CheckpointStore) -> IotaResult {
+    /// `meta` row and is deliberately left unseeded, so
+    /// `needs_to_do_initialization` wipes and rebuilds it. Its content cannot
+    /// be trusted: nodes restored from a formal snapshot wrote a corrupted
+    /// owner index and non-canonical transaction numbering into it.
+    fn seed_meta(&self) -> IotaResult {
         if !matches!(self.meta.get(&()), Ok(None)) {
             return Ok(());
         }
-        if !self.transaction_order.is_empty() || !self.owner_index.is_empty() {
-            let highest_executed = checkpoint_store
-                .get_highest_executed_checkpoint_seq_number()?
-                .unwrap_or(0);
-            self.watermark.insert(&(), &highest_executed)?;
+        if self.transaction_order.is_empty() && self.owner_index.is_empty() {
+            self.meta.insert(
+                &(),
+                &MetadataInfo {
+                    version: CURRENT_DB_VERSION,
+                },
+            )?;
         }
-        self.meta.insert(
-            &(),
-            &MetadataInfo {
-                version: CURRENT_DB_VERSION,
-            },
-        )?;
         Ok(())
     }
 
@@ -1237,7 +1233,8 @@ impl IndexStore {
     /// Opens the store, wiping and rebuilding the indexes first when they are
     /// missing or stale (e.g. on the first start after a formal-snapshot
     /// restore, or after running with indexes disabled). Databases written
-    /// before per-checkpoint indexing are adopted in place.
+    /// before per-checkpoint indexing are wiped and rebuilt as well: nodes
+    /// restored from a formal snapshot wrote corrupted data into them.
     pub async fn new(
         path: PathBuf,
         registry: &Registry,
@@ -1252,7 +1249,7 @@ impl IndexStore {
         let mut tables = Self::open_tables(&path, &pruner_watermark, &compaction_metrics);
 
         tables
-            .seed_meta_and_watermark(checkpoint_store)
+            .seed_meta()
             .expect("failed to initialize index tables");
 
         if tables.needs_to_do_initialization(checkpoint_store) {
@@ -1530,9 +1527,9 @@ impl IndexStore {
 
     /// Builds and stages the index batch for one executed checkpoint.
     ///
-    /// Transactions already present in the index (written before an upgrade
-    /// to per-checkpoint indexing, or by a checkpoint replayed during crash
-    /// recovery) are skipped. Nothing is written to the database until
+    /// Transactions already present in the index (from a checkpoint replayed
+    /// during crash recovery) are skipped. Nothing is written to the database
+    /// until
     /// [`Self::commit_update_for_checkpoint`] is called.
     ///
     /// Must be called for each checkpoint in sequence order, so that
@@ -2687,10 +2684,7 @@ mod tests {
             Some(128),
         );
 
-        index_store
-            .tables
-            .seed_meta_and_watermark(&checkpoint_store)
-            .unwrap();
+        index_store.tables.seed_meta().unwrap();
         assert!(
             !index_store
                 .tables
@@ -2732,9 +2726,11 @@ mod tests {
     }
 
     /// A database written before per-checkpoint indexing (data, but no `meta`
-    /// row) is adopted in place instead of being wiped and rebuilt.
+    /// row) must be wiped and rebuilt: nodes restored from a formal snapshot
+    /// had a corrupted owner index and non-canonical transaction numbering,
+    /// and a database without a watermark cannot prove it is not one of them.
     #[tokio::test]
-    async fn test_pre_watermark_database_is_adopted_in_place() {
+    async fn test_pre_meta_database_triggers_initialization() {
         let tmp_dir = iota_common::tempdir();
         let cp_dir = iota_common::tempdir();
         let checkpoint_store = CheckpointStore::new(&cp_dir.path().join("checkpoints"));
@@ -2757,21 +2753,12 @@ mod tests {
             .insert(&digest, &0)
             .unwrap();
 
-        index_store
-            .tables
-            .seed_meta_and_watermark(&checkpoint_store)
-            .unwrap();
+        index_store.tables.seed_meta().unwrap();
         assert!(
-            !index_store
+            index_store
                 .tables
                 .needs_to_do_initialization(&checkpoint_store),
-            "an adopted database must not be wiped"
-        );
-        assert_eq!(index_store.tables.watermark.get(&()).unwrap(), Some(5));
-        assert_eq!(
-            index_store.get_transaction_seq(&digest).unwrap(),
-            Some(0),
-            "adopted rows must survive"
+            "a database from before per-checkpoint indexing must be rebuilt"
         );
     }
 
