@@ -5980,7 +5980,7 @@ impl RandomnessRoundReceiver {
             .get_cache_commit()
             .persist_transaction(&transaction);
 
-        // Notify the scheduler that the transaction key now has a known digest.
+        // Notify the scheduler that the transaction key now has a known digest
         if epoch_store.insert_tx_key(key, digest).is_err() {
             warn!("epoch ended while handling new randomness");
         }
@@ -5989,9 +5989,9 @@ impl RandomnessRoundReceiver {
         match self.authority_state.execution_scheduler().as_ref() {
             ExecutionSchedulerWrapper::ExecutionScheduler(_) => {}
             ExecutionSchedulerWrapper::TransactionManager(manager) => {
-                // Notifies transaction manager that the transaction key now has a known
-                // digest, so that it can start executing any transactions that were
-                // scheduled under the key.
+                // Notifies transaction manager about transaction and output objects
+                // committed. This provides necessary information to transaction manager
+                // to start executing additional ready transactions.
                 manager.notify_transaction_key(&epoch_store, key, digest);
             }
         }

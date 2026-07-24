@@ -1658,7 +1658,7 @@ impl IotaNode {
 
         let digests = pending_consensus_certificates
             .iter()
-            // unwrap_digest okay because only user certificates are in
+            // unwrap_digest okay because only user certs are in
             // pending_consensus_certificates
             .map(|(tx, _)| *tx.key().unwrap_digest())
             .collect::<Vec<_>>();

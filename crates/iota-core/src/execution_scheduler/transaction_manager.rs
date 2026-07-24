@@ -906,9 +906,7 @@ impl ExecutionSchedulerAPI for TransactionManager {
         transactions: Vec<(Schedulable, ExecutionEnv)>,
         epoch_store: &Arc<AuthorityPerEpochStore>,
     ) {
-        // Schedule all transactions immediately; schedulables that are not yet
-        // resolvable to a transaction are parked under their key until
-        // `notify_transaction_key` provides the digest.
+        // schedule all transactions immediately
         let mut txns = Vec::with_capacity(transactions.len());
         let mut rest = Vec::new();
 

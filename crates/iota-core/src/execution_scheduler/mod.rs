@@ -66,10 +66,6 @@ pub struct ExecutingGuard {
 
 #[enum_dispatch]
 pub trait ExecutionSchedulerAPI {
-    /// Enqueues transactions (or schedulable keys that later resolve to
-    /// transactions, such as a randomness state update round) for execution.
-    /// Once all of the input objects are available locally for a transaction,
-    /// it will be sent to the execution driver.
     fn enqueue(
         &self,
         transactions: Vec<(Schedulable, ExecutionEnv)>,
