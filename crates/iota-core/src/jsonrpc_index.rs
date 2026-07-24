@@ -231,6 +231,15 @@ pub struct IndexStoreTables {
     /// triggers a full re-index via `needs_to_do_initialization`.
     watermark: DBMap<(), CheckpointSequenceNumber>,
 
+    /// Lowest checkpoint whose transactions are in the history tables.
+    ///
+    /// A rebuild seeds this to one past the watermark (no history yet); the
+    /// background replay then works downwards, committing the marker inside
+    /// each checkpoint's batch, until it reaches the checkpoint-contents
+    /// pruner. Absent on databases that were never rebuilt: their history
+    /// has been indexed continuously and is complete.
+    history_watermark: DBMap<(), CheckpointSequenceNumber>,
+
     /// Index from iota address to transactions initiated by that address.
     transactions_from_addr: DBMap<(Address, TxSequenceNumber), TransactionDigest>,
 
@@ -338,25 +347,6 @@ impl IndexStoreTables {
         watermark < highest_executed_checkpoint
     }
 
-    /// Range of checkpoints that history replay can cover. Returns `None`
-    /// when there is nothing to do (no executed checkpoints, or the lower
-    /// bound has overtaken the upper).
-    fn transaction_index_range(
-        &self,
-        checkpoint_store: &CheckpointStore,
-        highest_executed_checkpoint: Option<CheckpointSequenceNumber>,
-    ) -> Result<Option<std::ops::RangeInclusive<CheckpointSequenceNumber>>, StorageError> {
-        // Replay reads each transaction, its effects, and its events, all of
-        // which are pruned together with the checkpoint contents — the object
-        // pruner does not bound it.
-        let lowest = checkpoint_store
-            .get_highest_pruned_checkpoint_seq_number()?
-            .map(|c| c.saturating_add(1))
-            .unwrap_or(0);
-        Ok(highest_executed_checkpoint
-            .and_then(|highest| (lowest <= highest).then_some(lowest..=highest)))
-    }
-
     /// Runs only when `needs_to_do_initialization` is true (fresh DB, schema
     /// mismatch, crashed mid-init, or the index watermark falling behind
     /// `highest_executed_checkpoint`).
@@ -385,15 +375,9 @@ impl IndexStoreTables {
         let highest_executed_checkpoint =
             checkpoint_store.get_highest_executed_checkpoint_seq_number()?;
 
-        // Phase 1 — history-derived tables, replayed over the checkpoints
-        // whose data is still locally available.
-        let tx_range =
-            self.transaction_index_range(checkpoint_store, highest_executed_checkpoint)?;
-        if let Some(range) = tx_range {
-            self.index_historical_checkpoints(authority_store, checkpoint_store, range)?;
-        }
-
-        // Phase 2 — live-state tables from the current live object set.
+        // Live-state tables from the current live object set. The history
+        // tables are not built here: `backfill_history` fills them in the
+        // background once the node is up, resuming from `history_watermark`.
         self.index_live_object_set(
             authority_store,
             epoch_store,
@@ -401,6 +385,10 @@ impl IndexStoreTables {
             batch_size_limit,
         )?;
 
+        self.history_watermark.insert(
+            &(),
+            &highest_executed_checkpoint.map_or(0, |c| c.saturating_add(1)),
+        )?;
         self.watermark
             .insert(&(), &highest_executed_checkpoint.unwrap_or(0))?;
 
@@ -409,85 +397,111 @@ impl IndexStoreTables {
         Ok(())
     }
 
-    /// Replays every checkpoint in `checkpoint_range` in order, writing only
-    /// the history tables; the live-state tables are covered by the
-    /// live-object scan. Transactions are numbered by their position in the
-    /// network transaction order, derived from each checkpoint's transaction
-    /// total, so numbering stays canonical whatever range is locally
-    /// available.
+    /// Fills the history tables for the checkpoints below
+    /// `history_watermark`, newest first, until it reaches the
+    /// checkpoint-contents pruner. The marker commits atomically with each
+    /// checkpoint's rows, so an interrupted run resumes where it stopped.
+    /// No-op when the marker is absent (the history was indexed continuously
+    /// and is complete).
     #[tracing::instrument(skip_all)]
-    fn index_historical_checkpoints(
+    fn backfill_history(
         &self,
         authority_store: &AuthorityStore,
         checkpoint_store: &CheckpointStore,
-        checkpoint_range: std::ops::RangeInclusive<CheckpointSequenceNumber>,
     ) -> Result<(), StorageError> {
-        info!(
-            "Indexing {} checkpoints in range {checkpoint_range:?}",
-            checkpoint_range.size_hint().0
-        );
+        let Some(watermark) = self.history_watermark.get(&())? else {
+            return Ok(());
+        };
+        let Some(mut next) = watermark.checked_sub(1) else {
+            return Ok(());
+        };
+
+        info!("Backfilling JSON-RPC history tables from checkpoint {next} downwards");
         let start_time = Instant::now();
-
-        for checkpoint_seq in checkpoint_range {
-            let summary = checkpoint_store
-                .get_checkpoint_by_sequence_number(checkpoint_seq)?
-                .ok_or_else(|| {
-                    StorageError::missing(format!("missing checkpoint {checkpoint_seq}"))
-                })?;
-            let contents = checkpoint_store
-                .get_checkpoint_contents(&summary.content_digest)?
-                .ok_or_else(|| {
-                    StorageError::missing(format!("missing checkpoint contents {checkpoint_seq}"))
-                })?;
-            let first_sequence_number =
-                summary.network_total_transactions - contents.iter().len() as u64;
-
-            let mut batch = self.transactions_from_addr.batch();
-            for (sequence, digests) in (first_sequence_number..).zip(contents.iter()) {
-                let transaction = authority_store
-                    .get_transaction_block(&digests.transaction)?
-                    .ok_or_else(|| {
-                        StorageError::missing(format!(
-                            "missing transaction {}",
-                            digests.transaction
-                        ))
-                    })?
-                    .into_inner();
-                let effects = authority_store
-                    .get_effects(&digests.effects)
-                    .map_err(|e| StorageError::custom(e.to_string()))?
-                    .ok_or_else(|| {
-                        StorageError::missing(format!("missing effects {}", digests.effects))
-                    })?;
-                let events = if effects.events_digest().is_some() {
-                    Some(
-                        authority_store
-                            .get_events(&digests.transaction)?
-                            .ok_or_else(|| {
-                                StorageError::missing(format!(
-                                    "missing events {}",
-                                    digests.transaction
-                                ))
-                            })?,
-                    )
-                } else {
-                    None
-                };
-
-                let data = transaction_index_data(&transaction, &effects, events.as_ref())
-                    .map_err(|e| StorageError::custom(e.to_string()))?;
-                self.index_tx(&mut batch, sequence, summary.timestamp_ms, data)
-                    .map_err(|e| StorageError::custom(e.to_string()))?;
+        let mut replayed: u64 = 0;
+        loop {
+            // The pruner advances while the backfill runs; re-check the
+            // bound so the replay stops before data that is about to
+            // disappear.
+            let lowest = checkpoint_store
+                .get_highest_pruned_checkpoint_seq_number()?
+                .map(|c| c.saturating_add(1))
+                .unwrap_or(0);
+            if next < lowest {
+                break;
             }
-            batch
-                .write_opt(&bulk_ingestion_write_options())
-                .map_err(StorageError::from)?;
+            self.replay_checkpoint_history(authority_store, checkpoint_store, next)?;
+            replayed += 1;
+            let Some(n) = next.checked_sub(1) else {
+                break;
+            };
+            next = n;
         }
 
         info!(
-            "Indexing checkpoints took {} seconds",
+            "Backfilling {replayed} checkpoints of JSON-RPC history took {} seconds",
             start_time.elapsed().as_secs()
         );
+        Ok(())
+    }
+
+    /// Replays one checkpoint into the history tables and lowers
+    /// `history_watermark` to it, in one atomic batch. Transactions are
+    /// numbered by their position in the network transaction order, derived
+    /// from the checkpoint's transaction total, so numbering stays canonical
+    /// whatever range is locally available.
+    fn replay_checkpoint_history(
+        &self,
+        authority_store: &AuthorityStore,
+        checkpoint_store: &CheckpointStore,
+        checkpoint_seq: CheckpointSequenceNumber,
+    ) -> Result<(), StorageError> {
+        let summary = checkpoint_store
+            .get_checkpoint_by_sequence_number(checkpoint_seq)?
+            .ok_or_else(|| StorageError::missing(format!("missing checkpoint {checkpoint_seq}")))?;
+        let contents = checkpoint_store
+            .get_checkpoint_contents(&summary.content_digest)?
+            .ok_or_else(|| {
+                StorageError::missing(format!("missing checkpoint contents {checkpoint_seq}"))
+            })?;
+        let first_sequence_number =
+            summary.network_total_transactions - contents.iter().len() as u64;
+
+        let mut batch = self.transactions_from_addr.batch();
+        for (sequence, digests) in (first_sequence_number..).zip(contents.iter()) {
+            let transaction = authority_store
+                .get_transaction_block(&digests.transaction)?
+                .ok_or_else(|| {
+                    StorageError::missing(format!("missing transaction {}", digests.transaction))
+                })?
+                .into_inner();
+            let effects = authority_store
+                .get_effects(&digests.effects)
+                .map_err(|e| StorageError::custom(e.to_string()))?
+                .ok_or_else(|| {
+                    StorageError::missing(format!("missing effects {}", digests.effects))
+                })?;
+            let events = if effects.events_digest().is_some() {
+                Some(
+                    authority_store
+                        .get_events(&digests.transaction)?
+                        .ok_or_else(|| {
+                            StorageError::missing(format!("missing events {}", digests.transaction))
+                        })?,
+                )
+            } else {
+                None
+            };
+
+            let data = transaction_index_data(&transaction, &effects, events.as_ref())
+                .map_err(|e| StorageError::custom(e.to_string()))?;
+            self.index_tx(&mut batch, sequence, summary.timestamp_ms, data)
+                .map_err(|e| StorageError::custom(e.to_string()))?;
+        }
+        batch.insert_batch(&self.history_watermark, [((), checkpoint_seq)])?;
+        // A plain write, not a bulk-ingestion one: the database is serving
+        // queries, and the marker must land atomically with the rows.
+        batch.write().map_err(StorageError::from)?;
         Ok(())
     }
 
@@ -758,6 +772,7 @@ pub struct IndexStore {
     max_type_length: u64,
     pruner_watermark: Arc<AtomicU64>,
     pending_updates: Mutex<BTreeMap<CheckpointSequenceNumber, PendingCheckpointUpdate>>,
+    history_backfill_task: Mutex<Option<tokio::task::JoinHandle<()>>>,
 }
 
 struct JsonRpcCompactionMetrics {
@@ -1184,11 +1199,16 @@ impl LiveObjectIndexer for JsonRpcLiveObjectIndexer<'_> {
 }
 
 impl IndexStore {
-    /// Opens the store, wiping and rebuilding the indexes first when they are
-    /// missing or stale (e.g. on the first start after a formal-snapshot
-    /// restore, or after running with indexes disabled). Databases written
-    /// before per-checkpoint indexing are wiped and rebuilt as well: nodes
-    /// restored from a formal snapshot wrote corrupted data into them.
+    /// Opens the store, wiping it and rebuilding the live-state tables first
+    /// when the indexes are missing or stale (e.g. on the first start after
+    /// a formal-snapshot restore, or after running with indexes disabled).
+    /// Databases written before per-checkpoint indexing are wiped and
+    /// rebuilt as well: nodes restored from a formal snapshot wrote
+    /// corrupted data into them.
+    ///
+    /// The history tables are filled by a background replay after this
+    /// returns; until it finishes, history-backed queries cover a growing
+    /// range of recent checkpoints, as on a pruned node.
     pub async fn new(
         path: PathBuf,
         registry: &Registry,
@@ -1197,7 +1217,7 @@ impl IndexStore {
         checkpoint_store: &Arc<CheckpointStore>,
         epoch_store: &Arc<AuthorityPerEpochStore>,
         package_store: Arc<dyn BackingPackageStore + Send + Sync>,
-    ) -> Self {
+    ) -> Arc<Self> {
         let pruner_watermark = Arc::new(AtomicU64::new(0));
         let compaction_metrics = JsonRpcCompactionMetrics::new(registry);
         let mut tables = Self::open_tables(&path, &pruner_watermark, &compaction_metrics);
@@ -1319,7 +1339,42 @@ impl IndexStore {
             })
             .unwrap_or(0);
 
-        Self::finish_open(tables, registry, max_type_length, pruner_watermark, anchor)
+        let store = Arc::new(Self::finish_open(
+            tables,
+            registry,
+            max_type_length,
+            pruner_watermark,
+            anchor,
+        ));
+        store.spawn_history_backfill(authority_store.clone(), checkpoint_store.clone());
+        store
+    }
+
+    /// Starts the background replay that fills the history tables below the
+    /// watermark, if any is pending.
+    fn spawn_history_backfill(
+        self: &Arc<Self>,
+        authority_store: Arc<AuthorityStore>,
+        checkpoint_store: Arc<CheckpointStore>,
+    ) {
+        let store = self.clone();
+        let task = tokio::task::spawn_blocking(move || {
+            if let Err(e) = store
+                .tables
+                .backfill_history(&authority_store, &checkpoint_store)
+            {
+                error!("JSON-RPC index history backfill stopped: {e}");
+            }
+        });
+        *self.history_backfill_task.lock() = Some(task);
+    }
+
+    /// Waits for the background history replay to finish — for tests.
+    pub async fn wait_for_history_backfill_for_testing(&self) {
+        let task = self.history_backfill_task.lock().take();
+        if let Some(task) = task {
+            task.await.expect("history backfill task failed");
+        }
     }
 
     /// Opens the store without the init logic of [`Self::new`] — for tests.
@@ -1372,6 +1427,7 @@ impl IndexStore {
             max_type_length: max_type_length.unwrap_or(128),
             pruner_watermark,
             pending_updates: Mutex::new(BTreeMap::new()),
+            history_backfill_task: Mutex::new(None),
         }
     }
 
@@ -2560,10 +2616,15 @@ impl IndexStore {
 mod tests {
     use iota_sdk_types::{CheckpointSummary, GasCostSummary, ObjectId, StructTag};
     use iota_types::{
-        committee::EpochId, crypto::AuthorityStrongQuorumSignInfo, effects::TransactionEffectsAPI,
-        error::IotaError, gas_coin::GAS, in_memory_storage::InMemoryStorage,
-        layout_resolver::LayoutResolver, message_envelope::Envelope,
-        messages_checkpoint::VerifiedCheckpoint,
+        committee::EpochId,
+        crypto::AuthorityStrongQuorumSignInfo,
+        effects::TransactionEffectsAPI,
+        error::IotaError,
+        gas_coin::GAS,
+        in_memory_storage::InMemoryStorage,
+        layout_resolver::LayoutResolver,
+        message_envelope::Envelope,
+        messages_checkpoint::{CheckpointContentsExt, VerifiedCheckpoint},
         test_checkpoint_data_builder::TestCheckpointDataBuilder,
     };
     use move_core_types::annotated_value::MoveDatatypeLayout;
@@ -2624,22 +2685,22 @@ mod tests {
     /// BCS contents happen to match `Coin`'s `{UID, u64}` layout.
     #[test]
     fn test_coin_info_from_object_requires_coin_type() {
-        use iota_sdk_types::{Address, Owner, TransactionDigest, Version};
-        use iota_types::object::{MoveObject, MoveObjectExt, Object};
+        use iota_sdk_types::{Address, MoveStruct, Owner, TransactionDigest, Version};
+        use iota_types::object::{MoveStructExt, Object};
 
         let owner = Owner::Address(Address::ZERO);
         let id = ObjectId::random();
         let contents = iota_types::coin::Coin::new(id, 42).to_bcs_bytes();
 
         let coin = Object::new_move(
-            MoveObject::new_coin(GAS::type_tag(), Version::MIN_VALID_INCL, id, 42),
+            MoveStruct::new_coin(GAS::type_tag(), Version::MIN_VALID_INCL, id, 42),
             owner,
             TransactionDigest::ZERO,
         );
         assert_eq!(super::CoinInfo::from_object(&coin).unwrap().balance, 42);
 
         let fake = Object::new_move(
-            MoveObject::new_from_execution_with_limit(
+            MoveStruct::new_from_execution_with_limit(
                 "0x2::not_coin::NotCoin".parse::<StructTag>().unwrap(),
                 Version::MIN_VALID_INCL,
                 contents,
@@ -2741,6 +2802,75 @@ mod tests {
                 .tables
                 .needs_to_do_initialization(&checkpoint_store),
             "a database from before per-checkpoint indexing must be rebuilt"
+        );
+    }
+
+    /// After a rebuild, the history tables are filled by a background replay
+    /// that works downwards from the watermark and records its progress
+    /// atomically with each checkpoint's rows, so an interrupted replay
+    /// resumes where it stopped instead of starting over.
+    #[tokio::test]
+    async fn test_history_backfill_after_rebuild() {
+        let authority_state = crate::authority::test_authority_builder::TestAuthorityBuilder::new()
+            .insert_genesis_checkpoint()
+            .build()
+            .await;
+
+        let checkpoint_store = &authority_state.checkpoint_store;
+        let genesis_checkpoint = checkpoint_store
+            .get_checkpoint_by_sequence_number(0)
+            .unwrap()
+            .unwrap();
+        checkpoint_store
+            .update_highest_executed_checkpoint(&genesis_checkpoint)
+            .unwrap();
+
+        let index_dir = iota_common::tempdir();
+        let index_store = IndexStore::new(
+            index_dir.path().to_path_buf(),
+            &Registry::default(),
+            Some(128),
+            &authority_state.database_for_testing(),
+            checkpoint_store,
+            &authority_state.epoch_store_for_testing(),
+            authority_state.get_backing_package_store().clone(),
+        )
+        .await;
+        index_store.wait_for_history_backfill_for_testing().await;
+
+        let genesis_contents = checkpoint_store
+            .get_checkpoint_contents(&genesis_checkpoint.content_digest)
+            .unwrap()
+            .unwrap();
+        let genesis_tx_digest = genesis_contents.iter().next().unwrap().transaction;
+        assert_eq!(
+            index_store.get_transaction_seq(&genesis_tx_digest).unwrap(),
+            Some(0)
+        );
+        assert_eq!(
+            index_store.tables.history_watermark.get(&()).unwrap(),
+            Some(0),
+            "the backfill must have reached the lowest replayable checkpoint"
+        );
+
+        // Simulate a replay interrupted before reaching checkpoint 0:
+        // resuming replays it and lowers the marker again.
+        index_store
+            .tables
+            .history_watermark
+            .insert(&(), &1)
+            .unwrap();
+        index_store
+            .tables
+            .backfill_history(&authority_state.database_for_testing(), checkpoint_store)
+            .unwrap();
+        assert_eq!(
+            index_store.tables.history_watermark.get(&()).unwrap(),
+            Some(0)
+        );
+        assert_eq!(
+            index_store.get_transaction_seq(&genesis_tx_digest).unwrap(),
+            Some(0)
         );
     }
 
