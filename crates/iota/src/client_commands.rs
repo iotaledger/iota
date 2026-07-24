@@ -52,7 +52,7 @@ use iota_sdk::{
     iota_client_config::{IotaClientConfig, IotaEnv},
     wallet_context::WalletContext,
 };
-use iota_sdk_transaction_builder::{TransactionBuilderClient, unresolved};
+use iota_sdk_transaction_builder::{TransactionBuilderResolveClient, unresolved};
 use iota_sdk_types::{
     Address, Identifier, MoveAuthenticatorV1, MovePackageData, ObjectId, ObjectReference, Owner,
     SenderSignedTransaction, SharedObjectReference, SignatureScheme, StructTag, Transaction,

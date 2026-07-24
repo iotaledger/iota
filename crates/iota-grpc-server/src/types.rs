@@ -316,6 +316,10 @@ impl GrpcReader {
         self.server_version.clone()
     }
 
+    pub fn state_reader(&self) -> Arc<dyn iota_node_storage::GrpcStateReader> {
+        self.state_reader.clone()
+    }
+
     pub fn get_chain_identifier(&self) -> anyhow::Result<iota_types::digests::ChainIdentifier> {
         self.state_reader.get_chain_identifier().map_err(Into::into)
     }

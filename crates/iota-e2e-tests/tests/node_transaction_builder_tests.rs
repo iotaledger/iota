@@ -1,15 +1,16 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! Tests for the node-internal [`TransactionBuilderClient`] implementation:
-//! the SDK `TransactionBuilder` resolves objects, gas, and protocol
-//! parameters directly from a fullnode's local state and executes through
-//! its transaction orchestrator, without going through a public API.
+//! Tests for the node-internal [`TransactionBuilderResolveClient`]
+//! implementation: the SDK `TransactionBuilder` resolves objects, gas, and
+//! protocol parameters directly from a fullnode's local state, without going
+//! through a public API.
 
 use iota_macros::sim_test;
-use iota_sdk_transaction_builder::{TransactionBuilder, TransactionBuilderClient, WaitForTx};
-use iota_sdk_types::{ExecutionStatus, StructTag, Transaction};
-use iota_types::effects::TransactionEffectsAPI;
+use iota_sdk_transaction_builder::{
+    TransactionBuilder, TransactionBuilderResolveClient, error::Error,
+};
+use iota_sdk_types::{StructTag, Transaction};
 use test_cluster::TestClusterBuilder;
 
 #[sim_test]
@@ -24,8 +25,7 @@ async fn transaction_builder_via_node_internal_client() {
     let client = test_cluster
         .fullnode_handle
         .iota_node
-        .with(|node| node.transaction_builder_client())
-        .expect("fullnodes run a transaction orchestrator");
+        .with(|node| node.transaction_builder_resolve_client());
 
     // Reads against local state.
     let reference_gas_price = client
@@ -73,51 +73,33 @@ async fn transaction_builder_via_node_internal_client() {
         .expect("listed object exists");
     assert_eq!(coin.id(), first_page.data[0].id());
 
-    // Dry run through the builder; gas selection, gas price, and budget
-    // estimation all resolve through the node-internal client.
+    // The client is read-only and cannot estimate the gas budget, so building
+    // without an explicit budget must fail.
     let mut builder = TransactionBuilder::new(sender).with_client(client.clone());
     builder.send_iota(recipient, 1_000_000u64);
-    let dry_run = builder.dry_run(true).await.unwrap();
-    assert!(matches!(dry_run.effects.status(), ExecutionStatus::Success));
+    assert!(matches!(
+        builder.finish().await,
+        Err(Error::MissingGasBudget)
+    ));
 
-    // Build, sign, execute, and wait for finalization.
+    // With an explicit budget, the builder resolves gas coins and the gas
+    // price through the client and produces a valid transaction.
     let mut builder = TransactionBuilder::new(sender).with_client(client.clone());
     builder.send_iota(recipient, 1_000_000u64);
+    builder.gas_budget(50_000_000);
     let transaction = builder.finish().await.unwrap();
     let Transaction::V1(transaction_v1) = &transaction else {
         panic!("the builder produces V1 transactions");
     };
-    assert!(transaction_v1.gas_payment.budget > 0);
+    assert_eq!(transaction_v1.gas_payment.budget, 50_000_000);
+    assert_eq!(transaction_v1.gas_payment.price, reference_gas_price);
     assert!(!transaction_v1.gas_payment.objects.is_empty());
 
+    // The built transaction is valid: signing and executing it through the
+    // wallet succeeds.
     let signed = test_cluster.wallet.sign_transaction(&transaction);
-    let signatures = signed.signatures().to_vec();
-    let effects = client
-        .execute_tx(&signatures, &transaction, WaitForTx::Finalized)
-        .await
-        .unwrap();
-    assert!(matches!(effects.status(), ExecutionStatus::Success));
-
-    // The executed transaction and its effects are readable back from the
-    // node's stores.
-    let digest = transaction.digest();
-    client
-        .wait_for_tx(digest, WaitForTx::IndexedOnNode)
-        .await
-        .unwrap();
-    let stored_transaction = client
-        .transaction(digest)
-        .await
-        .unwrap()
-        .expect("executed transaction is stored");
-    assert_eq!(stored_transaction.transaction.digest(), digest);
-    let stored_effects = client
-        .transaction_effects(digest)
-        .await
-        .unwrap()
-        .expect("executed transaction effects are stored");
-    assert_eq!(
-        stored_effects.transaction_digest(),
-        effects.transaction_digest()
-    );
+    test_cluster
+        .wallet
+        .execute_transaction_must_succeed(signed)
+        .await;
 }
