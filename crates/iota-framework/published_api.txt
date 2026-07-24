@@ -61,6 +61,9 @@ find_active
 find_pending
 	fun
 	0x3::attestor_registry
+pubkey_in_use
+	fun
+	0x3::attestor_registry
 register
 	public(package) fun
 	0x3::attestor_registry

@@ -449,15 +449,15 @@ fun test_advance_epoch_processes_removals_preserving_order() {
     );
     registry.register(
         balance::create_for_testing(MIN_JOINING_BOND),
-        pubkey_a(),
-        ed25519_pop_a2(),
+        pubkey_b(),
+        secp256k1_pop_a2(),
         @0xA2,
         5,
     );
     registry.register(
         balance::create_for_testing(MIN_JOINING_BOND),
-        pubkey_a(),
-        ed25519_pop_a3(),
+        secp256r1_key(),
+        secp256r1_pop_a3(),
         @0xA3,
         5,
     );
@@ -804,6 +804,133 @@ fun test_dropped_address_can_reregister() {
         ed25519_pop_a1(),
         @0xA1,
         dropped_at,
+    );
+    assert!(registry.pending_count() == 1);
+    registry.destroy_for_testing();
+}
+
+// === Pubkey uniqueness ===
+
+#[test, expected_failure(abort_code = attestor_registry::EDuplicatePubkey)]
+fun test_register_rejects_pubkey_of_active_attestor() {
+    let mut registry = attestor_registry::new();
+    registry.register(
+        balance::create_for_testing(MIN_JOINING_BOND),
+        ed25519_key(),
+        ed25519_pop_a1(),
+        @0xA1,
+        5,
+    );
+    registry.activate_for_testing();
+    registry.register(
+        balance::create_for_testing(MIN_JOINING_BOND),
+        ed25519_key(),
+        ed25519_pop_a2(),
+        @0xA2,
+        5,
+    );
+    abort 0
+}
+
+#[test, expected_failure(abort_code = attestor_registry::EDuplicatePubkey)]
+fun test_register_rejects_pubkey_of_pending_attestor() {
+    let mut registry = attestor_registry::new();
+    registry.register(
+        balance::create_for_testing(MIN_JOINING_BOND),
+        ed25519_key(),
+        ed25519_pop_a1(),
+        @0xA1,
+        5,
+    );
+    registry.register(
+        balance::create_for_testing(MIN_JOINING_BOND),
+        ed25519_key(),
+        ed25519_pop_a2(),
+        @0xA2,
+        5,
+    );
+    abort 0
+}
+
+#[test, expected_failure(abort_code = attestor_registry::EDuplicatePubkey)]
+fun test_register_rejects_pubkey_staged_for_rotation() {
+    let mut registry = attestor_registry::new();
+    registry.register(
+        balance::create_for_testing(MIN_JOINING_BOND),
+        ed25519_key(),
+        ed25519_pop_a1(),
+        @0xA1,
+        5,
+    );
+    registry.activate_for_testing();
+    registry.rotate_key(@0xA1, secp256k1_key(), secp256k1_pop_a1(), 6);
+    registry.register(
+        balance::create_for_testing(MIN_JOINING_BOND),
+        secp256k1_key(),
+        secp256k1_pop_a2(),
+        @0xA2,
+        6,
+    );
+    abort 0
+}
+
+#[test, expected_failure(abort_code = attestor_registry::EDuplicatePubkey)]
+fun test_rotate_rejects_pubkey_of_other_attestor() {
+    let mut registry = attestor_registry::new();
+    registry.register(
+        balance::create_for_testing(MIN_JOINING_BOND),
+        ed25519_key(),
+        ed25519_pop_a1(),
+        @0xA1,
+        5,
+    );
+    registry.register(
+        balance::create_for_testing(MIN_JOINING_BOND),
+        secp256k1_key(),
+        secp256k1_pop_a2(),
+        @0xA2,
+        5,
+    );
+    registry.activate_for_testing();
+    registry.rotate_key(@0xA1, secp256k1_key(), secp256k1_pop_a1(), 6);
+    abort 0
+}
+
+#[test, expected_failure(abort_code = attestor_registry::EDuplicatePubkey)]
+fun test_rotate_rejects_own_current_pubkey() {
+    let mut registry = attestor_registry::new();
+    registry.register(
+        balance::create_for_testing(MIN_JOINING_BOND),
+        ed25519_key(),
+        ed25519_pop_a1(),
+        @0xA1,
+        5,
+    );
+    registry.activate_for_testing();
+    registry.rotate_key(@0xA1, ed25519_key(), ed25519_pop_a1(), 6);
+    abort 0
+}
+
+#[test]
+fun test_pubkey_reusable_after_removal() {
+    let mut registry = attestor_registry::new();
+    let mut ctx = tx_context::dummy();
+    registry.register(
+        balance::create_for_testing(MIN_JOINING_BOND),
+        ed25519_key(),
+        ed25519_pop_a1(),
+        @0xA1,
+        5,
+    );
+    registry.advance_epoch(6, &mut ctx).destroy_zero();
+    registry.deregister(@0xA1, 6).destroy_none();
+    registry.advance_epoch(7, &mut ctx).destroy_zero();
+    registry.register(
+        balance::create_for_testing(MIN_JOINING_BOND),
+        ed25519_key(),
+        ed25519_pop_a2(),
+        @0xA2,
+        7,
     );
     assert!(registry.pending_count() == 1);
     registry.destroy_for_testing();

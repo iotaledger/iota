@@ -51,6 +51,7 @@ const ENotActiveAttestor: u64 = 7;
 // Returned by the validate_attestor_pubkey native, not asserted in Move.
 #[allow(unused_const)]
 const EInvalidProofOfPossession: u64 = 8;
+const EDuplicatePubkey: u64 = 9;
 
 /// Key for the attestor registry dynamic field on the IotaSystemState UID.
 public struct AttestorRegistryKey has copy, drop, store {}
@@ -188,6 +189,15 @@ fun find_pending(self: &AttestorRegistryV1, addr: address): Option<u64> {
     self.pending_active.find_index!(|a| a.attestor_address == addr)
 }
 
+/// Whether `pubkey` is already held by an active attestor (current or
+/// staged) or a pending registration.
+fun pubkey_in_use(self: &AttestorRegistryV1, pubkey: &vector<u8>): bool {
+    self.active_attestors.any!(|a| {
+        a.attestor_pubkey == *pubkey
+            || a.next_epoch_attestor_pubkey.contains(pubkey)
+    }) || self.pending_active.any!(|a| a.attestor_pubkey == *pubkey)
+}
+
 // === Registration ===
 
 /// Register `sender` as an attestor with the given dedicated signing key,
@@ -214,6 +224,7 @@ public(package) fun register(
     // the boundary, so this also blocks re-registering while exiting.
     assert!(find_active(self, sender).is_none(), EAlreadyRegistered);
     assert!(find_pending(self, sender).is_none(), EAlreadyRegistered);
+    assert!(!pubkey_in_use(self, &attestor_pubkey), EDuplicatePubkey);
 
     let activation_epoch = current_epoch + 1;
     let bond_amount = bond.value();
@@ -353,6 +364,7 @@ public(package) fun rotate_key(
     let idx = active_idx.destroy_some();
     assert!(!self.pending_removals.contains(&idx), EAlreadyDeregistering);
     validate_attestor_pubkey(new_pubkey, proof_of_possession, sender);
+    assert!(!pubkey_in_use(self, &new_pubkey), EDuplicatePubkey);
     let new_pubkey_for_event = new_pubkey;
     let entry = &mut self.active_attestors[idx];
     entry.next_epoch_attestor_pubkey = option::some(new_pubkey_for_event);
