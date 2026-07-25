@@ -52,7 +52,7 @@ static PERIODIC_PRUNING_TABLES: Lazy<BTreeSet<String>> = Lazy::new(|| {
         "objects",
         "effects",
         "transactions",
-        "events",
+        "events_2",
         "executed_effects",
         "executed_transactions_to_checkpoint",
     ]
