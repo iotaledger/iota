@@ -105,6 +105,7 @@ pub struct AuthorityPerpetualTables {
     pub(crate) executed_effects: DBMap<TransactionDigest, TransactionEffectsDigest>,
 
     /// Deprecated: events keyed by events digest moved to `events_2`.
+    /// TODO: <https://github.com/iotaledger/iota/issues/12423>
     #[allow(dead_code)]
     #[deprecated_db_map]
     events: Option<DBMap<(), ()>>,
