@@ -227,9 +227,35 @@ impl Database {
         }
     }
 
+    /// Creates a new column family at runtime. Fails if a column family with
+    /// this name already exists.
+    pub fn create_cf(&self, name: &str, options: &rocksdb::Options) -> Result<(), rocksdb::Error> {
+        match &self.storage {
+            Storage::Rocks(db) => {
+                db.underlying.create_cf(name, options)?;
+                let mut cf_names = db.cf_names.write().expect("lock should not be poisoned");
+                if !cf_names.iter().any(|cf| cf == name) {
+                    cf_names.push(name.to_string());
+                }
+                Ok(())
+            }
+            Storage::InMemory(db) => {
+                db.create_cf(name);
+                Ok(())
+            }
+        }
+    }
+
     pub fn drop_cf(&self, name: &str) -> Result<(), rocksdb::Error> {
         match &self.storage {
-            Storage::Rocks(db) => db.underlying.drop_cf(name),
+            Storage::Rocks(db) => {
+                db.underlying.drop_cf(name)?;
+                db.cf_names
+                    .write()
+                    .expect("lock should not be poisoned")
+                    .retain(|cf| cf != name);
+                Ok(())
+            }
             Storage::InMemory(db) => {
                 db.drop_cf(name);
                 Ok(())
@@ -341,7 +367,12 @@ impl Database {
             // See `flush_cf` for why the flushes run off the test thread under
             // the simulator.
             Storage::Rocks(rocks) => nondeterministic!({
-                for cf_name in &rocks.cf_names {
+                let cf_names = rocks
+                    .cf_names
+                    .read()
+                    .expect("lock should not be poisoned")
+                    .clone();
+                for cf_name in &cf_names {
                     if let Some(cf) = rocks.underlying.cf_handle(cf_name) {
                         rocks.underlying.flush_cf(&cf).map_err(|e| {
                             TypedStoreError::RocksDB(format!(
@@ -492,7 +523,7 @@ impl<K, V> DBMap<K, V> {
         db: Arc<Database>,
         opts: &ReadWriteOptions,
         column_family: ColumnFamily,
-        is_deprecated: bool,
+        skip_metrics_reporting: bool,
     ) -> Self {
         let db_cloned = Arc::downgrade(&db);
         let db_metrics = DBMetrics::get();
@@ -500,7 +531,7 @@ impl<K, V> DBMap<K, V> {
         let cf = column_family.name().to_string();
 
         let (sender, mut recv) = tokio::sync::oneshot::channel();
-        if !is_deprecated && matches!(db.storage, Storage::Rocks(_)) {
+        if !skip_metrics_reporting && matches!(db.storage, Storage::Rocks(_)) {
             tokio::task::spawn(async move {
                 let mut interval =
                     tokio::time::interval(Duration::from_secs(CF_METRICS_REPORT_PERIOD_SECS));
@@ -542,12 +573,16 @@ impl<K, V> DBMap<K, V> {
     /// Reopens an open database as a typed map operating under a specific
     /// column family. if no column family is passed, the default column
     /// family is used.
+    ///
+    /// When `skip_metrics_reporting` is true, no periodic per-column-family
+    /// metrics task is spawned; use this for deprecated tables and for large
+    /// sets of rarely-touched column families.
     #[instrument(level = "debug", skip(db), err)]
     pub fn reopen(
         db: &Arc<Database>,
         opt_cf: Option<&str>,
         rw_options: &ReadWriteOptions,
-        is_deprecated: bool,
+        skip_metrics_reporting: bool,
     ) -> Result<Self, TypedStoreError> {
         let cf_key = opt_cf
             .unwrap_or(rocksdb::DEFAULT_COLUMN_FAMILY_NAME)
@@ -561,7 +596,7 @@ impl<K, V> DBMap<K, V> {
             db.clone(),
             rw_options,
             column_family,
-            is_deprecated,
+            skip_metrics_reporting,
         ))
     }
 
