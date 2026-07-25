@@ -1036,6 +1036,62 @@ async fn open_as_secondary_test() {
     assert_eq!(secondary_db.get(&0).unwrap(), Some("10".to_string()));
 }
 
+#[tokio::test]
+async fn test_create_cf_at_runtime() {
+    let tmp_dir = iota_common::tempdir();
+    let path = tmp_dir.path();
+    {
+        let db = open_rocksdb(path, &["static_cf"]);
+        assert!(db.cf_handle("dynamic_cf").is_none());
+        db.create_cf("dynamic_cf", &rocksdb::Options::default())
+            .expect("Failed to create column family");
+        assert!(db.cf_handle("dynamic_cf").is_some());
+
+        // Creating an already-existing column family must fail.
+        assert!(
+            db.create_cf("dynamic_cf", &rocksdb::Options::default())
+                .is_err()
+        );
+
+        let map = DBMap::<u32, String>::reopen(
+            &db,
+            Some("dynamic_cf"),
+            &ReadWriteOptions::default(),
+            false,
+        )
+        .expect("Failed to open map on dynamic column family");
+        map.insert(&1, &"one".to_string())
+            .expect("Failed to insert");
+        assert_eq!(map.get(&1).unwrap(), Some("one".to_string()));
+
+        // The dynamically created column family must be covered by flush_all.
+        db.flush_all().expect("Failed to flush");
+    }
+    {
+        // The column family is rediscovered when reopening the database from
+        // disk without declaring it.
+        let db = open_rocksdb(path, &["static_cf"]);
+        assert!(db.cf_handle("dynamic_cf").is_some());
+        let map = DBMap::<u32, String>::reopen(
+            &db,
+            Some("dynamic_cf"),
+            &ReadWriteOptions::default(),
+            false,
+        )
+        .expect("Failed to open map on rediscovered column family");
+        assert_eq!(map.get(&1).unwrap(), Some("one".to_string()));
+
+        db.drop_cf("dynamic_cf")
+            .expect("Failed to drop column family");
+        assert!(db.cf_handle("dynamic_cf").is_none());
+    }
+    {
+        // A dropped column family stays gone after reopening.
+        let db = open_rocksdb(path, &["static_cf"]);
+        assert!(db.cf_handle("dynamic_cf").is_none());
+    }
+}
+
 fn open_map<P: AsRef<Path>, K, V>(path: P, opt_cf: Option<&str>) -> DBMap<K, V> {
     let cf_key = opt_cf.unwrap_or(rocksdb::DEFAULT_COLUMN_FAMILY_NAME);
     DBMap::<K, V>::reopen(
