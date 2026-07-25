@@ -1113,8 +1113,11 @@ pub async fn download_db_snapshot(
     files.extend(epoch_manifest.filter_by_prefix("epochs").lines);
     files.extend(epoch_manifest.filter_by_prefix("checkpoints").lines);
     if !skip_indexes {
+        // Snapshots from releases that stored the JSON-RPC index under
+        // `indexes` list it under that name.
         files.extend(epoch_manifest.filter_by_prefix("indexes").lines);
-        files.extend(epoch_manifest.filter_by_prefix("grpc_indexes").lines);
+        files.extend(epoch_manifest.filter_by_prefix(JSONRPC_INDEXES_DIR).lines);
+        files.extend(epoch_manifest.filter_by_prefix(GRPC_INDEXES_DIR).lines);
     }
     let local_store = ObjectStoreConfig {
         object_store: Some(ObjectStoreType::File),

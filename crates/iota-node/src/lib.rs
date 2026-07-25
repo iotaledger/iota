@@ -70,7 +70,7 @@ use iota_core::{
     execution_cache::build_execution_cache,
     global_state_hasher::{GlobalStateHashMetrics, GlobalStateHasher},
     grpc_indexes::{GRPC_INDEXES_DIR, GrpcIndexesStore},
-    jsonrpc_index::{IndexStore, JSONRPC_INDEXES_DIR},
+    jsonrpc_index::{IndexStore, JSONRPC_INDEXES_DIR, remove_legacy_jsonrpc_indexes_dir},
     module_cache_metrics::ResolverMetrics,
     overload_monitor::{consensus_queue_overload_monitor, overload_monitor},
     safe_client::SafeClientMetricsBase,
@@ -600,6 +600,9 @@ impl IotaNode {
 
         let index_store = if is_full_node && config.enable_index_processing {
             info!("creating index store");
+            if let Err(e) = remove_legacy_jsonrpc_indexes_dir(&config.db_path()) {
+                warn!("failed to remove the legacy JSON-RPC index database: {e}");
+            }
             Some(
                 IndexStore::new(
                     config.db_path().join(JSONRPC_INDEXES_DIR),
