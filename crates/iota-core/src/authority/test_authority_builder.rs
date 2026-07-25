@@ -40,7 +40,7 @@ use crate::{
     },
     execution_cache::build_execution_cache,
     grpc_indexes::{GRPC_INDEXES_DIR, GrpcIndexesStore},
-    jsonrpc_index::IndexStore,
+    jsonrpc_index::{IndexStore, JSONRPC_INDEXES_DIR},
     mock_consensus::{ConsensusMode, MockConsensusClient},
     module_cache_metrics::ResolverMetrics,
     signature_verifier::SignatureVerifierMetrics,
@@ -332,7 +332,7 @@ impl<'a> TestAuthorityBuilder<'a> {
         } else {
             Some(
                 IndexStore::new(
-                    storage_dir.join("indexes"),
+                    storage_dir.join(JSONRPC_INDEXES_DIR),
                     &registry,
                     epoch_store
                         .protocol_config()
