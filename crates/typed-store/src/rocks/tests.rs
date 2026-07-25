@@ -1263,6 +1263,66 @@ async fn test_create_cf_at_runtime() {
     }
 }
 
+/// Differently-typed [`TaggedDBMap`]s share one column family without their
+/// rows surfacing in each other: gets, full scans in both directions,
+/// bounded ranges, and deletes all stay within their map's tag.
+#[tokio::test]
+async fn test_tagged_dbmaps_share_a_column_family() {
+    let tmp_dir = iota_common::tempdir();
+    let db = open_rocksdb(tmp_dir.path(), &["shared"]);
+    let numbers: TaggedDBMap<u32, String> =
+        TaggedDBMap::reopen(&db, "shared", 0, &ReadWriteOptions::default(), false)
+            .expect("failed to open the numbers map");
+    let words: TaggedDBMap<String, u64> =
+        TaggedDBMap::reopen(&db, "shared", 1, &ReadWriteOptions::default(), false)
+            .expect("failed to open the words map");
+
+    let mut batch = numbers.batch();
+    numbers
+        .insert_batch(&mut batch, [(1, "one".to_string()), (2, "two".to_string())])
+        .unwrap();
+    words
+        .insert_batch(&mut batch, [("one".to_string(), 1), ("two".to_string(), 2)])
+        .unwrap();
+    batch.write().unwrap();
+
+    // Point lookups stay within the tag.
+    assert_eq!(numbers.get(&1).unwrap(), Some("one".to_string()));
+    assert_eq!(words.get(&"two".to_string()).unwrap(), Some(2));
+    assert_eq!(
+        numbers.multi_get(&[1, 2, 3]).unwrap(),
+        vec![Some("one".to_string()), Some("two".to_string()), None]
+    );
+    assert!(words.contains_key(&"one".to_string()).unwrap());
+
+    // Full scans in both directions yield only the map's own rows.
+    let rows: Vec<_> = numbers.iter().collect::<Result<_, _>>().unwrap();
+    assert_eq!(rows, vec![(1, "one".to_string()), (2, "two".to_string())]);
+    let rows: Vec<_> = numbers.iter_reversed().collect::<Result<_, _>>().unwrap();
+    assert_eq!(rows, vec![(2, "two".to_string()), (1, "one".to_string())]);
+    let rows: Vec<_> = words.iter().collect::<Result<_, _>>().unwrap();
+    assert_eq!(rows, vec![("one".to_string(), 1), ("two".to_string(), 2)]);
+
+    // Bounded ranges, both directions.
+    let rows: Vec<_> = numbers
+        .range_iter(2, u32::MAX)
+        .collect::<Result<_, _>>()
+        .unwrap();
+    assert_eq!(rows, vec![(2, "two".to_string())]);
+    let rows: Vec<_> = numbers
+        .range_iter_reversed(u32::MIN, 1)
+        .collect::<Result<_, _>>()
+        .unwrap();
+    assert_eq!(rows, vec![(1, "one".to_string())]);
+
+    // Deletes stay within the tag.
+    let mut batch = numbers.batch();
+    numbers.delete_batch(&mut batch, [1, 2]).unwrap();
+    batch.write().unwrap();
+    assert!(numbers.iter().next().is_none());
+    assert_eq!(words.get(&"one".to_string()).unwrap(), Some(1));
+}
+
 fn open_map<P: AsRef<Path>, K, V>(path: P, opt_cf: Option<&str>) -> DBMap<K, V> {
     let cf_key = opt_cf.unwrap_or(rocksdb::DEFAULT_COLUMN_FAMILY_NAME);
     DBMap::<K, V>::reopen(

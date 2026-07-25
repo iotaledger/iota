@@ -25,7 +25,7 @@ use tracing::warn;
 use typed_store_error::TypedStoreError;
 
 pub use crate::{
-    database::{DBBatch, DBMap, MetricConf},
+    database::{DBBatch, DBMap, MetricConf, TaggedDBMap},
     rocks::options::{
         BulkIngestionOptions, DBMapTableConfigMap, DBOptions, ReadWriteOptions,
         bulk_ingestion_options, bulk_ingestion_write_options, default_db_options, list_tables,
