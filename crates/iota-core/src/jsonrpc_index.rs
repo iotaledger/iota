@@ -61,7 +61,10 @@ use typed_store::{
 use crate::{
     authority::AuthorityStore,
     checkpoints::CheckpointStore,
-    par_index_live_object_set::{LiveObjectIndexer, ParMakeLiveObjectIndexer},
+    par_index_live_object_set::{
+        LiveObjectIndexer, PROGRESS_REPORT_INTERVAL, ParMakeLiveObjectIndexer,
+        estimated_time_remaining, format_duration,
+    },
 };
 
 type OwnedMutexGuard<T> = ArcMutexGuard<parking_lot::RawMutex, T>;
@@ -1394,6 +1397,7 @@ impl IndexStore {
 
         info!("Backfilling JSON-RPC history tables from checkpoint {next} downwards");
         let start_time = Instant::now();
+        let mut last_report = Instant::now();
         let mut replayed: u64 = 0;
         loop {
             // The pruner advances while the backfill runs; re-check the
@@ -1408,6 +1412,20 @@ impl IndexStore {
             }
             self.replay_checkpoint_history(authority_store, checkpoint_store, next)?;
             replayed += 1;
+            if last_report.elapsed() >= PROGRESS_REPORT_INTERVAL {
+                last_report = Instant::now();
+                let remaining = next - lowest;
+                let fraction = replayed as f64 / (replayed + remaining) as f64;
+                let elapsed = start_time.elapsed();
+                let rate = replayed as f64 / elapsed.as_secs_f64().max(f64::EPSILON);
+                let eta = estimated_time_remaining(elapsed, fraction)
+                    .map(format_duration)
+                    .unwrap_or_else(|| "unknown".to_string());
+                info!(
+                    "Backfilling JSON-RPC history: {:.1}% done (checkpoint {next} down to {lowest}), {rate:.0} checkpoints/s, ETA ~{eta}",
+                    fraction * 100.0,
+                );
+            }
             let Some(n) = next.checked_sub(1) else {
                 break;
             };
