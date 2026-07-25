@@ -11,7 +11,7 @@ use std::{
 
 use fastcrypto::traits::KeyPair;
 use iota_config::{
-    ExecutionCacheConfig, IOTA_GENESIS_MIGRATION_TX_DATA_FILENAME,
+    ExecutionCacheConfig,
     genesis::{TokenAllocation, TokenDistributionScheduleBuilder},
     node::AuthorityOverloadConfig,
     transaction_deny_config::TransactionDenyConfig,
@@ -414,7 +414,7 @@ impl<R: rand::RngCore + rand::CryptoRng> ConfigBuilder<R> {
             }
         };
 
-        let mut genesis_config = self
+        let genesis_config = self
             .genesis_config
             .unwrap_or_else(GenesisConfig::for_local_testing);
 
@@ -448,16 +448,10 @@ impl<R: rand::RngCore + rand::CryptoRng> ConfigBuilder<R> {
             builder.build()
         };
 
-        let GenesisBuildEffects {
-            genesis,
-            migration_tx_data,
-        } = {
+        let GenesisBuildEffects { genesis, .. } = {
             let mut builder = iota_genesis_builder::Builder::new()
                 .with_parameters(genesis_config.parameters)
                 .add_objects(self.additional_objects);
-            for source in std::mem::take(&mut genesis_config.migration_sources) {
-                builder = builder.add_migration_source(source);
-            }
 
             for (i, validator) in validators.iter().enumerate() {
                 let name = validator
@@ -471,26 +465,12 @@ impl<R: rand::RngCore + rand::CryptoRng> ConfigBuilder<R> {
 
             builder = builder.with_token_distribution_schedule(token_distribution_schedule);
 
-            // Add delegator to genesis builder.
-            if let Some(delegator) = genesis_config.delegator {
-                builder = builder.with_delegator(delegator);
-            }
-
             for validator in &validators {
                 builder = builder.add_validator_signature(&validator.authority_key_pair);
             }
 
             builder.build()
         };
-
-        if let Some(migration_tx_data) = migration_tx_data {
-            migration_tx_data
-                .save(
-                    self.config_directory
-                        .join(IOTA_GENESIS_MIGRATION_TX_DATA_FILENAME),
-                )
-                .expect("Should be able to save the migration data");
-        }
 
         let validator_configs = validators
             .into_iter()
