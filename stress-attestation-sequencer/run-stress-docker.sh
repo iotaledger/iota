@@ -51,6 +51,8 @@ USE_FULLNODE_FOR_EXECUTION="${USE_FULLNODE_FOR_EXECUTION:-false}"
 # Pin submission/attestation to the first N validators (validator-1..N) on the
 # direct TD path. Empty/unset => all validators. No effect via the fullnode.
 NUM_TARGET_VALIDATORS="${NUM_TARGET_VALIDATORS:-}"
+# Seconds to wait between warmup/setup and spamming (stress --pre-spam-delay-secs).
+PRE_SPAM_DELAY_SECS="${PRE_SPAM_DELAY_SECS:-0}"
 # Workload: owned (transfer) | shared (shared-counter) | slow (slow::slow).
 # NOTE: shared/slow publish a Move package at runtime (compiled from sources that
 # depend on the iota-framework). The network-benchmark stress image bakes those
@@ -59,8 +61,8 @@ NUM_TARGET_VALIDATORS="${NUM_TARGET_VALIDATORS:-}"
 WORKLOAD="${WORKLOAD:-owned}"
 NUM_SHARED_COUNTERS="${NUM_SHARED_COUNTERS:-}" # WORKLOAD=shared: fewer => more congestion
 SLOW_N="${SLOW_N:-}"                           # WORKLOAD=slow: slow::slow(n,size) vector count
-SLOW_SIZE="${SLOW_SIZE:-}"                      # WORKLOAD=slow: each vector size in bytes
-SLOW_SHARED="${SLOW_SHARED:-}"                  # WORKLOAD=slow: false => owned-only (no shared object / congestion)
+SLOW_SIZE="${SLOW_SIZE:-}"                     # WORKLOAD=slow: each vector size in bytes
+SLOW_SHARED="${SLOW_SHARED:-}"                 # WORKLOAD=slow: false => owned-only (no shared object / congestion)
 case "$WORKLOAD" in
 owned) WORKLOAD_ARGS=(--transfer-object 100 --shared-counter 0) ;;
 shared)
@@ -73,7 +75,10 @@ slow)
   [[ -n "$SLOW_SIZE" ]] && WORKLOAD_ARGS+=(--slow-size "$SLOW_SIZE")
   [[ -n "$SLOW_SHARED" ]] && WORKLOAD_ARGS+=(--slow-shared "$SLOW_SHARED")
   ;;
-*) echo "ERROR: unknown WORKLOAD='$WORKLOAD' (owned | shared | slow)" >&2; exit 1 ;;
+*)
+  echo "ERROR: unknown WORKLOAD='$WORKLOAD' (owned | shared | slow)" >&2
+  exit 1
+  ;;
 esac
 
 # ANSI palette (auto-disabled when stdout is not a terminal), matching the H1 script.
@@ -103,7 +108,6 @@ if ! docker network inspect "$DOCKER_NETWORK" >/dev/null 2>&1; then
   echo "${RED}ERROR: docker network '$DOCKER_NETWORK' not found. Start the network first (start.sh).${RESET}" >&2
   exit 1
 fi
-
 
 echo "${BLUE}Running stress IN-DOCKER on '$DOCKER_NETWORK' (image: $RUNNER_IMAGE)...${RESET}"
 echo "  - fullnode RPC (reconfig + WFF detect): $FULLNODE_RPC"
@@ -137,6 +141,7 @@ exec docker run --rm \
   --num-client-threads "$NUM_CLIENT_THREADS" \
   --num-transfer-accounts "$NUM_TRANSFER_ACCOUNTS" \
   --run-duration "$RUN_DURATION" \
+  --pre-spam-delay-secs "$PRE_SPAM_DELAY_SECS" \
   bench --target-qps "$TARGET_QPS" \
   --in-flight-ratio "$IN_FLIGHT_RATIO" \
   --num-workers "$NUM_WORKERS" \

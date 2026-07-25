@@ -195,7 +195,8 @@ print(
 )
 
 row = {
-    "start_epoch": int(start),
+    # `start` may be a float epoch (the spam-start marker) or an int; store as int seconds.
+    "start_epoch": int(float(start)),
     "slow_n": cfg.get("slow_n", ""),
     "slow_size": cfg.get("slow_size", ""),
     "product": cfg.get("product", ""),

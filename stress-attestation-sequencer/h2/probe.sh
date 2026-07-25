@@ -97,6 +97,13 @@ NUM_TRANSFER_ACCOUNTS="${NUM_TRANSFER_ACCOUNTS:-4}"
 IN_FLIGHT_RATIO="${IN_FLIGHT_RATIO:-2}"
 NUM_WORKERS="${NUM_WORKERS:-24}"
 NUM_TARGET_VALIDATORS="${NUM_TARGET_VALIDATORS:-}"
+# Seconds the client waits between warmup/setup and spamming (stress
+# --pre-spam-delay-secs). The measurement window is anchored at the exact spam
+# start emitted by the client, so this only widens the safety margin between
+# setup draining and spamming. The probe opts into 2s; the flag itself defaults
+# to 0 everywhere else (backward compatible). Requires a stress image/binary
+# with the flag.
+PRE_SPAM_DELAY_SECS="${PRE_SPAM_DELAY_SECS:-2}"
 PROM="${PROM:-http://localhost:9090}"
 TS_STEP="${TS_STEP:-1}"
 # Window-closing drain: execution lags the client, so instead of a fixed sleep
@@ -289,6 +296,7 @@ if [[ "$DIRECT" == true ]]; then
     NUM_CLIENT_THREADS="$NUM_CLIENT_THREADS" NUM_TRANSFER_ACCOUNTS="$NUM_TRANSFER_ACCOUNTS" \
     IN_FLIGHT_RATIO="$IN_FLIGHT_RATIO" PRIMARY_GAS_OWNER="$PRIMARY_GAS_OWNER" \
     USE_FULLNODE_FOR_EXECUTION=false NUM_TARGET_VALIDATORS="$NUM_TARGET_VALIDATORS" \
+    PRE_SPAM_DELAY_SECS="$PRE_SPAM_DELAY_SECS" \
     WORKLOAD=slow SLOW_N="$SLOW_N" SLOW_SIZE="$SLOW_SIZE" SLOW_SHARED="$SLOW_SHARED" \
     "$TOOLS_DIR/run-stress-docker.sh" 2>"$STRESS_LOG"
 else
@@ -304,6 +312,7 @@ else
     --num-client-threads "$NUM_CLIENT_THREADS" \
     --num-transfer-accounts "$NUM_TRANSFER_ACCOUNTS" \
     --run-duration "$DURATION" \
+    --pre-spam-delay-secs "$PRE_SPAM_DELAY_SECS" \
     bench --target-qps "$QPS" \
     --in-flight-ratio "$IN_FLIGHT_RATIO" \
     --num-workers "$NUM_WORKERS" \
@@ -316,17 +325,35 @@ wait_for_drain
 end=$(date +%s)
 
 # Exclude the warmup. The gas-coin setup transactions run during client init,
-# before the timed benchmark phase; that phase is the last DURATION seconds of
-# the run, so the baseline (submission end − DURATION) is when spamming started.
-# A histogram delta from there subtracts the setup txs out — they sit in the
-# pre-baseline cumulative counts — leaving the mean over the identical workload
-# transactions only. Falls back to the full window if DURATION is not `Ns`.
-dur_secs="${DURATION%s}"
-if [[ "$dur_secs" =~ ^[0-9]+$ ]]; then
-  window_start=$((submit_end - dur_secs))
+# before the timed benchmark; anchor the measurement window at the exact spam
+# start the client prints (PROBE_SPAM_START_UNIX), so a histogram delta from
+# there subtracts the setup txs out (they sit in the pre-baseline cumulative
+# counts), leaving the mean over the identical workload transactions only.
+# Fall back to (submission end − DURATION) if the marker is absent (older stress
+# image without the flag).
+spam_start="$(sed -n 's/.*PROBE_SPAM_START_UNIX=\([0-9.][0-9.]*\).*/\1/p' "$STRESS_LOG" | tail -1)"
+if [[ -n "$spam_start" ]]; then
+  # Anchor 1s BEFORE the marker, inside the pre-spam quiet gap (needs a delay of
+  # >= 2s). Prometheus samples on a 1s grid, so a baseline exactly at the marker
+  # lets fast workload txs that execute in the first sub-second leak into the
+  # baseline and drop the point just under 400 samples; a baseline in the quiet
+  # gap sees setup done and no workload yet, so all 100 workload txs land in the
+  # delta (setup stays excluded — it is in the baseline). No gap => use the marker.
+  if ((PRE_SPAM_DELAY_SECS >= 2)); then
+    window_start="$(awk "BEGIN{printf \"%.3f\", $spam_start - 1}")"
+  else
+    window_start="$spam_start"
+  fi
+  echo "  - spam started at $spam_start; window from $window_start (warmup excluded)."
 else
-  echo "${YELLOW}  - DURATION='$DURATION' not in Ns form; measuring the whole window (setup included).${RESET}" >&2
-  window_start="$start"
+  dur_secs="${DURATION%s}"
+  if [[ "$dur_secs" =~ ^[0-9]+$ ]]; then
+    window_start=$((submit_end - dur_secs))
+    echo "${YELLOW}  - no PROBE_SPAM_START_UNIX marker; estimating spam start as submit_end − ${dur_secs}s (rebuild the stress image for the exact marker).${RESET}" >&2
+  else
+    echo "${YELLOW}  - no marker and DURATION='$DURATION' not in Ns form; measuring the whole window (setup included).${RESET}" >&2
+    window_start="$start"
+  fi
 fi
 
 banner "== measure =="
