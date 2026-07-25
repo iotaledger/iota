@@ -85,7 +85,20 @@ pub const MAX_GET_OWNED_OBJECT_SIZE: usize = 256;
 /// Subdirectory of the node's database path holding the JSON-RPC index
 /// store. The formal-snapshot restore builds the store under the same name,
 /// so a restored node opens it in place.
-pub const JSONRPC_INDEXES_DIR: &str = "indexes";
+pub const JSONRPC_INDEXES_DIR: &str = "jsonrpc_indexes";
+
+/// Removes the JSON-RPC index database of releases that stored it under
+/// `indexes` inside the node's database path. Its content cannot be adopted
+/// anyway (see [`IndexStore::new`]), and the store now lives under
+/// [`JSONRPC_INDEXES_DIR`].
+pub fn remove_legacy_jsonrpc_indexes_dir(db_path: &Path) -> std::io::Result<()> {
+    let legacy_dir = db_path.join("indexes");
+    if legacy_dir.exists() {
+        info!("removing the legacy JSON-RPC index database at {legacy_dir:?}");
+        std::fs::remove_dir_all(&legacy_dir)?;
+    }
+    Ok(())
+}
 
 /// Bump this when changing the serialization format of an existing table.
 /// A version mismatch triggers a full re-index via
@@ -2747,6 +2760,22 @@ mod tests {
         );
     }
 
+    /// The JSON-RPC index database of releases that stored it under
+    /// `indexes` is removed; its content cannot be adopted anyway.
+    #[test]
+    fn test_remove_legacy_jsonrpc_indexes_dir() {
+        let db_path = iota_common::tempdir();
+        let legacy_dir = db_path.path().join("indexes");
+        std::fs::create_dir(&legacy_dir).unwrap();
+        std::fs::write(legacy_dir.join("CURRENT"), b"stale").unwrap();
+
+        super::remove_legacy_jsonrpc_indexes_dir(db_path.path()).unwrap();
+        assert!(!legacy_dir.exists());
+
+        // A second call is a no-op.
+        super::remove_legacy_jsonrpc_indexes_dir(db_path.path()).unwrap();
+    }
+
     /// A database written before per-checkpoint indexing (data, but no `meta`
     /// row) must be wiped and rebuilt: nodes restored from a formal snapshot
     /// had a corrupted owner index and non-canonical transaction numbering,
@@ -2901,7 +2930,7 @@ mod tests {
 
         // Tee the objects into the restorer, as the snapshot's partition
         // downloads do.
-        let index_dir = dir.path().join("indexes");
+        let index_dir = dir.path().join(super::JSONRPC_INDEXES_DIR);
         let restorer = super::JsonRpcIndexRestorer::open(index_dir.clone()).unwrap();
         let mut partition = restorer.partition_indexer();
         partition.index_object(gas_object.clone()).unwrap();

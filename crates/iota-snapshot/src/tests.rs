@@ -23,7 +23,7 @@ use iota_core::{
     checkpoints::CheckpointStore,
     global_state_hasher::GlobalStateHasher,
     grpc_indexes::{GRPC_INDEXES_DIR, GrpcIndexesStore, OwnerTypeFilter},
-    jsonrpc_index::{IndexStore, JsonRpcIndexRestorer},
+    jsonrpc_index::{IndexStore, JSONRPC_INDEXES_DIR, JsonRpcIndexRestorer},
 };
 use iota_sdk_types::{
     Address, CheckpointDigest, GasCostSummary, ObjectId, TransactionDigest,
@@ -553,7 +553,7 @@ async fn snapshot_restore_builds_index_stores() -> Result<(), anyhow::Error> {
     let restored_perpetual_db = AuthorityPerpetualTables::open(&tmp_dir.join("restored_db"), None);
     let restored_grpc = GrpcIndexesStore::new_without_init(tmp_dir.join(GRPC_INDEXES_DIR));
     let grpc_restorer = restored_grpc.live_object_restorer(100);
-    let restored_jsonrpc = JsonRpcIndexRestorer::open(tmp_dir.join("indexes"))?;
+    let restored_jsonrpc = JsonRpcIndexRestorer::open(tmp_dir.join(JSONRPC_INDEXES_DIR))?;
     let (_abort_handle, abort_registration) = AbortHandle::new_pair();
     snapshot_reader
         .read_to_db(
@@ -587,7 +587,7 @@ async fn snapshot_restore_builds_index_stores() -> Result<(), anyhow::Error> {
     // Every address-owned object is owner-indexed in the restored JSON-RPC
     // store as well.
     let restored_jsonrpc = IndexStore::new_without_init(
-        tmp_dir.join("indexes"),
+        tmp_dir.join(JSONRPC_INDEXES_DIR),
         &prometheus_filtered::Registry::default(),
         Some(128),
     );

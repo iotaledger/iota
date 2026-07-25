@@ -170,7 +170,7 @@ use crate::{
     execution_driver::execution_process,
     global_state_hasher::{GlobalStateHashStore, GlobalStateHasher},
     grpc_indexes::{GRPC_INDEXES_DIR, GrpcIndexesStore},
-    jsonrpc_index::{CoinInfo, IndexStore, try_create_dynamic_field_info},
+    jsonrpc_index::{CoinInfo, IndexStore, JSONRPC_INDEXES_DIR, try_create_dynamic_field_info},
     metrics::{LatencyObserver, RateTracker},
     module_cache_metrics::ResolverMetrics,
     overload_monitor::{
@@ -3508,7 +3508,7 @@ impl AuthorityState {
 
         if checkpoint_indexes {
             if let Some(indexes) = self.indexes.as_ref() {
-                indexes.checkpoint_db(&checkpoint_path_tmp.join("indexes"))?;
+                indexes.checkpoint_db(&checkpoint_path_tmp.join(JSONRPC_INDEXES_DIR))?;
             }
             if let Some(grpc_indexes_store) = self.grpc_indexes_store.as_ref() {
                 grpc_indexes_store.checkpoint_db(&checkpoint_path_tmp.join(GRPC_INDEXES_DIR))?;
