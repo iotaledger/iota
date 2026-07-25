@@ -99,7 +99,7 @@ ax_cu.axhline(5_000_000, ls=":", color="crimson", lw=1)
 ax_cu.text(
     120,
     5.3e6,
-    "computation cap = 5M (CU flatlines below it)",
+    "gas-budget cap = 5M CU (out-of-gas abort)",
     color="crimson",
     fontsize=8,
 )

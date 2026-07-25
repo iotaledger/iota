@@ -14,6 +14,14 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 RES = os.path.join(HERE, "results")
 OUT = os.path.join(RES, "calibration-tables.md")
 
+# Production runs TotalTxCount with these per-object, per-commit limits (config
+# keys max_accumulated_txn_cost_per_object_in_mysticeti_commit and
+# max_congestion_limit_overshoot_per_commit), counting each transaction as 1
+# regardless of cost. Under TotalComputationUnits the same base/overshoot become
+# CU limits scaled by the per-transaction cost — the mapping table below.
+BASE_TXNS = 10
+OVERSHOOT_TXNS = 100
+
 
 def label_from(path):
     """calibration-<cpu-slug>.csv -> machine label (e.g. 'EPYC 9454P')."""
@@ -67,14 +75,29 @@ if len(present) == 2:
     for k in keys:
         a, b = A[k], B[k]
         ea, eb = float(a["exec_mean_ms"]), float(b["exec_mean_ms"])
-        # CU is machine-independent; at the ceiling the pooled mean is pulled DOWN
-        # by aborted-tx windows catching tiny setup txs, so take the max across
-        # machines as the true (cap) value.
+        # CU is machine-independent and measured exactly per transaction, so both
+        # machines report the same value; max() is just defensive against a stale
+        # CSV.
         true_cu = max(float(a["actual_cu"]), float(b["actual_cu"]))
         lines.append(
             f"| {int(a['product']):,} | {k[0]}×{k[1]} | {cu(true_cu)} | "
             f"{ea:.3f} | {eb:.3f} | {eb / ea:.2f} |"
         )
+
+# TotalTxCount -> TotalComputationUnits limit mapping (machine-independent: CU
+# is protocol-defined). Each distinct per-tx CU maps the production count limits
+# to CU limits — base = BASE_TXNS × CU, overshoot = OVERSHOOT_TXNS × CU.
+cu_values = sorted({float(r["actual_cu"]) for _, rows in present for r in rows})
+lines.append(
+    f"\n## TotalTxCount (base {BASE_TXNS}, overshoot {OVERSHOOT_TXNS}) "
+    "→ TotalComputationUnits limits\n"
+)
+lines.append(
+    f"| CU per tx | base limit (×{BASE_TXNS}) | overshoot (×{OVERSHOOT_TXNS}) |"
+)
+lines.append("| --- | --- | --- |")
+for v in cu_values:
+    lines.append(f"| {cu(v)} | {cu(v * BASE_TXNS)} | {cu(v * OVERSHOOT_TXNS)} |")
 
 with open(OUT, "w") as f:
     f.write("\n".join(lines) + "\n")

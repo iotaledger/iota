@@ -7,8 +7,10 @@ The probe (`probe.sh`, swept by `probe_sweep.sh`) characterizes one
 post-consensus execution) and the internal Move-VM execution time. The
 workload is the owned-object slow variant (W4 in `../stress-plan.md`), so for
 this workload, both attested and actual computation units should match, since
-no state can change between the dry-run and execution; how these numbers feed
-the H2 mode comparison is described in `README.md`.
+no state can change between the dry-run and execution. What these numbers are
+*for* — sizing the `TotalComputationUnits` congestion limit for the H2 mode
+comparison — is worked out in *Sizing the `TotalComputationUnits` limit* below;
+`README.md` has the run plan.
 
 The sweep grid is a geometric ladder of the product `n × size` (`size` fixed at
 100, varying `n`, product 100 → 2M) plus a split-invariance check (product
@@ -34,8 +36,8 @@ point's measurement window:
 
 - **Computation units** — `attested_computation_units` /
   `actual_computation_units`, `Δ_sum / Δ_count`. Only attested user
-  transactions touch these histograms, and the workload is deterministic, so
-  the mean is the exact per-transaction value.
+  transactions touch these histograms; the workload is deterministic (100
+  identical transactions), so the mean is the exact per-transaction value.
 - **Internal execution time** —
   `authority_state_internal_execution_latency_user`, pure post-consensus
   execution, **user transactions only**. This histogram was added for the
@@ -44,9 +46,13 @@ point's measurement window:
   outnumber a low-rate workload ~30:1 and drag the mean toward their
   sub-millisecond cost.
 
-Every row below has exactly 412 samples: the point's 100 transactions executed
-on each of the 4 validators (400), plus the client's 3 setup transactions,
-likewise executed on all 4 validators.
+The measurement window is anchored at the exact instant spamming starts — the
+client prints that timestamp when its warmup ends — so the delta excludes
+the gas coin setup transactions, which run during warmup. Without this, the
+few cheap setup transactions (at the 1,000-CU floor) pool into the mean and
+bias it low. The client also waits 2 s between warmup and spamming so the
+baseline sits in a quiet gap. Every row below has exactly 400 samples: 100
+workload transactions executed on each of the 4 validators.
 
 ---
 
@@ -56,58 +62,58 @@ likewise executed on all 4 validators.
 
 | n | size | product | CU | exec mean (ms) | exec sem (ms) | samples |
 | --- | --- | --- | --- | --- | --- | --- |
-| 1 | 100 | 100 | 1,000 | 0.610 | 0.034 | 412 |
-| 2 | 100 | 200 | 1,000 | 0.654 | 0.016 | 412 |
-| 5 | 100 | 500 | 1,000 | 0.918 | 0.055 | 412 |
-| 10 | 100 | 1,000 | 1,000 | 1.339 | 0.081 | 412 |
-| 20 | 100 | 2,000 | 1,000 | 2.237 | 0.039 | 412 |
-| 50 | 100 | 5,000 | 1,000 | 4.797 | 0.108 | 412 |
-| 100 | 100 | 10,000 | 3,913 | 9.404 | 0.268 | 412 |
-| 200 | 100 | 20,000 | 15,563 | 17.399 | 0.437 | 412 |
-| 100 | 400 | 40,000 | 123,330 | 33.937 | 0.473 | 412 |
-| 200 | 200 | 40,000 | 124,301 | 32.288 | 0.516 | 412 |
-| 400 | 100 | 40,000 | 126,243 | 35.938 | 0.902 | 412 |
-| 500 | 100 | 50,000 | 184,495 | 40.862 | 0.909 | 412 |
-| 1000 | 100 | 100,000 | 476,728 | 73.439 | 0.994 | 412 |
-| 2000 | 100 | 200,000 | 1,060,223 | 108.637 | 3.278 | 412 |
-| 5000 | 100 | 500,000 | 2,810,709 | 196.266 | 3.288 | 412 |
-| 7000 | 100 | 700,000 | 3,977,699 | 251.242 | 5.208 | 412 |
-| 8500 | 100 | 850,000 | 4,854,398 | 272.078 | 5.483 | 412 |
-| 10000 | 100 | 1,000,000 | 4,854,398 | 273.460 | 5.430 | 412 |
-| 12000 | 100 | 1,200,000 | 4,854,398 | 269.867 | 5.785 | 412 |
-| 15000 | 100 | 1,500,000 | 4,854,398 | 271.866 | 5.489 | 412 |
-| 20000 | 100 | 2,000,000 | 4,854,398 | 283.513 | 5.051 | 412 |
+| 1 | 100 | 100 | 1,000 | 0.545 | 0.012 | 400 |
+| 2 | 100 | 200 | 1,000 | 0.637 | 0.010 | 400 |
+| 5 | 100 | 500 | 1,000 | 0.912 | 0.055 | 400 |
+| 10 | 100 | 1,000 | 1,000 | 1.342 | 0.083 | 400 |
+| 20 | 100 | 2,000 | 1,000 | 2.237 | 0.038 | 400 |
+| 50 | 100 | 5,000 | 1,000 | 4.951 | 0.108 | 400 |
+| 100 | 100 | 10,000 | 4,000 | 9.278 | 0.235 | 400 |
+| 200 | 100 | 20,000 | 16,000 | 18.776 | 0.478 | 400 |
+| 100 | 400 | 40,000 | 127,000 | 36.411 | 0.577 | 400 |
+| 200 | 200 | 40,000 | 128,000 | 35.137 | 0.543 | 400 |
+| 400 | 100 | 40,000 | 130,000 | 35.037 | 0.644 | 400 |
+| 500 | 100 | 50,000 | 190,000 | 42.726 | 0.865 | 400 |
+| 1000 | 100 | 100,000 | 491,000 | 74.615 | 0.805 | 400 |
+| 2000 | 100 | 200,000 | 1,092,000 | 111.961 | 3.071 | 400 |
+| 5000 | 100 | 500,000 | 2,895,000 | 204.800 | 3.125 | 400 |
+| 7000 | 100 | 700,000 | 4,097,000 | 266.155 | 5.098 | 400 |
+| 8500 | 100 | 850,000 | 5,000,000 | 283.822 | 4.588 | 400 |
+| 10000 | 100 | 1,000,000 | 5,000,000 | 282.936 | 4.620 | 400 |
+| 12000 | 100 | 1,200,000 | 5,000,000 | 287.358 | 4.410 | 400 |
+| 15000 | 100 | 1,500,000 | 5,000,000 | 285.204 | 4.679 | 400 |
+| 20000 | 100 | 2,000,000 | 5,000,000 | 287.840 | 4.665 | 400 |
 
 ### WS Ryzen 9 9950X3D
 
 | n | size | product | CU | exec mean (ms) | exec sem (ms) | samples |
 | --- | --- | --- | --- | --- | --- | --- |
-| 1 | 100 | 100 | 1,000 | 0.233 | 0.017 | 412 |
-| 2 | 100 | 200 | 1,000 | 0.242 | 0.002 | 412 |
-| 5 | 100 | 500 | 1,000 | 0.306 | 0.004 | 412 |
-| 10 | 100 | 1,000 | 1,000 | 0.415 | 0.010 | 412 |
-| 20 | 100 | 2,000 | 1,000 | 0.583 | 0.018 | 412 |
-| 50 | 100 | 5,000 | 1,000 | 1.254 | 0.075 | 412 |
-| 100 | 100 | 10,000 | 3,913 | 2.086 | 0.047 | 412 |
-| 200 | 100 | 20,000 | 15,563 | 4.030 | 0.089 | 412 |
-| 100 | 400 | 40,000 | 123,330 | 7.208 | 0.159 | 412 |
-| 200 | 200 | 40,000 | 124,301 | 8.214 | 0.222 | 412 |
-| 400 | 100 | 40,000 | 126,243 | 7.487 | 0.178 | 412 |
-| 500 | 100 | 50,000 | 184,495 | 9.275 | 0.236 | 412 |
-| 1000 | 100 | 100,000 | 476,728 | 18.247 | 0.309 | 412 |
-| 2000 | 100 | 200,000 | 1,060,223 | 34.826 | 0.409 | 412 |
-| 5000 | 100 | 500,000 | 2,810,709 | 88.812 | 2.141 | 412 |
-| 7000 | 100 | 700,000 | 3,977,699 | 126.158 | 2.596 | 412 |
-| 8500 | 100 | 850,000 | 4,854,398 | 148.915 | 1.778 | 412 |
-| 10000 | 100 | 1,000,000 | 4,854,398 | 146.229 | 1.938 | 412 |
-| 12000 | 100 | 1,200,000 | 4,854,398 | 151.727 | 1.702 | 412 |
-| 15000 | 100 | 1,500,000 | 4,854,398 | 148.533 | 1.790 | 412 |
-| 20000 | 100 | 2,000,000 | 4,854,398 | 148.998 | 1.776 | 412 |
+| 1 | 100 | 100 | 1,000 | 0.227 | 0.001 | 400 |
+| 2 | 100 | 200 | 1,000 | 0.223 | 0.001 | 400 |
+| 5 | 100 | 500 | 1,000 | 0.340 | 0.006 | 400 |
+| 10 | 100 | 1,000 | 1,000 | 0.403 | 0.009 | 400 |
+| 20 | 100 | 2,000 | 1,000 | 0.700 | 0.017 | 400 |
+| 50 | 100 | 5,000 | 1,000 | 1.315 | 0.074 | 400 |
+| 100 | 100 | 10,000 | 4,000 | 2.297 | 0.035 | 400 |
+| 200 | 100 | 20,000 | 16,000 | 4.274 | 0.090 | 400 |
+| 100 | 400 | 40,000 | 127,000 | 7.650 | 0.172 | 400 |
+| 200 | 200 | 40,000 | 128,000 | 7.923 | 0.190 | 400 |
+| 400 | 100 | 40,000 | 130,000 | 7.957 | 0.198 | 400 |
+| 500 | 100 | 50,000 | 190,000 | 8.987 | 0.194 | 400 |
+| 1000 | 100 | 100,000 | 491,000 | 18.813 | 0.319 | 400 |
+| 2000 | 100 | 200,000 | 1,092,000 | 35.973 | 0.302 | 400 |
+| 5000 | 100 | 500,000 | 2,895,000 | 94.244 | 2.112 | 400 |
+| 7000 | 100 | 700,000 | 4,097,000 | 137.892 | 1.855 | 400 |
+| 8500 | 100 | 850,000 | 5,000,000 | 154.762 | 1.012 | 400 |
+| 10000 | 100 | 1,000,000 | 5,000,000 | 154.992 | 1.000 | 400 |
+| 12000 | 100 | 1,200,000 | 5,000,000 | 156.435 | 0.928 | 400 |
+| 15000 | 100 | 1,500,000 | 5,000,000 | 150.103 | 1.245 | 400 |
+| 20000 | 100 | 2,000,000 | 5,000,000 | 154.293 | 1.035 | 400 |
 
 > [!NOTE]
-> At the ceiling (product ≥ 850k), every transaction aborts out-of-gas at the
-> metering cap; the abort still costs the full execution time, which is what
-> the plateau rows measure.
+> At the ceiling (product ≥ 850k), every transaction exhausts its gas budget
+> and aborts out-of-gas; the abort still costs the full execution time, which
+> is what the plateau rows measure.
 
 ---
 
@@ -116,19 +122,21 @@ likewise executed on all 4 validators.
 **1. CUs sit at the floor, rise superlinearly, then hit a hard ceiling.** For
 product ≤ 5,000, every point bills at 1,000 — one `gas_rounding_step` — so
 light workloads are indistinguishable on computation cost. From product 10,000
-upward, CUs rise steeply (3,913 → 15,563 → … → 2,810,709 at product 500,000) —
+upward, CUs rise steeply (4,000 → 16,000 → … → 2,895,000 at product 500,000) —
 **up to cubic** between products 20k and 40k (×2 product → ×8 CU), flattening
-toward linear higher up. At the top, they hit a ceiling: product 700k → 3.98M,
-then 850k through 2M all pin at the *same* 4,854,398 — a five-point plateau.
-The metered CU flatlines just under the 5M `max_gas_computation_bucket`,
-because the VM computation budget is `min(gas_budget, 5M × gas_price)` — past
-≈850k product a transaction can't meter more, it caps (and aborts out-of-gas)
-at ≈4.85M. The wide, well-separated CU range below the ceiling is what gives
-the mode comparison distinct gas buckets to calibrate against.
+toward linear higher up. At the top, they hit a ceiling: product 700k →
+4,097,000, then 850k through 2M all pin at exactly 5,000,000 — a five-point
+plateau. That 5,000,000 is the transaction's gas budget in computation units
+(the 5-IOTA budget ÷ the 1,000 gas price): once the workload would meter more
+than the budget covers, the transaction aborts out-of-gas and is charged its
+full budget, so every over-budget point reports the identical figure. (It
+coincides with the 5M `max_gas_computation_bucket`, but the binding limit here
+is the gas budget.) The wide, well-separated CU range below the ceiling is what
+gives the mode comparison distinct gas buckets to calibrate against.
 
 **2. The product is the cost axis; the `n / size` split barely matters.** At
 product 40,000, the three splits (100×400, 200×200, 400×100) give CUs within
-2.4 % (123,330 / 124,301 / 126,243) and execution times within ≈11 % on both
+2.4 % (127,000 / 128,000 / 130,000) and execution times within ≈4 % on both
 machines. So `n × size` sets the cost; more vectors at equal product cost
 marginally more. This validates the product as the workload's single cost axis.
 
@@ -136,8 +144,8 @@ marginally more. This validates the product as the workload's single cost axis.
 
 *Top: computation units vs product — one curve, since CUs are
 machine-independent; the square markers are the product-40000 splits, which
-land on the curve; the top five points (850k–2M) flatten just under the 5M
-computation cap (red). Bottom: internal execution time vs product, per machine
+land on the curve; the top five points (850k–2M) sit exactly on the 5M
+gas-budget cap (red). Bottom: internal execution time vs product, per machine
 (both to product 2M).*
 
 **3. CUs are machine-independent; execution time is not.** Every CU matches to
@@ -147,73 +155,106 @@ Move-VM cost, so it tracks per-core performance:
 
 | product | n×size | CU | EPYC exec (ms) | WS exec (ms) | WS/EPYC |
 | --- | --- | --- | --- | --- | --- |
-| 100 | 1×100 | 1,000 | 0.610 | 0.233 | 0.38 |
-| 200 | 2×100 | 1,000 | 0.654 | 0.242 | 0.37 |
-| 500 | 5×100 | 1,000 | 0.918 | 0.306 | 0.33 |
-| 1,000 | 10×100 | 1,000 | 1.339 | 0.415 | 0.31 |
-| 2,000 | 20×100 | 1,000 | 2.237 | 0.583 | 0.26 |
-| 5,000 | 50×100 | 1,000 | 4.797 | 1.254 | 0.26 |
-| 10,000 | 100×100 | 3,913 | 9.404 | 2.086 | 0.22 |
-| 20,000 | 200×100 | 15,563 | 17.399 | 4.030 | 0.23 |
-| 40,000 | 100×400 | 123,330 | 33.937 | 7.208 | 0.21 |
-| 40,000 | 200×200 | 124,301 | 32.288 | 8.214 | 0.25 |
-| 40,000 | 400×100 | 126,243 | 35.938 | 7.487 | 0.21 |
-| 50,000 | 500×100 | 184,495 | 40.862 | 9.275 | 0.23 |
-| 100,000 | 1000×100 | 476,728 | 73.439 | 18.247 | 0.25 |
-| 200,000 | 2000×100 | 1,060,223 | 108.637 | 34.826 | 0.32 |
-| 500,000 | 5000×100 | 2,810,709 | 196.266 | 88.812 | 0.45 |
-| 700,000 | 7000×100 | 3,977,699 | 251.242 | 126.158 | 0.50 |
-| 850,000 | 8500×100 | 4,854,398 | 272.078 | 148.915 | 0.55 |
-| 1,000,000 | 10000×100 | 4,854,398 | 273.460 | 146.229 | 0.53 |
-| 1,200,000 | 12000×100 | 4,854,398 | 269.867 | 151.727 | 0.56 |
-| 1,500,000 | 15000×100 | 4,854,398 | 271.866 | 148.533 | 0.55 |
-| 2,000,000 | 20000×100 | 4,854,398 | 283.513 | 148.998 | 0.53 |
+| 100 | 1×100 | 1,000 | 0.545 | 0.227 | 0.42 |
+| 200 | 2×100 | 1,000 | 0.637 | 0.223 | 0.35 |
+| 500 | 5×100 | 1,000 | 0.912 | 0.340 | 0.37 |
+| 1,000 | 10×100 | 1,000 | 1.342 | 0.403 | 0.30 |
+| 2,000 | 20×100 | 1,000 | 2.237 | 0.700 | 0.31 |
+| 5,000 | 50×100 | 1,000 | 4.951 | 1.315 | 0.27 |
+| 10,000 | 100×100 | 4,000 | 9.278 | 2.297 | 0.25 |
+| 20,000 | 200×100 | 16,000 | 18.776 | 4.274 | 0.23 |
+| 40,000 | 100×400 | 127,000 | 36.411 | 7.650 | 0.21 |
+| 40,000 | 200×200 | 128,000 | 35.137 | 7.923 | 0.23 |
+| 40,000 | 400×100 | 130,000 | 35.037 | 7.957 | 0.23 |
+| 50,000 | 500×100 | 190,000 | 42.726 | 8.987 | 0.21 |
+| 100,000 | 1000×100 | 491,000 | 74.615 | 18.813 | 0.25 |
+| 200,000 | 2000×100 | 1,092,000 | 111.961 | 35.973 | 0.32 |
+| 500,000 | 5000×100 | 2,895,000 | 204.800 | 94.244 | 0.46 |
+| 700,000 | 7000×100 | 4,097,000 | 266.155 | 137.892 | 0.52 |
+| 850,000 | 8500×100 | 5,000,000 | 283.822 | 154.762 | 0.55 |
+| 1,000,000 | 10000×100 | 5,000,000 | 282.936 | 154.992 | 0.55 |
+| 1,200,000 | 12000×100 | 5,000,000 | 287.358 | 156.435 | 0.54 |
+| 1,500,000 | 15000×100 | 5,000,000 | 285.204 | 150.103 | 0.53 |
+| 2,000,000 | 20000×100 | 5,000,000 | 287.840 | 154.293 | 0.54 |
 
 The WS runs 1.8–4.8× faster per transaction, and the ratio is U-shaped rather
 than flat:
 
-- **Fixed-overhead floor** (product ≤ 1,000): ratio ≈ 0.31–0.38 (WS ≈2.6–3.2×
+- **Fixed-overhead floor** (product ≤ 2,000): ratio ≈ 0.30–0.42 (WS ≈2.4–3.3×
   faster). Execution here is mostly per-transaction overhead (≈0.23 ms WS vs
-  ≈0.61 ms EPYC).
+  ≈0.55 ms EPYC).
 - **Compute-bound middle** (product 10k–100k): ratio dips to ≈ 0.21–0.25 (WS
   ≈4–4.8× faster). Raw Move-VM compute dominates and the WS's higher clock,
   newer core, and 3D V-Cache win big — well beyond the ≈1.5× clock ratio alone.
-- **Large tail** (product ≥ 500k, CU ≥ 2.8M): ratio climbs back to ≈ 0.45–0.56
+- **Large tail** (product ≥ 500k, CU ≥ 2.9M): ratio climbs back to ≈ 0.46–0.55
   (WS ≈1.8–2.2× faster). Consistent with the working set outgrowing cache and
   the tail becoming memory-bandwidth bound, where the EPYC's many-channel
   server memory competes better and offsets the WS's clock edge. (The U-shape
   is solid; the mechanism is inference.)
 
-At the ceiling both machines are flat and clean: WS ≈146–152 ms, EPYC
-≈270–284 ms across all five plateau points.
+At the ceiling, both machines are flat and clean: WS ≈150–156 ms, EPYC
+≈283–288 ms across all five plateau points.
 
 ![Execution time vs CUs](results/summary_plots/exec_vs_cu.png)
 
 *Internal execution time vs computation units, per machine. The vertical
 cluster at CU = 1,000 is the gas-rounding floor: execution time still rises
 with the real work (the product) while the billed CU stays pinned at the floor.
-The points piled at CU ≈ 4.85M are the ceiling plateau.*
-
-**4. At ceiling costs, even 5 QPS is heavy load for the attested submit path.**
-A byproduct of getting the probe reliable, relevant to the H2/H3 experiment
-design. With attestation on, every submitted transaction is executed *twice or
-more* on the network's critical path: a full pre-consensus dry-run on the
-receiving validator (`attest_transaction`, ≈ the same cost as execution), the
-post-consensus execution on every validator, and — when the client waits on a
-fullnode — once more during checkpoint replay. At the ceiling that chain is
-≈1.5–2 s per transaction on the EPYC, and a closed-loop client whose
-back-pressure is a small in-flight budget silently under-delivers once
-responses cross its threshold (delivery collapsed to 0–75 of 100 transactions
-before the probe moved to direct-to-validator submission, which removes the
-fullnode from the response chain). Retries of a submission pay the attestation
-dry-run again — there is no attestation cache by digest — so an overloaded
-submit path attracts *more* attestation work. For the mode-comparison runs
-this means: heavy-CU workloads stress the attested path at rates that look
-trivially low on paper, and client throughput must be read together with
-delivery counts, never assumed from the target rate.
+The points piled at CU = 5M are the ceiling plateau.*
 
 The takeaway for cross-machine reading: computation units transfer exactly, but
-per-transaction latency does not. The EPYC's strength is core count (48c) for
-parallel throughput, not per-transaction speed — so it lags the high-clock desktop on
-anything gated on single-transaction execution, by 2× at the ceiling and up to
-almost 5× in the compute-bound middle of the range.
+per-transaction execution time does not. The EPYC's strength is core count
+(48c) for parallel throughput, not per-transaction speed — so it lags the
+high-clock desktop on anything gated on single-transaction execution,
+by ≈1.8× at the ceiling and up to ≈4.8× in the compute-bound middle of the
+range.
+
+---
+
+## Sizing the `TotalComputationUnits` limit
+
+This is what the calibration is for. Production runs per-object congestion
+control in `TotalTxCount` mode with a base limit of 10 and an overshoot of 100
+per object per commit (`max_accumulated_txn_cost_per_object_in_mysticeti_commit`
+= 10, `max_congestion_limit_overshoot_per_commit` = 100). That mode counts every
+transaction as 1, blind to cost: a per-object commit admits the same 10 (+100
+burst) transactions whether each costs 1,000 CU or 5,000,000 CU — a 5,000×
+spread in real work behind an identical count.
+
+`TotalComputationUnits` removes that blindness by limiting on attested cost
+instead of count. The question H2 answers is which CU limit to give it. Mapping
+today's count limits onto the CU scale means multiplying by the per-transaction
+cost — but the calibration shows that cost spans 1,000 → 5,000,000 CU, so the
+equivalent limit spans the same 5,000×:
+
+| CU per tx | base limit (×10) | overshoot (×100) |
+| --- | --- | --- |
+| 1,000 | 10,000 | 100,000 |
+| 4,000 | 40,000 | 400,000 |
+| 16,000 | 160,000 | 1,600,000 |
+| 127,000 | 1,270,000 | 12,700,000 |
+| 128,000 | 1,280,000 | 12,800,000 |
+| 130,000 | 1,300,000 | 13,000,000 |
+| 190,000 | 1,900,000 | 19,000,000 |
+| 491,000 | 4,910,000 | 49,100,000 |
+| 1,092,000 | 10,920,000 | 109,200,000 |
+| 2,895,000 | 28,950,000 | 289,500,000 |
+| 4,097,000 | 40,970,000 | 409,700,000 |
+| 5,000,000 | 50,000,000 | 500,000,000 |
+
+The two ends of that range are the bounds, and both are bad:
+
+- **Lower bound** — size the limit for all-light traffic (1,000 CU): base
+  10,000, overshoot 100,000 CU. But 10,000 CU is smaller than a single heavy
+  transaction (5,000,000 CU), so not even one heavy transaction fits per object
+  per commit — heavy traffic is deferred indefinitely.
+- **Upper bound** — size it for all-heavy traffic (5,000,000 CU): base
+  50,000,000, overshoot 500,000,000 CU. That admits 50,000 light transactions
+  (1,000 CU each) per object per commit — 5,000× today's 10, i.e. effectively
+  no throttling of light traffic.
+
+So the workable limit sits between, and where exactly depends on the workload
+mix. Choosing and justifying it is the H2 mode comparison: run `TotalTxCount`
+(base 10, overshoot 100) against `TotalComputationUnits` at candidate CU limits
+from this range, on W1 (shared-counter, uniform light cost) and W5 (slow,
+variable cost), and compare throughput, latency, and per-object deferral.
