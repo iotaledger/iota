@@ -136,7 +136,6 @@ members = [
   "crates/iota-snapshot",
   "crates/iota-source-validation",
   "crates/iota-source-validation-service",
-  "crates/iota-stardust-types",
   "crates/iota-storage",
   "crates/iota-swarm",
   "crates/iota-swarm-config",
@@ -449,7 +448,6 @@ iota-simulator = { path = "crates/iota-simulator" }
 iota-snapshot = { path = "crates/iota-snapshot" }
 iota-source-validation = { path = "crates/iota-source-validation" }
 iota-source-validation-service = { path = "crates/iota-source-validation-service" }
-iota-stardust-types = { path = "crates/iota-stardust-types" }
 iota-storage = { path = "crates/iota-storage" }
 iota-swarm = { path = "crates/iota-swarm" }
 iota-swarm-config = { path = "crates/iota-swarm-config" }

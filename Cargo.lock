@@ -3736,20 +3736,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ed25519-zebra"
-version = "4.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0017d969298eec91e3db7a2985a8cab4df6341d86e6f3a6f5878b13fb7846bc9"
-dependencies = [
- "curve25519-dalek",
- "ed25519",
- "rand_core 0.6.4",
- "sha2 0.10.9",
- "subtle",
- "zeroize",
-]
-
-[[package]]
 name = "either"
 version = "1.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5227,15 +5213,6 @@ dependencies = [
 
 [[package]]
 name = "impl-codec"
-version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ba6a270039626615617f3f36d15fc827041df3b78c439da2cadfa47455a77f2f"
-dependencies = [
- "parity-scale-codec 3.7.4",
-]
-
-[[package]]
-name = "impl-codec"
 version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2d40b9d5e17727407e55028eafc22b2dc68781786e6d7eb8a21103f5058e3a14"
@@ -5248,15 +5225,6 @@ name = "impl-serde"
 version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4551f042f3438e64dbd6226b20527fc84a6e1fe65688b58746a2f53623f25f5c"
-dependencies = [
- "serde",
-]
-
-[[package]]
-name = "impl-serde"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ebc88fc67028ae3db0c853baa36269d398d5f45b6982f95549ff5def78c935cd"
 dependencies = [
  "serde",
 ]
@@ -5851,19 +5819,6 @@ dependencies = [
  "strum 0.27.2",
  "test-cluster",
  "tokio",
-]
-
-[[package]]
-name = "iota-crypto"
-version = "0.23.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "98a38db844c910d78825e173c083f2ef416b69cb091bba8ac1055763c6db065b"
-dependencies = [
- "autocfg",
- "blake2",
- "digest 0.10.7",
- "ed25519-zebra",
- "zeroize",
 ]
 
 [[package]]
@@ -7770,24 +7725,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "iota-stardust-types"
-version = "1.29.0-alpha"
-dependencies = [
- "bech32 0.9.1",
- "bitflags 2.10.0",
- "derive_more 1.0.0",
- "getset",
- "iota-crypto",
- "iterator-sorted",
- "packable",
- "prefix-hex",
- "pretty_assertions",
- "primitive-types 0.12.2",
- "serde",
- "serde_json",
-]
-
-[[package]]
 name = "iota-storage"
 version = "1.29.0-alpha"
 dependencies = [
@@ -8258,12 +8195,6 @@ name = "is_terminal_polyfill"
 version = "1.70.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7943c866cc5cd64cbc25b2e01621d07fa8eb2a1a23160ee81ce38704e97b8ecf"
-
-[[package]]
-name = "iterator-sorted"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ed3c1d66191fc266439b989dc1a9a69d9c4156e803ce456221231398b84c35d1"
 
 [[package]]
 name = "itertools"
@@ -10624,31 +10555,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "packable"
-version = "0.8.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "11259b086696fc9256f790485d8f14f11f0fa60a60351af9693e3d49fd24fdb6"
-dependencies = [
- "autocfg",
- "packable-derive",
- "primitive-types 0.12.2",
- "serde",
-]
-
-[[package]]
-name = "packable-derive"
-version = "0.7.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e9567693dd2f9a4339cb0a54adfcc0cb431c0ac88b2e46c6ddfb5f5d11a1cc4f"
-dependencies = [
- "proc-macro-crate 1.3.1",
- "proc-macro-error",
- "proc-macro2",
- "quote",
- "syn 1.0.109",
-]
-
-[[package]]
 name = "packed_struct"
 version = "0.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -11256,17 +11162,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "prefix-hex"
-version = "0.7.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1f1799f398371ad6957951ec446d3ff322d35c46d9db2e217b67e828b311c249"
-dependencies = [
- "hex",
- "primitive-types 0.12.2",
- "uint 0.9.5",
-]
-
-[[package]]
 name = "pretty_assertions"
 version = "1.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -11304,18 +11199,6 @@ dependencies = [
  "fixed-hash 0.7.0",
  "impl-codec 0.5.1",
  "impl-serde 0.3.2",
- "uint 0.9.5",
-]
-
-[[package]]
-name = "primitive-types"
-version = "0.12.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0b34d9fd68ae0b74a41b21c03c2f62847aa0ffea044eee893b4c140b37e244e2"
-dependencies = [
- "fixed-hash 0.8.0",
- "impl-codec 0.6.0",
- "impl-serde 0.4.0",
  "uint 0.9.5",
 ]
 
