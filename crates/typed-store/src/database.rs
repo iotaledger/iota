@@ -1444,6 +1444,122 @@ where
     }
 }
 
+/// A typed map sharing one column family with other typed maps,
+/// distinguished by a tag byte prefixed to every key: the big-endian fixint
+/// serialization of `(tag, key)` keeps each map a contiguous key range of
+/// the column family. Useful for sets of tables that are always created and
+/// dropped together — one column family instead of one per table keeps the
+/// column-family and SST-file counts low.
+///
+/// Every read is scoped to the map's tag: full scans iterate the tag's key
+/// prefix, and ranges are two-sided within it, so rows of other tags never
+/// surface and their (differently typed) values are never deserialized.
+///
+/// Tags of existing maps must never change or be reused, or old rows would
+/// be read under the wrong types.
+pub struct TaggedDBMap<K, V> {
+    tag: u8,
+    map: DBMap<(u8, K), V>,
+}
+
+impl<K, V> TaggedDBMap<K, V>
+where
+    K: Clone + Serialize + DeserializeOwned,
+    V: Serialize + DeserializeOwned,
+{
+    /// Reopens an open database as a tagged map operating under `cf_name`.
+    /// See [`DBMap::reopen`] for the remaining parameters.
+    pub fn reopen(
+        db: &Arc<Database>,
+        cf_name: &str,
+        tag: u8,
+        rw_options: &ReadWriteOptions,
+        skip_metrics_reporting: bool,
+    ) -> Result<Self, TypedStoreError> {
+        Ok(Self {
+            tag,
+            map: DBMap::reopen(db, Some(cf_name), rw_options, skip_metrics_reporting)?,
+        })
+    }
+
+    /// Create a batch associated with the map's database.
+    pub fn batch(&self) -> DBBatch {
+        self.map.batch()
+    }
+
+    pub fn get(&self, key: &K) -> Result<Option<V>, TypedStoreError> {
+        self.map.get(&(self.tag, key.clone()))
+    }
+
+    pub fn multi_get(&self, keys: &[K]) -> Result<Vec<Option<V>>, TypedStoreError> {
+        self.map
+            .multi_get(keys.iter().map(|key| (self.tag, key.clone())))
+    }
+
+    pub fn contains_key(&self, key: &K) -> Result<bool, TypedStoreError> {
+        self.map.contains_key(&(self.tag, key.clone()))
+    }
+
+    pub fn insert_batch(
+        &self,
+        batch: &mut DBBatch,
+        key_val_pairs: impl IntoIterator<Item = (K, V)>,
+    ) -> Result<(), TypedStoreError> {
+        batch.insert_batch(
+            &self.map,
+            key_val_pairs
+                .into_iter()
+                .map(|(key, value)| ((self.tag, key), value)),
+        )?;
+        Ok(())
+    }
+
+    pub fn delete_batch(
+        &self,
+        batch: &mut DBBatch,
+        keys: impl IntoIterator<Item = K>,
+    ) -> Result<(), TypedStoreError> {
+        batch.delete_batch(&self.map, keys.into_iter().map(|key| (self.tag, key)))?;
+        Ok(())
+    }
+
+    /// Forward iterator over all of the map's entries.
+    pub fn iter(&self) -> impl Iterator<Item = Result<(K, V), TypedStoreError>> + '_ {
+        self.map
+            .safe_iter_with_prefix(&self.tag)
+            .map(|result| result.map(|((_, key), value)| (key, value)))
+    }
+
+    /// Reverse iterator over all of the map's entries.
+    pub fn iter_reversed(&self) -> impl Iterator<Item = Result<(K, V), TypedStoreError>> + '_ {
+        self.map
+            .safe_iter_with_prefix_reversed(&self.tag)
+            .map(|result| result.map(|((_, key), value)| (key, value)))
+    }
+
+    /// Forward iterator over the map's entries in `lower..=upper`.
+    pub fn range_iter(
+        &self,
+        lower: K,
+        upper: K,
+    ) -> impl Iterator<Item = Result<(K, V), TypedStoreError>> + '_ {
+        self.map
+            .safe_range_iter((self.tag, lower)..=(self.tag, upper))
+            .map(|result| result.map(|((_, key), value)| (key, value)))
+    }
+
+    /// Reverse iterator over the map's entries in `lower..=upper`.
+    pub fn range_iter_reversed(
+        &self,
+        lower: K,
+        upper: K,
+    ) -> impl Iterator<Item = Result<(K, V), TypedStoreError>> + '_ {
+        self.map
+            .safe_range_iter_reversed((self.tag, lower)..=(self.tag, upper))
+            .map(|result| result.map(|((_, key), value)| (key, value)))
+    }
+}
+
 fn default_hash(value: &[u8]) -> Digest<32> {
     let mut hasher = fastcrypto::hash::Blake2b256::default();
     hasher.update(value);
