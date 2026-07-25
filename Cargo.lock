@@ -1741,19 +1741,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "bigdecimal"
-version = "0.4.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "51d712318a27c7150326677b321a5fa91b55f6d9034ffd67f20319e147d40cee"
-dependencies = [
- "autocfg",
- "libm",
- "num-bigint 0.4.6",
- "num-integer",
- "num-traits",
-]
-
-[[package]]
 name = "bimap"
 version = "0.6.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6171,55 +6158,26 @@ version = "1.29.0-alpha"
 dependencies = [
  "anyhow",
  "bcs",
- "bigdecimal",
  "camino",
- "clap",
- "csv",
  "fastcrypto",
- "flate2",
- "hex",
- "iota-adapter-latest",
  "iota-config",
  "iota-execution",
  "iota-framework",
  "iota-framework-snapshot",
  "iota-genesis-common",
- "iota-move-build",
- "iota-move-natives-latest",
  "iota-protocol-config",
- "iota-sdk-crypto",
  "iota-sdk-types",
- "iota-simulator",
- "iota-stardust-types",
  "iota-swarm-config",
  "iota-types",
- "itertools 0.13.0",
  "move-binary-format",
- "move-compiler",
  "move-core-types",
- "move-docgen",
- "move-package",
- "move-vm-runtime",
- "num-rational",
- "packable",
- "prefix-hex",
- "primitive-types 0.12.2",
  "prometheus-filtered",
  "rand 0.8.6",
- "rand_pcg",
- "rand_seeder",
- "regex",
- "reqwest",
  "serde",
- "serde_json",
  "serde_with",
  "serde_yaml",
  "tempfile",
- "thiserror 1.0.64",
- "tokio",
  "tracing",
- "tracing-subscriber",
- "url",
 ]
 
 [[package]]
@@ -11921,24 +11879,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ca3129af7b92a17112d59ad498c6f81eaf463253766b90396d39ea7a39d6613c"
 dependencies = [
  "rand_core 0.5.1",
-]
-
-[[package]]
-name = "rand_pcg"
-version = "0.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "59cad018caf63deb318e5a4586d99a24424a364f40f1e5778c29aca23f4fc73e"
-dependencies = [
- "rand_core 0.6.4",
-]
-
-[[package]]
-name = "rand_seeder"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4a9febe641d2842ffc76ee962668a17578767c4e01735e4802b21ed9a24b2e4e"
-dependencies = [
- "rand_core 0.6.4",
 ]
 
 [[package]]

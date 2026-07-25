@@ -12,9 +12,7 @@ use iota_config::{
     IOTA_GENESIS_FILENAME,
     genesis::{TokenDistributionScheduleBuilder, UnsignedGenesis},
 };
-use iota_genesis_builder::{
-    Builder, GENESIS_BUILDER_PARAMETERS_FILE, genesis_build_effects::GenesisBuildEffects,
-};
+use iota_genesis_builder::{Builder, GENESIS_BUILDER_PARAMETERS_FILE};
 use iota_keys::keypair_file::{
     read_authority_keypair_from_file, read_keypair_from_file, read_network_keypair_from_file,
 };
@@ -147,7 +145,7 @@ pub async fn run(cmd: Ceremony) -> Result<()> {
         }
 
         CeremonyCommand::ValidateState => {
-            let builder = Builder::load(&dir).await?;
+            let builder = Builder::load(&dir)?;
             builder.validate()?;
             println!(
                 "Successfully validated ceremony builder at {}",
@@ -158,7 +156,7 @@ pub async fn run(cmd: Ceremony) -> Result<()> {
         CeremonyCommand::InitTokenDistributionSchedule {
             token_allocations_path,
         } => {
-            let mut builder = Builder::load(&dir).await?;
+            let mut builder = Builder::load(&dir)?;
             let mut schedule_builder = TokenDistributionScheduleBuilder::new();
 
             let token_allocations_csv = File::open(token_allocations_path)?;
@@ -184,7 +182,7 @@ pub async fn run(cmd: Ceremony) -> Result<()> {
             image_url,
             project_url,
         } => {
-            let mut builder = Builder::load(&dir).await?;
+            let mut builder = Builder::load(&dir)?;
             let authority_keypair: AuthorityKeyPair =
                 read_authority_keypair_from_file(authority_key_file)?;
             let account_keypair: IotaKeyPair = read_keypair_from_file(account_key_file)?;
@@ -218,7 +216,7 @@ pub async fn run(cmd: Ceremony) -> Result<()> {
         }
 
         CeremonyCommand::ListValidators => {
-            let builder = Builder::load(&dir).await?;
+            let builder = Builder::load(&dir)?;
 
             let mut validators = builder
                 .validators()
@@ -252,22 +250,19 @@ pub async fn run(cmd: Ceremony) -> Result<()> {
         }
 
         CeremonyCommand::BuildUnsignedCheckpoint => {
-            let mut builder = Builder::load(&dir).await?;
+            let mut builder = Builder::load(&dir)?;
 
-            tokio::task::spawn_blocking(move || {
-                let UnsignedGenesis { checkpoint, .. } = builder.get_or_build_unsigned_genesis();
-                println!(
-                    "Successfully built unsigned checkpoint: {}",
-                    checkpoint.digest()
-                );
+            let UnsignedGenesis { checkpoint, .. } = builder.get_or_build_unsigned_genesis();
+            println!(
+                "Successfully built unsigned checkpoint: {}",
+                checkpoint.digest()
+            );
 
-                builder.save(dir)
-            })
-            .await??;
+            builder.save(dir)?;
         }
 
         CeremonyCommand::ExamineGenesisCheckpoint => {
-            let builder = Builder::load(&dir).await?;
+            let builder = Builder::load(&dir)?;
 
             let Some(unsigned_genesis) = builder.unsigned_genesis_checkpoint() else {
                 bail!(
@@ -281,7 +276,7 @@ pub async fn run(cmd: Ceremony) -> Result<()> {
         CeremonyCommand::VerifyAndSign { key_file } => {
             let keypair: AuthorityKeyPair = read_authority_keypair_from_file(key_file)?;
 
-            let mut builder = Builder::load(&dir).await?;
+            let mut builder = Builder::load(&dir)?;
 
             check_protocol_version(&builder, protocol_version)?;
 
@@ -303,11 +298,11 @@ pub async fn run(cmd: Ceremony) -> Result<()> {
         }
 
         CeremonyCommand::Finalize => {
-            let builder = Builder::load(&dir).await?;
+            let builder = Builder::load(&dir)?;
 
             check_protocol_version(&builder, protocol_version)?;
 
-            let GenesisBuildEffects { genesis, .. } = builder.build();
+            let genesis = builder.build();
             genesis.save(dir.join(IOTA_GENESIS_FILENAME))?;
 
             println!("Successfully built {IOTA_GENESIS_FILENAME}");

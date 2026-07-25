@@ -16,7 +16,6 @@ use iota_config::{
     node::AuthorityOverloadConfig,
     transaction_deny_config::TransactionDenyConfig,
 };
-use iota_genesis_builder::genesis_build_effects::GenesisBuildEffects;
 use iota_protocol_config::Chain;
 use iota_sdk_types::Address;
 use iota_types::{
@@ -448,7 +447,7 @@ impl<R: rand::RngCore + rand::CryptoRng> ConfigBuilder<R> {
             builder.build()
         };
 
-        let GenesisBuildEffects { genesis, .. } = {
+        let genesis = {
             let mut builder = iota_genesis_builder::Builder::new()
                 .with_parameters(genesis_config.parameters)
                 .add_objects(self.additional_objects);

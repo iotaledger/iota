@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::HashMap,
     fs::File,
     io::{BufReader, BufWriter},
     path::Path,
@@ -640,10 +640,6 @@ impl TokenDistributionScheduleBuilder {
         }
     }
 
-    pub fn set_pre_minted_supply(&mut self, pre_minted_supply: u64) {
-        self.pre_minted_supply = pre_minted_supply;
-    }
-
     pub fn default_allocation_for_validators<I: IntoIterator<Item = Address>>(
         &mut self,
         validators: I,
@@ -677,130 +673,6 @@ impl TokenDistributionScheduleBuilder {
 
         schedule.validate();
         schedule
-    }
-}
-
-/// Represents the allocation of stake and gas payment to a validator.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-pub struct ValidatorAllocation {
-    /// The validator address receiving the stake and/or gas payment
-    pub validator: Address,
-    /// The amount of nanos to stake to the validator
-    pub amount_nanos_to_stake: u64,
-    /// The amount of nanos to transfer as gas payment to the validator
-    pub amount_nanos_to_pay_gas: u64,
-}
-
-/// Represents a delegation of stake and gas payment to a validator,
-/// coming from a delegator. This struct is used to serialize and deserialize
-/// delegations to and from a csv file.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-pub struct Delegation {
-    /// The address from which to take the nanos for staking/gas
-    pub delegator: Address,
-    /// The allocation to a validator receiving a stake and/or a gas payment
-    #[serde(flatten)]
-    pub validator_allocation: ValidatorAllocation,
-}
-
-/// Represents genesis delegations to validators.
-///
-/// This struct maps a delegator address to a list of validators and their
-/// stake and gas allocations. Each ValidatorAllocation contains the address of
-/// a validator that will receive an amount of nanos to stake and an amount as
-/// gas payment.
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-pub struct Delegations {
-    pub allocations: BTreeMap<Address, Vec<ValidatorAllocation>>,
-}
-
-impl Delegations {
-    pub fn new_for_validators_with_default_allocation(
-        validators: impl IntoIterator<Item = Address>,
-        delegator: Address,
-        protocol_version: ProtocolVersion,
-    ) -> Self {
-        // Below protocol version 32 the threshold isn't present in the protocol
-        // config, so fall back to the historical genesis value.
-        let min_validator_joining_stake =
-            ProtocolConfig::get_for_version(protocol_version, Chain::Unknown)
-                .min_validator_joining_stake_as_option()
-                .unwrap_or(PRE_V32_MIN_VALIDATOR_JOINING_STAKE);
-        let validator_allocations = validators
-            .into_iter()
-            .map(|address| ValidatorAllocation {
-                validator: address,
-                amount_nanos_to_stake: min_validator_joining_stake,
-                amount_nanos_to_pay_gas: 0,
-            })
-            .collect();
-
-        let mut allocations = BTreeMap::new();
-        allocations.insert(delegator, validator_allocations);
-
-        Self { allocations }
-    }
-
-    /// Helper to read a Delegations struct from a csv file.
-    ///
-    /// The file is encoded such that the final entry in the CSV file is used to
-    /// denote the allocation coming from a delegator. It must be in the
-    /// following format:
-    /// `delegator,validator,amount-nanos-to-stake,amount-nanos-to-pay-gas
-    /// <delegator1-address>,<validator-1-address>,2000000000000000,5000000000
-    /// <delegator1-address>,<validator-2-address>,3000000000000000,5000000000
-    /// <delegator2-address>,<validator-3-address>,4500000000000000,5000000000`
-    ///
-    /// Comments are optional, and start with a `#` character.
-    /// Only entries that start with this character are treated as comments.
-    pub fn from_csv<R: std::io::Read>(reader: R) -> Result<Self> {
-        let mut reader = csv_reader_with_comments(reader);
-
-        let mut delegations = Self::default();
-        for delegation in reader.deserialize::<Delegation>() {
-            let delegation = delegation?;
-            delegations
-                .allocations
-                .entry(delegation.delegator)
-                .or_default()
-                .push(delegation.validator_allocation);
-        }
-
-        Ok(delegations)
-    }
-
-    /// Helper to write a Delegations struct into a csv file.
-    ///
-    /// It writes in the following format:
-    /// `delegator,validator,amount-nanos-to-stake,amount-nanos-to-pay-gas
-    /// <delegator1-address>,<validator-1-address>,2000000000000000,5000000000
-    /// <delegator1-address>,<validator-2-address>,3000000000000000,5000000000
-    /// <delegator2-address>,<validator-3-address>,4500000000000000,5000000000`
-    pub fn to_csv<W: std::io::Write>(&self, writer: W) -> Result<()> {
-        let mut writer = csv::Writer::from_writer(writer);
-
-        writer.write_record([
-            "delegator",
-            "validator",
-            "amount-nanos-to-stake",
-            "amount-nanos-to-pay-gas",
-        ])?;
-
-        for (&delegator, validator_allocations) in &self.allocations {
-            for validator_allocation in validator_allocations {
-                writer.write_record(&[
-                    delegator.to_string(),
-                    validator_allocation.validator.to_string(),
-                    validator_allocation.amount_nanos_to_stake.to_string(),
-                    validator_allocation.amount_nanos_to_pay_gas.to_string(),
-                ])?;
-            }
-        }
-
-        Ok(())
     }
 }
 
