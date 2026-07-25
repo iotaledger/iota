@@ -40,7 +40,7 @@ use iota_types::{
     digests::ChainIdentifier,
     effects::{TransactionEffects, TransactionEvents},
     epoch_data::EpochData,
-    gas_coin::{GAS, GasCoin},
+    gas_coin::GasCoin,
     governance::StakedIota,
     in_memory_storage::InMemoryStorage,
     inner_temporary_store::InnerTemporaryStore,
@@ -53,7 +53,6 @@ use iota_types::{
     object::{MoveStructExt, Object},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     randomness_state::RANDOMNESS_STATE_CREATE_FUNCTION_NAME,
-    timelock::stardust_upgrade_label::STARDUST_UPGRADE_LABEL_VALUE,
     transaction::{CallArg, CheckedInputObjects, InputObjectKind, ObjectReadResult, Transaction},
 };
 use move_binary_format::CompiledModule;
@@ -1121,25 +1120,6 @@ pub fn generate_genesis_system_object(
             vec![],
         );
 
-        let pre_minted_supply_amount = builder
-            .pure(token_distribution_schedule.pre_minted_supply)
-            .expect("serialization of u64 should succeed");
-        let pre_minted_supply = builder.programmable_move_call(
-            ObjectId::FRAMEWORK,
-            Identifier::IOTA_MODULE,
-            Identifier::from_static("mint_balance"),
-            vec![],
-            vec![iota_treasury_cap, pre_minted_supply_amount],
-        );
-
-        builder.programmable_move_call(
-            ObjectId::FRAMEWORK,
-            Identifier::BALANCE_MODULE,
-            Identifier::from_static("destroy_genesis_supply"),
-            vec![GAS::type_tag()],
-            vec![pre_minted_supply],
-        );
-
         // Step 5: Create System Admin Cap.
         let system_admin_cap = builder.programmable_move_call(
             ObjectId::FRAMEWORK,
@@ -1157,7 +1137,6 @@ pub fn generate_genesis_system_object(
             CallArg::pure(&genesis_chain_parameters),
             CallArg::pure(&genesis_validators),
             CallArg::pure(&token_distribution_schedule),
-            CallArg::pure(&Some(STARDUST_UPGRADE_LABEL_VALUE)),
         ]
         .into_iter()
         .map(|a| builder.input(a))
