@@ -125,7 +125,7 @@ pub struct AuthorityStorePruningMetrics {
     pub num_pruned_objects: IntCounter,
     pub num_pruned_tombstones: IntCounter,
     pub last_pruned_effects_checkpoint: IntGauge,
-    pub last_pruned_indexes_transaction: IntGauge,
+    pub earliest_retained_indexes_epoch: IntGauge,
     pub num_epochs_to_retain_for_objects: IntGauge,
     pub num_epochs_to_retain_for_checkpoints: IntGauge,
     pub last_pruned_checkpoint_timestamp_ms: IntGauge,
@@ -167,9 +167,9 @@ impl AuthorityStorePruningMetrics {
                 MetricLevel::Warn,
             )
             .unwrap(),
-            last_pruned_indexes_transaction: register_int_gauge_with_registry!(
-                "last_pruned_indexes_transaction",
-                "Last pruned indexes transaction",
+            earliest_retained_indexes_epoch: register_int_gauge_with_registry!(
+                "earliest_retained_indexes_epoch",
+                "Earliest epoch whose JSON-RPC index history is retained",
                 registry
             )
             .unwrap(),
@@ -677,7 +677,6 @@ impl AuthorityStorePruner {
     fn prune_indexes(
         indexes: Option<&IndexStore>,
         config: &AuthorityStorePruningConfig,
-        epoch_duration_ms: u64,
         metrics: &AuthorityStorePruningMetrics,
     ) -> anyhow::Result<()> {
         if let (Some(mut epochs_to_retain), Some(indexes)) =
@@ -687,14 +686,10 @@ impl AuthorityStorePruner {
                 warn!("num_epochs_to_retain_for_indexes is too low. Resetting it to 7");
                 epochs_to_retain = MIN_EPOCHS_TO_RETAIN_FOR_INDEXES;
             }
-            let now = SystemTime::now().duration_since(UNIX_EPOCH)?.as_millis();
-            if let Some(cut_time_ms) =
-                u64::try_from(now)?.checked_sub(epochs_to_retain * epoch_duration_ms)
-            {
-                let transaction_id = indexes.prune(cut_time_ms)?;
+            if let Some(earliest_retained_epoch) = indexes.prune(epochs_to_retain)? {
                 metrics
-                    .last_pruned_indexes_transaction
-                    .set(transaction_id as i64);
+                    .earliest_retained_indexes_epoch
+                    .set(earliest_retained_epoch as i64);
             }
         }
         Ok(())
@@ -906,12 +901,9 @@ impl AuthorityStorePruner {
                     }
                 }
                 if prune_indexes {
-                    if let Err(err) = Self::prune_indexes(
-                        jsonrpc_index.as_deref(),
-                        &config,
-                        epoch_duration_ms,
-                        &metrics,
-                    ) {
+                    if let Err(err) =
+                        Self::prune_indexes(jsonrpc_index.as_deref(), &config, &metrics)
+                    {
                         error!("Failed to prune indexes: {:?}", err);
                     }
                 }
