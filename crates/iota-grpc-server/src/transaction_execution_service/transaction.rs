@@ -219,7 +219,7 @@ impl Merge<&TransactionReadSource<'_>> for grpc_tx::TransactionEffects {
             return Ok(());
         };
 
-        Merge::merge(self, effects.clone(), mask)
+        Merge::merge(self, effects, mask)
     }
 }
 
@@ -279,7 +279,7 @@ impl Merge<&TransactionReadSource<'_>> for grpc_sig::UserSignatures {
         if let Some(signatures) = source.signatures.as_ref() {
             self.signatures = signatures
                 .iter()
-                .map(|sig| grpc_sig::UserSignature::merge_from(sig.clone(), mask))
+                .map(|sig| grpc_sig::UserSignature::merge_from(sig, mask))
                 .collect::<Result<Vec<_>, _>>()?;
         }
 
