@@ -35,6 +35,10 @@ use crate::{
     util::{be_fix_int_ser, iterator_bounds_with_range, prefix_iterator_bounds},
 };
 
+// The throughput floor is used to compute the threshold for when a batch write
+// is considered "very slow".
+const THROUGHPUT_FLOOR_BYTES_PER_SEC: f64 = 32.0 * 1024.0 * 1024.0;
+
 #[derive(Clone)]
 pub(crate) enum ColumnFamily {
     Rocks(String),
@@ -1043,8 +1047,8 @@ impl DBBatch {
                 .report_metrics(&db_name);
         }
         let elapsed = timer.stop_and_record();
-        if elapsed > 1.0 {
-            warn!(?elapsed, ?db_name, "very slow batch write");
+        if elapsed > very_slow_batch_write_threshold_secs(batch_size) {
+            warn!(?elapsed, batch_size, ?db_name, "very slow batch write");
             self.db_metrics
                 .op_metrics
                 .rocksdb_very_slow_batch_writes_count
@@ -1571,4 +1575,13 @@ fn default_hash(value: &[u8]) -> Digest<32> {
     let mut hasher = fastcrypto::hash::Blake2b256::default();
     hasher.update(value);
     hasher.finalize()
+}
+
+/// Elapsed time above which a batch write is reported as very slow.
+/// Large batches get time proportional to their size, at a deliberately
+/// conservative throughput floor, while a small write taking that long is a
+/// genuine stall and must be reported.
+fn very_slow_batch_write_threshold_secs(batch_size_bytes: usize) -> f64 {
+    const MIN_THRESHOLD_SECS: f64 = 1.0;
+    (batch_size_bytes as f64 / THROUGHPUT_FLOOR_BYTES_PER_SEC).max(MIN_THRESHOLD_SECS)
 }
