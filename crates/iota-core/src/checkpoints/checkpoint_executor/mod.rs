@@ -29,7 +29,7 @@ use iota_config::node::{CheckpointExecutorConfig, RunWithRange};
 use iota_macros::fail_point;
 use iota_sdk_types::{
     RandomnessRound, TransactionDigest, TransactionEffectsDigest, TransactionKind,
-    checkpoint::CheckpointContents,
+    UnchangedSharedKind, checkpoint::CheckpointContents,
 };
 use iota_types::{
     base_types::ExecutionData,
@@ -41,6 +41,7 @@ use iota_types::{
         CheckpointContentsExt, CheckpointSequenceNumber, CheckpointSummaryExt,
         FullCheckpointContents, VerifiedCheckpoint,
     },
+    storage::ObjectKey,
     transaction::{
         SenderSignedTransactionAPI, TransactionDataAPI, TransactionKey, VerifiedTransaction,
     },
@@ -328,7 +329,9 @@ impl CheckpointExecutor {
                 let _scope = iota_metrics::monitored_scope(
                     "CheckpointExecutor::load_checkpoint_transactions",
                 );
-                self.load_checkpoint_transactions(checkpoint.clone())
+                let (ckpt_state, tx_data) = self.load_checkpoint_transactions(checkpoint.clone());
+                self.prefetch_transaction_objects(&tx_data);
+                (ckpt_state, tx_data)
             });
 
         let mut pipeline_handle = pipeline_handle.await;
@@ -881,6 +884,45 @@ impl CheckpointExecutor {
                 },
             )
         }
+    }
+
+    /// Reads the objects the checkpoint's transactions will access, so the
+    /// rows are in the store's block cache before execution loads them —
+    /// most importantly dynamic-field children, which execution otherwise
+    /// loads lazily from a cold store mid-transaction. The effects list every
+    /// modified object and read-only shared object with the exact version
+    /// execution will read.
+    ///
+    /// This warms only the store's block cache: the object cache must not be
+    /// filled with reads (see the invariants of `WritebackCache`). Versions
+    /// produced by transactions that have not executed yet miss here and are
+    /// served by the dirty cache once they exist.
+    fn prefetch_transaction_objects(&self, tx_data: &CheckpointTransactionData) {
+        let _scope =
+            iota_metrics::monitored_scope("CheckpointExecutor::prefetch_transaction_objects");
+        let object_keys: Vec<ObjectKey> = tx_data
+            .effects
+            .iter()
+            .flat_map(|effects| {
+                let modified = effects
+                    .modified_at_versions()
+                    .into_iter()
+                    .map(|(id, version)| ObjectKey(id, version));
+                let shared_read_only =
+                    effects
+                        .unchanged_shared_objects()
+                        .into_iter()
+                        .filter_map(|(id, kind)| match kind {
+                            UnchangedSharedKind::ReadOnlyRoot { version, .. } => {
+                                Some(ObjectKey(id, version))
+                            }
+                            _ => None,
+                        });
+                modified.chain(shared_read_only)
+            })
+            .collect();
+        self.object_cache_reader
+            .multi_get_objects_by_key(&object_keys);
     }
 
     // Schedule all unexecuted transactions in the checkpoint for execution
