@@ -336,6 +336,7 @@ async fn test_state_sync_using_checkpoint_archive() -> anyhow::Result<()> {
     }
     let checkpoint_archive_config = CheckpointArchiveConfig {
         download_concurrency: 1,
+        verify_concurrency: 2,
         url: format!("file://{}", temp_dir.path().display()),
     };
     // Build and connect two nodes where Node 1 will be given access to an archive

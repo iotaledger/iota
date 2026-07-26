@@ -115,7 +115,7 @@ use server::CheckpointContentsDownloadLimitLayer;
 pub use server::{
     GetCheckpointAvailabilityResponse, GetCheckpointSummaryRequest, StateSyncHandshake,
 };
-use worker::StateSyncWorker;
+use worker::{StateSyncReducer, StateSyncWorker};
 
 const PEER_BALANCER_SELECTION_WINDOW: usize = 10;
 
@@ -1249,10 +1249,9 @@ where
 }
 
 async fn setup_data_ingestion_executor<W: Worker + 'static>(
-    worker: W,
+    worker_pool: WorkerPool<W>,
     remote_store_url: RemoteUrl,
     initial_checkpoint_number: CheckpointSequenceNumber,
-    concurrency: usize,
     reader_options: Option<ReaderOptions>,
     ingestion_limit: Option<IngestionLimit>,
 ) -> IngestionResult<(
@@ -1263,12 +1262,6 @@ async fn setup_data_ingestion_executor<W: Worker + 'static>(
     let progress_store = ShimProgressStore(initial_checkpoint_number);
     let token = CancellationToken::new();
     let mut executor = IndexerExecutor::new(progress_store, 1, metrics, token.child_token());
-    let worker_pool = WorkerPool::new(
-        worker,
-        "data_ingestion_executor".to_string(),
-        concurrency,
-        Default::default(),
-    );
     executor.register(worker_pool).await?;
     if let Some(limit) = ingestion_limit {
         executor.with_ingestion_limit(limit);
@@ -1364,16 +1357,24 @@ async fn sync_checkpoint_contents_from_checkpoint_archive_iteration<S>(
             batch_size: checkpoint_archive_config.download_concurrency,
             ..Default::default()
         };
-        // Keep a clone for the final log; the original is moved into StateSyncWorker.
+        // Keep a clone for the final log; the original is moved into the reducer.
         let store_for_log = store.clone();
+        // Workers verify signatures and content digests in parallel; the
+        // reducer chain-checks and inserts the results in sequence order.
+        let worker_pool = WorkerPool::new_with_reducer(
+            StateSyncWorker(store.clone()),
+            "data_ingestion_executor".to_string(),
+            checkpoint_archive_config.verify_concurrency,
+            Default::default(),
+            StateSyncReducer(store, metrics),
+        );
         let setup_result = setup_data_ingestion_executor(
-            StateSyncWorker(store, metrics),
+            worker_pool,
             RemoteUrl::HybridHistoricalStore {
                 historical_url: checkpoint_archive_config.url.clone(),
                 live_url: None,
             },
             start,
-            1,
             Some(reader_options),
             ingestion_limit,
         )

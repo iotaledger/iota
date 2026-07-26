@@ -1111,6 +1111,12 @@ fn default_checkpoint_archive_download_concurrency() -> usize {
     10
 }
 
+fn default_checkpoint_archive_verify_concurrency() -> usize {
+    std::thread::available_parallelism()
+        .map(|n| n.get())
+        .unwrap_or(4)
+}
+
 /// Configuration for backfilling checkpoint contents from the
 /// checkpoint archive when peers no longer serve the required range.
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -1121,6 +1127,10 @@ pub struct CheckpointArchiveConfig {
     /// Non-zero number of checkpoints to download in parallel.
     #[serde(default = "default_checkpoint_archive_download_concurrency")]
     pub download_concurrency: usize,
+    /// Non-zero number of downloaded checkpoints to verify in parallel.
+    /// Defaults to the number of CPU cores.
+    #[serde(default = "default_checkpoint_archive_verify_concurrency")]
+    pub verify_concurrency: usize,
 }
 
 /// Configuration for the per-epoch state-snapshot publisher.
