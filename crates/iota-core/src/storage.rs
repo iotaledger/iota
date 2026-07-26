@@ -347,6 +347,57 @@ impl WriteStore for RocksDbStore {
             .unwrap();
         Ok(())
     }
+
+    fn try_insert_synced_checkpoints(
+        &self,
+        checkpoints: Vec<(VerifiedCheckpoint, VerifiedCheckpointContents)>,
+    ) -> Result<(), iota_types::storage::error::Error> {
+        let summaries: Vec<VerifiedCheckpoint> = checkpoints
+            .iter()
+            .map(|(checkpoint, _)| checkpoint.clone())
+            .collect();
+        let Some(last) = summaries.last() else {
+            return Ok(());
+        };
+
+        for checkpoint in &summaries {
+            if let Some(EndOfEpochData {
+                next_epoch_committee,
+                ..
+            }) = checkpoint.end_of_epoch_data.as_ref()
+            {
+                let committee = Committee::from_committee_members(
+                    checkpoint.epoch().checked_add(1).unwrap(),
+                    next_epoch_committee,
+                );
+                self.try_insert_committee(committee)?;
+            }
+        }
+
+        self.checkpoint_store
+            .multi_insert_certified_checkpoints(&summaries)?;
+        self.try_update_highest_verified_checkpoint(last)?;
+
+        // Transactions and effects must be durable before their contents
+        // rows (see `CheckpointStore::cache_full_checkpoint_contents`).
+        for (_, contents) in &checkpoints {
+            self.cache_traits
+                .state_sync_store
+                .try_multi_insert_transaction_and_effects(contents.transactions())
+                .map_err(iota_types::storage::error::Error::custom)?;
+        }
+        self.checkpoint_store
+            .multi_insert_verified_checkpoint_contents(checkpoints)?;
+
+        let mut locked = self.highest_synced_checkpoint.lock();
+        if locked.is_none_or(|seq| seq < last.sequence_number) {
+            self.checkpoint_store
+                .multi_update_highest_synced_checkpoint(&summaries)
+                .map_err(iota_types::storage::error::Error::custom)?;
+            *locked = Some(last.sequence_number);
+        }
+        Ok(())
+    }
 }
 
 pub struct GrpcReadStore {

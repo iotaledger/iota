@@ -601,34 +601,54 @@ impl CheckpointStore {
         &self,
         checkpoint: &VerifiedCheckpoint,
     ) -> Result<(), TypedStoreError> {
+        self.multi_insert_certified_checkpoints(std::slice::from_ref(checkpoint))
+    }
+
+    /// Inserts a batch of certified checkpoints in a single write, like
+    /// [`Self::insert_certified_checkpoint`] for each of them.
+    pub fn multi_insert_certified_checkpoints(
+        &self,
+        checkpoints: &[VerifiedCheckpoint],
+    ) -> Result<(), TypedStoreError> {
+        let Some(last) = checkpoints.last() else {
+            return Ok(());
+        };
         debug!(
-            checkpoint_seq = checkpoint.sequence_number(),
-            "Inserting certified checkpoint",
+            checkpoint_seq = last.sequence_number(),
+            count = checkpoints.len(),
+            "Inserting certified checkpoints",
         );
         let mut batch = self.tables.certified_checkpoints.batch();
         batch
             .insert_batch(
                 &self.tables.certified_checkpoints,
-                [(checkpoint.sequence_number(), checkpoint.serializable_ref())],
+                checkpoints
+                    .iter()
+                    .map(|c| (c.sequence_number(), c.serializable_ref())),
             )?
             .insert_batch(
                 &self.tables.checkpoint_by_digest,
-                [(checkpoint.digest(), checkpoint.serializable_ref())],
-            )?;
-        if checkpoint.next_epoch_committee().is_some() {
-            batch.insert_batch(
+                checkpoints
+                    .iter()
+                    .map(|c| (c.digest(), c.serializable_ref())),
+            )?
+            .insert_batch(
                 &self.tables.epoch_last_checkpoint_map,
-                [(&checkpoint.epoch(), checkpoint.sequence_number())],
+                checkpoints
+                    .iter()
+                    .filter(|c| c.next_epoch_committee().is_some())
+                    .map(|c| (c.epoch(), c.sequence_number())),
             )?;
-        }
         batch.write()?;
 
-        if let Some(local_checkpoint) = self
-            .tables
-            .locally_computed_checkpoints
-            .get(&checkpoint.sequence_number())?
-        {
-            self.check_for_checkpoint_fork(&local_checkpoint, checkpoint);
+        for checkpoint in checkpoints {
+            if let Some(local_checkpoint) = self
+                .tables
+                .locally_computed_checkpoints
+                .get(&checkpoint.sequence_number())?
+            {
+                self.check_for_checkpoint_fork(&local_checkpoint, checkpoint);
+            }
         }
 
         Ok(())
@@ -671,13 +691,31 @@ impl CheckpointStore {
         &self,
         checkpoint: &VerifiedCheckpoint,
     ) -> Result<(), TypedStoreError> {
-        let seq = checkpoint.sequence_number();
-        debug!(checkpoint_seq = seq, "Updating highest synced checkpoint",);
+        self.multi_update_highest_synced_checkpoint(std::slice::from_ref(checkpoint))
+    }
+
+    /// Marks a consecutive run of checkpoints as synced: writes the watermark
+    /// once, for the last checkpoint, but notifies waiters of every
+    /// checkpoint in the run.
+    pub fn multi_update_highest_synced_checkpoint(
+        &self,
+        checkpoints: &[VerifiedCheckpoint],
+    ) -> Result<(), TypedStoreError> {
+        let Some(last) = checkpoints.last() else {
+            return Ok(());
+        };
+        debug!(
+            checkpoint_seq = last.sequence_number(),
+            "Updating highest synced checkpoint",
+        );
         self.tables.watermarks.insert(
             &CheckpointWatermark::HighestSynced,
-            &(seq, *checkpoint.digest()),
+            &(last.sequence_number(), *last.digest()),
         )?;
-        self.synced_checkpoint_notify_read.notify(&seq, checkpoint);
+        for checkpoint in checkpoints {
+            self.synced_checkpoint_notify_read
+                .notify(&checkpoint.sequence_number(), checkpoint);
+        }
         Ok(())
     }
 
@@ -811,19 +849,41 @@ impl CheckpointStore {
         checkpoint: &VerifiedCheckpoint,
         full_contents: VerifiedCheckpointContents,
     ) -> Result<(), TypedStoreError> {
-        let full_contents = full_contents.into_inner();
-        let contents = full_contents.checkpoint_contents();
-        assert_eq!(checkpoint.content_digest, contents.digest());
+        self.multi_insert_verified_checkpoint_contents(vec![(checkpoint.clone(), full_contents)])
+    }
 
-        self.tables
-            .checkpoint_content
-            .insert(&contents.digest(), &contents)?;
+    /// Batch variant of [`Self::insert_verified_checkpoint_contents`]:
+    /// persists all contents rows in a single write, then caches the full
+    /// contents.
+    ///
+    /// INVARIANT: See [`Self::cache_full_checkpoint_contents`].
+    pub fn multi_insert_verified_checkpoint_contents(
+        &self,
+        checkpoints: Vec<(VerifiedCheckpoint, VerifiedCheckpointContents)>,
+    ) -> Result<(), TypedStoreError> {
+        let checkpoints: Vec<_> = checkpoints
+            .into_iter()
+            .map(|(checkpoint, full_contents)| (checkpoint, full_contents.into_inner()))
+            .collect();
 
-        self.cache_full_checkpoint_contents(
-            checkpoint.sequence_number(),
-            checkpoint.content_digest,
-            full_contents,
-        );
+        let mut batch = self.tables.checkpoint_content.batch();
+        for (checkpoint, full_contents) in &checkpoints {
+            let contents = full_contents.checkpoint_contents();
+            assert_eq!(checkpoint.content_digest, contents.digest());
+            batch.insert_batch(
+                &self.tables.checkpoint_content,
+                [(contents.digest(), contents)],
+            )?;
+        }
+        batch.write()?;
+
+        for (checkpoint, full_contents) in checkpoints {
+            self.cache_full_checkpoint_contents(
+                checkpoint.sequence_number(),
+                checkpoint.content_digest,
+                full_contents,
+            );
+        }
         Ok(())
     }
 

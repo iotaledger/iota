@@ -84,27 +84,61 @@ impl<S: WriteStore + Clone + Send + Sync + 'static> Worker for StateSyncWorker<S
 /// previous epoch's last checkpoint is committed.
 pub(crate) struct StateSyncReducer<S>(pub(crate) S, pub(crate) Metrics);
 
+/// How many checkpoints the reducer commits per store insertion at most,
+/// bounding the size of the underlying write batches.
+const MAX_CHECKPOINTS_PER_COMMIT: usize = 500;
+
 #[async_trait]
 impl<S: WriteStore + Clone + Send + Sync + 'static> Reducer<StateSyncWorker<S>>
     for StateSyncReducer<S>
 {
     async fn commit(&self, batch: &[VerifiedArchiveCheckpoint]) -> anyhow::Result<()> {
+        let mut to_insert = Vec::with_capacity(batch.len());
+        let mut prev_checkpoint = None;
         for message in batch {
-            let verified_checkpoint = self.get_or_insert_verified_checkpoint(message)?;
-            self.0
-                .insert_checkpoint_contents(&verified_checkpoint, message.contents.clone());
-            self.0
-                .update_highest_synced_checkpoint(&verified_checkpoint);
+            let verified_checkpoint =
+                self.verify_against_previous(message, prev_checkpoint.as_ref())?;
+            prev_checkpoint = Some(verified_checkpoint.clone());
+            to_insert.push((verified_checkpoint, message.contents.clone()));
+        }
+
+        self.0
+            .try_insert_synced_checkpoints(to_insert)
+            .map_err(|e| anyhow!("failed to insert synced checkpoints: {e}"))?;
+
+        for _ in batch {
             self.1.update_checkpoints_synced_from_checkpoint_archive();
         }
         Ok(())
     }
+
+    /// Closes a batch at the size cap, and at epoch boundaries so that an
+    /// epoch's last checkpoint — which carries the next committee — is
+    /// committed before any checkpoint of the next epoch needs that committee
+    /// for its deferred signature verification.
+    fn should_close_batch(
+        &self,
+        batch: &[VerifiedArchiveCheckpoint],
+        next_item: Option<&VerifiedArchiveCheckpoint>,
+    ) -> bool {
+        let Some(next) = next_item else {
+            return true;
+        };
+        batch.len() >= MAX_CHECKPOINTS_PER_COMMIT
+            || batch
+                .last()
+                .is_some_and(|last| last.summary.epoch() != next.summary.epoch())
+    }
 }
 
 impl<S: WriteStore + Clone> StateSyncReducer<S> {
-    fn get_or_insert_verified_checkpoint(
+    /// Chain-checks one checkpoint against its predecessor — the previous
+    /// checkpoint of the batch being committed, or the store's copy at the
+    /// start of a batch — and finishes any verification the workers deferred.
+    fn verify_against_previous(
         &self,
         message: &VerifiedArchiveCheckpoint,
+        prev_in_batch: Option<&VerifiedCheckpoint>,
     ) -> anyhow::Result<VerifiedCheckpoint> {
         let sequence_number = message.summary.sequence_number;
         if let Some(existing) = self.0.get_checkpoint_by_sequence_number(sequence_number) {
@@ -114,25 +148,23 @@ impl<S: WriteStore + Clone> StateSyncReducer<S> {
         let prev_checkpoint_seq_num = sequence_number
             .checked_sub(1)
             .context("checkpoint seq num underflow")?;
-        let prev_checkpoint = self
-            .0
-            .get_checkpoint_by_sequence_number(prev_checkpoint_seq_num)
-            .context(format!(
-                "missing previous checkpoint {prev_checkpoint_seq_num} in store"
-            ))?;
-
-        let verified_checkpoint = if message.signatures_verified {
-            verify_checkpoint_linkage(&prev_checkpoint, message.summary.clone())
-                .map(VerifiedCheckpoint::new_unchecked)
-                .map_err(|_| anyhow!("checkpoint linkage verification failed"))?
-        } else {
-            verify_checkpoint(&prev_checkpoint, &self.0, message.summary.clone())
-                .map_err(|_| anyhow!("checkpoint verification failed"))?
+        let prev_checkpoint = match prev_in_batch {
+            Some(prev) if prev.sequence_number == prev_checkpoint_seq_num => prev.clone(),
+            _ => self
+                .0
+                .get_checkpoint_by_sequence_number(prev_checkpoint_seq_num)
+                .context(format!(
+                    "missing previous checkpoint {prev_checkpoint_seq_num} in store"
+                ))?,
         };
 
-        self.0.insert_checkpoint(&verified_checkpoint);
-        self.0
-            .update_highest_verified_checkpoint(&verified_checkpoint);
-        Ok(verified_checkpoint)
+        if message.signatures_verified {
+            verify_checkpoint_linkage(&prev_checkpoint, message.summary.clone())
+                .map(VerifiedCheckpoint::new_unchecked)
+                .map_err(|_| anyhow!("checkpoint linkage verification failed"))
+        } else {
+            verify_checkpoint(&prev_checkpoint, &self.0, message.summary.clone())
+                .map_err(|_| anyhow!("checkpoint verification failed"))
+        }
     }
 }
