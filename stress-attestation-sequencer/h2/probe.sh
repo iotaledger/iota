@@ -112,6 +112,17 @@ TS_STEP="${TS_STEP:-1}"
 # get however long they need, capped by DRAIN_TIMEOUT_S.
 DRAIN_POLL_S="${DRAIN_POLL_S:-2}" # >= the Prometheus scrape interval (1s)
 DRAIN_TIMEOUT_S="${DRAIN_TIMEOUT_S:-120}"
+# Inter-point checkpoint drain: after a point's measurement the user-tx drain
+# above guarantees our txs executed, but the checkpoint BUILDER can still be
+# sealing a backlog. On a reused network that backlog bleeds into the next
+# sweep point's checkpoint-lag reading (a cheap point right after a ceiling
+# point reads seconds of lag that aren't its own). So after measuring, wait
+# with the network idle until freshly built checkpoints are back near the idle
+# baseline — recent checkpoint_creation_latency below CKPT_DRAIN_THRESHOLD_S.
+CKPT_DRAIN="${CKPT_DRAIN:-yes}" # set to no to skip
+CKPT_DRAIN_POLL_S="${CKPT_DRAIN_POLL_S:-3}"
+CKPT_DRAIN_TIMEOUT_S="${CKPT_DRAIN_TIMEOUT_S:-180}"
+CKPT_DRAIN_THRESHOLD_S="${CKPT_DRAIN_THRESHOLD_S:-0.5}" # recent mean lag ⇒ caught up
 PRODUCT=$((SLOW_N * SLOW_SIZE))
 PRIMARY_GAS_OWNER="0xf479d29837d22943aba6afc401f518a36521b990874eca784886185bd26bf681"
 BENCH_REPO="${BENCH_REPO:-$REPO_ROOT/../network-benchmark}"
@@ -221,6 +232,57 @@ wait_for_drain() {
     prev="$cur"
   done
   echo "${YELLOW}  - WARNING: execution still advancing after ${DRAIN_TIMEOUT_S}s; closing the window anyway.${RESET}" >&2
+}
+
+# Instantaneous pooled scalar for a PromQL expression (validators), or empty.
+prom_scalar() {
+  curl -sG --max-time 5 "$PROM/api/v1/query" --data-urlencode "query=$1" |
+    python3 -c 'import json,sys
+r = json.load(sys.stdin).get("data", {}).get("result", [])
+print(r[0]["value"][1] if r else "")' 2>/dev/null
+}
+
+# Wait (network idle) for the checkpoint builder to drain its backlog, so the
+# next sweep point starts caught up. While behind, the builder seals old
+# checkpoints whose txs took long, so the mean lag of checkpoints built in the
+# last interval stays high; once caught up, new (light/system) checkpoints build
+# promptly and it drops to the idle baseline. Poll that recent mean until it is
+# below CKPT_DRAIN_THRESHOLD_S for two consecutive intervals.
+wait_for_checkpoint_drain() {
+  [[ "$CKPT_DRAIN" == no || "$CKPT_DRAIN" == n ]] && return 0
+  local q_sum='sum(checkpoint_creation_latency_sum{job=~"Validator_.*"})'
+  local q_cnt='sum(checkpoint_creation_latency_count{job=~"Validator_.*"})'
+  local prev_s prev_c cur_s cur_c recent stable=0 waited=0
+  echo "${YELLOW}Draining checkpoint backlog (builder catching up)...${RESET}"
+  prev_s=$(prom_scalar "$q_sum")
+  prev_c=$(prom_scalar "$q_cnt")
+  while ((waited < CKPT_DRAIN_TIMEOUT_S)); do
+    sleep "$CKPT_DRAIN_POLL_S"
+    waited=$((waited + CKPT_DRAIN_POLL_S))
+    cur_s=$(prom_scalar "$q_sum")
+    cur_c=$(prom_scalar "$q_cnt")
+    [[ -z "$cur_s" || -z "$cur_c" || -z "$prev_s" || -z "$prev_c" ]] && {
+      prev_s=$cur_s
+      prev_c=$cur_c
+      continue
+    }
+    # Mean lag of checkpoints built in this interval; skip if none were built.
+    recent=$(awk -v s0="$prev_s" -v s1="$cur_s" -v c0="$prev_c" -v c1="$cur_c" \
+      'BEGIN { dc = c1 - c0; if (dc > 0) printf "%.3f", (s1 - s0) / dc; else print "nan" }')
+    prev_s=$cur_s
+    prev_c=$cur_c
+    [[ "$recent" == nan ]] && continue
+    if awk -v r="$recent" -v t="$CKPT_DRAIN_THRESHOLD_S" 'BEGIN { exit !(r < t) }'; then
+      stable=$((stable + 1))
+      ((stable >= 2)) && {
+        echo "  - Checkpoint builder caught up (recent lag ${recent}s < ${CKPT_DRAIN_THRESHOLD_S}s after ${waited}s)."
+        return 0
+      }
+    else
+      stable=0
+    fi
+  done
+  echo "${YELLOW}  - WARNING: checkpoint backlog still draining after ${CKPT_DRAIN_TIMEOUT_S}s (recent lag ~${recent:-?}s).${RESET}" >&2
 }
 
 # Bring the network up ONCE, only if nothing is running. Attestation ON is
@@ -379,5 +441,8 @@ if [[ -n "$do_wipe" ]]; then
   echo "${YELLOW}Tearing down network + monitoring...${RESET}"
   sudo "$TOOLS_DIR/cleanup.sh" || true
 else
+  # Keeping the network for the next point — let the checkpoint builder catch up
+  # first so this point's backlog doesn't contaminate the next point's lag.
+  wait_for_checkpoint_drain
   echo "${GREEN}Network left up (reuse for the next probe). Tear down later with: sudo $(rel "$TOOLS_DIR/cleanup.sh")${RESET}"
 fi

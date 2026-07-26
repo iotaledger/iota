@@ -140,12 +140,20 @@ fi
 
 # Recompute the markdown tables and redraw the figures from the fresh CSV.
 # Tables are pure stdlib; figures need a matplotlib venv (reuse ../h1/.venv).
-echo
-echo "regenerating tables + figures..."
-python3 "$SCRIPT_DIR/make_calibration_table.py" || echo "  (table regen failed)"
-VENV_PY="$SCRIPT_DIR/../h1/.venv/bin/python"
-if [[ -x "$VENV_PY" ]]; then
-  "$VENV_PY" "$SCRIPT_DIR/plot_calibration.py" || echo "  (figure regen failed)"
+# REGEN=no skips this — the regen globs every results/calibration-*.csv and
+# overwrites the shared calibration-tables.md + figures, so a throwaway/test
+# sweep (distinct MACHINE slug) should skip it to leave the real ones untouched.
+if [[ "${REGEN:-yes}" == no || "${REGEN:-yes}" == n ]]; then
+  echo
+  echo "REGEN=no — skipping table/figure regen (CSV written, shared artifacts untouched)"
 else
-  echo "  (skipping figures: no matplotlib venv at $VENV_PY)"
+  echo
+  echo "regenerating tables + figures..."
+  python3 "$SCRIPT_DIR/make_calibration_table.py" || echo "  (table regen failed)"
+  VENV_PY="$SCRIPT_DIR/../h1/.venv/bin/python"
+  if [[ -x "$VENV_PY" ]]; then
+    "$VENV_PY" "$SCRIPT_DIR/plot_calibration.py" || echo "  (figure regen failed)"
+  else
+    echo "  (skipping figures: no matplotlib venv at $VENV_PY)"
+  fi
 fi

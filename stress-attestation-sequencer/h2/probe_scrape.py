@@ -45,6 +45,13 @@ import urllib.request
 EXEC = "authority_state_internal_execution_latency_user"
 ATTESTED = "attested_computation_units"  # scheduling input (gas units)
 ACTUAL = "actual_computation_units"  # measured after execution (gas units)
+# Seconds; consensus commit timestamp -> local checkpoint built. The builder
+# waits for the commit's transactions to execute before building, so this lag
+# includes the execution wait — heavier txs in a commit raise it. At low rate a
+# checkpoint holds ~1 workload tx and many are system-only, so the mean is
+# diluted by empty checkpoints; the tail (p95/p99) is the loaded-checkpoint
+# signal. Supplementary — not gated, unlike the execution-sample count.
+CKPT = "checkpoint_creation_latency"
 
 start, end, step, csv_out = sys.argv[1:5]
 prom = os.environ.get("PROM", "http://localhost:9090")
@@ -148,6 +155,36 @@ def cu_mean(base):
     return (d_sum / d_count) if d_count > 0 else None
 
 
+def quantile(pairs, q):
+    """q-th quantile over [(rep_value, count), ...] at bucket resolution."""
+    total = sum(c for _, c in pairs)
+    if total <= 0:
+        return None
+    target, cum = q * total, 0.0
+    for rep, c in sorted(pairs):
+        cum += c
+        if cum >= target:
+            return rep
+    return pairs[-1][0]
+
+
+def ckpt_stats():
+    """(mean_ms, p50_ms, p95_ms, p99_ms, n) for checkpoint creation lag, or None.
+    Pooled across validators, so n counts each checkpoint once per validator."""
+    d_sum, d_count = hist_mean_count(CKPT)
+    n = int(round(d_count))
+    if n <= 0:
+        return None
+    b = bucket_deltas(CKPT)
+    return (
+        d_sum / d_count * 1e3,
+        (quantile(b, 0.50) or 0.0) * 1e3,
+        (quantile(b, 0.95) or 0.0) * 1e3,
+        (quantile(b, 0.99) or 0.0) * 1e3,
+        n,
+    )
+
+
 ex = exec_stats()
 if ex is None:
     print(
@@ -175,6 +212,7 @@ if n < min_samples:
     sys.exit(1)
 attested = cu_mean(ATTESTED)
 actual = cu_mean(ACTUAL)
+ckpt = ckpt_stats()
 
 
 def fmt(x, unit=""):
@@ -193,6 +231,20 @@ print(
     f"  internal exec time: {exec_mean_ms:.2f} ms ± {exec_sem_ms:.2f} (sem)  "
     f"[std {exec_std_ms:.2f} ms, N={n}]"
 )
+# User txs per checkpoint = user executions / checkpoints, both pooled over the
+# same validators so the ratio is per-validator. There is no user-only
+# per-checkpoint metric (transactions_included_in_checkpoint etc. count system
+# txs too), and this is the loading diagnostic for tuning QPS: aim for a few.
+user_per_ckpt = n / ckpt[4] if (ckpt is not None and ckpt[4] > 0) else None
+if ckpt is not None:
+    cmean, cp50, cp95, cp99, cn = ckpt
+    print(
+        f"  checkpoint lag    : mean={cmean:.1f}  p50={cp50:.0f}  p95={cp95:.0f}  "
+        f"p99={cp99:.0f} ms  (n_ckpt={cn}, pooled over validators)"
+    )
+    print(f"  user txs/ckpt     : {user_per_ckpt:.2f}  (loading check — aim for a few)")
+else:
+    print("  checkpoint lag    : n/a (no checkpoints created in the window)")
 
 row = {
     # `start` may be a float epoch (the spam-start marker) or an int; store as int seconds.
@@ -209,6 +261,12 @@ row = {
     "exec_mean_ms": round(exec_mean_ms, 4),
     "exec_std_ms": round(exec_std_ms, 4),
     "exec_sem_ms": round(exec_sem_ms, 4),
+    "ckpt_lag_mean_ms": "" if ckpt is None else round(ckpt[0], 3),
+    "ckpt_lag_p50_ms": "" if ckpt is None else round(ckpt[1], 3),
+    "ckpt_lag_p95_ms": "" if ckpt is None else round(ckpt[2], 3),
+    "ckpt_lag_p99_ms": "" if ckpt is None else round(ckpt[3], 3),
+    "ckpt_n": "" if ckpt is None else ckpt[4],
+    "user_txs_per_ckpt": "" if user_per_ckpt is None else round(user_per_ckpt, 3),
 }
 new_file = not os.path.exists(csv_out)
 os.makedirs(os.path.dirname(csv_out) or ".", exist_ok=True)
