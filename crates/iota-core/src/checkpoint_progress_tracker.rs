@@ -9,10 +9,12 @@ use std::{
     time::Duration,
 };
 
+use strum::{EnumCount, IntoEnumIterator};
 use tracing::info;
 
 use crate::{
-    authority::authority_store_tables::AuthorityPerpetualTables, checkpoints::CheckpointStore,
+    authority::authority_store_tables::AuthorityPerpetualTables,
+    checkpoints::{CheckpointStore, checkpoint_executor::utils::PipelineStage},
 };
 
 /// Shared progress tracker for checkpoint operations. Updated by the
@@ -25,6 +27,11 @@ use crate::{
 pub struct CheckpointProgressTracker {
     /// Accumulated checkpoint execution time in nanoseconds.
     execution_time_ns: AtomicU64,
+    /// Accumulated time spent working in each checkpoint pipeline stage, in
+    /// nanoseconds, indexed by [`PipelineStage`]. Since every stage admits
+    /// one checkpoint at a time, a stage accumulating close to one second
+    /// per second is the throughput bottleneck.
+    stage_time_ns: [AtomicU64; PipelineStage::COUNT],
     /// Accumulated object pruning time in nanoseconds.
     object_pruning_time_ns: AtomicU64,
     /// Accumulated checkpoint/effects pruning time in nanoseconds.
@@ -35,6 +42,7 @@ impl CheckpointProgressTracker {
     pub fn new() -> Self {
         Self {
             execution_time_ns: AtomicU64::new(0),
+            stage_time_ns: std::array::from_fn(|_| AtomicU64::new(0)),
             object_pruning_time_ns: AtomicU64::new(0),
             checkpoint_pruning_time_ns: AtomicU64::new(0),
         }
@@ -43,6 +51,10 @@ impl CheckpointProgressTracker {
     pub fn add_execution_time(&self, duration: Duration) {
         self.execution_time_ns
             .fetch_add(duration.as_nanos() as u64, Ordering::Relaxed);
+    }
+
+    pub(crate) fn add_stage_time(&self, stage: PipelineStage, duration: Duration) {
+        self.stage_time_ns[stage as usize].fetch_add(duration.as_nanos() as u64, Ordering::Relaxed);
     }
 
     pub fn add_object_pruning_time(&self, duration: Duration) {
@@ -134,6 +146,29 @@ impl CheckpointProgressTracker {
                          objects pruned {object_pruned_seq_number} (+{object_prune_delta}, {object_prune_time_delta:.2?}), \
                          checkpoints pruned {checkpoint_pruned_seq_number} (+{checkpoint_prune_delta}, {checkpoint_prune_time_delta:.2?})",
                     );
+
+                    // Every pipeline stage admits one checkpoint at a time,
+                    // so the stage whose time approaches one second per tick
+                    // is the execution throughput bottleneck.
+                    let stage_times: Vec<String> = PipelineStage::iter()
+                        .filter_map(|stage| {
+                            let stage_time_ns =
+                                tracker.stage_time_ns[stage as usize].swap(0, Ordering::Relaxed);
+                            (stage_time_ns > 0).then(|| {
+                                format!(
+                                    "{} {:.2?}",
+                                    stage.as_str(),
+                                    Duration::from_nanos(stage_time_ns)
+                                )
+                            })
+                        })
+                        .collect();
+                    if !stage_times.is_empty() {
+                        info!(
+                            "checkpoint pipeline stage times [epoch {epoch}]: {}",
+                            stage_times.join(", ")
+                        );
+                    }
 
                     prev_executed = highest_executed_seq_number;
                     prev_total_tx = total_tx;
