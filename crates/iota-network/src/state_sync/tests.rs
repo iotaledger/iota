@@ -337,6 +337,7 @@ async fn test_state_sync_using_checkpoint_archive() -> anyhow::Result<()> {
     let checkpoint_archive_config = CheckpointArchiveConfig {
         download_concurrency: 1,
         verify_concurrency: 2,
+        max_checkpoints_ahead_of_execution: 1_000_000,
         url: format!("file://{}", temp_dir.path().display()),
     };
     // Build and connect two nodes where Node 1 will be given access to an archive
@@ -1074,4 +1075,28 @@ async fn sync_with_checkpoints_gap() -> anyhow::Result<()> {
     }
 
     Ok(())
+}
+
+#[test]
+fn test_checkpoint_archive_sync_end() {
+    use crate::state_sync::checkpoint_archive_sync_end;
+
+    // No cap in play: the window ends just below the peers' lowest checkpoint.
+    assert_eq!(
+        checkpoint_archive_sync_end(1, 100, Some(90), 1000),
+        Some(99)
+    );
+
+    // The execution cap shortens the window.
+    assert_eq!(checkpoint_archive_sync_end(1, 100, Some(20), 30), Some(50));
+
+    // Nothing executed yet: the cap is anchored at checkpoint 0.
+    assert_eq!(checkpoint_archive_sync_end(1, 100, None, 30), Some(30));
+
+    // Sync is already at the cap: pause until execution catches up.
+    assert_eq!(checkpoint_archive_sync_end(61, 100, Some(20), 40), None);
+
+    // Peers already cover everything from checkpoint 1 on.
+    assert_eq!(checkpoint_archive_sync_end(1, 1, Some(0), 1000), None);
+    assert_eq!(checkpoint_archive_sync_end(1, 0, Some(0), 1000), None);
 }

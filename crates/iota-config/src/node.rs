@@ -1117,6 +1117,10 @@ fn default_checkpoint_archive_verify_concurrency() -> usize {
         .unwrap_or(4)
 }
 
+fn default_checkpoint_archive_max_checkpoints_ahead_of_execution() -> u64 {
+    100_000
+}
+
 /// Configuration for backfilling checkpoint contents from the
 /// checkpoint archive when peers no longer serve the required range.
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -1131,6 +1135,13 @@ pub struct CheckpointArchiveConfig {
     /// Defaults to the number of CPU cores.
     #[serde(default = "default_checkpoint_archive_verify_concurrency")]
     pub verify_concurrency: usize,
+    /// Pause downloading from the archive while the synced watermark is this
+    /// many checkpoints ahead of the executed watermark, and resume once
+    /// execution catches up. Bounds the disk space held by checkpoints that
+    /// are synced but not yet executed, since only executed checkpoints can
+    /// be pruned.
+    #[serde(default = "default_checkpoint_archive_max_checkpoints_ahead_of_execution")]
+    pub max_checkpoints_ahead_of_execution: u64,
 }
 
 /// Configuration for the per-epoch state-snapshot publisher.

@@ -7,7 +7,9 @@ use std::sync::Arc;
 use super::error::Result;
 use crate::{
     committee::Committee,
-    messages_checkpoint::{VerifiedCheckpoint, VerifiedCheckpointContents},
+    messages_checkpoint::{
+        CheckpointSequenceNumber, VerifiedCheckpoint, VerifiedCheckpointContents,
+    },
     storage::ReadStore,
 };
 
@@ -61,6 +63,22 @@ pub trait WriteStore: ReadStore {
             .expect("storage access failed")
     }
 
+    /// The highest checkpoint whose transactions have been executed, when the
+    /// store tracks execution progress. `None` when nothing has been executed
+    /// yet or the store does not track execution (the default).
+    fn try_get_highest_executed_checkpoint_seq_number(
+        &self,
+    ) -> Result<Option<CheckpointSequenceNumber>> {
+        Ok(None)
+    }
+
+    /// Non-fallible version of
+    /// `try_get_highest_executed_checkpoint_seq_number`.
+    fn get_highest_executed_checkpoint_seq_number(&self) -> Option<CheckpointSequenceNumber> {
+        self.try_get_highest_executed_checkpoint_seq_number()
+            .expect("storage access failed")
+    }
+
     /// Inserts a consecutive run of verified checkpoints with their full
     /// contents and advances the verified and synced watermarks past the
     /// last one.
@@ -109,6 +127,12 @@ impl<T: WriteStore + ?Sized> WriteStore for &T {
         (*self).try_insert_committee(new_committee)
     }
 
+    fn try_get_highest_executed_checkpoint_seq_number(
+        &self,
+    ) -> Result<Option<CheckpointSequenceNumber>> {
+        (*self).try_get_highest_executed_checkpoint_seq_number()
+    }
+
     fn try_insert_synced_checkpoints(
         &self,
         checkpoints: Vec<(VerifiedCheckpoint, VerifiedCheckpointContents)>,
@@ -145,6 +169,12 @@ impl<T: WriteStore + ?Sized> WriteStore for Box<T> {
         (**self).try_insert_committee(new_committee)
     }
 
+    fn try_get_highest_executed_checkpoint_seq_number(
+        &self,
+    ) -> Result<Option<CheckpointSequenceNumber>> {
+        (**self).try_get_highest_executed_checkpoint_seq_number()
+    }
+
     fn try_insert_synced_checkpoints(
         &self,
         checkpoints: Vec<(VerifiedCheckpoint, VerifiedCheckpointContents)>,
@@ -179,6 +209,12 @@ impl<T: WriteStore + ?Sized> WriteStore for Arc<T> {
 
     fn try_insert_committee(&self, new_committee: Committee) -> Result<()> {
         (**self).try_insert_committee(new_committee)
+    }
+
+    fn try_get_highest_executed_checkpoint_seq_number(
+        &self,
+    ) -> Result<Option<CheckpointSequenceNumber>> {
+        (**self).try_get_highest_executed_checkpoint_seq_number()
     }
 
     fn try_insert_synced_checkpoints(
