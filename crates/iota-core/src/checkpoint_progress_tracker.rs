@@ -78,6 +78,7 @@ impl CheckpointProgressTracker {
         tokio::task::spawn(async move {
             let mut interval = tokio::time::interval(Duration::from_secs(1));
             let mut prev_executed: u64 = 0;
+            let mut prev_synced: u64 = 0;
             let mut prev_total_tx: u64 = 0;
             let mut prev_obj_pruned: u64 = 0;
             let mut prev_ckpt_pruned: u64 = 0;
@@ -118,12 +119,14 @@ impl CheckpointProgressTracker {
                     .unwrap_or(0);
 
                 let exec_delta = highest_executed_seq_number.saturating_sub(prev_executed);
+                let synced_delta = synced_seq_number.saturating_sub(prev_synced);
                 let tx_delta = total_tx.saturating_sub(prev_total_tx);
                 let object_prune_delta = object_pruned_seq_number.saturating_sub(prev_obj_pruned);
                 let checkpoint_prune_delta =
                     checkpoint_pruned_seq_number.saturating_sub(prev_ckpt_pruned);
 
                 if exec_delta > 0
+                    || synced_delta > 0
                     || tx_delta > 0
                     || object_prune_delta > 0
                     || checkpoint_prune_delta > 0
@@ -142,7 +145,7 @@ impl CheckpointProgressTracker {
                         Duration::from_nanos(checkpoint_prune_time_delta_ns);
 
                     info!(
-                        "checkpoint progress [epoch {epoch}]: executed {highest_executed_seq_number}/{synced_seq_number} (+{exec_delta}, {tx_delta} tx/s, {exec_time_delta:.2?}), \
+                        "checkpoint progress [epoch {epoch}]: executed {highest_executed_seq_number}/{synced_seq_number} (+{exec_delta}/+{synced_delta}, {tx_delta} tx/s, {exec_time_delta:.2?}), \
                          objects pruned {object_pruned_seq_number} (+{object_prune_delta}, {object_prune_time_delta:.2?}), \
                          checkpoints pruned {checkpoint_pruned_seq_number} (+{checkpoint_prune_delta}, {checkpoint_prune_time_delta:.2?})",
                     );
@@ -171,6 +174,7 @@ impl CheckpointProgressTracker {
                     }
 
                     prev_executed = highest_executed_seq_number;
+                    prev_synced = synced_seq_number;
                     prev_total_tx = total_tx;
                     prev_obj_pruned = object_pruned_seq_number;
                     prev_ckpt_pruned = checkpoint_pruned_seq_number;
