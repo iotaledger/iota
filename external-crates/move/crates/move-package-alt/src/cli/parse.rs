@@ -8,8 +8,9 @@ use crate::{
     flavor::Vanilla,
     package::{lockfile::Lockfile, manifest::Manifest},
 };
+
 use std::path::PathBuf;
-//
+
 #[derive(Debug, Clone, clap::Parser)]
 pub struct Parse {
     /// The path to the project
