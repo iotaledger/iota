@@ -1,9 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
-// Modifications Copyright (c) 2025 IOTA Stiftung
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #[allow(unused_const)]
-/// In addition to the fields declared in its type definition, a IOTA object can have dynamic fields
+/// In addition to the fields declared in its type definition, an IOTA object can have dynamic fields
 /// that can be added after the object has been constructed. Unlike ordinary field names
 /// (which are always statically declared identifiers) a dynamic field name can be any value with
 /// the `copy`, `drop`, and `store` abilities, e.g. an integer, a boolean, or a string.
