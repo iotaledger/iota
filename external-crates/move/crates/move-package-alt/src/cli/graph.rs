@@ -33,11 +33,6 @@ impl Graph {
 
         info!("Package graph loaded successfully\n: {:#?}", graph);
 
-        info!(
-            "{:?}",
-            Dot::with_config(&graph.inner, &[Config::EdgeNoLabel])
-        );
-
         Ok(())
     }
 }
