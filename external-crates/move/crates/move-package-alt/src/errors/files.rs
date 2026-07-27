@@ -4,8 +4,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
+    cell::RefCell,
     fmt::Debug,
-    fs,
+    fs, io,
     path::{Path, PathBuf},
 };
 
@@ -27,9 +28,7 @@ pub struct FileHandle {
 
 impl FileHandle {
     /// Reads the file located at [path] into the file cache and returns its ID
-    pub fn new(path: PathBuf) -> PackageResult<Self> {
-        // SAFETY: only fails if lock is poisoned which indicates another thread has
-        // panicked already
+    pub fn new(path: PathBuf) -> io::Result<Self> {
         let name = path.to_string_lossy().to_string();
         let source = fs::read_to_string(&path)?;
 

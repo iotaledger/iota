@@ -12,7 +12,9 @@ pub use manifest_error::ManifestError;
 pub use manifest_error::ManifestErrorKind;
 
 mod located;
-pub use located::{Located, with_file};
+mod thefile;
+pub use located::Located;
+pub use thefile::TheFile;
 
 mod files;
 pub use files::FileHandle;
@@ -30,6 +32,7 @@ use thiserror::Error;
 
 use crate::dependency::external::ResolverError;
 use crate::git::errors::GitError;
+use crate::package::paths::PackagePathError;
 
 /// Result type for package operations
 pub type PackageResult<T> = Result<T, PackageError>;
@@ -63,6 +66,9 @@ pub enum PackageError {
 
     #[error(transparent)]
     Resolver(#[from] ResolverError),
+
+    #[error(transparent)]
+    PackagePath(#[from] PackagePathError),
 }
 
 impl PackageError {
