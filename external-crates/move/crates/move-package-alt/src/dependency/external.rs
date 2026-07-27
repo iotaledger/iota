@@ -3,7 +3,8 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! Types and methods for external dependencies (of the form `{ r.<res> = data }`).
+//! Types and methods for external dependencies (of the form `{ r.<res> = data
+//! }`).
 
 use std::{
     collections::BTreeMap,
@@ -21,14 +22,13 @@ use thiserror::Error;
 use tokio::process::Command;
 use tracing::{debug, info};
 
+use super::{DependencySet, UnpinnedDependencyInfo};
 use crate::{
     errors::{FileHandle, TheFile},
     flavor::MoveFlavor,
     jsonrpc::Endpoint,
     package::{EnvironmentName, PackageName},
 };
-
-use super::{DependencySet, UnpinnedDependencyInfo};
 
 pub type ResolverName = String;
 pub type ResolverResult<T> = Result<T, ResolverError>;
@@ -75,7 +75,8 @@ pub enum ResolverError {
         code: ExitStatus,
     },
 
-    /// This indicates that the resolver executed successfully but returned an error
+    /// This indicates that the resolver executed successfully but returned an
+    /// error
     #[error("`{resolver}` couldn't resolve `{dep}` in environment `{env_str}`: {message}")]
     ResolverFailed {
         resolver: ResolverName,
@@ -113,12 +114,12 @@ struct ResolveResponse<F: MoveFlavor> {
 }
 
 impl ExternalDependency {
-    /// Replace all [ExternalDependency]s in `deps` with internal dependencies by invoking their
-    /// resolvers.
+    /// Replace all [ExternalDependency]s in `deps` with internal dependencies
+    /// by invoking their resolvers.
     ///
-    /// Note that the set of entries may be changed because external dependencies may be resolved
-    /// differently for different environments - this may cause the addition of a new
-    /// dep-replacement;
+    /// Note that the set of entries may be changed because external
+    /// dependencies may be resolved differently for different environments
+    /// - this may cause the addition of a new dep-replacement;
     /// this method may also optimize by removing unnecessary dep-replacements.
     ///
     /// Expects all environments in [deps] to also be contained in [envs]
@@ -126,7 +127,8 @@ impl ExternalDependency {
         deps: &mut DependencySet<UnpinnedDependencyInfo<F>>,
         envs: &BTreeMap<EnvironmentName, F::EnvironmentID>,
     ) -> ResolverResult<()> {
-        // we explode [deps] first so that we know exactly which deps are needed for each env.
+        // we explode [deps] first so that we know exactly which deps are needed for
+        // each env.
         deps.explode(envs.keys().cloned());
 
         // iterate over [deps] to collect queries for external resolvers
@@ -210,7 +212,8 @@ impl ResolverError {
 impl TryFrom<RField> for ExternalDependency {
     type Error = String;
 
-    /// Convert from [RField] (`{r.<res> = <data>}`) to [ExternalDependency] (`{ res, data }`)
+    /// Convert from [RField] (`{r.<res> = <data>}`) to [ExternalDependency] (`{
+    /// res, data }`)
     fn try_from(value: RField) -> Result<Self, Self::Error> {
         if value.r.len() != 1 {
             return Err("Externally resolved dependencies should have the form `{r.<resolver-name> = <resolver-data>}`".to_string());
@@ -231,7 +234,8 @@ impl TryFrom<RField> for ExternalDependency {
 }
 
 impl From<ExternalDependency> for RField {
-    /// Translate from [ExternalDependency] `{ res, data }` to [RField] `{r.<res> = data}`
+    /// Translate from [ExternalDependency] `{ res, data }` to [RField]
+    /// `{r.<res> = data}`
     fn from(value: ExternalDependency) -> Self {
         let ExternalDependency {
             resolver,
@@ -246,9 +250,10 @@ impl From<ExternalDependency> for RField {
     }
 }
 
-/// Resolve the dependencies in [dep_data] with the external resolver [resolver]; requests are
-/// performed for all environments in [envs]. Ensures that the returned dependency set contains no
-/// externally resolved dependencies.
+/// Resolve the dependencies in [dep_data] with the external resolver
+/// [resolver]; requests are performed for all environments in [envs]. Ensures
+/// that the returned dependency set contains no externally resolved
+/// dependencies.
 ///
 /// Assumes `requests` is nonempty
 async fn resolve_single<F: MoveFlavor>(
@@ -283,14 +288,15 @@ async fn resolve_single<F: MoveFlavor>(
 
     let (envs, pkgs, reqs): (Vec<_>, Vec<_>, Vec<_>) = requests.into_iter().multiunzip();
 
-    // TODO: There is a potential bug here: we just use the file from the first request, rather
-    // than pairing each request with its own file. This almost certainly isn't a problem in
-    // practice because we probably only care about the file if external resolvers are
-    // returning local dependencies, which they almost certainly shouldn't. Moreover, we're
-    // currently only calling `resolve` on a batch of deps from the same manifest, so there
-    // shouldn't be confusion. If this becomes a problem, we probably need to sort out requests
-    // into common files, although at that point we'll probably need to replace or fix TheFile
-    // anyway due to threading problems.
+    // TODO: There is a potential bug here: we just use the file from the first
+    // request, rather than pairing each request with its own file. This almost
+    // certainly isn't a problem in practice because we probably only care about
+    // the file if external resolvers are returning local dependencies, which
+    // they almost certainly shouldn't. Moreover, we're currently only calling
+    // `resolve` on a batch of deps from the same manifest, so there
+    // shouldn't be confusion. If this becomes a problem, we probably need to sort
+    // out requests into common files, although at that point we'll probably
+    // need to replace or fix TheFile anyway due to threading problems.
 
     let parsing_file = reqs.first().expect("nonempty input").containing_file;
 

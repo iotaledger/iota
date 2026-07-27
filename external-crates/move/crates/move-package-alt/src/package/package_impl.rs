@@ -11,11 +11,13 @@ use std::{
     process::Command,
 };
 
+use move_core_types::identifier::Identifier;
 use serde::{Deserialize, Serialize};
+use tracing::debug;
 
-use super::manifest::Manifest;
 use super::{
     lockfile::{Lockfile, Publication},
+    manifest::Manifest,
     paths::PackagePath,
 };
 use crate::{
@@ -24,8 +26,6 @@ use crate::{
     flavor::MoveFlavor,
     git::GitRepo,
 };
-use move_core_types::identifier::Identifier;
-use tracing::debug;
 
 pub type EnvironmentName = String;
 pub type PackageName = Identifier;
@@ -40,7 +40,8 @@ pub struct Package<F: MoveFlavor + fmt::Debug> {
 
 impl<F: MoveFlavor> Package<F> {
     /// Load a package from the manifest and lock files in directory [path].
-    /// Makes a best effort to translate old-style packages into the current format,
+    /// Makes a best effort to translate old-style packages into the current
+    /// format,
     ///
     /// Fails if [path] does not exist, or if it doesn't contain a manifest
     pub async fn load_root(path: impl AsRef<Path>) -> PackageResult<Self> {
@@ -50,7 +51,8 @@ impl<F: MoveFlavor> Package<F> {
     }
 
     /// Fetch [dep] and load a package from the fetched source
-    /// Makes a best effort to translate old-style packages into the current format,
+    /// Makes a best effort to translate old-style packages into the current
+    /// format,
     pub async fn load(dep: PinnedDependencyInfo<F>) -> PackageResult<Self> {
         let path = PackagePath::new(dep.fetch().await?)?;
         let manifest = Manifest::<F>::read_from_file(path.manifest_path())?;
@@ -58,8 +60,8 @@ impl<F: MoveFlavor> Package<F> {
         Ok(Self { manifest, path })
     }
 
-    /// The path to the root directory of this package. This path is guaranteed to exist
-    /// and contain a manifest file.
+    /// The path to the root directory of this package. This path is guaranteed
+    /// to exist and contain a manifest file.
     pub fn path(&self) -> &PackagePath {
         &self.path
     }
@@ -69,7 +71,8 @@ impl<F: MoveFlavor> Package<F> {
         &self.manifest
     }
 
-    /// The resolved and pinned dependencies from the manifest for environment `env`
+    /// The resolved and pinned dependencies from the manifest for environment
+    /// `env`
     pub fn direct_deps(
         &self,
         env: &EnvironmentName,

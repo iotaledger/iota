@@ -5,15 +5,16 @@
 
 use std::path::PathBuf;
 
+use clap::{Command, Parser, Subcommand};
+use petgraph::dot::{Config, Dot};
+use tracing::info;
+
 use crate::{
     errors::PackageResult,
     flavor::Vanilla,
     graph::PackageGraph,
     package::{EnvironmentName, Package, paths::PackagePath},
 };
-use clap::{Command, Parser, Subcommand};
-use petgraph::dot::{Config, Dot};
-use tracing::info;
 
 /// Build the package
 #[derive(Debug, Clone, Parser)]

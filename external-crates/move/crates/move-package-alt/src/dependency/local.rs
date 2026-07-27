@@ -11,36 +11,39 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use crate::{
-    errors::{FileHandle, PackageResult, TheFile},
-    flavor::MoveFlavor,
-    package::paths::PackagePath,
-};
 use derive_where::derive_where;
 use serde::{Deserialize, Serialize};
 use serde_spanned::Spanned;
 
 use super::PinnedDependencyInfo;
+use crate::{
+    errors::{FileHandle, PackageResult, TheFile},
+    flavor::MoveFlavor,
+    package::paths::PackagePath,
+};
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct LocalDependency {
-    /// The path on the filesystem, relative to the location of the containing file (which is
-    /// stored in the `Located` wrapper)
+    /// The path on the filesystem, relative to the location of the containing
+    /// file (which is stored in the `Located` wrapper)
     local: PathBuf,
 
-    /// This is the directory to which this local dependency is relative to. As this is local
-    /// dependency, the directory should be the parent directory that contains this dependency.
+    /// This is the directory to which this local dependency is relative to. As
+    /// this is local dependency, the directory should be the parent
+    /// directory that contains this dependency.
     #[serde(skip, default = "TheFile::parent_dir")]
     relative_to_parent_dir: PathBuf,
 }
 
 impl LocalDependency {
-    /// The path on the filesystem, relative to the location of the containing file
+    /// The path on the filesystem, relative to the location of the containing
+    /// file
     pub fn relative_path(&self) -> &PathBuf {
         &self.local
     }
 
-    /// Return a local dependency whose local variable is set to '.' (the current directory).
+    /// Return a local dependency whose local variable is set to '.' (the
+    /// current directory).
     pub fn root_dependency(path: &PackagePath) -> Self {
         Self {
             local: PathBuf::from("."),
@@ -48,7 +51,8 @@ impl LocalDependency {
         }
     }
 
-    /// Retrieve the absolute path to [`LocalDependency`] without actually fetching it.
+    /// Retrieve the absolute path to [`LocalDependency`] without actually
+    /// fetching it.
     pub fn unfetched_path(&self) -> PathBuf {
         // TODO: handle panic with a proper error.
         self.relative_to_parent_dir

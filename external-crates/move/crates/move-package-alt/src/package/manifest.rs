@@ -11,6 +11,7 @@ use std::{
 
 use derive_where::derive_where;
 use serde::{Deserialize, Serialize};
+use sha2::{Digest as ShaDigest, Sha256};
 use tracing::{debug, info};
 
 use super::*;
@@ -19,7 +20,6 @@ use crate::{
     errors::{FileHandle, Located, ManifestError, ManifestErrorKind, PackageResult, TheFile},
     flavor::{MoveFlavor, Vanilla},
 };
-use sha2::{Digest as ShaDigest, Sha256};
 
 // TODO: add 2025 edition
 const ALLOWED_EDITIONS: &[&str] = &["2024", "2024.beta", "legacy"];
@@ -104,7 +104,6 @@ impl<F: MoveFlavor> Manifest<F> {
     }
 
     /// Validate the manifest contents, after deserialization.
-    ///
     // TODO: add more validation
     pub fn validate_manifest(&self, handle: FileHandle) -> PackageResult<()> {
         // Validate package name

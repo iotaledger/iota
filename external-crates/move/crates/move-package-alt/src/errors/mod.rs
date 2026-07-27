@@ -8,8 +8,7 @@ mod manifest_error;
 use append_only_vec::AppendOnlyVec;
 use codespan_reporting::files::{SimpleFile, SimpleFiles};
 pub use lockfile_error::LockfileError;
-pub use manifest_error::ManifestError;
-pub use manifest_error::ManifestErrorKind;
+pub use manifest_error::{ManifestError, ManifestErrorKind};
 
 mod located;
 mod thefile;
@@ -17,8 +16,6 @@ pub use located::Located;
 pub use thefile::TheFile;
 
 mod files;
-pub use files::FileHandle;
-
 use std::{
     fs,
     ops::Range,
@@ -27,12 +24,13 @@ use std::{
 };
 
 use codespan_reporting::diagnostic::Diagnostic;
+pub use files::FileHandle;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::dependency::external::ResolverError;
-use crate::git::errors::GitError;
-use crate::package::paths::PackagePathError;
+use crate::{
+    dependency::external::ResolverError, git::errors::GitError, package::paths::PackagePathError,
+};
 
 /// Result type for package operations
 pub type PackageResult<T> = Result<T, PackageError>;

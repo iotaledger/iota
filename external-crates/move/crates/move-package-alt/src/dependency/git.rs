@@ -6,24 +6,25 @@
 //! Types and methods for external dependencies (of the form `{ git = "<repo>"
 //! }`)
 //!
-//! Git dependencies are cached in `~/.move`. Each dependency has a sparse, shallow checkout
-//! in the directory `~/.move/<remote>_<sha>` (see [crate::git::format_repo_to_fs_path])
+//! Git dependencies are cached in `~/.move`. Each dependency has a sparse,
+//! shallow checkout in the directory `~/.move/<remote>_<sha>` (see
+//! [crate::git::format_repo_to_fs_path])
 
 use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
+use super::DependencySet;
 use crate::{
     errors::PackageResult,
     git::{GitRepo, sha::GitSha},
 };
 
-use super::DependencySet;
-
 /// TODO keep same style around all types
 ///
-/// A git dependency that is unpinned. The `rev` field can be either empty, a branch, or a sha. To
-/// resolve this into a [`PinnedGitDependency`], call `pin_one` function.
+/// A git dependency that is unpinned. The `rev` field can be either empty, a
+/// branch, or a sha. To resolve this into a [`PinnedGitDependency`], call
+/// `pin_one` function.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct UnpinnedGitDependency {
     /// The repository containing the dependency
@@ -54,7 +55,8 @@ pub struct PinnedGitDependency {
 }
 
 impl PinnedGitDependency {
-    /// Fetch the given git dependency and return the path to the checked out repo
+    /// Fetch the given git dependency and return the path to the checked out
+    /// repo
     pub async fn fetch(&self) -> PackageResult<PathBuf> {
         let git_repo = GitRepo::from(self);
         Ok(git_repo.fetch().await?)
@@ -62,8 +64,8 @@ impl PinnedGitDependency {
 }
 
 impl UnpinnedGitDependency {
-    /// Replace all commit-ishes in [deps] with commits (i.e. SHAs). Requires fetching the git
-    /// repositories
+    /// Replace all commit-ishes in [deps] with commits (i.e. SHAs). Requires
+    /// fetching the git repositories
     pub async fn pin(
         deps: DependencySet<Self>,
     ) -> PackageResult<DependencySet<PinnedGitDependency>> {
@@ -75,8 +77,8 @@ impl UnpinnedGitDependency {
         Ok(res)
     }
 
-    /// Replace the commit-ish [self.rev] with a commit (i.e. a SHA). Requires fetching the git
-    /// repository
+    /// Replace the commit-ish [self.rev] with a commit (i.e. a SHA). Requires
+    /// fetching the git repository
     async fn pin_one(&self) -> PackageResult<PinnedGitDependency> {
         let git: GitRepo = self.into();
         let sha = git.find_sha().await?;

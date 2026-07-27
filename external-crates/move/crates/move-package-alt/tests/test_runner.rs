@@ -3,24 +3,24 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use anyhow::bail;
-use move_command_line_common::testing::insta_assert;
+use std::path::Path;
 
+use anyhow::bail;
 use codespan_reporting::{
     files::SimpleFiles,
     term::{self, Config, termcolor::Buffer},
 };
+use move_command_line_common::testing::insta_assert;
 use move_package_alt::{
     dependency::{self, DependencySet, UnpinnedDependencyInfo},
     flavor::Vanilla,
     graph::PackageGraph,
     package::{lockfile::Lockfile, manifest::Manifest, paths::PackagePath},
 };
-use std::path::Path;
 use tracing_subscriber::EnvFilter;
 
-/// Resolve the package contained in the same directory as [path], and snapshot a value based
-/// on the extension of [path]:
+/// Resolve the package contained in the same directory as [path], and snapshot
+/// a value based on the extension of [path]:
 ///  - ".parsed": the contents of the manifest
 ///  - ".locked": the contents of the lockfile
 ///  - ".pinned": the contents of the pinned dependencies
@@ -68,7 +68,8 @@ impl Test<'_> {
         Ok(())
     }
 
-    /// Return the value to be snapshotted, based on `self.kind`, as described in [run_test]
+    /// Return the value to be snapshotted, based on `self.kind`, as described
+    /// in [run_test]
     fn output(&self) -> anyhow::Result<String> {
         Ok(match self.kind {
             "parsed" => {

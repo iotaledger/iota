@@ -3,13 +3,13 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::path::PathBuf;
+
 use crate::{
     errors::PackageResult,
     flavor::Vanilla,
     package::{lockfile::Lockfile, manifest::Manifest},
 };
-
-use std::path::PathBuf;
 
 #[derive(Debug, Clone, clap::Parser)]
 pub struct Parse {

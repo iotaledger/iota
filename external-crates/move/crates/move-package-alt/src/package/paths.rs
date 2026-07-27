@@ -3,8 +3,6 @@
 // Modifications Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::errors::PackageResult;
-
 use std::{
     fmt::{self, Debug, Display},
     path::{Path, PathBuf},
@@ -12,17 +10,19 @@ use std::{
 
 use thiserror::Error;
 
+use crate::errors::PackageResult;
+
 pub type PackagePathResult<T> = Result<T, PackagePathError>;
 
-/// A canonical path to a directory containing a loaded Move package (in particular, the directory
-/// must have a Move.toml)
+/// A canonical path to a directory containing a loaded Move package (in
+/// particular, the directory must have a Move.toml)
 #[derive(Clone, Debug, PartialOrd, Ord, PartialEq, Eq)]
 pub struct PackagePath(PathBuf);
 
 impl PackagePath {
-    /// Create a canonical path from the given [`dir`]. This function checks that there is a
-    /// directory at `dir` and that it contains a valid Move package, i.e., it has a `Move.toml`
-    /// file.
+    /// Create a canonical path from the given [`dir`]. This function checks
+    /// that there is a directory at `dir` and that it contains a valid Move
+    /// package, i.e., it has a `Move.toml` file.
     pub fn new(dir: PathBuf) -> PackagePathResult<Self> {
         let path = dir
             .canonicalize()
@@ -61,8 +61,9 @@ pub enum PackagePathError {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::fs;
+
+    use super::*;
 
     #[test]
     fn test_new() {

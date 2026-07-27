@@ -81,7 +81,8 @@ impl GitError {
         }
     }
 
-    /// Construct an error for the case when we can't find a sha for revision `rev` in `repo`
+    /// Construct an error for the case when we can't find a sha for revision
+    /// `rev` in `repo`
     pub fn no_sha(repo_url: &str, rev: &str) -> Self {
         Self::NoSha {
             repo: repo_url.to_string(),

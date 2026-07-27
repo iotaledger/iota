@@ -17,8 +17,8 @@ use sha::GitSha;
 use tokio::process::Command;
 use tracing::{debug, info};
 
-/// Helper struct that represents a Git repository, with extra information about which folder to
-/// checkout.
+/// Helper struct that represents a Git repository, with extra information about
+/// which folder to checkout.
 #[derive(Clone, Debug)]
 pub struct GitRepo {
     /// Repository URL
@@ -54,8 +54,8 @@ impl GitRepo {
         self.fetch_impl(None).await
     }
 
-    /// Internal implementation of fetch. It uses the default folder to fetch the repo to, defined
-    /// by the MOVE_HOME env variable.
+    /// Internal implementation of fetch. It uses the default folder to fetch
+    /// the repo to, defined by the MOVE_HOME env variable.
     async fn fetch_impl(&self, fetch_to_folder: Option<PathBuf>) -> GitResult<PathBuf> {
         let sha = self.find_sha().await?;
 
@@ -70,15 +70,15 @@ impl GitRepo {
         Ok(repo_fs_path)
     }
 
-    /// Used for testing to be able to specify which folder to fetch to. Use `fetch` for all other needs.
+    /// Used for testing to be able to specify which folder to fetch to. Use
+    /// `fetch` for all other needs.
     async fn fetch_to_folder(&self, fetch_to_folder: PathBuf) -> GitResult<PathBuf> {
         self.fetch_impl(Some(fetch_to_folder)).await
     }
 
-    /// Checkout the repository using a sparse checkout. It will try to clone without checkout, set
-    /// sparse checkout directory, and then checkout the folder specified by `self.path` at the
-    /// given sha.
-    ///
+    /// Checkout the repository using a sparse checkout. It will try to clone
+    /// without checkout, set sparse checkout directory, and then checkout
+    /// the folder specified by `self.path` at the given sha.
     // TODO think more about debug statements and what information to log
     async fn checkout_repo(&self, repo_fs_path: &PathBuf, sha: &GitSha) -> GitResult<()> {
         // Checkout repo if it does not exist already
@@ -171,17 +171,18 @@ impl GitRepo {
         Ok(false)
     }
 
-    /// Find the SHA of the given commit/branch in the given repo. This will make a remote call so
-    /// network is required.
+    /// Find the SHA of the given commit/branch in the given repo. This will
+    /// make a remote call so network is required.
     pub(crate) async fn find_sha(&self) -> GitResult<GitSha> {
         if let Some(r) = self.rev.as_ref() {
             if let Ok(sha) = GitSha::try_from(r.to_string()) {
                 return Ok(sha);
             }
 
-            // if there is some revision which is likely a branch, a tag, or a wrong SHA (e.g., capital
-            // letter), then we have a different set of arguments than if there is no revision. In no
-            // revision case, we need to find the default branch of that remote.
+            // if there is some revision which is likely a branch, a tag, or a wrong SHA
+            // (e.g., capital letter), then we have a different set of arguments
+            // than if there is no revision. In no revision case, we need to
+            // find the default branch of that remote.
 
             // we have a branch or tag
             // git ls-remote https://github.com/user/repo.git refs/heads/main
@@ -210,8 +211,8 @@ impl GitRepo {
             run_git_cmd_with_args(&["ls-remote", "--symref", &self.repo_url, "HEAD"], None).await?;
 
         let lines: Vec<_> = stdout.lines().collect();
-        // TODO: default_branch is ignored here; are we guaranteed that the sha is always the
-        // second line?
+        // TODO: default_branch is ignored here; are we guaranteed that the sha is
+        // always the second line?
         let default_branch = lines[0].split_whitespace().nth(1).ok_or_else(|| {
             debug!("Could not find default branch.\nlines {lines:?}\nself{self:?}");
             GitError::no_sha(&self.repo_url, "HEAD")
@@ -229,8 +230,8 @@ impl GitRepo {
 }
 
 /// Format the repository URL to a filesystem name based on the SHA
-// TODO: this almost certainly belongs in dependency::git instead of here, but moving it requires a
-// little refactoring
+// TODO: this almost certainly belongs in dependency::git instead of here, but
+// moving it requires a little refactoring
 pub fn format_repo_to_fs_path(repo: &str, sha: &GitSha, root_path: Option<PathBuf>) -> PathBuf {
     let root_path = root_path
         .map(|p| p.to_string_lossy().to_string())
@@ -243,8 +244,8 @@ pub fn format_repo_to_fs_path(repo: &str, sha: &GitSha, root_path: Option<PathBu
     ))
 }
 
-/// Runs `git <args>` in `cwd`. Fails if there is an io failure or if `git` returns a non-zero
-/// exit status; returns the standard output.
+/// Runs `git <args>` in `cwd`. Fails if there is an io failure or if `git`
+/// returns a non-zero exit status; returns the standard output.
 async fn run_git_cmd_with_args(args: &[&str], cwd: Option<&PathBuf>) -> GitResult<String> {
     // Run the git command
 
@@ -303,11 +304,11 @@ fn url_to_file_name(url: &str) -> String {
 // TODO: add more tests
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use std::env;
-    use std::fs;
-    use std::path::Path;
+    use std::{env, fs, path::Path};
+
     use tempfile::{TempDir, tempdir};
+
+    use super::*;
 
     fn setup_temp_dir() -> TempDir {
         tempdir().unwrap()
@@ -323,8 +324,8 @@ mod tests {
     }
 
     /// Sets up a test Move project with git repository
-    /// It returns the temporary directory, the root path of the project, the first commit sha, and
-    /// and the second commit sha.
+    /// It returns the temporary directory, the root path of the project, the
+    /// first commit sha, and and the second commit sha.
     pub async fn setup_test_move_project() -> (TempDir, PathBuf, String, String) {
         // Create a temporary directory
         let temp_dir = tempdir().unwrap();

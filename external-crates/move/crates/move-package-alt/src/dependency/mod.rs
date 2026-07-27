@@ -8,13 +8,14 @@ pub mod external;
 mod git;
 mod local;
 
-pub use dependency_set::DependencySet;
-
 use std::{collections::BTreeMap, path::PathBuf};
 
+pub use dependency_set::DependencySet;
 use derive_where::derive_where;
+use external::ExternalDependency;
+use git::{PinnedGitDependency, UnpinnedGitDependency};
+use local::LocalDependency;
 use serde::{Deserialize, Deserializer, Serialize, de};
-
 use tracing::debug;
 
 use crate::{
@@ -24,36 +25,35 @@ use crate::{
     package::{EnvironmentName, paths::PackagePath},
 };
 
-use external::ExternalDependency;
-use git::{PinnedGitDependency, UnpinnedGitDependency};
-use local::LocalDependency;
-
-// TODO (potential refactor): consider using objects for manifest dependencies (i.e. `Box<dyn UnpinnedDependency>`).
-//      part of the complexity here would be deserialization - probably need a flavor-specific
-//      function that converts a toml value to a Box<dyn UnpinnedDependency>
+// TODO (potential refactor): consider using objects for manifest dependencies
+// (i.e. `Box<dyn UnpinnedDependency>`).      part of the complexity here would
+// be deserialization - probably need a flavor-specific      function that
+// converts a toml value to a Box<dyn UnpinnedDependency>
 //
-//      resolution would also be interesting because of batch resolution. Would probably need a
-//      trait method to return a resolver object, and then a method on the resolver object to
-//      resolve a bunch of dependencies (resolvers could implement Eq)
+//      resolution would also be interesting because of batch resolution. Would
+// probably need a      trait method to return a resolver object, and then a
+// method on the resolver object to      resolve a bunch of dependencies
+// (resolvers could implement Eq)
 //
 
 /// Phantom type to represent pinned dependencies (see [PinnedDependency])
 #[derive(Debug, PartialEq, Eq)]
 pub struct Pinned;
 
-/// Phantom type to represent unpinned dependencies (see [UnpinnedDependencyInfo])
+/// Phantom type to represent unpinned dependencies (see
+/// [UnpinnedDependencyInfo])
 #[derive(Debug, PartialEq)]
 pub struct Unpinned;
 
-/// [UnpinnedDependencyInfo]s contain the dependency-type-specific things that users write in their
-/// Move.toml files in the `dependencies` section.
+/// [UnpinnedDependencyInfo]s contain the dependency-type-specific things that
+/// users write in their Move.toml files in the `dependencies` section.
 ///
 /// TODO: this paragraph will change with upcoming design changes:
-/// There are additional general fields in the manifest format (like `override` or `rename-from`)
-/// that are not part of the UnpinnedDependencyInfo. We separate these partly because these things
-/// are not serialized to the Lock file. See [crate::package::manifest] for the full representation
-/// of an entry in the `dependencies` table.
-///
+/// There are additional general fields in the manifest format (like `override`
+/// or `rename-from`) that are not part of the UnpinnedDependencyInfo. We
+/// separate these partly because these things are not serialized to the Lock
+/// file. See [crate::package::manifest] for the full representation of an entry
+/// in the `dependencies` table.
 // Note: there is a custom Deserializer for this type; be sure to update it if you modify this
 #[derive(Debug, Serialize)]
 #[derive_where(Clone, PartialEq)]
@@ -65,15 +65,16 @@ pub enum UnpinnedDependencyInfo<F: MoveFlavor + ?Sized> {
     FlavorSpecific(F::FlavorDependency<Unpinned>),
 }
 
-/// Pinned dependencies are guaranteed to always resolve to the same package source. For example,
-/// a git dependendency with a branch or tag revision may change over time (and is thus not
-/// pinned), whereas a git dependency with a sha revision is always guaranteed to produce the same
-/// files.
+/// Pinned dependencies are guaranteed to always resolve to the same package
+/// source. For example, a git dependendency with a branch or tag revision may
+/// change over time (and is thus not pinned), whereas a git dependency with a
+/// sha revision is always guaranteed to produce the same files.
 ///
-/// Local dependencies are a somewhat special case here - we want to pin them as local deps during
-/// development, because the developer would expect to use the latest code without having to
-/// explicitly repin, but we need to convert them to persistent dependencies when we publish since
-/// we want to retain that information for source verification.
+/// Local dependencies are a somewhat special case here - we want to pin them as
+/// local deps during development, because the developer would expect to use the
+/// latest code without having to explicitly repin, but we need to convert them
+/// to persistent dependencies when we publish since we want to retain that
+/// information for source verification.
 // Note: there is a custom Deserializer for this type; be sure to update it if you modify this
 #[derive(Debug, Serialize)]
 #[derive_where(Clone, PartialEq)]
@@ -99,8 +100,8 @@ impl<F: MoveFlavor> PinnedDependencyInfo<F> {
         }
     }
 
-    /// Return the absolute path to the directory that this package would be fetched into, without
-    /// actually fetching it
+    /// Return the absolute path to the directory that this package would be
+    /// fetched into, without actually fetching it
     pub fn unfetched_path(&self) -> PathBuf {
         match self {
             PinnedDependencyInfo::Git(dep) => {
@@ -140,10 +141,11 @@ where
                 Ok(UnpinnedDependencyInfo::Local(dep))
             } else {
                 // TODO: maybe this could be prettier. The problem is that we don't know how to
-                // tell if something is a flavor dependency. One option might be to add a method to
-                // [MoveFlavor] that gives the list of flavor dependency tags. Another approach
-                // worth considering is removing flavor dependencies entirely and just having
-                // on-chain dependencies (with the flavor being used to resolve them).
+                // tell if something is a flavor dependency. One option might be to add a method
+                // to [MoveFlavor] that gives the list of flavor dependency
+                // tags. Another approach worth considering is removing flavor
+                // dependencies entirely and just having on-chain dependencies
+                // (with the flavor being used to resolve them).
                 let dep = toml::Value::try_from(data)
                     .map_err(de::Error::custom)?
                     .try_into()
@@ -223,10 +225,10 @@ fn split<F: MoveFlavor>(
     (gits, exts, locs, flav)
 }
 
-/// Replace all dependencies with their pinned versions. The returned set may have a different set
-/// of keys than the input, for example if new implicit dependencies are added or if external
-/// resolvers resolve default deps to dep-replacements, or if dep-replacements are identical to the
-/// default deps.
+/// Replace all dependencies with their pinned versions. The returned set may
+/// have a different set of keys than the input, for example if new implicit
+/// dependencies are added or if external resolvers resolve default deps to
+/// dep-replacements, or if dep-replacements are identical to the default deps.
 pub async fn pin<F: MoveFlavor>(
     flavor: &F,
     mut deps: DependencySet<UnpinnedDependencyInfo<F>>,
@@ -266,8 +268,8 @@ pub async fn pin<F: MoveFlavor>(
     ]))
 }
 
-/// For each environment, if none of the implicit dependencies are present in [deps] (or the
-/// default environment), then they are all added.
+/// For each environment, if none of the implicit dependencies are present in
+/// [deps] (or the default environment), then they are all added.
 // TODO: what's the notion of identity used here?
 fn add_implicit_deps<F: MoveFlavor>(
     flavor: &F,
@@ -276,8 +278,9 @@ fn add_implicit_deps<F: MoveFlavor>(
     todo!()
 }
 
-/// Fetch and ensure that all dependencies are stored locally and return the paths to their
-/// contents. The returned map is guaranteed to have the same keys as [deps].
+/// Fetch and ensure that all dependencies are stored locally and return the
+/// paths to their contents. The returned map is guaranteed to have the same
+/// keys as [deps].
 pub async fn fetch<F: MoveFlavor>(
     flavor: &F,
     deps: DependencySet<PinnedDependencyInfo<F>>,

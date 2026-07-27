@@ -17,8 +17,8 @@ pub struct GitSha {
 impl TryFrom<String> for GitSha {
     type Error = ShaError;
 
-    /// Check if the given string is a valid commit SHA, i.e., 40 character long with only
-    /// lowercase letters and digits
+    /// Check if the given string is a valid commit SHA, i.e., 40 character long
+    /// with only lowercase letters and digits
     fn try_from(input: String) -> ShaResult<Self> {
         if input.len() != 40 {
             return Err(ShaError::WrongLength { input });

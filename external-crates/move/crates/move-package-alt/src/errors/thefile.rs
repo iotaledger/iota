@@ -23,11 +23,12 @@ pub struct TheFile;
 
 struct Guard;
 
-/// This is a little helper for keeping track of what file a deserialized value comes from.
-/// By deserializing in a with_file context, deserializers can use [TheFile::handle] or
-/// [TheFile::parent_dir] examine the context.
+/// This is a little helper for keeping track of what file a deserialized value
+/// comes from. By deserializing in a with_file context, deserializers can use
+/// [TheFile::handle] or [TheFile::parent_dir] examine the context.
 ///
-/// For example, you could deserialize a struct containing a file handle as follows:
+/// For example, you could deserialize a struct containing a file handle as
+/// follows:
 /// ```ignore
 ///     #[derive(Deserialize)]
 ///     struct S {
@@ -53,7 +54,8 @@ impl TheFile {
         })
     }
 
-    /// Return the parent directory of current_file, panicking if there is no current_file
+    /// Return the parent directory of current_file, panicking if there is no
+    /// current_file
     pub fn parent_dir() -> PathBuf {
         Self::handle()
             .path()
@@ -62,9 +64,10 @@ impl TheFile {
             .to_path_buf()
     }
 
-    /// Read `file` into the cache and run `f` with `current_file` set to the handle. Panics if
-    /// `current_dir` is already set. Unsets `current_file` before returning. Returns the generated
-    /// file handle and the result of `f`
+    /// Read `file` into the cache and run `f` with `current_file` set to the
+    /// handle. Panics if `current_dir` is already set. Unsets
+    /// `current_file` before returning. Returns the generated file handle
+    /// and the result of `f`
     pub fn with_file<R, F: FnOnce(&str) -> R>(
         file: impl AsRef<Path>,
         f: F,

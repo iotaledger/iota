@@ -3,6 +3,15 @@
 // Modifications Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{
+    collections::{BTreeMap, btree_map::Entry},
+    path::PathBuf,
+    sync::{Arc, Mutex},
+};
+
+use petgraph::graph::{DiGraph, NodeIndex};
+use tokio::sync::OnceCell;
+
 use crate::{
     dependency::PinnedDependencyInfo,
     errors::{PackageError, PackageResult},
@@ -14,20 +23,14 @@ use crate::{
         paths::PackagePath,
     },
 };
-use petgraph::graph::{DiGraph, NodeIndex};
-use std::{
-    collections::{BTreeMap, btree_map::Entry},
-    path::PathBuf,
-    sync::{Arc, Mutex},
-};
-use tokio::sync::OnceCell;
 
 #[derive(Debug)]
 pub struct PackageGraph<F: MoveFlavor> {
     inner: DiGraph<Arc<PackageNode<F>>, PackageName>,
 }
 
-/// A node in the package graph, containing a [Package] and its pinned dependency info.
+/// A node in the package graph, containing a [Package] and its pinned
+/// dependency info.
 #[derive(Debug)]
 pub struct PackageNode<F: MoveFlavor> {
     package: Package<F>,
@@ -55,10 +58,11 @@ impl<F: MoveFlavor> PackageNode<F> {
 impl<F: MoveFlavor> PackageGraph<F> {
     // TODO: load should load for all environments and return a map
 
-    /// Check to see whether the resolution graph in the lockfile inside `path` is up-to-date (i.e.
-    /// whether any of the manifests digests are out of date). If the resolution graph is
-    /// up-to-date, it is returned. Otherwise a new resolution graph is constructed by traversing
-    /// (only) the manifest files.
+    /// Check to see whether the resolution graph in the lockfile inside `path`
+    /// is up-to-date (i.e. whether any of the manifests digests are out of
+    /// date). If the resolution graph is up-to-date, it is returned.
+    /// Otherwise a new resolution graph is constructed by traversing (only)
+    /// the manifest files.
     pub async fn load(path: &PackagePath, env: &EnvironmentName) -> PackageResult<Self> {
         let builder = PackageGraphBuilder::new();
 
@@ -69,8 +73,9 @@ impl<F: MoveFlavor> PackageGraph<F> {
         }
     }
 
-    /// Construct a [PackageGraph] by pinning and fetching all transitive dependencies from the
-    /// manifests rooted at `path` (no lockfiles are read).
+    /// Construct a [PackageGraph] by pinning and fetching all transitive
+    /// dependencies from the manifests rooted at `path` (no lockfiles are
+    /// read).
     pub async fn load_from_manifests(
         path: &PackagePath,
         env: &EnvironmentName,
@@ -80,8 +85,8 @@ impl<F: MoveFlavor> PackageGraph<F> {
             .await
     }
 
-    /// Read a [PackageGraph] from a lockfile, ignoring manifest digests. Primarily useful for
-    /// testing - you will usually want [Self::load]
+    /// Read a [PackageGraph] from a lockfile, ignoring manifest digests.
+    /// Primarily useful for testing - you will usually want [Self::load]
     /// TODO: probably want to take a path to the lockfile
     pub async fn load_from_lockfile_ignore_digests(
         path: &PackagePath,
@@ -100,9 +105,9 @@ impl<F: MoveFlavor> PackageGraphBuilder<F> {
         }
     }
 
-    /// Load a [PackageGraph] from the lockfile at `path`. Returns [None] if the contents of the
-    /// lockfile are out of date (i.e. if the lockfile doesn't exist or the manifest digests don't
-    /// match).
+    /// Load a [PackageGraph] from the lockfile at `path`. Returns [None] if the
+    /// contents of the lockfile are out of date (i.e. if the lockfile
+    /// doesn't exist or the manifest digests don't match).
     pub async fn load_from_lockfile(
         &self,
         path: &PackagePath,
@@ -111,7 +116,8 @@ impl<F: MoveFlavor> PackageGraphBuilder<F> {
         self.load_from_lockfile_impl(path, env, true).await
     }
 
-    /// Load a [PackageGraph] from the lockfile at `path`. Returns [None] if there is no lockfile
+    /// Load a [PackageGraph] from the lockfile at `path`. Returns [None] if
+    /// there is no lockfile
     pub async fn load_from_lockfile_ignore_digests(
         &self,
         path: &PackagePath,
@@ -120,8 +126,9 @@ impl<F: MoveFlavor> PackageGraphBuilder<F> {
         self.load_from_lockfile_impl(path, env, false).await
     }
 
-    /// Load a [PackageGraph] from the lockfile at `path`. Returns [None] if there is no lockfile.
-    /// Also returns [None] if `check_digests` is true and any of the digests don't match.
+    /// Load a [PackageGraph] from the lockfile at `path`. Returns [None] if
+    /// there is no lockfile. Also returns [None] if `check_digests` is true
+    /// and any of the digests don't match.
     async fn load_from_lockfile_impl(
         &self,
         path: &PackagePath,
@@ -166,8 +173,8 @@ impl<F: MoveFlavor> PackageGraphBuilder<F> {
         Ok(Some(graph))
     }
 
-    /// Construct a new package graph for `env` by recursively fetching and reading manifest files
-    /// starting from the package at `path`.
+    /// Construct a new package graph for `env` by recursively fetching and
+    /// reading manifest files starting from the package at `path`.
     /// Lockfiles are ignored. See [PackageGraph::load]
     async fn load_from_manifests(
         &self,
@@ -193,17 +200,18 @@ impl<F: MoveFlavor> PackageGraphBuilder<F> {
         Ok(PackageGraph { inner: graph })
     }
 
-    /// Adds nodes and edges for the graph rooted at `dep` to `graph` and returns the node ID for
-    /// `dep`. Nodes are constructed by fetching the dependencies. All nodes that this function adds to
-    /// `graph` will be set to `Some` before this function returns.
+    /// Adds nodes and edges for the graph rooted at `dep` to `graph` and
+    /// returns the node ID for `dep`. Nodes are constructed by fetching the
+    /// dependencies. All nodes that this function adds to `graph` will be
+    /// set to `Some` before this function returns.
     ///
-    /// `cache` is used to short-circuit refetching - if a node is in `cache` then neither it nor its
-    /// dependencies will be readded.
+    /// `cache` is used to short-circuit refetching - if a node is in `cache`
+    /// then neither it nor its dependencies will be readded.
     ///
     /// TODO: keys for `cache` and `visited` should be `UnfetchedPackagePath`
     ///
-    /// Deadlock prevention: `cache` is never acquired while `graph` is held, so there cannot be a
-    /// deadlock
+    /// Deadlock prevention: `cache` is never acquired while `graph` is held, so
+    /// there cannot be a deadlock
     async fn add_transitive_manifest_deps(
         &self,
         dep: &PinnedDependencyInfo<F>,
@@ -211,7 +219,8 @@ impl<F: MoveFlavor> PackageGraphBuilder<F> {
         graph: Arc<Mutex<DiGraph<Option<Arc<PackageNode<F>>>, PackageName>>>,
         visited: Arc<Mutex<BTreeMap<PathBuf, NodeIndex>>>,
     ) -> PackageResult<NodeIndex> {
-        // return early if node is cached; add empty node to graph and visited list otherwise
+        // return early if node is cached; add empty node to graph and visited list
+        // otherwise
         let index = match visited
             .lock()
             .expect("unpoisoned")
