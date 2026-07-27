@@ -273,9 +273,11 @@ where
     /// already submitted to consensus (e.g. by a concurrent submission of the
     /// same digest): collect the 2f+1 effects-acknowledgment quorum and
     /// return the certified finalized effects, without submitting the
-    /// transaction again. Unlike `drive_transaction` there is no retry loop
-    /// to bound, so no timeout is taken: the certifier's per-request
-    /// timeouts already bound the call.
+    /// transaction again. Unlike `drive_transaction` there is no
+    /// resubmission retry loop, but the certifier retries the full-effects
+    /// fetch across validators, so in the worst case the call is bounded
+    /// only by committee size times the per-request timeout — callers
+    /// needing a tighter bound must wrap the call in their own timeout.
     ///
     /// # Panics
     ///
