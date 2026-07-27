@@ -359,7 +359,7 @@ async fn test_addresses_command() -> Result<(), anyhow::Error> {
     for _ in 0..3 {
         context.config_mut().keystore_mut().add_key(
             None,
-            SimpleKeypair::from(get_key_pair::<Ed25519PrivateKey>().1),
+            SimpleKeypair::from(get_key_pair::<iota_sdk_crypto::ed25519::Ed25519PrivateKey>().1),
         )?;
     }
 

@@ -8,8 +8,9 @@ use anyhow::Ok;
 use fastcrypto::encoding::{Base64, Encoding, Hex};
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore, InMemKeystore, Keystore, StoredKey};
 use iota_sdk_crypto::{
-    ToFromBytes as _, Verifier as _,
+    ToFromBech32, ToFromBytes as _, Verifier as _,
     ed25519::{Ed25519PrivateKey, Ed25519VerifyingKey},
+    secp256k1::Secp256k1PrivateKey,
 };
 use iota_sdk_types::{
     Address, Ed25519PublicKey, Ed25519Signature, ObjectDigest, ObjectId, ObjectReference,
@@ -120,7 +121,7 @@ async fn test_read_write_keystore_with_flag() {
 
     // create Secp256k1 keypair
     let kp_secp = SimpleKeypair::from(get_key_pair::<Secp256k1PrivateKey>().1);
-    let addr_secp: Address = (&kp_secp.public()).into();
+    let addr_secp: Address = kp_secp.public_key().derive_address();
     let fp_secp = dir.path().join(format!("{addr_secp}.key"));
     let fp_secp_2 = fp_secp.clone();
 
@@ -133,10 +134,7 @@ async fn test_read_write_keystore_with_flag() {
     assert!(kp_secp_read.is_ok());
 
     // KeyPair wrote into file is the same as read
-    assert_eq!(
-        kp_secp_read.unwrap().public().as_ref(),
-        kp_secp.public().as_ref()
-    );
+    assert_eq!(kp_secp_read.unwrap().to_bytes(), kp_secp.to_bytes());
 
     // read as AuthorityKeyPair fails
     let kp_secp_read = read_authority_keypair_from_file(fp_secp_2);
@@ -144,7 +142,7 @@ async fn test_read_write_keystore_with_flag() {
 
     // create Ed25519 keypair
     let kp_ed = SimpleKeypair::from(get_key_pair::<Ed25519PrivateKey>().1);
-    let addr_ed: Address = (&kp_ed.public()).into();
+    let addr_ed: Address = kp_ed.public_key().derive_address();
     let fp_ed = dir.path().join(format!("{addr_ed}.key"));
     let fp_ed_2 = fp_ed.clone();
 
@@ -157,10 +155,7 @@ async fn test_read_write_keystore_with_flag() {
     assert!(kp_ed_read.is_ok());
 
     // KeyPair wrote into file is the same as read
-    assert_eq!(
-        kp_ed_read.unwrap().public().as_ref(),
-        kp_ed.public().as_ref()
-    );
+    assert_eq!(kp_ed_read.unwrap().to_bytes(), kp_ed.to_bytes());
 
     // read from file as AuthorityKeyPair success
     let kp_ed_read = read_authority_keypair_from_file(fp_ed_2);
@@ -218,17 +213,18 @@ async fn test_private_keys_import_export() -> Result<(), anyhow::Error> {
         }
         .execute(&mut keystore)
         .await?;
-        let kp = SimpleKeypair::decode(private_key).unwrap();
+        let kp = SimpleKeypair::from_bech32(private_key).unwrap();
         let kp_from_hex = SimpleKeypair::from(
             Ed25519PrivateKey::from_bytes(Hex::decode(private_key_hex).unwrap()).unwrap(),
         );
-        assert_eq!(kp, kp_from_hex);
+        assert_eq!(kp.to_bytes(), kp_from_hex.to_bytes());
 
-        let kp_from_base64 = SimpleKeypair::decode_base64(private_key_base64).unwrap();
-        assert_eq!(kp, kp_from_base64);
+        let kp_from_base64 =
+            SimpleKeypair::from_bytes(Base64::decode(private_key_base64).unwrap()).unwrap();
+        assert_eq!(kp.to_bytes(), kp_from_base64.to_bytes());
 
         let addr = Address::from_str(address).unwrap();
-        assert_eq!(Address::from(&kp.public()), addr);
+        assert_eq!(kp.public_key().derive_address(), addr);
         assert!(keystore.addresses().contains(&addr));
 
         // Export output shows the private key in Bech32
@@ -306,9 +302,9 @@ async fn test_mnemonics_ed25519() -> Result<(), anyhow::Error> {
         }
         .execute(&mut keystore)
         .await?;
-        let kp = SimpleKeypair::decode(t[1]).unwrap();
+        let kp = SimpleKeypair::from_bech32(t[1]).unwrap();
         let addr = Address::from_str(t[2]).unwrap();
-        assert_eq!(Address::from(&kp.public()), addr);
+        assert_eq!(kp.public_key().derive_address(), addr);
         assert!(keystore.addresses().contains(&addr));
     }
     Ok(())
@@ -347,9 +343,9 @@ async fn test_mnemonics_secp256k1() -> Result<(), anyhow::Error> {
         }
         .execute(&mut keystore)
         .await?;
-        let kp = SimpleKeypair::decode(t[1]).unwrap();
+        let kp = SimpleKeypair::from_bech32(t[1]).unwrap();
         let addr = Address::from_str(t[2]).unwrap();
-        assert_eq!(Address::from(&kp.public()), addr);
+        assert_eq!(kp.public_key().derive_address(), addr);
         assert!(keystore.addresses().contains(&addr));
     }
     Ok(())
@@ -389,9 +385,9 @@ async fn test_mnemonics_secp256r1() -> Result<(), anyhow::Error> {
         .execute(&mut keystore)
         .await?;
 
-        let kp = SimpleKeypair::decode(sk).unwrap();
+        let kp = SimpleKeypair::from_bech32(sk).unwrap();
         let addr = Address::from_str(address).unwrap();
-        assert_eq!(Address::from(&kp.public()), addr);
+        assert_eq!(kp.public_key().derive_address(), addr);
         assert!(keystore.addresses().contains(&addr));
     }
 
