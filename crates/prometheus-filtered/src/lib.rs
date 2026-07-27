@@ -35,10 +35,7 @@
 //! crate behaves exactly like plain `prometheus`; use a bare `LEVEL` directive
 //! to set a stricter global default.
 
-use std::{
-    collections::HashMap,
-    sync::{Arc, OnceLock, RwLock},
-};
+use std::sync::{Arc, OnceLock, RwLock};
 
 /// Re-exported under a hidden alias so `$crate::prometheus::xxx!` works
 /// inside `#[macro_export]` macros without requiring callers to depend
@@ -49,9 +46,9 @@ pub use prometheus;
 // prometheus re-exports
 // ---------------------------------------------------------------------------
 
-// Filtering is enforced by registry membership (see `Registry::register_filtered`
-// and `Registry::reconcile`), so the metric types need no wrapping: re-export
-// prometheus's own types and generic primitives directly.
+// Filtering is enforced by a collector wrapper installed at registration (see
+// `Registry::register_filtered`), so the metric types need no wrapping:
+// re-export prometheus's own types and generic primitives directly.
 pub use prometheus::{
     Counter, CounterVec, Gauge, GaugeVec, Histogram, HistogramTimer, HistogramVec, IntCounter,
     IntCounterVec, IntGauge, IntGaugeVec, core,
@@ -103,6 +100,9 @@ struct FilterDirective {
     /// Empty string means the global default: it matches every metric but
     /// loses to any other matching directive.
     pattern: String,
+    /// `pattern` prefixed with `::`, precomputed so the per-gather module
+    /// component match allocates nothing.
+    component_pattern: String,
     /// Metrics matched by this directive are exposed iff their verbosity is
     /// `<= threshold`. `off=0`, `warn=1`, `info=2`, `debug=3`, `trace=4`.
     threshold: u8,
@@ -240,6 +240,7 @@ fn parse_directive(part: &str) -> std::result::Result<FilterDirective, String> {
         }
     };
     Ok(FilterDirective {
+        component_pattern: format!("::{pattern}"),
         pattern: pattern.to_owned(),
         threshold,
     })
@@ -288,7 +289,7 @@ fn threshold_for(directives: &[FilterDirective], name: &str, module: &str) -> Op
         let matches = dir.pattern.is_empty()
             || name.starts_with(dir.pattern.as_str())
             || module.starts_with(dir.pattern.as_str())
-            || module.contains(&format!("::{}", dir.pattern));
+            || module.contains(dir.component_pattern.as_str());
         if matches && best.is_none_or(|(len, _)| dir.pattern.len() >= len) {
             best = Some((dir.pattern.len(), dir.threshold));
         }
@@ -379,33 +380,39 @@ impl Filter {
 // Registry
 // ---------------------------------------------------------------------------
 
-/// A `prometheus::Collector` that can be boxed and cloned, so the registry can
-/// keep a handle to re-`register`/`unregister` it as the filter changes.
-pub trait CloneableCollector: prometheus::core::Collector {
-    fn clone_box(&self) -> Box<dyn CloneableCollector>;
-}
-
-impl<T: prometheus::core::Collector + Clone + 'static> CloneableCollector for T {
-    fn clone_box(&self) -> Box<dyn CloneableCollector> {
-        Box::new(self.clone())
-    }
-}
-
-/// A metric registered through the wrapper macros, retained so the filter can
-/// toggle its membership in the inner registry at runtime.
-struct RecordedMetric {
+/// A collector registered through the wrapper macros, wrapped so the filter
+/// decides its exposure at gather time: while the filter hides the metric,
+/// `collect` returns nothing, and the underlying metric keeps collecting.
+struct FilteredCollector<C> {
+    name: String,
     module: String,
     level: MetricLevel,
-    collector: Box<dyn CloneableCollector>,
+    filter: Arc<Filter>,
+    inner: C,
+}
+
+impl<C: prometheus::core::Collector> prometheus::core::Collector for FilteredCollector<C> {
+    fn desc(&self) -> Vec<&prometheus::core::Desc> {
+        self.inner.desc()
+    }
+
+    fn collect(&self) -> Vec<prometheus::proto::MetricFamily> {
+        if self.filter.is_exposed(&self.name, &self.module, self.level) {
+            self.inner.collect()
+        } else {
+            Vec::new()
+        }
+    }
 }
 
 /// Wraps `prometheus::Registry` with an embedded `Filter` so that
 /// `register_*_with_registry!` macros can decide whether a metric is exposed.
 ///
-/// Metrics registered through the wrapper macros are recorded with their module
-/// path, level, and a collector handle. Exposure is enforced by membership in
-/// the inner registry: a metric that the filter disables is `unregister`ed and
-/// re-`register`ed if the filter later enables it.
+/// Metrics registered through the wrapper macros join the inner registry
+/// wrapped in [`FilteredCollector`], which consults the filter on every
+/// `collect`.
+/// Exposure changes need no bookkeeping here: the next gather simply sees the
+/// new filter.
 #[derive(Clone)]
 pub struct Registry {
     inner: prometheus::Registry,
@@ -413,9 +420,6 @@ pub struct Registry {
     /// Name prefix passed to [`Registry::new_custom`]; gathered family names
     /// include it.
     prefix: Option<String>,
-    /// Gathered family name → recorded metric, for metrics registered via the
-    /// wrapper macros.
-    registered: Arc<RwLock<HashMap<String, RecordedMetric>>>,
 }
 
 impl Registry {
@@ -426,7 +430,6 @@ impl Registry {
             inner: prometheus::Registry::new(),
             filter: Arc::new(Filter::from_env()),
             prefix: None,
-            registered: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
@@ -440,7 +443,6 @@ impl Registry {
             inner: prometheus::Registry::new_custom(prefix.clone(), labels)?,
             filter: filter.unwrap_or_else(|| Arc::new(Filter::from_env())),
             prefix,
-            registered: Arc::new(RwLock::new(HashMap::new())),
         })
     }
 
@@ -458,9 +460,10 @@ impl Registry {
         }
     }
 
-    /// Used by the wrapper macros: Registers `collector` and records a
-    /// handle so the filter can toggle its exposure later. The collector joins
-    /// the inner registry only if the current filter exposes it.
+    /// Used by the wrapper macros: registers `collector` wrapped in
+    /// [`FilteredCollector`], so the filter in effect at each gather decides
+    /// whether the metric is exposed. Duplicate registrations are rejected by
+    /// the inner registry's descriptor check, hidden or not.
     #[inline]
     pub fn register_filtered<C>(
         &self,
@@ -472,47 +475,14 @@ impl Registry {
     where
         C: prometheus::core::Collector + Clone + 'static,
     {
-        let exposed_name = self.exposed_name(name);
-        let mut registered = self.registered.write().unwrap();
-        // Reject duplicate registration of the same metric name.
-        if registered.contains_key(&exposed_name) {
-            return Err(prometheus::Error::AlreadyReg);
-        }
-
-        let cloneable_collector: Box<dyn CloneableCollector> = Box::new(collector.clone());
-        if self.filter.is_exposed(&exposed_name, module, level) {
-            self.inner.register(cloneable_collector.clone_box())?;
-        }
-        registered.insert(
-            exposed_name,
-            RecordedMetric {
-                module: module.to_owned(),
-                level,
-                collector: cloneable_collector,
-            },
-        );
+        self.inner.register(Box::new(FilteredCollector {
+            name: self.exposed_name(name),
+            module: module.to_owned(),
+            level,
+            filter: self.filter.clone(),
+            inner: collector.clone(),
+        }))?;
         Ok(collector)
-    }
-
-    /// Re-evaluates every recorded metric against the current filter. Call
-    /// after changing the filter's runtime override.
-    pub fn reconcile(&self) {
-        // Snapshot the directives once so the whole pass sees a consistent
-        // filter and avoids re-locking them per metric.
-        let runtime = self.filter.runtime();
-        let registered = self.registered.read().unwrap();
-        for (name, recorded) in registered.iter() {
-            let want = threshold(&runtime.directives, name, &recorded.module)
-                >= recorded.level.verbosity();
-            if want {
-                match self.register(recorded.collector.clone_box()) {
-                    Ok(()) | Err(prometheus::Error::AlreadyReg) => {}
-                    Err(err) => warn!("failed to register metric {name}: {err}"),
-                }
-            } else {
-                let _ = self.unregister(recorded.collector.clone_box());
-            }
-        }
     }
 
     pub fn register(&self, c: Box<dyn prometheus::core::Collector>) -> prometheus::Result<()> {
@@ -558,7 +528,6 @@ pub fn default_registry() -> &'static Registry {
         inner: prometheus::default_registry().clone(),
         filter: default_filter().clone(),
         prefix: None,
-        registered: Arc::new(RwLock::new(HashMap::new())),
     })
 }
 
@@ -1126,14 +1095,11 @@ mod gather_filter_tests {
 
     #[test]
     fn duplicate_name_is_rejected_even_when_filtered_out() {
-        // The `off` directive unregisters the metric from the inner registry,
-        // but a second registration of the same name must still be rejected.
+        // The `off` directive hides the metric from gather, but its collector
+        // stays registered, so a second registration of the same name is
+        // still rejected by the inner registry's descriptor check.
         let reg = registry("g_dup=off");
-        // The first registration is registered then un-registered because `g_dup=off`.
         crate::register_int_gauge_with_registry!("g_dup", "h", &reg; MetricLevel::Warn).unwrap();
-        // The second registration is rejected because the metrics with the same name
-        // exists, it is just not in the registry map due to `g_dup=off`, so the
-        // second metric shouldn't exist.
         let err = crate::register_int_gauge_with_registry!("g_dup", "h", &reg; MetricLevel::Warn)
             .unwrap_err();
         assert!(
@@ -1198,19 +1164,17 @@ mod runtime_filter_tests {
         names
     }
 
-    // The node drives this via `RegistryService`; here we exercise the same
-    // two steps directly: set the runtime override, then reconcile membership.
+    // The node drives this via `RegistryService`; exposure follows the
+    // filter change on the next gather, with no extra step.
     fn set_runtime(registry: &Registry, s: &str) {
         registry
             .filter()
             .set_runtime_filter(FilterSource::new(s))
             .unwrap();
-        registry.reconcile();
     }
 
     fn reset_runtime(registry: &Registry) {
         registry.filter().reset_runtime_filter();
-        registry.reconcile();
     }
 
     #[test]

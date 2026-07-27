@@ -560,8 +560,6 @@ pub struct RegistryService {
     default_registry: Registry,
     registries_by_id: Arc<DashMap<Uuid, Registry>>,
     filter: Arc<Filter>,
-    /// Serializes filter updates and the reconciles they trigger.
-    reconcile_lock: Arc<Mutex<()>>,
 }
 
 impl RegistryService {
@@ -572,7 +570,6 @@ impl RegistryService {
             filter: default_registry.filter(),
             default_registry,
             registries_by_id: Arc::new(DashMap::new()),
-            reconcile_lock: Arc::new(Mutex::new(())),
         }
     }
 
@@ -605,18 +602,13 @@ impl RegistryService {
     // registry - we expected a removal to happen explicitly.
     pub fn add(&self, registry: Registry) -> RegistryID {
         let registry_id = Uuid::new_v4();
-        let _guard = self.reconcile_lock.lock();
         if self
             .registries_by_id
-            .insert(registry_id, registry.clone())
+            .insert(registry_id, registry)
             .is_some()
         {
             panic!("Other Registry already detected for the same id {registry_id}");
         }
-        // The registry may have been populated before a filter change whose
-        // reconcile pass could not see it yet; re-evaluate it now so its
-        // membership matches the filter currently in effect.
-        registry.reconcile();
 
         registry_id
     }
@@ -644,36 +636,26 @@ impl RegistryService {
         self.get_all().iter().flat_map(|r| r.gather()).collect()
     }
 
-    /// Sets the runtime override on the shared filter and reconciles every
-    /// registry. Rejects the whole update if any directive is invalid.
-    /// `directives` drive matching; `display` (e.g. the group-form input before
-    /// expansion) is what the admin endpoint echoes back.
+    /// Sets the runtime override on the shared filter; every registry's next
+    /// gather exposes metrics per the new directives. Rejects the whole
+    /// update if any directive is invalid. `directives` drive matching;
+    /// `display` (e.g. the group-form input before expansion) is what the
+    /// admin endpoint echoes back.
     pub fn set_runtime_filter(
         &self,
         directives: &str,
         display: &str,
     ) -> std::result::Result<(), String> {
-        let _guard = self.reconcile_lock.lock();
         self.filter
             .set_runtime_filter(prometheus_filtered::FilterSource::with_display(
                 directives, display,
-            ))?;
-        self.reconcile_all();
-        Ok(())
+            ))
     }
 
-    /// Drops the runtime override on the shared filter and reconciles every
-    /// registry back to its startup exposure.
+    /// Drops the runtime override on the shared filter, restoring every
+    /// registry to its startup exposure.
     pub fn reset_runtime_filter(&self) {
-        let _guard = self.reconcile_lock.lock();
         self.filter.reset_runtime_filter();
-        self.reconcile_all();
-    }
-
-    fn reconcile_all(&self) {
-        for registry in self.get_all() {
-            registry.reconcile();
-        }
     }
 }
 
@@ -874,7 +856,7 @@ mod tests {
     }
 
     #[test]
-    fn set_runtime_filter_reconciles_all_registries() {
+    fn set_runtime_filter_applies_to_all_registries() {
         use std::sync::Arc;
 
         use prometheus_filtered::{Filter, MetricLevel};
@@ -913,7 +895,8 @@ mod tests {
             ["default_g_warn", "second_g_warn"]
         );
 
-        // One runtime update reconciles every registry in the service.
+        // One runtime update changes the exposure of every registry in the
+        // service.
         registry_service
             .set_runtime_filter("iota_metrics=debug", "iota_metrics=debug")
             .unwrap();
