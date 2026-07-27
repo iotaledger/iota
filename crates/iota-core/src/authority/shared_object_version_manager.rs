@@ -497,7 +497,8 @@ mod tests {
     use std::collections::{BTreeMap, HashMap};
 
     use iota_sdk_types::{
-        Address, ObjectDigest, ObjectReference, RandomnessRound, SenderSignedTransaction,
+        Address, MoveAuthenticatorV1, ObjectDigest, ObjectReference, RandomnessRound,
+        SenderSignedTransaction, UserSignature,
     };
     use iota_test_transaction_builder::TestTransactionBuilder;
     use iota_types::{
@@ -1188,8 +1189,8 @@ mod tests {
 
     // A transaction without shared inputs that is cancelled for congestion
     // carries its cancellation version on the gas object. All three assignment
-    // paths must agree on that assignment: consensus processing (the
-    // assigned-versions table), the per-transaction assignment used for the
+    // paths must agree on that assignment: consensus processing, the
+    // per-transaction assignment used for the
     // consensus commit prologue, and the reconstruction from the effects'
     // execution status used by checkpoint replay.
     #[tokio::test]
@@ -1227,12 +1228,12 @@ mod tests {
         } = SharedObjVerManager::assign_versions_from_consensus(
             &epoch_store,
             authority.get_object_cache_reader().as_ref(),
-            [&transaction].into_iter(),
+            [Schedulable::Transaction(&transaction)].iter(),
             &cancelled_txns,
         )
         .unwrap();
         assert_eq!(
-            assigned_versions,
+            assigned_versions.0,
             vec![(transaction.key(), expected_assignment.clone())]
         );
         // The gas object must not leak into the shared object version
@@ -1242,7 +1243,8 @@ mod tests {
         // The per-transaction assignment recorded in the consensus commit
         // prologue.
         let prologue_assignment = SharedObjVerManager::assign_versions_for_transaction(
-            &transaction,
+            &epoch_store,
+            &Schedulable::Transaction(&transaction),
             &mut HashMap::new(),
             &cancelled_txns,
             true,
@@ -1265,7 +1267,7 @@ mod tests {
             authority.get_object_cache_reader().as_ref(),
         );
         assert_eq!(
-            replay_assignment,
+            replay_assignment.0,
             vec![(transaction.key(), expected_assignment)]
         );
 
@@ -1276,11 +1278,280 @@ mod tests {
         } = SharedObjVerManager::assign_versions_from_consensus(
             &epoch_store,
             authority.get_object_cache_reader().as_ref(),
-            [&not_cancelled].into_iter(),
+            [Schedulable::Transaction(&not_cancelled)].iter(),
             &cancelled_txns,
         )
         .unwrap();
-        assert!(assigned_versions.is_empty());
+        assert!(assigned_versions.0.is_empty());
+
+    /// Shared objects read by a transaction's `MoveAuthenticator`s are shared
+    /// inputs of that transaction even though they are absent from its own
+    /// inputs, so they must be assigned versions too — and a transaction whose
+    /// only shared input comes from an authenticator must not be skipped as
+    /// having no shared objects. Assigning from `TransactionData` instead of
+    /// the envelope would leave such inputs unassigned, and execution — which
+    /// reads the full set — would panic in `get_input_object_keys`.
+    #[tokio::test]
+    async fn test_assign_versions_from_consensus_with_move_authenticator() {
+        let body_object = Object::shared_for_testing();
+        let authenticated_object = Object::shared_for_testing();
+        let body_id = body_object.id();
+        let authenticated_id = authenticated_object.id();
+        let body_init_version = body_object
+            .owner
+            .into_opt_shared()
+            .expect("expected shared object");
+        let authenticated_init_version = authenticated_object
+            .owner
+            .into_opt_shared()
+            .expect("expected shared object");
+        let authority = TestAuthorityBuilder::new()
+            .with_starting_objects(&[body_object.clone(), authenticated_object.clone()])
+            .build()
+            .await;
+        let epoch_store = authority.epoch_store_for_testing();
+
+        let authenticate_shared_object = || {
+            MoveAuthenticatorV1::new_with_shared_account_object(
+                vec![],
+                vec![],
+                SharedObjectReference::new(authenticated_id, authenticated_init_version, false),
+            )
+        };
+        let transactions = [
+            // Shared input in the body plus one authenticated by the signature.
+            generate_tx_with_authenticator(
+                &[(body_id, body_init_version, true)],
+                authenticate_shared_object(),
+                3,
+            ),
+            // No shared input of its own: only the authenticated object.
+            generate_tx_with_authenticator(&[], authenticate_shared_object(), 5),
+        ];
+        let assignables = transactions
+            .iter()
+            .map(Schedulable::Transaction)
+            .collect::<Vec<_>>();
+        let ConsensusSharedObjVerAssignment {
+            shared_input_next_versions,
+            assigned_versions,
+        } = SharedObjVerManager::assign_versions_from_consensus(
+            &epoch_store,
+            authority.get_object_cache_reader().as_ref(),
+            assignables.iter(),
+            &BTreeMap::new(),
+        )
+        .unwrap();
+
+        assert_eq!(
+            assigned_versions.0,
+            vec![
+                (
+                    transactions[0].key(),
+                    vec![
+                        VersionAssignment::new(body_id, body_init_version),
+                        VersionAssignment::new(authenticated_id, authenticated_init_version),
+                    ]
+                ),
+                (
+                    transactions[1].key(),
+                    vec![VersionAssignment::new(
+                        authenticated_id,
+                        authenticated_init_version
+                    )]
+                ),
+            ]
+        );
+        // The body object is a mutable input, so it advances to the lamport
+        // version of the first transaction (its gas object is at version 3);
+        // the authenticated object is read-only and stays put.
+        assert_eq!(
+            shared_input_next_versions,
+            HashMap::from([
+                (body_id, Version::from_u64(4)),
+                (authenticated_id, authenticated_init_version),
+            ])
+        );
+    }
+
+    /// A `MoveAuthenticator`'s owned inputs count towards the transaction's
+    /// lamport version, since the transaction reads them like any other input.
+    /// Computing it from the transaction body alone would under-count and
+    /// assign shared objects a version below one their execution already
+    /// wrote.
+    #[tokio::test]
+    async fn test_assign_versions_from_consensus_with_owned_authenticator_input() {
+        let shared_object = Object::shared_for_testing();
+        let id = shared_object.id();
+        let init_shared_version = shared_object
+            .owner
+            .into_opt_shared()
+            .expect("expected shared object");
+        let authority = TestAuthorityBuilder::new()
+            .with_starting_objects(std::slice::from_ref(&shared_object))
+            .build()
+            .await;
+        let epoch_store = authority.epoch_store_for_testing();
+
+        // The authenticated object is owned and at a version far above the gas
+        // object's, so it alone decides the lamport version.
+        let authenticated_version = Version::from_u64(100);
+        let authenticator = MoveAuthenticatorV1::new_with_immutable_account_object(
+            vec![],
+            vec![],
+            ObjectReference::new(
+                ObjectId::random(),
+                authenticated_version,
+                ObjectDigest::random(),
+            ),
+        );
+        let transaction =
+            generate_tx_with_authenticator(&[(id, init_shared_version, true)], authenticator, 3);
+        let assignables = [Schedulable::Transaction(&transaction)];
+
+        let ConsensusSharedObjVerAssignment {
+            shared_input_next_versions,
+            assigned_versions,
+        } = SharedObjVerManager::assign_versions_from_consensus(
+            &epoch_store,
+            authority.get_object_cache_reader().as_ref(),
+            assignables.iter(),
+            &BTreeMap::new(),
+        )
+        .unwrap();
+
+        assert_eq!(
+            assigned_versions.0,
+            vec![(
+                transaction.key(),
+                vec![VersionAssignment::new(id, init_shared_version)]
+            )]
+        );
+        // Without the authenticator's owned input the lamport version would be
+        // 4 (from the gas object at version 3).
+        assert_eq!(
+            shared_input_next_versions,
+            HashMap::from([(id, authenticated_version.next().unwrap())])
+        );
+    }
+
+    /// When the transaction body and its `MoveAuthenticator` both reference a
+    /// shared object, the mutability flags are unioned: a read-only reference
+    /// in the body plus a mutable one in the authenticator makes the input
+    /// mutable, so its version must advance for later transactions. Taking the
+    /// flag from the body alone would leave the version behind while execution
+    /// writes the object.
+    #[tokio::test]
+    async fn test_assign_versions_from_consensus_unions_authenticator_mutability() {
+        let shared_object = Object::shared_for_testing();
+        let id = shared_object.id();
+        let init_shared_version = shared_object
+            .owner
+            .into_opt_shared()
+            .expect("expected shared object");
+        let authority = TestAuthorityBuilder::new()
+            .with_starting_objects(std::slice::from_ref(&shared_object))
+            .build()
+            .await;
+        let epoch_store = authority.epoch_store_for_testing();
+
+        // The mutable reference is a call argument: authenticating a mutable
+        // shared object is rejected outright by `validity_check`, so that is
+        // the only shape in which an authenticator can read one mutably. The
+        // authenticated object is owned and at a version below the gas
+        // object's, keeping it out of the lamport computation.
+        let authenticator = MoveAuthenticatorV1::new_with_immutable_account_object(
+            vec![CallArg::Shared(SharedObjectReference::new(
+                id,
+                init_shared_version,
+                true,
+            ))],
+            vec![],
+            ObjectReference::new(
+                ObjectId::random(),
+                Version::from_u64(1),
+                ObjectDigest::random(),
+            ),
+        );
+        // The body reads the very same object read-only.
+        let transaction =
+            generate_tx_with_authenticator(&[(id, init_shared_version, false)], authenticator, 3);
+        let reader =
+            generate_shared_objs_tx_with_gas_version(&[(id, init_shared_version, false)], 5);
+        let assignables = [
+            Schedulable::Transaction(&transaction),
+            Schedulable::Transaction(&reader),
+        ];
+
+        let ConsensusSharedObjVerAssignment {
+            shared_input_next_versions,
+            assigned_versions,
+        } = SharedObjVerManager::assign_versions_from_consensus(
+            &epoch_store,
+            authority.get_object_cache_reader().as_ref(),
+            assignables.iter(),
+            &BTreeMap::new(),
+        )
+        .unwrap();
+
+        // Treated as a mutable input, so the object advances to the lamport
+        // version of the first transaction and the reader sees the new one.
+        assert_eq!(
+            assigned_versions.0,
+            vec![
+                (
+                    transaction.key(),
+                    vec![VersionAssignment::new(id, init_shared_version)]
+                ),
+                (
+                    reader.key(),
+                    vec![VersionAssignment::new(id, Version::from_u64(4))]
+                ),
+            ]
+        );
+        assert_eq!(
+            shared_input_next_versions,
+            HashMap::from([(id, Version::from_u64(4))])
+        );
+    }
+
+    /// Like `generate_shared_objs_tx_with_gas_version`, but the transaction is
+    /// signed by the given `MoveAuthenticator`.
+    fn generate_tx_with_authenticator(
+        shared_objects: &[(ObjectId, Version, bool)],
+        authenticator: MoveAuthenticatorV1,
+        gas_object_version: u64,
+    ) -> VerifiedExecutableTransaction {
+        let mut builder = ProgrammableTransactionBuilder::new();
+        for (shared_object_id, shared_object_init_version, shared_object_mutable) in shared_objects
+        {
+            builder
+                .obj(CallArg::Shared(SharedObjectReference::new(
+                    *shared_object_id,
+                    *shared_object_init_version,
+                    *shared_object_mutable,
+                )))
+                .unwrap();
+        }
+        let tx_data = TestTransactionBuilder::new(
+            Address::ZERO,
+            ObjectReference::new(
+                ObjectId::random(),
+                Version::from_u64(gas_object_version),
+                ObjectDigest::random(),
+            ),
+            0,
+        )
+        .programmable(builder.finish())
+        .build();
+        let tx = SenderSignedTransaction::new(
+            tx_data,
+            vec![UserSignature::MoveAuthenticator(authenticator.into())],
+        );
+        VerifiedExecutableTransaction::new_unchecked(ExecutableTransaction::new_from_data_and_sig(
+            tx,
+            CertificateProof::new_system(0),
+        ))
     }
 
     /// Generate a transaction that uses shared objects as specified in the
