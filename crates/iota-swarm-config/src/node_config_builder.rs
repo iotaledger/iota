@@ -26,7 +26,10 @@ use iota_config::{
 use iota_names::config::IotaNamesConfig;
 use iota_protocol_config::Chain;
 use iota_types::{
-    crypto::{AuthorityKeyPair, AuthorityPublicKeyBytes, NetworkKeyPair},
+    crypto::{
+        AuthorityKeyPair, AuthorityPublicKeyBytes, NetworkKeyPair,
+        network_keypair_to_simple_keypair,
+    },
     multiaddr::Multiaddr,
     supported_protocol_versions::SupportedProtocolVersions,
     traffic_control::{PolicyConfig, RemoteFirewallConfig},
@@ -193,9 +196,13 @@ impl ValidatorConfigBuilder {
 
         NodeConfig {
             authority_key_pair: AuthorityKeyPairWithPath::new(validator.authority_key_pair),
-            network_key_pair: KeyPairWithPath::new(validator.network_key_pair.into()),
+            network_key_pair: KeyPairWithPath::new(network_keypair_to_simple_keypair(
+                &validator.network_key_pair,
+            )),
             account_key_pair: KeyPairWithPath::new(validator.account_key_pair),
-            protocol_key_pair: KeyPairWithPath::new(validator.protocol_key_pair.into()),
+            protocol_key_pair: KeyPairWithPath::new(network_keypair_to_simple_keypair(
+                &validator.protocol_key_pair,
+            )),
             db_path,
             network_address,
             metrics_address: validator.metrics_address,
@@ -396,7 +403,9 @@ impl FullnodeConfigBuilder {
 
     pub fn with_network_key_pair(mut self, network_key_pair: Option<NetworkKeyPair>) -> Self {
         if let Some(network_key_pair) = network_key_pair {
-            self.network_key_pair = Some(KeyPairWithPath::new(network_key_pair.into()));
+            self.network_key_pair = Some(KeyPairWithPath::new(network_keypair_to_simple_keypair(
+                &network_key_pair,
+            )));
         }
         self
     }
@@ -537,9 +546,11 @@ impl FullnodeConfigBuilder {
         NodeConfig {
             authority_key_pair: AuthorityKeyPairWithPath::new(validator_config.authority_key_pair),
             account_key_pair: KeyPairWithPath::new(validator_config.account_key_pair),
-            protocol_key_pair: KeyPairWithPath::new(validator_config.protocol_key_pair.into()),
+            protocol_key_pair: KeyPairWithPath::new(network_keypair_to_simple_keypair(
+                &validator_config.protocol_key_pair,
+            )),
             network_key_pair: self.network_key_pair.unwrap_or(KeyPairWithPath::new(
-                validator_config.network_key_pair.into(),
+                network_keypair_to_simple_keypair(&validator_config.network_key_pair),
             )),
             db_path: self
                 .db_path

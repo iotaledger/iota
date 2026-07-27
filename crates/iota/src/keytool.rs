@@ -35,7 +35,7 @@ use iota_keys::{
     keystore::{AccountKeystore, Keystore, StoredKey},
 };
 use iota_ledger::Ledger;
-use iota_sdk_crypto::{Signer as _, ToFromBytes as _, ed25519::Ed25519PrivateKey};
+use iota_sdk_crypto::{Signer as _, ToFromBech32, ToFromBytes as _, ed25519::Ed25519PrivateKey};
 use iota_sdk_types::{
     Address, SenderSignedTransaction, SignatureScheme, Transaction,
     crypto::{
@@ -598,7 +598,7 @@ impl KeyToolCommand {
 
                         let key = ExportedKey {
                             exported_private_key: keypair
-                                .encode()
+                                .to_bech32()
                                 .map_err(|_| anyhow!("Cannot decode keypair"))?,
                             key,
                         };
@@ -654,7 +654,7 @@ impl KeyToolCommand {
                 input_string,
                 key_scheme,
                 derivation_path,
-            } => match SimpleKeypair::decode(&input_string) {
+            } => match SimpleKeypair::from_bech32(&input_string) {
                 Ok(ikp) => {
                     info!("Importing Bech32 encoded private key to keystore");
                     let stored = ikp.into();
@@ -844,8 +844,8 @@ impl KeyToolCommand {
                 };
                 let signature: Signature = ikp.sign(&bytes);
                 let iota_signature = signature.to_base64();
-                let public_key = ikp.public().encode_base64();
-                let public_key_hex = Hex::encode_with_format(ikp.public().as_ref());
+                let public_key = PublicKey::from(ikp).encode_base64();
+                let public_key_hex = Hex::encode_with_format(PublicKey::from(ikp).as_ref());
                 let signature_hex = Hex::encode_with_format(signature.signature_bytes());
 
                 CommandOutput::SignRaw(SignRawData {
@@ -1181,7 +1181,7 @@ fn multisig_public_key(
 /// 3) Base64 encoded 33 bytes private key with flag.
 /// 4) Bech32 encoded 33 bytes private key with flag.
 fn convert_private_key_to_bech32(value: String) -> Result<ConvertOutput, anyhow::Error> {
-    let ikp = match SimpleKeypair::decode(&value) {
+    let ikp = match SimpleKeypair::from_bech32(&value) {
         Ok(s) => s,
         Err(_) => match Hex::decode(&value) {
             Ok(decoded) => {
@@ -1193,9 +1193,12 @@ fn convert_private_key_to_bech32(value: String) -> Result<ConvertOutput, anyhow:
                 }
                 SimpleKeypair::from(Ed25519PrivateKey::from_bytes(&decoded)?)
             }
-            Err(_) => match SimpleKeypair::decode_base64(&value) {
-                Ok(ikp) => ikp,
-                Err(_) => match Base64::decode(&value)
+            Err(_) => match Base64::decode(&value)
+                .ok()
+                .and_then(|bytes| SimpleKeypair::from_bytes(&bytes).ok())
+            {
+                Some(ikp) => ikp,
+                None => match Base64::decode(&value)
                     .ok()
                     .and_then(|bytes| Ed25519PrivateKey::from_bytes(&bytes).ok())
                 {
@@ -1207,9 +1210,11 @@ fn convert_private_key_to_bech32(value: String) -> Result<ConvertOutput, anyhow:
     };
 
     Ok(ConvertOutput {
-        bech32_with_flag: ikp.encode().map_err(|_| anyhow!("Cannot encode keypair"))?,
-        base64_with_flag: ikp.encode_base64(),
-        scheme: ikp.public().scheme().to_string(),
+        bech32_with_flag: ikp
+            .to_bech32()
+            .map_err(|_| anyhow!("Cannot encode keypair"))?,
+        base64_with_flag: Base64::encode(ikp.to_bytes()),
+        scheme: ikp.scheme().to_string(),
     })
 }
 

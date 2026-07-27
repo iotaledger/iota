@@ -20,7 +20,7 @@ use iota_types::{
     committee::EpochId,
     crypto::{
         AccountKeyPair, AuthorityKeyPair, AuthorityPublicKeyBytes, KeypairTraits, NetworkKeyPair,
-        PublicKey, SimpleKeypair, get_key_pair_from_rng,
+        SimpleKeypair, get_key_pair_from_rng,
     },
     messages_checkpoint::CheckpointSequenceNumber,
     multiaddr::Multiaddr,
@@ -790,7 +790,10 @@ impl NodeConfig {
     }
 
     pub fn iota_address(&self) -> Address {
-        (&PublicKey::from(self.account_key_pair.keypair())).into()
+        self.account_key_pair
+            .keypair()
+            .public_key()
+            .derive_address()
     }
 
     pub fn checkpoint_archive_config(&self) -> Option<&CheckpointArchiveConfig> {

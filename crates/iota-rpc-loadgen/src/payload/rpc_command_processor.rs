@@ -13,6 +13,7 @@ use std::{
 use anyhow::{Result, anyhow, bail};
 use async_trait::async_trait;
 use dashmap::{DashMap, DashSet};
+use fastcrypto::encoding::{Base64, Encoding};
 use futures::future::join_all;
 use iota_json_rpc_types::{
     IotaExecutionStatus, IotaObjectDataOptions, IotaTransactionBlockDataAPI,
@@ -45,6 +46,17 @@ use crate::{
 pub(crate) const DEFAULT_GAS_BUDGET: u64 = 500_000_000;
 pub(crate) const DEFAULT_LARGE_GAS_BUDGET: u64 = 50_000_000_000;
 pub(crate) const MAX_NUM_NEW_OBJECTS_IN_SINGLE_TRANSACTION: usize = 120;
+
+/// Base64 of the `flag || privkey` bytes.
+pub fn encode_base64_keypair(keypair: &SimpleKeypair) -> String {
+    Base64::encode(keypair.to_bytes())
+}
+
+/// Decode a keypair from base64 `flag || privkey` bytes.
+pub fn decode_base64_keypair(value: &str) -> Result<SimpleKeypair, anyhow::Error> {
+    let bytes = Base64::decode(value).map_err(|e| anyhow!("{e}"))?;
+    SimpleKeypair::from_bytes(&bytes).map_err(|e| anyhow!("{e}"))
+}
 
 #[derive(Clone)]
 pub struct RpcCommandProcessor {
@@ -566,9 +578,9 @@ async fn prepare_new_signer_and_coins(
         DEFAULT_GAS_BUDGET,
     );
 
-    let primary_keypair = SimpleKeypair::decode_base64(&signer_info.encoded_keypair)
+    let primary_keypair = decode_base64_keypair(&signer_info.encoded_keypair)
         .expect("decoding keypair should not fail");
-    let sender = Address::from(&primary_keypair.public());
+    let sender = primary_keypair.public_key().derive_address();
     let (coin, balance) = get_coin_with_max_balance(client, sender).await;
     // The balance needs to cover `pay_amount` plus
     // 1. gas fee for pay_iota from the primary address to the burner address
@@ -655,7 +667,7 @@ async fn prepare_new_signer_and_coins(
     }
     assert_eq!(results.len(), num_coins);
     debug!("Split off {} coins for gas payment {results:?}", num_coins);
-    (results, burner_keypair.encode_base64())
+    (results, encode_base64_keypair(&burner_keypair))
 }
 
 /// Calculate the number of transactions needed to split the given number of
@@ -731,7 +743,7 @@ async fn pay_iota(
     recipients: Vec<Address>,
     amounts: Vec<u64>,
 ) -> IotaTransactionBlockResponse {
-    let sender = Address::from(&keypair.public());
+    let sender = keypair.public_key().derive_address();
     let tx = client
         .transaction_builder()
         .pay(sender, input_coins, recipients, amounts, None, gas_budget)
@@ -753,7 +765,7 @@ async fn split_coins(
     gas_payment: ObjectId,
     num_coins: u64,
 ) -> Vec<ObjectId> {
-    let sender = Address::from(&keypair.public());
+    let sender = keypair.public_key().derive_address();
     let split_coin_tx = client
         .transaction_builder()
         .split_coin_equal(

@@ -147,6 +147,17 @@ pub fn verify_proof_of_possession(
 
 pub use iota_sdk_crypto::simple::SimpleKeypair;
 
+/// The validator network stacks keep using the fastcrypto ed25519 keypair
+/// type; this conversion lets those keys be stored in configs as
+/// [`SimpleKeypair`].
+pub fn network_keypair_to_simple_keypair(kp: &NetworkKeyPair) -> SimpleKeypair {
+    use iota_sdk_crypto::ToFromBytes as _;
+
+    SimpleKeypair::from(
+        Ed25519PrivateKey::from_bytes(kp.as_bytes()).expect("valid ed25519 private key bytes"),
+    )
+}
+
 impl From<&SimpleKeypair> for PublicKey {
     fn from(kp: &SimpleKeypair) -> Self {
         match kp.public_key() {

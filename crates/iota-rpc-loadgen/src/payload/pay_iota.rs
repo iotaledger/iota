@@ -35,7 +35,7 @@ impl<'a> ProcessPayload<'a, &'a PayIota> for RpcCommandProcessor {
         let gas_budget = gas_budget.unwrap_or(DEFAULT_GAS_BUDGET);
         let gas_payments = gas_payment.unwrap();
 
-        let keypair = SimpleKeypair::decode_base64(&encoded_keypair)
+        let keypair = crate::payload::decode_base64_keypair(&encoded_keypair)
             .expect("Decoding keypair should not fail");
 
         debug!(
@@ -43,7 +43,7 @@ impl<'a> ProcessPayload<'a, &'a PayIota> for RpcCommandProcessor {
             gas_payments.len()
         );
 
-        let sender = Address::from(&keypair.public());
+        let sender = keypair.public_key().derive_address();
         // TODO: For write operations, we usually just want to submit the transaction to
         // fullnode Let's figure out what's the best way to support other mode
         // later

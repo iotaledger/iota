@@ -7355,6 +7355,7 @@ dependencies = [
  "clap",
  "dashmap",
  "dirs",
+ "fastcrypto",
  "futures",
  "iota-json-rpc-types",
  "iota-keys",

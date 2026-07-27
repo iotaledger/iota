@@ -357,10 +357,10 @@ async fn test_addresses_command() -> Result<(), anyhow::Error> {
 
     // Add 3 accounts
     for _ in 0..3 {
-        context
-            .config_mut()
-            .keystore_mut()
-            .add_key(None, SimpleKeypair::from(get_key_pair().1))?;
+        context.config_mut().keystore_mut().add_key(
+            None,
+            SimpleKeypair::from(get_key_pair::<Ed25519PrivateKey>().1),
+        )?;
     }
 
     // Print all addresses
