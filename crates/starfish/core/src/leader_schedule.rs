@@ -751,11 +751,8 @@ impl LeaderSwapTable {
     /// performers both normalize to 100%. A node below the low threshold is
     /// bad; a node at or above the high threshold is good. The good pool
     /// extends down the ranking until it holds at least the minimum number
-    /// of validators, even past the low threshold if needed — spreading
-    /// swap-in duty across more validators matters more than excluding
-    /// every low scorer, since a low score reflects unreliability rather
-    /// than Byzantine behavior. The bad set is capped at the maximum
-    /// bad-node count. All thresholds come from the protocol config.
+    /// of validators; the bad set is capped at the maximum bad-node count.
+    /// All thresholds come from the protocol config.
     fn select_by_absolute_score(
         context: &Arc<Context>,
         authorities_by_score: &[(AuthorityIndex, u64)],
@@ -791,10 +788,8 @@ impl LeaderSwapTable {
         let committee_size = context.committee.size() as u64;
 
         // Good pool: the top scorers, extended past the high threshold until it
-        // holds at least the minimum number of validators. This can pull in a
-        // node below the low (bad) threshold rather than leave the pool too
-        // small to swap into; for small committees the minimum itself can
-        // still be a single validator.
+        // holds at least the minimum number of validators, enforced even if
+        // that requires including a node below the low (bad) threshold.
         let min_good =
             (protocol_config.min_good_nodes_percent() * committee_size).div_ceil(100) as usize;
         let mut good_nodes = Vec::new();
