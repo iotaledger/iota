@@ -8,8 +8,6 @@ mod manifest_error;
 use append_only_vec::AppendOnlyVec;
 use codespan_reporting::files::{SimpleFile, SimpleFiles};
 mod git_error;
-pub use git_error::GitError;
-pub use git_error::GitErrorKind;
 pub use lockfile_error::LockfileError;
 pub use manifest_error::ManifestError;
 pub use manifest_error::ManifestErrorKind;
@@ -33,6 +31,8 @@ use std::{
 use codespan_reporting::diagnostic::Diagnostic;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+
+use crate::git::errors::GitError;
 
 /// Result type for package operations
 pub type PackageResult<T> = Result<T, PackageError>;
