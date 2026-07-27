@@ -48,7 +48,7 @@ pub struct IndexedCheckpoint {
     pub non_refundable_storage_fee: u64,
     pub checkpoint_commitments: Vec<CheckpointCommitment>,
     pub validator_signature: AggregateAuthoritySignature,
-    pub contents_digest: CheckpointContentsDigest,
+    pub content_digest: CheckpointContentsDigest,
     pub version_specific_data: Vec<u8>,
     // Note: not used in StoredCheckpoint conversion and in code overall.
     pub successful_tx_num: usize,
@@ -95,7 +95,7 @@ impl IndexedCheckpoint {
             timestamp_ms: checkpoint.timestamp_ms,
             validator_signature: auth_sig.clone(),
             checkpoint_commitments: checkpoint.checkpoint_commitments.clone(),
-            contents_digest: checkpoint.contents_digest,
+            content_digest: checkpoint.contents_digest,
             version_specific_data: checkpoint.version_specific_data.clone(),
             min_tx_sequence_number,
             max_tx_sequence_number,

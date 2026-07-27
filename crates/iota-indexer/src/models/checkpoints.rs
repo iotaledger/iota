@@ -43,7 +43,7 @@ pub struct StoredCheckpoint {
     pub min_tx_sequence_number: Option<i64>,
     pub max_tx_sequence_number: Option<i64>,
     pub computation_cost_burned: Option<i64>,
-    pub contents_digest: Option<Vec<u8>>,
+    pub content_digest: Option<Vec<u8>>,
     pub version_specific_data: Option<Vec<u8>>,
 }
 
@@ -87,7 +87,7 @@ impl From<&IndexedCheckpoint> for StoredCheckpoint {
             end_of_epoch: c.end_of_epoch_data.is_some(),
             min_tx_sequence_number: Some(c.min_tx_sequence_number as i64),
             max_tx_sequence_number: Some(c.max_tx_sequence_number as i64),
-            contents_digest: Some(c.contents_digest.into_inner().to_vec()),
+            content_digest: Some(c.content_digest.into_inner().to_vec()),
             version_specific_data: Some(c.version_specific_data.clone()),
         }
     }
@@ -191,9 +191,9 @@ impl TryFrom<StoredCheckpoint> for CheckpointSummary {
     fn try_from(checkpoint: StoredCheckpoint) -> Result<CheckpointSummary, IndexerError> {
         let computation_cost_burned = checkpoint.computation_cost_burned();
 
-        let contents_digest_bytes = checkpoint.contents_digest.ok_or_else(|| {
+        let contents_digest_bytes = checkpoint.content_digest.ok_or_else(|| {
             IndexerError::PersistentStorageDataCorruption(
-                "checkpoint contents_digest is missing; re-index to populate it".to_string(),
+                "checkpoint content_digest is missing; re-index to populate it".to_string(),
             )
         })?;
         let contents_digest = CheckpointContentsDigest::from_bytes(contents_digest_bytes.clone())
@@ -334,7 +334,7 @@ mod tests {
                     .epoch_rolling_gas_cost_summary
                     .computation_cost_burned as i64,
             ),
-            contents_digest: Some(summary.contents_digest.into_inner().to_vec()),
+            content_digest: Some(summary.contents_digest.into_inner().to_vec()),
             version_specific_data: Some(summary.version_specific_data.clone()),
         };
 

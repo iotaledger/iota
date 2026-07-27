@@ -106,7 +106,7 @@ impl Checkpoint {
     /// returned.
     #[graphql(complexity = 0)]
     async fn bcs(&self) -> Result<Option<Base64>> {
-        if self.stored.contents_digest.is_none() || self.stored.version_specific_data.is_none() {
+        if self.stored.content_digest.is_none() || self.stored.version_specific_data.is_none() {
             return Ok(None);
         }
         let summary = CheckpointSummary::try_from(self.stored.clone())
