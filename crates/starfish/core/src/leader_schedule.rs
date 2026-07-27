@@ -742,6 +742,24 @@ impl LeaderSwapTable {
         (good_nodes, bad_nodes)
     }
 
+    /// High threshold (percent) for the absolute leader-schedule selection: a
+    /// validator whose reputation score, normalized to the highest score in
+    /// the window, is at or above this is a "good" (swap-in) node.
+    const GOOD_NODES_NORMALIZED_SCORE_THRESHOLD: u64 = 90;
+
+    /// Low threshold (percent) for the absolute leader-schedule selection: a
+    /// validator whose reputation score, normalized to the highest score in
+    /// the window, is strictly below this is a "bad" node.
+    const BAD_NODES_NORMALIZED_SCORE_THRESHOLD: u64 = 50;
+
+    /// Minimum size of the "good" (swap-in) pool, as a percent of the
+    /// validator count.
+    const MIN_GOOD_NODES_PERCENT: u64 = 20;
+
+    /// Maximum number of "bad" validators that may be excluded, as a percent
+    /// of the validator count.
+    const MAX_BAD_NODES_PERCENT: u64 = 33;
+
     /// Splits the score-descending `authorities_by_score` into the good
     /// (swap-in) and bad sets by performance relative to the top scorer. Each
     /// score is normalized against the highest score in the window, so the
@@ -752,7 +770,6 @@ impl LeaderSwapTable {
     /// bad; a node at or above the high threshold is good. The good pool
     /// extends down the ranking until it holds at least the minimum number
     /// of validators; the bad set is capped at the maximum bad-node count.
-    /// All thresholds come from the protocol config.
     fn select_by_absolute_score(
         context: &Arc<Context>,
         authorities_by_score: &[(AuthorityIndex, u64)],
@@ -760,9 +777,8 @@ impl LeaderSwapTable {
         Vec<(AuthorityIndex, String, Stake)>,
         BTreeMap<AuthorityIndex, (String, Stake)>,
     ) {
-        let protocol_config = &context.protocol_config;
-        let good_threshold = protocol_config.good_nodes_normalized_score_threshold() as u128;
-        let bad_threshold = protocol_config.bad_nodes_normalized_score_threshold() as u128;
+        let good_threshold = Self::GOOD_NODES_NORMALIZED_SCORE_THRESHOLD as u128;
+        let bad_threshold = Self::BAD_NODES_NORMALIZED_SCORE_THRESHOLD as u128;
 
         // Normalize against the highest score in this window (the top
         // performer). `authorities_by_score` is score descending, so the first
@@ -790,8 +806,7 @@ impl LeaderSwapTable {
         // Good pool: the top scorers, extended past the high threshold until it
         // holds at least the minimum number of validators, enforced even if
         // that requires including a node below the low (bad) threshold.
-        let min_good =
-            (protocol_config.min_good_nodes_percent() * committee_size).div_ceil(100) as usize;
+        let min_good = (Self::MIN_GOOD_NODES_PERCENT * committee_size).div_ceil(100) as usize;
         let mut good_nodes = Vec::new();
         for &(authority_idx, score) in authorities_by_score.iter() {
             if !is_good(score) && good_nodes.len() >= min_good {
@@ -803,7 +818,7 @@ impl LeaderSwapTable {
 
         // Bad set: the lowest scorers below the threshold, excluding any node
         // already claimed by the good pool, capped at the maximum bad-node count.
-        let max_bad = (protocol_config.max_bad_nodes_percent() * committee_size / 100) as usize;
+        let max_bad = (Self::MAX_BAD_NODES_PERCENT * committee_size / 100) as usize;
         let good_indexes = good_nodes
             .iter()
             .map(|(idx, _, _)| *idx)
@@ -822,6 +837,28 @@ impl LeaderSwapTable {
         (good_nodes, bad_nodes)
     }
 }
+
+const _: () = assert!(
+    LeaderSwapTable::GOOD_NODES_NORMALIZED_SCORE_THRESHOLD <= 100,
+    "GOOD_NODES_NORMALIZED_SCORE_THRESHOLD must be <= 100"
+);
+const _: () = assert!(
+    LeaderSwapTable::BAD_NODES_NORMALIZED_SCORE_THRESHOLD <= 100,
+    "BAD_NODES_NORMALIZED_SCORE_THRESHOLD must be <= 100"
+);
+const _: () = assert!(
+    LeaderSwapTable::GOOD_NODES_NORMALIZED_SCORE_THRESHOLD
+        > LeaderSwapTable::BAD_NODES_NORMALIZED_SCORE_THRESHOLD,
+    "GOOD_NODES_NORMALIZED_SCORE_THRESHOLD must be > BAD_NODES_NORMALIZED_SCORE_THRESHOLD"
+);
+const _: () = assert!(
+    LeaderSwapTable::MIN_GOOD_NODES_PERCENT >= 1,
+    "MIN_GOOD_NODES_PERCENT must be >= 1 so the good pool is non-empty"
+);
+const _: () = assert!(
+    LeaderSwapTable::MIN_GOOD_NODES_PERCENT + LeaderSwapTable::MAX_BAD_NODES_PERCENT < 70,
+    "MIN_GOOD_NODES_PERCENT + MAX_BAD_NODES_PERCENT must be < 70"
+);
 
 impl Debug for LeaderSwapTable {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {

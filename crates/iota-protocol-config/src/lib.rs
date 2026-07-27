@@ -1472,33 +1472,6 @@ pub struct ProtocolConfig {
     /// over (the scoring depth). When unset, defaults to 600. Consulted only
     /// when `consensus_enable_sliding_window_leader_schedule` is set.
     consensus_leader_schedule_window_size: Option<u32>,
-
-    /// High threshold (percent) for the absolute leader-schedule selection: an
-    /// authority whose reputation score, normalized to the highest score in the
-    /// window, is at or above this is a "good" (swap-in) node.
-    /// When unset, defaults to 90. Consulted only when
-    /// `consensus_enable_absolute_score_bad_nodes` is set.
-    consensus_good_nodes_normalized_score_threshold: Option<u64>,
-
-    /// Low threshold (percent) for the absolute leader-schedule selection: an
-    /// authority whose reputation score, normalized to the highest score in the
-    /// window, is strictly below this is a "bad" node. When unset, defaults to
-    /// 50. Consulted only when `consensus_enable_absolute_score_bad_nodes` is
-    /// set.
-    consensus_bad_nodes_normalized_score_threshold: Option<u64>,
-
-    /// Minimum size of the "good" (swap-in) pool, as a percent of the validator
-    /// count. When fewer nodes clear the high threshold, the pool extends to
-    /// the next-best scorers until it holds this many validators, so it is
-    /// never a single node. When unset, defaults to 20. Consulted only when
-    /// `consensus_enable_absolute_score_bad_nodes` is set.
-    consensus_min_good_nodes_percent: Option<u64>,
-
-    /// Maximum number of "bad" validators that may be excluded, as a percent of
-    /// the validator count. When more validators score below the low threshold,
-    /// only the worst up to this cap are excluded. When unset, defaults to 33.
-    /// Consulted only when `consensus_enable_absolute_score_bad_nodes` is set.
-    consensus_max_bad_nodes_percent: Option<u64>,
 }
 
 // feature flags
@@ -1916,49 +1889,7 @@ impl ProtocolConfig {
     }
 
     pub fn consensus_enable_absolute_score_bad_nodes(&self) -> bool {
-        let res = self.feature_flags.consensus_enable_absolute_score_bad_nodes;
-        if res {
-            assert!(
-                self.good_nodes_normalized_score_threshold() <= 100,
-                "consensus_enable_absolute_score_bad_nodes requires good_nodes_normalized_score_threshold <= 100"
-            );
-            assert!(
-                self.bad_nodes_normalized_score_threshold() <= 100,
-                "consensus_enable_absolute_score_bad_nodes requires bad_nodes_normalized_score_threshold <= 100"
-            );
-            assert!(
-                self.good_nodes_normalized_score_threshold()
-                    > self.bad_nodes_normalized_score_threshold(),
-                "consensus_enable_absolute_score_bad_nodes requires good threshold > bad threshold"
-            );
-            assert!(
-                self.min_good_nodes_percent() >= 1,
-                "consensus_enable_absolute_score_bad_nodes requires min_good_nodes_percent >= 1 so the good pool is non-empty"
-            );
-            assert!(
-                self.min_good_nodes_percent() + self.max_bad_nodes_percent() < 70,
-                "consensus_enable_absolute_score_bad_nodes requires min_good_nodes_percent + max_bad_nodes_percent < 70"
-            );
-        }
-        res
-    }
-
-    pub fn good_nodes_normalized_score_threshold(&self) -> u64 {
-        self.consensus_good_nodes_normalized_score_threshold
-            .unwrap_or(90)
-    }
-
-    pub fn bad_nodes_normalized_score_threshold(&self) -> u64 {
-        self.consensus_bad_nodes_normalized_score_threshold
-            .unwrap_or(50)
-    }
-
-    pub fn min_good_nodes_percent(&self) -> u64 {
-        self.consensus_min_good_nodes_percent.unwrap_or(20)
-    }
-
-    pub fn max_bad_nodes_percent(&self) -> u64 {
-        self.consensus_max_bad_nodes_percent.unwrap_or(33)
+        self.feature_flags.consensus_enable_absolute_score_bad_nodes
     }
 
     pub fn deny_rule_governance(&self) -> bool {
@@ -2588,10 +2519,6 @@ impl ProtocolConfig {
             auth_context_authenticator_function_info_v1_cost_base: None,
             consensus_commits_per_schedule: None,
             consensus_leader_schedule_window_size: None,
-            consensus_good_nodes_normalized_score_threshold: None,
-            consensus_bad_nodes_normalized_score_threshold: None,
-            consensus_min_good_nodes_percent: None,
-            consensus_max_bad_nodes_percent: None,
             // When adding a new constant, set it to None in the earliest version, like this:
             // new_constant: None,
         };
@@ -3450,22 +3377,6 @@ impl ProtocolConfig {
 
     pub fn set_consensus_enable_absolute_score_bad_nodes_for_testing(&mut self, val: bool) {
         self.feature_flags.consensus_enable_absolute_score_bad_nodes = val;
-    }
-
-    pub fn set_good_nodes_normalized_score_threshold_for_testing(&mut self, val: u64) {
-        self.consensus_good_nodes_normalized_score_threshold = Some(val);
-    }
-
-    pub fn set_bad_nodes_normalized_score_threshold_for_testing(&mut self, val: u64) {
-        self.consensus_bad_nodes_normalized_score_threshold = Some(val);
-    }
-
-    pub fn set_min_good_nodes_percent_for_testing(&mut self, val: u64) {
-        self.consensus_min_good_nodes_percent = Some(val);
-    }
-
-    pub fn set_max_bad_nodes_percent_for_testing(&mut self, val: u64) {
-        self.consensus_max_bad_nodes_percent = Some(val);
     }
 }
 
