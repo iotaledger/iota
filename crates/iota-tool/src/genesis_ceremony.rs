@@ -17,7 +17,6 @@ use iota_keys::keypair_file::{
     read_authority_keypair_from_file, read_keypair_from_file, read_network_keypair_from_file,
 };
 use iota_protocol_config::MAX_PROTOCOL_VERSION;
-use iota_sdk_types::Address;
 use iota_types::{
     committee::ProtocolVersion,
     crypto::{
@@ -340,6 +339,7 @@ mod test {
     use iota_macros::nondeterministic;
     use iota_types::crypto::{
         AccountKeyPair, AuthorityKeyPair, SimpleKeypair, get_key_pair_from_rng,
+        network_keypair_to_simple_keypair,
     };
 
     use super::*;
@@ -378,10 +378,18 @@ mod test {
                 write_authority_keypair_to_file(&authority_keypair, &authority_key_file).unwrap();
 
                 let protocol_key_file = dir.path().join(format!("{}.key", info.name));
-                write_keypair_to_file(&protocol_keypair.into(), &protocol_key_file).unwrap();
+                write_keypair_to_file(
+                    &network_keypair_to_simple_keypair(&protocol_keypair),
+                    &protocol_key_file,
+                )
+                .unwrap();
 
                 let network_key_file = dir.path().join(format!("{}-1.key", info.name));
-                write_keypair_to_file(&network_keypair.into(), &network_key_file).unwrap();
+                write_keypair_to_file(
+                    &network_keypair_to_simple_keypair(&network_keypair),
+                    &network_key_file,
+                )
+                .unwrap();
 
                 let account_key_file = dir.path().join(format!("{}-2.key", info.name));
                 write_keypair_to_file(&SimpleKeypair::from(account_keypair), &account_key_file)
