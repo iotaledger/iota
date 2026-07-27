@@ -15,6 +15,10 @@ use crate::errors::PackageResult;
 use serde::{Deserialize, Serialize};
 use serde_spanned::Spanned;
 
+use super::PinnedDependencyInfo;
+
+// TODO: PinnedLocalDependencies should be different from UnpinnedLocalDependency - the former also
+// needs an absolute filesystem path (which doesn't get serialized to the lockfile)
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct LocalDependency {
     /// The path on the filesystem, relative to the location of the containing
@@ -28,6 +32,12 @@ impl LocalDependency {
         let path = fs::canonicalize(&self.local)?;
         Ok(path)
     }
+
+    // TODO
+    // /// Given a local dependency inside a manifest living at [source], return a pinned dependency
+    // pub fn pin(&self, source: &PinnedDependencyInfo<F>) -> PackageResult<PinnedDependencyInfo<F>> {
+    //     todo!()
+    // }
 }
 
 // TODO: dead code
