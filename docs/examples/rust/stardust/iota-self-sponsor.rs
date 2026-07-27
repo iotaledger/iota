@@ -15,14 +15,13 @@ use iota_sdk::{
     IotaClientBuilder,
     rpc_types::{IotaObjectDataOptions, IotaTransactionBlockResponseOptions},
     types::{
-        crypto::SignatureScheme,
         gas_coin::GAS,
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         quorum_driver_types::ExecuteTransactionRequestType,
         transaction::{CallArg, Transaction, TransactionData},
     },
 };
-use iota_sdk_types::{Argument, Identifier, ObjectId, crypto::Intent};
+use iota_sdk_types::{Argument, Identifier, ObjectId, SignatureScheme, crypto::Intent};
 use iota_types::transaction::TransactionDataAPI;
 
 pub const IOTA_COIN_TYPE: u32 = 4218;
