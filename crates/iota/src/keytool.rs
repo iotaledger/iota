@@ -21,11 +21,10 @@ use aws_sdk_kms::{
 use bip32::DerivationPath;
 use clap::*;
 use fastcrypto::{
-    ed25519::Ed25519KeyPair,
     encoding::{Base64, Encoding, Hex},
     hash::HashFunction,
     secp256k1::recoverable::Secp256k1Sig,
-    traits::{KeyPair, Signer, ToFromBytes},
+    traits::KeyPair,
 };
 use iota_keys::{
     key_derive::generate_new_key,
@@ -36,6 +35,7 @@ use iota_keys::{
     keystore::{AccountKeystore, Keystore, StoredKey},
 };
 use iota_ledger::Ledger;
+use iota_sdk_crypto::{Signer as _, ToFromBytes as _, ed25519::Ed25519PrivateKey};
 use iota_sdk_types::{
     Address, SenderSignedTransaction, SignatureScheme, Transaction,
     crypto::{
@@ -43,8 +43,9 @@ use iota_sdk_types::{
     },
 };
 use iota_types::{
-    base_types::address_from_iota_pub_key,
-    crypto::{DefaultHash, EncodeDecodeBase64, IotaKeyPair, PublicKey, get_authority_key_pair},
+    crypto::{
+        DefaultHash, EncodeDecodeBase64, IotaKeyPair, PublicKey, Signature, get_authority_key_pair,
+    },
     error::IotaResult,
     move_authenticator::MoveAuthenticatorExt,
     multisig::{MultiSig, MultiSigPublicKey, MultisigMember, ThresholdUnit, WeightUnit},
@@ -786,7 +787,7 @@ impl KeyToolCommand {
                             );
                             CommandOutput::Show(Key {
                                 alias: None, // alias does not get stored in key files
-                                iota_address: address_from_iota_pub_key(keypair.public()),
+                                iota_address: authority_key_address(keypair.public().as_ref()),
                                 source: "keypair".to_string(),
                                 public_base64_key: Some(public_base64_key),
                                 public_base64_key_with_flag: Some(public_base64_key_with_flag),
@@ -840,7 +841,7 @@ impl KeyToolCommand {
                     StoredKey::KeyPair(kp) => kp,
                     _ => bail!("Not a keypair"),
                 };
-                let signature = ikp.sign(&bytes);
+                let signature: Signature = ikp.sign(&bytes);
                 let iota_signature = signature.to_base64();
                 let public_key = ikp.public().encode_base64();
                 let public_key_hex = Hex::encode_with_format(ikp.public().as_ref());
@@ -1189,13 +1190,16 @@ fn convert_private_key_to_bech32(value: String) -> Result<ConvertOutput, anyhow:
                         decoded.len()
                     );
                 }
-                IotaKeyPair::Ed25519(Ed25519KeyPair::from_bytes(&decoded)?)
+                IotaKeyPair::Ed25519(Ed25519PrivateKey::from_bytes(&decoded)?)
             }
             Err(_) => match IotaKeyPair::decode_base64(&value) {
                 Ok(ikp) => ikp,
-                Err(_) => match Ed25519KeyPair::decode_base64(&value) {
-                    Ok(kp) => IotaKeyPair::Ed25519(kp),
-                    Err(_) => bail!("Invalid private key encoding"),
+                Err(_) => match Base64::decode(&value)
+                    .ok()
+                    .and_then(|bytes| Ed25519PrivateKey::from_bytes(&bytes).ok())
+                {
+                    Some(kp) => IotaKeyPair::Ed25519(kp),
+                    None => bail!("Invalid private key encoding"),
                 },
             },
         },
@@ -1214,6 +1218,15 @@ fn anemo_styling(pk: &PublicKey) -> Option<String> {
     } else {
         None
     }
+}
+
+/// Authority keys have no on-chain account; this address only labels key
+/// files and `keytool` output.
+fn authority_key_address(public_key: &[u8]) -> Address {
+    let mut hasher = DefaultHash::default();
+    hasher.update([SignatureScheme::Bls12381.to_u8()]);
+    hasher.update(public_key);
+    Address::new(hasher.finalize().digest)
 }
 
 fn encode_public_key_with_flag_base64(flag: u8, public_key: &[u8]) -> String {

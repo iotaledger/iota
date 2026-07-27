@@ -13,7 +13,7 @@ use iota_sdk_types::{
     TransactionDigest, Version, checkpoint::CheckpointContents,
 };
 use iota_types::{
-    base_types::{AuthorityName, address_from_iota_pub_key},
+    base_types::AuthorityName,
     committee::{Committee, EpochId},
     crypto::{AccountKeyPair, AuthorityKeyPair},
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
@@ -519,7 +519,7 @@ impl Clone for KeyStore {
             account_keys: self
                 .account_keys
                 .iter()
-                .map(|(k, v)| (*k, v.copy()))
+                .map(|(k, v)| (*k, v.clone()))
                 .collect(),
         }
     }
@@ -545,7 +545,10 @@ impl KeyStore {
         let account_keys = network_config
             .account_keys
             .iter()
-            .map(|key| (address_from_iota_pub_key(key.public()), key.copy()))
+            .map(|key| {
+                let address = key.public_key().derive_address();
+                (address, key.clone())
+            })
             .collect();
         Self {
             validator_keys,

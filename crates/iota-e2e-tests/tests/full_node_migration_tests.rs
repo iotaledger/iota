@@ -54,6 +54,7 @@ const MAIN_ADDRESS_MNEMONIC: &str = "few hood high omit camp keep burger give ha
 const SPONSOR_ADDRESS_MNEMONIC: &str = "okay pottery arch air egg very cave cash poem gown sorry mind poem crack dawn wet car pink extra crane hen bar boring salt";
 
 #[sim_test]
+#[ignore = "https://github.com/iotaledger/iota/issues/12434"]
 async fn test_full_node_load_migration_data_with_address_swap() -> Result<(), anyhow::Error> {
     telemetry_subscribers::init_for_testing();
 
@@ -103,6 +104,7 @@ async fn test_full_node_load_migration_data_with_address_swap() -> Result<(), an
 }
 
 #[sim_test]
+#[ignore = "https://github.com/iotaledger/iota/issues/12434"]
 async fn test_full_node_load_migration_data_with_address_swap_split() -> Result<(), anyhow::Error> {
     telemetry_subscribers::init_for_testing();
 

@@ -4,7 +4,7 @@
 
 use std::path::Path;
 
-use iota_sdk_types::{TransactionEventsDigest, Version};
+use iota_sdk_types::Version;
 use iota_types::{
     effects::{TransactionEffects, TransactionEvents},
     global_state_hash::GlobalStateHash,
@@ -36,7 +36,6 @@ const ENV_VAR_OBJECTS_BLOCK_CACHE_SIZE: &str = "OBJECTS_BLOCK_CACHE_MB";
 pub(crate) const ENV_VAR_LOCKS_BLOCK_CACHE_SIZE: &str = "LOCKS_BLOCK_CACHE_MB";
 const ENV_VAR_TRANSACTIONS_BLOCK_CACHE_SIZE: &str = "TRANSACTIONS_BLOCK_CACHE_MB";
 const ENV_VAR_EFFECTS_BLOCK_CACHE_SIZE: &str = "EFFECTS_BLOCK_CACHE_MB";
-const ENV_VAR_EVENTS_BLOCK_CACHE_SIZE: &str = "EVENTS_BLOCK_CACHE_MB";
 
 /// Options to apply to every column family of the `perpetual` DB.
 #[derive(Default)]
@@ -105,11 +104,11 @@ pub struct AuthorityPerpetualTables {
     /// table. When we revert transactions, we remove them from both tables.
     pub(crate) executed_effects: DBMap<TransactionDigest, TransactionEffectsDigest>,
 
-    // Currently this is needed in the validator for returning events during process certificates.
-    // We could potentially remove this if we decided not to provide events in the execution path.
-    // TODO: Figure out what to do with this table in the long run.
-    // Also we need a pruning policy for this table. We can prune this table along with tx/effects.
-    pub(crate) events: DBMap<(TransactionEventsDigest, usize), Event>,
+    /// Deprecated: events keyed by events digest moved to `events_2`.
+    /// TODO: <https://github.com/iotaledger/iota/issues/12423>
+    #[allow(dead_code)]
+    #[deprecated_db_map]
+    events: Option<DBMap<(), ()>>,
 
     // Events keyed by the digest of the transaction that produced them.
     pub(crate) events_2: DBMap<TransactionDigest, TransactionEvents>,
@@ -213,10 +212,6 @@ impl AuthorityPerpetualTables {
             (
                 "effects".to_string(),
                 effects_table_config(db_options.clone()),
-            ),
-            (
-                "events".to_string(),
-                events_table_config(db_options.clone()),
             ),
         ]));
         Self::open_tables_read_write(
@@ -720,12 +715,6 @@ fn effects_table_config(db_options: DBOptions) -> DBOptions {
         .optimize_for_point_lookup(
             read_size_from_env(ENV_VAR_EFFECTS_BLOCK_CACHE_SIZE).unwrap_or(1024),
         )
-}
-
-fn events_table_config(db_options: DBOptions) -> DBOptions {
-    db_options
-        .optimize_for_write_throughput()
-        .optimize_for_read(read_size_from_env(ENV_VAR_EVENTS_BLOCK_CACHE_SIZE).unwrap_or(1024))
 }
 
 #[cfg(test)]

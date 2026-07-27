@@ -379,9 +379,8 @@ mod test {
     use iota_genesis_builder::validator_info::ValidatorInfo;
     use iota_keys::keypair_file::{write_authority_keypair_to_file, write_keypair_to_file};
     use iota_macros::nondeterministic;
-    use iota_types::{
-        base_types::address_from_iota_pub_key,
-        crypto::{AccountKeyPair, AuthorityKeyPair, IotaKeyPair, get_key_pair_from_rng},
+    use iota_types::crypto::{
+        AccountKeyPair, AuthorityKeyPair, IotaKeyPair, get_key_pair_from_rng,
     };
 
     use super::*;
@@ -405,7 +404,7 @@ mod test {
                     name: format!("validator-{i}"),
                     authority_key: authority_keypair.public().into(),
                     protocol_key: protocol_keypair.public().clone(),
-                    account_address: address_from_iota_pub_key(account_keypair.public()),
+                    account_address: account_keypair.public_key().derive_address(),
                     network_key: network_keypair.public().clone(),
                     gas_price: iota_config::node::DEFAULT_VALIDATOR_GAS_PRICE,
                     commission_rate: iota_config::node::DEFAULT_COMMISSION_RATE,
@@ -420,12 +419,10 @@ mod test {
                 write_authority_keypair_to_file(&authority_keypair, &authority_key_file).unwrap();
 
                 let protocol_key_file = dir.path().join(format!("{}.key", info.name));
-                write_keypair_to_file(&IotaKeyPair::Ed25519(protocol_keypair), &protocol_key_file)
-                    .unwrap();
+                write_keypair_to_file(&protocol_keypair.into(), &protocol_key_file).unwrap();
 
                 let network_key_file = dir.path().join(format!("{}-1.key", info.name));
-                write_keypair_to_file(&IotaKeyPair::Ed25519(network_keypair), &network_key_file)
-                    .unwrap();
+                write_keypair_to_file(&network_keypair.into(), &network_key_file).unwrap();
 
                 let account_key_file = dir.path().join(format!("{}-2.key", info.name));
                 write_keypair_to_file(&IotaKeyPair::Ed25519(account_keypair), &account_key_file)

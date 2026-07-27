@@ -21,7 +21,7 @@ use iota_sdk_types::{
     Version, crypto::SimpleSignature,
 };
 use iota_types::{
-    crypto::{AccountKeyPair, IotaKeyPair, get_key_pair},
+    crypto::{AccountKeyPair, get_key_pair},
     multisig::{BitmapUnit, MultiSig, MultiSigPublicKey},
     transaction::{
         CallArg, DEFAULT_VALIDATOR_GAS_PRICE, TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE,
@@ -409,7 +409,7 @@ impl TestTransactionBuilder {
         }
     }
 
-    pub fn build_and_sign(self, signer: impl Into<IotaKeyPair>) -> Transaction {
+    pub fn build_and_sign(self, signer: &impl Signer<SimpleSignature>) -> Transaction {
         Transaction::from_data_and_signer(self.build(), vec![signer])
     }
 
