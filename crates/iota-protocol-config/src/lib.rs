@@ -1919,6 +1919,14 @@ impl ProtocolConfig {
         let res = self.feature_flags.consensus_enable_absolute_score_bad_nodes;
         if res {
             assert!(
+                self.good_nodes_normalized_score_threshold() <= 100,
+                "consensus_enable_absolute_score_bad_nodes requires good_nodes_normalized_score_threshold <= 100"
+            );
+            assert!(
+                self.bad_nodes_normalized_score_threshold() <= 100,
+                "consensus_enable_absolute_score_bad_nodes requires bad_nodes_normalized_score_threshold <= 100"
+            );
+            assert!(
                 self.good_nodes_normalized_score_threshold()
                     > self.bad_nodes_normalized_score_threshold(),
                 "consensus_enable_absolute_score_bad_nodes requires good threshold > bad threshold"
