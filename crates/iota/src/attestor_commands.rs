@@ -6,6 +6,8 @@ use std::{
     fs,
     path::{Path, PathBuf},
 };
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt;
 
 use anyhow::{Result, anyhow, bail};
 use clap::Parser;
@@ -38,6 +40,10 @@ use rand::rngs::OsRng;
 use serde::Serialize;
 
 use crate::{PrintableResult, signing::sign_transaction, validator_commands::write_transaction_response};
+
+#[path = "unit_tests/attestor_tests.rs"]
+#[cfg(test)]
+mod attestor_tests;
 
 const DEFAULT_GAS_BUDGET: u64 = 200_000_000; // 0.2 IOTA
 
@@ -79,8 +85,11 @@ pub enum IotaAttestorCommand {
         #[arg(long)]
         gas_budget: Option<u64>,
     },
-    /// Generate a new signing key, stage its rotation (effective at the next
-    /// epoch boundary) and overwrite `attestor.key` with it.
+    /// Generate a new signing key and submit its rotation (effective at the
+    /// next epoch boundary). Fails if `attestor.key` already exists — the
+    /// current key stays valid on-chain until the rotation lands, so move it
+    /// aside first if you want to keep it, then re-run this command; the new
+    /// key is written to `attestor.key` before submitting.
     RotateKey {
         #[arg(long, default_value = "ed25519")]
         key_scheme: SignatureScheme,
@@ -123,7 +132,13 @@ pub enum IotaAttestorCommand {
 #[serde(untagged)]
 pub enum IotaAttestorCommandResponse {
     Register(IotaTransactionBlockResponse),
-    Deregister(IotaTransactionBlockResponse),
+    Deregister {
+        response: IotaTransactionBlockResponse,
+        /// Whether the bond refund is deferred to the next epoch boundary
+        /// (the attestor was active) rather than immediate (it was still
+        /// pending).
+        refund_deferred: bool,
+    },
     DepositBond(IotaTransactionBlockResponse),
     RotateKey(IotaTransactionBlockResponse),
     UpdateMetadata(IotaTransactionBlockResponse),
@@ -181,25 +196,27 @@ impl IotaAttestorCommand {
                 )
                 .await;
 
-                let response = match result {
-                    Ok(response) => {
-                        if !response.status_ok().unwrap_or(false) {
-                            let _ = fs::remove_file(&key_path);
-                        }
-                        response
-                    }
-                    Err(err) => {
-                        let _ = fs::remove_file(&key_path);
-                        return Err(err);
-                    }
-                };
-                IotaAttestorCommandResponse::Register(response)
+                warn_if_key_not_confirmed(&key_path, &result);
+                IotaAttestorCommandResponse::Register(result?)
             }
 
             IotaAttestorCommand::Deregister { gas_budget } => {
                 let gas_budget = gas_budget.unwrap_or(DEFAULT_GAS_BUDGET);
+                let sender = context.active_address()?;
+                let iota_client = context.get_client().await?;
+                // Read before submitting: whether the refund is immediate or deferred depends
+                // on which set the sender is in right now, not on the post-transaction state.
+                let registry = read_attestor_registry(&iota_client).await?;
+                let refund_deferred = registry
+                    .active_attestors
+                    .iter()
+                    .any(|a| a.attestor_address == sender);
+
                 let response = call_0x5(context, "deregister_attestor", vec![], gas_budget).await?;
-                IotaAttestorCommandResponse::Deregister(response)
+                IotaAttestorCommandResponse::Deregister {
+                    response,
+                    refund_deferred,
+                }
             }
 
             IotaAttestorCommand::DepositBond { amount, gas_budget } => {
@@ -216,25 +233,34 @@ impl IotaAttestorCommand {
             } => {
                 let gas_budget = gas_budget.unwrap_or(DEFAULT_GAS_BUDGET);
                 let sender = context.active_address()?;
+                let key_path = attestor_key_path(context)?;
+                if key_path.exists() {
+                    bail!(
+                        "an attestor key already exists at {key_path:?}; it remains valid \
+                         on-chain until the next epoch boundary, so move it away first if you \
+                         want to keep it, then re-run rotate-key"
+                    );
+                }
+
+                // Written before submitting so a failed or ambiguous submit never loses the
+                // freshly generated key.
                 let keypair = generate_attestor_keypair(key_scheme)?;
+                write_attestor_key(&key_path, &keypair, true)?;
+                let keypair = read_attestor_key(&key_path)?;
+
                 let pubkey = flagged_pubkey(&keypair);
                 let proof_of_possession = generate_attestor_proof_of_possession(&keypair, sender);
 
-                let response = call_0x5(
+                let result = call_0x5(
                     context,
                     "rotate_attestor_key",
                     vec![CallArg::pure(&pubkey), CallArg::pure(&proof_of_possession)],
                     gas_budget,
                 )
-                .await?;
+                .await;
 
-                // Only overwrite the key file once the rotation has actually landed;
-                // otherwise `attestor.key` would no longer match the on-chain key.
-                if response.status_ok().unwrap_or(false) {
-                    let key_path = attestor_key_path(context)?;
-                    write_attestor_key(&key_path, &keypair, true)?;
-                }
-                IotaAttestorCommandResponse::RotateKey(response)
+                warn_if_key_not_confirmed(&key_path, &result);
+                IotaAttestorCommandResponse::RotateKey(result?)
             }
 
             IotaAttestorCommand::UpdateName { name, gas_budget } => {
@@ -314,12 +340,52 @@ fn attestor_key_path(context: &WalletContext) -> Result<PathBuf> {
 
 fn write_attestor_key(path: &Path, keypair: &IotaKeyPair, allow_overwrite: bool) -> Result<()> {
     if !allow_overwrite && path.exists() {
-        bail!(
-            "attestor key file already exists at {path:?}; remove it or pass the flag that \
-             allows overwriting (rotate-key) if you meant to replace it"
-        );
+        bail!("an attestor key already exists at {path:?}; move it away if you are re-registering");
     }
-    write_keypair_to_file(keypair, path)
+    write_keypair_to_file(keypair, path)?;
+    set_key_file_permissions(path)?;
+    Ok(())
+}
+
+/// The attestor key file is written before submitting and is never deleted
+/// automatically, in either the register or rotate-key command — not even on
+/// a confirmed on-chain failure. Prints a warning telling the operator to
+/// remove it by hand before retrying, and to check `iota attestor display`
+/// first when the outcome isn't already known to have failed.
+fn warn_if_key_not_confirmed(key_path: &Path, result: &Result<IotaTransactionBlockResponse>) {
+    match result {
+        Ok(response) => match response.status_ok() {
+            Some(true) => {}
+            Some(false) => eprintln!(
+                "warning: the transaction failed on-chain; kept the attestor key at {}. Remove \
+                 it by hand before retrying.",
+                key_path.display()
+            ),
+            None => eprintln!(
+                "warning: transaction status is unknown; kept the attestor key at {}. Check \
+                 `iota attestor display` first, then remove it by hand before retrying if it did \
+                 not take effect.",
+                key_path.display()
+            ),
+        },
+        Err(_) => eprintln!(
+            "warning: submitting the transaction failed; kept the attestor key at {}. Check \
+             `iota attestor display` first, then remove it by hand before retrying if it did \
+             not take effect.",
+            key_path.display()
+        ),
+    }
+}
+
+#[cfg(unix)]
+fn set_key_file_permissions(path: &Path) -> Result<()> {
+    fs::set_permissions(path, fs::Permissions::from_mode(0o600))?;
+    Ok(())
+}
+
+#[cfg(not(unix))]
+fn set_key_file_permissions(_path: &Path) -> Result<()> {
+    Ok(())
 }
 
 fn read_attestor_key(path: &Path) -> Result<IotaKeyPair> {
@@ -332,7 +398,8 @@ async fn default_bond_amount(client: &IotaClient) -> Result<u64> {
         Some(Some(IotaProtocolConfigValue::U64(bond))) => Ok(*bond),
         _ => bail!(
             "Could not automatically determine the network's minimum attestor joining bond. \
-             Please provide a bond amount with --bond."
+             Please provide a bond amount with --bond. The parameter's absence usually means \
+             the network does not support attestors."
         ),
     }
 }
@@ -506,10 +573,12 @@ async fn display_attestor(client: &IotaClient, address: Address) -> Result<Strin
         .iter()
         .position(|a| a.attestor_address == address)
     {
-        (
-            format!("active (index {index})"),
-            Some(&registry.active_attestors[index]),
-        )
+        let status = if registry.pending_removals.contains(&(index as u64)) {
+            format!("active (index {index}, removal scheduled at next epoch boundary)")
+        } else {
+            format!("active (index {index})")
+        };
+        (status, Some(&registry.active_attestors[index]))
     } else if let Some(entry) = registry
         .pending_active
         .iter()
@@ -545,12 +614,9 @@ async fn display_attestor(client: &IotaClient, address: Address) -> Result<Strin
     Ok(out.trim_end().to_string())
 }
 
-impl PrintableResult for IotaAttestorCommandResponse {
-    // pretty is unused here, as this is handled for each command separately
-    fn print(&self, _pretty: bool) {
-        println!("{self}");
-    }
-}
+// Uses the trait's default `print`: pretty (non-`--json`) prints `Display`,
+// non-pretty (`--json`) prints `Debug`, which below is JSON.
+impl PrintableResult for IotaAttestorCommandResponse {}
 
 impl Display for IotaAttestorCommandResponse {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -558,11 +624,23 @@ impl Display for IotaAttestorCommandResponse {
         match self {
             IotaAttestorCommandResponse::Display(resp) => write!(writer, "{resp}")?,
             IotaAttestorCommandResponse::Register(resp)
-            | IotaAttestorCommandResponse::Deregister(resp)
             | IotaAttestorCommandResponse::DepositBond(resp)
             | IotaAttestorCommandResponse::RotateKey(resp)
             | IotaAttestorCommandResponse::UpdateMetadata(resp) => {
                 write!(writer, "{}", write_transaction_response(resp)?)?;
+            }
+            IotaAttestorCommandResponse::Deregister {
+                response,
+                refund_deferred,
+            } => {
+                write!(writer, "{}", write_transaction_response(response)?)?;
+                let refund = if *refund_deferred {
+                    "deferred to the next epoch boundary (the attestor was active)"
+                } else {
+                    "immediate (the attestor was still pending)"
+                };
+                writeln!(writer)?;
+                write!(writer, "  bond refund:       {refund}")?;
             }
         }
         write!(f, "{}", writer.trim_end_matches('\n'))
@@ -592,9 +670,21 @@ mod tests {
         write_attestor_key(&path, &kp, false).unwrap();
         let read = read_attestor_key(&path).unwrap();
         assert_eq!(read.public(), kp.public());
-        // second write without overwrite permission must fail
+        // second write without overwrite permission must fail: this is what makes both
+        // register and rotate-key refuse to run while a key file is already present.
         assert!(write_attestor_key(&path, &kp, false).is_err());
-        // rotate path allows it
+        // callers that have already made their own overwrite decision may still force it.
         write_attestor_key(&path, &kp, true).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn attestor_key_file_is_owner_read_write_only() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("attestor.key");
+        let kp = IotaKeyPair::Ed25519(iota_types::crypto::get_key_pair().1);
+        write_attestor_key(&path, &kp, false).unwrap();
+        let mode = fs::metadata(&path).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode, 0o600);
     }
 }

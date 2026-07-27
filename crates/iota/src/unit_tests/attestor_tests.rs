@@ -1,18 +1,16 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! End-to-end test for the `iota attestor` CLI command, driven directly
-//! against a test cluster's `WalletContext`.
-//!
 //! Enables `enable_external_attestation` (+ its required
-//! `enable_validator_attestation` and `enable_pcool_flow`).
-//! Own binary so the process-wide env override does not race others.
+//! `enable_validator_attestation` and `enable_pcool_flow`). Nextest runs one
+//! test per process, so the process-wide protocol-config env override below
+//! is safe.
 
-use iota::attestor_commands::{IotaAttestorCommand, IotaAttestorCommandResponse};
 use iota_keys::keypair_file::read_keypair_from_file;
-use iota_macros::sim_test;
 use iota_types::crypto::SignatureScheme;
 use test_cluster::TestClusterBuilder;
+
+use crate::attestor_commands::{IotaAttestorCommand, IotaAttestorCommandResponse};
 
 /// Sets protocol-config overrides via process-wide env vars for the duration
 /// of the test, clearing them on drop. Must be constructed before the cluster
@@ -44,11 +42,12 @@ impl Drop for ProtocolEnvOverride {
 
 /// Registering via the CLI lands the attestor pending; after one epoch
 /// boundary it shows active in `iota attestor display`. update-name,
-/// rotate-key and deposit-bond each succeed against an active attestor, and
-/// rotate-key overwrites `attestor.key` with a new keypair. Deregistering
-/// leaves it active until the following boundary, after which display
-/// reports it as not registered.
-#[sim_test]
+/// rotate-key and deposit-bond each succeed against an active attestor;
+/// rotate-key requires the existing `attestor.key` to be moved aside first
+/// and then writes a new keypair to it. Deregistering leaves it active
+/// (with removal scheduled) until the following boundary, after which
+/// display reports it as not registered.
+#[tokio::test]
 async fn test_attestor_cli_lifecycle() {
     telemetry_subscribers::init_for_testing();
     let _env = ProtocolEnvOverride::new(&[
@@ -159,6 +158,11 @@ async fn test_attestor_cli_lifecycle() {
         "update-name transaction must succeed"
     );
 
+    // rotate-key refuses to run while `attestor.key` is present (the current key stays
+    // valid on-chain until the rotation lands, so the operator must move it aside first).
+    let attestor_key_backup_path = attestor_key_path.with_extension("key.bak");
+    std::fs::rename(&attestor_key_path, &attestor_key_backup_path).unwrap();
+
     let resp = IotaAttestorCommand::RotateKey {
         key_scheme: SignatureScheme::Ed25519,
         gas_budget: None,
@@ -179,8 +183,9 @@ async fn test_attestor_cli_lifecycle() {
         .public();
     assert_ne!(
         registered_pubkey, rotated_pubkey,
-        "rotate-key must overwrite attestor.key with a new keypair"
+        "rotate-key must write a new keypair to attestor.key"
     );
+    std::fs::remove_file(&attestor_key_backup_path).unwrap();
 
     let resp = IotaAttestorCommand::DepositBond {
         amount: 1_000_000_000,
@@ -224,13 +229,21 @@ async fn test_attestor_cli_lifecycle() {
         .execute(&mut test_cluster.wallet)
         .await
         .unwrap();
-    let IotaAttestorCommandResponse::Deregister(deregister_response) = resp else {
+    let IotaAttestorCommandResponse::Deregister {
+        response: deregister_response,
+        refund_deferred,
+    } = resp
+    else {
         panic!("expected Deregister response");
     };
     assert_eq!(
         deregister_response.status_ok(),
         Some(true),
         "deregister transaction must succeed"
+    );
+    assert!(
+        refund_deferred,
+        "deregistering an active attestor must defer the refund to the next boundary"
     );
 
     let IotaAttestorCommandResponse::Display(out) = IotaAttestorCommand::Display {
@@ -243,7 +256,7 @@ async fn test_attestor_cli_lifecycle() {
         panic!("expected Display response");
     };
     assert!(
-        out.contains("active"),
+        out.contains("removal scheduled at next epoch boundary"),
         "deregistering an active attestor is deferred to the next boundary: {out}"
     );
 
