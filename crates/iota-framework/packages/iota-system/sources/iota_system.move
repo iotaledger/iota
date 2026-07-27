@@ -238,6 +238,10 @@ public entry fun register_attestor(
     bond: Coin<IOTA>,
     attestor_pubkey: vector<u8>,
     proof_of_possession: vector<u8>,
+    name: vector<u8>,
+    description: vector<u8>,
+    url: vector<u8>,
+    logo: vector<u8>,
     ctx: &mut TxContext,
 ) {
     attestor_registry::assert_feature_enabled();
@@ -250,6 +254,7 @@ public entry fun register_attestor(
         sender,
         epoch,
     );
+    attestor_registry::add_metadata(&mut wrapper.id, sender, name, description, url, logo);
 }
 
 /// Deregister the sender. A pending registration is refunded immediately;
@@ -259,10 +264,14 @@ public entry fun deregister_attestor(wrapper: &mut IotaSystemState, ctx: &mut Tx
     let sender = ctx.sender();
     let epoch = ctx.epoch();
     let mut refund = load_attestor_registry_mut(wrapper).deregister(sender, epoch);
-    if (refund.is_some()) {
+    let left_immediately = refund.is_some();
+    if (left_immediately) {
         transfer::public_transfer(refund.extract().into_coin(ctx), sender);
     };
     refund.destroy_none();
+    if (left_immediately) {
+        attestor_registry::remove_metadata(&mut wrapper.id, sender);
+    };
 }
 
 /// Add to the sender's bond (active or pending entry).
@@ -296,6 +305,46 @@ public entry fun rotate_attestor_key(
     );
 }
 
+/// Update the sender's attestor display name; effective immediately.
+public entry fun update_attestor_name(
+    wrapper: &mut IotaSystemState,
+    name: vector<u8>,
+    ctx: &TxContext,
+) {
+    attestor_registry::assert_feature_enabled();
+    attestor_registry::update_metadata_name(&mut wrapper.id, ctx.sender(), name);
+}
+
+/// Update the sender's attestor description; effective immediately.
+public entry fun update_attestor_description(
+    wrapper: &mut IotaSystemState,
+    description: vector<u8>,
+    ctx: &TxContext,
+) {
+    attestor_registry::assert_feature_enabled();
+    attestor_registry::update_metadata_description(&mut wrapper.id, ctx.sender(), description);
+}
+
+/// Update the sender's attestor URL; effective immediately.
+public entry fun update_attestor_url(
+    wrapper: &mut IotaSystemState,
+    url: vector<u8>,
+    ctx: &TxContext,
+) {
+    attestor_registry::assert_feature_enabled();
+    attestor_registry::update_metadata_url(&mut wrapper.id, ctx.sender(), url);
+}
+
+/// Update the sender's attestor logo; effective immediately.
+public entry fun update_attestor_logo(
+    wrapper: &mut IotaSystemState,
+    logo: vector<u8>,
+    ctx: &TxContext,
+) {
+    attestor_registry::assert_feature_enabled();
+    attestor_registry::update_metadata_logo(&mut wrapper.id, ctx.sender(), logo);
+}
+
 #[test_only]
 public fun active_attestor_count_for_testing(wrapper: &mut IotaSystemState): u64 {
     load_attestor_registry_mut(wrapper).active_count()
@@ -313,6 +362,14 @@ public fun slash_attestor_for_testing(
     amount: u64,
 ): Balance<IOTA> {
     load_attestor_registry_mut(wrapper).slash(attestor_address, amount)
+}
+
+#[test_only]
+public fun attestor_metadata_exists_for_testing(
+    wrapper: &IotaSystemState,
+    attestor_address: address,
+): bool {
+    dynamic_field::exists_(&wrapper.id, attestor_registry::metadata_key(attestor_address))
 }
 
 /// Add stake to a validator's staking pool.
@@ -643,7 +700,7 @@ fun advance_epoch(
     // inner state; evicted bonds are burned inside the inner advance_epoch.
     // Gating on the feature flag also creates the empty registry on the first
     // boundary once the feature is enabled.
-    let attestor_evicted_bonds = if (attestor_registry::is_feature_enabled()) {
+    let (attestor_evicted_bonds, departed_attestors) = if (attestor_registry::is_feature_enabled()) {
         let registry = load_attestor_registry_mut(wrapper);
         // The per-attestor activity feed is not threaded into this
         // transaction yet; until it is, report every attestor as active so
@@ -653,8 +710,9 @@ fun advance_epoch(
         registry.refresh_activity(all_indices, new_epoch - 1);
         registry.advance_epoch(new_epoch, ctx)
     } else {
-        balance::zero()
+        (balance::zero(), vector[])
     };
+    departed_attestors.do!(|addr| attestor_registry::remove_metadata(&mut wrapper.id, addr));
 
     let self = load_system_state_mut(wrapper);
     let storage_rebate = self.advance_epoch(

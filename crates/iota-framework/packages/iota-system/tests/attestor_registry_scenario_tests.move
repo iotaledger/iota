@@ -50,6 +50,10 @@ fun test_register_attestor_requires_feature_flag() {
         bond,
         ed25519_pubkey(),
         ed25519_pop(),
+        b"name",
+        b"desc",
+        b"https://example.com",
+        b"https://example.com/logo.png",
         scenario.ctx(),
     );
     test_scenario::return_shared(system_state);
@@ -106,6 +110,10 @@ fun test_register_activate_deregister_refund_through_system() {
             bond,
             ed25519_pubkey(),
             ed25519_pop(),
+            b"name",
+            b"desc",
+            b"https://example.com",
+            b"https://example.com/logo.png",
             scenario.ctx(),
         );
         assert!(iota_system::active_attestor_count_for_testing(&mut system_state) == 0);
@@ -159,6 +167,10 @@ fun test_rotate_attestor_key_through_system() {
             bond,
             ed25519_pubkey(),
             ed25519_pop(),
+            b"name",
+            b"desc",
+            b"https://example.com",
+            b"https://example.com/logo.png",
             scenario.ctx(),
         );
         test_scenario::return_shared(system_state);
@@ -205,6 +217,10 @@ fun test_low_bond_eviction_through_system() {
             bond,
             ed25519_pubkey(),
             ed25519_pop(),
+            b"name",
+            b"desc",
+            b"https://example.com",
+            b"https://example.com/logo.png",
             scenario.ctx(),
         );
         test_scenario::return_shared(system_state);
@@ -229,6 +245,81 @@ fun test_low_bond_eviction_through_system() {
     {
         let mut system_state = scenario.take_shared<IotaSystemState>();
         assert!(iota_system::active_attestor_count_for_testing(&mut system_state) == 0);
+        test_scenario::return_shared(system_state);
+    };
+    scenario_val.end();
+}
+
+#[test]
+fun test_metadata_lifecycle_through_system() {
+    protocol_config::set_feature_enabled_for_testing(ENABLE_EXTERNAL_ATTESTATION_FLAG, true);
+    set_up_iota_system_state(vector[@0x1, @0x2]);
+    let mut scenario_val = test_scenario::begin(ATTESTOR);
+    let scenario = &mut scenario_val;
+
+    scenario.next_tx(ATTESTOR);
+    {
+        let mut system_state = scenario.take_shared<IotaSystemState>();
+        let bond = coin::mint_for_testing<IOTA>(MIN_JOINING_BOND, scenario.ctx());
+        iota_system::register_attestor(
+            &mut system_state,
+            bond,
+            ed25519_pubkey(),
+            ed25519_pop(),
+            b"attestor-one",
+            b"an attestor",
+            b"https://example.com",
+            b"https://example.com/logo.png",
+            scenario.ctx(),
+        );
+        assert!(iota_system::attestor_metadata_exists_for_testing(&system_state, ATTESTOR));
+        iota_system::update_attestor_name(&mut system_state, b"attestor-two", scenario.ctx());
+        test_scenario::return_shared(system_state);
+    };
+
+    // pending deregistration refunds immediately and drops the metadata
+    scenario.next_tx(ATTESTOR);
+    {
+        let mut system_state = scenario.take_shared<IotaSystemState>();
+        iota_system::deregister_attestor(&mut system_state, scenario.ctx());
+        assert!(!iota_system::attestor_metadata_exists_for_testing(&system_state, ATTESTOR));
+        test_scenario::return_shared(system_state);
+    };
+    scenario_val.end();
+}
+
+#[test]
+fun test_metadata_removed_at_boundary_exit() {
+    protocol_config::set_feature_enabled_for_testing(ENABLE_EXTERNAL_ATTESTATION_FLAG, true);
+    set_up_iota_system_state(vector[@0x1, @0x2]);
+    let mut scenario_val = test_scenario::begin(ATTESTOR);
+    let scenario = &mut scenario_val;
+
+    scenario.next_tx(ATTESTOR);
+    {
+        let mut system_state = scenario.take_shared<IotaSystemState>();
+        let bond = coin::mint_for_testing<IOTA>(MIN_JOINING_BOND, scenario.ctx());
+        iota_system::register_attestor(
+            &mut system_state, bond, ed25519_pubkey(), ed25519_pop(),
+            b"n", b"d", b"https://u", b"https://l", scenario.ctx(),
+        );
+        test_scenario::return_shared(system_state);
+    };
+    advance_epoch(scenario);
+
+    // active deregistration: metadata survives until the boundary
+    scenario.next_tx(ATTESTOR);
+    {
+        let mut system_state = scenario.take_shared<IotaSystemState>();
+        iota_system::deregister_attestor(&mut system_state, scenario.ctx());
+        assert!(iota_system::attestor_metadata_exists_for_testing(&system_state, ATTESTOR));
+        test_scenario::return_shared(system_state);
+    };
+    advance_epoch(scenario);
+    scenario.next_tx(ATTESTOR);
+    {
+        let system_state = scenario.take_shared<IotaSystemState>();
+        assert!(!iota_system::attestor_metadata_exists_for_testing(&system_state, ATTESTOR));
         test_scenario::return_shared(system_state);
     };
     scenario_val.end();

@@ -21,9 +21,12 @@ module iota_system::attestor_registry;
 
 use iota::balance::{Self, Balance};
 use iota::coin;
+use iota::dynamic_field;
 use iota::event;
 use iota::iota::IOTA;
+use iota::url::{Self, Url};
 use iota_system::protocol_config;
+use std::string::String;
 
 // Protocol config parameter names, read via `protocol_config::get_attr`.
 const MIN_ATTESTOR_JOINING_BOND_PARAM: vector<u8> = b"min_attestor_joining_bond";
@@ -37,6 +40,8 @@ const ATTESTOR_INACTIVITY_PENALTY_PARAM: vector<u8> = b"attestor_inactivity_pena
 const EXIT_EVICTION: u8 = 0;
 const EXIT_INACTIVITY: u8 = 1;
 const EXIT_REMOVAL: u8 = 2;
+
+const MAX_ATTESTOR_METADATA_LENGTH: u64 = 256;
 
 const EFeatureNotEnabled: u64 = 0;
 const EBondTooLow: u64 = 1;
@@ -52,9 +57,27 @@ const ENotActiveAttestor: u64 = 7;
 #[allow(unused_const)]
 const EInvalidProofOfPossession: u64 = 8;
 const EDuplicatePubkey: u64 = 9;
+const EAttestorMetadataExceedingLengthLimit: u64 = 10;
+const ENoMetadataEntry: u64 = 11;
 
 /// Key for the attestor registry dynamic field on the IotaSystemState UID.
 public struct AttestorRegistryKey has copy, drop, store {}
+
+/// Key for one attestor's metadata dynamic field on the IotaSystemState UID.
+public struct AttestorMetadataKey has copy, drop, store {
+    attestor_address: address,
+}
+
+/// Display metadata, validated like the validator metadata. Lives as a
+/// per-attestor dynamic field, not inline in the registry: the registry is
+/// one object and 1000 permissionless entries of display strings would
+/// breach the object-size limit.
+public struct AttestorMetadataV1 has drop, store {
+    name: String,
+    description: String,
+    url: Url,
+    logo: Url,
+}
 
 public struct AttestorRegistryV1 has store {
     /// Active attestors, ordered. An attestor's per-epoch dense index is
@@ -158,6 +181,10 @@ public(package) fun assert_feature_enabled() {
 // === Construction ===
 
 public(package) fun registry_key(): AttestorRegistryKey { AttestorRegistryKey {} }
+
+public(package) fun metadata_key(attestor_address: address): AttestorMetadataKey {
+    AttestorMetadataKey { attestor_address }
+}
 
 public(package) fun new(): AttestorRegistryV1 {
     AttestorRegistryV1 {
@@ -386,14 +413,16 @@ public(package) fun rotate_key(
 ///    cannot escape the penalty by deregistering in the same epoch.
 /// 2. Staged key rotations applied in place.
 /// 3. Pending activations appended in registration order.
-/// Returns the evicted bonds and penalties; the caller burns them via the
-/// treasury cap.
+/// Returns the evicted bonds and penalties (the caller burns them via the
+/// treasury cap) and the addresses that left the active set, for the
+/// caller to drop their metadata.
 public(package) fun advance_epoch(
     self: &mut AttestorRegistryV1,
     new_epoch: u64,
     ctx: &mut TxContext,
-): Balance<IOTA> {
+): (Balance<IOTA>, vector<address>) {
     let mut evicted_bonds = balance::zero<IOTA>();
+    let mut departed = vector<address>[];
 
     // --- 1. Combined exits ---
     let low_bond_threshold: u64 = protocol_config::get_attr(ATTESTOR_LOW_BOND_THRESHOLD_PARAM);
@@ -444,6 +473,7 @@ public(package) fun advance_epoch(
             last_active_epoch: _,
         } = self.active_attestors.remove(idx);
         next_epoch_attestor_pubkey.destroy!(|_| ());
+        departed.push_back(attestor_address);
         if (reason == EXIT_EVICTION) {
             event::emit(AttestorEvictedEvent {
                 epoch: new_epoch,
@@ -498,7 +528,74 @@ public(package) fun advance_epoch(
         self.active_attestors.push_back(entry);
     };
 
-    evicted_bonds
+    (evicted_bonds, departed)
+}
+
+// === Metadata ===
+
+fun validated_string(bytes: vector<u8>): String {
+    assert!(
+        bytes.length() <= MAX_ATTESTOR_METADATA_LENGTH,
+        EAttestorMetadataExceedingLengthLimit,
+    );
+    bytes.to_ascii_string().to_string()
+}
+
+fun validated_url(bytes: vector<u8>): Url {
+    assert!(
+        bytes.length() <= MAX_ATTESTOR_METADATA_LENGTH,
+        EAttestorMetadataExceedingLengthLimit,
+    );
+    url::new_unsafe_from_bytes(bytes)
+}
+
+public(package) fun add_metadata(
+    uid: &mut UID,
+    attestor_address: address,
+    name: vector<u8>,
+    description: vector<u8>,
+    url: vector<u8>,
+    logo: vector<u8>,
+) {
+    dynamic_field::add(
+        uid,
+        metadata_key(attestor_address),
+        AttestorMetadataV1 {
+            name: validated_string(name),
+            description: validated_string(description),
+            url: validated_url(url),
+            logo: validated_url(logo),
+        },
+    );
+}
+
+public(package) fun remove_metadata(uid: &mut UID, attestor_address: address) {
+    let _: AttestorMetadataV1 = dynamic_field::remove(uid, metadata_key(attestor_address));
+}
+
+fun borrow_metadata_mut(uid: &mut UID, sender: address): &mut AttestorMetadataV1 {
+    assert!(dynamic_field::exists_(uid, metadata_key(sender)), ENoMetadataEntry);
+    dynamic_field::borrow_mut(uid, metadata_key(sender))
+}
+
+public(package) fun update_metadata_name(uid: &mut UID, sender: address, name: vector<u8>) {
+    borrow_metadata_mut(uid, sender).name = validated_string(name);
+}
+
+public(package) fun update_metadata_description(
+    uid: &mut UID,
+    sender: address,
+    description: vector<u8>,
+) {
+    borrow_metadata_mut(uid, sender).description = validated_string(description);
+}
+
+public(package) fun update_metadata_url(uid: &mut UID, sender: address, url: vector<u8>) {
+    borrow_metadata_mut(uid, sender).url = validated_url(url);
+}
+
+public(package) fun update_metadata_logo(uid: &mut UID, sender: address, logo: vector<u8>) {
+    borrow_metadata_mut(uid, sender).logo = validated_url(logo);
 }
 
 // === Slash hook (no public trigger yet) ===
