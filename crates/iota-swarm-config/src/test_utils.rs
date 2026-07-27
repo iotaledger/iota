@@ -206,7 +206,7 @@ impl CommitteeFixture {
                     sequence_number: prev.0.sequence_number + 1,
                     network_total_transactions: prev.0.network_total_transactions
                         + contents.num_of_transactions() as u64,
-                    contents_digest: contents_digest,
+                    contents_digest,
                     previous_digest: Some(*prev.0.digest()),
                     epoch_rolling_gas_cost_summary: Default::default(),
                     end_of_epoch_data: None,
