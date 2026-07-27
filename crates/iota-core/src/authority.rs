@@ -44,7 +44,7 @@ use iota_metrics::{
     TX_TYPE_SHARED_OBJ_TX, TX_TYPE_SINGLE_WRITER_TX, monitored_scope, spawn_monitored_task,
 };
 use iota_sdk_types::{
-    Address, CheckpointContentsDigest, CheckpointDigest, Digest, EndOfEpochTransactionKind, Event,
+    Address, CheckpointContentsDigest, CheckpointDigest, Digest, EndOfEpochTransactionKind,
     ExecutionStatus, GasPayment, MoveAuthenticator, MoveStruct, ObjectDigest, ObjectId,
     ObjectReference, Owner, RandomnessRound, StructTag, SystemPackage, TransactionDigest,
     TransactionEffectsDigest, TransactionExpiration, TransactionKind, TypeTag, Version,
@@ -229,7 +229,6 @@ pub mod authority_test_utils;
 pub mod authority_per_epoch_store;
 pub mod authority_per_epoch_store_pruner;
 
-mod authority_store_migrations;
 pub mod authority_store_pruner;
 pub mod authority_store_tables;
 pub mod authority_store_types;
@@ -3403,8 +3402,6 @@ impl AuthorityState {
             rx_ready_transactions,
             rx_execution_shutdown,
         ));
-        spawn_monitored_task!(authority_store_migrations::migrate_events(store));
-
         // TODO: This doesn't belong to the constructor of AuthorityState.
         state
             .create_owner_index_if_empty(genesis_objects, &epoch_store)
