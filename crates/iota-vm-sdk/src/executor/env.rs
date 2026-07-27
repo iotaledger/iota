@@ -106,7 +106,7 @@ impl ExecutionEnv {
 
         Ok(Some(DebugArtifacts {
             profile,
-            trace: trace_builder.map(|b| b.into_trace()),
+            trace: trace_builder.map(|b| b.into_trace().into_compressed_json_bytes()),
         }))
     }
 }

@@ -7,8 +7,6 @@
 
 use std::path::PathBuf;
 
-use move_trace_format::format::MoveTrace;
-
 /// Configuration for a single debug-enabled run.
 ///
 /// The [`Default`] disables all capture.
@@ -90,7 +88,9 @@ pub enum ProfileOutput {
 pub struct DebugArtifacts {
     /// Gas profile output, if [`DebugConfig::profile`] was set.
     pub profile: Option<ProfileOutput>,
-    /// Instruction-level execution trace. `None` unless the run went through
-    /// the `MoveAuthenticator` path (see [`DebugConfig::with_tracing`]).
-    pub trace: Option<MoveTrace>,
+    /// Instruction-level execution trace as zstd-compressed, line-delimited
+    /// JSON (the on-disk `.json.zst` trace format). `None` unless the run went
+    /// through the `MoveAuthenticator` path (see
+    /// [`DebugConfig::with_tracing`]).
+    pub trace: Option<Vec<u8>>,
 }

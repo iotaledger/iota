@@ -9648,6 +9648,7 @@ dependencies = [
  "move-core-types",
  "serde",
  "serde_json",
+ "zstd",
 ]
 
 [[package]]
