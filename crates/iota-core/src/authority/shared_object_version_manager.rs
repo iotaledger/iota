@@ -218,12 +218,15 @@ impl SharedObjVerManager {
             // is still read and charged normally during the cancelled
             // execution; this assignment only transports the cancellation.
             if shared_input_objects.is_empty() {
-                let Some(CancelConsensusTransactionReason::Congested {
-                    suggested_gas_price,
-                    ..
-                }) = cancellation_info
-                else {
-                    unreachable!("only congestion can cancel a transaction without shared inputs");
+                let suggested_gas_price = match cancellation_info {
+                    Some(CancelConsensusTransactionReason::Congested {
+                        suggested_gas_price,
+                        ..
+                    }) => suggested_gas_price,
+                    Some(CancelConsensusTransactionReason::DkgFailed) => unreachable!(
+                        "only congestion can cancel a transaction without shared inputs"
+                    ),
+                    None => unreachable!("cancelled transaction should have cancellation info"),
                 };
                 let assigned_version = if enable_gas_price_feedback {
                     Version::new_congested_with_suggested_gas_price(suggested_gas_price.expect(
@@ -769,6 +772,104 @@ mod tests {
                 ),
             ]
         );
+    }
+
+    // A transaction without shared inputs that is cancelled for congestion
+    // carries its cancellation version on the gas object. All three assignment
+    // paths must agree on that assignment: consensus processing (the
+    // assigned-versions table), the per-transaction assignment used for the
+    // consensus commit prologue, and the reconstruction from the effects'
+    // execution status used by checkpoint replay.
+    #[tokio::test]
+    async fn test_assign_versions_for_cancelled_tx_without_shared_inputs() {
+        let authority = TestAuthorityBuilder::new().build().await;
+        let epoch_store = authority.epoch_store_for_testing();
+        assert!(
+            epoch_store
+                .protocol_config()
+                .congestion_control_gas_price_feedback_mechanism()
+        );
+
+        let transaction = generate_shared_objs_tx_with_gas_version(&[], 3);
+        let gas_object_id = transaction.transaction().gas()[0].object_id;
+        let suggested_gas_price = 1_000;
+        let cancelled_txns: BTreeMap<TransactionDigest, CancelConsensusTransactionReason> = [(
+            *transaction.digest(),
+            CancelConsensusTransactionReason::Congested {
+                congested_objects: vec![],
+                suggested_gas_price: Some(suggested_gas_price),
+            },
+        )]
+        .into_iter()
+        .collect();
+
+        let expected_assignment = vec![VersionAssignment::new(
+            gas_object_id,
+            Version::new_congested_with_suggested_gas_price(suggested_gas_price).unwrap(),
+        )];
+
+        // Consensus processing.
+        let ConsensusSharedObjVerAssignment {
+            shared_input_next_versions,
+            assigned_versions,
+        } = SharedObjVerManager::assign_versions_from_consensus(
+            &epoch_store,
+            authority.get_object_cache_reader().as_ref(),
+            [&transaction].into_iter(),
+            &cancelled_txns,
+        )
+        .unwrap();
+        assert_eq!(
+            assigned_versions,
+            vec![(transaction.key(), expected_assignment.clone())]
+        );
+        // The gas object must not leak into the shared object version
+        // tracking.
+        assert!(shared_input_next_versions.is_empty());
+
+        // The per-transaction assignment recorded in the consensus commit
+        // prologue.
+        let prologue_assignment = SharedObjVerManager::assign_versions_for_transaction(
+            &transaction,
+            &mut HashMap::new(),
+            &cancelled_txns,
+            true,
+        );
+        assert_eq!(prologue_assignment, expected_assignment);
+
+        // Reconstruction from the effects' execution status (checkpoint
+        // replay).
+        let effects = TestEffectsBuilder::new(transaction.data())
+            .with_status(ExecutionStatus::Failure {
+                error: ExecutionError::ExecutionCanceledDueToSharedObjectCongestionV2 {
+                    congested_objects: vec![],
+                    suggested_gas_price,
+                },
+                command: None,
+            })
+            .build();
+        let replay_assignment = SharedObjVerManager::assign_versions_from_effects(
+            &[(&transaction, &effects)],
+            &epoch_store,
+            authority.get_object_cache_reader().as_ref(),
+        );
+        assert_eq!(
+            replay_assignment,
+            vec![(transaction.key(), expected_assignment)]
+        );
+
+        // A transaction that is not cancelled gets no assignment at all.
+        let not_cancelled = generate_shared_objs_tx_with_gas_version(&[], 5);
+        let ConsensusSharedObjVerAssignment {
+            assigned_versions, ..
+        } = SharedObjVerManager::assign_versions_from_consensus(
+            &epoch_store,
+            authority.get_object_cache_reader().as_ref(),
+            [&not_cancelled].into_iter(),
+            &cancelled_txns,
+        )
+        .unwrap();
+        assert!(assigned_versions.is_empty());
     }
 
     /// Generate a transaction that uses shared objects as specified in the

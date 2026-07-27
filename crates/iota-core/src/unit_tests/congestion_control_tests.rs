@@ -12,7 +12,7 @@ use iota_protocol_config::{
 use iota_sdk_types::{
     Address, ExecutionError, ExecutionStatus, Identifier, ObjectId, ObjectReference,
     RandomnessRound, SharedObjectReference, Transaction, TransactionDigest, TransactionEffects,
-    Version,
+    TransactionKind, Version,
 };
 use iota_types::{
     base_types::dbg_addr,
@@ -1501,4 +1501,164 @@ async fn test_execution_worker_congestion_cancels_shared_object_tx() {
         cancellations, 1,
         "exactly one transaction fits the single execution worker"
     );
+}
+
+// A cancelled transaction without shared inputs that pays with multiple gas
+// coins: the cancellation version is carried on the first gas coin, the
+// cancelled execution still smashes the coins (charging the merged first coin
+// and deleting the rest), and re-execution from the effects reproduces
+// identical effects.
+#[sim_test]
+async fn test_execution_worker_congestion_cancels_tx_with_multiple_gas_coins() {
+    telemetry_subscribers::init_for_testing();
+
+    // Same setup as the owned-object-only cancellation test: one execution
+    // worker, one transaction per commit, no deferral allowance.
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(true);
+        config.set_per_object_congestion_control_mode_for_testing(
+            PerObjectCongestionControlMode::TotalTxCount,
+        );
+        config.set_max_accumulated_txn_cost_per_object_in_mysticeti_commit_for_testing(1);
+        config.set_max_congestion_limit_overshoot_per_commit_for_testing(0);
+        config.set_max_concurrent_execution_workers_for_testing(1);
+        config.set_max_deferral_rounds_for_congestion_control_for_testing(0);
+        config
+    });
+
+    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let object_ids = [ObjectId::random(), ObjectId::random()];
+    let gas_ids = [
+        [ObjectId::random(), ObjectId::random()],
+        [ObjectId::random(), ObjectId::random()],
+    ];
+    let authority = init_state_with_ids(
+        object_ids
+            .iter()
+            .chain(gas_ids.iter().flatten())
+            .map(|id| (sender, *id))
+            .collect::<Vec<_>>(),
+    )
+    .await;
+    let epoch_store = authority.epoch_store_for_testing();
+    let rgp = authority.reference_gas_price_for_testing().unwrap();
+
+    let genesis_objects: Vec<Object> = object_ids
+        .iter()
+        .chain(gas_ids.iter().flatten())
+        .map(|id| authority.get_object(id).unwrap())
+        .collect();
+
+    // Two owned-object-only transfers, each paying with two gas coins.
+    let mut transactions = Vec::new();
+    for (object_id, tx_gas_ids) in object_ids.iter().zip(&gas_ids) {
+        let mut builder = ProgrammableTransactionBuilder::new();
+        builder
+            .transfer_object(
+                dbg_addr(2),
+                authority.get_object(object_id).unwrap().object_ref(),
+            )
+            .unwrap();
+        let data = Transaction::new_with_gas_coins(
+            TransactionKind::new_programmable(builder.finish()),
+            sender,
+            tx_gas_ids
+                .iter()
+                .map(|id| authority.get_object(id).unwrap().object_ref())
+                .collect(),
+            rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+            rgp,
+        );
+        transactions.push(to_sender_signed_transaction(data, &sender_key));
+    }
+
+    let sequenced_transactions = transactions
+        .iter()
+        .map(|tx| {
+            SequencedConsensusTransaction::new_test(ConsensusTransaction {
+                kind: ConsensusTransactionKind::UserTransactionV1(Box::new(tx.clone())),
+                tracking_id: Default::default(),
+            })
+        })
+        .collect();
+
+    let checkpoint_service = Arc::new(CheckpointServiceNoop {});
+    let executable_transactions = epoch_store
+        .process_consensus_transactions_for_tests(
+            sequenced_transactions,
+            &checkpoint_service,
+            authority.get_object_cache_reader().as_ref(),
+            authority.get_transaction_cache_reader().as_ref(),
+            &authority.metrics,
+            true,
+            authority.as_ref(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(executable_transactions.len(), 2);
+
+    let mut cancelled = Vec::new();
+    for tx in &executable_transactions {
+        let (effects, _) = authority
+            .try_execute_immediately(tx, None, &epoch_store)
+            .unwrap();
+        let is_cancelled = match effects.status() {
+            ExecutionStatus::Success => false,
+            ExecutionStatus::Failure {
+                error:
+                    ExecutionError::ExecutionCanceledDueToSharedObjectCongestionV2 {
+                        congested_objects,
+                        suggested_gas_price,
+                    },
+                command: None,
+            } => {
+                assert!(congested_objects.is_empty());
+                assert!(*suggested_gas_price > rgp);
+                true
+            }
+            other => panic!("expected success or congestion cancellation, got {other:?}"),
+        };
+        if is_cancelled {
+            cancelled.push((tx.clone(), effects));
+        }
+    }
+    assert_eq!(
+        cancelled.len(),
+        1,
+        "exactly one transaction fits the single execution worker"
+    );
+    let (cancelled_tx, effects) = cancelled.pop().unwrap();
+
+    // Gas was smashed and charged despite the cancellation: the first gas
+    // coin (the cancellation carrier) is mutated, the second is deleted.
+    let gas_coins = cancelled_tx.transaction().gas();
+    assert_eq!(gas_coins.len(), 2);
+    assert!(
+        effects
+            .mutated()
+            .iter()
+            .any(|(obj_ref, _)| obj_ref.object_id == gas_coins[0].object_id)
+    );
+    assert!(
+        effects
+            .deleted()
+            .iter()
+            .any(|obj_ref| obj_ref.object_id == gas_coins[1].object_id)
+    );
+    assert!(effects.input_shared_objects().is_empty());
+
+    // Re-execution from the effects must reproduce identical effects.
+    let authority_2 = init_state_with_objects(genesis_objects).await;
+    let epoch_store_2 = authority_2.epoch_store_for_testing();
+    epoch_store_2
+        .acquire_shared_version_assignments_from_effects(
+            &cancelled_tx,
+            &effects,
+            authority_2.get_object_cache_reader().as_ref(),
+        )
+        .unwrap();
+    let (effects_2, _) = authority_2
+        .try_execute_immediately(&cancelled_tx, None, &epoch_store_2)
+        .unwrap();
+    assert_eq!(effects, effects_2);
 }
