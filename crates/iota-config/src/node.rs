@@ -1584,11 +1584,10 @@ pub struct StateDebugDumpConfig {
 mod tests {
     use std::path::PathBuf;
 
-    use fastcrypto::traits::{KeyPair, ToFromBytes as _};
+    use fastcrypto::traits::KeyPair;
     use iota_keys::keypair_file::{write_authority_keypair_to_file, write_keypair_to_file};
-    use iota_sdk_crypto::{ToFromBytes as _, ed25519::Ed25519PrivateKey};
     use iota_types::crypto::{
-        AuthorityKeyPair, NetworkKeyPair, SimpleKeypair, get_key_pair_from_rng,
+        AuthorityKeyPair, NetworkKeyPair, get_key_pair_from_rng, network_keypair_to_simple_keypair,
     };
     use rand::{SeedableRng, rngs::StdRng};
 
@@ -1634,16 +1633,12 @@ mod tests {
         write_authority_keypair_to_file(&authority_key_pair, PathBuf::from("authority.key"))
             .unwrap();
         write_keypair_to_file(
-            &SimpleKeypair::from(
-                Ed25519PrivateKey::from_bytes(protocol_key_pair.as_bytes()).unwrap(),
-            ),
+            &network_keypair_to_simple_keypair(&protocol_key_pair),
             PathBuf::from("protocol.key"),
         )
         .unwrap();
         write_keypair_to_file(
-            &SimpleKeypair::from(
-                Ed25519PrivateKey::from_bytes(network_key_pair.as_bytes()).unwrap(),
-            ),
+            &network_keypair_to_simple_keypair(&network_key_pair),
             PathBuf::from("network.key"),
         )
         .unwrap();

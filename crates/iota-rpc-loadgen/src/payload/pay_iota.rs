@@ -6,7 +6,6 @@ use async_trait::async_trait;
 use futures::future::join_all;
 use iota_sdk_types::Address;
 use iota_types::{
-    crypto::SimpleKeypair,
     quorum_driver_types::ExecuteTransactionRequestType,
     transaction::{TransactionData, TransactionDataAPI},
 };

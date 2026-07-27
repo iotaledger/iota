@@ -14,7 +14,6 @@ use anyhow::anyhow;
 use fastcrypto::{
     encoding::{Base64, Encoding},
     hash::HashFunction,
-    traits::EncodeDecodeBase64,
 };
 use iota_sdk::{
     IotaClientBuilder,
