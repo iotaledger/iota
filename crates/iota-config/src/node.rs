@@ -1362,8 +1362,11 @@ pub struct KeyPairWithPath {
     #[serde(skip)]
     keypair: OnceCell<Arc<IotaKeyPair>>,
 
-    // Cached fastcrypto view of the protocol/network keys, whose consumers
-    // borrow the fastcrypto ed25519 type. Never populated for account keys.
+    // The consensus/network stacks borrow their key as `&Ed25519KeyPair`
+    // (fastcrypto), while the key itself is stored as an SDK `IotaKeyPair`
+    // above. Converting on each access would return an owned value, which
+    // can't back the `&`-returning accessors, so the converted key is cached
+    // here. Never populated for account keys.
     #[serde(skip)]
     ed25519_keypair: OnceCell<Arc<Ed25519KeyPair>>,
 }
