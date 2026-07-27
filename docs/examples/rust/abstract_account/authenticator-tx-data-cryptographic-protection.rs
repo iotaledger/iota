@@ -12,16 +12,13 @@ use docs_examples::utils::{
     request_tokens_from_faucet,
 };
 use iota_keys::keystore::{AccountKeystore, InMemKeystore};
-use iota_sdk::{
-    IotaClient, IotaClientBuilder, rpc_types::ObjectChange, types::crypto::SignatureScheme,
-};
+use iota_sdk::{IotaClient, IotaClientBuilder, rpc_types::ObjectChange};
 use iota_sdk_types::{
     Address, Argument, Identifier, ObjectId, ObjectReference, Owner, SharedObjectReference,
-    TransactionKind, TypeTag,
+    SignatureScheme, TransactionKind, TypeTag, UserSignature,
 };
 use iota_types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    signature::UserSignature,
     transaction::{CallArg, Transaction, TransactionData},
     utils::MoveAuthenticatorV1,
 };
