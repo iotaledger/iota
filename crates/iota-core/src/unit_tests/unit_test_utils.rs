@@ -61,7 +61,7 @@ async fn init_genesis(
             name: format!("validator-{i}"),
             authority_key: authority_pubkey_bytes,
             protocol_key: protocol_pubkey,
-            account_address: Address::from(&account_key_pair.public()),
+            account_address: account_key_pair.public_key().derive_address(),
             network_key: network_key_pair.public().clone(),
             gas_price: 1,
             commission_rate: 0,
@@ -72,8 +72,10 @@ async fn init_genesis(
             image_url: String::new(),
             project_url: String::new(),
         };
-        let pop =
-            generate_proof_of_possession(&authority_key_pair, (&account_key_pair.public()).into());
+        let pop = generate_proof_of_possession(
+            &authority_key_pair,
+            account_key_pair.public_key().derive_address(),
+        );
         builder = builder.add_validator(validator_info, pop);
         key_pairs.push((authority_pubkey_bytes, authority_key_pair));
     }

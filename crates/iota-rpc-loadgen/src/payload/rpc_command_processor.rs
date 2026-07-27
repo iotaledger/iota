@@ -23,9 +23,7 @@ use iota_json_rpc_types::{
 use iota_sdk::{IotaClient, IotaClientBuilder};
 use iota_sdk_types::{Address, ObjectId, ObjectReference, TransactionDigest};
 use iota_types::{
-    crypto::{
-        AccountKeyPair, EncodeDecodeBase64, IotaSignature, Signature, SimpleKeypair, get_key_pair,
-    },
+    crypto::{AccountKeyPair, IotaSignature, Signature, SimpleKeypair, get_key_pair},
     quorum_driver_types::ExecuteTransactionRequestType,
     transaction::{Transaction, TransactionData},
 };

@@ -743,7 +743,7 @@ async fn start(
             let keystore_path = faucet_config_dir.join(IOTA_KEYSTORE_FILENAME);
             let mut keystore = Keystore::from(FileBasedKeystore::new(&keystore_path).unwrap());
             let kp = SimpleKeypair::from(kp);
-            let address: Address = kp.address();
+            let address: Address = kp.public_key().derive_address();
             keystore.add_key(None, kp).unwrap();
             IotaClientConfig::new(keystore)
                 .with_envs([IotaEnv::new("localnet", fullnode_url)])

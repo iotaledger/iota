@@ -530,7 +530,7 @@ async fn test_validator_resign_effects() {
 #[sim_test]
 async fn test_validator_candidate_pool_read() {
     let new_validator = ValidatorGenesisConfigBuilder::new().build(&mut OsRng);
-    let address: Address = (&new_validator.account_key_pair.public()).into();
+    let address: Address = new_validator.account_key_pair.public_key().derive_address();
     let test_cluster = TestClusterBuilder::new()
         .with_validator_candidates([address])
         .build()
@@ -652,7 +652,7 @@ async fn test_reconfig_with_committee_change_basic() {
 
     let new_validator = ValidatorGenesisConfigBuilder::new().build(&mut OsRng);
     let new_authority_name = new_validator.authority_key_pair.public().into();
-    let address = (&new_validator.account_key_pair.public()).into();
+    let address = new_validator.account_key_pair.public_key().derive_address();
     let mut test_cluster = TestClusterBuilder::new()
         .with_validator_candidates([address])
         .build()
@@ -799,7 +799,7 @@ async fn test_reconfig_with_same_validator() {
     // the node that will re-join committee
     let node_config = build_node_config();
     let node_name: AuthorityPublicKeyBytes = node_config.authority_key_pair.public().into();
-    let node_address = (&node_config.account_key_pair.public()).into();
+    let node_address = node_config.account_key_pair.public_key().derive_address();
     let mut node_handle = None;
 
     // add coins to the node at the genesis to avoid dealing with faucet
@@ -906,7 +906,7 @@ async fn do_test_reconfig_with_committee_change_stress() {
         .collect::<Vec<_>>();
     let addresses = candidates
         .iter()
-        .map(|c| (&c.account_key_pair.public()).into())
+        .map(|c| c.account_key_pair.public_key().derive_address())
         .collect::<Vec<Address>>();
     let mut test_cluster = TestClusterBuilder::new()
         .with_num_validators(7)
@@ -1225,7 +1225,7 @@ async fn test_authority_capabilities_incorrect_epoch_rejection() {
     // is rejected by the committee
     let new_validator = ValidatorGenesisConfigBuilder::new().build(&mut OsRng);
     let new_authority_name = new_validator.authority_key_pair.public().into();
-    let address = (&new_validator.account_key_pair.public()).into();
+    let address = new_validator.account_key_pair.public_key().derive_address();
     let test_cluster = TestClusterBuilder::new()
         .with_validator_candidates([address])
         .build()
@@ -1312,7 +1312,7 @@ async fn add_validator_candidate(
             ),
         }
     });
-    let address = (&new_validator.account_key_pair.public()).into();
+    let address = new_validator.account_key_pair.public_key().derive_address();
     let gas = test_cluster
         .wallet
         .get_one_gas_object_owned_by_address(address)
@@ -1415,7 +1415,7 @@ async fn execute_add_validator_transactions(
     });
     add_validator_candidate(test_cluster, new_validator).await;
 
-    let address = (&new_validator.account_key_pair.public()).into();
+    let address = new_validator.account_key_pair.public_key().derive_address();
     let min_validator_joining_stake = test_cluster.protocol_config().min_validator_joining_stake();
     let stake_coin = test_cluster
         .wallet
