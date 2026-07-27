@@ -304,7 +304,7 @@ async fn epoch_info_proof_bundle_tampering_is_rejected() {
     let cases: Vec<(&str, &str, Box<dyn Fn(&mut EpochInfoV1Entry)>)> = vec![
         (
             "contents",
-            "does not hash to the signed content_digest",
+            "does not hash to the signed contents_digest",
             Box::new(|entry| {
                 entry.last_checkpoint_contents =
                     CheckpointContents::new_with_digests_only_for_tests(std::iter::empty());

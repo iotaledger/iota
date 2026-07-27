@@ -446,7 +446,7 @@ impl ReadStore for InMemoryStore {
     ) -> iota_types::storage::error::Result<Option<CheckpointContents>> {
         Ok(self
             .get_checkpoint_by_sequence_number(sequence_number)
-            .and_then(|c| self.get_checkpoint_contents(&c.content_digest).cloned()))
+            .and_then(|c| self.get_checkpoint_contents(&c.contents_digest).cloned()))
     }
 
     fn try_get_transaction(

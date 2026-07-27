@@ -301,7 +301,7 @@ pub fn print_checkpoint(path: &Path, opt: PrintCheckpointOptions) -> anyhow::Res
     print_checkpoint_content(
         path,
         PrintCheckpointContentOptions {
-            digest: checkpoint.content_digest,
+            digest: checkpoint.contents_digest,
         },
     )
 }
@@ -457,7 +457,7 @@ pub fn set_checkpoint_watermark(
         // will panic if it tries to execute a checkpoint whose contents are
         // missing from the store.
         if checkpoint_db
-            .get_checkpoint_contents(&checkpoint.content_digest)?
+            .get_checkpoint_contents(&checkpoint.contents_digest)?
             .is_none()
         {
             bail!(

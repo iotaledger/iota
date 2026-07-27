@@ -3263,7 +3263,7 @@ impl AuthorityState {
         let contents = match &summary {
             Some(s) => self
                 .checkpoint_store
-                .get_checkpoint_contents(&s.content_digest())?,
+                .get_checkpoint_contents(&s.contents_digest())?,
             None => None,
         };
         Ok(CheckpointResponse {
@@ -4468,7 +4468,7 @@ impl AuthorityState {
         let summary = self
             .get_verified_checkpoint_by_sequence_number(0)?
             .into_message();
-        let content = self.get_checkpoint_contents(summary.content_digest)?;
+        let content = self.get_checkpoint_contents(summary.contents_digest)?;
         let genesis_transaction = content.enumerate_transactions(&summary).next();
         Ok(genesis_transaction
             .ok_or(IotaError::UserInput {
@@ -4532,8 +4532,8 @@ impl AuthorityState {
             .get_checkpoint_by_sequence_number(sequence_number)?;
         match verified_checkpoint {
             Some(verified_checkpoint) => {
-                let content_digest = verified_checkpoint.into_inner().content_digest;
-                self.get_checkpoint_contents(content_digest)
+                let contents_digest = verified_checkpoint.into_inner().contents_digest;
+                self.get_checkpoint_contents(contents_digest)
             }
             None => Err(IotaError::UserInput {
                 error: UserInputError::VerifiedCheckpointNotFound(sequence_number),
@@ -6156,7 +6156,7 @@ impl TransactionKeyValueStoreTrait for AuthorityState {
                 .get_checkpoint_by_sequence_number(*seq)?
                 .and_then(|summary| {
                     store
-                        .get_checkpoint_contents(&summary.content_digest)
+                        .get_checkpoint_contents(&summary.contents_digest)
                         .expect("db read cannot fail")
                 });
             contents.push(checkpoint);

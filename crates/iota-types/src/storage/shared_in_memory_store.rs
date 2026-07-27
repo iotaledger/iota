@@ -338,7 +338,7 @@ impl InMemoryStore {
                 .insert(*tx.transaction.digest(), tx.effects.to_owned());
         }
         self.contents_digest_to_sequence_number
-            .insert(checkpoint.content_digest, checkpoint.sequence_number());
+            .insert(checkpoint.contents_digest, checkpoint.sequence_number());
         let contents = contents.into_inner();
         self.full_checkpoint_contents
             .insert(checkpoint.sequence_number(), contents.clone());

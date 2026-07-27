@@ -621,7 +621,7 @@ fn get_registry() -> Result<Registry> {
         epoch: 0,
         sequence_number: 0,
         network_total_transactions: 0,
-        content_digest: CheckpointContentsDigest::default(),
+        contents_digest: CheckpointContentsDigest::default(),
         previous_digest: None,
         epoch_rolling_gas_cost_summary: iota_sdk_types::gas::GasCostSummary::new(0, 0, 0, 0, 0),
         timestamp_ms: 0,

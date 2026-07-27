@@ -478,7 +478,7 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
             let checkpoint = inner.store.get_checkpoint_by_sequence_number(0).unwrap();
             let contents = inner
                 .store
-                .get_checkpoint_contents_by_digest(&checkpoint.content_digest);
+                .get_checkpoint_contents_by_digest(&checkpoint.contents_digest);
             (checkpoint, contents)
         };
         // Release lock before expensive data ingestion operation
@@ -626,7 +626,7 @@ impl<T, V: store::SimulatorStore> ReadStore for Simulacrum<T, V> {
             store
                 .get_checkpoint_by_sequence_number(sequence_number)
                 .and_then(|checkpoint| {
-                    store.get_checkpoint_contents_by_digest(&checkpoint.content_digest)
+                    store.get_checkpoint_contents_by_digest(&checkpoint.contents_digest)
                 })
         }))
     }
@@ -661,7 +661,7 @@ impl<T, V: store::SimulatorStore> ReadStore for Simulacrum<T, V> {
         self.with_store(|store| {
             store
                 .try_get_checkpoint_by_sequence_number(sequence_number)?
-                .and_then(|chk| store.get_checkpoint_contents_by_digest(&chk.content_digest))
+                .and_then(|chk| store.get_checkpoint_contents_by_digest(&chk.contents_digest))
                 .map_or(Ok(None), |contents| {
                     iota_types::messages_checkpoint::FullCheckpointContents::try_from_checkpoint_contents(
                         store,
@@ -789,7 +789,7 @@ impl<T: Send + Sync, V: store::SimulatorStore + Send + Sync> GrpcIndexes for Sim
             for seq in (0..=highest_seq).rev() {
                 if let Some(checkpoint) = store.get_checkpoint_by_sequence_number(seq) {
                     if let Some(contents) =
-                        store.get_checkpoint_contents_by_digest(&checkpoint.content_digest)
+                        store.get_checkpoint_contents_by_digest(&checkpoint.contents_digest)
                     {
                         if contents
                             .iter()

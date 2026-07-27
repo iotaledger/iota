@@ -478,8 +478,8 @@ fn verify_epoch_boundary_proof(entry: &EpochInfoV1Entry) -> anyhow::Result<IotaS
 
     // 1. Contents hash to the signed summary.
     anyhow::ensure!(
-        entry.last_checkpoint_contents.digest() == summary.content_digest,
-        "last_checkpoint_contents does not hash to the signed content_digest",
+        entry.last_checkpoint_contents.digest() == summary.contents_digest,
+        "last_checkpoint_contents does not hash to the signed contents_digest",
     );
 
     // 2. The epoch-change effects are the last tx of the verified contents.
