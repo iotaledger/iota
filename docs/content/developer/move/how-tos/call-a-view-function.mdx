@@ -207,17 +207,8 @@ For a generic view, pass the type arguments in `typeArgs`. This call reads `vaul
 
 ## Full Example Code
 
-The complete Rust SDK example, including publishing the package:
+The complete, runnable examples live in the IOTA repository:
 
-```rust file=<rootDir>/crates/iota-sdk/examples/read_api/move_view_function_call.rs
-```
-
-The complete TypeScript SDK example:
-
-```ts file=<rootDir>/docs/examples/typescript/src/view-functions/call-view-function.ts
-```
-
-A shell script that publishes the package with the `iota` CLI and calls each view over JSON-RPC with `curl` against devnet:
-
-```bash file=<rootDir>/docs/examples/shell/call-view-function.sh
-```
+- [Rust SDK example](https://github.com/iotaledger/iota/blob/develop/crates/iota-sdk/examples/read_api/move_view_function_call.rs) — publishes the package and calls the views.
+- [TypeScript SDK example](https://github.com/iotaledger/iota/blob/develop/docs/examples/typescript/src/view-functions/call-view-function.ts) — same flow with `@iota/iota-sdk`.
+- [Shell script](https://github.com/iotaledger/iota/blob/develop/docs/examples/shell/call-view-function.sh) — publishes with the `iota` CLI and calls each view over JSON-RPC with `curl`.
