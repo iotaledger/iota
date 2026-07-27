@@ -18,6 +18,7 @@ use iota_config::{
     NodeConfig, PersistedConfig,
     genesis::Genesis,
     node::{AuthorityOverloadConfig, DBCheckpointConfig, GrpcApiConfig, RunWithRange},
+    transaction_deny_config::TransactionDenyConfig,
 };
 use iota_core::{
     authority_aggregator::AuthorityAggregator, authority_client::NetworkAuthorityClient,
@@ -31,7 +32,7 @@ use iota_json_rpc_types::{
 };
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore, Keystore};
 use iota_node::IotaNodeHandle;
-use iota_protocol_config::{Chain, ProtocolVersion};
+use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_sdk::{
     IotaClient, IotaClientBuilder,
     apis::QuorumDriverApi,
@@ -54,10 +55,9 @@ use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     base_types::{AuthorityName, ConciseableName},
     committee::{Committee, CommitteeTrait, EpochId},
-    crypto::{AccountKeyPair, IotaKeyPair, KeypairTraits, get_key_pair},
+    crypto::{AccountKeyPair, IotaKeyPair, get_key_pair},
     effects::{TransactionEffects, TransactionEvents},
     error::IotaResult,
-    governance::MIN_VALIDATOR_JOINING_STAKE_NANOS,
     iota_system_state::{
         IotaSystemState, IotaSystemStateTrait,
         epoch_start_iota_system_state::EpochStartSystemStateTrait,
@@ -557,6 +557,12 @@ impl TestCluster {
             .expect("at least one node must be up to get highest protocol version")
     }
 
+    /// The protocol config for the highest observed protocol version in the
+    /// test cluster.
+    pub fn protocol_config(&self) -> ProtocolConfig {
+        ProtocolConfig::get_for_version(self.highest_protocol_version(), Chain::Unknown)
+    }
+
     pub async fn test_transaction_builder(&self) -> TestTransactionBuilder {
         let (sender, gas) = self.wallet.get_one_gas_object().await.unwrap().unwrap();
         self.test_transaction_builder_with_gas_object(sender, gas)
@@ -1003,6 +1009,7 @@ pub struct TestClusterBuilder {
     num_unpruned_validators: Option<usize>,
     config_dir: Option<PathBuf>,
     authority_overload_config: Option<AuthorityOverloadConfig>,
+    transaction_deny_config: Option<TransactionDenyConfig>,
     execution_cache_config: Option<ExecutionCacheConfig>,
     data_ingestion_dir: Option<PathBuf>,
     fullnode_run_with_range: Option<RunWithRange>,
@@ -1036,6 +1043,7 @@ impl TestClusterBuilder {
             num_unpruned_validators: None,
             config_dir: None,
             authority_overload_config: None,
+            transaction_deny_config: None,
             execution_cache_config: None,
             data_ingestion_dir: None,
             fullnode_run_with_range: None,
@@ -1195,11 +1203,15 @@ impl TestClusterBuilder {
         mut self,
         addresses: impl IntoIterator<Item = Address>,
     ) -> Self {
+        let min_validator_joining_stake = self
+            .get_or_init_genesis_config()
+            .protocol_config()
+            .min_validator_joining_stake();
         self.get_or_init_genesis_config()
             .accounts
             .extend(addresses.into_iter().map(|address| AccountConfig {
                 address: Some(address),
-                gas_amounts: vec![DEFAULT_GAS_AMOUNT, MIN_VALIDATOR_JOINING_STAKE_NANOS],
+                gas_amounts: vec![DEFAULT_GAS_AMOUNT, min_validator_joining_stake],
             }));
         self
     }
@@ -1237,6 +1249,12 @@ impl TestClusterBuilder {
     pub fn with_authority_overload_config(mut self, config: AuthorityOverloadConfig) -> Self {
         assert!(self.network_config.is_none());
         self.authority_overload_config = Some(config);
+        self
+    }
+
+    pub fn with_transaction_deny_config(mut self, config: TransactionDenyConfig) -> Self {
+        assert!(self.network_config.is_none());
+        self.transaction_deny_config = Some(config);
         self
     }
 
@@ -1377,6 +1395,10 @@ impl TestClusterBuilder {
             builder = builder.with_authority_overload_config(authority_overload_config);
         }
 
+        if let Some(transaction_deny_config) = self.transaction_deny_config.take() {
+            builder = builder.with_transaction_deny_config(transaction_deny_config);
+        }
+
         if let Some(execution_cache_config) = self.execution_cache_config.take() {
             builder = builder.with_execution_cache_config(execution_cache_config);
         }
@@ -1430,11 +1452,7 @@ impl TestClusterBuilder {
 
         let network_config = swarm.config();
         // Create light config to save
-        let account_keys = network_config
-            .account_keys
-            .iter()
-            .map(|kp| kp.copy())
-            .collect();
+        let account_keys = network_config.account_keys.to_vec();
         let network_config_light = NetworkConfigLight::new(
             network_config.validator_configs.clone(),
             account_keys,
@@ -1444,7 +1462,7 @@ impl TestClusterBuilder {
 
         let mut keystore = Keystore::from(FileBasedKeystore::new(&keystore_path)?);
         for key in &swarm.config().account_keys {
-            keystore.add_key(None, IotaKeyPair::Ed25519(key.copy()))?;
+            keystore.add_key(None, key.clone())?;
         }
 
         let active_address = keystore.addresses().first().cloned();

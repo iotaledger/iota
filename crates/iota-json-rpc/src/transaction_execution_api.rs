@@ -25,7 +25,7 @@ use iota_package_resolver::{
     Package, PackageStore, Resolver, error::Error as PackageResolverError,
 };
 use iota_sdk_types::{
-    Address, ObjectId, TransactionDigest, TransactionKind,
+    Address, ObjectId, TransactionDigest, TransactionKind, UserSignature,
     crypto::{Intent, IntentAppId, IntentMessage, IntentScope, IntentVersion},
 };
 use iota_transaction_builder::TransactionBuilder;
@@ -35,7 +35,6 @@ use iota_types::{
     quorum_driver_types::{
         ExecuteTransactionRequestType, ExecuteTransactionRequestV1, ExecuteTransactionResponseV1,
     },
-    signature::UserSignature,
     storage::PostExecutionPackageResolver,
     transaction::{InputObjectKind, Transaction, TransactionData, TransactionDataAPI},
 };

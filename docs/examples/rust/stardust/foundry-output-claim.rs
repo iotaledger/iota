@@ -15,7 +15,6 @@ use iota_sdk::{
     },
     types::{
         coin_manager::CoinManagerTreasuryCap,
-        crypto::SignatureScheme,
         dynamic_field::DynamicFieldName,
         gas_coin::GAS,
         programmable_transaction_builder::ProgrammableTransactionBuilder,
@@ -23,7 +22,9 @@ use iota_sdk::{
         transaction::{CallArg, Transaction, TransactionData},
     },
 };
-use iota_sdk_types::{Argument, Identifier, ObjectId, StructTag, TypeTag, crypto::Intent};
+use iota_sdk_types::{
+    Argument, Identifier, ObjectId, SignatureScheme, StructTag, TypeTag, crypto::Intent,
+};
 use iota_types::transaction::TransactionDataAPI;
 
 /// Got from iota-genesis-builder/src/stardust/test_outputs/alias_ownership.rs

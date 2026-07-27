@@ -4,8 +4,7 @@
 
 use iota_sdk_types::TransactionKind;
 use iota_types::{
-    base_types::{address_from_iota_pub_key, dbg_addr},
-    crypto::KeypairTraits,
+    base_types::dbg_addr,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{TransactionData, TransactionDataAPI},
     utils::to_sender_signed_transaction,
@@ -22,7 +21,7 @@ fn test_with_random_gas_data(
 ) -> Result<(), TestCaseError> {
     let gas_data = gas_data_test.gas_data;
     let objects = gas_data_test.objects;
-    let sender = address_from_iota_pub_key(gas_data_test.sender_key.public());
+    let sender = gas_data_test.sender_key.public_key().derive_address();
 
     // Insert the random gas objects into genesis.
     executor.add_objects(&objects);

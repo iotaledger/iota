@@ -16,7 +16,8 @@ use iota_sdk_types::{
     EndOfEpochTransactionKind, ExecutionError as ExecutionFailureStatus, ExecutionStatus,
     GenesisObject, Identifier, MoveCall, ObjectDigest, ObjectId, ObjectReference, Owner,
     ProgrammableTransaction, SharedObjectReference, TransactionDigest, TransactionEventsDigest,
-    TransactionKind, TransferObjects, TypeTag, Version, VersionAssignment, gas::GasCostSummary,
+    TransactionKind, TransferObjects, TypeTag, UserSignature, Version, VersionAssignment,
+    gas::GasCostSummary,
 };
 use iota_types::{
     base_types::EpochId,
@@ -30,7 +31,6 @@ use iota_types::{
     object::bounded_visitor::BoundedVisitor,
     parse_iota_type_tag,
     quorum_driver_types::ExecuteTransactionRequestType as NativeExecuteTransactionRequestType,
-    signature::UserSignature,
     storage::{DeleteKind, WriteKind},
     transaction::{
         CallArg, InputObjectKind, SenderSignedData, TransactionData, TransactionDataAPI,

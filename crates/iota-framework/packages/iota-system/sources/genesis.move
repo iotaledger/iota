@@ -31,11 +31,14 @@ public struct GenesisValidatorMetadata has copy, drop {
     primary_address: vector<u8>,
 }
 
+#[allow(unused_field)]
 public struct GenesisChainParameters has copy, drop {
     protocol_version: u64,
     chain_start_timestamp_ms: u64,
     epoch_duration_ms: u64,
-    // ValidatorV1 committee parameters
+    // The validator count limits and stake thresholds are enforced from the
+    // protocol config; the fields below are retained for struct layout
+    // compatibility only.
     max_validator_count: u64,
     min_validator_joining_stake: u64,
     validator_low_stake_threshold: u64,
@@ -159,12 +162,6 @@ fun create(
 
     let system_parameters = iota_system_state_inner::create_system_parameters(
         genesis_chain_parameters.epoch_duration_ms,
-        // ValidatorV1 committee parameters
-        genesis_chain_parameters.max_validator_count,
-        genesis_chain_parameters.min_validator_joining_stake,
-        genesis_chain_parameters.validator_low_stake_threshold,
-        genesis_chain_parameters.validator_very_low_stake_threshold,
-        genesis_chain_parameters.validator_low_stake_grace_period,
         ctx,
     );
 

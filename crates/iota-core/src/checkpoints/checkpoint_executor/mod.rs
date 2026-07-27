@@ -29,6 +29,7 @@ use iota_config::node::{CheckpointExecutorConfig, RunWithRange};
 use iota_macros::fail_point;
 use iota_sdk_types::{
     RandomnessRound, TransactionDigest, TransactionEffectsDigest, TransactionKind,
+    checkpoint::CheckpointContents,
 };
 use iota_types::{
     base_types::ExecutionData,
@@ -37,7 +38,7 @@ use iota_types::{
     full_checkpoint_content::CheckpointData,
     global_state_hash::GlobalStateHash,
     messages_checkpoint::{
-        CheckpointContents, CheckpointContentsExt, CheckpointSequenceNumber, CheckpointSummaryExt,
+        CheckpointContentsExt, CheckpointSequenceNumber, CheckpointSummaryExt,
         FullCheckpointContents, VerifiedCheckpoint,
     },
     transaction::{

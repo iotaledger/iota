@@ -20,7 +20,7 @@ use futures::{
     stream::FuturesUnordered,
 };
 use iota_common::{
-    fatal, in_test_configuration,
+    debug_fatal, fatal, in_test_configuration,
     sync::{notify_once::NotifyOnce, notify_read::NotifyRead},
 };
 use iota_config::node::ExpensiveSafetyCheckConfig;
@@ -32,14 +32,16 @@ use iota_protocol_config::{
 };
 use iota_sdk_types::{
     Address, CancelledTransaction, CheckpointTimestamp, ObjectId, ObjectReference, RandomnessRound,
-    TransactionDigest, TransactionEffectsDigest, TransactionKind, Version, VersionAssignment,
+    TransactionDigest, TransactionEffectsDigest, TransactionKind, UserSignature, Version,
+    VersionAssignment,
+    checkpoint::{CheckpointContents, CheckpointSummary},
 };
 use iota_storage::mutex_table::{MutexGuard, MutexTable};
 use iota_types::{
     base_types::{AuthorityName, CommitRound, ConciseableName, EpochId},
     committee::{Committee, CommitteeTrait, StakeUnit},
     crypto::{AuthoritySignInfo, AuthorityStrongQuorumSignInfo},
-    deny_rule_governance::{DenyRuleProposal, DenyRuleSet},
+    deny_rule_governance::DenyRuleSet,
     digests::ChainIdentifier,
     effects::TransactionEffects,
     error::{IotaError, IotaResult},
@@ -52,15 +54,13 @@ use iota_types::{
     },
     message_envelope::TrustedEnvelope,
     messages_checkpoint::{
-        CheckpointContents, CheckpointContentsExt, CheckpointSequenceNumber,
-        CheckpointSignatureMessage, CheckpointSummary,
+        CheckpointContentsExt, CheckpointSequenceNumber, CheckpointSignatureMessage,
     },
     messages_consensus::{
         AuthorityCapabilitiesV1, ConsensusTransaction, ConsensusTransactionKey,
-        ConsensusTransactionKind, SignedAuthorityCapabilitiesV1, VerifiedAuthorityCapabilitiesV1,
-        VersionedDkgConfirmation,
+        ConsensusTransactionKind, SignedAuthorityCapabilitiesV1, TransactionDenyRuleProposal,
+        VerifiedAuthorityCapabilitiesV1, VersionedDkgConfirmation,
     },
-    signature::UserSignature,
     storage::{BackingPackageStore, InputKey},
     transaction::{
         CertifiedTransaction, InputObjectKind, SenderSignedData, SenderSignedTransactionAPI,
@@ -701,7 +701,8 @@ pub struct AuthorityPerEpochStore {
 
     /// The active deny rule set: the stake-weighted aggregate of the recorded
     /// deny rule proposals. Recomputed via
-    /// `update_active_transaction_deny_rules` and seeded from the
+    /// `store_active_transaction_deny_rules` in
+    /// `ConsensusOutputQuarantine::push_consensus_output` and seeded from the
     /// `deny_rule_proposals` table on construction.
     active_transaction_deny_rules: ArcSwap<DenyRuleSet>,
 
@@ -882,9 +883,9 @@ pub struct AuthorityEpochTables {
     authority_overload_notifications: DBMap<AuthorityName, u8>,
 
     /// Record of the latest deny rule proposal from each authority, received
-    /// via DenyRuleProposal consensus transactions. A newer generation
-    /// overwrites an older one from the same authority.
-    deny_rule_proposals: DBMap<AuthorityName, DenyRuleProposal>,
+    /// via TransactionDenyRuleProposal consensus transactions. A newer
+    /// generation overwrites an older one from the same authority.
+    deny_rule_proposals: DBMap<AuthorityName, TransactionDenyRuleProposal>,
 
     /// Contains a single key, which overrides the value of
     /// ProtocolConfig::buffer_stake_for_protocol_upgrade_bps
@@ -1236,11 +1237,12 @@ impl AuthorityPerEpochStore {
         // table and derive the active rule set. A mid-epoch restart resumes
         // with the rules from all flushed commits; proposals from unflushed
         // commits are re-recorded by consensus replay.
-        let cached_deny_rule_proposals: BTreeMap<AuthorityName, DenyRuleProposal> = tables
-            .deny_rule_proposals
-            .safe_iter()
-            .collect::<Result<BTreeMap<_, _>, _>>()
-            .expect("AuthorityEpochTables should contain valid deny rule proposals");
+        let cached_deny_rule_proposals: BTreeMap<AuthorityName, TransactionDenyRuleProposal> =
+            tables
+                .deny_rule_proposals
+                .safe_iter()
+                .collect::<Result<BTreeMap<_, _>, _>>()
+                .expect("AuthorityEpochTables should contain valid deny rule proposals");
         let active_transaction_deny_rules = ArcSwap::from_pointee(
             Self::compute_active_transaction_deny_rules(&cached_deny_rule_proposals, &committee),
         );
@@ -2974,18 +2976,30 @@ impl AuthorityPerEpochStore {
     /// quarantine's in-memory cache of the persisted `deny_rule_proposals`
     /// table with every queued (processed-but-not-yet-flushed) commit's
     /// proposals overlaid on top.
+    #[cfg(test)]
     pub(crate) fn load_deny_rule_proposals(
         &self,
-    ) -> IotaResult<BTreeMap<AuthorityName, DenyRuleProposal>> {
+    ) -> IotaResult<BTreeMap<AuthorityName, TransactionDenyRuleProposal>> {
         Ok(self
             .consensus_quarantine
             .read()
             .current_deny_rule_proposals())
     }
 
+    /// The proposal recorded from `authority` this epoch, if any.
+    pub fn recorded_deny_rule_proposal(
+        &self,
+        authority: &AuthorityName,
+    ) -> Option<TransactionDenyRuleProposal> {
+        self.consensus_quarantine
+            .read()
+            .current_deny_rule_proposals()
+            .remove(authority)
+    }
+
     /// Whether `proposal` is newer than the recorded proposal (if any) from
     /// the same authority and should therefore be recorded.
-    pub fn should_record_deny_rule_proposal(&self, proposal: &DenyRuleProposal) -> bool {
+    pub fn should_record_deny_rule_proposal(&self, proposal: &TransactionDenyRuleProposal) -> bool {
         !self
             .consensus_quarantine
             .read()
@@ -2999,16 +3013,40 @@ impl AuthorityPerEpochStore {
     }
 
     /// Recomputes the active deny rule set from the current proposals and
-    /// swaps it in. Returns true when the active set changed.
+    /// swaps it in. Returns true when the active set changed. Production
+    /// recomputes through `ConsensusOutputQuarantine::push_consensus_output`;
+    /// this is a test shortcut.
+    #[cfg(test)]
     pub fn update_active_transaction_deny_rules(&self) -> IotaResult<bool> {
         let proposals = self.load_deny_rule_proposals()?;
-        let rules = Self::compute_active_transaction_deny_rules(&proposals, self.committee());
-        if *self.active_transaction_deny_rules.load_full() == rules {
-            return Ok(false);
+        Ok(self.store_active_transaction_deny_rules(&proposals))
+    }
+
+    /// Derives the active set from `proposals` and swaps it in when changed.
+    /// Called from `ConsensusOutputQuarantine::push_consensus_output` for
+    /// every commit that records proposals.
+    fn store_active_transaction_deny_rules(
+        &self,
+        proposals: &BTreeMap<AuthorityName, TransactionDenyRuleProposal>,
+    ) -> bool {
+        let rules = Self::compute_active_transaction_deny_rules(proposals, self.committee());
+        if **self.active_transaction_deny_rules.load() == rules {
+            return false;
         }
-        info!(?rules, "active deny rules changed");
+        info!(
+            denied_addresses = rules.denied_addresses.len(),
+            denied_objects = rules.denied_objects.len(),
+            denied_packages = rules.denied_packages.len(),
+            package_publish_disabled = rules.package_publish_disabled,
+            package_upgrade_disabled = rules.package_upgrade_disabled,
+            shared_object_disabled = rules.shared_object_disabled,
+            user_transaction_disabled = rules.user_transaction_disabled,
+            receiving_objects_disabled = rules.receiving_objects_disabled,
+            move_authenticator_disabled = rules.move_authenticator_disabled,
+            "active transaction deny rules changed"
+        );
         self.active_transaction_deny_rules.store(Arc::new(rules));
-        Ok(true)
+        true
     }
 
     /// Computes the stake-weighted aggregate of the given deny rule proposals:
@@ -3016,7 +3054,7 @@ impl AuthorityPerEpochStore {
     /// with 2f+1. Pure function of the proposals and committee, so every
     /// validator derives the same set from the same consensus state.
     pub(crate) fn compute_active_transaction_deny_rules(
-        proposals: &BTreeMap<AuthorityName, DenyRuleProposal>,
+        proposals: &BTreeMap<AuthorityName, TransactionDenyRuleProposal>,
         committee: &Committee,
     ) -> DenyRuleSet {
         let mut address_stakes: BTreeMap<Address, StakeUnit> = BTreeMap::new();
@@ -3145,7 +3183,10 @@ impl AuthorityPerEpochStore {
     /// commit flush loop does for a real commit. See
     /// `apply_overload_notification_to_cache_for_test`.
     #[cfg(test)]
-    pub(crate) fn apply_deny_rule_proposal_to_cache_for_test(&self, proposal: DenyRuleProposal) {
+    pub(crate) fn apply_deny_rule_proposal_to_cache_for_test(
+        &self,
+        proposal: TransactionDenyRuleProposal,
+    ) {
         self.consensus_quarantine
             .write()
             .apply_cached_deny_rule_proposal_for_test(proposal);
@@ -3442,6 +3483,25 @@ impl AuthorityPerEpochStore {
                     return None;
                 }
             }
+            SequencedConsensusTransactionKind::External(ConsensusTransaction {
+                kind: ConsensusTransactionKind::TransactionDenyRuleProposal(proposal),
+                ..
+            }) => {
+                if !self.protocol_config().deny_rule_governance() {
+                    debug!(
+                        "Ignoring TransactionDenyRuleProposal from {:?}: deny rule governance is disabled",
+                        proposal.authority.concise()
+                    );
+                    return None;
+                }
+                if transaction.sender_authority() != proposal.authority {
+                    warn!(
+                        "TransactionDenyRuleProposal authority {} does not match its author from consensus {}",
+                        proposal.authority, transaction.certificate_author_index
+                    );
+                    return None;
+                }
+            }
             SequencedConsensusTransactionKind::System(_) => {}
         }
         Some(VerifiedSequencedConsensusTransaction(transaction))
@@ -3692,6 +3752,23 @@ impl AuthorityPerEpochStore {
         // after the consensus output is quarantined.
         let mut soft_lock_release_tx_digests = Vec::new();
         if enable_pcool {
+            // Invariant: P-COOL flow categorization funnels all user transactions
+            // (regular + randomness) into `sequenced_transactions`, leaving
+            // `sequenced_randomness_transactions` empty until the partition after
+            // conflict resolution. If it is non-empty here, the partition below
+            // overwrites it and those transactions are silently ignored and never
+            // conflict-resolved, which is a logic bug.
+            if !sequenced_randomness_transactions.is_empty() {
+                debug_fatal!(
+                    "P-COOL flow categorization must keep all user transactions (regular + \
+                        randomness) in sequenced_transactions until validate_and_resolve_conflicts \
+                        and the subsequent partition; got {} transactions in \
+                        sequenced_randomness_transactions at round {}",
+                    sequenced_randomness_transactions.len(),
+                    consensus_commit_info.round,
+                );
+            }
+
             let (dropped, owned_object_locks, soft_lock_digests) =
                 post_consensus_validation::validate_and_resolve_conflicts(
                     authority_state,
@@ -4993,6 +5070,37 @@ impl AuthorityPerEpochStore {
                     debug!(
                         "Ignoring OverloadNotificationV1 from {:?} because of end of epoch",
                         authority.concise()
+                    );
+                }
+                Ok(ConsensusTransactionResult::ConsensusMessage)
+            }
+            SequencedConsensusTransactionKind::External(ConsensusTransaction {
+                kind: ConsensusTransactionKind::TransactionDenyRuleProposal(proposal),
+                ..
+            }) => {
+                // The `deny_rule_governance` feature gate is enforced in
+                // `verify_consensus_transaction`, which filters every
+                // sequenced transaction before it reaches this point.
+                if !self
+                    .get_reconfig_state_read_lock_guard()
+                    .should_accept_consensus_certs()
+                {
+                    debug!(
+                        "Ignoring TransactionDenyRuleProposal from {:?} because of end of epoch",
+                        proposal.authority.concise()
+                    );
+                } else if self.should_record_deny_rule_proposal(proposal) {
+                    debug!(
+                        "Received TransactionDenyRuleProposal from {:?} with generation {}",
+                        proposal.authority.concise(),
+                        proposal.generation
+                    );
+                    output.record_deny_rule_proposal(proposal.clone());
+                } else {
+                    debug!(
+                        "Ignoring TransactionDenyRuleProposal from {:?} with stale generation {}",
+                        proposal.authority.concise(),
+                        proposal.generation
                     );
                 }
                 Ok(ConsensusTransactionResult::ConsensusMessage)

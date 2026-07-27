@@ -18,7 +18,8 @@ use iota_sdk_types::{
     MoveStruct, ObjectData, ObjectDigest, ObjectId, ObjectReference, Owner, PackageUpgradeError,
     ProgrammableTransaction, RandomnessStateUpdate, SharedObjectReference, SimpleSignature,
     StructTag, TransactionDigest, TransactionEffectsDigest, TransactionExpiration, TransactionKind,
-    TypeArgumentError, TypeTag, UnchangedSharedKind,
+    TypeArgumentError, TypeTag, UnchangedSharedKind, UserSignature,
+    checkpoint::{CheckpointCommitment, CheckpointContents, CheckpointSummary},
     crypto::{Intent, IntentMessage, PersonalMessage},
     move_package::{MovePackage, TypeOrigin, UpgradeInfo},
     validator::ValidatorCommitteeMember,
@@ -26,7 +27,7 @@ use iota_sdk_types::{
 use iota_types::{
     base_types::{ExecutionData, ExecutionDigests},
     crypto::{
-        AccountKeyPair, AggregateAuthoritySignature, AuthorityKeyPair, AuthorityPublicKeyBytes,
+        AggregateAuthoritySignature, AuthorityKeyPair, AuthorityPublicKeyBytes,
         AuthorityQuorumSignInfo, AuthoritySignature, AuthorityStrongQuorumSignInfo, KeypairTraits,
         Signature, Signer, get_key_pair,
     },
@@ -36,13 +37,11 @@ use iota_types::{
     },
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointCommitment, CheckpointContents,
-        CheckpointContentsExt, CheckpointSummary, FullCheckpointContents,
+        CertifiedCheckpointSummary, CheckpointContentsExt, FullCheckpointContents,
     },
     messages_grpc::ObjectInfoRequestKind,
     multisig::{MultiSig, MultiSigPublicKey, MultisigMember},
     object::{MoveStructExt, ObjectInner},
-    signature::UserSignature,
     storage::DeleteKind,
     transaction::{CallArg, SenderSignedData, Transaction, TransactionData, TransactionDataAPI},
 };
@@ -152,7 +151,7 @@ fn get_registry() -> Result<Registry> {
         .unwrap();
 
     let (addr, kp): (_, AuthorityKeyPair) = get_key_pair();
-    let (s_addr, s_kp): (_, AccountKeyPair) = get_key_pair();
+    let (s_addr, s_kp): (_, fastcrypto::ed25519::Ed25519KeyPair) = get_key_pair();
     let pk: AuthorityPublicKeyBytes = kp.public().into();
     tracer.trace_value(&mut samples, &addr).unwrap();
     tracer.trace_value(&mut samples, &kp).unwrap();

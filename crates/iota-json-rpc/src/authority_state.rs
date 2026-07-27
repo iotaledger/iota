@@ -21,7 +21,7 @@ use iota_json_rpc_types::{
 };
 use iota_sdk_types::{
     Address, CheckpointContentsDigest, CheckpointDigest, ObjectId, ObjectReference, StructTag,
-    TransactionDigest, TransactionKind, TypeTag, Version,
+    TransactionDigest, TransactionKind, TypeTag, Version, checkpoint::CheckpointContents,
 };
 use iota_storage::key_value_store::{
     KVStoreTransactionData, TransactionKeyValueStore, TransactionKeyValueStoreTrait,
@@ -37,7 +37,7 @@ use iota_types::{
     governance::StakedIota,
     iota_serde::BigInt,
     iota_system_state::IotaSystemState,
-    messages_checkpoint::{CheckpointContents, CheckpointSequenceNumber, VerifiedCheckpoint},
+    messages_checkpoint::{CheckpointSequenceNumber, VerifiedCheckpoint},
     object::{Object, ObjectRead, PastObjectRead},
     storage::{BackingPackageStore, ObjectStore, WriteKind},
     timelock::timelocked_staked_iota::TimelockedStakedIota,

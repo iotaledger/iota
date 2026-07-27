@@ -10,15 +10,15 @@ use std::{
 use iota_config::genesis;
 use iota_sdk_types::{
     Address, CheckpointContentsDigest, CheckpointDigest, ObjectId, ObjectReference, Owner,
-    TransactionDigest, Version,
+    TransactionDigest, Version, checkpoint::CheckpointContents,
 };
 use iota_types::{
-    base_types::{AuthorityName, address_from_iota_pub_key},
+    base_types::AuthorityName,
     committee::{Committee, EpochId},
     crypto::{AccountKeyPair, AuthorityKeyPair},
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     error::IotaError,
-    messages_checkpoint::{CheckpointContents, CheckpointSequenceNumber, VerifiedCheckpoint},
+    messages_checkpoint::{CheckpointSequenceNumber, VerifiedCheckpoint},
     object::Object,
     storage::{
         BackingPackageStore, ChildObjectResolver, ObjectStore, PackageObject, ReadStore,
@@ -436,18 +436,14 @@ impl ReadStore for InMemoryStore {
     fn try_get_checkpoint_contents_by_digest(
         &self,
         digest: &CheckpointContentsDigest,
-    ) -> iota_types::storage::error::Result<
-        Option<iota_types::messages_checkpoint::CheckpointContents>,
-    > {
+    ) -> iota_types::storage::error::Result<Option<CheckpointContents>> {
         Ok(self.get_checkpoint_contents(digest).cloned())
     }
 
     fn try_get_checkpoint_contents_by_sequence_number(
         &self,
         sequence_number: iota_types::messages_checkpoint::CheckpointSequenceNumber,
-    ) -> iota_types::storage::error::Result<
-        Option<iota_types::messages_checkpoint::CheckpointContents>,
-    > {
+    ) -> iota_types::storage::error::Result<Option<CheckpointContents>> {
         Ok(self
             .get_checkpoint_by_sequence_number(sequence_number)
             .and_then(|c| self.get_checkpoint_contents(&c.content_digest).cloned()))
@@ -523,7 +519,7 @@ impl Clone for KeyStore {
             account_keys: self
                 .account_keys
                 .iter()
-                .map(|(k, v)| (*k, v.copy()))
+                .map(|(k, v)| (*k, v.clone()))
                 .collect(),
         }
     }
@@ -549,7 +545,10 @@ impl KeyStore {
         let account_keys = network_config
             .account_keys
             .iter()
-            .map(|key| (address_from_iota_pub_key(key.public()), key.copy()))
+            .map(|key| {
+                let address = key.public_key().derive_address();
+                (address, key.clone())
+            })
             .collect();
         Self {
             validator_keys,

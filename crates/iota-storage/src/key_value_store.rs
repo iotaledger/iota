@@ -8,14 +8,14 @@
 use std::{sync::Arc, time::Instant};
 
 use async_trait::async_trait;
-use iota_sdk_types::{CheckpointDigest, ObjectId, TransactionDigest, Version};
+use iota_sdk_types::{
+    CheckpointDigest, ObjectId, TransactionDigest, Version, checkpoint::CheckpointContents,
+};
 use iota_types::{
     base_types::VersionNumber,
     effects::{TransactionEffects, TransactionEvents},
     error::{IotaError, IotaResult, UserInputError},
-    messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointContents, CheckpointSequenceNumber,
-    },
+    messages_checkpoint::{CertifiedCheckpointSummary, CheckpointSequenceNumber},
     object::Object,
     storage::ObjectKey,
     transaction::Transaction,

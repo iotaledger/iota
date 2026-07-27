@@ -20,10 +20,10 @@ use iota_sdk_types::{
     Address, Argument, CancelledTransaction, CertificateDigest, Command, ConsensusCommitDigest,
     ConsensusCommitPrologueV1, ConsensusDeterminedVersionAssignments, EndOfEpochTransactionKind,
     Event, GasPayment, GenesisObject, GenesisTransaction, Identifier, Input, MakeMoveVector,
-    MergeCoins, MoveCall, MoveStruct, ObjectDigest, ObjectId, ObjectReference, Owner,
-    ProgrammableTransaction, Publish, RandomnessRound, RandomnessStateUpdate,
+    MergeCoins, MoveAuthenticator, MoveCall, MoveStruct, ObjectDigest, ObjectId, ObjectReference,
+    Owner, ProgrammableTransaction, Publish, RandomnessRound, RandomnessStateUpdate,
     SharedObjectReference, SplitCoins, TransactionDigest, TransactionExpiration, TransactionKind,
-    TransferObjects, TypeTag, Upgrade, Version,
+    TransferObjects, TypeTag, Upgrade, UserSignature, Version,
     crypto::{Intent, IntentMessage, IntentScope},
 };
 pub use iota_sdk_types::{
@@ -42,16 +42,16 @@ use crate::{
     committee::{Committee, EpochId},
     crypto::{
         AuthoritySignInfo, AuthoritySignInfoTrait, AuthoritySignature,
-        AuthorityStrongQuorumSignInfo, DefaultHash, EmptySignInfo, IotaKeyPair, IotaSignature,
-        Signature, Signer, zero_ed25519_signature,
+        AuthorityStrongQuorumSignInfo, DefaultHash, EmptySignInfo, IotaSignature, Signature,
+        Signer, zero_ed25519_signature,
     },
     execution::SharedInput,
     message_envelope::{Envelope, Message, TrustedEnvelope, VerifiedEnvelope},
     messages_checkpoint::CheckpointTimestamp,
-    move_authenticator::{MoveAuthenticator, MoveAuthenticatorExt},
+    move_authenticator::MoveAuthenticatorExt,
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    signature::{UserSignature, VerifyParams},
+    signature::VerifyParams,
     signature_verification::verify_sender_signed_data_message_signatures,
 };
 
@@ -2329,7 +2329,7 @@ impl<S> Envelope<SenderSignedData, S> {
 impl Transaction {
     pub fn from_data_and_signer(
         data: TransactionData,
-        signers: Vec<impl Into<IotaKeyPair>>,
+        signers: Vec<&impl iota_sdk_crypto::Signer<Signature>>,
     ) -> Self {
         let signatures = {
             let intent_msg = data.intent_message();
@@ -2349,7 +2349,7 @@ impl Transaction {
     pub fn signature_from_signer(
         data: TransactionData,
         intent: Intent,
-        signer: impl Into<IotaKeyPair>,
+        signer: &impl iota_sdk_crypto::Signer<Signature>,
     ) -> Signature {
         let intent_msg = IntentMessage::new(intent, data);
         Signature::new_secure(&intent_msg, signer)

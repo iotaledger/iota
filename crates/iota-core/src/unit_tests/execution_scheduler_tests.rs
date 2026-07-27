@@ -19,16 +19,15 @@ use std::{time::Duration, vec};
 
 use iota_config::node::AuthorityOverloadConfig;
 use iota_sdk_types::{
-    ObjectId, SharedObjectReference, TransactionEffectsDigest, VersionAssignment,
+    MoveAuthenticatorV1, ObjectId, SharedObjectReference, TransactionEffectsDigest, UserSignature,
+    VersionAssignment,
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     crypto::deterministic_random_account_key,
     error::IotaError,
     executable_transaction::VerifiedExecutableTransaction,
-    move_authenticator::MoveAuthenticatorV1,
     object::Object,
-    signature::UserSignature,
     storage::InputKey,
     transaction::{CallArg, SenderSignedData, Transaction, VerifiedTransaction},
 };

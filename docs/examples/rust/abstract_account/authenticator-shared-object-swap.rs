@@ -17,16 +17,16 @@ use iota_sdk::{
     IotaClient, IotaClientBuilder,
     rpc_types::{IotaTransactionBlockEffectsAPI, ObjectChange},
     types::{
-        crypto::SignatureScheme, programmable_transaction_builder::ProgrammableTransactionBuilder,
-        transaction::Transaction,
+        programmable_transaction_builder::ProgrammableTransactionBuilder, transaction::Transaction,
     },
 };
 use iota_sdk_types::{
-    Address, Argument, Identifier, ObjectId, ObjectReference, Owner, SharedObjectReference, TypeTag,
+    Address, Argument, Identifier, ObjectId, ObjectReference, Owner, SharedObjectReference,
+    SignatureScheme, TypeTag, UserSignature,
 };
 use iota_types::{
-    crypto::PublicKey, move_authenticator::MoveAuthenticatorExt, signature::UserSignature,
-    transaction::CallArg, utils::MoveAuthenticatorV1,
+    crypto::PublicKey, move_authenticator::MoveAuthenticatorExt, transaction::CallArg,
+    utils::MoveAuthenticatorV1,
 };
 
 /// Got from iota-genesis-builder/src/stardust/test_outputs/stardust_mix.rs

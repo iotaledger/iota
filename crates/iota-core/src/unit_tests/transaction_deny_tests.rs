@@ -4,7 +4,6 @@
 
 use std::{path::PathBuf, sync::Arc};
 
-use fastcrypto::{ed25519::Ed25519KeyPair, traits::KeyPair};
 use iota_config::{
     certificate_deny_config::CertificateDenyConfigBuilder,
     transaction_deny_config::{TransactionDenyConfig, TransactionDenyConfigBuilder},
@@ -18,7 +17,7 @@ use iota_swarm_config::{
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::address_from_iota_pub_key,
+    crypto::AccountKeyPair,
     effects::TransactionEffectsAPI,
     error::{IotaError, IotaResult, UserInputError},
     messages_grpc::HandleTransactionResponse,
@@ -78,7 +77,7 @@ async fn reload_state_with_new_deny_config(
         .await
 }
 
-type Account = (Address, Ed25519KeyPair, Vec<ObjectReference>);
+type Account = (Address, AccountKeyPair, Vec<ObjectReference>);
 
 fn get_accounts_and_coins(
     network_config: &NetworkConfig,
@@ -88,7 +87,7 @@ fn get_accounts_and_coins(
         .account_keys
         .iter()
         .map(|account| {
-            let address: Address = address_from_iota_pub_key(account.public());
+            let address: Address = account.public_key().derive_address();
             let objects: Vec<_> = state
                 .get_owner_objects(address, None, GAS_OBJECT_COUNT, None)
                 .unwrap()
@@ -96,7 +95,7 @@ fn get_accounts_and_coins(
                 .map(|o| o.into())
                 .collect();
             assert_eq!(objects.len(), GAS_OBJECT_COUNT);
-            (address, account.copy(), objects)
+            (address, account.clone(), objects)
         })
         .collect();
     assert_eq!(accounts.len(), ACCOUNT_NUM);

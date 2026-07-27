@@ -33,6 +33,7 @@ use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_sdk_types::{
     Address, Command, Event, GenesisObject, Identifier, ObjectId, ObjectReference, Owner,
     StructTag, TransactionDigest, Version,
+    checkpoint::{CheckpointContents, CheckpointSummary},
     crypto::{Intent, IntentMessage, IntentScope},
 };
 use iota_types::{
@@ -52,8 +53,8 @@ use iota_types::{
     inner_temporary_store::InnerTemporaryStore,
     iota_system_state::{IotaSystemState, IotaSystemStateTrait, get_iota_system_state},
     messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointContents, CheckpointContentsExt, CheckpointSummary,
-        CheckpointVersionSpecificData, CheckpointVersionSpecificDataV1,
+        CertifiedCheckpointSummary, CheckpointContentsExt, CheckpointVersionSpecificData,
+        CheckpointVersionSpecificDataV1,
     },
     metrics::LimitsMetrics,
     object::{MoveStructExt, Object},
@@ -298,6 +299,7 @@ impl Builder {
                         Delegations::new_for_validators_with_default_allocation(
                             self.validators.values().map(|v| v.info.iota_address()),
                             *delegator,
+                            self.parameters.protocol_version,
                         )
                     }
                     None => bail!("no delegator/s assigned with a migration"),
@@ -351,6 +353,7 @@ impl Builder {
             // Case 1.2
             TokenDistributionSchedule::new_for_validators_with_default_allocation(
                 self.validators.values().map(|v| v.info.iota_address()),
+                self.parameters.protocol_version,
             )
         } else {
             // Case 2.2
@@ -385,6 +388,7 @@ impl Builder {
         token_distribution_schedule
             .check_minimum_stake_for_validators(
                 self.validators.values().map(|v| v.info.iota_address()),
+                self.parameters.protocol_version,
             )
             .expect("all validators should have the required stake");
 
@@ -501,6 +505,7 @@ impl Builder {
             token_distribution_schedule.validate();
             token_distribution_schedule.check_minimum_stake_for_validators(
                 self.validators.values().map(|v| v.info.iota_address()),
+                self.parameters.protocol_version,
             )?;
         }
 
@@ -1816,23 +1821,23 @@ mod test {
         local_ip_utils,
         node::{DEFAULT_COMMISSION_RATE, DEFAULT_VALIDATOR_GAS_PRICE},
     };
+    use iota_protocol_config::ProtocolVersion;
     use iota_sdk_types::Address;
-    use iota_types::{
-        base_types::address_from_iota_pub_key,
-        crypto::{
-            AccountKeyPair, AuthorityKeyPair, NetworkKeyPair, generate_proof_of_possession,
-            get_key_pair_from_rng,
-        },
+    use iota_types::crypto::{
+        AccountKeyPair, AuthorityKeyPair, NetworkKeyPair, generate_proof_of_possession,
+        get_key_pair_from_rng,
     };
 
     use crate::{Builder, validator_info::ValidatorInfo};
 
     #[test]
     fn allocation_csv() {
-        let schedule = TokenDistributionSchedule::new_for_validators_with_default_allocation([
-            Address::random(),
-            Address::random(),
-        ]);
+        // No genesis is being built in this test, so there is no protocol version to
+        // thread through; use the current version.
+        let schedule = TokenDistributionSchedule::new_for_validators_with_default_allocation(
+            [Address::random(), Address::random()],
+            ProtocolVersion::MAX,
+        );
         let mut output = Vec::new();
 
         schedule.to_csv(&mut output).unwrap();
@@ -1852,12 +1857,13 @@ mod test {
         let authority_key: AuthorityKeyPair = get_key_pair_from_rng(&mut rand::rngs::OsRng).1;
         let protocol_key: NetworkKeyPair = get_key_pair_from_rng(&mut rand::rngs::OsRng).1;
         let account_key: AccountKeyPair = get_key_pair_from_rng(&mut rand::rngs::OsRng).1;
+        let account_address = account_key.public_key().derive_address();
         let network_key: NetworkKeyPair = get_key_pair_from_rng(&mut rand::rngs::OsRng).1;
         let validator = ValidatorInfo {
             name: "0".into(),
             authority_key: authority_key.public().into(),
             protocol_key: protocol_key.public().clone(),
-            account_address: address_from_iota_pub_key(account_key.public()),
+            account_address,
             network_key: network_key.public().clone(),
             gas_price: DEFAULT_VALIDATOR_GAS_PRICE,
             commission_rate: DEFAULT_COMMISSION_RATE,
@@ -1868,10 +1874,7 @@ mod test {
             image_url: String::new(),
             project_url: String::new(),
         };
-        let pop = generate_proof_of_possession(
-            &authority_key,
-            address_from_iota_pub_key(account_key.public()),
-        );
+        let pop = generate_proof_of_possession(&authority_key, account_address);
         let mut builder = Builder::new().add_validator(validator, pop);
 
         let genesis = builder.get_or_build_unsigned_genesis();

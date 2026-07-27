@@ -16,14 +16,15 @@ use iota_node_storage::GrpcStateReader;
 use iota_sdk_types::{
     Address, CheckpointContentsDigest, CheckpointDigest, ObjectId, StructTag, TransactionDigest,
     Version,
+    checkpoint::{CheckpointContents, CheckpointSummary},
 };
 use iota_types::{
     crypto::AuthorityStrongQuorumSignInfo,
     effects::{TransactionEffects, TransactionEvents},
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointContents, CheckpointContentsExt,
-        CheckpointSequenceNumber, CheckpointSummary, VerifiedCheckpoint,
+        CertifiedCheckpointSummary, CheckpointContentsExt, CheckpointSequenceNumber,
+        VerifiedCheckpoint,
     },
     object::Object,
     storage::error::Result as StorageResult,

@@ -10,12 +10,11 @@ use iota_ledger::Ledger;
 use iota_ledger_signer::LedgerSigner;
 use iota_sdk::wallet_context::WalletContext;
 use iota_sdk_types::{
-    Address, ObjectId, Owner, SharedObjectReference, TypeTag, Version, crypto::Intent,
+    Address, MoveAuthenticatorV1, ObjectId, Owner, SharedObjectReference, TypeTag, UserSignature,
+    Version, crypto::Intent,
 };
 use iota_types::{
     crypto::Signature,
-    move_authenticator::MoveAuthenticatorV1,
-    signature::UserSignature,
     transaction::{CallArg, TransactionData},
 };
 use serde::Serialize;

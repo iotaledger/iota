@@ -115,9 +115,9 @@ impl AuthContext {
     }
 
     /// Returns the sender's auth digest. For
-    /// [`MoveAuthenticator`](crate::move_authenticator::MoveAuthenticator)
+    /// [`MoveAuthenticator`](iota_sdk_types::MoveAuthenticator)
     /// signatures equals
-    /// [`MoveAuthenticator::digest()`](crate::move_authenticator::MoveAuthenticator::digest);
+    /// [`MoveAuthenticator::digest()`](iota_sdk_types::MoveAuthenticator::digest);
     /// for others Blake2b256 of the serialized (flag-prefixed) signature bytes.
     pub fn sender_auth_digest(&self) -> &Digest {
         &self.sender_auth_digest
@@ -125,23 +125,24 @@ impl AuthContext {
 
     /// Returns the sponsor's auth digest for sponsored transactions, `None`
     /// otherwise. For
-    /// [`MoveAuthenticator`](crate::move_authenticator::MoveAuthenticator)
+    /// [`MoveAuthenticator`](iota_sdk_types::MoveAuthenticator)
     /// signatures equals
-    /// [`MoveAuthenticator::digest()`](crate::move_authenticator::MoveAuthenticator::digest);
+    /// [`MoveAuthenticator::digest()`](iota_sdk_types::MoveAuthenticator::digest);
     /// for others Blake2b256 of the serialized (flag-prefixed) signature bytes.
     pub fn sponsor_auth_digest(&self) -> Option<&Digest> {
         self.sponsor_auth_digest.as_ref()
     }
 
     /// Returns the sender's authenticator function ref, present when the sender
-    /// uses a [`MoveAuthenticator`](crate::move_authenticator::MoveAuthenticator) signature.
+    /// uses a [`MoveAuthenticator`](iota_sdk_types::MoveAuthenticator)
+    /// signature.
     pub fn sender_authenticator_function_ref_v1(&self) -> Option<&AuthenticatorFunctionRefV1> {
         self.sender_authenticator_function_ref_v1.as_ref()
     }
 
     /// Returns the sponsor's authenticator function ref, present when the
     /// sponsor uses a
-    /// [`MoveAuthenticator`](crate::move_authenticator::MoveAuthenticator)
+    /// [`MoveAuthenticator`](iota_sdk_types::MoveAuthenticator)
     /// signature.
     pub fn sponsor_authenticator_function_ref_v1(&self) -> Option<&AuthenticatorFunctionRefV1> {
         self.sponsor_authenticator_function_ref_v1.as_ref()

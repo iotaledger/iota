@@ -15,17 +15,18 @@ use iota_config::{
         AuthorityKeyPairWithPath, AuthorityOverloadConfig, AuthorityStorePruningConfig,
         CheckpointExecutorConfig, DBCheckpointConfig, DEFAULT_GRPC_CONCURRENCY_LIMIT,
         ExecutionCacheConfig, ExpensiveSafetyCheckConfig, Genesis, GrpcApiConfig, KeyPairWithPath,
-        RunWithRange, StateArchiveConfig, StateSnapshotConfig, default_enable_index_processing,
+        RunWithRange, StateSnapshotConfig, default_enable_index_processing,
         default_end_of_epoch_broadcast_channel_capacity,
         default_full_checkpoint_contents_cache_size_mb,
     },
     p2p::{DiscoveryConfig, P2pConfig, SeedPeer, StateSyncConfig},
+    transaction_deny_config::TransactionDenyConfig,
     verifier_signing_config::VerifierSigningConfig,
 };
 use iota_names::config::IotaNamesConfig;
 use iota_protocol_config::Chain;
 use iota_types::{
-    crypto::{AuthorityKeyPair, AuthorityPublicKeyBytes, IotaKeyPair, NetworkKeyPair},
+    crypto::{AuthorityKeyPair, AuthorityPublicKeyBytes, NetworkKeyPair},
     multiaddr::Multiaddr,
     supported_protocol_versions::SupportedProtocolVersions,
     traffic_control::{PolicyConfig, RemoteFirewallConfig},
@@ -45,6 +46,7 @@ pub struct ValidatorConfigBuilder {
     supported_protocol_versions: Option<SupportedProtocolVersions>,
     force_unpruned_checkpoints: bool,
     authority_overload_config: Option<AuthorityOverloadConfig>,
+    transaction_deny_config: Option<TransactionDenyConfig>,
     execution_cache_config: Option<ExecutionCacheConfig>,
     data_ingestion_dir: Option<PathBuf>,
     policy_config: Option<PolicyConfig>,
@@ -90,6 +92,11 @@ impl ValidatorConfigBuilder {
 
     pub fn with_authority_overload_config(mut self, config: AuthorityOverloadConfig) -> Self {
         self.authority_overload_config = Some(config);
+        self
+    }
+
+    pub fn with_transaction_deny_config(mut self, config: TransactionDenyConfig) -> Self {
+        self.transaction_deny_config = Some(config);
         self
     }
 
@@ -186,13 +193,9 @@ impl ValidatorConfigBuilder {
 
         NodeConfig {
             authority_key_pair: AuthorityKeyPairWithPath::new(validator.authority_key_pair),
-            network_key_pair: KeyPairWithPath::new(IotaKeyPair::Ed25519(
-                validator.network_key_pair,
-            )),
+            network_key_pair: KeyPairWithPath::new(validator.network_key_pair.into()),
             account_key_pair: KeyPairWithPath::new(validator.account_key_pair),
-            protocol_key_pair: KeyPairWithPath::new(IotaKeyPair::Ed25519(
-                validator.protocol_key_pair,
-            )),
+            protocol_key_pair: KeyPairWithPath::new(validator.protocol_key_pair.into()),
             db_path,
             network_address,
             metrics_address: validator.metrics_address,
@@ -217,11 +220,10 @@ impl ValidatorConfigBuilder {
             // By default, expensive checks will be enabled in debug build, but not in release
             // build.
             expensive_safety_check_config: ExpensiveSafetyCheckConfig::default(),
-            transaction_deny_config: Default::default(),
+            transaction_deny_config: self.transaction_deny_config.unwrap_or_default(),
             certificate_deny_config: Default::default(),
             state_debug_dump_config: Default::default(),
-            state_archive_write_config: StateArchiveConfig::default(),
-            state_archive_read_config: vec![],
+            checkpoint_archive_config: None,
             state_snapshot_write_config: StateSnapshotConfig::default(),
             indexer_max_subscriptions: Default::default(),
             transaction_kv_store_read_config: Default::default(),
@@ -392,8 +394,7 @@ impl FullnodeConfigBuilder {
 
     pub fn with_network_key_pair(mut self, network_key_pair: Option<NetworkKeyPair>) -> Self {
         if let Some(network_key_pair) = network_key_pair {
-            self.network_key_pair =
-                Some(KeyPairWithPath::new(IotaKeyPair::Ed25519(network_key_pair)));
+            self.network_key_pair = Some(KeyPairWithPath::new(network_key_pair.into()));
         }
         self
     }
@@ -534,11 +535,9 @@ impl FullnodeConfigBuilder {
         NodeConfig {
             authority_key_pair: AuthorityKeyPairWithPath::new(validator_config.authority_key_pair),
             account_key_pair: KeyPairWithPath::new(validator_config.account_key_pair),
-            protocol_key_pair: KeyPairWithPath::new(IotaKeyPair::Ed25519(
-                validator_config.protocol_key_pair,
-            )),
+            protocol_key_pair: KeyPairWithPath::new(validator_config.protocol_key_pair.into()),
             network_key_pair: self.network_key_pair.unwrap_or(KeyPairWithPath::new(
-                IotaKeyPair::Ed25519(validator_config.network_key_pair),
+                validator_config.network_key_pair.into(),
             )),
             db_path: self
                 .db_path
@@ -573,8 +572,7 @@ impl FullnodeConfigBuilder {
             transaction_deny_config: Default::default(),
             certificate_deny_config: Default::default(),
             state_debug_dump_config: Default::default(),
-            state_archive_write_config: StateArchiveConfig::default(),
-            state_archive_read_config: vec![],
+            checkpoint_archive_config: None,
             state_snapshot_write_config: StateSnapshotConfig::default(),
             indexer_max_subscriptions: Default::default(),
             transaction_kv_store_read_config: Default::default(),
