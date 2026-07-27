@@ -246,6 +246,64 @@ pub fn get_attestor_registry(
     )
 }
 
+/// Mirror of `iota_system::attestor_registry::AttestorMetadataKey`.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub struct AttestorMetadataKey {
+    pub attestor_address: Address,
+}
+
+impl MoveTypeTagTrait for AttestorMetadataKey {
+    fn get_type_tag() -> TypeTag {
+        TypeTag::Struct(Box::new(StructTag::new(
+            Address::SYSTEM,
+            Identifier::new("attestor_registry").unwrap(),
+            Identifier::new("AttestorMetadataKey").unwrap(),
+            vec![],
+        )))
+    }
+}
+
+/// Mirror of `iota_system::attestor_registry::AttestorMetadataV1`.
+/// `url`/`logo` are Move `Url`s, which serialize as their inner string.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub struct AttestorMetadataV1 {
+    pub name: String,
+    pub description: String,
+    pub url: String,
+    pub logo: String,
+}
+
+/// Deterministic object id of an attestor's metadata dynamic field on the
+/// system state object.
+pub fn derive_attestor_metadata_object_id(
+    attestor_address: Address,
+) -> Result<ObjectId, IotaError> {
+    derive_dynamic_field_id(
+        IOTA_SYSTEM_STATE_OBJECT_ID,
+        &AttestorMetadataKey::get_type_tag(),
+        &bcs::to_bytes(&AttestorMetadataKey { attestor_address })
+            .map_err(|e| IotaError::DynamicFieldRead(e.to_string()))?,
+    )
+    .map_err(|e| IotaError::DynamicFieldRead(e.to_string()))
+}
+
+/// Read an attestor's metadata; `None` if the address has no entry.
+pub fn get_attestor_metadata(
+    object_store: &dyn ObjectStore,
+    attestor_address: Address,
+) -> Result<Option<AttestorMetadataV1>, IotaError> {
+    let id = derive_attestor_metadata_object_id(attestor_address)?;
+    if object_store.get_object(&id).is_none() {
+        return Ok(None);
+    }
+    get_dynamic_field_from_store(
+        object_store,
+        IOTA_SYSTEM_STATE_OBJECT_ID,
+        &AttestorMetadataKey { attestor_address },
+    )
+    .map(Some)
+}
+
 /// Read the registry and shape its active set for the epoch-start snapshot.
 pub fn read_epoch_start_attestors(
     object_store: &dyn ObjectStore,
@@ -295,6 +353,17 @@ mod tests {
         let a = derive_attestor_registry_object_id().unwrap();
         let b = derive_attestor_registry_object_id().unwrap();
         assert_eq!(a, b);
+    }
+
+    #[test]
+    fn attestor_metadata_key_type_tag_and_layout() {
+        let key = AttestorMetadataKey {
+            attestor_address: Address::from_short_hex("0xA1").unwrap(),
+        };
+        // Deterministic id derivation must not error for a well-formed key.
+        derive_attestor_metadata_object_id(key.attestor_address).unwrap();
+        // BCS layout: 32-byte address, nothing else.
+        assert_eq!(bcs::to_bytes(&key).unwrap().len(), 32);
     }
 
     use fastcrypto::{
