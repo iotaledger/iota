@@ -27,7 +27,7 @@ use iota_sdk_types::{
 use iota_types::{
     base_types::{ExecutionData, ExecutionDigests},
     crypto::{
-        AccountKeyPair, AggregateAuthoritySignature, AuthorityKeyPair, AuthorityPublicKeyBytes,
+        AggregateAuthoritySignature, AuthorityKeyPair, AuthorityPublicKeyBytes,
         AuthorityQuorumSignInfo, AuthoritySignature, AuthorityStrongQuorumSignInfo, KeypairTraits,
         Signature, Signer, get_key_pair,
     },
@@ -151,7 +151,7 @@ fn get_registry() -> Result<Registry> {
         .unwrap();
 
     let (addr, kp): (_, AuthorityKeyPair) = get_key_pair();
-    let (s_addr, s_kp): (_, AccountKeyPair) = get_key_pair();
+    let (s_addr, s_kp): (_, fastcrypto::ed25519::Ed25519KeyPair) = get_key_pair();
     let pk: AuthorityPublicKeyBytes = kp.public().into();
     tracer.trace_value(&mut samples, &addr).unwrap();
     tracer.trace_value(&mut samples, &kp).unwrap();

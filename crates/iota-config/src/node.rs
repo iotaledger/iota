@@ -10,9 +10,11 @@ use std::{
 };
 
 use anyhow::Result;
+use fastcrypto::{ed25519::Ed25519KeyPair, traits::ToFromBytes};
 use iota_keys::keypair_file::{read_authority_keypair_from_file, read_keypair_from_file};
 use iota_metrics::MetricGroups;
 use iota_names::config::IotaNamesConfig;
+use iota_sdk_crypto::ToFromBytes as _;
 use iota_sdk_types::Address;
 use iota_types::{
     committee::EpochId,
@@ -707,21 +709,11 @@ impl NodeConfig {
     }
 
     pub fn protocol_key_pair(&self) -> &NetworkKeyPair {
-        match self.protocol_key_pair.keypair() {
-            IotaKeyPair::Ed25519(kp) => kp,
-            other => {
-                panic!("invalid keypair type: {other:?}, only Ed25519 is allowed for protocol key")
-            }
-        }
+        self.protocol_key_pair.ed25519_keypair()
     }
 
     pub fn network_key_pair(&self) -> &NetworkKeyPair {
-        match self.network_key_pair.keypair() {
-            IotaKeyPair::Ed25519(kp) => kp,
-            other => {
-                panic!("invalid keypair type: {other:?}, only Ed25519 is allowed for network key")
-            }
-        }
+        self.network_key_pair.ed25519_keypair()
     }
 
     pub fn authority_public_key(&self) -> AuthorityPublicKeyBytes {
@@ -1369,6 +1361,14 @@ pub struct KeyPairWithPath {
 
     #[serde(skip)]
     keypair: OnceCell<Arc<IotaKeyPair>>,
+
+    // The consensus/network stacks borrow their key as `&Ed25519KeyPair`
+    // (fastcrypto), while the key itself is stored as an SDK `IotaKeyPair`
+    // above. Converting on each access would return an owned value, which
+    // can't back the `&`-returning accessors, so the converted key is cached
+    // here. Never populated for account keys.
+    #[serde(skip)]
+    ed25519_keypair: OnceCell<Arc<Ed25519KeyPair>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize, Eq)]
@@ -1393,6 +1393,7 @@ impl KeyPairWithPath {
         Self {
             location: KeyPairLocation::InPlace { value: arc_kp },
             keypair: cell,
+            ed25519_keypair: OnceCell::new(),
         }
     }
 
@@ -1407,6 +1408,7 @@ impl KeyPairWithPath {
         Self {
             location: KeyPairLocation::File { path },
             keypair: cell,
+            ed25519_keypair: OnceCell::new(),
         }
     }
 
@@ -1422,6 +1424,23 @@ impl KeyPairWithPath {
                             panic!("invalid keypair file at path {path:?}: {e}")
                         }),
                     )
+                }
+            })
+            .as_ref()
+    }
+
+    /// The keypair as a fastcrypto ed25519 keypair, for the network stacks
+    /// that consume that type directly. Panics if the stored keypair is not
+    /// ed25519.
+    pub fn ed25519_keypair(&self) -> &Ed25519KeyPair {
+        self.ed25519_keypair
+            .get_or_init(|| match self.keypair() {
+                IotaKeyPair::Ed25519(kp) => Arc::new(
+                    Ed25519KeyPair::from_bytes(&kp.to_bytes())
+                        .expect("valid ed25519 private key bytes"),
+                ),
+                other => {
+                    panic!("invalid keypair type: {other:?}, only Ed25519 is allowed")
                 }
             })
             .as_ref()
@@ -1507,9 +1526,7 @@ mod tests {
 
     use fastcrypto::traits::KeyPair;
     use iota_keys::keypair_file::{write_authority_keypair_to_file, write_keypair_to_file};
-    use iota_types::crypto::{
-        AuthorityKeyPair, IotaKeyPair, NetworkKeyPair, get_key_pair_from_rng,
-    };
+    use iota_types::crypto::{AuthorityKeyPair, NetworkKeyPair, get_key_pair_from_rng};
     use rand::{SeedableRng, rngs::StdRng};
 
     use super::Genesis;
@@ -1554,12 +1571,12 @@ mod tests {
         write_authority_keypair_to_file(&authority_key_pair, PathBuf::from("authority.key"))
             .unwrap();
         write_keypair_to_file(
-            &IotaKeyPair::Ed25519(protocol_key_pair.copy()),
+            &protocol_key_pair.copy().into(),
             PathBuf::from("protocol.key"),
         )
         .unwrap();
         write_keypair_to_file(
-            &IotaKeyPair::Ed25519(network_key_pair.copy()),
+            &network_key_pair.copy().into(),
             PathBuf::from("network.key"),
         )
         .unwrap();

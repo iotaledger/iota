@@ -26,7 +26,7 @@ use serde::{Deserialize, Serialize, ser::Error};
 pub use crate::committee::EpochId;
 use crate::{
     MOVE_STDLIB_ADDRESS,
-    crypto::{AuthorityPublicKeyBytes, DefaultHash, IotaPublicKey, PublicKey},
+    crypto::{AuthorityPublicKeyBytes, DefaultHash, PublicKey},
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
     epoch_data::EpochData,
     error::{ExecutionError, ExecutionErrorKind},
@@ -216,14 +216,6 @@ fn update_hasher_with_flag(hasher: &mut DefaultHash, scheme: SignatureScheme) {
     if scheme != SignatureScheme::Ed25519 {
         hasher.update([scheme.to_u8()]);
     }
-}
-
-pub fn address_from_iota_pub_key<T: IotaPublicKey>(pk: &T) -> Address {
-    let mut hasher = DefaultHash::default();
-    update_hasher_with_flag(&mut hasher, T::SIGNATURE_SCHEME);
-    hasher.update(pk);
-    let g_arr = hasher.finalize();
-    Address::new(g_arr.digest)
 }
 
 impl From<&PublicKey> for Address {

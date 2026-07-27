@@ -12,21 +12,22 @@ mod utils;
 
 use anyhow::anyhow;
 use fastcrypto::{
-    ed25519::Ed25519KeyPair,
     encoding::{Base64, Encoding},
     hash::HashFunction,
-    secp256k1::Secp256k1KeyPair,
-    secp256r1::Secp256r1KeyPair,
-    traits::{EncodeDecodeBase64, KeyPair},
+    traits::EncodeDecodeBase64,
 };
 use iota_sdk::{
     IotaClientBuilder,
     rpc_types::IotaTransactionBlockResponseOptions,
     types::{
-        crypto::{IotaKeyPair, IotaSignature, Signer, ToFromBytes, get_key_pair_from_rng},
+        crypto::{IotaKeyPair, IotaSignature, Signature, get_key_pair_from_rng},
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         transaction::{TransactionData, TransactionDataAPI},
     },
+};
+use iota_sdk_crypto::{
+    Signer as _, ToFromBytes as _, ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey,
+    secp256r1::Secp256r1PrivateKey,
 };
 use iota_sdk_types::{Address, UserSignature};
 use rand::{SeedableRng, rngs::StdRng};
@@ -40,11 +41,11 @@ async fn main() -> Result<(), anyhow::Error> {
     // deterministically generate a keypair, testing only, do not use for mainnet,
     // use the next section to randomly generate a keypair instead.
     let ikp_determ_0 =
-        IotaKeyPair::Ed25519(Ed25519KeyPair::generate(&mut StdRng::from_seed([0; 32])));
+        IotaKeyPair::Ed25519(Ed25519PrivateKey::generate(StdRng::from_seed([0; 32])));
     let _ikp_determ_1 =
-        IotaKeyPair::Secp256k1(Secp256k1KeyPair::generate(&mut StdRng::from_seed([0; 32])));
+        IotaKeyPair::Secp256k1(Secp256k1PrivateKey::generate(StdRng::from_seed([0; 32])));
     let _ikp_determ_2 =
-        IotaKeyPair::Secp256r1(Secp256r1KeyPair::generate(&mut StdRng::from_seed([0; 32])));
+        IotaKeyPair::Secp256r1(Secp256r1PrivateKey::generate(StdRng::from_seed([0; 32])));
 
     // randomly generate a keypair.
     let _ikp_rand_0 = IotaKeyPair::Ed25519(get_key_pair_from_rng(&mut rand::rngs::OsRng).1);
@@ -53,16 +54,16 @@ async fn main() -> Result<(), anyhow::Error> {
 
     // import a keypair from a base64 encoded 32-byte `private key` assuming scheme
     // is Ed25519.
-    let _ikp_import_no_flag_0 = IotaKeyPair::Ed25519(Ed25519KeyPair::from_bytes(
-        &Base64::decode("1GPhHHkVlF6GrCty2IuBkM+tj/e0jn64ksJ1pc8KPoI=")
+    let _ikp_import_no_flag_0 = IotaKeyPair::Ed25519(Ed25519PrivateKey::from_bytes(
+        Base64::decode("1GPhHHkVlF6GrCty2IuBkM+tj/e0jn64ksJ1pc8KPoI=")
             .map_err(|_| anyhow!("Invalid base64"))?,
     )?);
-    let _ikp_import_no_flag_1 = IotaKeyPair::Ed25519(Ed25519KeyPair::from_bytes(
-        &Base64::decode("1GPhHHkVlF6GrCty2IuBkM+tj/e0jn64ksJ1pc8KPoI=")
+    let _ikp_import_no_flag_1 = IotaKeyPair::Ed25519(Ed25519PrivateKey::from_bytes(
+        Base64::decode("1GPhHHkVlF6GrCty2IuBkM+tj/e0jn64ksJ1pc8KPoI=")
             .map_err(|_| anyhow!("Invalid base64"))?,
     )?);
-    let _ikp_import_no_flag_2 = IotaKeyPair::Ed25519(Ed25519KeyPair::from_bytes(
-        &Base64::decode("1GPhHHkVlF6GrCty2IuBkM+tj/e0jn64ksJ1pc8KPoI=")
+    let _ikp_import_no_flag_2 = IotaKeyPair::Ed25519(Ed25519PrivateKey::from_bytes(
+        Base64::decode("1GPhHHkVlF6GrCty2IuBkM+tj/e0jn64ksJ1pc8KPoI=")
             .map_err(|_| anyhow!("Invalid base64"))?,
     )?);
 
@@ -138,7 +139,7 @@ async fn main() -> Result<(), anyhow::Error> {
     let digest = hasher.finalize().digest;
 
     // use IotaKeyPair to sign the digest.
-    let iota_sig = ikp_determ_0.sign(&digest);
+    let iota_sig: Signature = ikp_determ_0.sign(&digest);
 
     // if you would like to verify the signature locally before submission, use this
     // function. if it fails to verify locally, the transaction will fail to
