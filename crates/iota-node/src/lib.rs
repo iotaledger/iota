@@ -282,6 +282,16 @@ impl fmt::Debug for IotaNode {
 }
 
 impl IotaNode {
+    /// Starts a node that hosts the client-facing servers on the caller's
+    /// runtime, alongside everything else.
+    ///
+    /// This is intentional: this entry point serves the in-process nodes of
+    /// iota-swarm, where a separate serving runtime is either impossible
+    /// (simtests must keep every task on the simulator's deterministic
+    /// scheduler) or not worth the threads (thread-mode swarm runs many nodes
+    /// per process). Only the `iota-node` binary isolates client-facing
+    /// request handling on the dedicated serving runtime of `IotaRuntimes`,
+    /// via [`IotaNode::start_async`].
     pub async fn start(
         config: NodeConfig,
         registry_service: RegistryService,
