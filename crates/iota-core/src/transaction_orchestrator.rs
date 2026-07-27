@@ -896,7 +896,8 @@ where
     /// driving submission went away without publishing one (checkpoint-race
     /// cancellation, panic, or shutdown), and returns
     /// `TimeoutBeforeFinality` if nothing is published within
-    /// `WAIT_FOR_FINALITY_TIMEOUT`.
+    /// `WAIT_FOR_FINALITY_TIMEOUT` or the follow-up effects certification
+    /// does not complete within another `WAIT_FOR_FINALITY_TIMEOUT`.
     async fn await_in_flight_transaction(
         mut receiver: watch::Receiver<Option<InFlightSubmissionResult>>,
         td: &Arc<TransactionDriver<A>>,
@@ -939,17 +940,23 @@ where
             // consensus; only the 2f+1 effects certification is missing for
             // this caller. Certify the effects directly instead of starting
             // a second committee-wide submission or waiting for a checkpoint
-            // inclusion the caller never asked for.
-            let certified = td
-                .certify_transaction(
+            // inclusion the caller never asked for. `certify_transaction` is
+            // internally bounded only by committee size times its per-request
+            // timeout, so cap it to the same client-facing budget the driving
+            // submission gets for its whole `drive_transaction` call.
+            let certified = tokio::time::timeout(
+                WAIT_FOR_FINALITY_TIMEOUT,
+                td.certify_transaction(
                     tx_digest,
                     SubmitTransactionOptions {
                         forwarded_client_addr: client_addr,
                         ..Default::default()
                     },
-                )
-                .await
-                .map_err(map_td_error_to_qd)?;
+                ),
+            )
+            .await
+            .map_err(|_elapsed| QuorumDriverError::TimeoutBeforeFinality)?
+            .map_err(map_td_error_to_qd)?;
             return Ok(Self::response_from_driver_response(certified, request));
         }
 
