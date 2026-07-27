@@ -578,6 +578,13 @@ struct FeatureFlags {
     // stake-weighted base election is used.
     #[serde(skip_serializing_if = "is_false")]
     consensus_enable_sliding_window_leader_schedule: bool,
+
+    // If true, Starfish selects "bad" leader-schedule nodes by absolute
+    // normalized reputation score: exclude validators below a low threshold,
+    // capped at a maximum number of validators, and keep a minimum-size good
+    // (swap-in) pool; when false, the fixed stake cut by rank is used.
+    #[serde(skip_serializing_if = "is_false")]
+    consensus_enable_absolute_score_leader_schedule: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1879,6 +1886,11 @@ impl ProtocolConfig {
             "consensus_enable_sliding_window_leader_schedule requires window_size >= commits_per_schedule"
         );
         res
+    }
+
+    pub fn consensus_enable_absolute_score_leader_schedule(&self) -> bool {
+        self.feature_flags
+            .consensus_enable_absolute_score_leader_schedule
     }
 
     pub fn deny_rule_governance(&self) -> bool {
@@ -3362,6 +3374,11 @@ impl ProtocolConfig {
     pub fn set_consensus_enable_sliding_window_leader_schedule_for_testing(&mut self, val: bool) {
         self.feature_flags
             .consensus_enable_sliding_window_leader_schedule = val;
+    }
+
+    pub fn set_consensus_enable_absolute_score_leader_schedule_for_testing(&mut self, val: bool) {
+        self.feature_flags
+            .consensus_enable_absolute_score_leader_schedule = val;
     }
 }
 
