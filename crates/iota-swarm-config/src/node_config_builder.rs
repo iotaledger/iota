@@ -13,9 +13,9 @@ use iota_config::{
     IOTA_GENESIS_MIGRATION_TX_DATA_FILENAME, NodeConfig, local_ip_utils,
     node::{
         AuthorityKeyPairWithPath, AuthorityOverloadConfig, AuthorityStorePruningConfig,
-        CheckpointExecutorConfig, DBCheckpointConfig, DEFAULT_GRPC_CONCURRENCY_LIMIT,
-        ExecutionCacheConfig, ExpensiveSafetyCheckConfig, Genesis, GrpcApiConfig, KeyPairWithPath,
-        RunWithRange, StateSnapshotConfig, default_enable_index_processing,
+        CheckpointExecutorConfig, DBCheckpointConfig, ExecutionCacheConfig,
+        ExpensiveSafetyCheckConfig, Genesis, GrpcApiConfig, KeyPairWithPath, RunWithRange,
+        StateSnapshotConfig, default_enable_index_processing,
         default_end_of_epoch_broadcast_channel_capacity,
         default_full_checkpoint_contents_cache_size_mb,
     },
@@ -208,7 +208,9 @@ impl ValidatorConfigBuilder {
             genesis: Genesis::new_empty(),
             migration_tx_data_path,
             grpc_load_shed: None,
-            grpc_concurrency_limit: Some(DEFAULT_GRPC_CONCURRENCY_LIMIT),
+            // Effectively unlimited: tests and benchmarks must not be
+            // throttled.
+            grpc_concurrency_limit_per_core: 500_000_000,
             p2p_config,
             authority_store_pruning_config: pruning_config,
             end_of_epoch_broadcast_channel_capacity:
@@ -557,7 +559,9 @@ impl FullnodeConfigBuilder {
             genesis,
             migration_tx_data_path,
             grpc_load_shed: None,
-            grpc_concurrency_limit: None,
+            // Effectively unlimited: tests and benchmarks must not be
+            // throttled.
+            grpc_concurrency_limit_per_core: 500_000_000,
             p2p_config,
             authority_store_pruning_config: pruning_config,
             end_of_epoch_broadcast_channel_capacity:
