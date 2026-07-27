@@ -1,14 +1,14 @@
 // Copyright (c) Mysten Labs, Inc.
-// Modifications Copyright (c) 2025 IOTA Stiftung
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #[defines_primitive(address)]
 module iota::address;
 
+use iota::hex;
 use std::ascii;
 use std::bcs;
 use std::string;
-use iota::hex;
 
 /// Allows calling `.to_id()` on an address to get its `ID`.
 public use fun iota::object::id_from_address as address.to_id;
@@ -76,7 +76,7 @@ fun hex_char_value(c: u8): u8 {
     else abort EAddressParseError
 }
 
-/// Length of a IOTA address in bytes
+/// Length of an IOTA address in bytes
 public fun length(): u64 {
     LENGTH
 }
