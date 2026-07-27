@@ -2340,25 +2340,10 @@ impl IotaNode {
         self.randomness_handle.clone()
     }
 
-    /// Returns the metrics filter shared by the node's Prometheus registries.
-    pub fn metrics_filter(&self) -> Arc<prometheus_filtered::Filter> {
-        self.registry_service.filter()
-    }
-
-    /// Sets the runtime metrics filter. `directives` drive matching (groups
-    /// already expanded); `display` is the group-form input the admin endpoint
-    /// echoes back.
-    pub fn set_metrics_runtime_filter(
-        &self,
-        directives: &str,
-        display: &str,
-    ) -> std::result::Result<(), String> {
-        self.registry_service
-            .set_runtime_filter(directives, display)
-    }
-
-    pub fn reset_metrics_runtime_filter(&self) {
-        self.registry_service.reset_runtime_filter();
+    /// Returns the registry service holding the node's Prometheus registries
+    /// and their shared exposure filter.
+    pub(crate) fn registry_service(&self) -> &RegistryService {
+        &self.registry_service
     }
 
     /// Sends signed capability notification to committee validators for

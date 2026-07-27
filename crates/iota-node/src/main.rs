@@ -81,7 +81,7 @@ fn main() {
         .as_ref()
         .and_then(|m| m.groups.clone())
         .unwrap_or_default();
-    let env_filter = std::env::var("METRICS_FILTER").ok();
+    let env_filter = std::env::var(prometheus_filtered::METRICS_FILTER_ENV).ok();
     let (metrics_filter, dropped_directives) = metric_groups.startup_filter(env_filter.as_deref());
     // Logging is not initialized yet, so bad directives are reported on
     // stderr; the remaining directives still apply.

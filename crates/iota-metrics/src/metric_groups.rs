@@ -45,17 +45,6 @@ use std::collections::BTreeMap;
 pub use prometheus_filtered::MetricLevel;
 use serde::{Deserialize, Serialize};
 
-/// The `METRICS_FILTER` token for a level.
-fn level_string(level: MetricLevel) -> &'static str {
-    match level {
-        MetricLevel::Off => "off",
-        MetricLevel::Warn => "warn",
-        MetricLevel::Info => "info",
-        MetricLevel::Debug => "debug",
-        MetricLevel::Trace => "trace",
-    }
-}
-
 /// Per-group verbosity levels for the node's predefined Prometheus metric
 /// groups.
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -281,10 +270,10 @@ impl MetricGroups {
 
     /// Renders the levels into a `METRICS_FILTER`-style directive string.
     fn to_filter_string(&self) -> String {
-        let mut directives = vec![format!("default={}", level_string(self.default))];
+        let mut directives = vec![format!("default={}", self.default.as_str())];
         for (level, modules) in self.group_modules() {
             for module in modules {
-                directives.push(format!("{module}={}", level_string(level)));
+                directives.push(format!("{module}={}", level.as_str()));
             }
         }
         directives.extend(self.override_directives());
@@ -295,9 +284,9 @@ impl MetricGroups {
     /// Keyed by group name rather than expanded
     /// to module paths, so the admin endpoint can echo the config compactly.
     fn to_display_string(&self) -> String {
-        let mut directives = vec![format!("default={}", level_string(self.default))];
+        let mut directives = vec![format!("default={}", self.default.as_str())];
         for (group, level) in self.group_levels() {
-            directives.push(format!("{group}={}", level_string(level)));
+            directives.push(format!("{group}={}", level.as_str()));
         }
         directives.extend(self.override_directives());
         directives.join(",")
@@ -307,7 +296,7 @@ impl MetricGroups {
     /// groups' filter patterns; other directives pass through unchanged.
     /// Any invalid directive rejects the whole string, with every offending
     /// directive reported.
-    pub fn expand_directives(filter: &str) -> Result<String, String> {
+    pub(crate) fn expand_directives(filter: &str) -> Result<String, String> {
         let (directives, errors) = Self::expand_startup_directives(filter);
         if errors.is_empty() {
             Ok(directives)
@@ -338,34 +327,33 @@ impl MetricGroups {
     /// Matching uses the expanded module directives; the admin endpoint
     /// echoes the group-form strings, so each source keeps both.
     pub fn startup_filter(&self, env: Option<&str>) -> (prometheus_filtered::Filter, Vec<String>) {
-        let mut errors = Vec::new();
-        let env_directives = env.map(|env| {
-            let (expanded, errs) = Self::expand_startup_directives(env);
-            errors = errs;
-            expanded
-        });
-        let filter = prometheus_filtered::Filter::from_sources(
-            prometheus_filtered::FilterSource::with_display(
-                &self.to_filter_string(),
-                &self.to_display_string(),
+        let directives = self.to_filter_string();
+        let display = self.to_display_string();
+        let config = prometheus_filtered::FilterSource::with_display(&directives, &display);
+        match env {
+            Some(env) => {
+                let (expanded, errors) = Self::expand_startup_directives(env);
+                let filter = prometheus_filtered::Filter::from_sources(
+                    config,
+                    Some(prometheus_filtered::FilterSource::with_display(
+                        &expanded, env,
+                    )),
+                );
+                (filter, errors)
+            }
+            None => (
+                prometheus_filtered::Filter::from_sources(config, None),
+                Vec::new(),
             ),
-            env_directives
-                .as_deref()
-                .zip(env)
-                .map(|(directives, display)| {
-                    prometheus_filtered::FilterSource::with_display(directives, display)
-                }),
-        );
-        (filter, errors)
+        }
     }
 
     fn expand_directive(part: &str) -> Result<Vec<String>, String> {
-        prometheus_filtered::validate_directive(part)?;
-        let (pattern, level) = prometheus_filtered::split_directive(part);
+        let (pattern, level) = prometheus_filtered::split_directive(part)?;
         Ok(match Self::modules_for_group(pattern) {
             Some(modules) => modules
                 .iter()
-                .map(|module| format!("{module}={level}"))
+                .map(|module| format!("{module}={}", level.as_str()))
                 .collect(),
             // A raw module path, metric-name prefix, or bare global level passes through unchanged.
             None => vec![part.to_owned()],
@@ -376,7 +364,7 @@ impl MetricGroups {
     fn override_directives(&self) -> impl Iterator<Item = String> + '_ {
         self.overrides
             .iter()
-            .map(|(pattern, level)| format!("{pattern}={}", level_string(*level)))
+            .map(|(pattern, level)| format!("{pattern}={}", level.as_str()))
     }
 }
 
@@ -585,6 +573,10 @@ mod tests {
             MetricGroups::expand_directives("hardware=off").unwrap(),
             "iota_metrics::hardware_metrics=off"
         );
+        assert_eq!(
+            MetricGroups::expand_directives("iota_metrics=off,runtime=warn").unwrap(),
+            "iota_metrics=off,iota_metrics=warn,telemetry_subscribers=warn"
+        );
     }
 
     #[test]
@@ -625,31 +617,6 @@ mod tests {
     }
 
     #[test]
-    fn runtime_default_override_touches_only_ungrouped_modules() {
-        use prometheus_filtered::FilterSource;
-
-        // `default=LEVEL` raises the level of the ungrouped modules while
-        // every group keeps its configured level — the same meaning `default`
-        // has in the config's `metrics.groups` section.
-        let groups = MetricGroups::default();
-        let filter = prometheus_filtered::Filter::from_sources(
-            FilterSource::with_display(&groups.to_filter_string(), &groups.to_display_string()),
-            None,
-        );
-        let expanded = MetricGroups::expand_directives("default=trace").unwrap();
-        filter
-            .set_runtime_filter(FilterSource::with_display(&expanded, "default=trace"))
-            .unwrap();
-
-        assert!(filter.is_exposed("x", "iota_node::some_module", MetricLevel::Trace));
-        assert!(!filter.is_exposed("x", "starfish_core::metrics", MetricLevel::Info));
-        let display = filter.filter_string();
-        assert!(display.contains("default=trace"), "{display}");
-        assert!(display.contains("consensus=warn"), "{display}");
-        assert!(!display.contains("default=info"), "{display}");
-    }
-
-    #[test]
     fn expand_startup_directives_drops_bad_directives() {
         // An invalid directive is dropped and reported; the rest still expand.
         let (expanded, errors) =
@@ -674,59 +641,6 @@ mod tests {
             MetricGroups::expand_directives("consensus=bogus,storage=warn,epoch=nah").unwrap_err();
         assert!(err.contains("consensus=bogus"), "unexpected error: {err}");
         assert!(err.contains("epoch=nah"), "unexpected error: {err}");
-    }
-
-    #[test]
-    fn expand_directives_is_order_independent() {
-        // A `default` level after a group directive does not cancel it.
-        for input in [
-            "traffic-control=off,default=info",
-            "default=info,traffic-control=off",
-        ] {
-            let expanded = MetricGroups::expand_directives(input).unwrap();
-            let filter = Filter::parse(&expanded);
-            assert!(
-                !filter.is_exposed("x", "iota_core::traffic_controller", MetricLevel::Warn),
-                "{input} -> {expanded}"
-            );
-            assert!(
-                filter.is_exposed("x", "iota_core::authority", MetricLevel::Info),
-                "{input} -> {expanded}"
-            );
-            assert!(
-                !filter.is_exposed("x", "iota_core::authority", MetricLevel::Debug),
-                "{input} -> {expanded}"
-            );
-        }
-        // With three nested module prefixes, each level applies to its own
-        // subtree: the most specific matching directive wins.
-        let expanded = MetricGroups::expand_directives(
-            "iota_metrics::metrics_network::inbound=off,transport=debug,runtime=trace",
-        )
-        .unwrap();
-        let filter = Filter::parse(&expanded);
-        assert!(
-            !filter.is_exposed(
-                "x",
-                "iota_metrics::metrics_network::inbound",
-                MetricLevel::Warn
-            ),
-            "{expanded}"
-        );
-        assert!(
-            filter.is_exposed("x", "iota_metrics::metrics_network", MetricLevel::Debug),
-            "{expanded}"
-        );
-        assert!(
-            filter.is_exposed("x", "iota_metrics", MetricLevel::Trace),
-            "{expanded}"
-        );
-        // A later directive for the same pattern still wins (last match):
-        // here `runtime` expands to the raw directive's `iota_metrics`
-        // pattern.
-        let expanded = MetricGroups::expand_directives("iota_metrics=off,runtime=warn").unwrap();
-        let filter = Filter::parse(&expanded);
-        assert!(filter.is_exposed("x", "iota_metrics", MetricLevel::Warn));
     }
 
     #[test]

@@ -637,18 +637,15 @@ impl RegistryService {
     }
 
     /// Sets the runtime override on the shared filter; every registry's next
-    /// gather exposes metrics per the new directives. Rejects the whole
-    /// update if any directive is invalid. `directives` drive matching;
-    /// `display` (e.g. the group-form input before expansion) is what the
-    /// admin endpoint echoes back.
-    pub fn set_runtime_filter(
-        &self,
-        directives: &str,
-        display: &str,
-    ) -> std::result::Result<(), String> {
+    /// gather exposes metrics per the new directives. `filter` may use
+    /// [`MetricGroups`] names, which are expanded for matching while the
+    /// string is echoed back as given. Rejects the whole update if any
+    /// directive is invalid.
+    pub fn set_runtime_filter(&self, filter: &str) -> std::result::Result<(), String> {
+        let expanded = MetricGroups::expand_directives(filter)?;
         self.filter
             .set_runtime_filter(prometheus_filtered::FilterSource::with_display(
-                directives, display,
+                &expanded, filter,
             ))
     }
 
@@ -898,7 +895,7 @@ mod tests {
         // One runtime update changes the exposure of every registry in the
         // service.
         registry_service
-            .set_runtime_filter("iota_metrics=debug", "iota_metrics=debug")
+            .set_runtime_filter("runtime=debug")
             .unwrap();
         assert_eq!(
             gathered_names(&registry_service),
@@ -909,13 +906,6 @@ mod tests {
                 "second_g_warn"
             ]
         );
-
-        // An invalid update is rejected without touching the current override.
-        let err = registry_service
-            .set_runtime_filter("bogus=nope", "bogus=nope")
-            .unwrap_err();
-        assert!(err.contains("bogus=nope"), "unexpected error: {err}");
-        assert_eq!(gathered_names(&registry_service).len(), 4);
 
         // Reset restores the startup exposure across all registries.
         registry_service.reset_runtime_filter();

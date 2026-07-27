@@ -13,7 +13,6 @@ use axum::{
 };
 use base64::Engine;
 use humantime::parse_duration;
-use iota_metrics::MetricGroups;
 use iota_sdk_types::RandomnessRound;
 use iota_types::{
     base_types::AuthorityName,
@@ -612,18 +611,15 @@ async fn traffic_control(
 }
 
 async fn get_metrics_filter(State(state): State<Arc<AppState>>) -> (StatusCode, String) {
-    fn or_none(s: String) -> String {
-        if s.is_empty() { "(none)".into() } else { s }
-    }
-    let filter = state.node.metrics_filter();
+    let filter = state.node.registry_service().filter();
     (
         StatusCode::OK,
         format!(
             "metrics exposure filter:\n\
-             current: {}\n\
-             startup: {}\n",
-            or_none(filter.filter_string()),
-            or_none(filter.startup_filter_string()),
+             current: {}\n\n\n\
+             (startup: {})\n",
+            filter.filter_string(),
+            filter.startup_filter_string(),
         ),
     )
 }
@@ -638,12 +634,7 @@ async fn set_metrics_filter(
     Query(MetricsFilterUpdate { filter }): Query<MetricsFilterUpdate>,
 ) -> (StatusCode, String) {
     let new_filter = filter.trim();
-    let expanded = match MetricGroups::expand_directives(new_filter) {
-        Ok(expanded) => expanded,
-        Err(err) => return (StatusCode::BAD_REQUEST, format!("{err}\n")),
-    };
-
-    match state.node.set_metrics_runtime_filter(&expanded, new_filter) {
+    match state.node.registry_service().set_runtime_filter(new_filter) {
         Ok(()) => {
             info!(filter =% new_filter, "Metrics filter updated");
             (
@@ -656,7 +647,7 @@ async fn set_metrics_filter(
 }
 
 async fn reset_metrics_filter(State(state): State<Arc<AppState>>) -> (StatusCode, String) {
-    state.node.reset_metrics_runtime_filter();
+    state.node.registry_service().reset_runtime_filter();
     info!("Metrics filter reset to startup configuration");
     (
         StatusCode::OK,

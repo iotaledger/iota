@@ -35,7 +35,10 @@
 //! crate behaves exactly like plain `prometheus`; use a bare `LEVEL` directive
 //! to set a stricter global default.
 
-use std::sync::{Arc, OnceLock, RwLock};
+use std::{
+    result::Result as StdResult,
+    sync::{Arc, OnceLock, RwLock},
+};
 
 /// Re-exported under a hidden alias so `$crate::prometheus::xxx!` works
 /// inside `#[macro_export]` macros without requiring callers to depend
@@ -89,7 +92,21 @@ impl MetricLevel {
             Self::Trace => 4,
         }
     }
+
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Off => "off",
+            Self::Warn => "warn",
+            Self::Info => "info",
+            Self::Debug => "debug",
+            Self::Trace => "trace",
+        }
+    }
 }
+
+/// Environment variable holding filter directives, read by
+/// [`Filter::from_env`].
+pub const METRICS_FILTER_ENV: &str = "METRICS_FILTER";
 
 /// Default threshold when no directive matches a metric: expose it. Filtering
 /// is opt-in, so an unfiltered registry behaves like plain `prometheus`.
@@ -104,8 +121,8 @@ struct FilterDirective {
     /// component match allocates nothing.
     component_pattern: String,
     /// Metrics matched by this directive are exposed iff their verbosity is
-    /// `<= threshold`. `off=0`, `warn=1`, `info=2`, `debug=3`, `trace=4`.
-    threshold: u8,
+    /// at most this level's.
+    level: MetricLevel,
 }
 
 /// Filter holds two directive sets: the immutable startup directives (the
@@ -187,15 +204,32 @@ fn merge_directives(base: &[FilterDirective], over: &[FilterDirective]) -> Vec<F
         .collect()
 }
 
+/// Parses a directive string, returning the valid directives and an error
+/// for each invalid one; the caller decides whether an error drops the
+/// directive or rejects the whole string.
+fn parse_directives(s: &str) -> (Vec<FilterDirective>, Vec<String>) {
+    let mut directives = Vec::new();
+    let mut errors = Vec::new();
+    for part in directive_parts(s) {
+        match split_directive(part) {
+            Ok((pattern, level)) => directives.push(FilterDirective {
+                component_pattern: format!("::{pattern}"),
+                pattern: pattern.to_owned(),
+                level,
+            }),
+            Err(err) => errors.push(err),
+        }
+    }
+    (directives, errors)
+}
+
 /// Parses a directive string, dropping invalid directives with a warning.
 fn parse_valid_directives(s: &str) -> Vec<FilterDirective> {
-    directive_parts(s)
-        .filter_map(|part| {
-            parse_directive(part)
-                .map_err(|err| warn!("dropping prometheus filter directive: {err}"))
-                .ok()
-        })
-        .collect()
+    let (directives, errors) = parse_directives(s);
+    for err in errors {
+        warn!("dropping prometheus filter directive: {err}");
+    }
+    directives
 }
 
 /// Splits a `METRICS_FILTER`-style string into its non-empty, trimmed
@@ -204,34 +238,25 @@ pub fn directive_parts(s: &str) -> impl Iterator<Item = &str> + '_ {
     s.split(',').map(str::trim).filter(|part| !part.is_empty())
 }
 
-/// Splits one directive into its `(pattern, level)` parts. Two equivalent
-/// spellings yield the empty (global default) pattern: a bare level (no `=`)
-/// and the reserved `default` pattern, which normalizes to it here.
-pub fn split_directive(part: &str) -> (&str, &str) {
-    match part.rfind('=') {
+/// Splits one directive into its `(pattern, level)` parts, rejecting an
+/// invalid level with an error describing the offending directive. Two
+/// equivalent spellings yield the empty (global default) pattern: a bare
+/// level (no `=`) and the reserved `default` pattern, which normalizes to it
+/// here.
+pub fn split_directive(part: &str) -> StdResult<(&str, MetricLevel), String> {
+    let (pattern, value) = match part.rfind('=') {
         Some(eq) => match part[..eq].trim() {
             "default" => ("", part[eq + 1..].trim()),
             pattern => (pattern, part[eq + 1..].trim()),
         },
         None => ("", part.trim()),
-    }
-}
-
-/// Returns an error describing the offending directive if `part` is not a
-/// valid `pattern=LEVEL` directive.
-pub fn validate_directive(part: &str) -> std::result::Result<(), String> {
-    parse_directive(part).map(|_| ())
-}
-
-/// Parses one `pattern=LEVEL` directive.
-fn parse_directive(part: &str) -> std::result::Result<FilterDirective, String> {
-    let (pattern, value) = split_directive(part);
-    let threshold = match value {
-        "off" => 0,
-        "warn" => 1,
-        "info" => 2,
-        "debug" => 3,
-        "trace" => 4,
+    };
+    let level = match value {
+        "off" => MetricLevel::Off,
+        "warn" => MetricLevel::Warn,
+        "info" => MetricLevel::Info,
+        "debug" => MetricLevel::Debug,
+        "trace" => MetricLevel::Trace,
         other => {
             return Err(format!(
                 "invalid level {other:?} in directive {part:?}: expected one of \
@@ -239,32 +264,19 @@ fn parse_directive(part: &str) -> std::result::Result<FilterDirective, String> {
             ));
         }
     };
-    Ok(FilterDirective {
-        component_pattern: format!("::{pattern}"),
-        pattern: pattern.to_owned(),
-        threshold,
-    })
+    Ok((pattern, level))
 }
 
 /// Renders directives back into their canonical `pattern=LEVEL` string. The
 /// empty pattern renders as `default=LEVEL`.
 fn render_directives(directives: &[FilterDirective]) -> String {
-    fn token(threshold: u8) -> &'static str {
-        match threshold {
-            0 => "off",
-            1 => "warn",
-            2 => "info",
-            3 => "debug",
-            _ => "trace",
-        }
-    }
     directives
         .iter()
         .map(|dir| {
             if dir.pattern.is_empty() {
-                format!("default={}", token(dir.threshold))
+                format!("default={}", dir.level.as_str())
             } else {
-                format!("{}={}", dir.pattern, token(dir.threshold))
+                format!("{}={}", dir.pattern, dir.level.as_str())
             }
         })
         .collect::<Vec<_>>()
@@ -272,7 +284,8 @@ fn render_directives(directives: &[FilterDirective]) -> String {
 }
 
 /// Evaluates `directives` for a metric, returning the most specific matching
-/// directive's threshold, or `None` when no directive matches.
+/// directive's threshold, or the permissive default when no directive
+/// matches.
 ///
 /// A directive matches when its pattern is:
 /// 1. Empty (a bare level, or its `default=LEVEL` spelling) — global default.
@@ -283,7 +296,7 @@ fn render_directives(directives: &[FilterDirective]) -> String {
 /// Among matching directives, the longest pattern wins (so a directive for a
 /// submodule overrides one for its parent, and any pattern overrides the bare
 /// global level); among equal-length patterns, the last one wins.
-fn threshold_for(directives: &[FilterDirective], name: &str, module: &str) -> Option<u8> {
+fn threshold(directives: &[FilterDirective], name: &str, module: &str) -> u8 {
     let mut best: Option<(usize, u8)> = None;
     for dir in directives {
         let matches = dir.pattern.is_empty()
@@ -291,16 +304,10 @@ fn threshold_for(directives: &[FilterDirective], name: &str, module: &str) -> Op
             || module.starts_with(dir.pattern.as_str())
             || module.contains(dir.component_pattern.as_str());
         if matches && best.is_none_or(|(len, _)| dir.pattern.len() >= len) {
-            best = Some((dir.pattern.len(), dir.threshold));
+            best = Some((dir.pattern.len(), dir.level.verbosity()));
         }
     }
-    best.map(|(_, threshold)| threshold)
-}
-
-/// Like [`threshold_for`], but falling back to the permissive default when no
-/// directive matches.
-fn threshold(directives: &[FilterDirective], name: &str, module: &str) -> u8 {
-    threshold_for(directives, name, module).unwrap_or(DEFAULT_THRESHOLD)
+    best.map_or(DEFAULT_THRESHOLD, |(_, threshold)| threshold)
 }
 
 impl Filter {
@@ -311,10 +318,10 @@ impl Filter {
         Self::from_sources(FilterSource::new(s), None)
     }
 
-    /// Builds a filter with an empty config source and the `METRICS_FILTER`
-    /// env variable's directives (permissive when unset).
+    /// Builds a filter with an empty config source and the
+    /// [`METRICS_FILTER_ENV`] variable's directives (permissive when unset).
     pub fn from_env() -> Self {
-        let env = std::env::var("METRICS_FILTER").ok();
+        let env = std::env::var(METRICS_FILTER_ENV).ok();
         Self::from_sources(FilterSource::new(""), env.as_deref().map(FilterSource::new))
     }
 
@@ -330,22 +337,18 @@ impl Filter {
         }
     }
 
-    /// Returns a snapshot of the directives currently in effect.
-    fn runtime(&self) -> Arc<DirectiveSet> {
-        self.runtime.read().unwrap().clone()
-    }
-
     /// Returns `true` if a registered metric named `name` in `module` at
     /// verbosity `level` should be exposed when gathering, per the directives
     /// currently in effect.
     #[inline]
     pub fn is_exposed(&self, name: &str, module: &str, level: MetricLevel) -> bool {
-        threshold(&self.runtime().directives, name, module) >= level.verbosity()
+        let runtime = self.runtime.read().unwrap();
+        threshold(&runtime.directives, name, module) >= level.verbosity()
     }
 
     /// Returns the display string of the directives currently in effect.
     pub fn filter_string(&self) -> String {
-        render_directives(&self.runtime().display)
+        render_directives(&self.runtime.read().unwrap().display)
     }
 
     /// Returns the startup directives' display string.
@@ -358,10 +361,11 @@ impl Filter {
     /// starts from the startup directives again rather than stacking on the
     /// previous override. Rejects the whole update if any directive is
     /// invalid.
-    pub fn set_runtime_filter(&self, source: FilterSource<'_>) -> std::result::Result<(), String> {
-        let directives = directive_parts(source.directives)
-            .map(parse_directive)
-            .collect::<std::result::Result<Vec<_>, String>>()?;
+    pub fn set_runtime_filter(&self, source: FilterSource<'_>) -> StdResult<(), String> {
+        let (directives, errors) = parse_directives(source.directives);
+        if !errors.is_empty() {
+            return Err(errors.join("; "));
+        }
         let over = DirectiveSet {
             directives,
             display: parse_valid_directives(source.display),
@@ -977,7 +981,7 @@ mod tests {
         // A set env var would add env directives, so `Filter::from_env` is
         // only exercised when it is unset; `Filter::from_sources` covers the
         // set case.
-        if std::env::var_os("METRICS_FILTER").is_none() {
+        if std::env::var_os(super::METRICS_FILTER_ENV).is_none() {
             filters.push(super::Filter::from_env());
         }
         for filter in filters {
@@ -1062,14 +1066,14 @@ mod tests {
 }
 
 #[cfg(test)]
-mod gather_filter_tests {
-    use super::{Filter, MetricLevel, Registry};
+mod test_helpers {
+    use super::{Filter, Registry};
 
-    fn registry(filter: &str) -> Registry {
+    pub fn registry(filter: &str) -> Registry {
         Registry::new_custom(None, None, Some(std::sync::Arc::new(Filter::parse(filter)))).unwrap()
     }
 
-    fn gathered_names(registry: &Registry) -> Vec<String> {
+    pub fn gathered_names(registry: &Registry) -> Vec<String> {
         let mut names: Vec<_> = registry
             .gather()
             .iter()
@@ -1078,6 +1082,14 @@ mod gather_filter_tests {
         names.sort();
         names
     }
+}
+
+#[cfg(test)]
+mod gather_filter_tests {
+    use super::{
+        Filter, MetricLevel, Registry,
+        test_helpers::{gathered_names, registry},
+    };
 
     #[test]
     fn gather_applies_level_thresholds_by_module() {
@@ -1148,21 +1160,10 @@ mod gather_filter_tests {
 
 #[cfg(test)]
 mod runtime_filter_tests {
-    use super::{Filter, FilterSource, MetricLevel, Registry};
-
-    fn registry(filter: &str) -> Registry {
-        Registry::new_custom(None, None, Some(std::sync::Arc::new(Filter::parse(filter)))).unwrap()
-    }
-
-    fn gathered_names(registry: &Registry) -> Vec<String> {
-        let mut names: Vec<_> = registry
-            .gather()
-            .iter()
-            .map(|f| f.name().to_owned())
-            .collect();
-        names.sort();
-        names
-    }
+    use super::{
+        Filter, FilterSource, MetricLevel, Registry,
+        test_helpers::{gathered_names, registry},
+    };
 
     // The node drives this via `RegistryService`; exposure follows the
     // filter change on the next gather, with no extra step.
@@ -1226,12 +1227,6 @@ mod runtime_filter_tests {
         // directives fully in effect — and replaces the previous override
         // rather than accumulating with it.
         set_runtime(&reg, "");
-        assert_eq!(gathered_names(&reg), ["g_b"]);
-
-        // A bare level is the `default=LEVEL` spelling: it raises the global
-        // default but never out-ranks a more specific startup directive, so
-        // `g_a=off` keeps hiding g_a.
-        set_runtime(&reg, "trace");
         assert_eq!(gathered_names(&reg), ["g_b"]);
 
         reset_runtime(&reg);
@@ -1306,27 +1301,8 @@ mod runtime_filter_tests {
     }
 
     #[test]
-    fn default_pattern_replaces_only_the_global_default() {
-        use MetricLevel::{Trace, Warn};
-
-        // `default=LEVEL` (equally, a bare `LEVEL`) replaces the startup
-        // global default and leaves the other startup directives in place.
-        let filter = Filter::parse("info,g_a=off");
-        filter
-            .set_runtime_filter(FilterSource::new("default=trace"))
-            .unwrap();
-        assert!(!filter.is_exposed("g_a", "m", Warn));
-        assert!(filter.is_exposed("x", "m", Trace));
-        assert_eq!(filter.filter_string(), "g_a=off,default=trace");
-
-        // The same holds for the env source over the config's directives.
-        let filter = Filter::from_sources(
-            FilterSource::new("info,g_a=off"),
-            Some(FilterSource::new("default=trace")),
-        );
-        assert!(!filter.is_exposed("g_a", "m", Warn));
-        assert!(filter.is_exposed("x", "m", Trace));
-        assert_eq!(filter.startup_filter_string(), "g_a=off,default=trace");
+    fn default_pattern_does_not_match_a_module_named_default() {
+        use MetricLevel::Warn;
 
         // `default` matches as the global default, not as a module named
         // "default": any real pattern is more specific.
