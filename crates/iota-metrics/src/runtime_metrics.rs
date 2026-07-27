@@ -16,7 +16,7 @@ use std::{
 };
 
 use prometheus_filtered::{
-    HistogramVec, IntGaugeVec, Registry, register_histogram_vec_with_registry,
+    HistogramVec, IntGaugeVec, MetricLevel, Registry, register_histogram_vec_with_registry,
     register_int_gauge_vec_with_registry,
 };
 use tokio::runtime::Handle;
@@ -40,14 +40,16 @@ impl RuntimeMonitorMetrics {
                 "tokio_runtime_workers",
                 "Number of worker threads in the tokio runtime.",
                 &["runtime"],
-                registry,
+                registry;
+                MetricLevel::Warn,
             )
             .unwrap(),
             alive_tasks: register_int_gauge_vec_with_registry!(
                 "tokio_runtime_alive_tasks",
                 "Number of alive (spawned, not yet completed) tasks in the tokio runtime.",
                 &["runtime"],
-                registry,
+                registry;
+                MetricLevel::Warn,
             )
             .unwrap(),
             global_queue_depth: register_int_gauge_vec_with_registry!(
@@ -55,7 +57,8 @@ impl RuntimeMonitorMetrics {
                 "Tasks waiting in the runtime's global injection queue. A persistently \
                  non-zero value means the workers cannot keep up with ready tasks.",
                 &["runtime"],
-                registry,
+                registry;
+                MetricLevel::Warn,
             )
             .unwrap(),
             scheduler_lag_seconds: register_histogram_vec_with_registry!(
@@ -66,7 +69,8 @@ impl RuntimeMonitorMetrics {
                 vec![
                     0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0
                 ],
-                registry,
+                registry;
+                MetricLevel::Warn,
             )
             .unwrap(),
         })
