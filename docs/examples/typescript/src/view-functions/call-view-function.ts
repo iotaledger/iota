@@ -5,30 +5,74 @@
  * and call them with the TypeScript SDK.
  *
  * A function can only be called as a view if it is recorded in its module's
- * on-chain view functions metadata. This requires the network to have view
- * function support enabled; at the time of writing this is not yet the case
- * on testnet, so run this example against a local network
- * (`iota-localnet start --force-regenesis --with-faucet`):
+ * on-chain view functions metadata, which is recorded on devnet or a local
+ * network, not yet on testnet or mainnet.
  *
- * npm run call-view-function
+ * By default it runs against devnet. Pass `--localnet` to mint and fund a
+ * throwaway wallet from the local faucet, or `--devnet` / `--testnet` to use the
+ * wallet configured in the `iota` CLI (assumed funded — the public faucets have
+ * no HTTP API):
+ *
+ *   npm run call-view-function -- --localnet
  */
 
-import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';
-import { getFaucetHost, requestIotaFromFaucetV1 } from '@iota/iota-sdk/faucet';
+import { IotaClient } from '@iota/iota-sdk/client';
+import { requestIotaFromFaucetV1 } from '@iota/iota-sdk/faucet';
 import { Ed25519Keypair } from '@iota/iota-sdk/keypairs/ed25519';
 import { Transaction } from '@iota/iota-sdk/transactions';
-import { publishViewFunctionsPackage } from '../utils';
+import { loadConfiguredKeypair, publishViewFunctionsPackage } from '../utils';
+
+type Network = 'localnet' | 'devnet' | 'testnet';
+
+const RPC_URLS: Record<Network, string> = {
+    localnet: 'http://127.0.0.1:9000',
+    devnet: 'https://api.devnet.iota.cafe',
+    testnet: 'https://api.testnet.iota.cafe',
+};
+
+const LOCAL_FAUCET_HOST = 'http://127.0.0.1:9123';
+
+function parseNetwork(): Network {
+    const flag = process.argv.slice(2).find((arg) => arg.startsWith('--'));
+    switch (flag) {
+        case undefined:
+        case '--devnet':
+            return 'devnet';
+        case '--localnet':
+            return 'localnet';
+        case '--testnet':
+            return 'testnet';
+        default:
+            throw new Error(`unknown flag ${flag}; use --localnet, --devnet, or --testnet`);
+    }
+}
 
 async function run() {
-    // Build a client to connect to the local IOTA network.
-    const iotaClient = new IotaClient({ url: getFullnodeUrl('localnet') });
+    const network = parseNetwork();
+    const iotaClient = new IotaClient({ url: RPC_URLS[network] });
 
-    // Generate a sender address and fund it from the local faucet.
-    const keypair = new Ed25519Keypair();
+    // On localnet, mint a throwaway wallet and fund it from the local faucet. On
+    // devnet/testnet the public faucets have no HTTP API, so use the wallet
+    // configured in the `iota` CLI and assume it is already funded.
+    let keypair: Ed25519Keypair;
+    if (network === 'localnet') {
+        keypair = new Ed25519Keypair();
+        await requestIotaFromFaucetV1({ host: LOCAL_FAUCET_HOST, recipient: keypair.toIotaAddress() });
+    } else {
+        keypair = loadConfiguredKeypair();
+    }
     const sender = keypair.toIotaAddress();
-    console.log(`Sender address: ${sender}`);
-    await requestIotaFromFaucetV1({ host: getFaucetHost('localnet'), recipient: sender });
+    console.log(`Network: ${network}. Sender address: ${sender}`);
+
+    // Wait for the wallet to hold a coin (funded by the faucet on localnet, or
+    // already funded on a public network).
     while ((await iotaClient.getCoins({ owner: sender })).data.length === 0) {
+        if (network !== 'localnet') {
+            throw new Error(
+                `Address ${sender} holds no coins on ${network}. Fund it at the ${network} ` +
+                    `faucet website, then re-run.`,
+            );
+        }
         await new Promise((resolve) => setTimeout(resolve, 1000));
     }
 

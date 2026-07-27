@@ -16,6 +16,46 @@ const CUSTOM_NFT_PACKAGE_PATH = "../../move/custom_nft";
 const VIEW_FUNCTIONS_PACKAGE_PATH = "../../../../examples/move/view_functions";
 const IOTA_BIN = path.resolve(__dirname, '../../../../target/release/iota');
 
+/**
+ * Build the `iota` CLI from this repository if it is not already present.
+ */
+function ensureIotaBinary(): void {
+    if (!fs.existsSync(IOTA_BIN)) {
+        console.log("IOTA binary not found. Building the binary...");
+        execSync('cargo build --release -p iota', { cwd: path.resolve(__dirname, '../../../../') });
+    }
+}
+
+/**
+ * Load the keypair for the `iota` CLI's active address by exporting it from the
+ * CLI keystore. Used on public networks (devnet/testnet), whose faucets have no
+ * HTTP API, so the wallet must already exist and be funded.
+ */
+export function loadConfiguredKeypair(): Ed25519Keypair {
+    ensureIotaBinary();
+    let activeAddress: string;
+    try {
+        activeAddress = execSync(`${IOTA_BIN} client active-address`, { encoding: 'utf-8' }).trim();
+    } catch {
+        activeAddress = '';
+    }
+    if (!activeAddress || activeAddress === 'None') {
+        throw new Error(
+            'No IOTA wallet configured. Set up the iota CLI with a funded address, or run with --localnet.',
+        );
+    }
+    // `keytool export` prints the key as a bech32 `iotaprivkey...` string, which
+    // `Ed25519Keypair.fromSecretKey` accepts directly.
+    const exported = execSync(`${IOTA_BIN} keytool export --json "${activeAddress}"`, {
+        encoding: 'utf-8',
+    });
+    const match = exported.match(/iotaprivkey[0-9a-z]+/);
+    if (!match) {
+        throw new Error(`Could not export a private key for the active address ${activeAddress}.`);
+    }
+    return Ed25519Keypair.fromSecretKey(match[0]);
+}
+
 
 /**
  * Utility function to fund an address with IOTA tokens.

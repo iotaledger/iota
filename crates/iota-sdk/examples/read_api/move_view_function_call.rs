@@ -7,12 +7,14 @@
 //!
 //! A function can only be called through `iota_view` if it is declared with
 //! the `#[view]` attribute and is recorded in its module's on-chain view
-//! functions metadata. The metadata is only recorded on networks with view
-//! function support enabled; at the time of writing this is not yet the case
-//! on testnet, so run this example against a local network (see the faucet
-//! URL notes in `utils.rs`) or devnet instead.
+//! functions metadata, which is recorded on devnet or a local network, not yet
+//! on testnet or mainnet.
 //!
-//! cargo run --example move_view_function_call
+//! By default it runs against devnet. Pass `--localnet` to fund a fresh wallet
+//! from the local faucet, or `--devnet` / `--testnet` to use the configured
+//! wallet (assumed funded — the public faucets have no HTTP API):
+//!
+//! cargo run --example move_view_function_call -- --localnet
 
 #[path = "../utils.rs"]
 mod utils;
@@ -31,11 +33,21 @@ use iota_sdk::{
 };
 use iota_sdk_types::{Argument, Command, Identifier, Owner, TypeTag};
 use move_package::BuildConfig as MoveBuildConfig;
-use utils::{setup_for_write, sign_and_execute_transaction};
+use utils::{setup_for_write_with_network, sign_and_execute_transaction};
+
+use crate::utils::Network;
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
-    let (client, sender, _) = setup_for_write().await?;
+    let network = match std::env::args().nth(1).as_deref() {
+        None | Some("--devnet") => Network::Devnet,
+        Some("--localnet") => Network::Localnet,
+        Some("--testnet") => Network::Testnet,
+        Some(other) => {
+            anyhow::bail!("unknown flag {other}; use --localnet, --devnet, or --testnet")
+        }
+    };
+    let (client, sender, _) = setup_for_write_with_network(network).await?;
 
     let gas_coin_object_id = client
         .coin_read_api()
