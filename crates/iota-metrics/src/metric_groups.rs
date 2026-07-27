@@ -6,7 +6,7 @@
 //! Most groups are filter-based: they key on the module path of the metrics
 //! (preferred over the metric name, because module paths are stable and names
 //! are not) and are rendered into a `METRICS_FILTER`-style string via
-//! [`MetricGroups::to_filter_string`].
+//! `MetricGroups::to_filter_string`.
 //!
 //! Each filter-based group is set to a [`MetricLevel`], a verbosity threshold.
 //! Individual metrics declare their own level where they are registered,
@@ -142,15 +142,16 @@ pub struct MetricGroups {
     /// Modules: `iota_metrics` (except the `hardware` and `p2p` group
     /// submodules), `telemetry_subscribers`.
     pub runtime: MetricLevel,
-    /// Host hardware metrics (CPU / memory / disk). One collector, so the level
-    /// applies to the whole group rather than individual metrics: `off` hides
-    /// it and every other level exposes it.
+    /// Host hardware metrics (CPU / memory / disk). Individual hardware metrics
+    /// cannot be given their own level.
     ///
     /// Rendered as an `iota_metrics::hardware_metrics` directive, the module
     /// where the collector is registered.
     pub hardware: MetricLevel,
-    /// Free-form overrides for module paths or metric names not covered by the
-    /// named groups.
+    /// Free-form overrides for module paths or metric names, including ones
+    /// already covered by a named group: the most specific matching pattern
+    /// decides each metric, so an override can raise or lower a single module
+    /// or metric within a group.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub overrides: BTreeMap<String, MetricLevel>,
 }
@@ -267,12 +268,8 @@ impl MetricGroups {
         ]
     }
 
-    /// Maps each group's configured level to the filter patterns it covers.
-    ///
-    /// Directive order does not matter: where one group's module prefix also
-    /// matches another group's submodules (e.g. `runtime`'s `iota_metrics`
-    /// covers the `p2p` and `hardware` groups'), the more specific pattern
-    /// wins.
+    /// List of metric level together with registered module paths
+    /// corresponding to all groups.
     fn group_modules(&self) -> [(MetricLevel, &'static [&'static str]); 13] {
         self.group_levels().map(|(group, level)| {
             (
@@ -283,7 +280,7 @@ impl MetricGroups {
     }
 
     /// Renders the levels into a `METRICS_FILTER`-style directive string.
-    pub fn to_filter_string(&self) -> String {
+    fn to_filter_string(&self) -> String {
         let mut directives = vec![format!("default={}", level_string(self.default))];
         for (level, modules) in self.group_modules() {
             for module in modules {
@@ -297,7 +294,7 @@ impl MetricGroups {
     /// Renders the levels into a group-form directive string.
     /// Keyed by group name rather than expanded
     /// to module paths, so the admin endpoint can echo the config compactly.
-    pub fn to_display_string(&self) -> String {
+    fn to_display_string(&self) -> String {
         let mut directives = vec![format!("default={}", level_string(self.default))];
         for (group, level) in self.group_levels() {
             directives.push(format!("{group}={}", level_string(level)));
@@ -322,7 +319,7 @@ impl MetricGroups {
     /// Like [`Self::expand_directives`], but for startup use: an invalid
     /// directive is dropped instead of rejecting the whole string, its error
     /// message returned alongside the expanded directives.
-    pub fn expand_startup_directives(filter: &str) -> (String, Vec<String>) {
+    fn expand_startup_directives(filter: &str) -> (String, Vec<String>) {
         let mut directives = Vec::new();
         let mut errors = Vec::new();
         for part in prometheus_filtered::directive_parts(filter) {
@@ -332,6 +329,34 @@ impl MetricGroups {
             }
         }
         (directives.join(","), errors)
+    }
+
+    /// Builds the startup metrics filter: these group levels with the `env`
+    /// directives merged over them.
+    /// Invalid env directives are dropped.
+    ///
+    /// Matching uses the expanded module directives; the admin endpoint
+    /// echoes the group-form strings, so each source keeps both.
+    pub fn startup_filter(&self, env: Option<&str>) -> (prometheus_filtered::Filter, Vec<String>) {
+        let mut errors = Vec::new();
+        let env_directives = env.map(|env| {
+            let (expanded, errs) = Self::expand_startup_directives(env);
+            errors = errs;
+            expanded
+        });
+        let filter = prometheus_filtered::Filter::from_sources(
+            prometheus_filtered::FilterSource::with_display(
+                &self.to_filter_string(),
+                &self.to_display_string(),
+            ),
+            env_directives
+                .as_deref()
+                .zip(env)
+                .map(|(directives, display)| {
+                    prometheus_filtered::FilterSource::with_display(directives, display)
+                }),
+        );
+        (filter, errors)
     }
 
     fn expand_directive(part: &str) -> Result<Vec<String>, String> {
@@ -552,7 +577,8 @@ mod tests {
         // place.
         assert_eq!(
             MetricGroups::expand_directives("default=info,traffic-control=off").unwrap(),
-            "info,iota_core::traffic_controller=off,iota_config::node_config_metrics=off"
+            "default=info,iota_core::traffic_controller=off,\
+             iota_config::node_config_metrics=off"
         );
         // The single-collector hardware group expands like any other.
         assert_eq!(

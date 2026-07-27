@@ -94,7 +94,7 @@ use crate::IotaNode;
 // starts from the startup directives again rather than stacking on the
 // previous override.
 //
-//   $ curl -X POST 'http://127.0.0.1:1337/metrics/filters' -d 'consensus=off,typed_store=warn'
+//   $ curl -X POST 'http://127.0.0.1:1337/metrics/filters?filter=consensus=off,typed_store=warn'
 //
 // Drop the runtime override, restoring the startup configuration.
 //
@@ -628,11 +628,16 @@ async fn get_metrics_filter(State(state): State<Arc<AppState>>) -> (StatusCode, 
     )
 }
 
+#[derive(Deserialize)]
+struct MetricsFilterUpdate {
+    filter: String,
+}
+
 async fn set_metrics_filter(
     State(state): State<Arc<AppState>>,
-    new_filter: String,
+    Query(MetricsFilterUpdate { filter }): Query<MetricsFilterUpdate>,
 ) -> (StatusCode, String) {
-    let new_filter = new_filter.trim();
+    let new_filter = filter.trim();
     let expanded = match MetricGroups::expand_directives(new_filter) {
         Ok(expanded) => expanded,
         Err(err) => return (StatusCode::BAD_REQUEST, format!("{err}\n")),

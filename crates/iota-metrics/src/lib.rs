@@ -582,6 +582,11 @@ impl RegistryService {
         self.default_registry.clone()
     }
 
+    /// Returns the metrics filter shared by the service's registries.
+    pub fn filter(&self) -> Arc<Filter> {
+        self.filter.clone()
+    }
+
     // Creates a new registry that shares the service's metric filter. Prefer
     // this over `Registry::new()`/`Registry::new_custom()` for registries added
     // via `add`, so that the configured filter applies to their metrics too.

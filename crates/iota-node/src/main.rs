@@ -74,36 +74,20 @@ fn main() {
         _ => config.run_with_range = None,
     };
 
-    // Apply the configured metric group levels from config and env variables.
-    // Matching uses the expanded module directives; the admin endpoint echoes
-    // the group-form strings, so each source keeps both.
+    // Apply the configured metric group levels, with the METRICS_FILTER env
+    // variable merged over them.
     let metric_groups = config
         .metrics
         .as_ref()
         .and_then(|m| m.groups.clone())
         .unwrap_or_default();
-    let env_raw = std::env::var("METRICS_FILTER").ok();
-    let env_directives = env_raw.as_ref().map(|env| {
-        let (expanded, errors) = iota_metrics::MetricGroups::expand_startup_directives(env);
-        // Logging is not initialized yet, so bad directives are reported on
-        // stderr; the remaining directives still apply.
-        for err in errors {
-            eprintln!("dropping METRICS_FILTER directive: {err}");
-        }
-        expanded
-    });
-    let metrics_filter = prometheus_filtered::Filter::from_sources(
-        prometheus_filtered::FilterSource::with_display(
-            &metric_groups.to_filter_string(),
-            &metric_groups.to_display_string(),
-        ),
-        env_directives
-            .as_deref()
-            .zip(env_raw.as_deref())
-            .map(|(directives, display)| {
-                prometheus_filtered::FilterSource::with_display(directives, display)
-            }),
-    );
+    let env_filter = std::env::var("METRICS_FILTER").ok();
+    let (metrics_filter, dropped_directives) = metric_groups.startup_filter(env_filter.as_deref());
+    // Logging is not initialized yet, so bad directives are reported on
+    // stderr; the remaining directives still apply.
+    for err in dropped_directives {
+        eprintln!("dropping METRICS_FILTER directive: {err}");
+    }
 
     let runtimes = IotaRuntimes::new(&config);
     let metrics_rt = runtimes.metrics.enter();

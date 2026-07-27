@@ -2342,7 +2342,7 @@ impl IotaNode {
 
     /// Returns the metrics filter shared by the node's Prometheus registries.
     pub fn metrics_filter(&self) -> Arc<prometheus_filtered::Filter> {
-        self.registry_service.default_registry().filter()
+        self.registry_service.filter()
     }
 
     /// Sets the runtime metrics filter. `directives` drive matching (groups

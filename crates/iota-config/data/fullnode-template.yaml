@@ -40,6 +40,6 @@ authority-store-pruning-config:
 #     epoch: warn
 #     runtime: warn
 #     hardware: warn
-#     # free-form overrides for modules/metrics not covered by a group:
+#     # free-form overrides for modules/metrics:
 #     overrides:
 #       "iota_core::checkpoints": trace
