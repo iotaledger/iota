@@ -1393,7 +1393,7 @@ fn move_view_function_call() {
 
     runtime.block_on(async {
         indexer_wait_for_checkpoint(store, 1).await;
-        let (address, keypair) = get_key_pair();
+        let (address, keypair): (_, AccountKeyPair) = get_key_pair();
         let keypair = SimpleKeypair::from(keypair);
         let gas_ref = cluster
             .fund_address_and_return_gas(
@@ -1514,7 +1514,7 @@ fn clever_errors() {
 
     runtime.block_on(async {
         indexer_wait_for_checkpoint(store, 1).await;
-        let (address, keypair) = get_key_pair();
+        let (address, keypair): (_, AccountKeyPair) = get_key_pair();
         let keypair = SimpleKeypair::from(keypair);
         let gas_ref = cluster
             .fund_address_and_return_gas(
