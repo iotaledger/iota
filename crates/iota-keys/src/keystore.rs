@@ -15,14 +15,15 @@ use anyhow::{Context, anyhow, bail, ensure};
 use bip32::DerivationPath;
 use bip39::{Language, Mnemonic, Seed};
 use iota_sdk_crypto::{
-    ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey, secp256r1::Secp256r1PrivateKey,
+    ToFromBech32, ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey,
+    secp256r1::Secp256r1PrivateKey,
 };
 use iota_sdk_types::{
     Address, SignatureScheme,
     crypto::{Intent, IntentMessage},
 };
 use iota_types::crypto::{
-    EncodeDecodeBase64, IotaKeyPair, IotaSignature, PublicKey, Signature, enum_dispatch,
+    EncodeDecodeBase64, IotaSignature, PublicKey, Signature, SimpleKeypair, enum_dispatch,
     get_key_pair_from_rng,
 };
 use rand::{SeedableRng, rngs::StdRng};
@@ -213,7 +214,7 @@ pub struct Alias {
 )]
 pub enum StoredKey {
     #[serde(with = "serde_iota_keypair")]
-    KeyPair(IotaKeyPair),
+    KeyPair(SimpleKeypair),
     Account(Address),
     External {
         source: String,
@@ -225,8 +226,8 @@ pub enum StoredKey {
     },
 }
 
-impl From<IotaKeyPair> for StoredKey {
-    fn from(keypair: IotaKeyPair) -> Self {
+impl From<SimpleKeypair> for StoredKey {
+    fn from(keypair: SimpleKeypair) -> Self {
         StoredKey::KeyPair(keypair)
     }
 }
@@ -252,7 +253,7 @@ impl From<Secp256r1PrivateKey> for StoredKey {
 impl StoredKey {
     pub fn address(&self) -> Address {
         match self {
-            StoredKey::KeyPair(key) => (&key.public()).into(),
+            StoredKey::KeyPair(key) => (&PublicKey::from(key)).into(),
             StoredKey::Account(address) => *address,
             StoredKey::External { public_key, .. } => public_key.into(),
         }
@@ -260,7 +261,7 @@ impl StoredKey {
 
     pub fn public(&self) -> PublicKey {
         match self {
-            StoredKey::KeyPair(keypair) => keypair.public(),
+            StoredKey::KeyPair(keypair) => PublicKey::from(keypair),
             StoredKey::Account(_) => panic!("Account addresses are not backed by key pairs."),
             StoredKey::External { public_key, .. } => public_key.clone(),
         }
@@ -284,7 +285,7 @@ impl StoredKey {
         }
     }
 
-    pub fn as_keypair(&self) -> Result<&IotaKeyPair, anyhow::Error> {
+    pub fn as_keypair(&self) -> Result<&SimpleKeypair, anyhow::Error> {
         match self {
             StoredKey::KeyPair(keypair) => Ok(keypair),
             StoredKey::Account(_) => bail!("Account addresses are not backed by key pairs."),
@@ -492,8 +493,8 @@ impl FileBasedKeystore {
             kp_strings
                 .iter()
                 .map(|kpstr| {
-                    let key = IotaKeyPair::decode(kpstr);
-                    key.map(|k| (Address::from(&k.public()), StoredKey::KeyPair(k)))
+                    let key = SimpleKeypair::from_bech32(kpstr);
+                    key.map(|k| (Address::from(&PublicKey::from(&k)), StoredKey::KeyPair(k)))
                 })
                 .collect::<Result<BTreeMap<_, _>, _>>()
                 .map_err(|e| anyhow!("Invalid keystore file: {}. {}", path.display(), e))?
@@ -874,8 +875,8 @@ impl InMemKeystore {
     pub fn new_insecure_for_tests(initial_key_number: usize) -> Self {
         let mut rng = StdRng::from_seed([0; 32]);
         let keys = (0..initial_key_number)
-            .map(|_| get_key_pair_from_rng(&mut rng))
-            .map(|(ad, k)| (ad, IotaKeyPair::Ed25519(k).into()))
+            .map(|_| get_key_pair_from_rng::<Ed25519PrivateKey, _>(&mut rng))
+            .map(|(ad, k)| (ad, SimpleKeypair::from(k).into()))
             .collect::<BTreeMap<Address, StoredKey>>();
 
         let aliases = keys

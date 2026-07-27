@@ -14,7 +14,7 @@ use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{Address, ObjectId, TransactionDigest};
 use iota_types::{
     crypto::{
-        AccountKeyPair, AuthorityKeyPair, AuthorityPublicKeyBytes, IotaKeyPair, NetworkKeyPair,
+        AccountKeyPair, AuthorityKeyPair, AuthorityPublicKeyBytes, NetworkKeyPair, SimpleKeypair,
         generate_proof_of_possession, get_key_pair,
     },
     object::Object,
@@ -55,7 +55,7 @@ async fn init_genesis(
         let authority_pubkey_bytes = authority_key_pair.public().into();
         let protocol_key_pair: NetworkKeyPair = get_key_pair().1;
         let protocol_pubkey = protocol_key_pair.public().clone();
-        let account_key_pair: IotaKeyPair = get_key_pair::<AccountKeyPair>().1.into();
+        let account_key_pair: SimpleKeypair = get_key_pair::<AccountKeyPair>().1.into();
         let network_key_pair: NetworkKeyPair = get_key_pair().1;
         let validator_info = ValidatorInfo {
             name: format!("validator-{i}"),

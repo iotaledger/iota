@@ -14,7 +14,7 @@ use std::{
 use anyhow::Result;
 use clap::Parser;
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore, Keystore};
-use iota_types::crypto::{EncodeDecodeBase64, IotaKeyPair};
+use iota_types::crypto::{EncodeDecodeBase64, SimpleKeypair};
 use payload::AddressQueryType;
 use tracing::info;
 
@@ -137,7 +137,7 @@ fn get_keypair() -> Result<SignerInfo> {
     let keystore_path = get_iota_config_directory().join("iota.keystore");
     let keystore = Keystore::from(FileBasedKeystore::new(&keystore_path)?);
     let active_address = keystore.addresses().pop().unwrap();
-    let keypair: &IotaKeyPair = keystore.get_key(&active_address)?.as_keypair()?;
+    let keypair: &SimpleKeypair = keystore.get_key(&active_address)?.as_keypair()?;
     println!("using address {active_address} for signing");
     Ok(SignerInfo::new(keypair.encode_base64()))
 }

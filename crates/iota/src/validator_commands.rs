@@ -38,7 +38,7 @@ use iota_sdk_types::{
 use iota_types::{
     crypto::{
         AuthorityKeyPair, AuthorityPublicKey, AuthorityPublicKeyBytes, DEFAULT_EPOCH_ID,
-        IotaKeyPair, NetworkKeyPair, NetworkPublicKey, Signable, generate_proof_of_possession,
+        NetworkKeyPair, NetworkPublicKey, Signable, SimpleKeypair, generate_proof_of_possession,
         get_authority_key_pair,
     },
     dynamic_field::{DynamicFieldName, Field},
@@ -167,7 +167,7 @@ pub enum IotaValidatorCommandResponse {
 fn make_key_files(
     file_name: PathBuf,
     is_authority_key: bool,
-    key: Option<IotaKeyPair>,
+    key: Option<SimpleKeypair>,
 ) -> Result<()> {
     if file_name.exists() {
         println!("Use existing {file_name:?} key file.");

@@ -44,7 +44,8 @@ use iota_sdk_types::{
 };
 use iota_types::{
     crypto::{
-        DefaultHash, EncodeDecodeBase64, IotaKeyPair, PublicKey, Signature, get_authority_key_pair,
+        DefaultHash, EncodeDecodeBase64, PublicKey, Signature, SimpleKeypair,
+        get_authority_key_pair,
     },
     error::IotaResult,
     move_authenticator::MoveAuthenticatorExt,
@@ -190,7 +191,7 @@ pub enum KeyToolCommand {
         threshold: ThresholdUnit,
     },
     /// Read the content at the provided file path. The accepted format can be
-    /// [enum IotaKeyPair] (Base64 encoded of 33-byte `flag || privkey`) or
+    /// [enum SimpleKeypair] (Base64 encoded of 33-byte `flag || privkey`) or
     /// `type AuthorityKeyPair` (Base64 encoded `privkey`). It prints its
     /// Base64 encoded public key and the key scheme flag.
     Show { file: PathBuf },
@@ -653,7 +654,7 @@ impl KeyToolCommand {
                 input_string,
                 key_scheme,
                 derivation_path,
-            } => match IotaKeyPair::decode(&input_string) {
+            } => match SimpleKeypair::decode(&input_string) {
                 Ok(ikp) => {
                     info!("Importing Bech32 encoded private key to keystore");
                     let stored = ikp.into();
@@ -956,8 +957,8 @@ impl KeyToolCommand {
     }
 }
 
-impl From<IotaKeyPair> for Key {
-    fn from(ikp: IotaKeyPair) -> Self {
+impl From<SimpleKeypair> for Key {
+    fn from(ikp: SimpleKeypair) -> Self {
         Key::from(&StoredKey::from(ikp))
     }
 }
@@ -1180,7 +1181,7 @@ fn multisig_public_key(
 /// 3) Base64 encoded 33 bytes private key with flag.
 /// 4) Bech32 encoded 33 bytes private key with flag.
 fn convert_private_key_to_bech32(value: String) -> Result<ConvertOutput, anyhow::Error> {
-    let ikp = match IotaKeyPair::decode(&value) {
+    let ikp = match SimpleKeypair::decode(&value) {
         Ok(s) => s,
         Err(_) => match Hex::decode(&value) {
             Ok(decoded) => {
@@ -1190,15 +1191,15 @@ fn convert_private_key_to_bech32(value: String) -> Result<ConvertOutput, anyhow:
                         decoded.len()
                     );
                 }
-                IotaKeyPair::Ed25519(Ed25519PrivateKey::from_bytes(&decoded)?)
+                SimpleKeypair::from(Ed25519PrivateKey::from_bytes(&decoded)?)
             }
-            Err(_) => match IotaKeyPair::decode_base64(&value) {
+            Err(_) => match SimpleKeypair::decode_base64(&value) {
                 Ok(ikp) => ikp,
                 Err(_) => match Base64::decode(&value)
                     .ok()
                     .and_then(|bytes| Ed25519PrivateKey::from_bytes(&bytes).ok())
                 {
-                    Some(kp) => IotaKeyPair::Ed25519(kp),
+                    Some(kp) => SimpleKeypair::from(kp),
                     None => bail!("Invalid private key encoding"),
                 },
             },

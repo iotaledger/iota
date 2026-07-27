@@ -18,7 +18,7 @@ use iota_sdk_types::{
 };
 use iota_types::{
     crypto::{
-        AuthorityKeyPair, EncodeDecodeBase64, IotaKeyPair, Signature, get_key_pair,
+        AuthorityKeyPair, EncodeDecodeBase64, Signature, SimpleKeypair, get_key_pair,
         get_key_pair_from_rng,
     },
     transaction::{TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionData, TransactionDataAPI},
@@ -43,7 +43,7 @@ async fn test_addresses_command() -> Result<(), anyhow::Error> {
 
     // Add another 3 Secp256k1 KeyPairs
     for _ in 0..3 {
-        keystore.add_key(None, IotaKeyPair::Secp256k1(get_key_pair().1))?;
+        keystore.add_key(None, SimpleKeypair::from(get_key_pair().1))?;
     }
 
     // List all addresses with flag
@@ -60,8 +60,8 @@ async fn test_addresses_command() -> Result<(), anyhow::Error> {
 async fn test_flag_in_signature_and_keypair() -> Result<(), anyhow::Error> {
     let mut keystore = Keystore::from(InMemKeystore::new_insecure_for_tests(0));
 
-    keystore.add_key(None, IotaKeyPair::Secp256k1(get_key_pair().1))?;
-    keystore.add_key(None, IotaKeyPair::Ed25519(get_key_pair().1))?;
+    keystore.add_key(None, SimpleKeypair::from(get_key_pair().1))?;
+    keystore.add_key(None, SimpleKeypair::from(get_key_pair().1))?;
 
     for key in keystore
         .keys()
@@ -110,7 +110,7 @@ async fn test_read_write_keystore_with_flag() {
     let dir = tempfile::TempDir::new().unwrap();
 
     // create Secp256k1 keypair
-    let kp_secp = IotaKeyPair::Secp256k1(get_key_pair().1);
+    let kp_secp = SimpleKeypair::from(get_key_pair().1);
     let addr_secp: Address = (&kp_secp.public()).into();
     let fp_secp = dir.path().join(format!("{addr_secp}.key"));
     let fp_secp_2 = fp_secp.clone();
@@ -134,7 +134,7 @@ async fn test_read_write_keystore_with_flag() {
     assert!(kp_secp_read.is_err());
 
     // create Ed25519 keypair
-    let kp_ed = IotaKeyPair::Ed25519(get_key_pair().1);
+    let kp_ed = SimpleKeypair::from(get_key_pair().1);
     let addr_ed: Address = (&kp_ed.public()).into();
     let fp_ed = dir.path().join(format!("{addr_ed}.key"));
     let fp_ed_2 = fp_ed.clone();
@@ -209,13 +209,13 @@ async fn test_private_keys_import_export() -> Result<(), anyhow::Error> {
         }
         .execute(&mut keystore)
         .await?;
-        let kp = IotaKeyPair::decode(private_key).unwrap();
-        let kp_from_hex = IotaKeyPair::Ed25519(
+        let kp = SimpleKeypair::decode(private_key).unwrap();
+        let kp_from_hex = SimpleKeypair::from(
             Ed25519PrivateKey::from_bytes(Hex::decode(private_key_hex).unwrap()).unwrap(),
         );
         assert_eq!(kp, kp_from_hex);
 
-        let kp_from_base64 = IotaKeyPair::decode_base64(private_key_base64).unwrap();
+        let kp_from_base64 = SimpleKeypair::decode_base64(private_key_base64).unwrap();
         assert_eq!(kp, kp_from_base64);
 
         let addr = Address::from_str(address).unwrap();
@@ -297,7 +297,7 @@ async fn test_mnemonics_ed25519() -> Result<(), anyhow::Error> {
         }
         .execute(&mut keystore)
         .await?;
-        let kp = IotaKeyPair::decode(t[1]).unwrap();
+        let kp = SimpleKeypair::decode(t[1]).unwrap();
         let addr = Address::from_str(t[2]).unwrap();
         assert_eq!(Address::from(&kp.public()), addr);
         assert!(keystore.addresses().contains(&addr));
@@ -338,7 +338,7 @@ async fn test_mnemonics_secp256k1() -> Result<(), anyhow::Error> {
         }
         .execute(&mut keystore)
         .await?;
-        let kp = IotaKeyPair::decode(t[1]).unwrap();
+        let kp = SimpleKeypair::decode(t[1]).unwrap();
         let addr = Address::from_str(t[2]).unwrap();
         assert_eq!(Address::from(&kp.public()), addr);
         assert!(keystore.addresses().contains(&addr));
@@ -380,7 +380,7 @@ async fn test_mnemonics_secp256r1() -> Result<(), anyhow::Error> {
         .execute(&mut keystore)
         .await?;
 
-        let kp = IotaKeyPair::decode(sk).unwrap();
+        let kp = SimpleKeypair::decode(sk).unwrap();
         let addr = Address::from_str(address).unwrap();
         assert_eq!(Address::from(&kp.public()), addr);
         assert!(keystore.addresses().contains(&addr));

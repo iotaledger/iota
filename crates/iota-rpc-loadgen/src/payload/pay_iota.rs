@@ -6,7 +6,7 @@ use async_trait::async_trait;
 use futures::future::join_all;
 use iota_sdk_types::Address;
 use iota_types::{
-    crypto::{EncodeDecodeBase64, IotaKeyPair},
+    crypto::{EncodeDecodeBase64, SimpleKeypair},
     quorum_driver_types::ExecuteTransactionRequestType,
     transaction::{TransactionData, TransactionDataAPI},
 };
@@ -35,8 +35,8 @@ impl<'a> ProcessPayload<'a, &'a PayIota> for RpcCommandProcessor {
         let gas_budget = gas_budget.unwrap_or(DEFAULT_GAS_BUDGET);
         let gas_payments = gas_payment.unwrap();
 
-        let keypair =
-            IotaKeyPair::decode_base64(&encoded_keypair).expect("Decoding keypair should not fail");
+        let keypair = SimpleKeypair::decode_base64(&encoded_keypair)
+            .expect("Decoding keypair should not fail");
 
         debug!(
             "Transfer IOTA {} time to {recipient} with {amount} NANOS with {gas_payments:?}",

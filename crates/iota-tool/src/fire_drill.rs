@@ -32,7 +32,7 @@ use iota_sdk::{IotaClient, IotaClientBuilder, rpc_types::IotaTransactionBlockEff
 use iota_sdk_types::{Address, Identifier, ObjectId, ObjectReference};
 use iota_types::{
     committee::EpochId,
-    crypto::{IotaKeyPair, generate_proof_of_possession, get_authority_key_pair, get_key_pair},
+    crypto::{SimpleKeypair, generate_proof_of_possession, get_authority_key_pair, get_key_pair},
     multiaddr::{Multiaddr, Protocol},
     transaction::{
         CallArg, TEST_ONLY_GAS_UNIT_FOR_GENERIC, Transaction, TransactionData, TransactionDataAPI,
@@ -129,7 +129,7 @@ async fn update_next_epoch_metadata(
     iota_node_config_path: &Path,
     config: &NodeConfig,
     iota_client: &IotaClient,
-    account_key: &IotaKeyPair,
+    account_key: &SimpleKeypair,
 ) -> anyhow::Result<PathBuf> {
     // Save backup config just in case
     let mut backup_config_path = iota_node_config_path.to_path_buf();
@@ -281,7 +281,7 @@ async fn update_next_epoch_metadata(
 }
 
 async fn update_metadata_on_chain(
-    account_key: &IotaKeyPair,
+    account_key: &SimpleKeypair,
     function: &'static str,
     call_args: Vec<CallArg>,
     iota_client: &IotaClient,
@@ -312,7 +312,7 @@ async fn update_metadata_on_chain(
 }
 
 async fn execute_tx(
-    account_key: &IotaKeyPair,
+    account_key: &SimpleKeypair,
     iota_client: &IotaClient,
     tx_data: TransactionData,
     action: &str,

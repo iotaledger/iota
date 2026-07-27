@@ -26,7 +26,7 @@ use iota_sdk_types::{
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    crypto::{AccountKeyPair, IotaKeyPair, get_key_pair},
+    crypto::{AccountKeyPair, SimpleKeypair, get_key_pair},
     gas_coin::NANOS_PER_IOTA,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::ExecuteTransactionRequestType,
@@ -1394,7 +1394,7 @@ fn move_view_function_call() {
     runtime.block_on(async {
         indexer_wait_for_checkpoint(store, 1).await;
         let (address, keypair) = get_key_pair();
-        let keypair = IotaKeyPair::Ed25519(keypair);
+        let keypair = SimpleKeypair::from(keypair);
         let gas_ref = cluster
             .fund_address_and_return_gas(
                 cluster.get_reference_gas_price().await,
@@ -1515,7 +1515,7 @@ fn clever_errors() {
     runtime.block_on(async {
         indexer_wait_for_checkpoint(store, 1).await;
         let (address, keypair) = get_key_pair();
-        let keypair = IotaKeyPair::Ed25519(keypair);
+        let keypair = SimpleKeypair::from(keypair);
         let gas_ref = cluster
             .fund_address_and_return_gas(
                 cluster.get_reference_gas_price().await,

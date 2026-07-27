@@ -8,7 +8,7 @@ use iota_macros::sim_test;
 use iota_swarm_config::genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT, GenesisConfig};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    crypto::{IotaKeyPair, get_key_pair_from_rng},
+    crypto::{SimpleKeypair, get_key_pair_from_rng},
     gas_coin::NANOS_PER_IOTA,
 };
 use test_cluster::TestClusterBuilder;
@@ -82,7 +82,7 @@ async fn test_apy() {
         .wallet
         .config_mut()
         .keystore_mut()
-        .add_key(None, IotaKeyPair::from(keypair))
+        .add_key(None, SimpleKeypair::from(keypair))
         .unwrap();
 
     let ref_gas_price = test_cluster.get_reference_gas_price().await;

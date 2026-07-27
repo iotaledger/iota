@@ -21,7 +21,8 @@ use iota_sdk_types::Address;
 use iota_types::{
     committee::ProtocolVersion,
     crypto::{
-        AuthorityKeyPair, IotaKeyPair, KeypairTraits, NetworkKeyPair, generate_proof_of_possession,
+        AuthorityKeyPair, KeypairTraits, NetworkKeyPair, SimpleKeypair,
+        generate_proof_of_possession,
     },
     multiaddr::Multiaddr,
 };
@@ -185,7 +186,7 @@ pub async fn run(cmd: Ceremony) -> Result<()> {
             let mut builder = Builder::load(&dir)?;
             let authority_keypair: AuthorityKeyPair =
                 read_authority_keypair_from_file(authority_key_file)?;
-            let account_keypair: IotaKeyPair = read_keypair_from_file(account_key_file)?;
+            let account_keypair: SimpleKeypair = read_keypair_from_file(account_key_file)?;
             let protocol_keypair: NetworkKeyPair =
                 read_network_keypair_from_file(protocol_key_file)?;
             let network_keypair: NetworkKeyPair = read_network_keypair_from_file(network_key_file)?;
@@ -338,7 +339,7 @@ mod test {
     use iota_keys::keypair_file::{write_authority_keypair_to_file, write_keypair_to_file};
     use iota_macros::nondeterministic;
     use iota_types::crypto::{
-        AccountKeyPair, AuthorityKeyPair, IotaKeyPair, get_key_pair_from_rng,
+        AccountKeyPair, AuthorityKeyPair, SimpleKeypair, get_key_pair_from_rng,
     };
 
     use super::*;
@@ -383,7 +384,7 @@ mod test {
                 write_keypair_to_file(&network_keypair.into(), &network_key_file).unwrap();
 
                 let account_key_file = dir.path().join(format!("{}-2.key", info.name));
-                write_keypair_to_file(&IotaKeyPair::Ed25519(account_keypair), &account_key_file)
+                write_keypair_to_file(&SimpleKeypair::from(account_keypair), &account_key_file)
                     .unwrap();
 
                 (
