@@ -19,26 +19,24 @@ This how-to demonstrates how to call a [view function](../explanations/view-func
 
 :::info
 
-A function can only be called as a view if it is recorded in its module's on-chain view functions metadata, which is written when the package is published. This requires the network to have view function support enabled; at the time of writing this is not yet the case on testnet or mainnet, so publish and call your package on a local network or devnet.
+A function can only be called as a view if it is recorded in its module's on-chain view functions metadata, which is written when the package is published. This requires the network to have view function support enabled, which is available on devnet or local network.
 
 :::
 
 ## Before You Begin
 
-The examples on this page publish the `view_functions` package and call its views end-to-end, so they need a network that records view metadata. 
-The runnable examples below are meant to be run on a local network. Follow [Local Development](../../getting-started/local-network.mdx) to start one with a faucet:
+The examples on this page publish the `view_functions` package and call its views end-to-end, so they need a network that records view metadata — **devnet** or a [local network](../../getting-started/local-network.mdx) (testnet and mainnet do not record it yet).
 
-```sh
-iota-localnet start --force-regenesis --with-faucet
-```
+Each example takes a network flag and defaults to devnet:
 
-Each example provisions and funds a wallet for you.
+- `--localnet` mints a throwaway wallet and funds it from the local faucet. Start a local network first, e.g. `iota-localnet start --force-regenesis --with-faucet`.
+- `--devnet` / `--testnet` use the wallet configured in the `iota` CLI (`~/.iota`) and assume it is already funded — the public faucets have no HTTP API, so fund your address at the faucet website first. The examples error if no wallet is configured or the address holds no coins.
 
-The runnable examples live in the [IOTA repository](https://github.com/iotaledger/iota). With the local network running, execute whichever one you want to follow:
+The runnable examples live in the [IOTA repository](https://github.com/iotaledger/iota). From a checkout, execute whichever one you want to follow (shown here with `--localnet`):
 
-- **Rust SDK:** `cargo run -p iota-sdk --example move_view_function_call`
-- **TypeScript SDK:** `cd docs/examples/typescript && npm install && npm run call-view-function`
-- **Shell script (JSON-RPC with `curl`):** `docs/examples/shell/call-view-function.sh`
+- **Rust SDK:** `cargo run -p iota-sdk --example move_view_function_call -- --localnet`
+- **TypeScript SDK:** `cd docs/examples/typescript && npm install && npm run call-view-function -- --localnet`
+- **Shell script (JSON-RPC with `curl`):** `docs/examples/shell/call-view-function.sh --localnet`
 
 ## Call over JSON-RPC
 
@@ -91,7 +89,7 @@ curl --location --request POST 'https://api.devnet.iota.cafe' \
 }
 ```
 
-For the exact parameter and result schemas, see the [`iota_view` reference](/iota-api-ref#iota_view). For a runnable version that publishes the package and makes each of these calls with `curl` against a local network, see the [shell script](#full-example-code) below.
+For the exact parameter and result schemas, see the [`iota_view` reference](/iota-api-ref#iota_view). For a runnable version that publishes the package and makes each of these calls with `curl` against `devnet`, see the [shell script](#full-example-code) below.
 
 ### Error Cases
 
@@ -187,24 +185,24 @@ curl -i -X POST 'https://graphql.devnet.iota.cafe' \
 
 The Rust SDK exposes `iota_view` as `view_function_call` on the JSON-RPC client. This example publishes a package with `#[view]` functions and calls the non-generic `counter::value`:
 
-```rust file=<rootDir>/crates/iota-sdk/examples/read_api/move_view_function_call.rs#L108-L116
+```rust file=<rootDir>/crates/iota-sdk/examples/read_api/move_view_function_call.rs#L120-L128
 ```
 
 The type arguments are the second parameter. This call reads the generic `vault::item` view, filling in the type argument (`Coin<IOTA>`) alongside the object argument:
 
-```rust file=<rootDir>/crates/iota-sdk/examples/read_api/move_view_function_call.rs#L176-L186
+```rust file=<rootDir>/crates/iota-sdk/examples/read_api/move_view_function_call.rs#L188-L198
 ```
 
 ## Call from the TypeScript SDK
 
 The [TypeScript SDK](https://github.com/iotaledger/ts-packages) (`@iota/iota-sdk`) exposes `iota_view` as `client.view()`, taking the same `functionName`, `typeArgs`, and `arguments`, and returning the same result shape — a union of `functionReturnValues` and `executionError`. This example publishes the `view_functions` package, creates a leaderboard with one score, and calls its views:
 
-```ts file=<rootDir>/docs/examples/typescript/src/view-functions/call-view-function.ts#L75-L94
+```ts file=<rootDir>/docs/examples/typescript/src/view-functions/call-view-function.ts#L119-L138
 ```
 
 For a generic view, pass the type arguments in `typeArgs`. This call reads `vault::item` on a `Vault<Coin<IOTA>>`:
 
-```ts file=<rootDir>/docs/examples/typescript/src/view-functions/call-view-function.ts#L131-L142
+```ts file=<rootDir>/docs/examples/typescript/src/view-functions/call-view-function.ts#L175-L186
 ```
 
 ## Full Example Code
@@ -219,7 +217,7 @@ The complete TypeScript SDK example:
 ```ts file=<rootDir>/docs/examples/typescript/src/view-functions/call-view-function.ts
 ```
 
-A shell script that publishes the package with the `iota` CLI and calls each view over JSON-RPC with `curl` against a local network:
+A shell script that publishes the package with the `iota` CLI and calls each view over JSON-RPC with `curl` against devnet:
 
 ```bash file=<rootDir>/docs/examples/shell/call-view-function.sh
 ```
