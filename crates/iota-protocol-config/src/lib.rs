@@ -584,7 +584,7 @@ struct FeatureFlags {
     // capped at a maximum number of validators, and keep a minimum-size good
     // (swap-in) pool; when false, the fixed stake cut by rank is used.
     #[serde(skip_serializing_if = "is_false")]
-    consensus_enable_absolute_score_bad_nodes: bool,
+    consensus_enable_absolute_score_leader_schedule: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1888,8 +1888,9 @@ impl ProtocolConfig {
         res
     }
 
-    pub fn consensus_enable_absolute_score_bad_nodes(&self) -> bool {
-        self.feature_flags.consensus_enable_absolute_score_bad_nodes
+    pub fn consensus_enable_absolute_score_leader_schedule(&self) -> bool {
+        self.feature_flags
+            .consensus_enable_absolute_score_leader_schedule
     }
 
     pub fn deny_rule_governance(&self) -> bool {
@@ -3375,8 +3376,9 @@ impl ProtocolConfig {
             .consensus_enable_sliding_window_leader_schedule = val;
     }
 
-    pub fn set_consensus_enable_absolute_score_bad_nodes_for_testing(&mut self, val: bool) {
-        self.feature_flags.consensus_enable_absolute_score_bad_nodes = val;
+    pub fn set_consensus_enable_absolute_score_leader_schedule_for_testing(&mut self, val: bool) {
+        self.feature_flags
+            .consensus_enable_absolute_score_leader_schedule = val;
     }
 }
 

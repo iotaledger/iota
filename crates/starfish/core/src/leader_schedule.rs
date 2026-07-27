@@ -601,7 +601,7 @@ impl LeaderSwapTable {
 
         let (good_nodes, bad_nodes) = if context
             .protocol_config
-            .consensus_enable_absolute_score_bad_nodes()
+            .consensus_enable_absolute_score_leader_schedule()
         {
             Self::select_by_absolute_score(&context, &authorities_by_score)
         } else {
@@ -1530,7 +1530,7 @@ mod tests {
         let mut context = Context::new_for_test(committee_size).0;
         context
             .protocol_config
-            .set_consensus_enable_absolute_score_bad_nodes_for_testing(true);
+            .set_consensus_enable_absolute_score_leader_schedule_for_testing(true);
         Arc::new(context)
     }
 

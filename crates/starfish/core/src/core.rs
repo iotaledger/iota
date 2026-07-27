@@ -3022,7 +3022,7 @@ mod test {
     #[tokio::test(flavor = "current_thread", start_paused = true)]
     async fn test_leader_schedule_restart_invariant_rotation(
         #[case] enable_sliding_window: bool,
-        #[case] enable_absolute_score_bad_nodes: bool,
+        #[case] enable_absolute_score_leader_schedule: bool,
     ) {
         telemetry_subscribers::init_for_testing();
         let default_params = Parameters::default();
@@ -3032,10 +3032,10 @@ mod test {
         context
             .protocol_config
             .set_consensus_starfish_speed_for_testing(false);
-        if enable_absolute_score_bad_nodes {
+        if enable_absolute_score_leader_schedule {
             context
                 .protocol_config
-                .set_consensus_enable_absolute_score_bad_nodes_for_testing(true);
+                .set_consensus_enable_absolute_score_leader_schedule_for_testing(true);
         }
         if enable_sliding_window {
             context
