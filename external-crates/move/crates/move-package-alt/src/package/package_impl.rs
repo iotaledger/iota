@@ -4,6 +4,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
+    collections::BTreeMap,
     fmt::{self, Debug},
     marker::PhantomData,
     path::{Path, PathBuf},
@@ -36,7 +37,7 @@ pub struct Package<F: MoveFlavor + fmt::Debug> {
 
 /// An absolute path to a directory containing a loaded Move package (in particular, the directory
 /// must have a Move.toml)
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialOrd, Ord, PartialEq, Eq)]
 pub struct PackagePath(PathBuf);
 
 impl PackagePath {
@@ -65,6 +66,7 @@ impl<F: MoveFlavor> Package<F> {
     /// Fetch [dep] and load a package from the fetched source
     /// Makes a best effort to translate old-style packages into the current format,
     pub async fn load(dep: PinnedDependencyInfo<F>) -> PackageResult<Self> {
+        // TODO: most of this should live in [dependency]
         use PinnedDependencyInfo as P;
 
         let package = match dep {
@@ -102,8 +104,11 @@ impl<F: MoveFlavor> Package<F> {
         &self.manifest
     }
 
-    /// The resolved and pinned dependencies from the manifest
-    pub fn pinned_direct_dependencies(&self) -> &DependencySet<PinnedDependencyInfo<F>> {
+    /// The resolved and pinned dependencies from the manifest for environment `env`
+    pub fn direct_deps(
+        &self,
+        env: &EnvironmentName,
+    ) -> BTreeMap<PackageName, PinnedDependencyInfo<F>> {
         todo!()
     }
 }
