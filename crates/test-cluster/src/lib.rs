@@ -18,6 +18,7 @@ use iota_config::{
     NodeConfig, PersistedConfig,
     genesis::Genesis,
     node::{AuthorityOverloadConfig, DBCheckpointConfig, GrpcApiConfig, RunWithRange},
+    transaction_deny_config::TransactionDenyConfig,
 };
 use iota_core::{
     authority_aggregator::AuthorityAggregator, authority_client::NetworkAuthorityClient,
@@ -1008,6 +1009,7 @@ pub struct TestClusterBuilder {
     num_unpruned_validators: Option<usize>,
     config_dir: Option<PathBuf>,
     authority_overload_config: Option<AuthorityOverloadConfig>,
+    transaction_deny_config: Option<TransactionDenyConfig>,
     execution_cache_config: Option<ExecutionCacheConfig>,
     data_ingestion_dir: Option<PathBuf>,
     fullnode_run_with_range: Option<RunWithRange>,
@@ -1041,6 +1043,7 @@ impl TestClusterBuilder {
             num_unpruned_validators: None,
             config_dir: None,
             authority_overload_config: None,
+            transaction_deny_config: None,
             execution_cache_config: None,
             data_ingestion_dir: None,
             fullnode_run_with_range: None,
@@ -1249,6 +1252,12 @@ impl TestClusterBuilder {
         self
     }
 
+    pub fn with_transaction_deny_config(mut self, config: TransactionDenyConfig) -> Self {
+        assert!(self.network_config.is_none());
+        self.transaction_deny_config = Some(config);
+        self
+    }
+
     pub fn with_execution_cache_config(mut self, config: ExecutionCacheConfig) -> Self {
         assert!(self.network_config.is_none());
         self.execution_cache_config = Some(config);
@@ -1384,6 +1393,10 @@ impl TestClusterBuilder {
 
         if let Some(authority_overload_config) = self.authority_overload_config.take() {
             builder = builder.with_authority_overload_config(authority_overload_config);
+        }
+
+        if let Some(transaction_deny_config) = self.transaction_deny_config.take() {
+            builder = builder.with_transaction_deny_config(transaction_deny_config);
         }
 
         if let Some(execution_cache_config) = self.execution_cache_config.take() {

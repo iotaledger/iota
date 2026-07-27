@@ -2986,6 +2986,17 @@ impl AuthorityPerEpochStore {
             .current_deny_rule_proposals())
     }
 
+    /// The proposal recorded from `authority` this epoch, if any.
+    pub fn recorded_deny_rule_proposal(
+        &self,
+        authority: &AuthorityName,
+    ) -> Option<TransactionDenyRuleProposal> {
+        self.consensus_quarantine
+            .read()
+            .current_deny_rule_proposals()
+            .remove(authority)
+    }
+
     /// Whether `proposal` is newer than the recorded proposal (if any) from
     /// the same authority and should therefore be recorded.
     pub fn should_record_deny_rule_proposal(&self, proposal: &TransactionDenyRuleProposal) -> bool {
