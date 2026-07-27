@@ -162,9 +162,9 @@ pub fn keys() -> Vec<IotaKeyPair> {
 
 pub fn multisig_keys() -> (Ed25519PrivateKey, Secp256k1PrivateKey, Secp256r1PrivateKey) {
     let mut seed = StdRng::from_seed([0; 32]);
-    let kp1 = get_key_pair_from_rng::<Ed25519PrivateKey, _>(&mut seed).1;
-    let kp2 = get_key_pair_from_rng::<Secp256k1PrivateKey, _>(&mut seed).1;
-    let kp3 = get_key_pair_from_rng::<Secp256r1PrivateKey, _>(&mut seed).1;
+    let kp1 = Ed25519PrivateKey::generate(&mut seed);
+    let kp2 = Secp256k1PrivateKey::generate(&mut seed);
+    let kp3 = Secp256r1PrivateKey::generate(&mut seed);
 
     (kp1, kp2, kp3)
 }
