@@ -9,9 +9,8 @@ use tokio::runtime::Runtime;
 const MIN_SERVING_THREADS: usize = 2;
 /// Minimum number of worker threads for the node-core runtime.
 const MIN_NODE_THREADS: usize = 4;
-/// Number of worker threads for the metrics runtime. Deliberately not part of
-/// the node/serving split: it is small and mostly idle, so oversubscribing by
-/// this amount is cheaper than taking the threads away from the core.
+/// Number of worker threads for the metrics runtime. Small and mostly idle;
+/// sits outside [`size_worker_threads`].
 const METRICS_THREADS: usize = 2;
 
 /// Number of CPU cores available to the process, falling back to 8 when it
@@ -22,33 +21,26 @@ pub fn available_cpu_cores() -> usize {
         .unwrap_or(8)
 }
 
-/// Splits the available cores between the node-core and serving runtimes,
-/// returning `(node_threads, serving_threads)`.
+/// Sizes the node-core and serving runtimes, returning `(node_threads,
+/// serving_threads)`.
 ///
-/// A validator runs consensus and execution on the core and must protect it
-/// from client load, so it reserves most threads for the core. A fullnode has
-/// no consensus and exists primarily to serve reads, so it splits threads
-/// evenly. The two runtimes together never exceed `available`, except on
-/// machines with fewer than `MIN_NODE_THREADS + MIN_SERVING_THREADS` cores,
-/// where the minimum floors win. The metrics runtime sits outside this split
-/// (see [`METRICS_THREADS`]), so the process as a whole runs `METRICS_THREADS`
-/// more workers than `available`.
-fn split_worker_threads(available: usize, is_validator: bool) -> (usize, usize) {
-    let serving_share = if is_validator {
+/// The core always gets one worker per available core, so it can use the
+/// whole machine while serving is idle. The serving workers are added on top,
+/// deliberately oversubscribing the machine: a worker blocked in RocksDB
+/// frees its core for the other runtime, and when both runtimes are saturated
+/// the OS schedules fairly per thread, so the serving pool's size relative to
+/// the core pool bounds the CPU share serving can take. A validator caps
+/// serving at a quarter of the cores (at most ~20% of the machine under
+/// saturation) to protect consensus and execution; a fullnode, whose primary
+/// job is serving reads, allows half (~33%).
+fn size_worker_threads(available: usize, is_validator: bool) -> (usize, usize) {
+    let node_threads = available.max(MIN_NODE_THREADS);
+    let serving_threads = if is_validator {
         available / 4
     } else {
         available / 2
     }
     .max(MIN_SERVING_THREADS);
-    // The core has priority: it gets everything the serving share does not use,
-    // but never fewer than its minimum. Serving then gets whatever is actually
-    // left, so the floors are the only way the split can exceed `available`.
-    let node_threads = available
-        .saturating_sub(serving_share)
-        .max(MIN_NODE_THREADS);
-    let serving_threads = available
-        .saturating_sub(node_threads)
-        .max(MIN_SERVING_THREADS);
     (node_threads, serving_threads)
 }
 
@@ -70,7 +62,7 @@ impl IotaRuntimes {
     pub fn new(config: &NodeConfig) -> Self {
         let is_validator = config.consensus_config().is_some();
         let (node_threads, serving_threads) =
-            split_worker_threads(available_cpu_cores(), is_validator);
+            size_worker_threads(available_cpu_cores(), is_validator);
 
         let iota_node = tokio::runtime::Builder::new_multi_thread()
             .thread_name("iota-node-runtime")
@@ -109,39 +101,26 @@ mod tests {
     }
 
     #[test]
-    fn validator_reserves_most_threads_for_the_core() {
-        assert_eq!(split_worker_threads(16, true), (12, 4));
-        assert_eq!(split_worker_threads(8, true), (6, 2));
+    fn validator_serving_gets_a_quarter_of_the_cores() {
+        assert_eq!(size_worker_threads(16, true), (16, 4));
+        assert_eq!(size_worker_threads(8, true), (8, 2));
     }
 
     #[test]
-    fn fullnode_splits_threads_evenly() {
-        assert_eq!(split_worker_threads(16, false), (8, 8));
-        assert_eq!(split_worker_threads(12, false), (6, 6));
+    fn fullnode_serving_gets_half_of_the_cores() {
+        assert_eq!(size_worker_threads(16, false), (16, 8));
+        assert_eq!(size_worker_threads(12, false), (12, 6));
     }
 
     #[test]
-    fn split_never_oversubscribes_above_the_minimum_floors() {
-        for available in (MIN_NODE_THREADS + MIN_SERVING_THREADS)..=256 {
+    fn the_core_always_gets_one_thread_per_core() {
+        for available in MIN_NODE_THREADS..=256 {
             for is_validator in [true, false] {
-                let (node, serving) = split_worker_threads(available, is_validator);
+                let (node, _) = size_worker_threads(available, is_validator);
                 assert_eq!(
-                    node + serving,
-                    available,
-                    "oversubscribed with {available} cores (is_validator: {is_validator}): \
-                     node {node} + serving {serving}",
-                );
-            }
-        }
-    }
-
-    #[test]
-    fn small_machines_fall_back_to_the_minimum_floors() {
-        for available in 1..(MIN_NODE_THREADS + MIN_SERVING_THREADS) {
-            for is_validator in [true, false] {
-                assert_eq!(
-                    split_worker_threads(available, is_validator),
-                    (MIN_NODE_THREADS, MIN_SERVING_THREADS),
+                    node, available,
+                    "core throttled below the machine size with {available} cores \
+                     (is_validator: {is_validator})",
                 );
             }
         }
@@ -151,7 +130,7 @@ mod tests {
     fn both_runtimes_always_get_their_minimum_threads() {
         for available in 1..=256 {
             for is_validator in [true, false] {
-                let (node, serving) = split_worker_threads(available, is_validator);
+                let (node, serving) = size_worker_threads(available, is_validator);
                 assert!(node >= MIN_NODE_THREADS);
                 assert!(serving >= MIN_SERVING_THREADS);
             }
