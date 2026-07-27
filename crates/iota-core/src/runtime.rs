@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_config::{NodeConfig, node::available_cpu_cores};
+use iota_config::NodeConfig;
 use tokio::runtime::Runtime;
 
 /// Minimum number of worker threads for the serving runtime.
@@ -13,6 +13,14 @@ const MIN_NODE_THREADS: usize = 4;
 /// the node/serving split: it is small and mostly idle, so oversubscribing by
 /// this amount is cheaper than taking the threads away from the core.
 const METRICS_THREADS: usize = 2;
+
+/// Number of CPU cores available to the process, falling back to 8 when it
+/// cannot be determined.
+pub fn available_cpu_cores() -> usize {
+    std::thread::available_parallelism()
+        .map(|n| n.get())
+        .unwrap_or(8)
+}
 
 /// Splits the available cores between the node-core and serving runtimes,
 /// returning `(node_threads, serving_threads)`.
@@ -94,6 +102,11 @@ impl IotaRuntimes {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn available_cpu_cores_is_never_zero() {
+        assert!(super::available_cpu_cores() >= 1);
+    }
 
     #[test]
     fn validator_reserves_most_threads_for_the_core() {
