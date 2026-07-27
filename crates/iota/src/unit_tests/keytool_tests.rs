@@ -5,16 +5,16 @@
 use std::str::FromStr;
 
 use anyhow::Ok;
-use fastcrypto::{
-    ed25519::{Ed25519PublicKey, Ed25519Signature},
-    encoding::{Base64, Encoding, Hex},
-    traits::{ToFromBytes, VerifyingKey},
-};
+use fastcrypto::encoding::{Base64, Encoding, Hex};
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore, InMemKeystore, Keystore, StoredKey};
-use iota_sdk_crypto::{ToFromBytes as _, ed25519::Ed25519PrivateKey};
+use iota_sdk_crypto::{
+    ToFromBytes as _, Verifier as _,
+    ed25519::{Ed25519PrivateKey, Ed25519VerifyingKey},
+};
 use iota_sdk_types::{
-    Address, ObjectDigest, ObjectId, ObjectReference, SignatureScheme, Version,
-    crypto::{Intent, IntentScope, PublicKey, UserSignature},
+    Address, Ed25519PublicKey, Ed25519Signature, ObjectDigest, ObjectId, ObjectReference,
+    SignatureScheme, Version,
+    crypto::{Intent, IntentScope, PublicKey, PublicKeyExt as _, UserSignature},
 };
 use iota_types::{
     crypto::{
@@ -610,13 +610,14 @@ async fn test_sign_raw_command() -> Result<(), anyhow::Error> {
             assert_eq!(sign_raw_data.raw_data, expected_data);
             // Verify the signature with actual Ed25519 verification
             let ed_sig =
-                Ed25519Signature::from_bytes(&Hex::decode(&sign_raw_data.signature_hex).unwrap())
+                Ed25519Signature::from_bytes(Hex::decode(&sign_raw_data.signature_hex).unwrap())
                     .expect("Invalid Ed25519 signature bytes");
             let ed_pk =
-                Ed25519PublicKey::from_bytes(&Hex::decode(&sign_raw_data.public_key_hex).unwrap())
+                Ed25519PublicKey::from_bytes(Hex::decode(&sign_raw_data.public_key_hex).unwrap())
                     .expect("Invalid Ed25519 public key bytes");
             let data_bytes = Hex::decode(&sign_raw_data.raw_data).unwrap();
-            ed_pk
+            Ed25519VerifyingKey::new(&ed_pk)
+                .unwrap()
                 .verify(&data_bytes, &ed_sig)
                 .expect("Ed25519 signature verification failed");
         };

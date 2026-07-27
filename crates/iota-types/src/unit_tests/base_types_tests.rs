@@ -23,7 +23,7 @@ use super::*;
 use crate::{
     base_types::TypeTag,
     crypto::{
-        AccountKeyPair, AuthorityKeyPair, AuthoritySignature, IotaAuthoritySignature, IotaKeyPair,
+        AccountKeyPair, AuthorityKeyPair, AuthoritySignature, IotaAuthoritySignature,
         IotaSignature, Signature,
         bcs_signable_test::{Bar, Foo},
         get_key_pair,
@@ -383,7 +383,7 @@ fn derive_sample_address() -> (Address, AccountKeyPair) {
         92, 154, 128, 240, 158, 45, 13, 123, 57, 21, 194, 214,
     ])
     .unwrap();
-    let address = IotaKeyPair::from(key_pair.clone()).address();
+    let address = key_pair.public_key().derive_address();
     (address, key_pair)
 }
 
