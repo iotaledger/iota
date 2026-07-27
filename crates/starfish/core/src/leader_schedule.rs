@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, BTreeSet},
     fmt::{Debug, Formatter},
     sync::Arc,
 };
@@ -599,26 +599,14 @@ impl LeaderSwapTable {
         // the same score is preserved.
         authorities_by_score.sort_by_key(|a2| std::cmp::Reverse(a2.1));
 
-        // Calculating the good nodes
-        let good_nodes = Self::retrieve_first_nodes(
-            context.clone(),
-            authorities_by_score.iter(),
-            swap_stake_threshold,
-        )
-        .into_iter()
-        .collect::<Vec<(AuthorityIndex, String, Stake)>>();
-
-        // Calculating the bad nodes
-        // Reverse the sorted authorities to score ascending so we get the first
-        // low scorers up to the provided stake threshold.
-        let bad_nodes = Self::retrieve_first_nodes(
-            context,
-            authorities_by_score.iter().rev(),
-            swap_stake_threshold,
-        )
-        .into_iter()
-        .map(|(idx, hostname, stake)| (idx, (hostname, stake)))
-        .collect::<BTreeMap<AuthorityIndex, (String, Stake)>>();
+        let (good_nodes, bad_nodes) = if context
+            .protocol_config
+            .consensus_enable_absolute_score_leader_schedule()
+        {
+            Self::select_by_absolute_score(&context, &authorities_by_score)
+        } else {
+            Self::select_by_stake_rank(&context, &authorities_by_score, swap_stake_threshold)
+        };
 
         good_nodes.iter().for_each(|(idx, hostname, stake)| {
             tracing::debug!(
@@ -721,7 +709,156 @@ impl LeaderSwapTable {
 
         filtered_authorities
     }
+
+    /// Splits the score-descending `authorities_by_score` into the good
+    /// (swap-in) and bad sets using the fixed stake cut: the top scorers up to
+    /// `swap_stake_threshold`% of stake are good, the lowest scorers up to the
+    /// same stake are bad.
+    fn select_by_stake_rank(
+        context: &Arc<Context>,
+        authorities_by_score: &[(AuthorityIndex, u64)],
+        swap_stake_threshold: u64,
+    ) -> (
+        Vec<(AuthorityIndex, String, Stake)>,
+        BTreeMap<AuthorityIndex, (String, Stake)>,
+    ) {
+        let good_nodes = Self::retrieve_first_nodes(
+            context.clone(),
+            authorities_by_score.iter(),
+            swap_stake_threshold,
+        );
+
+        // Reverse to score ascending so we take the lowest scorers up to the
+        // stake threshold.
+        let bad_nodes = Self::retrieve_first_nodes(
+            context.clone(),
+            authorities_by_score.iter().rev(),
+            swap_stake_threshold,
+        )
+        .into_iter()
+        .map(|(idx, hostname, stake)| (idx, (hostname, stake)))
+        .collect::<BTreeMap<AuthorityIndex, (String, Stake)>>();
+
+        (good_nodes, bad_nodes)
+    }
+
+    /// High threshold (percent) for the absolute leader-schedule selection: a
+    /// validator whose reputation score, normalized to the highest score in
+    /// the window, is at or above this is a "good" (swap-in) node.
+    const GOOD_NODES_NORMALIZED_SCORE_THRESHOLD: u64 = 90;
+
+    /// Low threshold (percent) for the absolute leader-schedule selection: a
+    /// validator whose reputation score, normalized to the highest score in
+    /// the window, is strictly below this is a "bad" node.
+    const BAD_NODES_NORMALIZED_SCORE_THRESHOLD: u64 = 50;
+
+    /// Minimum size of the "good" (swap-in) pool, as a percent of the
+    /// validator count.
+    const MIN_GOOD_NODES_PERCENT: u64 = 20;
+
+    /// Maximum number of "bad" validators that may be excluded, as a percent
+    /// of the validator count.
+    const MAX_BAD_NODES_PERCENT: u64 = 33;
+
+    /// Splits the score-descending `authorities_by_score` into the good
+    /// (swap-in) and bad sets by performance relative to the top scorer. Each
+    /// score is normalized against the highest score in the window, so the
+    /// thresholds mean the same thing regardless of how close the scoring
+    /// strategy gets to its theoretical ceiling — V2 batch and sliding-window
+    /// reach very different absolute levels for the same network, but their top
+    /// performers both normalize to 100%. A node below the low threshold is
+    /// bad; a node at or above the high threshold is good. The good pool
+    /// extends down the ranking until it holds at least the minimum number
+    /// of validators; the bad set is capped at the maximum bad-node count.
+    fn select_by_absolute_score(
+        context: &Arc<Context>,
+        authorities_by_score: &[(AuthorityIndex, u64)],
+    ) -> (
+        Vec<(AuthorityIndex, String, Stake)>,
+        BTreeMap<AuthorityIndex, (String, Stake)>,
+    ) {
+        let good_threshold = Self::GOOD_NODES_NORMALIZED_SCORE_THRESHOLD as u128;
+        let bad_threshold = Self::BAD_NODES_NORMALIZED_SCORE_THRESHOLD as u128;
+
+        // Normalize against the highest score in this window (the top
+        // performer). `authorities_by_score` is score descending, so the first
+        // entry is the maximum. It is derived from the same committed subdags on
+        // every authority, so the normalization is deterministic and reproduces
+        // identically on recovery.
+        let top_score = authorities_by_score
+            .first()
+            .map(|&(_, score)| score as u128)
+            .unwrap_or(0);
+
+        // No positive score to normalize against, so make no swaps.
+        if top_score == 0 {
+            return (Vec::new(), BTreeMap::new());
+        }
+
+        // Integer-only comparisons against `score / top_score`:
+        //   good: score * 100 >= good_threshold * top_score
+        //   bad:  score * 100 <  bad_threshold  * top_score
+        let is_good = |score: u64| (score as u128) * 100 >= good_threshold * top_score;
+        let is_bad = |score: u64| (score as u128) * 100 < bad_threshold * top_score;
+
+        let committee_size = context.committee.size() as u64;
+
+        // Good pool: the top scorers, extended past the high threshold until it
+        // holds at least the minimum number of validators, enforced even if
+        // that requires including a node below the low (bad) threshold.
+        let min_good = (Self::MIN_GOOD_NODES_PERCENT * committee_size).div_ceil(100) as usize;
+        let mut good_nodes = Vec::new();
+        for &(authority_idx, score) in authorities_by_score.iter() {
+            if !is_good(score) && good_nodes.len() >= min_good {
+                break;
+            }
+            let authority = context.committee.authority(authority_idx);
+            good_nodes.push((authority_idx, authority.hostname.clone(), authority.stake));
+        }
+
+        // Bad set: the lowest scorers below the threshold, excluding any node
+        // already claimed by the good pool, capped at the maximum bad-node count.
+        let max_bad = (Self::MAX_BAD_NODES_PERCENT * committee_size / 100) as usize;
+        let good_indexes = good_nodes
+            .iter()
+            .map(|(idx, _, _)| *idx)
+            .collect::<BTreeSet<AuthorityIndex>>();
+        let bad_nodes = authorities_by_score
+            .iter()
+            .rev()
+            .filter(|entry| is_bad(entry.1) && !good_indexes.contains(&entry.0))
+            .take(max_bad)
+            .map(|&(idx, _)| {
+                let authority = context.committee.authority(idx);
+                (idx, (authority.hostname.clone(), authority.stake))
+            })
+            .collect::<BTreeMap<AuthorityIndex, (String, Stake)>>();
+
+        (good_nodes, bad_nodes)
+    }
 }
+
+const _: () = assert!(
+    LeaderSwapTable::GOOD_NODES_NORMALIZED_SCORE_THRESHOLD <= 100,
+    "GOOD_NODES_NORMALIZED_SCORE_THRESHOLD must be <= 100"
+);
+const _: () = assert!(
+    LeaderSwapTable::BAD_NODES_NORMALIZED_SCORE_THRESHOLD <= 100,
+    "BAD_NODES_NORMALIZED_SCORE_THRESHOLD must be <= 100"
+);
+const _: () = assert!(
+    LeaderSwapTable::GOOD_NODES_NORMALIZED_SCORE_THRESHOLD
+        > LeaderSwapTable::BAD_NODES_NORMALIZED_SCORE_THRESHOLD,
+    "GOOD_NODES_NORMALIZED_SCORE_THRESHOLD must be > BAD_NODES_NORMALIZED_SCORE_THRESHOLD"
+);
+const _: () = assert!(
+    LeaderSwapTable::MIN_GOOD_NODES_PERCENT >= 1,
+    "MIN_GOOD_NODES_PERCENT must be >= 1 so the good pool is non-empty"
+);
+const _: () = assert!(
+    LeaderSwapTable::MIN_GOOD_NODES_PERCENT + LeaderSwapTable::MAX_BAD_NODES_PERCENT < 70,
+    "MIN_GOOD_NODES_PERCENT + MAX_BAD_NODES_PERCENT must be < 70"
+);
 
 impl Debug for LeaderSwapTable {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -1387,6 +1524,148 @@ mod tests {
             (0..4).map(|i| i as u64).collect::<Vec<_>>(),
         );
         LeaderSwapTable::new_inner(context, swap_stake_threshold, 0, reputation_scores);
+    }
+
+    fn context_with_absolute_selection(committee_size: usize) -> Arc<Context> {
+        let mut context = Context::new_for_test(committee_size).0;
+        context
+            .protocol_config
+            .set_consensus_enable_absolute_score_leader_schedule_for_testing(true);
+        Arc::new(context)
+    }
+
+    #[tokio::test]
+    async fn test_leader_swap_table_absolute_score_classifies_by_threshold() {
+        telemetry_subscribers::init_for_testing();
+        // 4 authorities. The top scorer has 44, so good is >= 90% of 44
+        // (>= 40) and bad is < 50% of 44 (< 22).
+        let context = context_with_absolute_selection(4);
+        let reputation_scores = ReputationScores::new((0..=10).into(), vec![0, 30, 40, 44]);
+        let table = LeaderSwapTable::new_inner(context, 33, 0, reputation_scores);
+
+        let good: Vec<_> = table.good_nodes.iter().map(|(idx, _, _)| *idx).collect();
+        assert_eq!(good.len(), 2);
+        assert!(good.contains(&AuthorityIndex::new_for_test(2)));
+        assert!(good.contains(&AuthorityIndex::new_for_test(3)));
+        // The middle node (score 30) is neither good nor bad.
+        assert!(!good.contains(&AuthorityIndex::new_for_test(1)));
+        assert_eq!(table.bad_nodes.len(), 1);
+        assert!(
+            table
+                .bad_nodes
+                .contains_key(&AuthorityIndex::new_for_test(0))
+        );
+        assert!(
+            !table
+                .bad_nodes
+                .contains_key(&AuthorityIndex::new_for_test(1))
+        );
+    }
+
+    #[tokio::test]
+    async fn test_leader_swap_table_absolute_score_good_pool_respects_count_floor() {
+        telemetry_subscribers::init_for_testing();
+        // 10 authorities, so the 20%-of-validators good-pool floor is 2 nodes.
+        // Only one authority clears the 90% threshold; the pool must extend to
+        // the next-best scorer to meet the floor, so it is never one node.
+        let context = context_with_absolute_selection(10);
+        let mut scores = vec![60u64; 10];
+        scores[9] = 110;
+        let reputation_scores = ReputationScores::new((0..=10).into(), scores);
+        let table = LeaderSwapTable::new_inner(context, 33, 0, reputation_scores);
+
+        assert_eq!(table.good_nodes.len(), 2);
+        let good: Vec<_> = table.good_nodes.iter().map(|(idx, _, _)| *idx).collect();
+        assert!(good.contains(&AuthorityIndex::new_for_test(9)));
+        // Every authority scores above 50%, so none are bad.
+        assert!(table.bad_nodes.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_leader_swap_table_absolute_score_caps_bad_set_by_count() {
+        telemetry_subscribers::init_for_testing();
+        // 10 authorities. Five score 0 (bad), five clear the high threshold. The
+        // five below-threshold nodes exceed the 33%-of-validators cap (3), so
+        // only the worst three may be excluded.
+        let context = context_with_absolute_selection(10);
+        let mut scores = vec![0u64; 10];
+        for s in scores.iter_mut().skip(5) {
+            *s = 110;
+        }
+        let reputation_scores = ReputationScores::new((0..=10).into(), scores);
+        let table = LeaderSwapTable::new_inner(context, 33, 0, reputation_scores);
+
+        assert_eq!(table.good_nodes.len(), 5);
+        assert_eq!(table.bad_nodes.len(), 3);
+    }
+
+    #[tokio::test]
+    async fn test_leader_swap_table_absolute_score_swaps_bad_leaders() {
+        telemetry_subscribers::init_for_testing();
+        // One clear top scorer, everyone else far below it. The good pool is
+        // non-empty and the low scorers are excluded, so a bad leader is swapped
+        // for a good node rather than panicking.
+        let context = context_with_absolute_selection(10);
+        let mut scores = vec![0u64; 10];
+        scores[0] = 100;
+        let reputation_scores = ReputationScores::new((0..=10).into(), scores);
+        let table = LeaderSwapTable::new_inner(context, 33, 0, reputation_scores);
+
+        assert!(!table.good_nodes.is_empty());
+        assert!(!table.bad_nodes.is_empty());
+        let bad_leader = *table.bad_nodes.keys().next().unwrap();
+        assert!(table.swap(bad_leader, 1, 0).is_some());
+    }
+
+    #[tokio::test]
+    async fn test_leader_swap_table_absolute_score_normalizes_by_top_scorer() {
+        telemetry_subscribers::init_for_testing();
+        // Selection normalizes against the top score in the window (20 here),
+        // not against the scoring strategy's theoretical ceiling. Node 1 at 18
+        // is 90% of the best, so it is good; the same score of 18 measured
+        // against a much higher theoretical ceiling would instead fall below
+        // every threshold.
+        let context = context_with_absolute_selection(4);
+        let reputation_scores = ReputationScores::new((0..=10).into(), vec![20, 18, 10, 4]);
+        let table = LeaderSwapTable::new_inner(context, 33, 0, reputation_scores);
+
+        let good: Vec<_> = table.good_nodes.iter().map(|(idx, _, _)| *idx).collect();
+        assert_eq!(good.len(), 2);
+        assert!(good.contains(&AuthorityIndex::new_for_test(0)));
+        assert!(good.contains(&AuthorityIndex::new_for_test(1)));
+        // Node 2 (10 = 50% of the top) is neither good nor bad.
+        assert!(!good.contains(&AuthorityIndex::new_for_test(2)));
+        assert!(
+            !table
+                .bad_nodes
+                .contains_key(&AuthorityIndex::new_for_test(2))
+        );
+        // Node 3 (4 = 20% of the top) is below the low threshold.
+        assert_eq!(table.bad_nodes.len(), 1);
+        assert!(
+            table
+                .bad_nodes
+                .contains_key(&AuthorityIndex::new_for_test(3))
+        );
+    }
+
+    #[tokio::test]
+    async fn test_leader_swap_table_absolute_score_deterministic_and_differs_from_stake_rank() {
+        telemetry_subscribers::init_for_testing();
+        let scores = || ReputationScores::new((0..=10).into(), vec![0, 30, 40, 44]);
+
+        let absolute_context = context_with_absolute_selection(4);
+        let first = LeaderSwapTable::new_inner(absolute_context.clone(), 33, 0, scores());
+        let second = LeaderSwapTable::new_inner(absolute_context, 33, 0, scores());
+        assert_eq!(first.good_nodes, second.good_nodes);
+        assert_eq!(first.bad_nodes, second.bad_nodes);
+
+        // The stake-rank path (flag off) admits only the single top scorer as
+        // good; the absolute path admits both authorities above the threshold.
+        let stake_rank_context = Arc::new(Context::new_for_test(4).0);
+        let stake_rank = LeaderSwapTable::new_inner(stake_rank_context, 33, 0, scores());
+        assert_eq!(stake_rank.good_nodes.len(), 1);
+        assert_eq!(first.good_nodes.len(), 2);
     }
 
     #[tokio::test]
