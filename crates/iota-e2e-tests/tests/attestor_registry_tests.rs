@@ -12,7 +12,9 @@ use iota_macros::sim_test;
 use iota_types::{
     IOTA_SYSTEM_PACKAGE_ID,
     crypto::{IotaKeyPair, get_key_pair_from_rng},
-    iota_system_state::attestor_registry::generate_attestor_proof_of_possession,
+    iota_system_state::attestor_registry::{
+        generate_attestor_proof_of_possession, get_attestor_metadata,
+    },
     transaction::CallArg,
 };
 use rand::{SeedableRng, rngs::StdRng};
@@ -108,6 +110,10 @@ async fn test_attestor_registry_lifecycle() {
                 CallArg::ImmutableOrOwned(bond),
                 CallArg::pure(&attestor_pubkey),
                 CallArg::pure(&proof_of_possession),
+                CallArg::pure(&b"attestor-one".to_vec()),
+                CallArg::pure(&b"an attestor".to_vec()),
+                CallArg::pure(&b"https://example.com".to_vec()),
+                CallArg::pure(&b"https://example.com/logo.png".to_vec()),
             ],
         )
         .build();
@@ -138,6 +144,13 @@ async fn test_attestor_registry_lifecycle() {
     let (index, pubkey) = indexed.expect("attestor not found in the active set");
     assert_eq!(index, 0);
     assert_eq!(pubkey, attestor_pubkey);
+
+    let metadata = test_cluster.fullnode_handle.iota_node.with(|node| {
+        get_attestor_metadata(node.state().get_object_store().as_ref(), sender).unwrap()
+    });
+    let metadata = metadata.expect("registered attestor must have metadata");
+    assert_eq!(metadata.name, "attestor-one");
+    assert_eq!(metadata.url, "https://example.com");
 
     // Deregister. For an active attestor this schedules removal at the next
     // boundary rather than taking effect immediately.
@@ -173,4 +186,11 @@ async fn test_attestor_registry_lifecycle() {
         set.is_empty() && set.by_address(&sender).is_none()
     });
     assert!(removed, "attestor must be removed after the deregistration boundary");
+
+    let metadata_gone = test_cluster.fullnode_handle.iota_node.with(|node| {
+        get_attestor_metadata(node.state().get_object_store().as_ref(), sender)
+            .unwrap()
+            .is_none()
+    });
+    assert!(metadata_gone, "metadata must be removed with the attestor");
 }
