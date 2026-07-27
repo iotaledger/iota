@@ -13,23 +13,34 @@
 
 mod common;
 
-use std::{collections::BTreeMap, future::Future, sync::Arc, time::Duration};
+use std::{
+    collections::{BTreeMap, HashMap},
+    future::Future,
+    sync::Arc,
+    time::Duration,
+};
 
-use common::{MockGrpcStateReader, start_test_server, start_test_server_with_traffic_controller};
+use common::{
+    MockGrpcStateReader, create_large_object, start_test_server,
+    start_test_server_with_traffic_controller,
+};
 use futures::StreamExt;
 use iota_core::traffic_controller::TrafficController;
 use iota_grpc_server::GrpcServerHandle;
-use iota_grpc_types::v1::{
-    ledger_service::{
-        GetObjectsRequest, ObjectRequest, ObjectRequests,
-        ledger_service_client::LedgerServiceClient,
+use iota_grpc_types::{
+    field::FieldMaskUtil,
+    v1::{
+        ledger_service::{
+            GetObjectsRequest, ObjectRequest, ObjectRequests,
+            ledger_service_client::LedgerServiceClient,
+        },
+        state_service::{ListOwnedObjectsRequest, state_service_client::StateServiceClient},
+        transaction_execution_service::{
+            ExecuteTransactionItem, ExecuteTransactionsRequest,
+            transaction_execution_service_client::TransactionExecutionServiceClient,
+        },
+        types::{Address as ProtoAddress, ObjectId as ProtoObjectId, ObjectReference},
     },
-    state_service::{ListOwnedObjectsRequest, state_service_client::StateServiceClient},
-    transaction_execution_service::{
-        ExecuteTransactionItem, ExecuteTransactionsRequest,
-        transaction_execution_service_client::TransactionExecutionServiceClient,
-    },
-    types::{Address as ProtoAddress, ObjectId as ProtoObjectId, ObjectReference},
 };
 use iota_sdk_types::TransactionDigest;
 use iota_types::{
@@ -305,6 +316,97 @@ async fn batched_reads_accrue_spam_per_item() {
     assert_client_blocked(SPAM_PROBE_ATTEMPTS, || {
         let mut client = client.clone();
         async move { client.get_objects(get_objects_batch(1)).await }
+    })
+    .await;
+}
+
+/// A stream-level error must be tallied like a unary handler error and feed
+/// the error policy. Here a single item exceeds the request's message size
+/// limit, so the stream's only element is an `InvalidArgument` — without the
+/// tally such a request would escape traffic control entirely.
+#[tokio::test]
+async fn stream_errors_feed_the_error_policy() {
+    // One stored object whose encoded size exceeds the 1 MiB minimum message
+    // size, so it can never fit into a stream message.
+    let (object_id, object) = create_large_object(2 * 1024 * 1024);
+    let state_reader = Arc::new(MockGrpcStateReader {
+        objects: HashMap::from([(object_id, object)]),
+        ..Default::default()
+    });
+    let traffic_controller = Arc::new(
+        TrafficController::init_for_test(
+            PolicyConfig {
+                connection_blocklist_ttl_sec: 120,
+                error_policy_type: PolicyType::TestNConnIP(ERROR_BLOCK_ATTEMPTS - 1),
+                dry_run: false,
+                ..Default::default()
+            },
+            None,
+        )
+        .await,
+    );
+    let (handle, _reader) =
+        start_test_server_with_traffic_controller(state_reader, traffic_controller, None).await;
+    let client = LedgerServiceClient::new(connect(&handle).await);
+
+    let request = GetObjectsRequest::default()
+        .with_requests(ObjectRequests::default().with_requests(vec![
+            ObjectRequest::default().with_object_ref(ObjectReference::default().with_object_id(
+                ProtoObjectId::default().with_object_id(object_id.into_bytes().to_vec()),
+            )),
+        ]))
+        .with_read_mask(prost_types::FieldMask::from_str("reference,bcs"))
+        .with_max_message_size_bytes(1024 * 1024);
+
+    assert_client_blocked(ERROR_BLOCK_ATTEMPTS as usize, || {
+        let mut client = client.clone();
+        let request = request.clone();
+        async move {
+            let mut stream = client.get_objects(request).await?.into_inner();
+            // Drain the stream; its only element is the client error under
+            // test, whose code differs from the block's `ResourceExhausted`.
+            while let Some(item) = stream.next().await {
+                item?;
+            }
+            Ok(())
+        }
+    })
+    .await;
+}
+
+/// An empty read batch produces no per-item tallies, so it must be charged as
+/// one request — otherwise a client could spam empty batches without ever
+/// feeding the spam policy.
+#[tokio::test]
+async fn empty_read_batches_accrue_spam() {
+    let handle = server_with_policy(
+        PolicyConfig {
+            connection_blocklist_ttl_sec: 120,
+            spam_policy_type: PolicyType::TestNConnIP(SPAM_THRESHOLD),
+            // Error policy off, so any block is attributable to the spam policy.
+            error_policy_type: PolicyType::NoOp,
+            // Count every tally deterministically.
+            spam_sample_rate: Weight::one(),
+            dry_run: false,
+            ..Default::default()
+        },
+        None,
+    )
+    .await;
+    let client = LedgerServiceClient::new(connect(&handle).await);
+
+    assert_client_blocked(SPAM_THRESHOLD as usize + SPAM_PROBE_ATTEMPTS, || {
+        let mut client = client.clone();
+        async move {
+            let mut stream = client
+                .get_objects(GetObjectsRequest::default())
+                .await?
+                .into_inner();
+            while let Some(item) = stream.next().await {
+                item?;
+            }
+            Ok(())
+        }
     })
     .await;
 }

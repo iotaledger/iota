@@ -10,7 +10,7 @@ mod get_transactions;
 
 use std::sync::Arc;
 
-use futures::StreamExt;
+use futures::{Stream, StreamExt};
 use iota_config::node::GrpcApiConfig;
 use iota_grpc_types::v1::ledger_service::{self as grpc_ledger_service};
 use iota_protocol_config::Chain;
@@ -61,6 +61,43 @@ fn validate_read_batch_size(item_count: usize, max: u32) -> Result<(), Status> {
     Ok(())
 }
 
+/// Charge a streaming batch read to the traffic controller as its response
+/// stream is consumed.
+///
+/// The batch's items are streamed lazily and invisible to the transport-level
+/// traffic control. The request is marked as accounted so the layer skips its
+/// default per-request tally, and is instead charged one request per produced
+/// item, so batching cannot dilute the spam rate; an empty batch produces no
+/// per-item tallies and is charged as one request up front instead. Per-item
+/// read failures ride inside `Ok` responses and are tallied as `Ok`: a client
+/// cannot know an object or transaction was pruned, so they must not feed the
+/// error policy. A stream-level error terminates the stream and is tallied by
+/// its status code, like a unary handler error.
+fn tally_read_stream<T>(
+    stream: impl Stream<Item = Result<T, Status>> + Send,
+    tally_handle: Option<TallyHandle>,
+    request_item_count: usize,
+    response_item_count: impl Fn(&T) -> usize + Send,
+) -> impl Stream<Item = Result<T, Status>> + Send {
+    if let Some(tally_handle) = &tally_handle {
+        if request_item_count == 0 {
+            tally_handle.tally_item(Code::Ok);
+        } else {
+            tally_handle.mark_accounted();
+        }
+    }
+    stream.map(move |result| {
+        if let Some(tally_handle) = &tally_handle {
+            match &result {
+                Ok(response) => tally_handle
+                    .tally_items(std::iter::repeat_n(Code::Ok, response_item_count(response))),
+                Err(status) => tally_handle.tally_item(status.code()),
+            }
+        }
+        result
+    })
+}
+
 #[tonic::async_trait]
 impl grpc_ledger_service::ledger_service_server::LedgerService for LedgerGrpcService {
     type GetObjectsStream = crate::types::GetObjectsStream;
@@ -106,21 +143,8 @@ impl grpc_ledger_service::ledger_service_server::LedgerService for LedgerGrpcSer
         validate_read_batch_size(item_count, self.config.max_get_objects_batch_size)?;
         let stream =
             get_objects::get_objects(self.reader.clone(), request).map_err(tonic::Status::from)?;
-        // The batch's items are streamed lazily and invisible to the
-        // transport-level traffic control. Mark the request as accounted so the
-        // layer skips its default per-request tally, then charge one request per
-        // item as it is produced, so batching cannot dilute the spam rate. Reads
-        // feed the spam policy only: a client cannot know an object or
-        // transaction was pruned, so per-item read failures must not count
-        // towards the error policy.
-        if let Some(tally_handle) = &tally_handle {
-            tally_handle.mark_accounted();
-        }
-        let stream = stream.map(move |result| {
-            if let (Some(tally_handle), Ok(response)) = (&tally_handle, &result) {
-                tally_handle.tally_items(response.objects.iter().map(|_| Code::Ok));
-            }
-            result
+        let stream = tally_read_stream(stream, tally_handle, item_count, |response| {
+            response.objects.len()
         });
         let response = Response::new(Box::pin(stream) as Self::GetObjectsStream);
         Ok(append_info_headers!(response, self.reader.clone()))
@@ -140,21 +164,8 @@ impl grpc_ledger_service::ledger_service_server::LedgerService for LedgerGrpcSer
         let stream =
             get_transactions::get_transactions(self.reader.clone(), self.config.clone(), request)
                 .map_err(tonic::Status::from)?;
-        // The batch's items are streamed lazily and invisible to the
-        // transport-level traffic control. Mark the request as accounted so the
-        // layer skips its default per-request tally, then charge one request per
-        // item as it is produced, so batching cannot dilute the spam rate. Reads
-        // feed the spam policy only: a client cannot know an object or
-        // transaction was pruned, so per-item read failures must not count
-        // towards the error policy.
-        if let Some(tally_handle) = &tally_handle {
-            tally_handle.mark_accounted();
-        }
-        let stream = stream.map(move |result| {
-            if let (Some(tally_handle), Ok(response)) = (&tally_handle, &result) {
-                tally_handle.tally_items(response.transaction_results.iter().map(|_| Code::Ok));
-            }
-            result
+        let stream = tally_read_stream(stream, tally_handle, item_count, |response| {
+            response.transaction_results.len()
         });
         let response = Response::new(Box::pin(stream) as Self::GetTransactionsStream);
         Ok(append_info_headers!(response, self.reader.clone()))

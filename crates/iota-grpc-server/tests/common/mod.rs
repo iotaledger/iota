@@ -14,19 +14,20 @@ use iota_config::{local_ip_utils, node::GrpcApiConfig};
 use iota_grpc_server::{GrpcReader, GrpcServerHandle, start_grpc_server};
 use iota_node_storage::GrpcStateReader;
 use iota_sdk_types::{
-    Address, CheckpointContentsDigest, CheckpointDigest, ObjectId, StructTag, TransactionDigest,
-    Version,
+    Address, CheckpointContentsDigest, CheckpointDigest, MoveStruct, ObjectId, Owner, StructTag,
+    TransactionDigest, Version,
     checkpoint::{CheckpointContents, CheckpointSummary},
 };
 use iota_types::{
-    crypto::AuthorityStrongQuorumSignInfo,
+    crypto::{AccountKeyPair, AuthorityStrongQuorumSignInfo, get_key_pair},
     effects::{TransactionEffects, TransactionEvents},
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
+    gas_coin::GasCoin,
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointContentsExt, CheckpointSequenceNumber,
         VerifiedCheckpoint,
     },
-    object::Object,
+    object::{MoveStructExt, OBJECT_START_VERSION, Object},
     storage::error::Result as StorageResult,
     transaction::VerifiedTransaction,
 };
@@ -53,6 +54,28 @@ pub fn assert_messages_within_limit<M: prost::Message>(messages: &[M], limit: u3
 // ---------------------------------------------------------------------------
 // Mock helpers
 // ---------------------------------------------------------------------------
+
+/// Create a large object (~`padding_bytes` extra) so that a small number of
+/// objects exceeds the 1 MB minimum message size.
+pub fn create_large_object(padding_bytes_len: usize) -> (ObjectId, Object) {
+    let id = ObjectId::random();
+    let (owner, _) = get_key_pair::<AccountKeyPair>();
+    let mut contents = GasCoin::new(id, 100).to_bcs_bytes();
+    contents.extend(vec![0u8; padding_bytes_len]);
+    let move_obj = MoveStruct::new_from_execution_with_limit(
+        StructTag::new_gas_coin(),
+        OBJECT_START_VERSION,
+        contents,
+        u64::try_from(padding_bytes_len).unwrap() + 1024,
+    )
+    .unwrap();
+    let obj = Object::new_move(
+        move_obj,
+        Owner::Address(owner),
+        TransactionDigest::GENESIS_MARKER,
+    );
+    (id, obj)
+}
 
 /// Create a mock `CertifiedCheckpointSummary` for the given sequence number.
 pub fn mock_summary(

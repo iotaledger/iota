@@ -7,7 +7,7 @@ mod common;
 
 use std::{collections::HashMap, sync::Arc};
 
-use common::MockGrpcStateReader;
+use common::{MockGrpcStateReader, create_large_object};
 use iota_grpc_types::{
     field::FieldMaskUtil,
     v1::{
@@ -18,14 +18,12 @@ use iota_grpc_types::{
         types::ObjectReference,
     },
 };
-use iota_sdk_types::{MoveStruct, ObjectId, Owner, StructTag, TransactionDigest};
+use iota_sdk_types::TransactionDigest;
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     base_types::random_object_ref,
     crypto::{AccountKeyPair, get_key_pair},
     effects::{TestEffectsBuilder, TransactionEffects},
-    gas_coin::GasCoin,
-    object::{MoveStructExt, OBJECT_START_VERSION, Object},
     transaction::VerifiedTransaction,
 };
 use prost::Message;
@@ -33,28 +31,6 @@ use prost::Message;
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-/// Create a large object (~`padding_bytes` extra) so that a small number of
-/// objects exceeds the 1 MB minimum message size.
-fn create_large_object(padding_bytes_len: usize) -> (ObjectId, Object) {
-    let id = ObjectId::random();
-    let (owner, _) = get_key_pair::<AccountKeyPair>();
-    let mut contents = GasCoin::new(id, 100).to_bcs_bytes();
-    contents.extend(vec![0u8; padding_bytes_len]);
-    let move_obj = MoveStruct::new_from_execution_with_limit(
-        StructTag::new_gas_coin(),
-        OBJECT_START_VERSION,
-        contents,
-        u64::try_from(padding_bytes_len).unwrap() + 1024,
-    )
-    .unwrap();
-    let obj = Object::new_move(
-        move_obj,
-        Owner::Address(owner),
-        TransactionDigest::GENESIS_MARKER,
-    );
-    (id, obj)
-}
 
 /// Create a transaction and its effects so `get_transactions` can return it.
 fn create_test_transaction() -> (
