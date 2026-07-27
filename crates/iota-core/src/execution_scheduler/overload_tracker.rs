@@ -40,7 +40,7 @@ impl OverloadTracker {
         }
     }
 
-    pub(crate) fn add_pending_certificate(&self, tx_data: &SenderSignedData) {
+    pub(crate) fn add_pending_transaction(&self, tx_data: &SenderSignedData) {
         let tx_digest = tx_data.digest();
         let mutable_shared_objects = Self::get_mutable_shared_objects(tx_data);
         let mut object_waiting_queue = self.object_waiting_queue.write();
@@ -51,7 +51,7 @@ impl OverloadTracker {
         }
     }
 
-    pub(crate) fn remove_pending_certificate(&self, tx_data: &SenderSignedData) {
+    pub(crate) fn remove_pending_transaction(&self, tx_data: &SenderSignedData) {
         let mutable_shared_objects = Self::get_mutable_shared_objects(tx_data);
         let mut object_waiting_queue = self.object_waiting_queue.write();
         for object_id in mutable_shared_objects {

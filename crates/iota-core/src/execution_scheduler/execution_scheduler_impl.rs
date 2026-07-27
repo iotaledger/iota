@@ -41,19 +41,19 @@ pub struct ExecutionScheduler {
 /// the overload tracker for the duration it is waiting for its input objects.
 struct PendingGuard<'a> {
     scheduler: &'a ExecutionScheduler,
-    cert: &'a VerifiedExecutableTransaction,
+    tx: &'a VerifiedExecutableTransaction,
 }
 
 impl<'a> PendingGuard<'a> {
-    fn new(scheduler: &'a ExecutionScheduler, cert: &'a VerifiedExecutableTransaction) -> Self {
+    fn new(scheduler: &'a ExecutionScheduler, tx: &'a VerifiedExecutableTransaction) -> Self {
         scheduler
             .metrics
             .transaction_manager_num_pending_certificates
             .inc();
         scheduler
             .overload_tracker
-            .add_pending_certificate(cert.data());
-        Self { scheduler, cert }
+            .add_pending_transaction(tx.data());
+        Self { scheduler, tx }
     }
 }
 
@@ -65,7 +65,7 @@ impl Drop for PendingGuard<'_> {
             .dec();
         self.scheduler
             .overload_tracker
-            .remove_pending_certificate(self.cert.data());
+            .remove_pending_transaction(self.tx.data());
     }
 }
 
@@ -88,29 +88,29 @@ impl ExecutionScheduler {
 
     async fn schedule_transaction(
         self,
-        cert: VerifiedExecutableTransaction,
+        tx: VerifiedExecutableTransaction,
         expected_effects_digest: Option<TransactionEffectsDigest>,
         epoch_store: &Arc<AuthorityPerEpochStore>,
     ) {
         let enqueue_time = Instant::now();
-        let tx_data = cert.data().transaction();
+        let tx_data = tx.data().transaction();
         // Use the full input set (transaction inputs plus every MoveAuthenticator's
         // input objects), not just `input_objects()`. Execution reads the same
         // superset via `collect_all_input_object_kind_for_reading`; scheduling on
         // the narrower set would dispatch before an authenticator's shared input
         // (e.g. the Clock) is available and panic in the input loader.
-        let input_object_kinds = cert
+        let input_object_kinds = tx
             .data()
             .collect_all_input_object_kind_for_reading()
             .expect("collect_all_input_object_kind_for_reading() cannot fail");
         let input_object_keys: Vec<_> =
-            match epoch_store.get_input_object_keys(&cert.key(), &input_object_kinds) {
+            match epoch_store.get_input_object_keys(&tx.key(), &input_object_kinds) {
                 Ok(keys) => keys,
                 Err(_) => {
                     // This is possible if the transaction is already executed.
                     assert!(
                         self.transaction_cache_read
-                            .is_tx_already_executed(cert.digest())
+                            .is_tx_already_executed(tx.digest())
                     );
                     self.metrics
                         .transaction_manager_num_enqueued_certificates
@@ -136,7 +136,7 @@ impl ExecutionScheduler {
         .concat();
 
         let epoch = epoch_store.epoch();
-        let digest = cert.digest();
+        let digest = tx.digest();
         let digests = [*digest];
         debug!(?digest, "Scheduled transaction in execution scheduler");
 
@@ -156,11 +156,11 @@ impl ExecutionScheduler {
                 .with_label_values(&["ready"])
                 .inc();
             debug!(?digest, "Input objects already available");
-            self.send_transaction_for_execution(&cert, expected_effects_digest, enqueue_time);
+            self.send_transaction_for_execution(&tx, expected_effects_digest, enqueue_time);
             return;
         }
 
-        let _pending_guard = PendingGuard::new(&self, &cert);
+        let _pending_guard = PendingGuard::new(&self, &tx);
         self.metrics
             .transaction_manager_num_enqueued_certificates
             .with_label_values(&["pending"])
@@ -172,7 +172,7 @@ impl ExecutionScheduler {
                         .transaction_manager_transaction_queue_age_s
                         .observe(enqueue_time.elapsed().as_secs_f64());
                     debug!(?digest, "Input objects available");
-                    self.send_transaction_for_execution(&cert, expected_effects_digest, enqueue_time);
+                    self.send_transaction_for_execution(&tx, expected_effects_digest, enqueue_time);
                 }
             _ = self.transaction_cache_read.notify_read_executed_effects_digests(&digests) => {
                 debug!(?digests, "Transaction already executed");
@@ -182,12 +182,12 @@ impl ExecutionScheduler {
 
     fn send_transaction_for_execution(
         &self,
-        cert: &VerifiedExecutableTransaction,
+        tx: &VerifiedExecutableTransaction,
         expected_effects_digest: Option<TransactionEffectsDigest>,
         _enqueue_time: Instant,
     ) {
-        let pending_cert = PendingTransaction {
-            transaction: cert.clone(),
+        let pending_tx = PendingTransaction {
+            transaction: tx.clone(),
             expected_effects_digest,
             waiting_input_objects: BTreeSet::new(),
             stats: PendingTransactionStats {
@@ -201,7 +201,7 @@ impl ExecutionScheduler {
                     .clone(),
             )),
         };
-        let _ = self.tx_ready_transactions.send(pending_cert);
+        let _ = self.tx_ready_transactions.send(pending_tx);
     }
 }
 
