@@ -16,6 +16,9 @@ AttestorMetadataV1
 AttestorRegistryV1
 	public struct
 	0x3::attestor_registry
+DepartedAttestors
+	public struct
+	0x3::attestor_registry
 AttestorV1
 	public struct
 	0x3::attestor_registry
@@ -89,6 +92,9 @@ rotate_key
 	public(package) fun
 	0x3::attestor_registry
 advance_epoch
+	public(package) fun
+	0x3::attestor_registry
+remove_departed_metadata
 	public(package) fun
 	0x3::attestor_registry
 validated_string

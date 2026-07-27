@@ -53,7 +53,7 @@ use iota_system::iota_system_state_inner::{
     Self,
     SystemParametersV1,
     IotaSystemStateV1,
-    IotaSystemStateV2
+    IotaSystemStateV2,
 };
 use iota_system::staking_pool::{StakedIota, PoolTokenExchangeRate};
 use iota_system::validator::ValidatorV1;
@@ -702,7 +702,7 @@ fun advance_epoch(
     // inner state; evicted bonds are burned inside the inner advance_epoch.
     // Gating on the feature flag also creates the empty registry on the first
     // boundary once the feature is enabled.
-    let (attestor_evicted_bonds, departed_attestors) = if (attestor_registry::is_feature_enabled()) {
+    let attestor_evicted_bonds = if (attestor_registry::is_feature_enabled()) {
         let registry = load_attestor_registry_mut(wrapper);
         // The per-attestor activity feed is not threaded into this
         // transaction yet; until it is, report every attestor as active so
@@ -710,11 +710,12 @@ fun advance_epoch(
         let mut all_indices = vector[];
         registry.active_count().do!(|i| all_indices.push_back(i));
         registry.refresh_activity(all_indices, new_epoch - 1);
-        registry.advance_epoch(new_epoch, ctx)
+        let (evicted_bonds, departed) = registry.advance_epoch(new_epoch, ctx);
+        attestor_registry::remove_departed_metadata(departed, &mut wrapper.id);
+        evicted_bonds
     } else {
-        (balance::zero(), vector[])
+        balance::zero()
     };
-    departed_attestors.do!(|addr| attestor_registry::remove_metadata(&mut wrapper.id, addr));
 
     let self = load_system_state_mut(wrapper);
     let storage_rebate = self.advance_epoch(

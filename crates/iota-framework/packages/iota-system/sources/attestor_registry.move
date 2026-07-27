@@ -91,6 +91,14 @@ public struct AttestorRegistryV1 has store {
     pending_removals: vector<u64>,
 }
 
+/// Departures from the active set at an epoch boundary. Has no abilities,
+/// so the caller of `advance_epoch` cannot drop or store it — it must be
+/// consumed by `remove_departed_metadata`, guaranteeing the departed
+/// attestors' metadata fields are cleaned up.
+public struct DepartedAttestors {
+    addresses: vector<address>,
+}
+
 public struct AttestorV1 has store {
     /// Identity address (= ctx.sender() at registration).
     attestor_address: address,
@@ -415,12 +423,12 @@ public(package) fun rotate_key(
 /// 3. Pending activations appended in registration order.
 /// Returns the evicted bonds and penalties (the caller burns them via the
 /// treasury cap) and the addresses that left the active set, for the
-/// caller to drop their metadata.
+/// caller to drop their metadata via `remove_departed_metadata`.
 public(package) fun advance_epoch(
     self: &mut AttestorRegistryV1,
     new_epoch: u64,
     ctx: &mut TxContext,
-): (Balance<IOTA>, vector<address>) {
+): (Balance<IOTA>, DepartedAttestors) {
     let mut evicted_bonds = balance::zero<IOTA>();
     let mut departed = vector<address>[];
 
@@ -528,7 +536,14 @@ public(package) fun advance_epoch(
         self.active_attestors.push_back(entry);
     };
 
-    (evicted_bonds, departed)
+    (evicted_bonds, DepartedAttestors { addresses: departed })
+}
+
+/// Consume the departure list, removing each departed attestor's metadata
+/// dynamic field. The only way to dispose of a `DepartedAttestors`.
+public(package) fun remove_departed_metadata(departed: DepartedAttestors, uid: &mut UID) {
+    let DepartedAttestors { addresses } = departed;
+    addresses.do!(|addr| remove_metadata(uid, addr));
 }
 
 // === Metadata ===
@@ -654,6 +669,13 @@ public fun destroy_for_testing(self: AttestorRegistryV1) {
     let AttestorRegistryV1 { active_attestors, pending_active, pending_removals: _ } = self;
     active_attestors.destroy!(|a| destroy_attestor_for_testing(a));
     pending_active.destroy!(|a| destroy_attestor_for_testing(a));
+}
+
+#[test_only]
+/// Unpack without removing metadata; returns the addresses for assertions.
+public fun unpack_for_testing(self: DepartedAttestors): vector<address> {
+    let DepartedAttestors { addresses } = self;
+    addresses
 }
 
 #[test_only]

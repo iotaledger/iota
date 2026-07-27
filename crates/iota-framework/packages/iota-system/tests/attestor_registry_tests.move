@@ -426,6 +426,7 @@ fun test_advance_epoch_activates_pending_in_registration_order() {
         5,
     );
     let (evicted, _departed) = registry.advance_epoch(6, &mut ctx);
+    _departed.unpack_for_testing();
     assert!(evicted.value() == 0);
     evicted.destroy_zero();
     assert!(registry.active_count() == 2);
@@ -462,9 +463,11 @@ fun test_advance_epoch_processes_removals_preserving_order() {
         5,
     );
     let (evicted_bond, _departed) = registry.advance_epoch(6, &mut ctx);
+    _departed.unpack_for_testing();
     evicted_bond.destroy_zero();
     registry.deregister(@0xA2, 6).destroy_none();
     let (evicted_bond, _departed) = registry.advance_epoch(7, &mut ctx);
+    _departed.unpack_for_testing();
     evicted_bond.destroy_zero();
     assert!(registry.active_count() == 2);
     assert!(registry.active_attestors()[0].attestor_address() == @0xA1);
@@ -484,9 +487,11 @@ fun test_advance_epoch_applies_staged_rotation_in_place() {
         5,
     );
     let (evicted_bond, _departed) = registry.advance_epoch(6, &mut ctx);
+    _departed.unpack_for_testing();
     evicted_bond.destroy_zero();
     registry.rotate_key(@0xA1, pubkey_b(), secp256k1_pop_a1(), 6);
     let (evicted_bond, _departed) = registry.advance_epoch(7, &mut ctx);
+    _departed.unpack_for_testing();
     evicted_bond.destroy_zero();
     assert!(registry.active_attestors()[0].attestor_pubkey() == pubkey_b());
     registry.destroy_for_testing();
@@ -504,11 +509,13 @@ fun test_low_bond_eviction_burns_remaining_bond() {
         5,
     );
     let (evicted_bond, _departed) = registry.advance_epoch(6, &mut ctx);
+    _departed.unpack_for_testing();
     evicted_bond.destroy_zero();
     let slashed = registry.slash(@0xA1, MIN_JOINING_BOND - LOW_BOND_THRESHOLD + 1);
     assert!(slashed.value() == MIN_JOINING_BOND - LOW_BOND_THRESHOLD + 1);
     slashed.destroy_for_testing();
     let (evicted, _departed) = registry.advance_epoch(7, &mut ctx);
+    _departed.unpack_for_testing();
     assert!(evicted.value() == LOW_BOND_THRESHOLD - 1);
     evicted.destroy_for_testing();
     assert!(registry.active_count() == 0);
@@ -527,10 +534,12 @@ fun test_eviction_wins_over_voluntary_removal() {
         5,
     );
     let (evicted_bond, _departed) = registry.advance_epoch(6, &mut ctx);
+    _departed.unpack_for_testing();
     evicted_bond.destroy_zero();
     registry.deregister(@0xA1, 6).destroy_none();
     registry.slash(@0xA1, MIN_JOINING_BOND).destroy_for_testing();
     let (evicted, _departed) = registry.advance_epoch(7, &mut ctx);
+    _departed.unpack_for_testing();
     evicted.destroy_for_testing();
     assert!(registry.active_count() == 0);
     registry.destroy_for_testing();
@@ -548,10 +557,12 @@ fun test_topup_prevents_eviction() {
         5,
     );
     let (evicted_bond, _departed) = registry.advance_epoch(6, &mut ctx);
+    _departed.unpack_for_testing();
     evicted_bond.destroy_zero();
     registry.slash(@0xA1, MIN_JOINING_BOND - 1).destroy_for_testing();
     registry.deposit(@0xA1, balance::create_for_testing(LOW_BOND_THRESHOLD), 6);
     let (evicted, _departed) = registry.advance_epoch(7, &mut ctx);
+    _departed.unpack_for_testing();
     evicted.destroy_zero();
     assert!(registry.active_count() == 1);
     registry.destroy_for_testing();
@@ -571,6 +582,7 @@ fun test_last_active_epoch_initialized_to_activation_epoch() {
         5,
     );
     let (evicted_bond, _departed) = registry.advance_epoch(6, &mut ctx);
+    _departed.unpack_for_testing();
     evicted_bond.destroy_zero();
     assert!(registry.active_attestors()[0].last_active_epoch() == 6);
     registry.destroy_for_testing();
@@ -588,6 +600,7 @@ fun test_refresh_activity_updates_last_active_epoch() {
         5,
     );
     let (evicted_bond, _departed) = registry.advance_epoch(6, &mut ctx);
+    _departed.unpack_for_testing();
     evicted_bond.destroy_zero();
     registry.refresh_activity(vector[0], 9);
     assert!(registry.active_attestors()[0].last_active_epoch() == 9);
@@ -606,6 +619,7 @@ fun test_refresh_activity_skips_out_of_range_and_tolerates_duplicates() {
         5,
     );
     let (evicted_bond, _departed) = registry.advance_epoch(6, &mut ctx);
+    _departed.unpack_for_testing();
     evicted_bond.destroy_zero();
     // Out-of-range index 7 is skipped, duplicate 0s are idempotent; no abort.
     registry.refresh_activity(vector[7, 0, 0], 9);
@@ -625,6 +639,7 @@ fun test_refresh_activity_empty_list_is_noop() {
         5,
     );
     let (evicted_bond, _departed) = registry.advance_epoch(6, &mut ctx);
+    _departed.unpack_for_testing();
     evicted_bond.destroy_zero();
     registry.refresh_activity(vector[], 9);
     assert!(registry.active_attestors()[0].last_active_epoch() == 6);
@@ -643,10 +658,12 @@ fun test_attestor_survives_exactly_the_inactivity_window() {
         5,
     );
     let (evicted_bond, _departed) = registry.advance_epoch(6, &mut ctx);
+    _departed.unpack_for_testing();
     evicted_bond.destroy_zero();
     // last_active = 6; at the boundary starting 6 + window the gap is not
     // yet strictly greater than the window, so the attestor survives.
     let (evicted_bond, _departed) = registry.advance_epoch(6 + MAX_INACTIVITY_EPOCHS, &mut ctx);
+    _departed.unpack_for_testing();
     evicted_bond.destroy_zero();
     assert!(registry.active_count() == 1);
     registry.destroy_for_testing();
@@ -664,9 +681,11 @@ fun test_inactive_attestor_dropped_with_penalty_after_window() {
         5,
     );
     let (evicted_bond, _departed) = registry.advance_epoch(6, &mut ctx);
+    _departed.unpack_for_testing();
     evicted_bond.destroy_zero();
     // Gap is window + 1: dropped; only the penalty is burned.
     let (evicted, _departed) = registry.advance_epoch(6 + MAX_INACTIVITY_EPOCHS + 1, &mut ctx);
+    _departed.unpack_for_testing();
     assert!(evicted.value() == INACTIVITY_PENALTY);
     evicted.destroy_for_testing();
     assert!(registry.active_count() == 0);
@@ -685,13 +704,16 @@ fun test_refreshed_attestor_survives_past_the_window() {
         5,
     );
     let (evicted_bond, _departed) = registry.advance_epoch(6, &mut ctx);
+    _departed.unpack_for_testing();
     evicted_bond.destroy_zero();
     registry.refresh_activity(vector[0], 13);
     let (evicted_bond, _departed) = registry.advance_epoch(6 + MAX_INACTIVITY_EPOCHS + 1, &mut ctx);
+    _departed.unpack_for_testing();
     evicted_bond.destroy_zero();
     assert!(registry.active_count() == 1);
     // A later boundary past the refreshed epoch's window drops it.
     let (evicted, _departed) = registry.advance_epoch(13 + MAX_INACTIVITY_EPOCHS + 1, &mut ctx);
+    _departed.unpack_for_testing();
     assert!(evicted.value() == INACTIVITY_PENALTY);
     evicted.destroy_for_testing();
     assert!(registry.active_count() == 0);
@@ -710,10 +732,12 @@ fun test_inactivity_penalty_beats_pending_deregistration() {
         5,
     );
     let (evicted_bond, _departed) = registry.advance_epoch(6, &mut ctx);
+    _departed.unpack_for_testing();
     evicted_bond.destroy_zero();
     registry.deregister(@0xA1, 6).destroy_none();
     // Inactive AND deregistering: the penalty is still charged.
     let (evicted, _departed) = registry.advance_epoch(6 + MAX_INACTIVITY_EPOCHS + 1, &mut ctx);
+    _departed.unpack_for_testing();
     assert!(evicted.value() == INACTIVITY_PENALTY);
     evicted.destroy_for_testing();
     assert!(registry.active_count() == 0);
@@ -732,10 +756,12 @@ fun test_eviction_beats_inactivity() {
         5,
     );
     let (evicted_bond, _departed) = registry.advance_epoch(6, &mut ctx);
+    _departed.unpack_for_testing();
     evicted_bond.destroy_zero();
     registry.slash(@0xA1, MIN_JOINING_BOND - LOW_BOND_THRESHOLD + 1).destroy_for_testing();
     // Low bond AND inactive: full remaining bond is burned, not just the penalty.
     let (evicted, _departed) = registry.advance_epoch(6 + MAX_INACTIVITY_EPOCHS + 1, &mut ctx);
+    _departed.unpack_for_testing();
     assert!(evicted.value() == LOW_BOND_THRESHOLD - 1);
     evicted.destroy_for_testing();
     assert!(registry.active_count() == 0);
@@ -754,10 +780,12 @@ fun test_deregistration_within_window_refunds_in_full() {
         5,
     );
     let (evicted_bond, _departed) = registry.advance_epoch(6, &mut ctx);
+    _departed.unpack_for_testing();
     evicted_bond.destroy_zero();
     registry.deregister(@0xA1, 6).destroy_none();
     // Still within the window: a plain voluntary removal, nothing burned.
     let (evicted_bond, _departed) = registry.advance_epoch(7, &mut ctx);
+    _departed.unpack_for_testing();
     evicted_bond.destroy_zero();
     assert!(registry.active_count() == 0);
     registry.destroy_for_testing();
@@ -775,11 +803,13 @@ fun test_penalty_charged_from_bond_at_exactly_the_eviction_threshold() {
         5,
     );
     let (evicted_bond, _departed) = registry.advance_epoch(6, &mut ctx);
+    _departed.unpack_for_testing();
     evicted_bond.destroy_zero();
     // Bond exactly at the threshold is NOT evicted (the check is strict
     // less-than); the inactivity penalty applies instead.
     registry.slash(@0xA1, MIN_JOINING_BOND - LOW_BOND_THRESHOLD).destroy_for_testing();
     let (evicted, _departed) = registry.advance_epoch(6 + MAX_INACTIVITY_EPOCHS + 1, &mut ctx);
+    _departed.unpack_for_testing();
     assert!(evicted.value() == INACTIVITY_PENALTY);
     evicted.destroy_for_testing();
     assert!(registry.active_count() == 0);
@@ -798,9 +828,11 @@ fun test_inactivity_drop_discards_staged_rotation() {
         5,
     );
     let (evicted_bond, _departed) = registry.advance_epoch(6, &mut ctx);
+    _departed.unpack_for_testing();
     evicted_bond.destroy_zero();
     registry.rotate_key(@0xA1, pubkey_b(), secp256k1_pop_a1(), 6);
     let (evicted, _departed) = registry.advance_epoch(6 + MAX_INACTIVITY_EPOCHS + 1, &mut ctx);
+    _departed.unpack_for_testing();
     evicted.destroy_for_testing();
     assert!(registry.active_count() == 0);
     registry.destroy_for_testing();
@@ -818,9 +850,11 @@ fun test_dropped_address_can_reregister() {
         5,
     );
     let (evicted_bond, _departed) = registry.advance_epoch(6, &mut ctx);
+    _departed.unpack_for_testing();
     evicted_bond.destroy_zero();
     let dropped_at = 6 + MAX_INACTIVITY_EPOCHS + 1;
     let (evicted_bond, _departed) = registry.advance_epoch(dropped_at, &mut ctx);
+    _departed.unpack_for_testing();
     evicted_bond.destroy_for_testing();
     registry.register(
         balance::create_for_testing(MIN_JOINING_BOND),
@@ -947,9 +981,11 @@ fun test_pubkey_reusable_after_removal() {
         5,
     );
     let (evicted_bond, _departed) = registry.advance_epoch(6, &mut ctx);
+    _departed.unpack_for_testing();
     evicted_bond.destroy_zero();
     registry.deregister(@0xA1, 6).destroy_none();
     let (evicted_bond, _departed) = registry.advance_epoch(7, &mut ctx);
+    _departed.unpack_for_testing();
     evicted_bond.destroy_zero();
     registry.register(
         balance::create_for_testing(MIN_JOINING_BOND),
@@ -1037,12 +1073,13 @@ fun test_advance_epoch_reports_departed_addresses() {
     registry.register(balance::create_for_testing(MIN_JOINING_BOND), secp256k1_key(), secp256k1_pop_a2(), @0xA2, 5);
     let (b, departed) = registry.advance_epoch(6, &mut ctx);
     b.destroy_zero();
-    assert!(departed.is_empty());
+    assert!(departed.unpack_for_testing().is_empty());
     // A1 leaves voluntarily, A2 is evicted for low bond: both reported.
     registry.deregister(@0xA1, 6).destroy_none();
     registry.slash(@0xA2, MIN_JOINING_BOND).destroy_for_testing();
     let (evicted, departed) = registry.advance_epoch(7, &mut ctx);
     evicted.destroy_for_testing();
+    let departed = departed.unpack_for_testing();
     assert!(departed.length() == 2);
     assert!(departed.contains(&@0xA1));
     assert!(departed.contains(&@0xA2));
@@ -1075,6 +1112,7 @@ fun test_mixed_exit_reasons_in_one_boundary() {
         5,
     );
     let (evicted_bond, _departed) = registry.advance_epoch(6, &mut ctx);
+    _departed.unpack_for_testing();
     evicted_bond.destroy_zero();
     // A1: low bond -> evicted (burn all). A2: untouched -> inactivity
     // (penalty). A3: refreshed + deregistering -> voluntary (full refund).
@@ -1082,6 +1120,7 @@ fun test_mixed_exit_reasons_in_one_boundary() {
     registry.deregister(@0xA3, 6).destroy_none();
     registry.refresh_activity(vector[2], 13);
     let (evicted, _departed) = registry.advance_epoch(6 + MAX_INACTIVITY_EPOCHS + 1, &mut ctx);
+    _departed.unpack_for_testing();
     assert!(evicted.value() == (LOW_BOND_THRESHOLD - 1) + INACTIVITY_PENALTY);
     evicted.destroy_for_testing();
     assert!(registry.active_count() == 0);
