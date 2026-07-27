@@ -1,5 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
-// Modifications Copyright (c) 2025 IOTA Stiftung
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #[defines_primitive(u64)]
@@ -82,31 +82,32 @@ public fun try_as_u32(x: u64): Option<u32> {
     std::macros::try_as_u32!(x)
 }
 
+/// Convert `u64` value to string
 public fun to_string(x: u64): String {
     std::macros::num_to_string!(x)
+}
+
+/// Loops applying `$f` to each number from `$start` to `$stop` (exclusive)
+public macro fun range_do<$R: drop>($start: u64, $stop: u64, $f: |u64| -> $R) {
+    std::macros::range_do!($start, $stop, $f)
+}
+
+/// Loops applying `$f` to each number from `$start` to `$stop` (inclusive)
+public macro fun range_do_eq<$R: drop>($start: u64, $stop: u64, $f: |u64| -> $R) {
+    std::macros::range_do_eq!($start, $stop, $f)
+}
+
+/// Loops applying `$f` to each number from `0` to `$stop` (exclusive)
+public macro fun do<$R: drop>($stop: u64, $f: |u64| -> $R) {
+    std::macros::do!($stop, $f)
+}
+
+/// Loops applying `$f` to each number from `0` to `$stop` (inclusive)
+public macro fun do_eq<$R: drop>($stop: u64, $f: |u64| -> $R) {
+    std::macros::do_eq!($stop, $f)
 }
 
 /// Maximum value for a `u64`
 public macro fun max_value(): u64 {
     0xFFFF_FFFF_FFFF_FFFF
-}
-
-/// Loops applying `$f` to each number from `$start` to `$stop` (exclusive)
-public macro fun range_do($start: u64, $stop: u64, $f: |u64|) {
-    std::macros::range_do!($start, $stop, $f)
-}
-
-/// Loops applying `$f` to each number from `$start` to `$stop` (inclusive)
-public macro fun range_do_eq($start: u64, $stop: u64, $f: |u64|) {
-    std::macros::range_do_eq!($start, $stop, $f)
-}
-
-/// Loops applying `$f` to each number from `0` to `$stop` (exclusive)
-public macro fun do($stop: u64, $f: |u64|) {
-    std::macros::do!($stop, $f)
-}
-
-/// Loops applying `$f` to each number from `0` to `$stop` (inclusive)
-public macro fun do_eq($stop: u64, $f: |u64|) {
-    std::macros::do_eq!($stop, $f)
 }
