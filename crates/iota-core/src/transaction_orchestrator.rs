@@ -1873,11 +1873,12 @@ impl TransactionSubmissionGuard {
     }
 
     /// Publish the submission outcome to concurrent duplicate submissions.
-    /// A send into a channel without subscribers just means there is no
-    /// duplicate to notify.
+    /// The outcome is stored in the channel even when nobody is subscribed
+    /// yet, so a duplicate that subscribes after this call but before the
+    /// entry is removed still reads it instead of a closed channel.
     fn publish(&self, result: InFlightSubmissionResult) {
         if let Some(sender) = self.in_flight_transactions.lock().get(&self.tx_digest) {
-            let _ = sender.send(Some(result));
+            sender.send_replace(Some(result));
         }
     }
 }
@@ -1943,6 +1944,32 @@ mod tests {
             in_flight.lock().is_empty(),
             "guard drop must remove the in-flight entry"
         );
+    }
+
+    #[tokio::test]
+    async fn duplicate_subscribing_after_publish_receives_outcome() {
+        let in_flight = InFlightTransactions::default();
+        let tx_digest = TransactionDigest::random();
+
+        let guard = acquire_driving(&in_flight, tx_digest);
+        guard.publish(Err(QuorumDriverError::TimeoutBeforeFinality));
+
+        // Subscribing between the publish and the entry removal must still
+        // resolve to the outcome; falling back to checkpoint inclusion here
+        // would cost the duplicate a full finality timeout.
+        let mut receiver = acquire_duplicate(&in_flight, tx_digest);
+        drop(guard);
+
+        let outcome = receiver
+            .wait_for(|outcome| outcome.is_some())
+            .await
+            .expect("the outcome is stored in the channel regardless of subscribers")
+            .clone()
+            .expect("wait_for only returns once the outcome is Some");
+        assert!(matches!(
+            outcome,
+            Err(QuorumDriverError::TimeoutBeforeFinality)
+        ));
     }
 
     #[tokio::test]
