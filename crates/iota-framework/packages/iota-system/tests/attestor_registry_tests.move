@@ -5,7 +5,8 @@
 module iota_system::attestor_registry_tests;
 
 use iota::balance;
-use iota_system::attestor_registry;
+use iota::event;
+use iota_system::attestor_registry::{Self, AttestorsActivatedEvent, AttestorsExitedEvent};
 
 const MIN_JOINING_BOND: u64 = 2_000_000_000_000;
 const LOW_BOND_THRESHOLD: u64 = 1_000_000_000_000;
@@ -328,7 +329,7 @@ fun test_rotate_key_stages_replacement() {
         5,
     );
     registry.activate_for_testing();
-    registry.rotate_key(@0xA1, pubkey_b(), secp256k1_pop_a1(), 6);
+    registry.rotate_key(@0xA1, pubkey_b(), secp256k1_pop_a1());
     assert!(registry.active_attestors()[0].attestor_pubkey() == ed25519_pubkey());
     registry.destroy_for_testing();
 }
@@ -343,7 +344,7 @@ fun test_rotate_key_rejected_for_pending() {
         @0xA1,
         5,
     );
-    registry.rotate_key(@0xA1, pubkey_b(), vector[], 5);
+    registry.rotate_key(@0xA1, pubkey_b(), vector[]);
     abort 0
 }
 
@@ -360,7 +361,7 @@ fun test_rotate_key_rejected_while_exiting() {
     registry.activate_for_testing();
     let r = registry.deregister(@0xA1, 6);
     r.destroy_none();
-    registry.rotate_key(@0xA1, pubkey_b(), vector[], 6);
+    registry.rotate_key(@0xA1, pubkey_b(), vector[]);
     abort 0
 }
 
@@ -375,7 +376,7 @@ fun test_rotate_key_rejects_bad_pubkey() {
         5,
     );
     registry.activate_for_testing();
-    registry.rotate_key(@0xA1, make_pubkey(0x09, 32), vector[], 6);
+    registry.rotate_key(@0xA1, make_pubkey(0x09, 32), vector[]);
     abort 0
 }
 
@@ -489,7 +490,7 @@ fun test_advance_epoch_applies_staged_rotation_in_place() {
     let (evicted_bond, _departed) = registry.advance_epoch(6, &mut ctx);
     _departed.unpack_for_testing();
     evicted_bond.destroy_zero();
-    registry.rotate_key(@0xA1, pubkey_b(), secp256k1_pop_a1(), 6);
+    registry.rotate_key(@0xA1, pubkey_b(), secp256k1_pop_a1());
     let (evicted_bond, _departed) = registry.advance_epoch(7, &mut ctx);
     _departed.unpack_for_testing();
     evicted_bond.destroy_zero();
@@ -830,7 +831,7 @@ fun test_inactivity_drop_discards_staged_rotation() {
     let (evicted_bond, _departed) = registry.advance_epoch(6, &mut ctx);
     _departed.unpack_for_testing();
     evicted_bond.destroy_zero();
-    registry.rotate_key(@0xA1, pubkey_b(), secp256k1_pop_a1(), 6);
+    registry.rotate_key(@0xA1, pubkey_b(), secp256k1_pop_a1());
     let (evicted, _departed) = registry.advance_epoch(6 + MAX_INACTIVITY_EPOCHS + 1, &mut ctx);
     _departed.unpack_for_testing();
     evicted.destroy_for_testing();
@@ -921,7 +922,7 @@ fun test_register_rejects_pubkey_staged_for_rotation() {
         5,
     );
     registry.activate_for_testing();
-    registry.rotate_key(@0xA1, secp256k1_key(), secp256k1_pop_a1(), 6);
+    registry.rotate_key(@0xA1, secp256k1_key(), secp256k1_pop_a1());
     registry.register(
         balance::create_for_testing(MIN_JOINING_BOND),
         secp256k1_key(),
@@ -950,7 +951,7 @@ fun test_rotate_rejects_pubkey_of_other_attestor() {
         5,
     );
     registry.activate_for_testing();
-    registry.rotate_key(@0xA1, secp256k1_key(), secp256k1_pop_a1(), 6);
+    registry.rotate_key(@0xA1, secp256k1_key(), secp256k1_pop_a1());
     abort 0
 }
 
@@ -965,7 +966,7 @@ fun test_rotate_rejects_own_current_pubkey() {
         5,
     );
     registry.activate_for_testing();
-    registry.rotate_key(@0xA1, ed25519_key(), ed25519_pop_a1(), 6);
+    registry.rotate_key(@0xA1, ed25519_key(), ed25519_pop_a1());
     abort 0
 }
 
@@ -1124,5 +1125,76 @@ fun test_mixed_exit_reasons_in_one_boundary() {
     assert!(evicted.value() == (LOW_BOND_THRESHOLD - 1) + INACTIVITY_PENALTY);
     evicted.destroy_for_testing();
     assert!(registry.active_count() == 0);
+    registry.destroy_for_testing();
+}
+
+#[test]
+fun test_advance_epoch_batches_boundary_events() {
+    let mut registry = attestor_registry::new();
+    let mut ctx = tx_context::dummy();
+    registry.register(
+        balance::create_for_testing(MIN_JOINING_BOND),
+        ed25519_key(),
+        ed25519_pop_a1(),
+        @0xA1,
+        5,
+    );
+    registry.register(
+        balance::create_for_testing(MIN_JOINING_BOND),
+        secp256k1_key(),
+        secp256k1_pop_a2(),
+        @0xA2,
+        5,
+    );
+    registry.register(
+        balance::create_for_testing(MIN_JOINING_BOND),
+        secp256r1_key(),
+        secp256r1_pop_a3(),
+        @0xA3,
+        5,
+    );
+    let (evicted_bond, departed) = registry.advance_epoch(6, &mut ctx);
+    // The first boundary only activates: no exits yet, so no
+    // AttestorsExitedEvent should fire alongside the activation.
+    assert!(departed.unpack_for_testing().is_empty());
+    evicted_bond.destroy_zero();
+    assert!(event::events_by_type<AttestorsExitedEvent>().is_empty());
+
+    // A1: low bond -> evicted (burn all). A2: untouched -> inactivity
+    // (penalty). A3: refreshed + deregistering -> voluntary (full refund).
+    // B1: freshly pending -> activates at the same boundary.
+    registry.slash(@0xA1, MIN_JOINING_BOND - LOW_BOND_THRESHOLD + 1).destroy_for_testing();
+    registry.deregister(@0xA3, 6).destroy_none();
+    registry.refresh_activity(vector[2], 13);
+    registry.push_pending_for_testing(@0xB1, MIN_JOINING_BOND);
+    let boundary_epoch = 6 + MAX_INACTIVITY_EPOCHS + 1;
+    let (evicted, departed) = registry.advance_epoch(boundary_epoch, &mut ctx);
+    assert!(departed.unpack_for_testing().length() == 3);
+    evicted.destroy_for_testing();
+    assert!(registry.active_count() == 1);
+
+    let activated_events = event::events_by_type<AttestorsActivatedEvent>();
+    // One from the epoch-6 boundary (A1, A2, A3), one from this boundary (B1).
+    assert!(activated_events.length() == 2);
+    let (activated_epoch, activated) = activated_events[1].unpack_activated_event_for_testing();
+    assert!(activated_epoch == boundary_epoch);
+    assert!(activated == vector[@0xB1]);
+
+    let exited_events = event::events_by_type<AttestorsExitedEvent>();
+    assert!(exited_events.length() == 1);
+    let (exited_epoch, mut exited) = exited_events[0].unpack_exited_event_for_testing();
+    assert!(exited_epoch == boundary_epoch);
+    assert!(exited.length() == 3);
+    // Popped from the back of the sorted index list, so the highest active
+    // index (A3) is processed first, then A2, then A1.
+    let (addr, reason, refunded, burned) = exited.remove(0).unpack_exit_info_for_testing();
+    assert!(addr == @0xA3 && reason == 2 && refunded == MIN_JOINING_BOND && burned == 0);
+    let (addr, reason, refunded, burned) = exited.remove(0).unpack_exit_info_for_testing();
+    assert!(
+        addr == @0xA2 && reason == 1 && refunded == MIN_JOINING_BOND - INACTIVITY_PENALTY && burned == INACTIVITY_PENALTY,
+    );
+    let (addr, reason, refunded, burned) = exited.remove(0).unpack_exit_info_for_testing();
+    assert!(addr == @0xA1 && reason == 0 && refunded == 0 && burned == LOW_BOND_THRESHOLD - 1);
+
     registry.destroy_for_testing();
 }

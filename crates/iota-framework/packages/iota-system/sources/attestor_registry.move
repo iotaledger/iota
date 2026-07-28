@@ -126,11 +126,6 @@ public struct AttestorRegisteredEvent has copy, drop {
     activation_epoch: u64,
 }
 
-public struct AttestorActivatedEvent has copy, drop {
-    epoch: u64,
-    attestor_address: address,
-}
-
 public struct AttestorDeregisterRequestedEvent has copy, drop {
     epoch: u64,
     attestor_address: address,
@@ -142,19 +137,6 @@ public struct AttestorRemovedEvent has copy, drop {
     refunded_amount: u64,
 }
 
-public struct AttestorEvictedEvent has copy, drop {
-    epoch: u64,
-    attestor_address: address,
-    burned_amount: u64,
-}
-
-public struct AttestorDroppedForInactivityEvent has copy, drop {
-    epoch: u64,
-    attestor_address: address,
-    penalty_amount: u64,
-    refunded_amount: u64,
-}
-
 public struct AttestorBondDepositedEvent has copy, drop {
     epoch: u64,
     attestor_address: address,
@@ -162,16 +144,29 @@ public struct AttestorBondDepositedEvent has copy, drop {
     new_bond_amount: u64,
 }
 
-public struct AttestorKeyRotationStagedEvent has copy, drop {
+/// One epoch boundary's worth of activations, batched into a single event
+/// so a full registry can't exceed the per-tx event count cap.
+public struct AttestorsActivatedEvent has copy, drop {
     epoch: u64,
-    attestor_address: address,
-    new_pubkey: vector<u8>,
+    attestors: vector<address>,
 }
 
-public struct AttestorKeyRotatedEvent has copy, drop {
-    epoch: u64,
+/// One departed attestor; `reason` is EXIT_EVICTION / EXIT_INACTIVITY /
+/// EXIT_REMOVAL. Eviction burns the whole bond (refunded=0); inactivity
+/// burns the penalty and refunds the rest; removal refunds the whole bond
+/// (burned=0).
+public struct AttestorExitInfo has copy, drop, store {
     attestor_address: address,
-    new_pubkey: vector<u8>,
+    reason: u8,
+    refunded_amount: u64,
+    burned_amount: u64,
+}
+
+/// One epoch boundary's worth of exits, batched into a single event so a
+/// full registry can't exceed the per-tx event count cap.
+public struct AttestorsExitedEvent has copy, drop {
+    epoch: u64,
+    exited: vector<AttestorExitInfo>,
 }
 
 /// Whether the external-attestation protocol feature is enabled on this
@@ -392,7 +387,6 @@ public(package) fun rotate_key(
     sender: address,
     new_pubkey: vector<u8>,
     proof_of_possession: vector<u8>,
-    current_epoch: u64,
 ) {
     let active_idx = find_active(self, sender);
     assert!(active_idx.is_some(), ENotActiveAttestor);
@@ -400,14 +394,8 @@ public(package) fun rotate_key(
     assert!(!self.pending_removals.contains(&idx), EAlreadyDeregistering);
     validate_attestor_pubkey(new_pubkey, proof_of_possession, sender);
     assert!(!pubkey_in_use(self, &new_pubkey), EDuplicatePubkey);
-    let new_pubkey_for_event = new_pubkey;
     let entry = &mut self.active_attestors[idx];
-    entry.next_epoch_attestor_pubkey = option::some(new_pubkey_for_event);
-    event::emit(AttestorKeyRotationStagedEvent {
-        epoch: current_epoch,
-        attestor_address: sender,
-        new_pubkey: new_pubkey_for_event,
-    });
+    entry.next_epoch_attestor_pubkey = option::some(new_pubkey);
 }
 
 // === Epoch boundary processing ===
@@ -421,6 +409,10 @@ public(package) fun rotate_key(
 ///    cannot escape the penalty by deregistering in the same epoch.
 /// 2. Staged key rotations applied in place.
 /// 3. Pending activations appended in registration order.
+/// Emits at most one `AttestorsExitedEvent` and one `AttestorsActivatedEvent`
+/// for the whole boundary, batching every departed/activated attestor into
+/// them — a per-attestor event here would risk exceeding the per-tx event
+/// count cap with a full registry.
 /// Returns the evicted bonds and penalties (the caller burns them via the
 /// treasury cap) and the addresses that left the active set, for the
 /// caller to drop their metadata via `remove_departed_metadata`.
@@ -431,82 +423,97 @@ public(package) fun advance_epoch(
 ): (Balance<IOTA>, DepartedAttestors) {
     let mut evicted_bonds = balance::zero<IOTA>();
     let mut departed = vector<address>[];
+    let mut exited = vector<AttestorExitInfo>[];
 
     // --- 1. Combined exits ---
-    let low_bond_threshold: u64 = protocol_config::get_attr(ATTESTOR_LOW_BOND_THRESHOLD_PARAM);
-    let max_inactivity_epochs: u64 = protocol_config::get_attr(
-        ATTESTOR_MAX_INACTIVITY_EPOCHS_PARAM,
-    );
-    let inactivity_penalty: u64 = protocol_config::get_attr(ATTESTOR_INACTIVITY_PENALTY_PARAM);
-    let mut exit_indices = vector<u64>[];
-    let mut exit_reasons = vector<u8>[];
-    self.active_attestors.length().do!(|i| {
-        let entry = &self.active_attestors[i];
-        if (entry.bond.value() < low_bond_threshold) {
-            exit_indices.push_back(i);
-            exit_reasons.push_back(EXIT_EVICTION);
-        } else if (new_epoch - entry.last_active_epoch > max_inactivity_epochs) {
-            exit_indices.push_back(i);
-            exit_reasons.push_back(EXIT_INACTIVITY);
-        }
-    });
-    // Add voluntary removals not already exiting for a stronger reason.
-    while (!self.pending_removals.is_empty()) {
-        let idx = self.pending_removals.pop_back();
-        if (!exit_indices.contains(&idx)) {
-            exit_indices.push_back(idx);
-            exit_reasons.push_back(EXIT_REMOVAL);
-        }
-    };
-    // Sort ascending, then remove from the back so indices stay valid.
-    let mut i = 1;
-    while (i < exit_indices.length()) {
-        let mut j = i;
-        while (j > 0 && exit_indices[j - 1] > exit_indices[j]) {
-            exit_indices.swap(j - 1, j);
-            exit_reasons.swap(j - 1, j);
-            j = j - 1;
+    // Only active attestors can ever exit, and only active attestors can
+    // populate `pending_removals` (deregister requires an active entry), so
+    // a chain with the feature flag on but the exit-threshold params unset
+    // is safe here as long as the active set is empty (register also reads
+    // params and would already abort, so it can't be populated otherwise).
+    if (!self.active_attestors.is_empty()) {
+        let low_bond_threshold: u64 = protocol_config::get_attr(
+            ATTESTOR_LOW_BOND_THRESHOLD_PARAM,
+        );
+        let max_inactivity_epochs: u64 = protocol_config::get_attr(
+            ATTESTOR_MAX_INACTIVITY_EPOCHS_PARAM,
+        );
+        let inactivity_penalty: u64 = protocol_config::get_attr(
+            ATTESTOR_INACTIVITY_PENALTY_PARAM,
+        );
+        let mut exit_indices = vector<u64>[];
+        let mut exit_reasons = vector<u8>[];
+        self.active_attestors.length().do!(|i| {
+            let entry = &self.active_attestors[i];
+            if (entry.bond.value() < low_bond_threshold) {
+                exit_indices.push_back(i);
+                exit_reasons.push_back(EXIT_EVICTION);
+            } else if (new_epoch - entry.last_active_epoch > max_inactivity_epochs) {
+                exit_indices.push_back(i);
+                exit_reasons.push_back(EXIT_INACTIVITY);
+            }
+        });
+        // Add voluntary removals not already exiting for a stronger reason.
+        while (!self.pending_removals.is_empty()) {
+            let idx = self.pending_removals.pop_back();
+            if (!exit_indices.contains(&idx)) {
+                exit_indices.push_back(idx);
+                exit_reasons.push_back(EXIT_REMOVAL);
+            }
         };
-        i = i + 1;
-    };
-    while (!exit_indices.is_empty()) {
-        let idx = exit_indices.pop_back();
-        let reason = exit_reasons.pop_back();
-        let AttestorV1 {
-            attestor_address,
-            attestor_pubkey: _,
-            next_epoch_attestor_pubkey,
-            mut bond,
-            activation_epoch: _,
-            last_active_epoch: _,
-        } = self.active_attestors.remove(idx);
-        next_epoch_attestor_pubkey.destroy!(|_| ());
-        departed.push_back(attestor_address);
-        if (reason == EXIT_EVICTION) {
-            event::emit(AttestorEvictedEvent {
-                epoch: new_epoch,
+        // Sort ascending, then remove from the back so indices stay valid.
+        let mut i = 1;
+        while (i < exit_indices.length()) {
+            let mut j = i;
+            while (j > 0 && exit_indices[j - 1] > exit_indices[j]) {
+                exit_indices.swap(j - 1, j);
+                exit_reasons.swap(j - 1, j);
+                j = j - 1;
+            };
+            i = i + 1;
+        };
+        while (!exit_indices.is_empty()) {
+            let idx = exit_indices.pop_back();
+            let reason = exit_reasons.pop_back();
+            let AttestorV1 {
                 attestor_address,
-                burned_amount: bond.value(),
-            });
-            evicted_bonds.join(bond);
-        } else if (reason == EXIT_INACTIVITY) {
-            let penalty_amount = inactivity_penalty.min(bond.value());
-            evicted_bonds.join(bond.split(penalty_amount));
-            event::emit(AttestorDroppedForInactivityEvent {
-                epoch: new_epoch,
-                attestor_address,
-                penalty_amount,
-                refunded_amount: bond.value(),
-            });
-            transfer::public_transfer(coin::from_balance(bond, ctx), attestor_address);
-        } else {
-            event::emit(AttestorRemovedEvent {
-                epoch: new_epoch,
-                attestor_address,
-                refunded_amount: bond.value(),
-            });
-            transfer::public_transfer(coin::from_balance(bond, ctx), attestor_address);
-        }
+                attestor_pubkey: _,
+                next_epoch_attestor_pubkey,
+                mut bond,
+                activation_epoch: _,
+                last_active_epoch: _,
+            } = self.active_attestors.remove(idx);
+            next_epoch_attestor_pubkey.destroy!(|_| ());
+            departed.push_back(attestor_address);
+            if (reason == EXIT_EVICTION) {
+                let burned_amount = bond.value();
+                exited.push_back(AttestorExitInfo {
+                    attestor_address,
+                    reason,
+                    refunded_amount: 0,
+                    burned_amount,
+                });
+                evicted_bonds.join(bond);
+            } else if (reason == EXIT_INACTIVITY) {
+                let penalty_amount = inactivity_penalty.min(bond.value());
+                evicted_bonds.join(bond.split(penalty_amount));
+                exited.push_back(AttestorExitInfo {
+                    attestor_address,
+                    reason,
+                    refunded_amount: bond.value(),
+                    burned_amount: penalty_amount,
+                });
+                transfer::public_transfer(coin::from_balance(bond, ctx), attestor_address);
+            } else {
+                exited.push_back(AttestorExitInfo {
+                    attestor_address,
+                    reason,
+                    refunded_amount: bond.value(),
+                    burned_amount: 0,
+                });
+                transfer::public_transfer(coin::from_balance(bond, ctx), attestor_address);
+            }
+        };
     };
 
     // --- 2. Staged key rotations, in place ---
@@ -516,24 +523,24 @@ public(package) fun advance_epoch(
         let entry = &mut self.active_attestors[k];
         if (entry.next_epoch_attestor_pubkey.is_some()) {
             entry.attestor_pubkey = entry.next_epoch_attestor_pubkey.extract();
-            event::emit(AttestorKeyRotatedEvent {
-                epoch: new_epoch,
-                attestor_address: entry.attestor_address,
-                new_pubkey: entry.attestor_pubkey,
-            });
         };
         k = k + 1;
     };
 
     // --- 3. Activations, in registration order ---
+    let mut activated = vector<address>[];
     self.pending_active.reverse();
     while (!self.pending_active.is_empty()) {
         let entry = self.pending_active.pop_back();
-        event::emit(AttestorActivatedEvent {
-            epoch: new_epoch,
-            attestor_address: entry.attestor_address,
-        });
+        activated.push_back(entry.attestor_address);
         self.active_attestors.push_back(entry);
+    };
+
+    if (!activated.is_empty()) {
+        event::emit(AttestorsActivatedEvent { epoch: new_epoch, attestors: activated });
+    };
+    if (!exited.is_empty()) {
+        event::emit(AttestorsExitedEvent { epoch: new_epoch, exited });
     };
 
     (evicted_bonds, DepartedAttestors { addresses: departed })
@@ -662,6 +669,31 @@ public(package) fun last_active_epoch(attestor: &AttestorV1): u64 {
 
 public(package) fun active_attestors(self: &AttestorRegistryV1): &vector<AttestorV1> {
     &self.active_attestors
+}
+
+#[test_only]
+/// Unpack for assertions; event fields are private to this module.
+public fun unpack_activated_event_for_testing(
+    event: AttestorsActivatedEvent,
+): (u64, vector<address>) {
+    let AttestorsActivatedEvent { epoch, attestors } = event;
+    (epoch, attestors)
+}
+
+#[test_only]
+/// Unpack for assertions; event fields are private to this module.
+public fun unpack_exited_event_for_testing(
+    event: AttestorsExitedEvent,
+): (u64, vector<AttestorExitInfo>) {
+    let AttestorsExitedEvent { epoch, exited } = event;
+    (epoch, exited)
+}
+
+#[test_only]
+/// Unpack for assertions; struct fields are private to this module.
+public fun unpack_exit_info_for_testing(info: AttestorExitInfo): (address, u8, u64, u64) {
+    let AttestorExitInfo { attestor_address, reason, refunded_amount, burned_amount } = info;
+    (attestor_address, reason, refunded_amount, burned_amount)
 }
 
 #[test_only]

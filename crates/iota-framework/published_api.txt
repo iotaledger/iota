@@ -25,28 +25,22 @@ AttestorV1
 AttestorRegisteredEvent
 	public struct
 	0x3::attestor_registry
-AttestorActivatedEvent
-	public struct
-	0x3::attestor_registry
 AttestorDeregisterRequestedEvent
 	public struct
 	0x3::attestor_registry
 AttestorRemovedEvent
 	public struct
 	0x3::attestor_registry
-AttestorEvictedEvent
-	public struct
-	0x3::attestor_registry
-AttestorDroppedForInactivityEvent
-	public struct
-	0x3::attestor_registry
 AttestorBondDepositedEvent
 	public struct
 	0x3::attestor_registry
-AttestorKeyRotationStagedEvent
+AttestorsActivatedEvent
 	public struct
 	0x3::attestor_registry
-AttestorKeyRotatedEvent
+AttestorExitInfo
+	public struct
+	0x3::attestor_registry
+AttestorsExitedEvent
 	public struct
 	0x3::attestor_registry
 is_feature_enabled

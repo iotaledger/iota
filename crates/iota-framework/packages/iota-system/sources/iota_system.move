@@ -298,13 +298,7 @@ public entry fun rotate_attestor_key(
 ) {
     attestor_registry::assert_feature_enabled();
     let sender = ctx.sender();
-    let epoch = ctx.epoch();
-    load_attestor_registry_mut(wrapper).rotate_key(
-        sender,
-        new_pubkey,
-        proof_of_possession,
-        epoch,
-    );
+    load_attestor_registry_mut(wrapper).rotate_key(sender, new_pubkey, proof_of_possession);
 }
 
 /// Update the sender's attestor display name; effective immediately.
