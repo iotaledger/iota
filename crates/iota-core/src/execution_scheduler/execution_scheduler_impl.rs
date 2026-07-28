@@ -201,7 +201,14 @@ impl ExecutionScheduler {
                     .clone(),
             )),
         };
+        // Mirrors `TransactionManager::transaction_ready`: the ready rate feeds
+        // the overload monitor's latency-based load shedding, and the execution
+        // driver decrements `execution_driver_dispatch_queue` for every
+        // transaction it receives regardless of which scheduler produced it.
+        self.metrics.txn_ready_rate_tracker.lock().record();
         let _ = self.tx_ready_transactions.send(pending_tx);
+        self.metrics.transaction_manager_num_ready.inc();
+        self.metrics.execution_driver_dispatch_queue.inc();
     }
 }
 

@@ -76,6 +76,14 @@ fn notify_object_written(object_notify_read: &NotifyRead<InputKey, ()>, object: 
 /// waiter that registered before the marker was written must be woken — a
 /// deleted object is never written at that version, so no object-write
 /// notification will arrive to release it.
+///
+/// `NotifyRead::notify` resolves every registration for the key without
+/// re-checking availability, so a marker also wakes a waiter holding the same
+/// `(id, version)` as a plain, non-receiving input — for which the marker does
+/// not mean available. Such a waiter proceeds to fail in the input loader
+/// rather than hang, which is the same trade-off `SharedDeleted` has always
+/// made here. It also requires a transaction whose input is an owned version
+/// that was never live, which input validation does not admit.
 fn notify_marker_written(
     object_notify_read: &NotifyRead<InputKey, ()>,
     object_key: &ObjectKey,
@@ -498,10 +506,10 @@ pub trait ObjectCacheRead: Send + Sync {
     /// cache (no store reads). Used as a fast-path availability check before
     /// registering for change notifications.
     ///
-    /// Implementations MUST NOT read the store: a store-backed answer here
-    /// could release a transaction for execution before its inputs are
-    /// durably available. A cache-only false-negative is safe — the key is
-    /// re-checked via the full marker-aware path.
+    /// Implementations MUST NOT read the store: this check runs on the hot
+    /// scheduling path and is meant to stay free of store I/O. Reporting an
+    /// available input as unavailable is safe — the caller then waits on the
+    /// full, marker-aware path, which reads the store.
     fn multi_input_objects_available_cache_only(&self, keys: &[InputKey]) -> Vec<bool>;
 
     /// Return the object with version less then or eq to the provided seq

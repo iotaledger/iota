@@ -600,3 +600,74 @@ async fn execution_scheduler_reconfigure_clears_pending_and_overload() {
         "after reconfiguration the overload tracker must be clear"
     );
 }
+
+/// Both schedulers must account for a transaction becoming ready the same way.
+/// The overload monitor derives latency-based load shedding from
+/// `txn_ready_rate_tracker`, and the execution driver decrements
+/// `execution_driver_dispatch_queue` for every transaction it receives, no
+/// matter which scheduler produced it. A scheduler that skips this accounting
+/// leaves the ready rate at zero — which turns latency-based shedding off, as
+/// `calculate_load_shedding_percentage` returns 0% for a zero rate — and drives
+/// the dispatch gauge negative.
+#[tokio::test]
+async fn schedulers_record_ready_transaction_accounting() {
+    async fn assert_records_ready_accounting(
+        who: &str,
+        state: &AuthorityState,
+        scheduler: &dyn ExecutionSchedulerAPI,
+        rx_ready_transactions: &mut UnboundedReceiver<PendingTransaction>,
+        transaction: &VerifiedExecutableTransaction,
+    ) {
+        let num_ready_before = state.metrics.transaction_manager_num_ready.get();
+        let dispatch_queue_before = state.metrics.execution_driver_dispatch_queue.get();
+
+        scheduler.enqueue(vec![transaction.clone()], &state.epoch_store_for_testing());
+        let ready = rx_ready_transactions.recv().await.unwrap();
+        assert_eq!(ready.transaction.digest(), transaction.digest());
+
+        assert_eq!(
+            state.metrics.transaction_manager_num_ready.get() - num_ready_before,
+            1,
+            "{who} did not count the transaction as ready"
+        );
+        assert_eq!(
+            state.metrics.execution_driver_dispatch_queue.get() - dispatch_queue_before,
+            1,
+            "{who} did not increment the dispatch queue that the execution driver decrements"
+        );
+        assert!(
+            state.metrics.txn_ready_rate_tracker.lock().rate() > 0.0,
+            "{who} did not record the ready rate that latency-based load shedding reads"
+        );
+    }
+
+    let (owner, _keypair) = deterministic_random_account_key();
+
+    // Inputs (gas + framework package) are already available, so the transaction
+    // is dispatched right away by either scheduler.
+    let gas_object = Object::with_id_owner_for_testing(ObjectId::random(), owner);
+    let state = init_state_with_objects(vec![gas_object.clone()]).await;
+    let transaction = make_transaction(gas_object, vec![]);
+    let (execution_scheduler, mut rx_ready_transactions) = make_execution_scheduler(&state);
+    assert_records_ready_accounting(
+        "ExecutionScheduler",
+        &state,
+        &execution_scheduler,
+        &mut rx_ready_transactions,
+        &transaction,
+    )
+    .await;
+
+    let gas_object = Object::with_id_owner_for_testing(ObjectId::random(), owner);
+    let state = init_state_with_objects(vec![gas_object.clone()]).await;
+    let transaction = make_transaction(gas_object, vec![]);
+    let (transaction_manager, mut rx_ready_transactions) = make_transaction_manager(&state);
+    assert_records_ready_accounting(
+        "TransactionManager",
+        &state,
+        &transaction_manager,
+        &mut rx_ready_transactions,
+        &transaction,
+    )
+    .await;
+}
