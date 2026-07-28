@@ -14,7 +14,7 @@ foo = { local = "../foo", rev = "releases/v3" }
 bar = { r.mvr = "@protocol/bar" }
 
 [published.mainnet] # metadata from most recent publish to mainnet
-chain-id = "35834a8a"
+chain-id = "6364aad5"
 published-at = "0x6ba0cc1a418ff3bebce0ff9ec3961e6cc794af9bc3a4114fb138d00a4c9274bb"
 original-id  = "0x6ba0cc1a418ff3bebce0ff9ec3961e6cc794af9bc3a4114fb138d00a4c9274bb"
 upgrade-cap = "0x6ba0cc1a418ff3bebce0ff9ec3961e6cc794af9bc3a4114fb138d00a4c9274bb"
@@ -28,7 +28,7 @@ build-config = "..."
 std = { git = "", rev = "7a8d873f5a190aede5876fd0ccca79ac1e8bd2b0" }
 
 [published.testnet] # metadata from most recent publish to testnet
-chain-id = "4c78adac"
+chain-id = "2304aa97"
 published-at = "0x6ba0cc1a418ff3bebce0ff9ec3961e6cc794af9bc3a4114fb138d00a4c9274bb"
 original-id = "0x6ba0cc1a418ff3bebce0ff9ec3961e6cc794af9bc3a4114fb138d00a4c9274bb"
 upgrade-cap = "0x6ba0cc1a418ff3bebce0ff9ec3961e6cc794af9bc3a4114fb138d00a4c9274bb"

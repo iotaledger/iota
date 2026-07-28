@@ -22,8 +22,8 @@ Manifest {
         metadata: (),
     },
     environments: {
-        "mainnet": "35834a8a",
-        "testnet": "4c78adac",
+        "mainnet": "6364aad5",
+        "testnet": "2304aa97",
     },
     dependencies: {
         Identifier(

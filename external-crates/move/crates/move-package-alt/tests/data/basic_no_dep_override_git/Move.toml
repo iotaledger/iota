@@ -5,8 +5,8 @@ license = "Apache-2.0"
 authors = ["Move Team"]
 
 [environments]
-mainnet = "35834a8a"
-testnet = "4c78adac"
+mainnet = "6364aad5"
+testnet = "2304aa97"
 
 [dependencies]
 foo = { rename-from = "Foo", override = true, rev = "releases/v1", git = "https://example.com/foo.git" }

@@ -22,7 +22,7 @@ Manifest {
         metadata: (),
     },
     environments: {
-        "mainnet": "35834a8a",
+        "mainnet": "6364aad5",
     },
     dependencies: {},
     dep_replacements: {},
