@@ -461,5 +461,4 @@ impl GenesisConfig {
         });
         self
     }
-
 }
