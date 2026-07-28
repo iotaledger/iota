@@ -51,7 +51,7 @@ impl New {
         writeln!(
             w,
             r#"// For Move coding conventions, see
-// https://docs.iota.org/concepts/iota-move-concepts/conventions
+// https://docs.iota.org/developer/iota-101/move-overview/conventions
 
 /// Module: {name}
 module {name}::{name};
