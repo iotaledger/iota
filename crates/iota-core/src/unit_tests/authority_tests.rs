@@ -4941,7 +4941,7 @@ async fn prepare_authority_and_shared_object_cert()
 }
 
 #[tokio::test(flavor = "current_thread", start_paused = true)]
-#[should_panic]
+#[should_panic(expected = "Shared object version should have been assigned")]
 async fn test_shared_object_transaction_no_shared_version_assignments() {
     let (authority, certificate, _) = prepare_authority_and_shared_object_cert().await;
 

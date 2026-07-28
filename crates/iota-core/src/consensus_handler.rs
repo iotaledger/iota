@@ -1125,9 +1125,8 @@ mod tests {
     /// empty `ExecutionEnv` — the `unwrap_or_default()` in
     /// `AsyncTransactionScheduler::run`. Both must execute: replacing the
     /// fallback with a panic would lose every owned-only transaction of a
-    /// commit, and pairing envs positionally instead of by key would hand the
-    /// shared certificate's versions to the owned one. The effects assertions
-    /// below catch the mispairing deterministically.
+    /// commit, and pairing envs positionally instead of by key would leave the
+    /// shared certificate without its versions (see the ordering note below).
     #[tokio::test(flavor = "current_thread", start_paused = true)]
     async fn test_consensus_handler_mixed_owned_and_shared_commit() {
         // GIVEN
@@ -1205,8 +1204,15 @@ mod tests {
         )
         .unwrap();
 
-        // AND a consensus output committing both.
-        let certificates = [shared_certificate.clone(), owned_certificate.clone()];
+        // AND a consensus output committing both, with the owned-only
+        // certificate FIRST. Order matters for what this test can catch: version
+        // assignment emits no entry for the owned-only certificate, so with the
+        // owned one last a positional pairing would coincidentally hand every
+        // transaction the same env a keyed lookup does. Putting it first shifts
+        // the shared certificate onto the empty tail of the assignment list, so
+        // a positional pairing leaves it unschedulable and the bounded wait
+        // below fails.
+        let certificates = [owned_certificate.clone(), shared_certificate.clone()];
         let mut headers = Vec::new();
         let mut subdag_transactions = Vec::new();
         for (i, certificate) in certificates.iter().enumerate() {

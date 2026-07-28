@@ -367,6 +367,15 @@ impl TransactionManager {
                     .clone();
                 let transaction =
                     VerifiedExecutableTransaction::new_system(transaction, epoch_store.epoch());
+                // The env parked under `key` carries that key's shared version
+                // assignments and is the only copy of them, so handing it to a
+                // transaction the key does not name would execute on the wrong
+                // versions without tripping the assignment check.
+                debug_assert_eq!(
+                    transaction.key(),
+                    key,
+                    "notify_transaction_key called with a digest naming another transaction"
+                );
                 Some(vec![(transaction, env)])
             } else {
                 None
@@ -865,6 +874,15 @@ impl TransactionManager {
             }
         }
         Ok(())
+    }
+
+    /// Number of schedulables parked under their transaction key, waiting for
+    /// `notify_transaction_key`. Not counted by `inflight_queue_len`.
+    #[cfg(test)]
+    fn num_pending_transaction_keys_for_testing(&self) -> usize {
+        let reconfig_lock = self.inner.read();
+        let inner = reconfig_lock.read();
+        inner.pending_transaction_keys.len()
     }
 
     // Verify TM has no pending item for tests.

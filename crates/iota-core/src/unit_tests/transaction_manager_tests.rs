@@ -119,11 +119,22 @@ async fn transaction_manager_reconfigure_drops_all_pending_and_executing_state()
         &state.epoch_store_for_testing(),
     );
 
-    // Both transactions are inflight: one executing, one pending.
+    // Both transactions are inflight: one executing, one pending. The parked
+    // key is tracked separately and is deliberately asserted on its own —
+    // `inflight_queue_len` does not count it, so without this the assertions
+    // after reconfiguration would hold even if the key had never parked.
     assert_eq!(transaction_manager.inflight_queue_len(), 2);
+    assert_eq!(
+        transaction_manager.num_pending_transaction_keys_for_testing(),
+        1
+    );
 
     // Reconfiguration replaces the inner state wholesale, dropping all three.
     transaction_manager.reconfigure(1);
+    assert_eq!(
+        transaction_manager.num_pending_transaction_keys_for_testing(),
+        0
+    );
 
     // A late key notification for the old epoch's round must deliver nothing.
     transaction_manager.notify_transaction_key(
