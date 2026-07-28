@@ -139,8 +139,10 @@ pub struct MetricGroups {
     pub hardware: MetricLevel,
     /// Free-form overrides for module paths or metric names, including ones
     /// already covered by a named group: the most specific matching pattern
-    /// decides each metric, so an override can raise or lower a single module
-    /// or metric within a group.
+    /// decides each metric (a metric-name match wins over a module match),
+    /// so an override can raise or lower a single module or metric within a
+    /// group. A `default` key is the same pattern as the `default` field and
+    /// replaces its level.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub overrides: BTreeMap<String, MetricLevel>,
 }
@@ -257,8 +259,7 @@ impl MetricGroups {
         ]
     }
 
-    /// List of metric level together with registered module paths
-    /// corresponding to all groups.
+    /// Each group's configured level paired with the module paths it covers.
     fn group_modules(&self) -> [(MetricLevel, &'static [&'static str]); 13] {
         self.group_levels().map(|(group, level)| {
             (
@@ -321,7 +322,9 @@ impl MetricGroups {
     }
 
     /// Builds the startup metrics filter: these group levels with the `env`
-    /// directives merged over them.
+    /// directives merged over them. An env bare level replaces the group
+    /// directives entirely instead of merging, so `METRICS_FILTER=trace`
+    /// exposes everything whatever the groups configure.
     /// Invalid env directives are dropped.
     ///
     /// Matching uses the expanded module directives; the admin endpoint
@@ -414,6 +417,15 @@ mod tests {
         assert!(!filter.is_exposed("x", "starfish_core::metrics", MetricLevel::Info));
         assert!(filter.is_exposed("x", "iota_node::some_module", MetricLevel::Info));
         assert!(!filter.is_exposed("x", "iota_node::some_module", MetricLevel::Debug));
+
+        // A bare env level replaces all group directives instead of merging
+        // over them, so `METRICS_FILTER=trace` (which the benchmark tooling
+        // exports to read gated metrics) exposes everything.
+        let (filter, errors) = MetricGroups::default().startup_filter(Some("trace"));
+        assert!(errors.is_empty());
+        assert!(filter.is_exposed("x", "iota_core::execution_cache", MetricLevel::Trace));
+        assert!(filter.is_exposed("x", "iota_node::some_module", MetricLevel::Trace));
+        assert_eq!(filter.startup_filter_string(), "trace");
     }
 
     #[test]
@@ -668,7 +680,8 @@ mod tests {
         // the `overrides` map, keeping group-name typo protection intact.
         let groups: MetricGroups = serde_yaml::from_str(
             "consensus: off\n\
-             overrides:\n  \"iota_core::authority::foo\": trace\n  bespoke_metric: off",
+             overrides:\n  \"iota_core::authority::foo\": trace\n  bespoke_metric: off\n  \
+             certs_total: trace",
         )
         .unwrap();
         assert_eq!(groups.consensus, MetricLevel::Off);
@@ -681,5 +694,15 @@ mod tests {
         // The longer override pattern wins over the `authority` group directive.
         assert!(filter.is_exposed("x", "iota_core::authority::foo", MetricLevel::Trace));
         assert!(!filter.is_exposed("bespoke_metric_total", "somewhere", MetricLevel::Warn));
+        // A metric-name override wins over its module's group directive
+        // (`iota_core::execution_cache=warn` here) even though the name is
+        // the shorter pattern.
+        assert!(filter.is_exposed(
+            "certs_total",
+            "iota_core::execution_cache",
+            MetricLevel::Trace
+        ));
+        // Other metrics in the module keep the group's level.
+        assert!(!filter.is_exposed("other", "iota_core::execution_cache", MetricLevel::Info));
     }
 }

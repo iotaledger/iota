@@ -143,6 +143,9 @@ is set to `info`, so only spans with level `error` and `info` will be sent as me
    METRICS_FILTER=telemetry_subscribers=debug
    ```
 
+   A bare level replaces the configured filter entirely, so
+   `METRICS_FILTER=trace` exposes every metric.
+
    ```bash
    curl -X GET 'http://127.0.0.1:9184/metrics' | grep tracing_span_latencies_bucket
    ```

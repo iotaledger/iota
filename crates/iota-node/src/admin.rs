@@ -89,7 +89,9 @@ use crate::IotaNode;
 // The override is merged over the startup directives: an override directive
 // replaces the startup directive with the same pattern, and otherwise the
 // most specific matching pattern decides each metric, whichever source it
-// came from. Each POST
+// came from. A bare level (e.g. `trace`) replaces the startup directives
+// entirely, exposing everything up to that level; `default=LEVEL` changes
+// only the level for the metrics no other directive matches. Each POST
 // starts from the startup directives again rather than stacking on the
 // previous override.
 //

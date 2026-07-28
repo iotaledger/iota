@@ -95,8 +95,9 @@ fn main() {
         iota_metrics::start_prometheus_server_with_filter(config.metrics_address, metrics_filter);
 
     // Register the host hardware collector.
-    register_hardware_metrics(&registry_service, &config.db_path)
-        .expect("Failed registering hardware metrics");
+    if let Err(err) = register_hardware_metrics(&registry_service, &config.db_path) {
+        eprintln!("failed to register hardware metrics: {err}");
+    }
 
     // Initialize logging
     let prometheus_registry = registry_service.default_registry();
