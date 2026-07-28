@@ -5,22 +5,21 @@
 use iota_sdk_types::{Address, CommandArgumentError, ObjectId, Owner, Version};
 use iota_types::{
     coin::Coin,
-    error::{ExecutionError, ExecutionErrorKind, IotaError},
+    error::{ExecutionError, ExecutionErrorKind},
     storage::{BackingPackageStore, ChildObjectResolver, StorageView},
     transfer::Receiving,
 };
 use move_binary_format::file_format::AbilitySet;
-use move_core_types::{identifier::IdentStr, resolver::ResourceResolver};
+use move_core_types::identifier::IdentStr;
 use move_vm_types::loaded_data::runtime_types::Type;
 use serde::Deserialize;
 
-pub trait IotaResolver: ResourceResolver<Error = IotaError> + BackingPackageStore {
+pub trait IotaResolver: BackingPackageStore {
     fn as_backing_package_store(&self) -> &dyn BackingPackageStore;
 }
 
 impl<T> IotaResolver for T
 where
-    T: ResourceResolver<Error = IotaError>,
     T: BackingPackageStore,
 {
     fn as_backing_package_store(&self) -> &dyn BackingPackageStore {
