@@ -102,18 +102,15 @@ impl Builder {
 
     /// Set the [`TokenDistributionSchedule`].
     ///
-    /// # Panic
+    /// # Panics
     ///
-    /// This method fails if the passed schedule contains timelocked stake,
+    /// Panics if the schedule is invalid, e.g. it contains timelocked stake,
     /// which is not supported at genesis.
     pub fn with_token_distribution_schedule(
         mut self,
         token_distribution_schedule: TokenDistributionSchedule,
     ) -> Self {
-        assert!(
-            !token_distribution_schedule.contains_timelocked_stake(),
-            "timelocked stake is not supported at genesis"
-        );
+        token_distribution_schedule.validate();
         self.token_distribution_schedule = Some(token_distribution_schedule);
         self
     }
@@ -495,7 +492,8 @@ impl Builder {
                     })
                     .map(|(k, _)| *k)
                     .expect("all allocations should be present");
-                let staked_iota_object = staked_iota_objects.remove(&staked_iota_object_id).unwrap();
+                let staked_iota_object =
+                    staked_iota_objects.remove(&staked_iota_object_id).unwrap();
                 assert_eq!(
                     staked_iota_object.0.owner,
                     Owner::Address(allocation.recipient_address)

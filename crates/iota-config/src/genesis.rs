@@ -476,7 +476,23 @@ impl TokenDistributionSchedule {
             .is_some()
     }
 
+    /// Validates the schedule.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the schedule contains timelocked stake or a non-zero
+    /// pre-minted supply (neither is supported at genesis), or if the total
+    /// allocated amount overflows `u64`.
     pub fn validate(&self) {
+        assert!(
+            !self.contains_timelocked_stake(),
+            "timelocked stake is not supported at genesis"
+        );
+        assert_eq!(
+            self.pre_minted_supply, 0,
+            "a non-zero pre-minted supply is not supported at genesis"
+        );
+
         let mut total_nanos = self.pre_minted_supply;
 
         for allocation in &self.allocations {
@@ -682,4 +698,49 @@ pub fn csv_reader_with_comments<R: std::io::Read>(reader: R) -> csv::Reader<R> {
     csv::ReaderBuilder::new()
         .comment(Some(b'#'))
         .from_reader(reader)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn timelocked_schedule() -> TokenDistributionSchedule {
+        TokenDistributionSchedule {
+            pre_minted_supply: 0,
+            allocations: vec![TokenAllocation {
+                recipient_address: Address::ZERO,
+                amount_nanos: 1_500_000_000_000_000,
+                staked_with_validator: Some(Address::ZERO),
+                staked_with_timelock_expiration: Some(1_000_000),
+            }],
+        }
+    }
+
+    #[test]
+    #[should_panic(expected = "timelocked stake is not supported at genesis")]
+    fn validate_rejects_timelocked_stake() {
+        timelocked_schedule().validate();
+    }
+
+    #[test]
+    #[should_panic(expected = "non-zero pre-minted supply is not supported at genesis")]
+    fn validate_rejects_pre_minted_supply() {
+        let schedule = TokenDistributionSchedule {
+            pre_minted_supply: 100,
+            allocations: vec![],
+        };
+        schedule.validate();
+    }
+
+    /// A ceremony directory saved by an older release may contain a
+    /// token-distribution-schedule CSV with timelocked allocations; parsing
+    /// it must fail up front rather than deep inside genesis execution.
+    #[test]
+    #[should_panic(expected = "timelocked stake is not supported at genesis")]
+    fn from_csv_rejects_timelocked_stake() {
+        let mut csv = Vec::new();
+        timelocked_schedule().to_csv(&mut csv).unwrap();
+
+        let _ = TokenDistributionSchedule::from_csv(csv.as_slice());
+    }
 }
