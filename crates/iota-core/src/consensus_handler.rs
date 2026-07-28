@@ -971,6 +971,8 @@ mod tests {
 
     #[tokio::test(flavor = "current_thread", start_paused = true)]
     pub async fn test_consensus_handler() {
+        telemetry_subscribers::init_for_testing();
+
         // GIVEN
         let mut objects = test_gas_objects();
         let shared_object = Object::shared_for_testing();
@@ -1274,10 +1276,13 @@ mod tests {
                 .collect::<Vec<_>>(),
             vec![(shared_object.id(), shared_object.version())]
         );
+        // Not a check on the env it received: effects list the transaction's own
+        // shared inputs, of which an owned-only transfer has none whatever env it
+        // carries. It pins that the transaction under test really is owned-only,
+        // so the empty-env fallback above is the branch being exercised.
         assert!(
             owned_effects.input_shared_objects().is_empty(),
-            "the owned-only certificate must not have been executed with the shared \
-             certificate's version assignments"
+            "the transaction paired with the empty env must be owned-only"
         );
     }
 

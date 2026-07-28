@@ -3,13 +3,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{
-    collections::{HashMap, HashSet},
-    convert::TryInto,
-    path::PathBuf,
-    str::FromStr,
-    sync::Arc,
-};
+use std::{collections::HashSet, convert::TryInto, path::PathBuf, str::FromStr, sync::Arc};
 
 use bcs;
 use fastcrypto::traits::KeyPair;
@@ -5114,7 +5108,7 @@ async fn test_consensus_commit_prologue_generation(#[values(false, true)] pcool:
     .unwrap();
     let clock_tx = to_sender_signed_transaction(clock_tx, &sender_key);
 
-    let processed_consensus_transactions = if pcool {
+    let (processed_consensus_transactions, assigned_versions) = if pcool {
         // Submit as UserTransactionV1 — no certificates needed.
         let transactions = vec![
             SequencedConsensusTransaction::new_test(ConsensusTransaction {
@@ -5154,7 +5148,6 @@ async fn test_consensus_commit_prologue_generation(#[values(false, true)] pcool:
         send_batch_consensus_no_execution(&authority_state, &certificates, false).await
     };
 
-    let (processed_consensus_transactions, assigned_versions) = processed_consensus_transactions;
     let assigned_versions = assigned_versions.into_map();
 
     // Tests that new consensus commit prologue transaction is added to the batch,
@@ -6977,28 +6970,23 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
             .is_empty()
     );
 
-    // Check cancelled transaction shared object version assignments.
+    // Check cancelled transaction shared object version assignments. Compared as
+    // an ordered list: the order is what reaches the consensus commit prologue.
     let assigned_versions = assigned_versions.into_map();
     let cancelled_txn_assigned_versions =
         assigned_versions.get(&cancelled_txn.key()).unwrap().clone();
-    let shared_object_version = cancelled_txn_assigned_versions
-        .iter()
-        .map(|VersionAssignment { object_id, version }| (*object_id, *version))
-        .collect::<HashMap<_, _>>();
     assert_eq!(
-        [
-            (
+        vec![
+            VersionAssignment::new(
                 shared_objects[0].id(),
                 Version::new_congested_with_suggested_gas_price(suggested_gas_price).unwrap()
             ),
-            (
+            VersionAssignment::new(
                 shared_objects[1].id(),
                 Version::new_congested_with_suggested_gas_price(suggested_gas_price).unwrap()
             )
-        ]
-        .into_iter()
-        .collect::<HashMap<_, _>>(),
-        shared_object_version
+        ],
+        cancelled_txn_assigned_versions
     );
 
     // Load shared objects.
@@ -7312,13 +7300,8 @@ async fn survivor_executes(use_execution_scheduler: bool) {
         "only the conflict winner should survive post-consensus validation"
     );
     assert_eq!(
-        executable_txs[0]
-            .as_tx()
-            .unwrap()
-            .inner()
-            .transaction()
-            .digest(),
-        *verified_tx1.digest(),
+        executable_txs[0].as_tx().unwrap().digest(),
+        verified_tx1.digest(),
         "the survivor should be tx1 (first in consensus order)"
     );
 

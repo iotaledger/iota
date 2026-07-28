@@ -109,11 +109,15 @@ async fn test_full_node_shared_objects_execution_scheduler() -> Result<(), anyho
     std::env::remove_var("ENABLE_TRANSACTION_MANAGER");
     let mut test_cluster = TestClusterBuilder::new().build().await;
     let handle = test_cluster.spawn_new_fullnode().await;
-    assert!(
-        handle.iota_node.state().uses_execution_scheduler(),
-        "every node must run the ExecutionScheduler for this test to exercise the live \
-         consensus scheduling path"
-    );
+    for node in test_cluster.all_node_handles() {
+        node.with(|node| {
+            assert!(
+                node.state().uses_execution_scheduler(),
+                "every node must run the ExecutionScheduler for this test to exercise the \
+                 live consensus scheduling path"
+            );
+        });
+    }
     run_full_node_shared_objects(&test_cluster.wallet, &handle.iota_node).await
 }
 

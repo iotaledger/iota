@@ -117,8 +117,7 @@ pub async fn execute_certificate_with_execution_error(
         if fake_consensus {
             send_consensus(authority, &certificate).await
         } else {
-            // Just assign shared object versions directly if send_consensus is not
-            // requested.
+            // Just set object locks directly if send_consensus is not requested.
             let assigned_versions = authority
                 .epoch_store_for_testing()
                 .assign_shared_object_versions_for_tests(
@@ -450,15 +449,13 @@ pub async fn send_consensus(
         .unwrap_or_default();
 
     let certs = vec![(
-        Schedulable::Transaction(VerifiedExecutableTransaction::new_from_certificate(
-            cert.clone(),
-        )),
+        VerifiedExecutableTransaction::new_from_certificate(cert.clone()),
         ExecutionEnv::new().with_assigned_versions(assigned_versions.clone()),
     )];
 
     authority
         .execution_scheduler()
-        .enqueue(certs, &authority.epoch_store_for_testing());
+        .enqueue_transactions(certs, &authority.epoch_store_for_testing());
 
     assigned_versions
 }

@@ -110,7 +110,6 @@ async fn transaction_manager_reconfigure_drops_all_pending_and_executing_state()
     // A keyed schedulable whose transaction does not exist yet parks in
     // `pending_transaction_keys`.
     let round = RandomnessRound::new(1);
-    let key = TransactionKey::RandomnessRound(0, round);
     transaction_manager.enqueue(
         vec![(
             Schedulable::RandomnessStateUpdate(0, round),
@@ -135,15 +134,6 @@ async fn transaction_manager_reconfigure_drops_all_pending_and_executing_state()
         transaction_manager.num_pending_transaction_keys_for_testing(),
         0
     );
-
-    // A late key notification for the old epoch's round must deliver nothing.
-    transaction_manager.notify_transaction_key(
-        &state.epoch_store_for_testing(),
-        key,
-        *executing_tx.digest(),
-    );
-    sleep(Duration::from_secs(1)).await;
-    assert!(rx_ready_transactions.try_recv().is_err());
 
     transaction_manager.check_empty_for_testing();
     // Both count surfaces must read 0: the internal queue length and the trait

@@ -1865,7 +1865,7 @@ async fn test_object_lock_conflict() {
         .delete_shared_obj_with_owned_tx(owned_obj, shared_obj_id, initial_shared_version)
         .await;
 
-    let (_delete_cert, _delete_cert_versions) = user_1
+    let _delete_cert = user_1
         .certify_shared_obj_transaction(delete_obj_tx)
         .await
         .unwrap();

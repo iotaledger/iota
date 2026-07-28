@@ -190,9 +190,8 @@ impl SingleValidator {
                     // have consensus, hence the manual enqueue.
                     self.get_validator().execution_scheduler().enqueue(
                         vec![(
-                            Schedulable::Transaction(
-                                VerifiedExecutableTransaction::new_from_certificate(cert.clone()),
-                            ),
+                            VerifiedExecutableTransaction::new_from_certificate(cert.clone())
+                                .into(),
                             ExecutionEnv::new().with_assigned_versions(assigned_versions.clone()),
                         )],
                         &self.epoch_store,

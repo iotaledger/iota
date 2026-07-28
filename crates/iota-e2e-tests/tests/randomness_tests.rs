@@ -5,7 +5,6 @@
 
 use std::time::Duration;
 
-use iota_json_rpc_types::{IotaExecutionStatus, IotaTransactionBlockEffectsAPI};
 #[cfg(msim)]
 use iota_macros::register_fail_point_async;
 use iota_macros::sim_test;
@@ -104,14 +103,8 @@ async fn run_randomness_using_transaction_reaches_finality(use_execution_schedul
     .await
     .expect("randomness-using transaction did not reach finality");
 
-    assert_eq!(
-        *response.effects.as_ref().unwrap().status(),
-        IotaExecutionStatus::Success,
-        "randomness-using transaction failed: {:?}",
-        response.effects.as_ref().unwrap().status()
-    );
-    // The emitted event proves the transaction actually consumed a random
-    // value rather than merely executing.
+    // Success is already asserted inside the helper; the emitted event is what
+    // proves the transaction actually consumed a random value.
     let events = response.events.unwrap();
     assert_eq!(1, events.data.len(), "expected 1 event: {:?}", events.data);
     assert_eq!(

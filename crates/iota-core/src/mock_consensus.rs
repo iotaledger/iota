@@ -22,7 +22,6 @@ use crate::{
     authority::{
         AuthorityMetrics, AuthorityState, ExecutionEnv,
         authority_per_epoch_store::AuthorityPerEpochStore,
-        shared_object_version_manager::Schedulable,
     },
     checkpoints::CheckpointServiceNoop,
     consensus_adapter::{BlockStatusReceiver, ConsensusClient, SubmitToConsensus},
@@ -99,11 +98,10 @@ impl MockConsensusClient {
                 if tx.contains_shared_object() {
                     validator.execution_scheduler().enqueue(
                         vec![(
-                            Schedulable::Transaction(
-                                VerifiedExecutableTransaction::new_from_certificate(
-                                    VerifiedCertificate::new_unchecked(*tx),
-                                ),
-                            ),
+                            VerifiedExecutableTransaction::new_from_certificate(
+                                VerifiedCertificate::new_unchecked(*tx),
+                            )
+                            .into(),
                             env,
                         )],
                         &epoch_store,

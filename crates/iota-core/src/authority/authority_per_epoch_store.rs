@@ -1833,8 +1833,6 @@ impl AuthorityPerEpochStore {
         Ok(self.tables()?.transaction_cert_signatures.get(tx_digest)?)
     }
 
-    /// Resolves InputObjectKinds into InputKeys, by consulting the shared
-    /// object version assignment table.
     /// Resolves InputObjectKinds into InputKeys. `assigned_versions` is used to
     /// map shared inputs to specific object versions.
     pub(crate) fn get_input_object_keys(

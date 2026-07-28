@@ -66,15 +66,15 @@ pub struct ExecutingGuard {
 
 #[enum_dispatch]
 pub trait ExecutionSchedulerAPI {
-    fn enqueue(
-        &self,
-        transactions: Vec<(Schedulable, ExecutionEnv)>,
-        epoch_store: &Arc<AuthorityPerEpochStore>,
-    );
-
     fn enqueue_transactions(
         &self,
         transactions: Vec<(VerifiedExecutableTransaction, ExecutionEnv)>,
+        epoch_store: &Arc<AuthorityPerEpochStore>,
+    );
+
+    fn enqueue(
+        &self,
+        transactions: Vec<(Schedulable, ExecutionEnv)>,
         epoch_store: &Arc<AuthorityPerEpochStore>,
     );
 
