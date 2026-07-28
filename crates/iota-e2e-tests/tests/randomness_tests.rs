@@ -6,9 +6,13 @@
 use std::time::Duration;
 
 use iota_json_rpc_types::{IotaExecutionStatus, IotaTransactionBlockEffectsAPI};
+#[cfg(msim)]
+use iota_macros::register_fail_point_async;
 use iota_macros::sim_test;
 use iota_sdk_types::ObjectId;
 use iota_test_transaction_builder::{emit_new_random_u128, publish_basics_package};
+#[cfg(msim)]
+use rand::distributions::Distribution;
 use test_cluster::{TestCluster, TestClusterBuilder};
 
 #[sim_test]
@@ -68,7 +72,25 @@ async fn build_cluster_with_scheduler(use_execution_scheduler: bool) -> TestClus
 /// reaches finality. A break anywhere in that chain (the key never resolving,
 /// the round's update losing its version assignment) leaves the user
 /// transaction waiting forever, so the wait is bounded to fail loudly.
+///
+/// The delay injected into local randomness generation lets checkpoint
+/// execution win the race against it on some node, which is the state in which
+/// a round's transaction executes without that node having generated it. The
+/// checkpoint builder then needs the round key resolved by the execution path
+/// rather than by local generation; if that write is missing, the assertion in
+/// `CheckpointBuilder::make_checkpoint` reports the builder waiting on a root
+/// the executor is already past.
 async fn run_randomness_using_transaction_reaches_finality(use_execution_scheduler: bool) {
+    #[cfg(msim)]
+    register_fail_point_async("randomness-delay", || async {
+        let delay = {
+            let dist = rand::distributions::Uniform::new(10, 1000);
+            let mut rng = rand::thread_rng();
+            dist.sample(&mut rng)
+        };
+        tokio::time::sleep(Duration::from_millis(delay)).await;
+    });
+
     let test_cluster = build_cluster_with_scheduler(use_execution_scheduler).await;
 
     let package_ref = publish_basics_package(&test_cluster.wallet).await;

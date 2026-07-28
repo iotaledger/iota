@@ -1450,9 +1450,8 @@ impl CheckpointBuilder {
                 // If the roots contains consensus commit prologue transaction, we want to
                 // extract it, and put it to the front of the checkpoint.
 
-                let consensus_commit_prologue = self
-                    .extract_consensus_commit_prologue(&root_digests, &root_effects)
-                    .await?;
+                let consensus_commit_prologue =
+                    self.extract_consensus_commit_prologue(&root_digests, &root_effects)?;
 
                 // Get the un-included dependencies of the consensus commit prologue. We should
                 // expect no other dependencies that haven't been included in
@@ -1515,7 +1514,7 @@ impl CheckpointBuilder {
     // effects from the root transactions.
     // The consensus commit prologue is expected to be the first transaction in the
     // roots.
-    async fn extract_consensus_commit_prologue(
+    fn extract_consensus_commit_prologue(
         &self,
         root_digests: &[TransactionDigest],
         root_effects: &[TransactionEffects],
