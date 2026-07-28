@@ -64,7 +64,7 @@ use iota_types::{
     },
     messages_grpc::HandleCertificateRequestV1,
     object::Object,
-    quorum_driver_types::ExecuteTransactionRequestType,
+    quorum_driver_types::{ExecuteTransactionRequestType, ExecuteTransactionRequestV1},
     supported_protocol_versions::SupportedProtocolVersions,
     traffic_control::{PolicyConfig, RemoteFirewallConfig},
     transaction::{CertifiedTransaction, Transaction, TransactionData},
@@ -113,6 +113,39 @@ pub struct TestCluster {
     pub wallet: WalletContext,
     pub fullnode_handle: FullNodeHandle,
     faucet: Option<Faucet>,
+}
+
+/// Reverts the P-COOL protocol flag override when dropped.
+#[must_use = "the override only holds while the guard is alive"]
+pub struct PcoolFlowOverride;
+
+impl Drop for PcoolFlowOverride {
+    fn drop(&mut self) {
+        // SAFETY: paired with `override_pcool_flow`; both run on the test
+        // thread, outside the cluster's lifetime.
+        unsafe {
+            std::env::remove_var("IOTA_PROTOCOL_CONFIG_OVERRIDE_ENABLE");
+            std::env::remove_var("IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_PCOOL_FLOW");
+        }
+    }
+}
+
+/// Sets the P-COOL protocol flag for every node of a test cluster built while
+/// the returned guard is alive.
+///
+/// `ProtocolConfig::apply_overrides_for_testing` is thread-local and does not
+/// reach the tasks a cluster spawns, so the flag goes through the protocol
+/// config environment overrides instead.
+pub fn override_pcool_flow(enabled: bool) -> PcoolFlowOverride {
+    // SAFETY: called before the cluster is built, on the test thread.
+    unsafe {
+        std::env::set_var("IOTA_PROTOCOL_CONFIG_OVERRIDE_ENABLE", "1");
+        std::env::set_var(
+            "IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_PCOOL_FLOW",
+            enabled.to_string(),
+        );
+    }
+    PcoolFlowOverride
 }
 
 impl TestCluster {
@@ -626,11 +659,47 @@ impl TestCluster {
         &self,
         tx: Transaction,
     ) -> anyhow::Result<(TransactionEffects, TransactionEvents)> {
+        if self.protocol_config().enable_pcool_flow() {
+            return self.execute_transaction_via_orchestrator(tx).await;
+        }
         let results = self
             .submit_transaction_to_validators(tx.clone(), &self.get_validator_pubkeys())
             .await?;
         self.wallet.execute_transaction_may_fail(tx).await.unwrap();
         Ok(results)
+    }
+
+    /// Drives a transaction through the fullnode's transaction orchestrator
+    /// and returns the raw effects and events.
+    ///
+    /// The P-COOL flow has no certificate to hand to individual validators, so
+    /// this is the counterpart of `submit_transaction_to_validators` for
+    /// callers that only need the raw execution results.
+    async fn execute_transaction_via_orchestrator(
+        &self,
+        tx: Transaction,
+    ) -> anyhow::Result<(TransactionEffects, TransactionEvents)> {
+        let orchestrator = self.fullnode_handle.iota_node.with(|node| {
+            node.transaction_orchestrator()
+                .expect("fullnodes run a transaction orchestrator")
+        });
+        let (response, _executed_locally) = orchestrator
+            .execute_transaction_block(
+                ExecuteTransactionRequestV1 {
+                    transaction: tx,
+                    include_events: true,
+                    include_input_objects: false,
+                    include_output_objects: false,
+                    include_auxiliary_data: false,
+                },
+                ExecuteTransactionRequestType::WaitForLocalExecution,
+                None,
+            )
+            .await?;
+        Ok((
+            response.effects.effects,
+            response.events.unwrap_or_default(),
+        ))
     }
 
     pub fn authority_aggregator(&self) -> Arc<AuthorityAggregator<NetworkAuthorityClient>> {
