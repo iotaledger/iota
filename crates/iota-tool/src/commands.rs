@@ -26,7 +26,7 @@ use iota_types::{
     crypto::AuthorityPublicKeyBytes,
     messages_checkpoint::{CheckpointRequest, CheckpointResponse, CheckpointSequenceNumber},
     messages_grpc::TransactionInfoRequest,
-    transaction::{SenderSignedData, Transaction},
+    transaction::{SenderSignedData, TransactionEnvelope},
 };
 use telemetry_subscribers::TracingHandle;
 
@@ -452,7 +452,7 @@ async fn check_locked_object(
     let res = iota_client
         .quorum_driver_api()
         .execute_transaction_block(
-            Transaction::new(tx),
+            TransactionEnvelope::new(tx),
             IotaTransactionBlockResponseOptions::full_content(),
             None,
         )
@@ -967,7 +967,7 @@ impl ToolCommand {
                     &fastcrypto::encoding::Base64::decode(sender_signed_data.as_str()).unwrap(),
                 )
                 .unwrap();
-                let transaction = Transaction::new(sender_signed_data);
+                let transaction = TransactionEnvelope::new(sender_signed_data);
                 let (agg, _) =
                     AuthorityAggregatorBuilder::from_genesis(&genesis).build_network_clients();
                 let result = agg.process_transaction(transaction, None).await;

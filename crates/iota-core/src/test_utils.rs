@@ -20,7 +20,7 @@ use iota_types::{
     error::IotaError,
     transaction::{
         CallArg, CertifiedTransaction, SenderSignedTransactionAPI, SignedTransaction,
-        TEST_ONLY_GAS_UNIT_FOR_TRANSFER, Transaction, TransactionData, TransactionDataAPI,
+        TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionData, TransactionDataAPI, TransactionEnvelope,
     },
     utils::{create_fake_transaction, to_sender_signed_transaction},
 };
@@ -35,7 +35,7 @@ const WAIT_FOR_TX_TIMEOUT: Duration = Duration::from_secs(15);
 pub async fn send_and_confirm_transaction(
     authority: &AuthorityState,
     fullnode: Option<&AuthorityState>,
-    transaction: Transaction,
+    transaction: TransactionEnvelope,
 ) -> Result<(CertifiedTransaction, SignedTransactionEffects), IotaError> {
     // Make the initial request
     let epoch_store = authority.load_epoch_store_one_call_per_task();
@@ -171,7 +171,7 @@ pub fn make_transfer_iota_transaction(
     sender: Address,
     keypair: &AccountKeyPair,
     gas_price: u64,
-) -> Transaction {
+) -> TransactionEnvelope {
     let data = TransactionData::new_transfer_iota(
         recipient,
         sender,
@@ -192,7 +192,7 @@ pub fn make_pay_iota_transaction(
     keypair: &AccountKeyPair,
     gas_price: u64,
     gas_budget: u64,
-) -> Transaction {
+) -> TransactionEnvelope {
     let data = TransactionData::new_pay_iota(
         sender, coins, recipients, amounts, gas_object, gas_budget, gas_price,
     )
@@ -207,7 +207,7 @@ pub fn make_transfer_object_transaction(
     keypair: &AccountKeyPair,
     recipient: Address,
     gas_price: u64,
-) -> Transaction {
+) -> TransactionEnvelope {
     let data = TransactionData::new_transfer(
         recipient,
         object_ref,
@@ -228,7 +228,7 @@ pub fn make_transfer_object_move_transaction(
     gas_object_ref: ObjectReference,
     gas_budget_in_units: u64,
     gas_price: u64,
-) -> Transaction {
+) -> TransactionEnvelope {
     let args = vec![
         CallArg::ImmutableOrOwned(object_ref),
         CallArg::pure(&AccountAddress::new(dest.into_bytes())),
@@ -256,8 +256,8 @@ pub fn make_dummy_tx(
     receiver: Address,
     sender: Address,
     sender_sec: &AccountKeyPair,
-) -> Transaction {
-    Transaction::from_data_and_signer(
+) -> TransactionEnvelope {
+    TransactionEnvelope::from_data_and_signer(
         TransactionData::new_transfer(
             receiver,
             random_object_ref(),
@@ -274,7 +274,7 @@ pub fn make_dummy_tx(
 pub fn make_cert_with_large_committee(
     committee: &Committee,
     key_pairs: &[AuthorityKeyPair],
-    transaction: &Transaction,
+    transaction: &TransactionEnvelope,
 ) -> CertifiedTransaction {
     // assumes equal weighting.
     let len = committee.voting_rights.len();

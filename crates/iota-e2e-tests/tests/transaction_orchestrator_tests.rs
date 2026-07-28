@@ -31,7 +31,7 @@ use iota_types::{
         ExecuteTransactionResponseV1, FinalizedEffects, IsTransactionExecutedLocally,
         QuorumDriverError,
     },
-    transaction::{Transaction, TransactionDataAPI},
+    transaction::{TransactionDataAPI, TransactionEnvelope},
 };
 use test_cluster::TestClusterBuilder;
 use tokio::time::timeout;
@@ -306,7 +306,7 @@ async fn test_tx_across_epoch_boundaries() {
 
 async fn execute_with_orchestrator(
     orchestrator: &TransactionOrchestrator<NetworkAuthorityClient>,
-    txn: Transaction,
+    txn: TransactionEnvelope,
     request_type: ExecuteTransactionRequestType,
 ) -> Result<(ExecuteTransactionResponseV1, IsTransactionExecutedLocally), QuorumDriverError> {
     orchestrator
@@ -708,7 +708,7 @@ async fn test_pcool_deduplicates_concurrent_submissions() -> Result<(), anyhow::
         .expect("gas objects should produce at least one tx");
     let digest = *txn.digest();
 
-    let request = |txn: Transaction| ExecuteTransactionRequestV1 {
+    let request = |txn: TransactionEnvelope| ExecuteTransactionRequestV1 {
         transaction: txn,
         include_events: false,
         include_input_objects: false,

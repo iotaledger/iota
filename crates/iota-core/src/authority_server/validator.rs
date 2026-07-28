@@ -54,7 +54,7 @@ impl ValidatorService {
     /// Handles a `Transaction` request for benchmarking.
     pub async fn handle_transaction_for_benchmarking(
         &self,
-        transaction: Transaction,
+        transaction: TransactionEnvelope,
     ) -> Result<tonic::Response<HandleTransactionResponse>, tonic::Status> {
         let request = make_tonic_request_for_testing(transaction);
         self.transaction(request).await
@@ -65,7 +65,7 @@ impl ValidatorService {
     /// Called by `transaction_impl`.
     async fn handle_transaction(
         &self,
-        request: tonic::Request<Transaction>,
+        request: tonic::Request<TransactionEnvelope>,
     ) -> WrappedServiceResponse<HandleTransactionResponse> {
         let Self {
             state,
@@ -425,7 +425,7 @@ impl ValidatorService {
     /// gRPC trait method.
     async fn transaction_impl(
         &self,
-        request: tonic::Request<Transaction>,
+        request: tonic::Request<TransactionEnvelope>,
     ) -> WrappedServiceResponse<HandleTransactionResponse> {
         self.handle_transaction(request)
             .instrument(trace_span!("ValidatorService::handle_transaction"))
@@ -833,7 +833,7 @@ impl Validator for ValidatorService {
     /// Handles a `Transaction` request.
     async fn transaction(
         &self,
-        request: tonic::Request<Transaction>,
+        request: tonic::Request<TransactionEnvelope>,
     ) -> Result<tonic::Response<HandleTransactionResponse>, tonic::Status> {
         let validator_service = self.clone();
 

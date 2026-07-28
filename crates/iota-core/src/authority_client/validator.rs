@@ -28,7 +28,7 @@ pub trait ValidatorAPI {
     /// Handles a `Transaction`.
     async fn handle_transaction(
         &self,
-        transaction: Transaction,
+        transaction: TransactionEnvelope,
         client_addr: Option<SocketAddr>,
     ) -> Result<HandleTransactionResponse, IotaError>;
 
@@ -83,7 +83,7 @@ impl ValidatorAPI for NetworkAuthorityClient {
     /// Handles a `Transaction` .
     async fn handle_transaction(
         &self,
-        transaction: Transaction,
+        transaction: TransactionEnvelope,
         client_addr: Option<SocketAddr>,
     ) -> Result<HandleTransactionResponse, IotaError> {
         let mut request = transaction.into_request();

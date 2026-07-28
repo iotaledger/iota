@@ -267,7 +267,7 @@ pub fn init_transfer_transaction(
     gas_object_ref: ObjectReference,
     gas_budget: u64,
     gas_price: u64,
-) -> Transaction {
+) -> TransactionEnvelope {
     let mut data = TransactionData::new_transfer(
         recipient,
         object_ref,
@@ -287,7 +287,7 @@ pub fn init_move_call_transaction(
     gas_object_ref: ObjectReference,
     gas_budget: u64,
     gas_price: u64,
-) -> Transaction {
+) -> TransactionEnvelope {
     let mut data = TransactionData::new_move_call(
         sender,
         ObjectId::SYSTEM,
@@ -307,7 +307,7 @@ pub fn init_move_call_transaction(
 async fn do_transaction_test_skip_cert_checks(
     expected_sig_errors: u64,
     pre_sign_mutations: impl Fn(&mut TransactionData),
-    post_sign_mutations: impl Fn(&mut Transaction),
+    post_sign_mutations: impl Fn(&mut TransactionEnvelope),
     err_check: impl Fn(&IotaError),
 ) {
     do_transaction_test_impl(
@@ -323,7 +323,7 @@ async fn do_transaction_test_skip_cert_checks(
 async fn do_transaction_test(
     expected_sig_errors: u64,
     pre_sign_mutations: impl Fn(&mut TransactionData),
-    post_sign_mutations: impl Fn(&mut Transaction),
+    post_sign_mutations: impl Fn(&mut TransactionEnvelope),
     err_check: impl Fn(&IotaError),
 ) {
     do_transaction_test_impl(
@@ -340,7 +340,7 @@ async fn do_transaction_test_impl(
     _expected_sig_errors: u64,
     check_forged_cert: bool,
     pre_sign_mutations: impl Fn(&mut TransactionData),
-    post_sign_mutations: impl Fn(&mut Transaction),
+    post_sign_mutations: impl Fn(&mut TransactionEnvelope),
     err_check: impl Fn(&IotaError),
 ) {
     telemetry_subscribers::init_for_testing();
@@ -878,7 +878,7 @@ async fn test_handle_soft_bundle_certificates() {
     .await
     .unwrap();
 
-    let signed_tx_into_certificate = |transaction: Transaction| async {
+    let signed_tx_into_certificate = |transaction: TransactionEnvelope| async {
         let epoch_store = authority.load_epoch_store_one_call_per_task();
         let committee = authority.clone_committee_for_testing();
         let mut sigs = vec![];
@@ -1035,7 +1035,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
     .await
     .unwrap();
 
-    let signed_tx_into_certificate = |transaction: Transaction| async {
+    let signed_tx_into_certificate = |transaction: TransactionEnvelope| async {
         let epoch_store = authority.load_epoch_store_one_call_per_task();
         let committee = authority.clone_committee_for_testing();
         let mut sigs = vec![];

@@ -19,8 +19,8 @@ use iota_types::{
     error::{IotaError, IotaResult},
     object::Object,
     transaction::{
-        CertifiedTransaction, TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, Transaction,
-        VerifiedCertificate,
+        CertifiedTransaction, TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE,
+        TransactionEnvelope, VerifiedCertificate,
     },
 };
 use itertools::Itertools;
@@ -245,7 +245,7 @@ async fn wait_for_certs(
 async fn execute_owned_on_first_three_authorities(
     authority_clients: &[Arc<SafeClient<LocalAuthorityClient>>],
     committee: &Committee,
-    txn: &Transaction,
+    txn: &TransactionEnvelope,
 ) -> (VerifiedCertificate, TransactionEffects) {
     do_transaction(&authority_clients[0], txn).await;
     do_transaction(&authority_clients[1], txn).await;
@@ -276,7 +276,7 @@ pub async fn do_cert_with_shared_objects(
 async fn execute_shared_on_first_three_authorities(
     authority_clients: &[Arc<SafeClient<LocalAuthorityClient>>],
     committee: &Committee,
-    txn: &Transaction,
+    txn: &TransactionEnvelope,
 ) -> (VerifiedCertificate, TransactionEffects) {
     do_transaction(&authority_clients[0], txn).await;
     do_transaction(&authority_clients[1], txn).await;
@@ -455,7 +455,7 @@ fn make_socket_addr() -> std::net::SocketAddr {
 async fn try_sign_on_first_three_authorities(
     authority_clients: &[Arc<SafeClient<LocalAuthorityClient>>],
     committee: &Committee,
-    txn: &Transaction,
+    txn: &TransactionEnvelope,
 ) -> IotaResult<VerifiedCertificate> {
     for client in authority_clients.iter().take(3) {
         client

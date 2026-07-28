@@ -76,8 +76,8 @@ use iota_types::{
     parse_iota_type_tag,
     quorum_driver_types::ExecuteTransactionRequestType,
     transaction::{
-        CallArg, InputObjectKind, SenderSignedData, Transaction, TransactionData,
-        TransactionDataAPI, TransactionKindExt,
+        CallArg, InputObjectKind, SenderSignedData, TransactionData, TransactionDataAPI,
+        TransactionEnvelope, TransactionKindExt,
     },
 };
 use json_to_table::json_to_table;
@@ -1862,7 +1862,7 @@ impl IotaClientCommands {
                         .map_err(|_| anyhow!("Invalid user signature"))?,
                     );
                 }
-                let transaction = Transaction::from_user_sig_data(data, sigs);
+                let transaction = TransactionEnvelope::from_user_sig_data(data, sigs);
 
                 let response = context.execute_transaction_may_fail(transaction).await?;
                 IotaClientCommandResult::TransactionBlock(response)
@@ -3510,7 +3510,7 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
                 sender_signed_data,
             ))
         } else {
-            let transaction = Transaction::new(sender_signed_data);
+            let transaction = TransactionEnvelope::new(sender_signed_data);
             debug!("Executing transaction: {:?}", transaction);
             let mut response = client
                 .quorum_driver_api()

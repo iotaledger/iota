@@ -37,7 +37,7 @@ use iota_types::{
     quorum_driver_types::ExecuteTransactionRequestType,
     stardust::{coin_type::CoinType, output::NftOutput},
     timelock::timelock::TimeLock,
-    transaction::{CallArg, Transaction, TransactionData, TransactionDataAPI},
+    transaction::{CallArg, TransactionData, TransactionDataAPI, TransactionEnvelope},
 };
 use test_cluster::TestClusterBuilder;
 
@@ -398,7 +398,7 @@ async fn address_unlock_condition(
     let transaction_response = iota_client
         .quorum_driver_api()
         .execute_transaction_block(
-            Transaction::from_data(tx_data, vec![signature]),
+            TransactionEnvelope::from_data(tx_data, vec![signature]),
             IotaTransactionBlockResponseOptions::full_content(),
             Some(ExecuteTransactionRequestType::WaitForLocalExecution),
         )
@@ -459,7 +459,7 @@ pub async fn fund_address(
     iota_client
         .quorum_driver_api()
         .execute_transaction_block(
-            Transaction::from_data(tx_data, vec![signature]),
+            TransactionEnvelope::from_data(tx_data, vec![signature]),
             IotaTransactionBlockResponseOptions::full_content(),
             Some(ExecuteTransactionRequestType::WaitForLocalExecution),
         )

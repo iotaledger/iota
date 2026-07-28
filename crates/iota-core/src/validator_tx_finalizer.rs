@@ -314,7 +314,7 @@ mod tests {
         },
         object::Object,
         transaction::{
-            SignedTransaction, Transaction, VerifiedCertificate, VerifiedSignedTransaction,
+            SignedTransaction, TransactionEnvelope, VerifiedCertificate, VerifiedSignedTransaction,
             VerifiedTransaction,
         },
         utils::to_sender_signed_transaction,
@@ -348,7 +348,7 @@ mod tests {
     impl ValidatorV2API for MockAuthorityClient {
         async fn submit_tx(
             &self,
-            _transactions: Vec<Transaction>,
+            _transactions: Vec<TransactionEnvelope>,
             _client_addr: Option<SocketAddr>,
         ) -> Result<Vec<(TransactionDigest, TxStatusUpdate)>, IotaError> {
             unimplemented!()
@@ -378,7 +378,7 @@ mod tests {
     impl ValidatorAPI for MockAuthorityClient {
         async fn handle_transaction(
             &self,
-            transaction: Transaction,
+            transaction: TransactionEnvelope,
             _client_addr: Option<SocketAddr>,
         ) -> Result<HandleTransactionResponse, IotaError> {
             if self.inject_fault.load(Relaxed) {

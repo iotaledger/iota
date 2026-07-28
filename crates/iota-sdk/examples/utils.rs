@@ -22,7 +22,7 @@ use iota_sdk::{
     types::{
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         quorum_driver_types::ExecuteTransactionRequestType,
-        transaction::{Transaction, TransactionData, TransactionDataAPI},
+        transaction::{TransactionData, TransactionDataAPI, TransactionEnvelope},
     },
     wallet_context::WalletContext,
 };
@@ -308,7 +308,7 @@ pub async fn sign_and_execute_transaction(
     let transaction_block_response = client
         .quorum_driver_api()
         .execute_transaction_block(
-            Transaction::from_data(tx_data, vec![signature]),
+            TransactionEnvelope::from_data(tx_data, vec![signature]),
             IotaTransactionBlockResponseOptions::full_content(),
             ExecuteTransactionRequestType::WaitForLocalExecution,
         )

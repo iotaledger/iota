@@ -49,7 +49,7 @@ use iota_types::{
     },
     transaction::{
         CheckedInputObjects, InputObjectKind, InputObjects, ObjectReadResult, ObjectReadResultKind,
-        SenderSignedData, SenderSignedTransactionAPI, Transaction, TransactionDataAPI,
+        SenderSignedData, SenderSignedTransactionAPI, TransactionDataAPI, TransactionEnvelope,
         VerifiedTransaction,
     },
 };
@@ -1036,7 +1036,7 @@ impl LocalExec {
         let store = InMemoryStorage::new(required_objects.clone());
 
         let transaction =
-            Transaction::new(pre_run_sandbox.transaction_info.sender_signed_data.clone());
+            TransactionEnvelope::new(pre_run_sandbox.transaction_info.sender_signed_data.clone());
 
         // TODO: This will not work for deleted shared objects. We need to persist that
         // information in the sandbox. TODO: A lot of the following code is
@@ -1054,8 +1054,9 @@ impl LocalExec {
 
         let (_, _, effects, exec_res) = if move_authenticators.is_empty() {
             // Standard path: no MoveAuthenticator
-            let input_objects = store
-                .read_input_objects_for_transaction(&Transaction::new(sender_signed_data.clone()));
+            let input_objects = store.read_input_objects_for_transaction(
+                &TransactionEnvelope::new(sender_signed_data.clone()),
+            );
             let (gas_status, input_objects) = iota_transaction_checks::check_certificate_input(
                 &executable,
                 input_objects,

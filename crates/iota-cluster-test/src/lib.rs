@@ -21,7 +21,7 @@ use iota_types::{
     gas_coin::GasCoin,
     iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
     quorum_driver_types::ExecuteTransactionRequestType,
-    transaction::{Transaction, TransactionData},
+    transaction::{TransactionData, TransactionEnvelope},
 };
 use jsonrpsee::{
     core::{client::ClientT, params::ArrayParams},
@@ -141,7 +141,7 @@ impl TestContext {
 
     /// See `make_transactions_with_wallet_context` for potential caveats
     /// of this helper function.
-    pub async fn make_transactions(&self, max_txn_num: usize) -> Vec<Transaction> {
+    pub async fn make_transactions(&self, max_txn_num: usize) -> Vec<TransactionEnvelope> {
         batch_make_transfer_transactions(self.get_wallet(), max_txn_num).await
     }
 
@@ -167,7 +167,7 @@ impl TestContext {
             .get_fullnode_client()
             .quorum_driver_api()
             .execute_transaction_block(
-                Transaction::from_data(txn_data, vec![signature]),
+                TransactionEnvelope::from_data(txn_data, vec![signature]),
                 IotaTransactionBlockResponseOptions::new()
                     .with_object_changes()
                     .with_balance_changes()

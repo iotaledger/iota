@@ -33,7 +33,7 @@ use iota_types::{
     messages_checkpoint::{CertifiedCheckpointSummary, VerifiedCheckpoint},
     object::Object,
     storage::ObjectStore,
-    transaction::Transaction,
+    transaction::TransactionEnvelope,
 };
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use tracing::trace;
@@ -42,7 +42,7 @@ use tracing::trace;
 pub struct Genesis {
     checkpoint: CertifiedCheckpointSummary,
     checkpoint_contents: CheckpointContents,
-    transaction: Transaction,
+    transaction: TransactionEnvelope,
     effects: TransactionEffects,
     events: TransactionEvents,
     objects: Vec<Object>,
@@ -52,7 +52,7 @@ pub struct Genesis {
 pub struct UnsignedGenesis {
     pub checkpoint: CheckpointSummary,
     pub checkpoint_contents: CheckpointContents,
-    pub transaction: Transaction,
+    pub transaction: TransactionEnvelope,
     pub effects: TransactionEffects,
     pub events: TransactionEvents,
     pub objects: Vec<Object>,
@@ -84,7 +84,7 @@ impl Genesis {
     pub fn new(
         checkpoint: CertifiedCheckpointSummary,
         checkpoint_contents: CheckpointContents,
-        transaction: Transaction,
+        transaction: TransactionEnvelope,
         effects: TransactionEffects,
         events: TransactionEvents,
         objects: Vec<Object>,
@@ -111,7 +111,7 @@ impl Genesis {
         self.objects.iter().find(|o| o.id() == id).cloned()
     }
 
-    pub fn transaction(&self) -> &Transaction {
+    pub fn transaction(&self) -> &TransactionEnvelope {
         &self.transaction
     }
 
@@ -226,7 +226,7 @@ impl Serialize for Genesis {
         struct RawGenesis<'a> {
             checkpoint: &'a CertifiedCheckpointSummary,
             checkpoint_contents: &'a CheckpointContents,
-            transaction: &'a Transaction,
+            transaction: &'a TransactionEnvelope,
             effects: &'a TransactionEffects,
             events: &'a TransactionEvents,
             objects: &'a [Object],
@@ -262,7 +262,7 @@ impl<'de> Deserialize<'de> for Genesis {
         struct RawGenesis {
             checkpoint: CertifiedCheckpointSummary,
             checkpoint_contents: CheckpointContents,
-            transaction: Transaction,
+            transaction: TransactionEnvelope,
             effects: TransactionEffects,
             events: TransactionEvents,
             objects: Vec<Object>,
@@ -296,7 +296,7 @@ impl UnsignedGenesis {
         self.objects.iter().find(|o| o.id() == id).cloned()
     }
 
-    pub fn transaction(&self) -> &Transaction {
+    pub fn transaction(&self) -> &TransactionEnvelope {
         &self.transaction
     }
 

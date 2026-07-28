@@ -64,7 +64,9 @@ use iota_types::{
         stardust_upgrade_label::STARDUST_UPGRADE_LABEL_VALUE,
         timelocked_staked_iota::TimelockedStakedIota,
     },
-    transaction::{CallArg, CheckedInputObjects, InputObjectKind, ObjectReadResult, Transaction},
+    transaction::{
+        CallArg, CheckedInputObjects, InputObjectKind, ObjectReadResult, TransactionEnvelope,
+    },
 };
 use move_binary_format::CompiledModule;
 use serde::{Deserialize, Serialize};
@@ -1243,7 +1245,7 @@ fn update_system_packages_from_objects(
 fn create_genesis_checkpoint(
     protocol_config: &ProtocolConfig,
     parameters: &GenesisCeremonyParameters,
-    system_genesis_transaction: &Transaction,
+    system_genesis_transaction: &TransactionEnvelope,
     system_genesis_tx_effects: &TransactionEffects,
     migration_tx_data: &TransactionsData,
 ) -> (CheckpointSummary, CheckpointContents) {
@@ -1296,7 +1298,7 @@ fn create_genesis_transaction(
     metrics: Arc<LimitsMetrics>,
     epoch_data: &EpochData,
 ) -> (
-    Transaction,
+    TransactionEnvelope,
     TransactionEffects,
     TransactionEvents,
     Vec<Object>,

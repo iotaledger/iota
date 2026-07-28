@@ -54,8 +54,8 @@ use iota_types::{
     supported_protocol_versions::{SupportedProtocolVersions, SupportedProtocolVersionsWithHashes},
     transaction::{
         CallArg, SenderSignedTransactionAPI, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS,
-        TEST_ONLY_GAS_UNIT_FOR_PUBLISH, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, Transaction,
-        TransactionData, TransactionDataAPI, VerifiedCertificate, VerifiedTransaction,
+        TEST_ONLY_GAS_UNIT_FOR_PUBLISH, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionData,
+        TransactionDataAPI, TransactionEnvelope, VerifiedCertificate, VerifiedTransaction,
     },
     utils::{to_sender_signed_transaction, to_sender_signed_transaction_with_multi_signers},
 };
@@ -4245,7 +4245,7 @@ pub async fn build_programmable_transaction(
     sender_key: &AccountKeyPair,
     pt: ProgrammableTransaction,
     gas_unit: u64,
-) -> IotaResult<Transaction> {
+) -> IotaResult<TransactionEnvelope> {
     let rgp = authority.reference_gas_price_for_testing().unwrap();
     let gas_object = authority.get_object(gas_object_id);
     let gas_object_ref = gas_object.unwrap().object_ref();

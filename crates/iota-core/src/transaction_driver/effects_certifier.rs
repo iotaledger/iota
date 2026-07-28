@@ -1100,7 +1100,7 @@ mod tests {
             ValidatorHealthRequest, ValidatorHealthResponse,
         },
         object::Object,
-        transaction::Transaction,
+        transaction::TransactionEnvelope,
     };
 
     use super::*;
@@ -1367,7 +1367,7 @@ mod tests {
     impl ValidatorV2API for MockStatusClient {
         async fn submit_tx(
             &self,
-            _transactions: Vec<Transaction>,
+            _transactions: Vec<TransactionEnvelope>,
             _client_addr: Option<SocketAddr>,
         ) -> Result<Vec<(TransactionDigest, TxStatusUpdate)>, IotaError> {
             unimplemented!()
@@ -1423,7 +1423,7 @@ mod tests {
     impl ValidatorAPI for MockStatusClient {
         async fn handle_transaction(
             &self,
-            _transaction: Transaction,
+            _transaction: TransactionEnvelope,
             _client_addr: Option<SocketAddr>,
         ) -> Result<HandleTransactionResponse, IotaError> {
             unimplemented!()

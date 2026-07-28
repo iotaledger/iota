@@ -43,7 +43,9 @@ use iota_types::{
     multisig::{MultiSig, MultiSigPublicKey, MultisigMember},
     object::{MoveStructExt, ObjectInner},
     storage::DeleteKind,
-    transaction::{CallArg, SenderSignedData, Transaction, TransactionData, TransactionDataAPI},
+    transaction::{
+        CallArg, SenderSignedData, TransactionData, TransactionDataAPI, TransactionEnvelope,
+    },
 };
 use move_core_types::{account_address::AccountAddress, language_storage::ModuleId};
 use pretty_assertions::assert_str_eq;
@@ -590,7 +592,7 @@ fn get_registry() -> Result<Registry> {
 
     // Trace FullCheckpointContents, CheckpointTransaction and CheckpointData
     // via trace_value (they transitively contain TypeTag).
-    let sample_transaction = Transaction::new(sender_data.clone());
+    let sample_transaction = TransactionEnvelope::new(sender_data.clone());
     let sample_effects = TransactionEffects::new_empty_v1_for_testing(TransactionDigest::default());
     let sample_exec_data = ExecutionData {
         transaction: sample_transaction.clone(),

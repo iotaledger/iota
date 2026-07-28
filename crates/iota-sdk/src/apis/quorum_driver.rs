@@ -9,7 +9,9 @@ use std::{
 
 use iota_json_rpc_api::{ReadApiClient, WriteApiClient};
 use iota_json_rpc_types::{IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions};
-use iota_types::{quorum_driver_types::ExecuteTransactionRequestType, transaction::Transaction};
+use iota_types::{
+    quorum_driver_types::ExecuteTransactionRequestType, transaction::TransactionEnvelope,
+};
 
 use crate::{
     RpcClient,
@@ -41,7 +43,7 @@ impl QuorumDriverApi {
     /// before returning [Error::FailToConfirmTransactionStatus].
     pub async fn execute_transaction_block(
         &self,
-        tx: Transaction,
+        tx: TransactionEnvelope,
         options: IotaTransactionBlockResponseOptions,
         request_type: impl Into<Option<ExecuteTransactionRequestType>>,
     ) -> IotaRpcResult<IotaTransactionBlockResponse> {

@@ -35,7 +35,7 @@ use crate::{
 
 /// Wraps a `Transaction` in a `UserTransactionV1` consensus transaction.
 fn make_user_tx_v1(
-    tx: iota_types::transaction::Transaction,
+    tx: iota_types::transaction::TransactionEnvelope,
 ) -> VerifiedSequencedConsensusTransaction {
     let consensus_tx = ConsensusTransaction {
         kind: ConsensusTransactionKind::UserTransactionV1(Box::new(tx)),
@@ -1333,7 +1333,7 @@ async fn double_spend_loser_excluded_from_checkpoint_roots() {
     assert_ne!(winner_digest, loser_digest);
 
     // The first occurrence in the commit wins the lock; the second conflicts.
-    let seq = |tx: iota_types::transaction::Transaction| {
+    let seq = |tx: iota_types::transaction::TransactionEnvelope| {
         SequencedConsensusTransaction::new_test(ConsensusTransaction {
             kind: ConsensusTransactionKind::UserTransactionV1(Box::new(
                 epoch_store.verify_transaction(tx).unwrap().into(),

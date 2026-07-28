@@ -59,7 +59,7 @@ use iota_types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     signature::VerifyParams,
     storage::{EpochInfoV2, ObjectStore, ReadStore, TransactionInfo},
-    transaction::{Transaction, TransactionData, TransactionDataAPI, VerifiedTransaction},
+    transaction::{TransactionData, TransactionDataAPI, TransactionEnvelope, VerifiedTransaction},
 };
 use rand::rngs::OsRng;
 
@@ -192,7 +192,7 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
     /// TransactionEffects are returned.
     pub fn execute_transaction(
         &self,
-        transaction: Transaction,
+        transaction: TransactionEnvelope,
     ) -> anyhow::Result<(TransactionEffects, Option<ExecutionError>)> {
         let mut inner = self.inner.write().unwrap();
         let transaction = transaction.try_into_verified_for_testing(&VerifyParams::default())?;
@@ -466,7 +466,7 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
         let kind = TransactionKind::Programmable(pt);
         let tx_data =
             iota_types::transaction::TransactionData::new_with_gas_data(kind, sender, gas_data);
-        let tx = Transaction::from_data_and_signer(tx_data, vec![&key]);
+        let tx = TransactionEnvelope::from_data_and_signer(tx_data, vec![&key]);
 
         self.execute_transaction(tx).map(|x| x.0)
     }
@@ -863,7 +863,7 @@ impl Simulacrum {
     /// iota-test-transaction-builder by defining a trait
     /// that both WalletContext and Simulacrum implement. Then we can remove
     /// this function.
-    pub fn transfer_txn(&self, recipient: Address) -> (Transaction, u64) {
+    pub fn transfer_txn(&self, recipient: Address) -> (TransactionEnvelope, u64) {
         let (sender, key) = self.with_keystore(|keystore| {
             let (s, k) = keystore.accounts().next().unwrap();
             (*s, k.clone())
@@ -893,7 +893,7 @@ impl Simulacrum {
             budget: 1_000_000_000,
         };
         let tx_data = TransactionData::new_with_gas_data(kind, sender, gas_data);
-        let tx = Transaction::from_data_and_signer(tx_data, vec![&key]);
+        let tx = TransactionEnvelope::from_data_and_signer(tx_data, vec![&key]);
         (tx, transfer_amount)
     }
 }

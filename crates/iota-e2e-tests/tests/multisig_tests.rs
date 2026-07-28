@@ -19,7 +19,7 @@ use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     error::{IotaError, IotaResult},
     multisig::{MultiSig, MultiSigPublicKey, MultisigMember},
-    transaction::Transaction,
+    transaction::TransactionEnvelope,
     utils::{make_upgraded_multisig_tx, multisig_keys},
 };
 use p256::pkcs8::DecodePublicKey;
@@ -60,7 +60,7 @@ async fn create_credential_and_sign_test_tx_with_passkey_multisig(
     sender: Option<Address>,
     change_intent: bool,
     change_tx: bool,
-) -> Transaction {
+) -> TransactionEnvelope {
     // set up authenticator and client
     let my_aaguid = Aaguid::new_empty();
     let user_validation_method = MyUserValidationMethod {};
@@ -204,7 +204,7 @@ async fn create_credential_and_sign_test_tx_with_passkey_multisig(
     let multisig =
         UserSignature::Multisig(MultiSig::new(vec![sig.into()], multisig_pk.clone()).unwrap());
 
-    Transaction::from_user_sig_data(tx_data, vec![multisig])
+    TransactionEnvelope::from_user_sig_data(tx_data, vec![multisig])
 }
 
 struct MyUserValidationMethod {}

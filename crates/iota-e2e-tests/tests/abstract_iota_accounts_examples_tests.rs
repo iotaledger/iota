@@ -48,8 +48,8 @@ use iota_types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     storage::WriteKind,
     transaction::{
-        CallArg, TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, Transaction, TransactionData,
-        TransactionDataAPI,
+        CallArg, TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, TransactionData,
+        TransactionDataAPI, TransactionEnvelope,
     },
 };
 use test_cluster::{TestCluster, TestClusterBuilder};
@@ -888,7 +888,7 @@ async fn run_dynamic_multisig_account(env: &TestEnvironment) -> PackageResult {
             return r;
         }
     };
-    let tx = Transaction::from_user_sig_data(aa_tx_data, vec![auth]);
+    let tx = TransactionEnvelope::from_user_sig_data(aa_tx_data, vec![auth]);
     let (outcome, err) = execute_aa_tx_outcome(env, tx).await;
     r.authenticate_outcome = outcome;
     r.authenticate_err = err;
@@ -1008,7 +1008,7 @@ async fn run_onesig(env: &TestEnvironment) -> PackageResult {
         }
     };
 
-    let tx = Transaction::from_user_sig_data(tx1, vec![auth]);
+    let tx = TransactionEnvelope::from_user_sig_data(tx1, vec![auth]);
     let (outcome, err) = execute_aa_tx_outcome(env, tx).await;
     r.authenticate_outcome = outcome;
     r.authenticate_err = err;
@@ -1174,7 +1174,7 @@ async fn run_lean_imt_account(env: &mut TestEnvironment) -> PackageResult {
         }
     };
 
-    let tx = Transaction::from_user_sig_data(tx_data, vec![auth]);
+    let tx = TransactionEnvelope::from_user_sig_data(tx_data, vec![auth]);
     let (outcome, err) = execute_aa_tx_outcome(env, tx).await;
     r.authenticate_outcome = outcome;
     r.authenticate_err = err;
@@ -1303,7 +1303,7 @@ async fn run_account_multi_auth(env: &TestEnvironment) -> PackageResult {
             return r;
         }
     };
-    let tx = Transaction::from_user_sig_data(tx_data, vec![auth]);
+    let tx = TransactionEnvelope::from_user_sig_data(tx_data, vec![auth]);
     let (outcome, err) = execute_aa_tx_outcome(env, tx).await;
     r.authenticate_outcome = outcome;
     r.authenticate_err = err;
@@ -1599,7 +1599,7 @@ async fn run_whitelist_sponsorship(env: &TestEnvironment) -> PackageResult {
         }
     };
 
-    let tx = Transaction::from_user_sig_data(tx_data, vec![sender_auth, sponsor_auth]);
+    let tx = TransactionEnvelope::from_user_sig_data(tx_data, vec![sender_auth, sponsor_auth]);
     let (outcome, err) = execute_aa_tx_outcome(env, tx).await;
     r.authenticate_outcome = outcome;
     r.authenticate_err = err;
@@ -1755,7 +1755,7 @@ async fn run_sponsorship_ed25519(env: &TestEnvironment) -> PackageResult {
         }
     };
 
-    let tx = Transaction::from_user_sig_data(tx_data, vec![sender_auth, sponsor_auth]);
+    let tx = TransactionEnvelope::from_user_sig_data(tx_data, vec![sender_auth, sponsor_auth]);
     let (outcome, err) = execute_aa_tx_outcome(env, tx).await;
     r.authenticate_outcome = outcome;
     r.authenticate_err = err;
@@ -1936,7 +1936,7 @@ async fn run_account_for_benchmarks(
                 continue;
             }
         };
-        let tx = Transaction::from_user_sig_data(tx_data, vec![auth]);
+        let tx = TransactionEnvelope::from_user_sig_data(tx_data, vec![auth]);
         let (outcome, err) = execute_aa_tx_outcome(env, tx).await;
         r.authenticate_outcome = outcome;
         r.authenticate_err = err;
@@ -2139,7 +2139,7 @@ async fn tx_data_from_pt(
 /// `max_auth_gas`) surfaces as `Err` here rather than being smoothed over.
 async fn execute_aa_tx_outcome(
     env: &TestEnvironment,
-    tx: Transaction,
+    tx: TransactionEnvelope,
 ) -> (Outcome, Option<String>) {
     match env
         .test_cluster
@@ -2245,7 +2245,7 @@ async fn run_simple_auth_ed25519(
     };
 
     let auth = make_move_authenticator(account_ref, extra_args)?;
-    let tx = Transaction::from_user_sig_data(tx_data, vec![auth]);
+    let tx = TransactionEnvelope::from_user_sig_data(tx_data, vec![auth]);
     Ok(execute_aa_tx_outcome(env, tx).await)
 }
 

@@ -50,7 +50,7 @@ use iota_types::{
     },
     messages_consensus::ConsensusTransactionKey,
     storage::EpochInfoV2,
-    transaction::{Transaction, TransactionDataAPI, TransactionKey},
+    transaction::{TransactionDataAPI, TransactionEnvelope, TransactionKey},
 };
 use itertools::Itertools;
 use nonempty::NonEmpty;
@@ -1557,9 +1557,10 @@ impl CheckpointBuilder {
     #[expect(clippy::type_complexity)]
     fn split_checkpoint_chunks(
         &self,
-        transactions_effects_and_sizes: Vec<(Transaction, TransactionEffects, usize)>,
+        transactions_effects_and_sizes: Vec<(TransactionEnvelope, TransactionEffects, usize)>,
         signatures: Vec<Vec<UserSignature>>,
-    ) -> anyhow::Result<Vec<Vec<(Transaction, TransactionEffects, Vec<UserSignature>)>>> {
+    ) -> anyhow::Result<Vec<Vec<(TransactionEnvelope, TransactionEffects, Vec<UserSignature>)>>>
+    {
         let _guard = monitored_scope("CheckpointBuilder::split_checkpoint_chunks");
         let mut chunks = Vec::new();
         let mut chunk = Vec::new();
@@ -1779,7 +1780,7 @@ impl CheckpointBuilder {
             }
 
             let (chunk_transactions, mut effects, mut signatures): (
-                Vec<Transaction>,
+                Vec<TransactionEnvelope>,
                 Vec<TransactionEffects>,
                 Vec<Vec<UserSignature>>,
             ) = chunk.into_iter().multiunzip();

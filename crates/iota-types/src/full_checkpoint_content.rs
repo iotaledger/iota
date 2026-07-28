@@ -17,7 +17,7 @@ use crate::{
     messages_checkpoint::CertifiedCheckpointSummary,
     object::Object,
     storage::{BackingPackageStore, EpochInfo, error::Error as StorageError},
-    transaction::{Transaction, TransactionDataAPI},
+    transaction::{TransactionDataAPI, TransactionEnvelope},
 };
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -148,7 +148,7 @@ impl CheckpointData {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CheckpointTransaction {
     /// The input Transaction
-    pub transaction: Transaction,
+    pub transaction: TransactionEnvelope,
     /// The effects produced by executing this transaction
     pub effects: TransactionEffects,
     /// The events, if any, emitted by this transaction during execution

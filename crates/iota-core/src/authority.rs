@@ -4290,7 +4290,7 @@ impl AuthorityState {
         &self,
         digest: TransactionDigest,
         kv_store: Arc<TransactionKeyValueStore>,
-    ) -> IotaResult<(Transaction, TransactionEffects)> {
+    ) -> IotaResult<(TransactionEnvelope, TransactionEffects)> {
         let transaction = kv_store.get_tx(digest).await?;
         let effects = kv_store.get_fx_by_tx_digest(digest).await?;
         Ok((transaction, effects))
