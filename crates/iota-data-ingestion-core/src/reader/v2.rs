@@ -510,7 +510,7 @@ impl CheckpointReaderActor {
             self.send_local_checkpoints_to_channel(checkpoints).await?;
         }
 
-        info!(
+        debug!(
             "Read from {remote_source}. Current checkpoint number: {}, pruning watermark: {}",
             self.current_checkpoint_number, self.last_pruned_watermark,
         );
