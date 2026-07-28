@@ -4,6 +4,7 @@
 
 use std::{
     net::{IpAddr, Ipv4Addr, SocketAddr},
+    num::NonZeroUsize,
     path::{Path, PathBuf},
     sync::Arc,
     time::Duration,
@@ -38,9 +39,6 @@ use crate::{
     migration_tx_data::MigrationTxData, object_storage_config::ObjectStoreConfig, p2p::P2pConfig,
     transaction_deny_config::TransactionDenyConfig, verifier_signing_config::VerifierSigningConfig,
 };
-
-// Default max number of concurrent requests served
-pub const DEFAULT_GRPC_CONCURRENCY_LIMIT: usize = 20000000000;
 
 /// Default gas price of 1000 Nanos
 pub const DEFAULT_VALIDATOR_GAS_PRICE: u64 = iota_types::transaction::DEFAULT_VALIDATOR_GAS_PRICE;
@@ -107,14 +105,30 @@ pub struct NodeConfig {
     /// - 'both' for both a websocket and http based service (deprecated)
     pub jsonrpc_server_type: Option<ServerType>,
 
-    /// Flag to enable gRPC load shedding to manage and
-    /// mitigate overload conditions by shedding excess
-    /// load with `LoadShedLayer` middleware.
+    /// Flag to enable gRPC load shedding: requests over a service's
+    /// concurrency limit are rejected immediately with `RESOURCE_EXHAUSTED`
+    /// instead of waiting for a slot.
     #[serde(default)]
     pub grpc_load_shed: Option<bool>,
 
-    #[serde(default = "default_concurrency_limit")]
-    pub grpc_concurrency_limit: Option<usize>,
+    /// Maximum number of concurrent in-flight requests per CPU core, applied
+    /// to each service of the validator gRPC server separately (`Validator`,
+    /// `ValidatorV2`, `ValidatorPeer`), so a flood of client transaction
+    /// submissions cannot crowd validator-peer RPCs out of admission slots.
+    /// The effective per-service limit is this value multiplied by the CPU
+    /// cores of the machine at server startup, so the same config file scales
+    /// with the hardware.
+    ///
+    /// Most request time is spent awaiting locks, I/O or consensus rather
+    /// than on-CPU, so the default ceiling is generous: it bounds total
+    /// in-flight work so a request flood cannot grow queues and memory
+    /// without limit, it does not throttle normal load. Operators wanting
+    /// hard load-shedding can lower it and set `grpc_load_shed`.
+    ///
+    /// A value of zero is rejected at config load: it would not disable the
+    /// limit, it would block every request.
+    #[serde(default = "default_grpc_concurrency_limit_per_core")]
+    pub grpc_concurrency_limit_per_core: NonZeroUsize,
 
     /// Configuration struct for P2P.
     #[serde(default)]
@@ -349,6 +363,15 @@ pub struct GrpcApiConfig {
     #[serde(default = "default_grpc_api_max_simulate_transaction_batch_size")]
     pub max_simulate_transaction_batch_size: u32,
 
+    /// Maximum number of objects allowed in a single GetObjects batch request.
+    #[serde(default = "default_grpc_api_max_get_objects_batch_size")]
+    pub max_get_objects_batch_size: u32,
+
+    /// Maximum number of transactions allowed in a single GetTransactions batch
+    /// request.
+    #[serde(default = "default_grpc_api_max_get_transactions_batch_size")]
+    pub max_get_transactions_batch_size: u32,
+
     /// Maximum allowed timeout in milliseconds for waiting for checkpoint
     /// inclusion in ExecuteTransactions requests. Client-specified timeouts
     /// are clamped to this value.
@@ -384,6 +407,14 @@ fn default_grpc_api_max_simulate_transaction_batch_size() -> u32 {
     20
 }
 
+fn default_grpc_api_max_get_objects_batch_size() -> u32 {
+    1000
+}
+
+fn default_grpc_api_max_get_transactions_batch_size() -> u32 {
+    1000
+}
+
 fn default_grpc_api_max_checkpoint_inclusion_timeout_ms() -> u64 {
     60_000 // 60 seconds
 }
@@ -401,6 +432,8 @@ impl Default for GrpcApiConfig {
             ),
             max_simulate_transaction_batch_size:
                 default_grpc_api_max_simulate_transaction_batch_size(),
+            max_get_objects_batch_size: default_grpc_api_max_get_objects_batch_size(),
+            max_get_transactions_batch_size: default_grpc_api_max_get_transactions_batch_size(),
             max_checkpoint_inclusion_timeout_ms:
                 default_grpc_api_max_checkpoint_inclusion_timeout_ms(),
         }
@@ -685,8 +718,8 @@ pub fn default_grpc_api_config() -> Option<GrpcApiConfig> {
     Some(GrpcApiConfig::default())
 }
 
-pub fn default_concurrency_limit() -> Option<usize> {
-    Some(DEFAULT_GRPC_CONCURRENCY_LIMIT)
+pub fn default_grpc_concurrency_limit_per_core() -> NonZeroUsize {
+    NonZeroUsize::new(1000).unwrap()
 }
 
 pub fn default_end_of_epoch_broadcast_channel_capacity() -> usize {
