@@ -10,24 +10,28 @@
 //! [`DryRunTransactionBlockResponse`] the node returns, so the rendered output
 //! matches the node-backed path.
 
-use std::collections::BTreeMap;
+use std::{cmp::min, collections::BTreeMap};
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, anyhow};
+use colored::Colorize;
 use iota_json_rpc_types::{
     BalanceChange, DryRunTransactionBlockResponse, IotaTransactionBlockData,
     IotaTransactionBlockEvents, ObjectChange,
 };
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk::wallet_context::WalletContext;
-use iota_sdk_types::{Address, ObjectId, ObjectReference, StructTag, TransactionKind, Version};
+use iota_sdk_types::{
+    Address, ObjectId, ObjectReference, StructTag, Transaction, TransactionKind, Version,
+};
 use iota_types::{
     effects::{ObjectRemoveKind, TransactionEffectsAPI, TransactionEffectsExt},
     error::IotaResult,
+    gas::get_gas_balance,
     object::Object,
     storage::{
         BackingPackageStore, ObjectStore, PackageObject, WriteKind, error::Error as StorageError,
     },
-    transaction::{TransactionData, TransactionDataAPI},
+    transaction::TransactionAPI,
 };
 use iota_vm_sdk::{ChainContext, ExecuteOptions, ExecutionResult, LocalVm, Store, grpc::GrpcStore};
 use move_bytecode_utils::module_cache::GetModule;
@@ -60,16 +64,40 @@ pub async fn execute_local_dry_run(
     let (mut vm, chain_context) = local_vm_from_context(context).await?;
 
     let gas_budget = match gas_budget {
+        // Mirrors the node-backed path's fallback: the protocol's maximum,
+        // capped at the total balance of any provided gas coins — resolved
+        // from the protocol config and the store instead of RPC calls.
         Some(gas_budget) => gas_budget,
-        // Mirrors the node-backed path's fallback to the protocol's maximum,
-        // resolved locally from the protocol config instead of an RPC call.
         None => {
-            ProtocolConfig::get_for_version(chain_context.protocol_version, chain_context.chain)
-                .max_tx_gas()
+            let max_gas_budget = ProtocolConfig::get_for_version(
+                chain_context.protocol_version,
+                chain_context.chain,
+            )
+            .max_tx_gas();
+            if gas_payment.is_empty() {
+                max_gas_budget
+            } else {
+                let mut balance = 0;
+                for object_ref in &gas_payment {
+                    let coin = vm
+                        .store()
+                        .get_object(&object_ref.object_id, None)?
+                        .ok_or_else(|| anyhow!("gas coin {} not found", object_ref.object_id))?;
+                    balance += get_gas_balance(&coin)?;
+                }
+                let gas_budget = min(balance, max_gas_budget);
+                if gas_budget == balance {
+                    let warn_msg = format!(
+                        "Gas budget is equal to the total gas balance of the provided gas coins: {balance}. Manually provide a lower --gas-budget if you need to split a coin from the gas coin."
+                    );
+                    eprintln!("{}", warn_msg.yellow().bold());
+                }
+                gas_budget
+            }
         }
     };
 
-    let tx_data = TransactionData::new_with_gas_coins_allow_sponsor(
+    let tx_data = Transaction::new_with_gas_coins_allow_sponsor(
         kind,
         signer,
         gas_payment,
@@ -80,14 +108,16 @@ pub async fn execute_local_dry_run(
 
     let result = vm.execute(tx_data.clone(), ExecuteOptions::dry_run())?;
     let response = dry_run_response(&vm, tx_data, result)?;
-    Ok(IotaClientCommandResult::DryRun(response))
+    Ok(IotaClientCommandResult::DryRun(response)
+        .prerender_clever_errors(context)
+        .await)
 }
 
 /// Assemble a [`DryRunTransactionBlockResponse`] from a local run, resolving
 /// Move layouts from the packages held in the VM's store.
 fn dry_run_response(
     vm: &LocalVm,
-    tx_data: TransactionData,
+    tx_data: Transaction,
     result: ExecutionResult,
 ) -> Result<DryRunTransactionBlockResponse> {
     let tx_digest = *result.effects.transaction_digest();
