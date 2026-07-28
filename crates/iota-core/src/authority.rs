@@ -1275,6 +1275,7 @@ impl AuthorityState {
                     tx_digest,
                     auth_context_data,
                     None,
+                    None,
                     &mut None,
                 );
             (inner_temp_store, effects, authentication_failed)
@@ -2148,21 +2149,23 @@ impl AuthorityState {
                 move_authenticators
                     .iter()
                     .zip(per_authenticator_inputs)
-                    .map(|(move_authenticator, (authenticator_input_objects, account_object))| {
-                        let function_ref = move_authenticator
-                            .object_to_authenticate_components()
-                            .map_err(IotaError::from)
-                            .and_then(|(id, seq_number, digest)| {
-                                self.check_move_account_for_execution(
-                                    id,
-                                    seq_number,
-                                    digest,
-                                    account_object,
-                                    &move_authenticator.address(),
-                                )
-                            });
-                        (authenticator_input_objects, function_ref)
-                    })
+                    .map(
+                        |(move_authenticator, (authenticator_input_objects, account_object))| {
+                            let function_ref = move_authenticator
+                                .object_to_authenticate_components()
+                                .map_err(IotaError::from)
+                                .and_then(|(id, seq_number, digest)| {
+                                    self.check_move_account_for_execution(
+                                        id,
+                                        seq_number,
+                                        digest,
+                                        account_object,
+                                        &move_authenticator.address(),
+                                    )
+                                });
+                            (authenticator_input_objects, function_ref)
+                        },
+                    )
                     .unzip();
 
             // Serialize the TransactionData for the auth context.
@@ -2228,15 +2231,13 @@ impl AuthorityState {
                             )
                             .collect::<Vec<_>>();
 
-                        let (
-                            sender_authenticator_function_ref,
-                            sponsor_authenticator_function_ref,
-                        ) = extract_auth_fun_refs(signer, gas_data.owner, |address| {
-                            move_authenticators
-                                .iter()
-                                .find(|t| t.0.address() == address)
-                                .map(|t| t.1.authenticator_function_ref.clone())
-                        });
+                        let (sender_authenticator_function_ref, sponsor_authenticator_function_ref) =
+                            extract_auth_fun_refs(signer, gas_data.owner, |address| {
+                                move_authenticators
+                                    .iter()
+                                    .find(|t| t.0.address() == address)
+                                    .map(|t| t.1.authenticator_function_ref.clone())
+                            });
 
                         let auth_context_data = AuthContextData {
                             transaction_data_bytes: tx_data_bytes,
@@ -2276,6 +2277,10 @@ impl AuthorityState {
                     }
                 };
 
+            let attested_object_versions = transaction
+                .attestation()
+                .map(|attestation| attestation.object_versions().to_vec());
+
             let (
                 inner_temp_store,
                 gas_status,
@@ -2303,6 +2308,7 @@ impl AuthorityState {
                     tx_digest,
                     auth_context_data,
                     pre_authentication_error,
+                    attested_object_versions,
                     &mut None,
                 );
             (inner_temp_store, gas_status, effects, execution_error_opt)

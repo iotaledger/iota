@@ -906,6 +906,7 @@ impl LocalExec {
                     *tx_digest,
                     auth_context_data,
                     None,
+                    None,
                     &mut None,
                 );
 
@@ -1226,6 +1227,7 @@ impl LocalExec {
                     signer,
                     *executable.digest(),
                     auth_context_data,
+                    None,
                     None,
                     &mut None,
                 );

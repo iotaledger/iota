@@ -6,7 +6,8 @@ use std::{cell::RefCell, collections::HashSet, rc::Rc, sync::Arc};
 
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    Address, GasPayment, ProgrammableTransaction, TransactionDigest, TransactionKind,
+    Address, GasPayment, ObjectReference, ProgrammableTransaction, TransactionDigest,
+    TransactionKind,
 };
 use iota_types::{
     account_abstraction::authenticator_function::{
@@ -117,6 +118,10 @@ pub trait Executor {
         // set, authentication is skipped and this error becomes the transaction's
         // failure effect.
         pre_authentication_error: Option<ExecutionError>,
+        // The attestor's recorded object versions, for attested transactions. When
+        // the authenticator function aborts at execution, authentication is re-run
+        // at these versions to decide whether the attestation was honest.
+        attested_object_versions: Option<Vec<ObjectReference>>,
         // Tracing
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> (

@@ -22,11 +22,12 @@ use iota_types::{
 use crate::authority::test_authority_builder::TestAuthorityBuilder;
 
 /// A transaction whose Move authenticator points at an object that is not an
-/// abstract account — here an immutable object with no authenticator-function-ref
-/// field — fails authentication structurally at execution
-/// (`MoveAuthenticatorNotFound`). Under the attestation flow this must resolve to
-/// an `InvalidAttestation` failure effect (issuer charged gas, validator does not
-/// panic) rather than the previous `.expect()` halt, generalizing iota#12375.
+/// abstract account — here an immutable object with no
+/// authenticator-function-ref field — fails authentication structurally at
+/// execution (`MoveAuthenticatorNotFound`). Under the attestation flow this
+/// must resolve to an `InvalidAttestation` failure effect (issuer charged gas,
+/// validator does not panic) rather than the previous `.expect()` halt,
+/// generalizing iota#12375.
 ///
 /// The transaction is executed directly, bypassing the attestor's own
 /// authentication check, to reproduce a transaction that reached execution

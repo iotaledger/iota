@@ -80,6 +80,18 @@ impl Attestation {
         } = payload;
         *computation_units
     }
+
+    pub fn object_versions(&self) -> &[ObjectReference] {
+        let payload = match self {
+            Attestation::Validator { payload, .. } | Attestation::Explicit { payload, .. } => {
+                payload
+            }
+        };
+        let AttestationData::V1 {
+            object_versions, ..
+        } = payload;
+        object_versions
+    }
 }
 
 impl AttestedTransaction {

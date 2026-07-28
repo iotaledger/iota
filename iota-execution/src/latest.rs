@@ -16,7 +16,8 @@ use iota_adapter_latest::{
 use iota_move_natives_latest::all_natives;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    Address, GasPayment, ProgrammableTransaction, TransactionDigest, TransactionKind,
+    Address, GasPayment, ObjectReference, ProgrammableTransaction, TransactionDigest,
+    TransactionKind,
 };
 use iota_types::{
     account_abstraction::authenticator_function::{
@@ -203,6 +204,7 @@ impl executor::Executor for Executor {
         transaction_digest: TransactionDigest,
         auth_context_data: AuthContextData,
         pre_authentication_error: Option<ExecutionError>,
+        attested_object_versions: Option<Vec<ObjectReference>>,
         // Tracing
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> (
@@ -229,6 +231,7 @@ impl executor::Executor for Executor {
             transaction_digest,
             auth_context_data,
             pre_authentication_error,
+            attested_object_versions,
             trace_builder_opt,
             &self.0,
         )
