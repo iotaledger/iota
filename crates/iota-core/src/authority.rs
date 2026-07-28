@@ -3961,9 +3961,8 @@ impl AuthorityState {
     /// already checkpointed.
     ///
     /// The wait survives epoch boundaries: a transaction in flight at a
-    /// boundary is checkpointed in the next epoch (executed-but-not-
-    /// checkpointed transactions are reverted at epoch end and resubmitted),
-    /// and still resolves here under the original deadline.
+    /// boundary may only be checkpointed in the next epoch, and still resolves
+    /// here under the original deadline.
     pub async fn wait_for_checkpoint_inclusion(
         &self,
         digests: &[TransactionDigest],
@@ -4003,7 +4002,7 @@ impl AuthorityState {
             }
 
             // The epoch ended mid-wait, and this epoch store's notifications
-            // can no longer fire: transactions executed near the boundary are
+            // can no longer fire: whatever is still uncheckpointed here is
             // checkpointed in the next epoch, on the next store. Cancelling
             // the wait may also have dropped notifications it had already
             // received, but the table write precedes each notification, so

@@ -204,9 +204,8 @@ async fn wait_for_checkpoint_inclusion_resolves_across_reconfiguration() {
     // lookup that has nothing to find in this test).
     tokio::time::sleep(Duration::from_millis(50)).await;
 
-    // The mapping lands in the next epoch's store, as happens for transactions
-    // executed near the boundary (reverted at epoch end and resubmitted into
-    // the next epoch).
+    // The mapping lands in the next epoch's store, as happens for a transaction
+    // that is still uncheckpointed when the epoch ends.
     authority_state
         .epoch_store_for_testing()
         .insert_finalized_transactions(&[digest], seq, ts)

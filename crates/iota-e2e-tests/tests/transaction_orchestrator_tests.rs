@@ -309,8 +309,8 @@ async fn test_tx_across_epoch_boundaries() {
 /// not burn the full 30s finality timeout: its checkpoint-inclusion wait
 /// registers on the old epoch's store, while the transaction is checkpointed
 /// on the next epoch's store (here because submission is rejected until the
-/// epoch changes; in production also when an executed-but-not-checkpointed
-/// transaction is reverted at the boundary and resubmitted).
+/// epoch changes; in the certificate mode also when an executed-but-not-
+/// checkpointed transaction is reverted at the boundary and resubmitted).
 #[sim_test]
 async fn test_wait_for_local_execution_across_epoch_boundary() {
     telemetry_subscribers::init_for_testing();
