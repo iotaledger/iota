@@ -348,6 +348,14 @@ impl WriteStore for RocksDbStore {
         Ok(())
     }
 
+    fn try_get_highest_executed_checkpoint_seq_number(
+        &self,
+    ) -> Result<Option<CheckpointSequenceNumber>, iota_types::storage::error::Error> {
+        self.checkpoint_store
+            .get_highest_executed_checkpoint_seq_number()
+            .map_err(Into::into)
+    }
+
     fn try_insert_synced_checkpoints(
         &self,
         checkpoints: Vec<(VerifiedCheckpoint, VerifiedCheckpointContents)>,
