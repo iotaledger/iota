@@ -29,7 +29,7 @@ use iota_sdk_types::{
     Address, Argument, CanceledTransaction, CheckpointSequenceNumber, Command,
     ConsensusDeterminedVersionAssignments, Digest, EpochId, ExecutionError, ExecutionStatus,
     GasPayment, Identifier, MoveStruct, ObjectData, ObjectDigest, ObjectId, ObjectReference,
-    OwnedObjectReference, Owner, ProgrammableTransaction, SharedObjectReference, StructTag,
+    OwnedObjectReference, Owner, ProgrammableTransaction, RandomnessRound, SharedObjectReference, StructTag,
     Transaction, TransactionDigest, TransactionEffects, TransactionEffectsDigest,
     TransactionExpiration, TransactionKind, TransactionV1, TypeTag, Version, VersionAssignment,
     crypto::{Intent, IntentScope},
@@ -60,8 +60,8 @@ use iota_types::{
     transaction::{
         CallArg, CancelledObjects, SenderSignedTransactionAPI,
         TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS, TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
-        TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI, TransactionEnvelope, VerifiedCertificate,
-        VerifiedTransaction,
+        TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI, TransactionEnvelope, TransactionKey,
+        VerifiedCertificate, VerifiedTransaction,
     },
     transaction_executor::{SimulateTransactionResult, VmChecks},
     utils::{to_sender_signed_transaction, to_sender_signed_transaction_with_multi_signers},
@@ -4948,6 +4948,54 @@ async fn test_shared_object_transaction_no_shared_version_assignments() {
     // Executing the certificate now panics since it has never been assigned shared
     // versions.
     let _ = authority.execute_for_test(&certificate, ExecutionEnv::new());
+}
+
+/// Executing a randomness state update must record the mapping from its
+/// `TransactionKey::RandomnessRound` to its digest. The round's transaction can
+/// reach execution without this node having generated the round locally — the
+/// checkpoint executor executes it from a synced checkpoint and reports the
+/// round complete, after which the randomness manager never regenerates it, so
+/// the local generation path that also records the mapping never runs. Without
+/// the mapping, a checkpoint root naming that round waits for a digest nothing
+/// would ever write, and checkpoint building stalls for the rest of the epoch.
+#[tokio::test]
+async fn test_execute_randomness_state_update_records_key_to_digest() {
+    let authority = TestAuthorityBuilder::new().build().await;
+    let epoch_store = authority.epoch_store_for_testing();
+    let randomness_obj_version =
+        get_randomness_state_obj_initial_shared_version(authority.get_object_store().as_ref())
+            .unwrap();
+
+    // Round 0 is the only round the on-chain state accepts as the first update.
+    let round = RandomnessRound::new(0);
+    let transaction = VerifiedExecutableTransaction::new_system(
+        VerifiedTransaction::new_randomness_state_update(
+            epoch_store.epoch(),
+            round,
+            vec![0; 32],
+            randomness_obj_version,
+        ),
+        epoch_store.epoch(),
+    );
+    let key = TransactionKey::RandomnessRound(epoch_store.epoch(), round);
+    assert_eq!(epoch_store.tx_key_to_digest(&key).unwrap(), None);
+
+    authority
+        .try_execute_immediately(
+            &transaction,
+            ExecutionEnv::new().with_assigned_versions(vec![VersionAssignment::new(
+                ObjectId::RANDOMNESS_STATE,
+                randomness_obj_version,
+            )]),
+            &epoch_store,
+        )
+        .unwrap();
+
+    assert_eq!(
+        epoch_store.tx_key_to_digest(&key).unwrap(),
+        Some(*transaction.digest()),
+        "executing a randomness state update must make its round key resolvable"
+    );
 }
 
 #[tokio::test(flavor = "current_thread", start_paused = true)]
