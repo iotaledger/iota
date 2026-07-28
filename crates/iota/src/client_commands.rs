@@ -3376,6 +3376,10 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
         !serialize_unsigned_transaction || !serialize_signed_transaction,
         "Cannot specify both flags: --serialize-unsigned-transaction and --serialize-signed-transaction."
     );
+    ensure!(
+        !local || dry_run,
+        "--local is only valid together with --dry-run."
+    );
     let gas_price = if let Some(gas_price) = gas_price {
         gas_price
     } else {
