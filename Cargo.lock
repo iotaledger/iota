@@ -6356,6 +6356,7 @@ version = "1.29.0-alpha"
 dependencies = [
  "anyhow",
  "async-stream",
+ "async-trait",
  "bcs",
  "futures",
  "http 1.4.0",

@@ -124,8 +124,8 @@ pub struct MetricGroups {
     /// `authority` group's gRPC transport metrics.
     pub epoch: MetricLevel,
     /// Async-runtime and process health: monitored tokio tasks, channels, and
-    /// scopes, thread stalls, invariant violations, and tracing span
-    /// latencies.
+    /// scopes, per-runtime tokio scheduler metrics (`tokio_runtime_*`), thread
+    /// stalls, invariant violations, and tracing span latencies.
     ///
     /// Modules: `iota_metrics` (except the `hardware` and `p2p` group
     /// submodules), `telemetry_subscribers`.

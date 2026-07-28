@@ -146,9 +146,15 @@ fn main() {
     // let iota-node signal main to shutdown runtimes
     let (runtime_shutdown_tx, runtime_shutdown_rx) = broadcast::channel::<()>(1);
 
+    // Client-facing servers run on a dedicated runtime so that external request
+    // load never shares worker threads with the node core on `iota_node`.
+    let serving_rt_handle = runtimes.serving.handle().clone();
+
     runtimes.iota_node.spawn(async move {
         let server_version = ServerVersion::new(env!("CARGO_BIN_NAME"), VERSION);
-        match IotaNode::start_async(config, registry_service, server_version).await {
+        match IotaNode::start_async(config, registry_service, server_version, serving_rt_handle)
+            .await
+        {
             Ok(iota_node) => node_once_cell_clone
                 .set(iota_node)
                 .expect("Failed to set node in AsyncOnceCell"),
