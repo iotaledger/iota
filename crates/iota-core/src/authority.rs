@@ -3968,19 +3968,10 @@ impl AuthorityState {
         digests: &[TransactionDigest],
         timeout: Duration,
     ) -> IotaResult<BTreeMap<TransactionDigest, (CheckpointSequenceNumber, u64)>> {
-        // There is no notification for the epoch-store swap, and termination
-        // and swap can come in either order (`reconfigure` terminates the old
-        // epoch first, `reconfigure_for_testing` swaps first), so after epoch
-        // termination the swap is polled at this interval.
-        const EPOCH_STORE_SWAP_POLL_INTERVAL: Duration = Duration::from_millis(100);
-
         let deadline = tokio::time::Instant::now() + timeout;
         let mut checkpoint_timestamp_cache = HashMap::<CheckpointSequenceNumber, u64>::new();
         let mut results = BTreeMap::new();
         let mut remaining = digests.to_vec();
-        // Deliberately re-loaded after each epoch termination below; the
-        // one-call-per-task rule guards against *unaware* mixing of epoch
-        // stores within a task.
         let mut epoch_store = self.load_epoch_store_one_call_per_task().clone();
 
         loop {
@@ -4016,35 +4007,56 @@ impl AuthorityState {
                 Err(IotaError::EpochEnded(_)) => vec![None; remaining.len()],
                 Err(err) => return Err(err),
             };
-            remaining = remaining
-                .iter()
-                .zip(found)
-                .filter_map(|(digest, found_seq)| match found_seq {
+            let mut still_uncheckpointed = Vec::new();
+            for (digest, found_seq) in remaining.iter().zip(found) {
+                match found_seq {
                     Some(seq) => {
                         let ts = self
                             .checkpoint_timestamp_ms_cached(seq, &mut checkpoint_timestamp_cache);
                         results.insert(*digest, (seq, ts));
-                        None
                     }
-                    None => Some(*digest),
-                })
-                .collect();
+                    None => still_uncheckpointed.push(*digest),
+                }
+            }
+            remaining = still_uncheckpointed;
             if remaining.is_empty() {
                 return Ok(results);
             }
 
-            // Hop to the next epoch's store, bounded by the caller's deadline.
-            let prev_epoch = epoch_store.epoch();
-            epoch_store = loop {
-                let current = self.load_epoch_store_one_call_per_task().clone();
-                if current.epoch() > prev_epoch {
-                    break current;
-                }
-                if tokio::time::Instant::now() >= deadline {
-                    return Ok(results);
-                }
-                tokio::time::sleep(EPOCH_STORE_SWAP_POLL_INTERVAL).await;
-            };
+            match self
+                .wait_for_next_epoch_store(epoch_store.epoch(), deadline)
+                .await
+            {
+                Some(next) => epoch_store = next,
+                None => return Ok(results),
+            }
+        }
+    }
+
+    /// Wait for the epoch store to be swapped to an epoch later than
+    /// `prev_epoch`, returning `None` if `deadline` passes first.
+    async fn wait_for_next_epoch_store(
+        &self,
+        prev_epoch: EpochId,
+        deadline: tokio::time::Instant,
+    ) -> Option<Arc<AuthorityPerEpochStore>> {
+        // There is no notification for the epoch-store swap, and termination
+        // and swap can come in either order (`reconfigure` terminates the old
+        // epoch first, `reconfigure_for_testing` swaps first), so the swap is
+        // polled at this interval.
+        const EPOCH_STORE_SWAP_POLL_INTERVAL: Duration = Duration::from_millis(100);
+
+        loop {
+            // Deliberately re-loaded on each poll; the one-call-per-task rule
+            // guards against *unaware* mixing of epoch stores within a task.
+            let current = self.load_epoch_store_one_call_per_task().clone();
+            if current.epoch() > prev_epoch {
+                return Some(current);
+            }
+            if tokio::time::Instant::now() >= deadline {
+                return None;
+            }
+            tokio::time::sleep(EPOCH_STORE_SWAP_POLL_INTERVAL).await;
         }
     }
 
