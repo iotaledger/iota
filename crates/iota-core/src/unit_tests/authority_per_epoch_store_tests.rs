@@ -181,6 +181,89 @@ async fn wait_for_transactions_in_checkpoint_times_out_without_notify() {
     );
 }
 
+#[tokio::test]
+async fn wait_for_checkpoint_inclusion_resolves_across_reconfiguration() {
+    let authority_state = TestAuthorityBuilder::new().build().await;
+    let digest = TransactionDigest::random();
+    let seq = 5;
+    let ts = 1_700_000_000_000;
+
+    let state = authority_state.clone();
+    let waiter = tokio::spawn(async move {
+        state
+            .wait_for_checkpoint_inclusion(&[digest], Duration::from_secs(30))
+            .await
+    });
+    // Let the waiter register on the current (soon-to-be-old) epoch store.
+    tokio::time::sleep(Duration::from_millis(50)).await;
+
+    authority_state.reconfigure_for_testing().await;
+    // Let the waiter hop to the new epoch store and register there, so the
+    // mapping below is delivered through the notification path (which carries
+    // the timestamp; the DB-read path would fall back to a checkpoint summary
+    // lookup that has nothing to find in this test).
+    tokio::time::sleep(Duration::from_millis(50)).await;
+
+    // The mapping lands in the next epoch's store, as happens for transactions
+    // executed near the boundary (reverted at epoch end and resubmitted into
+    // the next epoch).
+    authority_state
+        .epoch_store_for_testing()
+        .insert_finalized_transactions(&[digest], seq, ts)
+        .expect("insert_finalized_transactions should succeed");
+
+    let results = timeout(Duration::from_secs(5), waiter)
+        .await
+        .expect("wait did not resolve promptly after reconfiguration")
+        .expect("waiter task panicked")
+        .expect("wait_for_checkpoint_inclusion returned error");
+    assert_eq!(results.get(&digest), Some(&(seq, ts)));
+}
+
+#[tokio::test]
+async fn wait_for_checkpoint_inclusion_recovers_mapping_from_old_epoch_store() {
+    let authority_state = TestAuthorityBuilder::new().build().await;
+    let old_store = authority_state.epoch_store_for_testing().clone();
+    let digest = TransactionDigest::random();
+    let seq = 5;
+
+    let state = authority_state.clone();
+    let waiter = tokio::spawn(async move {
+        state
+            .wait_for_checkpoint_inclusion(&[digest], Duration::from_secs(30))
+            .await
+    });
+    // Let the waiter register on the current (soon-to-be-old) epoch store.
+    tokio::time::sleep(Duration::from_millis(50)).await;
+
+    // Write the mapping directly to the old store's table without firing the
+    // notification, modeling a notification the waiter raced with at the
+    // boundary. The waiter must recover it by re-reading the old store's
+    // table after epoch termination.
+    let mut batch = old_store.db_batch_for_test();
+    batch
+        .insert_batch(
+            &old_store
+                .tables()
+                .expect("old epoch store tables should still be open")
+                .executed_transactions_to_checkpoint,
+            [(digest, seq)],
+        )
+        .expect("insert_batch should succeed");
+    batch.write().expect("batch write should succeed");
+
+    authority_state.reconfigure_for_testing().await;
+
+    let results = timeout(Duration::from_secs(5), waiter)
+        .await
+        .expect("wait did not resolve promptly after reconfiguration")
+        .expect("waiter task panicked")
+        .expect("wait_for_checkpoint_inclusion returned error");
+    // No checkpoint summary exists in this test, so the timestamp resolves
+    // to the 0 fallback.
+    assert_eq!(results.get(&digest), Some(&(seq, 0)));
+}
+
 /// Persisted overload notifications must round-trip through
 /// `ConsensusCommitOutput::record_overload_notification` (flushed via
 /// `write_to_batch`) -> `load_overload_notifications`. Re-recording in a

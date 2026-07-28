@@ -304,6 +304,75 @@ async fn test_tx_across_epoch_boundaries() {
     info!("test completed in {:?}", start.elapsed());
 }
 
+/// A `WaitForLocalExecution` request in flight at an epoch boundary must
+/// resolve shortly after the transaction is checkpointed in the next epoch,
+/// not burn the full 30s finality timeout: its checkpoint-inclusion wait
+/// registers on the old epoch's store, while the transaction (reverted at
+/// epoch end and resubmitted) is checkpointed on the next epoch's store.
+#[sim_test]
+async fn test_wait_for_local_execution_across_epoch_boundary() {
+    telemetry_subscribers::init_for_testing();
+    let _env_guard = enable_pcool_env();
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(true);
+        config
+    });
+
+    let (result_tx, mut result_rx) = tokio::sync::mpsc::channel(1);
+    let test_cluster = TestClusterBuilder::new().build().await;
+    let tx = make_transfer_iota_transaction(&test_cluster.wallet, None, None).await;
+    let authorities = test_cluster.swarm.validator_node_handles();
+
+    // Stop 2 of the 4 validators from accepting user transactions, so the
+    // submission cannot finalize until the epoch changes.
+    for handle in authorities.iter().take(2) {
+        handle
+            .with_async(|node| async { node.close_epoch_for_testing().await.unwrap() })
+            .await;
+    }
+
+    let to = test_cluster
+        .fullnode_handle
+        .iota_node
+        .with(|node| node.transaction_orchestrator().unwrap());
+    let tx_digest = *tx.digest();
+    info!(?tx_digest, "Submitting WaitForLocalExecution tx");
+    tokio::task::spawn(async move {
+        let result = to
+            .execute_transaction_block(
+                ExecuteTransactionRequestV1::new(tx),
+                ExecuteTransactionRequestType::WaitForLocalExecution,
+                None,
+            )
+            .await;
+        result_tx.send(result).await.unwrap();
+    });
+
+    info!("Asking remaining validators to change epoch");
+    for handle in authorities.iter().skip(2) {
+        handle
+            .with_async(|node| async { node.close_epoch_for_testing().await.unwrap() })
+            .await;
+    }
+    test_cluster.wait_for_epoch(Some(1)).await;
+
+    // The transaction is checkpointed early in epoch 1 and the request must
+    // resolve shortly after — well under the 30s finality timeout it used to
+    // burn before returning `TimeoutBeforeFinality`.
+    let result = match tokio::time::timeout(Duration::from_secs(15), result_rx.recv()).await {
+        Ok(Some(result)) => result,
+        Ok(None) => panic!("submission task dropped the result channel"),
+        Err(_) => panic!("WaitForLocalExecution did not resolve within 15s of the epoch change"),
+    };
+    let (response, executed_locally) = result
+        .unwrap_or_else(|e| panic!("WaitForLocalExecution failed across the boundary: {e:?}"));
+    assert!(executed_locally, "tx should be executed locally");
+    match response.effects.finality_info {
+        EffectsFinalityInfo::Checkpointed(epoch, _seq) => assert_eq!(epoch, 1),
+        other => panic!("expected Checkpointed finality, got {other:?}"),
+    }
+}
+
 async fn execute_with_orchestrator(
     orchestrator: &TransactionOrchestrator<NetworkAuthorityClient>,
     txn: Transaction,
