@@ -16,8 +16,8 @@ use move_package::source_package::layout::SourcePackageLayout;
 
 use crate::{errors::PackageResult, package::PackageName};
 
-const MAINNET_CHAIN_ID: &str = "35834a8a";
-const TESTNET_CHAIN_ID: &str = "4c78adac";
+const MAINNET_CHAIN_ID: &str = "6364aad5";
+const TESTNET_CHAIN_ID: &str = "2304aa97";
 
 /// Build the package
 #[derive(Debug, Clone, Parser)]
