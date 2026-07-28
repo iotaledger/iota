@@ -4,6 +4,7 @@
 
 use std::{
     convert::Infallible,
+    num::NonZeroUsize,
     task::{Context, Poll},
 };
 
@@ -77,7 +78,7 @@ impl<M: MetricsCallbackProvider> ServerBuilder<M> {
     pub fn add_service_with_concurrency_limit<S>(
         mut self,
         svc: S,
-        limit: usize,
+        limit: NonZeroUsize,
         load_shed: bool,
     ) -> Self
     where

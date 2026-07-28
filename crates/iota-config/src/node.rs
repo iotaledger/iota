@@ -4,6 +4,7 @@
 
 use std::{
     net::{IpAddr, Ipv4Addr, SocketAddr},
+    num::NonZeroUsize,
     path::{Path, PathBuf},
     sync::Arc,
     time::Duration,
@@ -123,8 +124,11 @@ pub struct NodeConfig {
     /// in-flight work so a request flood cannot grow queues and memory
     /// without limit, it does not throttle normal load. Operators wanting
     /// hard load-shedding can lower it and set `grpc_load_shed`.
+    ///
+    /// A value of zero is rejected at config load: it would not disable the
+    /// limit, it would block every request.
     #[serde(default = "default_grpc_concurrency_limit_per_core")]
-    pub grpc_concurrency_limit_per_core: usize,
+    pub grpc_concurrency_limit_per_core: NonZeroUsize,
 
     /// Configuration struct for P2P.
     #[serde(default)]
@@ -714,8 +718,8 @@ pub fn default_grpc_api_config() -> Option<GrpcApiConfig> {
     Some(GrpcApiConfig::default())
 }
 
-pub fn default_grpc_concurrency_limit_per_core() -> usize {
-    1000
+pub fn default_grpc_concurrency_limit_per_core() -> NonZeroUsize {
+    NonZeroUsize::new(1000).unwrap()
 }
 
 pub fn default_end_of_epoch_broadcast_channel_capacity() -> usize {

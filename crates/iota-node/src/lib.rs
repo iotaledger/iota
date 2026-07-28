@@ -8,6 +8,7 @@ use std::{
     collections::HashMap,
     fmt,
     future::Future,
+    num::NonZeroUsize,
     path::PathBuf,
     sync::{Arc, Weak},
     time::Duration,
@@ -1631,9 +1632,10 @@ impl IotaNode {
         // The config value is per core, so the same config scales with the
         // hardware; the effective limit is computed on the machine the server
         // actually runs on.
-        let concurrency_limit = config
-            .grpc_concurrency_limit_per_core
-            .saturating_mul(iota_core::runtime::available_cpu_cores());
+        let concurrency_limit = config.grpc_concurrency_limit_per_core.saturating_mul(
+            NonZeroUsize::new(iota_core::runtime::available_cpu_cores())
+                .unwrap_or(NonZeroUsize::MIN),
+        );
         let load_shed = config.grpc_load_shed.unwrap_or_default();
 
         let server_conf = iota_network_stack::config::Config::new();

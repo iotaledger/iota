@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{net::SocketAddr, path::PathBuf};
+use std::{net::SocketAddr, num::NonZeroUsize, path::PathBuf};
 
 use fastcrypto::{
     encoding::{Encoding, Hex},
@@ -210,7 +210,7 @@ impl ValidatorConfigBuilder {
             grpc_load_shed: None,
             // Effectively unlimited: tests and benchmarks must not be
             // throttled.
-            grpc_concurrency_limit_per_core: 500_000_000,
+            grpc_concurrency_limit_per_core: NonZeroUsize::new(500_000_000).unwrap(),
             p2p_config,
             authority_store_pruning_config: pruning_config,
             end_of_epoch_broadcast_channel_capacity:
@@ -561,7 +561,7 @@ impl FullnodeConfigBuilder {
             grpc_load_shed: None,
             // Effectively unlimited: tests and benchmarks must not be
             // throttled.
-            grpc_concurrency_limit_per_core: 500_000_000,
+            grpc_concurrency_limit_per_core: NonZeroUsize::new(500_000_000).unwrap(),
             p2p_config,
             authority_store_pruning_config: pruning_config,
             end_of_epoch_broadcast_channel_capacity:
