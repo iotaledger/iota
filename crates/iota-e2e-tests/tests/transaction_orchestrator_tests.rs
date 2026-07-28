@@ -307,8 +307,10 @@ async fn test_tx_across_epoch_boundaries() {
 /// A `WaitForLocalExecution` request in flight at an epoch boundary must
 /// resolve shortly after the transaction is checkpointed in the next epoch,
 /// not burn the full 30s finality timeout: its checkpoint-inclusion wait
-/// registers on the old epoch's store, while the transaction (reverted at
-/// epoch end and resubmitted) is checkpointed on the next epoch's store.
+/// registers on the old epoch's store, while the transaction is checkpointed
+/// on the next epoch's store (here because submission is rejected until the
+/// epoch changes; in production also when an executed-but-not-checkpointed
+/// transaction is reverted at the boundary and resubmitted).
 #[sim_test]
 async fn test_wait_for_local_execution_across_epoch_boundary() {
     telemetry_subscribers::init_for_testing();
@@ -323,9 +325,15 @@ async fn test_wait_for_local_execution_across_epoch_boundary() {
     let tx = make_transfer_iota_transaction(&test_cluster.wallet, None, None).await;
     let authorities = test_cluster.swarm.validator_node_handles();
 
-    // Stop 2 of the 4 validators from accepting user transactions, so the
-    // submission cannot finalize until the epoch changes.
-    for handle in authorities.iter().take(2) {
+    // Stop every validator from accepting user transactions before
+    // submitting. Admission is the only way a user transaction enters
+    // consensus, so the transaction deterministically cannot be sequenced in
+    // epoch 0 — the driver keeps retrying the rejected submissions
+    // (`ValidatorHaltedAtEpochEnd` is retriable) until epoch 1 opens. The
+    // validators stay up and keep running consensus; the epoch changes once
+    // the 2f+1 `EndOfPublish` quorum is collected.
+    info!("Asking all validators to change epoch");
+    for handle in authorities.iter() {
         handle
             .with_async(|node| async { node.close_epoch_for_testing().await.unwrap() })
             .await;
@@ -348,21 +356,31 @@ async fn test_wait_for_local_execution_across_epoch_boundary() {
         result_tx.send(result).await.unwrap();
     });
 
-    info!("Asking remaining validators to change epoch");
-    for handle in authorities.iter().skip(2) {
-        handle
-            .with_async(|node| async { node.close_epoch_for_testing().await.unwrap() })
-            .await;
-    }
+    // Tripwire: the request's checkpoint-inclusion wait must register on the
+    // epoch-0 store for the test to exercise the boundary crossing.
+    // Reconfiguration needs several consensus commits plus checkpoint
+    // execution, which cannot complete in the spawn gap above; if this ever
+    // trips, the test has gone degenerate (passing without covering the
+    // boundary) rather than flaky.
+    assert_eq!(
+        test_cluster
+            .fullnode_handle
+            .iota_node
+            .with(|node| node.state().epoch_store_for_testing().epoch()),
+        0,
+        "reconfiguration outran the submission; the wait no longer starts in epoch 0"
+    );
+
     test_cluster.wait_for_epoch(Some(1)).await;
 
     // The transaction is checkpointed early in epoch 1 and the request must
     // resolve shortly after — well under the 30s finality timeout it used to
-    // burn before returning `TimeoutBeforeFinality`.
-    let result = match tokio::time::timeout(Duration::from_secs(15), result_rx.recv()).await {
+    // burn before returning `TimeoutBeforeFinality`. The window leaves room
+    // for the driver's retry backoff, which is capped at 10s.
+    let result = match tokio::time::timeout(Duration::from_secs(20), result_rx.recv()).await {
         Ok(Some(result)) => result,
         Ok(None) => panic!("submission task dropped the result channel"),
-        Err(_) => panic!("WaitForLocalExecution did not resolve within 15s of the epoch change"),
+        Err(_) => panic!("WaitForLocalExecution did not resolve within 20s of the epoch change"),
     };
     let (response, executed_locally) = result
         .unwrap_or_else(|e| panic!("WaitForLocalExecution failed across the boundary: {e:?}"));
