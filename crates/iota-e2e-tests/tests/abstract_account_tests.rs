@@ -75,7 +75,18 @@ const AA_RECEIVE_OBJECT_FN_NAME_NO_SENDER_CHECK: &str = "receive_object_without_
 /// Test the creation of an Abstract Account and the issuance of a simple
 /// transaction from it using the Move-based Ed25519 signature authenticator.
 #[sim_test]
-async fn test_abstract_account_creation_and_issue_tx() -> Result<(), anyhow::Error> {
+async fn test_abstract_account_creation_and_issue_tx_pre_consensus_flow()
+-> Result<(), anyhow::Error> {
+    test_abstract_account_creation_and_issue_tx(false).await
+}
+
+#[sim_test]
+async fn test_abstract_account_creation_and_issue_tx_pcool_flow() -> Result<(), anyhow::Error> {
+    test_abstract_account_creation_and_issue_tx(true).await
+}
+
+async fn test_abstract_account_creation_and_issue_tx(pcool: bool) -> Result<(), anyhow::Error> {
+    let _pcool_guard = override_pcool_flow(pcool);
     telemetry_subscribers::init_for_testing();
 
     // Build a test environment and create an abstract account
