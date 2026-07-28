@@ -20,6 +20,7 @@ use iota_macros::sim_test;
 use iota_sdk_types::Address;
 use iota_test_transaction_builder::make_transfer_iota_transaction;
 use prost_types::FieldMask;
+use test_cluster::override_pcool_flow;
 
 use super::build_item;
 use crate::utils::{
@@ -600,36 +601,6 @@ async fn execute_transaction_batch_with_checkpoint_inclusion() {
     }
 }
 
-/// Drop-guard that restores the P-COOL env vars on scope exit so the
-/// process-wide flag does not leak into sibling tests sharing this process.
-#[must_use = "bind the guard for the lifetime of the test"]
-struct PcoolEnvGuard;
-
-impl Drop for PcoolEnvGuard {
-    fn drop(&mut self) {
-        // SAFETY: paired with `enable_pcool_env`; both run on the test
-        // thread before/after the cluster is alive.
-        unsafe {
-            std::env::remove_var("IOTA_PROTOCOL_CONFIG_OVERRIDE_ENABLE");
-            std::env::remove_var("IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_PCOOL_FLOW");
-        }
-    }
-}
-
-fn enable_pcool_env() -> PcoolEnvGuard {
-    // SAFETY: must be set before the test cluster starts spawning validator
-    // tasks; thread-local protocol-config overrides do not propagate across
-    // spawned tasks outside msim.
-    unsafe {
-        std::env::set_var("IOTA_PROTOCOL_CONFIG_OVERRIDE_ENABLE", "1");
-        std::env::set_var(
-            "IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_PCOOL_FLOW",
-            "true",
-        );
-    }
-    PcoolEnvGuard
-}
-
 /// Skip-effect-certification path through the gRPC handler. With the P-COOL
 /// flow enabled and `checkpoint_inclusion_timeout_ms` set, the handler must
 /// (1) drive the TD without a 2f+1 broadcast, (2) wait for local checkpoint
@@ -643,7 +614,7 @@ fn enable_pcool_env() -> PcoolEnvGuard {
 /// the handler rather than a successful response.
 #[sim_test]
 async fn execute_transaction_v1_skip_cert_rebuilds_from_cache() {
-    let _env_guard = enable_pcool_env();
+    let _env_guard = override_pcool_flow(true);
     let _proto_guard =
         iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
             config.set_enable_pcool_flow_for_testing(true);
@@ -706,7 +677,7 @@ async fn execute_transaction_v1_skip_cert_rebuilds_from_cache() {
 /// "no successful response with uncertified data and no whole-RPC failure."
 #[sim_test]
 async fn execute_transaction_v1_skip_cert_no_quorum_yields_per_item_error() {
-    let _env_guard = enable_pcool_env();
+    let _env_guard = override_pcool_flow(true);
     let _proto_guard =
         iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
             config.set_enable_pcool_flow_for_testing(true);

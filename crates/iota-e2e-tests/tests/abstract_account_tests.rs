@@ -48,7 +48,7 @@ use iota_types::{
     },
 };
 use move_command_line_common::error_bitset::ErrorBitset;
-use test_cluster::{TestCluster, TestClusterBuilder};
+use test_cluster::{TestCluster, TestClusterBuilder, override_pcool_flow};
 
 const AA_PACKAGE_PATH: &str = "tests/abstract_account/abstract_account";
 const AA_MODULE_NAME: &str = "abstract_account";
@@ -355,6 +355,7 @@ async fn test_receive_object_in_main_tx_succeeds() -> Result<(), anyhow::Error> 
 /// underlying abort and carries no command index.
 #[sim_test]
 async fn test_abstract_account_post_consensus_failure() -> Result<(), anyhow::Error> {
+    let _pcool_guard = override_pcool_flow(false);
     telemetry_subscribers::init_for_testing();
     let client_ip = SocketAddr::new([127, 0, 0, 1].into(), 0);
 
@@ -491,6 +492,7 @@ async fn test_abstract_account_post_consensus_failure() -> Result<(), anyhow::Er
 ///    and it passed
 #[sim_test]
 async fn test_abstract_account_post_consensus_deletion_failure() -> Result<(), anyhow::Error> {
+    let _pcool_guard = override_pcool_flow(false);
     telemetry_subscribers::init_for_testing();
     let client_ip = SocketAddr::new([127, 0, 0, 1].into(), 0);
 
@@ -600,6 +602,7 @@ async fn test_abstract_account_post_consensus_deletion_failure() -> Result<(), a
 #[sim_test]
 async fn test_abstract_account_shared_object_congestion_cancellation() -> Result<(), anyhow::Error>
 {
+    let _pcool_guard = override_pcool_flow(false);
     telemetry_subscribers::init_for_testing();
     let client_ip = SocketAddr::new([127, 0, 0, 1].into(), 0);
 
@@ -695,6 +698,7 @@ async fn test_abstract_account_shared_object_congestion_cancellation() -> Result
 #[sim_test]
 async fn test_abstract_account_post_consensus_failure_without_report_flag()
 -> Result<(), anyhow::Error> {
+    let _pcool_guard = override_pcool_flow(false);
     telemetry_subscribers::init_for_testing();
     let client_ip = SocketAddr::new([127, 0, 0, 1].into(), 0);
 
@@ -829,6 +833,7 @@ async fn test_abstract_account_post_consensus_failure_without_report_flag()
 /// authentication failure and carries no command index.
 #[sim_test]
 async fn test_pre_consensus_authentication_failure() -> Result<(), anyhow::Error> {
+    let _pcool_guard = override_pcool_flow(false);
     telemetry_subscribers::init_for_testing();
 
     let mut test_env = TestEnvironment::new().await;
@@ -878,6 +883,7 @@ async fn test_pre_consensus_authentication_failure() -> Result<(), anyhow::Error
 #[sim_test]
 async fn test_pre_consensus_authentication_failure_without_report_flag() -> Result<(), anyhow::Error>
 {
+    let _pcool_guard = override_pcool_flow(false);
     telemetry_subscribers::init_for_testing();
 
     // Disable reporting the authentication failure as a distinct error.
@@ -940,6 +946,7 @@ async fn test_pre_consensus_authentication_failure_without_report_flag() -> Resu
 ///   receiving object
 #[sim_test]
 async fn test_receiving_gas_executing_aa_tx_first() -> Result<(), anyhow::Error> {
+    let _pcool_guard = override_pcool_flow(false);
     telemetry_subscribers::init_for_testing();
     let client_ip = SocketAddr::new([127, 0, 0, 1].into(), 0);
 
@@ -1048,6 +1055,7 @@ async fn test_receiving_gas_executing_aa_tx_first() -> Result<(), anyhow::Error>
 /// 4) Submit the original TX2 certificate. This should now succeed.
 #[sim_test]
 async fn test_receiving_gas_executing_aa_tx_later() -> Result<(), anyhow::Error> {
+    let _pcool_guard = override_pcool_flow(false);
     telemetry_subscribers::init_for_testing();
     let client_ip = SocketAddr::new([127, 0, 0, 1].into(), 0);
 
@@ -1170,6 +1178,7 @@ async fn test_receiving_gas_executing_aa_tx_later() -> Result<(), anyhow::Error>
 /// 5) Submit the original TX2 certificate. This should now succeed.
 #[sim_test]
 async fn test_failing_receiving_gas_then_create_account() -> Result<(), anyhow::Error> {
+    let _pcool_guard = override_pcool_flow(false);
     telemetry_subscribers::init_for_testing();
     let client_ip = SocketAddr::new([127, 0, 0, 1].into(), 0);
 
@@ -1301,6 +1310,7 @@ async fn test_failing_receiving_gas_then_create_account() -> Result<(), anyhow::
 ///    coin using the latest reference, this should now succeed.
 #[sim_test]
 async fn test_successful_receiving_gas_then_create_account() -> Result<(), anyhow::Error> {
+    let _pcool_guard = override_pcool_flow(false);
     telemetry_subscribers::init_for_testing();
     let client_ip = SocketAddr::new([127, 0, 0, 1].into(), 0);
 
@@ -1414,6 +1424,7 @@ async fn test_successful_receiving_gas_then_create_account() -> Result<(), anyho
 #[sim_test]
 async fn test_aa_sender_and_aa_sponsor_succeeded_with_enabled_move_auth_for_sponsor()
 -> Result<(), anyhow::Error> {
+    let _pcool_guard = override_pcool_flow(false);
     telemetry_subscribers::init_for_testing();
 
     // Build the test environment and create the sender AA.
@@ -1518,6 +1529,7 @@ async fn test_sponsor_only_move_auth_succeeded_with_enabled_move_auth_for_sponso
 #[sim_test]
 async fn test_aa_sender_and_aa_sponsor_use_the_same_shared_object_succeeded_with_enabled_move_auth_for_sponsor()
 -> Result<(), anyhow::Error> {
+    let _pcool_guard = override_pcool_flow(false);
     telemetry_subscribers::init_for_testing();
 
     // Build the test environment and create the sender AA.
@@ -1566,6 +1578,7 @@ async fn test_aa_sender_and_aa_sponsor_use_the_same_shared_object_succeeded_with
 #[sim_test]
 async fn test_two_move_authenticators_rejected_with_disabled_move_auth_for_sponsor()
 -> Result<(), anyhow::Error> {
+    let _pcool_guard = override_pcool_flow(false);
     telemetry_subscribers::init_for_testing();
 
     // Disable Move authentication for the sponsor.
@@ -1628,6 +1641,7 @@ async fn test_two_move_authenticators_rejected_with_disabled_move_auth_for_spons
 #[sim_test]
 async fn test_sponsor_only_move_auth_rejected_with_disabled_move_auth_for_sponsor()
 -> Result<(), anyhow::Error> {
+    let _pcool_guard = override_pcool_flow(false);
     telemetry_subscribers::init_for_testing();
 
     // Disable Move authentication for the sponsor.
@@ -1708,6 +1722,7 @@ async fn test_sponsor_only_move_auth_rejected_with_disabled_move_auth_for_sponso
 #[sim_test]
 async fn test_wrong_signer_move_auth_rejected_with_enabled_move_auth_for_sponsor()
 -> Result<(), anyhow::Error> {
+    let _pcool_guard = override_pcool_flow(false);
     telemetry_subscribers::init_for_testing();
 
     // Build the test environment and create the sender AA.
@@ -1762,6 +1777,7 @@ async fn test_wrong_signer_move_auth_rejected_with_enabled_move_auth_for_sponsor
 #[sim_test]
 async fn test_aa_sender_and_aa_sponsor_rejected_when_sponsor_aa_fails_with_enabled_move_auth_for_sponsor()
 -> Result<(), anyhow::Error> {
+    let _pcool_guard = override_pcool_flow(false);
     telemetry_subscribers::init_for_testing();
 
     // Build the test environment and create the sender AA.
@@ -1821,6 +1837,7 @@ async fn test_aa_sender_and_aa_sponsor_rejected_when_sponsor_aa_fails_with_enabl
 #[sim_test]
 async fn test_sponsored_tx_sender_aa_fails_post_consensus_when_only_sponsor_runs_pre_consensus()
 -> Result<(), anyhow::Error> {
+    let _pcool_guard = override_pcool_flow(false);
     telemetry_subscribers::init_for_testing();
     let client_ip = SocketAddr::new([127, 0, 0, 1].into(), 0);
 
@@ -1910,6 +1927,7 @@ async fn test_sponsored_tx_sender_aa_fails_post_consensus_when_only_sponsor_runs
 #[sim_test]
 async fn test_sponsored_tx_sender_aa_rejected_pre_consensus_without_sponsor_only_flag()
 -> Result<(), anyhow::Error> {
+    let _pcool_guard = override_pcool_flow(false);
     telemetry_subscribers::init_for_testing();
 
     // Disable the flag so ALL MAs run pre-consensus.
@@ -1966,6 +1984,7 @@ async fn test_sponsored_tx_sender_aa_rejected_pre_consensus_without_sponsor_only
 #[sim_test]
 async fn test_non_sponsored_tx_sender_aa_rejected_pre_consensus_with_sponsor_only_flag()
 -> Result<(), anyhow::Error> {
+    let _pcool_guard = override_pcool_flow(false);
     telemetry_subscribers::init_for_testing();
 
     let mut test_env = TestEnvironment::new().await;

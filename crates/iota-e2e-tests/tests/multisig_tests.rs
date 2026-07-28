@@ -36,7 +36,7 @@ use passkey_types::{
         PublicKeyCredentialUserEntity, UserVerificationRequirement,
     },
 };
-use test_cluster::{TestCluster, TestClusterBuilder};
+use test_cluster::{TestCluster, TestClusterBuilder, override_pcool_flow};
 use url::Url;
 
 async fn do_upgraded_multisig_test() -> IotaResult {
@@ -236,6 +236,7 @@ impl UserValidationMethod for MyUserValidationMethod {
 
 #[sim_test]
 async fn test_upgraded_multisig_feature_allow() {
+    let _pcool_guard = override_pcool_flow(false);
     let res = do_upgraded_multisig_test().await;
 
     // we didn't make a real transaction with a valid object, but we verify that we
