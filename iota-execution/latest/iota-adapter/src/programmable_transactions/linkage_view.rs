@@ -20,8 +20,8 @@ use iota_types::{
 use move_core_types::{
     account_address::AccountAddress,
     identifier::{IdentStr, Identifier},
-    language_storage::{ModuleId, StructTag},
-    resolver::{LinkageResolver, ModuleResolver, ResourceResolver},
+    language_storage::ModuleId,
+    resolver::{LinkageResolver, ModuleResolver},
 };
 
 use crate::execution_value::IotaResolver;
@@ -330,18 +330,6 @@ impl LinkageResolver for LinkageView<'_> {
 }
 
 // Remaining implementations delegated to state_view ************************
-
-impl ResourceResolver for LinkageView<'_> {
-    type Error = IotaError;
-
-    fn get_resource(
-        &self,
-        address: &AccountAddress,
-        type_: &StructTag,
-    ) -> Result<Option<Vec<u8>>, Self::Error> {
-        self.resolver.get_resource(address, type_)
-    }
-}
 
 impl ModuleResolver for LinkageView<'_> {
     type Error = IotaError;
