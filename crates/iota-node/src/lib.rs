@@ -8,6 +8,7 @@ use std::{
     collections::HashMap,
     fmt,
     future::Future,
+    num::NonZeroUsize,
     path::PathBuf,
     sync::{Arc, Weak},
     time::Duration,
@@ -1625,14 +1626,36 @@ impl IotaNode {
             soft_locks,
         );
 
-        let mut server_conf = iota_network_stack::config::Config::new();
-        server_conf.global_concurrency_limit = config.grpc_concurrency_limit;
-        server_conf.load_shed = config.grpc_load_shed;
+        // Each service gets its own concurrency limit so that a flood of client
+        // transaction submissions (Validator / ValidatorV2) cannot crowd the
+        // validator-peer RPCs sharing this listener out of admission slots.
+        // The config value is per core, so the same config scales with the
+        // hardware; the effective limit is computed on the machine the server
+        // actually runs on.
+        let concurrency_limit = config.grpc_concurrency_limit_per_core.saturating_mul(
+            NonZeroUsize::new(iota_core::runtime::available_cpu_cores())
+                .unwrap_or(NonZeroUsize::MIN),
+        );
+        let load_shed = config.grpc_load_shed.unwrap_or_default();
+
+        let server_conf = iota_network_stack::config::Config::new();
         let server_builder =
             ServerBuilder::from_config(&server_conf, GrpcMetrics::new(prometheus_registry))
-                .add_service(ValidatorServer::new(validator_service.clone()))
-                .add_service(ValidatorV2Server::new(validator_service.clone()))
-                .add_service(ValidatorPeerServer::new(validator_service));
+                .add_service_with_concurrency_limit(
+                    ValidatorServer::new(validator_service.clone()),
+                    concurrency_limit,
+                    load_shed,
+                )
+                .add_service_with_concurrency_limit(
+                    ValidatorV2Server::new(validator_service.clone()),
+                    concurrency_limit,
+                    load_shed,
+                )
+                .add_service_with_concurrency_limit(
+                    ValidatorPeerServer::new(validator_service),
+                    concurrency_limit,
+                    load_shed,
+                );
 
         let tls_config = iota_tls::create_rustls_server_config(
             config.network_key_pair().copy().private(),
