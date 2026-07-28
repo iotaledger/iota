@@ -30,10 +30,11 @@ use iota::{
 use iota_config::IOTA_CLIENT_CONFIG;
 use iota_json::IotaJsonValue;
 use iota_json_rpc_types::{
-    IotaExecutionStatus, IotaObjectData, IotaObjectDataFilter, IotaObjectDataOptions,
-    IotaObjectResponse, IotaObjectResponseError, IotaObjectResponseQuery, IotaRawData,
-    IotaTransactionBlockDataAPI, IotaTransactionBlockEffects, IotaTransactionBlockEffectsAPI,
-    ObjectChange, OwnedObjectRef, get_new_package_obj_from_response,
+    BalanceChange, IotaExecutionStatus, IotaObjectData, IotaObjectDataFilter,
+    IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseError, IotaObjectResponseQuery,
+    IotaRawData, IotaTransactionBlockDataAPI, IotaTransactionBlockEffects,
+    IotaTransactionBlockEffectsAPI, ObjectChange, OwnedObjectRef,
+    get_new_package_obj_from_response,
 };
 use iota_keys::keystore::AccountKeystore;
 use iota_macros::sim_test;
@@ -4469,6 +4470,116 @@ async fn test_dry_run() -> Result<(), anyhow::Error> {
     .await?;
 
     assert_dry_run(pay_all_iota_dry_run, object_id, "PayAllIota");
+
+    Ok(())
+}
+
+// The local dry-run resolves objects over gRPC via `block_in_place`, which
+// needs a real multi-threaded runtime; the msim simulator provides neither.
+#[cfg(not(msim))]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_local_dry_run_matches_node_dry_run() -> Result<(), anyhow::Error> {
+    let mut test_cluster = TestClusterBuilder::new()
+        .with_num_validators(2)
+        .build()
+        .await;
+    let rgp = test_cluster.get_reference_gas_price().await;
+    let address = test_cluster.get_address_0();
+    let grpc_url = test_cluster.grpc_url();
+    let context = &mut test_cluster.wallet;
+
+    let mut env = context.config().get_active_env()?.clone();
+    env.set_grpc(Some(grpc_url));
+    context.config_mut().set_env(env);
+
+    let client = context.get_client().await?;
+    let object_refs = client
+        .read_api()
+        .get_owned_objects(
+            address,
+            Some(IotaObjectResponseQuery::new_with_options(
+                IotaObjectDataOptions::full_content(),
+            )),
+            None,
+            None,
+        )
+        .await?;
+    let gas_id = object_refs
+        .data
+        .first()
+        .unwrap()
+        .object()
+        .unwrap()
+        .object_id;
+    let object_to_send = object_refs.data.get(1).unwrap().object().unwrap().object_id;
+    let recipient = Address::random();
+
+    let transfer = |local: bool| IotaClientCommands::Transfer {
+        to: KeyIdentity::Address(recipient),
+        object_id: object_to_send,
+        payment: PaymentArgs { gas: vec![gas_id] },
+        gas_data: GasDataArgs {
+            gas_budget: Some(rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER),
+            ..Default::default()
+        },
+        processing: TxProcessingArgs {
+            dry_run: true,
+            local,
+            ..Default::default()
+        },
+    };
+
+    let node_dry_run = transfer(false).execute(context).await?;
+    let local_dry_run = transfer(true).execute(context).await?;
+    let (
+        IotaClientCommandResult::DryRun(node_response),
+        IotaClientCommandResult::DryRun(local_response),
+    ) = (node_dry_run, local_dry_run)
+    else {
+        panic!("expected DryRun results");
+    };
+
+    assert_eq!(
+        *node_response.effects.status(),
+        IotaExecutionStatus::Success
+    );
+    assert_eq!(node_response.effects, local_response.effects);
+    assert_eq!(node_response.input, local_response.input);
+    assert_eq!(node_response.events, local_response.events);
+
+    let sorted_object_changes = |mut changes: Vec<ObjectChange>| {
+        changes.sort_by_key(|change| change.object_id());
+        changes
+    };
+    assert_eq!(
+        sorted_object_changes(node_response.object_changes),
+        sorted_object_changes(local_response.object_changes)
+    );
+
+    let sorted_balance_changes = |mut changes: Vec<BalanceChange>| {
+        changes.sort_by_key(|change| (format!("{:?}", change.owner), change.coin_type.to_string()));
+        changes
+    };
+    assert_eq!(
+        sorted_balance_changes(node_response.balance_changes),
+        sorted_balance_changes(local_response.balance_changes)
+    );
+
+    // --local is a dry-run option only.
+    let err = IotaClientCommands::Transfer {
+        to: KeyIdentity::Address(recipient),
+        object_id: object_to_send,
+        payment: PaymentArgs { gas: vec![gas_id] },
+        gas_data: GasDataArgs::default(),
+        processing: TxProcessingArgs {
+            local: true,
+            ..Default::default()
+        },
+    }
+    .execute(context)
+    .await
+    .unwrap_err();
+    assert!(err.to_string().contains("--local"));
 
     Ok(())
 }
