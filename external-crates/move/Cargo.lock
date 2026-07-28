@@ -2072,7 +2072,6 @@ dependencies = [
  "ref-cast",
  "regex",
  "serde",
- "serde_bytes",
  "serde_json",
  "serde_with",
  "thiserror",
