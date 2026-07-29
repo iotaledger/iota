@@ -6,15 +6,17 @@ use std::{env, sync::Arc};
 
 use parking_lot::RwLock;
 use rand::{Rng, SeedableRng, prelude::SliceRandom, rngs::StdRng};
+use rstest::rstest;
 use starfish_config::AuthorityIndex;
 
 use crate::{
-    block_header::{BlockHeaderAPI, Slot},
+    block_header::{BlockHeaderAPI, BlockRef, Slot},
     block_manager::{BlockManager, block_suspender::tests::evaluate_block_headers},
-    commit::DecidedLeader,
+    commit::{CommitMetastate, DecidedLeader},
     context::Context,
     dag_state::{DagState, DataSource},
     leader_schedule::{LeaderSchedule, LeaderSwapTable},
+    stake_aggregator::{QuorumThreshold, StakeAggregator},
     storage::mem_store::MemStore,
     test_dag::create_random_dag,
     universal_committer::{
@@ -30,14 +32,15 @@ const NUM_ROUNDS: u32 = 200;
 /// - Links to leader of previous round.
 ///
 /// Should result in a direct commit for every round.
+#[rstest]
 #[tokio::test]
-async fn test_randomized_dag_all_direct_commit() {
+async fn test_randomized_dag_all_direct_commit(#[values(false, true)] starfish_speed: bool) {
     let mut random_test_setup = random_test_setup();
 
     for _ in 0..NUM_RUNS {
         let seed = random_test_setup.seeded_rng.gen_range(0..10000);
         let num_authorities = random_test_setup.seeded_rng.gen_range(4..10);
-        let authority = authority_setup(num_authorities, 0);
+        let authority = authority_setup(num_authorities, 0, starfish_speed);
 
         let include_leader_percentage = 100;
         let dag_builder = create_random_dag(
@@ -85,8 +88,9 @@ async fn test_randomized_dag_all_direct_commit() {
 /// sequence will include Commit & Skip decisions and potentially will stop
 /// before coming to a decision on all waves as we may have an Undecided leader
 /// somewhere early in the sequence.
+#[rstest]
 #[tokio::test]
-async fn test_randomized_dag_and_decision_sequence() {
+async fn test_randomized_dag_and_decision_sequence(#[values(false, true)] starfish_speed: bool) {
     let mut random_test_setup = random_test_setup();
 
     for _ in 0..NUM_RUNS {
@@ -94,7 +98,7 @@ async fn test_randomized_dag_and_decision_sequence() {
         let num_authorities = random_test_setup.seeded_rng.gen_range(4..10);
 
         // Setup for Authority 1
-        let mut authority_1 = authority_setup(num_authorities, 1);
+        let mut authority_1 = authority_setup(num_authorities, 1, starfish_speed);
 
         let include_leader_percentage = 50;
         let dag_builder = create_random_dag(
@@ -148,7 +152,7 @@ async fn test_randomized_dag_and_decision_sequence() {
         assert!(authority_1.block_manager.is_empty());
 
         // Setup for Authority 2
-        let mut authority_2 = authority_setup(num_authorities, 2);
+        let mut authority_2 = authority_setup(num_authorities, 2, starfish_speed);
 
         let mut all_blocks = dag_builder
             .block_headers
@@ -189,11 +193,46 @@ async fn test_randomized_dag_and_decision_sequence() {
 
         assert!(authority_2.block_manager.is_empty());
 
+        // Every optimistic commit lists at least a quorum of strong voters, which
+        // is what the linearizer needs to commit the leader's acknowledged refs.
+        for leader in sequenced_leaders_1.iter().chain(sequenced_leaders_2.iter()) {
+            let DecidedLeader::Commit(_, Some(CommitMetastate::Optimistic), strong_voters) = leader
+            else {
+                continue;
+            };
+            let mut stake = StakeAggregator::<QuorumThreshold>::new();
+            let reached = strong_voters
+                .iter()
+                .any(|voter| stake.add(*voter, &authority_1.context.committee));
+            assert!(reached, "optimistic commit with {strong_voters:?}");
+        }
+
         // Ensure despite the difference in when blocks were received eventually after
         // receiving all blocks both authorities should return the same sequence of
-        // blocks.
-        assert_eq!(sequenced_leaders_1, sequenced_leaders_2);
+        // blocks. The strong voters are left out of the comparison: they are the
+        // voters the deciding authority had accepted at that point, so the two
+        // authorities list different supersets of the quorum behind the commit.
+        assert_eq!(
+            decisions_without_strong_voters(&sequenced_leaders_1),
+            decisions_without_strong_voters(&sequenced_leaders_2)
+        );
     }
+}
+
+/// The decisions reduced to what every authority must agree on: the decided
+/// slot, the committed block if any, and its metastate.
+fn decisions_without_strong_voters(
+    leaders: &[DecidedLeader],
+) -> Vec<(Slot, Option<BlockRef>, Option<CommitMetastate>)> {
+    leaders
+        .iter()
+        .map(|leader| match leader {
+            DecidedLeader::Commit(block, metastate, _) => {
+                (block.slot(), Some(block.reference()), *metastate)
+            }
+            DecidedLeader::Skip(slot) => (*slot, None, None),
+        })
+        .collect()
 }
 
 struct AuthorityTestFixture {
@@ -203,14 +242,17 @@ struct AuthorityTestFixture {
     block_manager: BlockManager,
 }
 
-fn authority_setup(num_authorities: usize, authority_index: u8) -> AuthorityTestFixture {
-    // Test blocks carry no strong votes; run with StarfishSpeed off.
+fn authority_setup(
+    num_authorities: usize,
+    authority_index: u8,
+    starfish_speed: bool,
+) -> AuthorityTestFixture {
     let mut context = Context::new_for_test(num_authorities)
         .0
         .with_authority_index(AuthorityIndex::new_for_test(authority_index));
     context
         .protocol_config
-        .set_consensus_starfish_speed_for_testing(false);
+        .set_consensus_starfish_speed_for_testing(starfish_speed);
     let context = Arc::new(context);
     let leader_schedule = Arc::new(LeaderSchedule::new(
         context.clone(),
