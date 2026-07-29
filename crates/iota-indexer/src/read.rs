@@ -1355,7 +1355,8 @@ impl IndexerReader {
             .await?
         {
             // resolve  `(tx_seq, event_seq)` range to just `event_seq` range
-            let Some(ev_seq_range) = event_seq_range_for_tx(tx_ev_seq_range, tx_seq as u64) else {
+            let Some(ev_seq_range) = event_seq_range_within_tx(tx_ev_seq_range, tx_seq as u64)
+            else {
                 return Ok(vec![]);
             };
             return self
@@ -1379,7 +1380,7 @@ impl IndexerReader {
             .resolve_transaction_sequence_number(tx_digest)
             .await
             .context(&context)?;
-        let Some(ev_seq_range) = event_seq_range_for_tx(tx_ev_seq_range, tx_seq) else {
+        let Some(ev_seq_range) = event_seq_range_within_tx(tx_ev_seq_range, tx_seq) else {
             return Ok(vec![]);
         };
         kv_reader
@@ -2970,23 +2971,44 @@ impl DataReader for IndexerReader {
     }
 }
 
-/// Narrows a `(tx_seq, event_seq)` range to just `event_seq` range, for events
-/// of the `tx_seq` transaction. Returns `None` when no event of that
-/// transaction is in the range.
-fn event_seq_range_for_tx(
+/// Converts a range over `(tx_seq, event_seq)` pairs into a range over just
+/// `event_seq`, for the events of the transaction `tx_seq`.
+///
+/// The input range orders the events of all transactions by `(tx_seq,
+/// event_seq)`. Restricted to the events of a single transaction, each input
+/// bound either:
+/// - keeps its `event_seq` part, when the bound lies on the transaction itself,
+///   or
+/// - becomes `Unbounded`, when the bound lies on an earlier (for the lower
+///   bound) or later (for the upper bound) transaction, and so does not
+///   constrain the events of this transaction.
+///
+/// Returns `None` when the whole transaction falls outside the range, meaning
+/// no event of the transaction can be in the range.
+fn event_seq_range_within_tx(
     (min, max): TxEventSeqRange,
     tx_seq: u64,
 ) -> Option<(Bound<u64>, Bound<u64>)> {
     let min_ev_seq = match min {
-        Bound::Included((tx, ev)) if tx == tx_seq => Bound::Included(ev),
-        Bound::Excluded((tx, ev)) if tx == tx_seq => Bound::Excluded(ev),
-        Bound::Included((tx, _)) | Bound::Excluded((tx, _)) if tx > tx_seq => return None,
+        Bound::Included((start_tx, ev)) if start_tx == tx_seq => Bound::Included(ev),
+        Bound::Excluded((start_tx, ev)) if start_tx == tx_seq => Bound::Excluded(ev),
+        // the range starts after the whole transaction
+        Bound::Included((start_tx, _)) | Bound::Excluded((start_tx, _)) if start_tx > tx_seq => {
+            return None;
+        }
+        // the range starts before the transaction, so it does not constrain
+        // its events from below
         _ => Bound::Unbounded,
     };
     let max_ev_seq = match max {
-        Bound::Included((tx, ev)) if tx == tx_seq => Bound::Included(ev),
-        Bound::Excluded((tx, ev)) if tx == tx_seq => Bound::Excluded(ev),
-        Bound::Included((tx, _)) | Bound::Excluded((tx, _)) if tx < tx_seq => return None,
+        Bound::Included((end_tx, ev)) if end_tx == tx_seq => Bound::Included(ev),
+        Bound::Excluded((end_tx, ev)) if end_tx == tx_seq => Bound::Excluded(ev),
+        // the range ends before the whole transaction
+        Bound::Included((end_tx, _)) | Bound::Excluded((end_tx, _)) if end_tx < tx_seq => {
+            return None;
+        }
+        // the range ends after the transaction, so it does not constrain
+        // its events from above
         _ => Bound::Unbounded,
     };
     Some((min_ev_seq, max_ev_seq))

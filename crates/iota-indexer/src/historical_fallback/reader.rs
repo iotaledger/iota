@@ -19,9 +19,7 @@ use iota_json_rpc_types::{CheckpointId, IotaEvent};
 use iota_sdk_types::{Address, ObjectId, Version};
 use iota_types::{
     digests::TransactionDigest,
-    effects::{
-        TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt, TransactionEvents,
-    },
+    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
     full_checkpoint_content::CheckpointTransaction,
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointContents, CheckpointContentsExt, CheckpointDigest,
@@ -334,8 +332,24 @@ impl HistoricalFallbackReader {
         &self,
         tx_digest: TransactionDigest,
     ) -> IndexerResult<Vec<IotaEvent>> {
-        let (events, (summary, _)) = self.events_with_checkpoint(tx_digest).await?;
-        let Some(events) = events else {
+        let tx_digests = &[tx_digest];
+        let (events, checkpoint_summaries) = tokio::try_join!(
+            self.client.multi_get_events_by_tx_digests(tx_digests),
+            self.resolve_checkpoints(tx_digests)
+        )?;
+
+        // check first if transaction exists, all valid transaction are part of a
+        // checkpoint, if not found then the provided digest is invalid.
+        let (summary, _) = checkpoint_summaries
+            .get(&tx_digest)
+            .cloned()
+            .ok_or_else(|| {
+                IndexerError::HistoricalFallbackStorageError(format!(
+                    "transaction: {tx_digest} does not exist"
+                ))
+            })?;
+
+        let Some(Some(events)) = events.into_iter().next() else {
             // transaction does not have associated events.
             return Ok(vec![]);
         };
@@ -343,31 +357,6 @@ impl HistoricalFallbackReader {
         HistoricalFallbackEvents::new(events, summary)
             .into_iota_events(&self.package_resolver, tx_digest)
             .await
-    }
-
-    /// Fetches the events of a transaction together with the checkpoint the
-    /// transaction belongs to.
-    ///
-    /// The events are `None` when the transaction did not emit any.
-    async fn events_with_checkpoint(
-        &self,
-        tx_digest: TransactionDigest,
-    ) -> IndexerResult<(Option<TransactionEvents>, HistoricalFallbackCheckpoint)> {
-        let tx_digests = &[tx_digest];
-        let (events, checkpoints) = tokio::try_join!(
-            self.client.multi_get_events_by_tx_digests(tx_digests),
-            self.resolve_checkpoints(tx_digests)
-        )?;
-
-        // check first if transaction exists, all valid transaction are part of a
-        // checkpoint, if not found then the provided digest is invalid.
-        let checkpoint = checkpoints.get(&tx_digest).cloned().ok_or_else(|| {
-            IndexerError::HistoricalFallbackStorageError(format!(
-                "transaction: {tx_digest} does not exist"
-            ))
-        })?;
-
-        Ok((events.into_iter().next().flatten(), checkpoint))
     }
 
     /// Fetches transactions from the provided transaction digests.
@@ -582,8 +571,21 @@ impl HistoricalFallbackReader {
             return Ok(vec![]);
         }
 
-        let (events, (summary, contents)) = self.events_with_checkpoint(tx_digest).await?;
-        let Some(events) = events else {
+        let tx_digests = &[tx_digest];
+        let (events, checkpoints) = tokio::try_join!(
+            self.client.multi_get_events_by_tx_digests(tx_digests),
+            self.resolve_checkpoints(tx_digests)
+        )?;
+
+        // check first if transaction exists, all valid transaction are part of a
+        // checkpoint, if not found then the provided digest is invalid.
+        let (summary, contents) = checkpoints.get(&tx_digest).cloned().ok_or_else(|| {
+            IndexerError::HistoricalFallbackStorageError(format!(
+                "transaction: {tx_digest} does not exist"
+            ))
+        })?;
+
+        let Some(Some(events)) = events.into_iter().next() else {
             // transaction does not have associated events.
             return Ok(vec![]);
         };
