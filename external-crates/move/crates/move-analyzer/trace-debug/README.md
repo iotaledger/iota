@@ -43,7 +43,7 @@ You can limit trace generation to the tests whose name contains a filter string 
 iota move test FILTER_STRING --trace-execution
 ```
 
-While this extension is geared towards being used with Iota, you can also use it to trace-debug programs written in other Move flavors. In particular, you can use it with "vanilla" Move flavor available via Move CLI (instead of IOTA CLI). You need to build Move CLI with the `--features tracing` flag and, simlarly to how you generate traces with IOTA CLI, execute `move test --trace-execution` in the root directory of the package you want to trace-debug.
+While this extension is geared towards being used with Iota, you can also use it to trace-debug programs written in other Move flavors. In particular, you can use it with "vanilla" Move flavor available via Move CLI (instead of IOTA CLI). You need to build Move CLI with the `--features tracing` flag and, similarly to how you generate traces with IOTA CLI, execute `move test --trace-execution` in the root directory of the package you want to trace-debug.
 
 ## Trace-debugging a test
 
