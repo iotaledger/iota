@@ -190,9 +190,10 @@ fn log_response(response: &Response, latency: Duration, _: &Span) {
 
 /// Tests for the request-validation logic of the REST API handlers.
 ///
-/// Every request here is rejected (or answered) before any BigTable call is
-/// made, so the tests run against a client pointed at a closed port: the
-/// BigTable channel connects lazily and is never used.
+/// These tests point the test client to an address without an active BigTable
+/// service. This is safe because the BigTable channel connects lazily: most
+/// requests in following tests cases are validated and rejected or answered
+/// before any database call is initiated.
 #[cfg(test)]
 mod tests {
     use std::num::NonZeroUsize;
@@ -254,7 +255,11 @@ mod tests {
         .await
     }
 
-    /// Represents expected cases for each item type.
+    // Returns test cases for each item type, including:
+    /// - The item type itself.
+    /// - A well-formed encoded key for its routes.
+    /// - The expected error message if the key's decoded bytes cannot be parsed
+    ///   as that item type's key.
     fn item_type_cases() -> [(ItemType, String, &'static str); 7] {
         let digest_key = encode_digest(&TransactionDigest::random());
         let tagged_key = encoded_tagged_key(&TaggedKey::CheckpointSequenceNumber(1));
