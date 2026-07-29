@@ -370,7 +370,9 @@ pub(crate) mod test {
     use super::*;
     use crate::{
         authority_set::AuthoritySet,
-        block_header::{BlockHeaderDigest, BlockRef, StrongVote, TestBlockHeader},
+        block_header::{
+            BlockHeaderDigest, BlockRef, StrongVote, TestBlockHeader, TestBlockHeaderVersion,
+        },
         context::Context,
         transaction::{TransactionVerifier, ValidationError},
     };
@@ -867,12 +869,14 @@ pub(crate) mod test {
         let leader_authority = AuthorityIndex::new_for_test(0);
         let verifier_on = SignedBlockVerifier::new(context_on, Arc::new(TxnSizeVerifier {}));
 
-        let base = TestBlockHeader::new(10, 2).set_ancestors(vec![
-            BlockRef::new(9, AuthorityIndex::new_for_test(2), BlockHeaderDigest::MIN),
-            BlockRef::new(9, leader_authority, BlockHeaderDigest::MIN),
-            BlockRef::new(9, AuthorityIndex::new_for_test(1), BlockHeaderDigest::MIN),
-            BlockRef::new(7, AuthorityIndex::new_for_test(3), BlockHeaderDigest::MIN),
-        ]);
+        let base = TestBlockHeader::new(10, 2)
+            .set_version(TestBlockHeaderVersion::V2)
+            .set_ancestors(vec![
+                BlockRef::new(9, AuthorityIndex::new_for_test(2), BlockHeaderDigest::MIN),
+                BlockRef::new(9, leader_authority, BlockHeaderDigest::MIN),
+                BlockRef::new(9, AuthorityIndex::new_for_test(1), BlockHeaderDigest::MIN),
+                BlockRef::new(7, AuthorityIndex::new_for_test(3), BlockHeaderDigest::MIN),
+            ]);
         let well_formed = StrongVote {
             leader_authority,
             missing: AuthoritySet::new(),

@@ -1543,13 +1543,39 @@ pub(crate) fn genesis_block_headers(context: &Context) -> Vec<VerifiedBlockHeade
         .collect::<Vec<VerifiedBlockHeader>>()
 }
 
+/// The `BlockHeader` variant that [`TestBlockHeader::build`] assembles.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TestBlockHeaderVersion {
+    V1,
+    V2,
+}
+
+impl TestBlockHeaderVersion {
+    /// The version `Core` proposes under this context's
+    /// `consensus_starfish_speed` setting.
+    #[cfg(test)]
+    pub(crate) fn from_context(context: &Context) -> Self {
+        if context.protocol_config.consensus_starfish_speed() {
+            Self::V2
+        } else {
+            Self::V1
+        }
+    }
+}
+
 /// This struct is public for testing in other crates.
 #[derive(Clone)]
 pub struct TestBlockHeader {
+    epoch: Epoch,
+    round: Round,
+    author: AuthorityIndex,
+    timestamp_ms: BlockTimestampMs,
     ancestors: Vec<BlockRef>,
     acknowledgments: Vec<BlockRef>,
-    block_header: BlockHeaderV1,
+    commit_votes: Vec<CommitVote>,
+    transactions_commitment: TransactionsCommitment,
     strong_vote: Option<StrongVote>,
+    version: TestBlockHeaderVersion,
 }
 
 impl TestBlockHeader {
@@ -1557,17 +1583,7 @@ impl TestBlockHeader {
     /// of transactions commitment. Use it when you don't need to check the
     /// commitment and don't want to create and pass the encoder.
     pub fn new(round: Round, author: u8) -> Self {
-        Self {
-            block_header: BlockHeaderV1 {
-                round,
-                author: author.into(),
-                transactions_commitment: TransactionsCommitment::DEFAULT_FOR_TEST,
-                ..Default::default()
-            },
-            ancestors: vec![],
-            acknowledgments: vec![],
-            strong_vote: None,
-        }
+        Self::with_commitment(round, author, TransactionsCommitment::DEFAULT_FOR_TEST)
     }
 
     #[cfg(test)]
@@ -1580,22 +1596,16 @@ impl TestBlockHeader {
         let txs = vec![];
         let serialized_transactions = Transaction::serialize(&txs)
             .expect("We should expect correct serialization of the transactions");
-        Self {
-            block_header: BlockHeaderV1 {
-                round,
-                author: author.into(),
-                transactions_commitment: TransactionsCommitment::compute_transactions_commitment(
-                    &serialized_transactions,
-                    context,
-                    encoder,
-                )
-                .unwrap(),
-                ..Default::default()
-            },
-            ancestors: vec![],
-            acknowledgments: vec![],
-            strong_vote: None,
-        }
+        Self::with_commitment(
+            round,
+            author,
+            TransactionsCommitment::compute_transactions_commitment(
+                &serialized_transactions,
+                context,
+                encoder,
+            )
+            .unwrap(),
+        )
     }
 
     #[cfg(test)]
@@ -1612,41 +1622,54 @@ impl TestBlockHeader {
             .collect::<Vec<Transaction>>();
         let serialized_transactions = Transaction::serialize(&txs)
             .expect("We should expect correct serialization of the transactions for sharding");
+        Self::with_commitment(
+            round,
+            author,
+            TransactionsCommitment::compute_transactions_commitment(
+                &serialized_transactions,
+                context,
+                encoder,
+            )
+            .unwrap(),
+        )
+    }
+
+    fn with_commitment(
+        round: Round,
+        author: u8,
+        transactions_commitment: TransactionsCommitment,
+    ) -> Self {
         Self {
-            block_header: BlockHeaderV1 {
-                round,
-                author: author.into(),
-                transactions_commitment: TransactionsCommitment::compute_transactions_commitment(
-                    &serialized_transactions,
-                    context,
-                    encoder,
-                )
-                .unwrap(),
-                ..Default::default()
-            },
+            epoch: 0,
+            round,
+            author: author.into(),
+            timestamp_ms: 0,
             ancestors: vec![],
             acknowledgments: vec![],
+            commit_votes: vec![],
+            transactions_commitment,
             strong_vote: None,
+            version: TestBlockHeaderVersion::V1,
         }
     }
 
     pub fn set_epoch(mut self, epoch: Epoch) -> Self {
-        self.block_header.epoch = epoch;
+        self.epoch = epoch;
         self
     }
 
     pub fn set_round(mut self, round: Round) -> Self {
-        self.block_header.round = round;
+        self.round = round;
         self
     }
 
     pub fn set_author(mut self, author: AuthorityIndex) -> Self {
-        self.block_header.author = author;
+        self.author = author;
         self
     }
 
     pub fn set_timestamp_ms(mut self, timestamp_ms: BlockTimestampMs) -> Self {
-        self.block_header.timestamp_ms = timestamp_ms;
+        self.timestamp_ms = timestamp_ms;
         self
     }
 
@@ -1661,43 +1684,55 @@ impl TestBlockHeader {
     }
 
     pub fn set_commit_votes(mut self, commit_votes: Vec<CommitVote>) -> Self {
-        self.block_header.commit_votes = commit_votes;
+        self.commit_votes = commit_votes;
         self
     }
 
     pub fn set_commitment(mut self, commitment: TransactionsCommitment) -> Self {
-        self.block_header.transactions_commitment = commitment;
+        self.transactions_commitment = commitment;
         self
     }
 
-    /// Sets the V2-only `strong_vote` payload. When `Some`, `build()` emits a
-    /// `BlockHeader::V2`; otherwise a V1.
+    /// Sets the `strong_vote` payload, which only a V2 header carries. Set the
+    /// version to V2 as well, otherwise `build()` panics.
     pub fn set_strong_vote(mut self, strong_vote: Option<StrongVote>) -> Self {
         self.strong_vote = strong_vote;
         self
     }
 
-    pub fn build(mut self) -> BlockHeader {
-        if let Some(strong_vote) = self.strong_vote {
-            return BlockHeader::V2(BlockHeaderV2::new(
-                self.block_header.epoch,
-                self.block_header.round,
-                self.block_header.author,
-                self.block_header.timestamp_ms,
+    pub fn set_version(mut self, version: TestBlockHeaderVersion) -> Self {
+        self.version = version;
+        self
+    }
+
+    pub fn build(self) -> BlockHeader {
+        assert!(
+            self.version == TestBlockHeaderVersion::V2 || self.strong_vote.is_none(),
+            "a V1 header cannot carry a strong vote"
+        );
+        match self.version {
+            TestBlockHeaderVersion::V1 => BlockHeader::V1(BlockHeaderV1::new(
+                self.epoch,
+                self.round,
+                self.author,
+                self.timestamp_ms,
                 self.ancestors,
                 self.acknowledgments,
-                self.block_header.commit_votes,
-                self.block_header.transactions_commitment,
-                Some(strong_vote),
-            ));
+                self.commit_votes,
+                self.transactions_commitment,
+            )),
+            TestBlockHeaderVersion::V2 => BlockHeader::V2(BlockHeaderV2::new(
+                self.epoch,
+                self.round,
+                self.author,
+                self.timestamp_ms,
+                self.ancestors,
+                self.acknowledgments,
+                self.commit_votes,
+                self.transactions_commitment,
+                self.strong_vote,
+            )),
         }
-        let (references, overlap_start_index, overlap_end_index) =
-            BlockHeader::compress_references(self.ancestors, self.acknowledgments);
-        self.block_header.references = references;
-        self.block_header.overlap_start_index = overlap_start_index;
-        self.block_header.overlap_end_index = overlap_end_index;
-
-        BlockHeader::V1(self.block_header)
     }
 }
 

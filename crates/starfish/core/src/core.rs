@@ -1952,8 +1952,8 @@ mod test {
     use crate::{
         CommitConsumer, CommitIndex, Transaction,
         block_header::{
-            BlockHeaderDigest, TestBlockHeader, TransactionsCommitment, genesis_block_headers,
-            genesis_blocks,
+            BlockHeaderDigest, TestBlockHeader, TestBlockHeaderVersion, TransactionsCommitment,
+            genesis_block_headers, genesis_blocks,
         },
         commit::{CommitAPI, CommitRange},
         leader_scoring::ReputationScores,
@@ -4035,6 +4035,7 @@ mod test {
         let add_block = |round: Round, author: u8, sv: StrongVote| {
             let header = VerifiedBlockHeader::new_for_test(
                 TestBlockHeader::new(round, author)
+                    .set_version(TestBlockHeaderVersion::V2)
                     .set_strong_vote(Some(sv))
                     .build(),
             );
