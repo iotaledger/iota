@@ -1965,14 +1965,16 @@ mod test {
 
     /// Recover Core and continue proposing from the last round which forms a
     /// quorum.
+    #[rstest]
     #[tokio::test]
-    async fn test_core_recover_from_store_for_full_round() {
+    async fn test_core_recover_from_store_for_full_round(
+        #[values(false, true)] starfish_speed: bool,
+    ) {
         telemetry_subscribers::init_for_testing();
-        // Test blocks carry no strong votes; run with StarfishSpeed off.
         let (mut context, mut key_pairs) = Context::new_for_test(4);
         context
             .protocol_config
-            .set_consensus_starfish_speed_for_testing(false);
+            .set_consensus_starfish_speed_for_testing(starfish_speed);
         let context = Arc::new(context);
         let store = Arc::new(MemStore::new());
         let (_transaction_client, tx_receiver) = TransactionClient::new(context.clone());
@@ -3354,15 +3356,15 @@ mod test {
         assert!(opt_serialized_transaction[0].is_some());
     }
 
+    #[rstest]
     #[tokio::test]
-    async fn test_add_certified_commits() {
+    async fn test_add_certified_commits(#[values(false, true)] starfish_speed: bool) {
         telemetry_subscribers::init_for_testing();
 
-        // Test blocks carry no strong votes; run with StarfishSpeed off.
         let (mut context, _key_pairs) = Context::new_for_test(4);
         context
             .protocol_config
-            .set_consensus_starfish_speed_for_testing(false);
+            .set_consensus_starfish_speed_for_testing(starfish_speed);
         let context = context.with_parameters(Parameters {
             sync_last_known_own_block_timeout: Duration::from_millis(2_000),
             ..Default::default()
@@ -3808,14 +3810,14 @@ mod test {
         *receiver.borrow_and_update()
     }
 
+    #[rstest]
     #[tokio::test]
-    async fn test_commit_and_notify_for_block_status() {
+    async fn test_commit_and_notify_for_block_status(#[values(false, true)] starfish_speed: bool) {
         telemetry_subscribers::init_for_testing();
-        // Test blocks carry no strong votes; run with StarfishSpeed off.
         let (mut context, mut key_pairs) = Context::new_for_test(4);
         context
             .protocol_config
-            .set_consensus_starfish_speed_for_testing(false);
+            .set_consensus_starfish_speed_for_testing(starfish_speed);
 
         let context = Arc::new(context);
 
