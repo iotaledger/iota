@@ -142,7 +142,9 @@ pub struct MetricGroups {
     /// decides each metric (a metric-name match wins over a module match),
     /// so an override can raise or lower a single module or metric within a
     /// group. A `default` key is the same pattern as the `default` field and
-    /// replaces its level.
+    /// replaces its level; likewise a group-name key expands to the group's
+    /// patterns and replaces the group field's level, as the same directive
+    /// would in `METRICS_FILTER` or the admin endpoint.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub overrides: BTreeMap<String, MetricLevel>,
 }
@@ -277,7 +279,15 @@ impl MetricGroups {
                 directives.push(format!("{module}={}", level.as_str()));
             }
         }
-        directives.extend(self.override_directives());
+        for directive in self.override_directives() {
+            // Group-name keys expand exactly like env var and runtime
+            // directives; rendered after the group directives, the expansion
+            // replaces the group field's level.
+            directives.extend(
+                Self::expand_directive(&directive)
+                    .expect("override levels are typed, so the rendered directive is valid"),
+            );
+        }
         directives.join(",")
     }
 
@@ -681,7 +691,7 @@ mod tests {
         let groups: MetricGroups = serde_yaml::from_str(
             "consensus: off\n\
              overrides:\n  \"iota_core::authority::foo\": trace\n  bespoke_metric: off\n  \
-             certs_total: trace",
+             certs_total: trace\n  network: trace",
         )
         .unwrap();
         assert_eq!(groups.consensus, MetricLevel::Off);
@@ -689,6 +699,9 @@ mod tests {
         let filter_string = groups.to_filter_string();
         assert!(filter_string.contains("iota_core::authority::foo=trace"));
         assert!(filter_string.contains("bespoke_metric=off"));
+        // A group-name key expands to the group's module patterns, replacing
+        // the group field's level (`warn` here).
+        assert!(filter_string.contains("iota_network::discovery=trace"));
 
         let filter = Filter::parse(&filter_string);
         // The longer override pattern wins over the `authority` group directive.
@@ -704,5 +717,9 @@ mod tests {
         ));
         // Other metrics in the module keep the group's level.
         assert!(!filter.is_exposed("other", "iota_core::execution_cache", MetricLevel::Info));
+        // The expanded group-name override applies to the group's modules ...
+        assert!(filter.is_exposed("x", "iota_network::discovery", MetricLevel::Trace));
+        // ... and other groups keep their configured level.
+        assert!(!filter.is_exposed("x", "iota_storage::http_key_value_store", MetricLevel::Info));
     }
 }
