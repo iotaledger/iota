@@ -567,7 +567,7 @@ impl StateSnapshotReaderV1 {
                 .iter()
                 .map(|(_, (_, file_metadata))| file_metadata.file_path(&epoch_dir))
                 .collect(),
-            concurrency,
+            concurrency.get(),
             &self.multi_progress_bar,
         )
         .await;
