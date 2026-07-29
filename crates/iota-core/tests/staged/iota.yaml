@@ -155,7 +155,7 @@ CheckpointSummary:
     - epoch: U64
     - sequence_number: U64
     - network_total_transactions: U64
-    - content_digest:
+    - contents_digest:
         TYPENAME: CheckpointContentsDigest
     - previous_digest:
         OPTION:
