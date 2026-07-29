@@ -11,7 +11,7 @@ use std::{
     collections::HashSet,
     ffi::CStr,
     path::{Path, PathBuf},
-    sync::{Arc, RwLock},
+    sync::Arc,
     time::Duration,
 };
 
@@ -53,9 +53,16 @@ mod tests;
 #[derive(Debug)]
 pub(crate) struct RocksDB {
     pub(crate) underlying: rocksdb::DBWithThreadMode<MultiThreaded>,
-    /// Names of all column families opened on this database, kept in sync
-    /// with column families created or dropped at runtime.
-    pub(crate) cf_names: RwLock<Vec<String>>,
+}
+
+impl RocksDB {
+    /// Returns the names of the column families the database has on disk.
+    pub(crate) fn cf_names(&self) -> Result<Vec<String>, rocksdb::Error> {
+        rocksdb::DBWithThreadMode::<MultiThreaded>::list_cf(
+            &rocksdb::Options::default(),
+            self.underlying.path(),
+        )
+    }
 }
 
 impl Drop for RocksDB {
@@ -129,7 +136,6 @@ pub fn open_cf_opts<P: AsRef<Path>>(
         let mut options = db_options.unwrap_or_else(|| default_db_options().options);
         options.create_if_missing(true);
         options.create_missing_column_families(true);
-        let cf_names: Vec<String> = cfs.iter().map(|(name, _)| name.clone()).collect();
         let rocksdb = {
             rocksdb::DBWithThreadMode::<MultiThreaded>::open_cf_descriptors(
                 &options,
@@ -142,7 +148,6 @@ pub fn open_cf_opts<P: AsRef<Path>>(
         Ok(Arc::new(Database::new(
             Storage::Rocks(RocksDB {
                 underlying: rocksdb,
-                cf_names: RwLock::new(cf_names),
             }),
             metric_conf,
         )))
@@ -206,11 +211,9 @@ pub fn open_cf_opts_secondary<P: AsRef<Path>>(
                 .map_err(typed_store_err_from_rocks_err)?;
             db
         };
-        let cf_names: Vec<String> = opt_cfs.keys().map(|name| name.to_string()).collect();
         Ok(Arc::new(Database::new(
             Storage::Rocks(RocksDB {
                 underlying: rocksdb,
-                cf_names: RwLock::new(cf_names),
             }),
             metric_conf,
         )))

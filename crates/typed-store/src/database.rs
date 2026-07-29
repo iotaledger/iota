@@ -238,14 +238,7 @@ impl Database {
     /// this name already exists.
     pub fn create_cf(&self, name: &str, options: &rocksdb::Options) -> Result<(), rocksdb::Error> {
         match &self.storage {
-            Storage::Rocks(db) => {
-                db.underlying.create_cf(name, options)?;
-                let mut cf_names = db.cf_names.write().expect("lock should not be poisoned");
-                if !cf_names.iter().any(|cf| cf == name) {
-                    cf_names.push(name.to_string());
-                }
-                Ok(())
-            }
+            Storage::Rocks(db) => db.underlying.create_cf(name, options),
             Storage::InMemory(db) => {
                 db.create_cf(name);
                 Ok(())
@@ -255,14 +248,7 @@ impl Database {
 
     pub fn drop_cf(&self, name: &str) -> Result<(), rocksdb::Error> {
         match &self.storage {
-            Storage::Rocks(db) => {
-                db.underlying.drop_cf(name)?;
-                db.cf_names
-                    .write()
-                    .expect("lock should not be poisoned")
-                    .retain(|cf| cf != name);
-                Ok(())
-            }
+            Storage::Rocks(db) => db.underlying.drop_cf(name),
             Storage::InMemory(db) => {
                 db.drop_cf(name);
                 Ok(())
@@ -367,20 +353,20 @@ impl Database {
         }
     }
 
-    /// Iterate all column families and flush the memtables of every column
-    /// family to SST files on disk.
+    /// Flush the memtables of every column family of the database to SST files
+    /// on disk.
     pub fn flush_all(&self) -> Result<(), TypedStoreError> {
         match &self.storage {
             // See `flush_cf` for why the flushes run off the test thread under
             // the simulator.
             Storage::Rocks(rocks) => nondeterministic!({
-                let cf_names = rocks
-                    .cf_names
-                    .read()
-                    .expect("lock should not be poisoned")
-                    .clone();
-                for cf_name in &cf_names {
-                    if let Some(cf) = rocks.underlying.cf_handle(cf_name) {
+                for cf_name in rocks.cf_names().map_err(|e| {
+                    TypedStoreError::RocksDB(format!(
+                        "Failed to list column families of {}: {e}",
+                        rocks.underlying.path().display()
+                    ))
+                })? {
+                    if let Some(cf) = rocks.underlying.cf_handle(&cf_name) {
                         rocks.underlying.flush_cf(&cf).map_err(|e| {
                             TypedStoreError::RocksDB(format!(
                                 "Failed to flush column family {cf_name}: {e}"
@@ -629,8 +615,8 @@ impl<K, V> DBMap<K, V> {
         self.db.flush_cf(&self.column_family)
     }
 
-    /// Iterate all column families and flush the memtables of every column
-    /// family to SST files on disk.
+    /// Flush the memtables of every column family of the database to SST files
+    /// on disk.
     pub fn flush_all(&self) -> Result<(), TypedStoreError> {
         self.db.flush_all()
     }

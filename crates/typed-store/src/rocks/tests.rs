@@ -1064,8 +1064,18 @@ async fn test_create_cf_at_runtime() {
             .expect("Failed to insert");
         assert_eq!(map.get(&1).unwrap(), Some("one".to_string()));
 
-        // The dynamically created column family must be covered by flush_all.
+        // The dynamically created column family must be covered by flush_all:
+        // its memtable reaches disk as an SST file of that column family.
+        let sst_files = || {
+            db.live_files()
+                .expect("Failed to list live files")
+                .into_iter()
+                .filter(|file| file.column_family_name == "dynamic_cf")
+                .count()
+        };
+        assert_eq!(sst_files(), 0, "the row must still be in the memtable");
         db.flush_all().expect("Failed to flush");
+        assert_eq!(sst_files(), 1, "flush_all must cover the column family");
     }
     {
         // The column family is rediscovered when reopening the database from
@@ -1183,6 +1193,33 @@ async fn test_tagged_dbmaps_share_a_column_family() {
     assert!(numbers.is_empty());
     assert!(!words.is_empty());
     assert_eq!(words.get(&"one".to_string()).unwrap(), Some(1));
+}
+
+/// `flush_all` covers the `default` column family, which rocksdb opens for
+/// every database and which no caller declares.
+#[tokio::test]
+async fn flush_all_covers_the_default_column_family() {
+    let tmp_dir = iota_common::tempdir();
+    let db = open_rocksdb(tmp_dir.path(), &["static_cf"]);
+    let map = DBMap::<u32, String>::reopen(&db, None, &ReadWriteOptions::default(), false)
+        .expect("Failed to open map on the default column family");
+    map.insert(&1, &"one".to_string())
+        .expect("Failed to insert");
+
+    let sst_files = || {
+        db.live_files()
+            .expect("Failed to list live files")
+            .into_iter()
+            .filter(|file| file.column_family_name == "default")
+            .count()
+    };
+    assert_eq!(sst_files(), 0, "the row must still be in the memtable");
+    db.flush_all().expect("Failed to flush");
+    assert_eq!(
+        sst_files(),
+        1,
+        "flush_all must cover the default column family"
+    );
 }
 
 /// A tagged batch write refuses a map from another database, as an untagged
