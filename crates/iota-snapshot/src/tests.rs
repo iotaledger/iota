@@ -24,17 +24,20 @@ use iota_core::{
     global_state_hasher::GlobalStateHasher,
     grpc_indexes::{GRPC_INDEXES_DIR, GrpcIndexesStore, OwnerTypeFilter},
 };
-use iota_sdk_types::{Address, GasCostSummary, ObjectId};
+use iota_sdk_types::{
+    Address, CheckpointDigest, GasCostSummary, ObjectId, TransactionDigest,
+    checkpoint::{CheckpointContents, CheckpointSummary, EndOfEpochData},
+};
 use iota_types::{
     committee::{Committee, EpochId},
     crypto::AuthorityKeyPair,
-    digests::{ChainIdentifier, TransactionDigest},
+    digests::ChainIdentifier,
     effects::{TransactionEffects, TransactionEffectsExtForTesting, TransactionEvents},
     global_state_hash::GlobalStateHash,
     iota_system_state::IotaSystemState,
     messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointContents, CheckpointContentsExt, CheckpointSummary,
-        ECMHLiveObjectSetDigest, EndOfEpochData, SignedCheckpointSummary,
+        CertifiedCheckpointSummary, CheckpointContentsExt, ECMHLiveObjectSetDigest,
+        SignedCheckpointSummary,
     },
     object::Object,
     storage::EpochInfoV2,
@@ -107,7 +110,7 @@ fn end_of_epoch_summary(epoch: EpochId) -> CheckpointSummary {
         epoch,
         sequence_number: 0,
         network_total_transactions: 0,
-        content_digest: Default::default(),
+        contents_digest: Default::default(),
         previous_digest: None,
         epoch_rolling_gas_cost_summary: GasCostSummary::default(),
         end_of_epoch_data: Some(EndOfEpochData {
@@ -1047,7 +1050,7 @@ fn verify_epoch_info_chain_rejects_wrong_chain_id() {
         test_committee_at(0),
         test_system_state(),
         ChainIdentifier::default(),
-        ChainIdentifier::from(iota_types::digests::CheckpointDigest::new([7; 32])),
+        ChainIdentifier::from(CheckpointDigest::new([7; 32])),
     )
     .expect_err("a foreign chain id must be rejected");
     assert!(err.to_string().contains("chain_id"), "got: {err}");

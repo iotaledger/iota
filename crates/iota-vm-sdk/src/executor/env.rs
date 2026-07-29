@@ -7,18 +7,17 @@
 //! debug-configured Move engine for that one call. This module also owns the
 //! executor construction and the gas-profile capture.
 
-use std::{
-    path::{Path, PathBuf},
-    sync::Arc,
-};
+use std::sync::Arc;
 
 use iota_execution::Executor;
 use iota_protocol_config::ProtocolConfig;
 use iota_types::metrics::{BytecodeVerifierMetrics, LimitsMetrics};
 use move_trace_format::format::MoveTraceBuilder;
 
+#[cfg(not(target_arch = "wasm32"))]
+use crate::debug::{ProfileOutput, ProfileSink};
 use crate::{
-    debug::{DebugArtifacts, DebugConfig, ProfileOutput, ProfileSink},
+    debug::{DebugArtifacts, DebugConfig},
     error::{VmError, VmSdkError},
     executor::local_vm::LocalVm,
 };
@@ -33,15 +32,17 @@ pub(super) struct ExecutionEnv {
     pub(super) limits_metrics: Arc<LimitsMetrics>,
     pub(super) bytecode_verifier_metrics: Arc<BytecodeVerifierMetrics>,
     debug: DebugConfig,
+    #[cfg(not(target_arch = "wasm32"))]
     profile_capture: Option<ProfileCapture>,
 }
 
 /// Where a run's gas profile is captured: a temp dir the profiler writes its
 /// per-invocation JSON into, plus the caller's requested output path for
 /// [`ProfileSink::Path`] (`None` for [`ProfileSink::Capture`]).
+#[cfg(not(target_arch = "wasm32"))]
 struct ProfileCapture {
-    dir: PathBuf,
-    target: Option<PathBuf>,
+    dir: std::path::PathBuf,
+    target: Option<std::path::PathBuf>,
 }
 
 impl ExecutionEnv {
@@ -52,6 +53,7 @@ impl ExecutionEnv {
         // A profiled run builds its own executor because `iota_execution::executor`
         // bakes the profiler path in at construction; otherwise the VM's shared
         // executor is reused.
+        #[cfg(not(target_arch = "wasm32"))]
         let (executor, profile_capture) = match &debug.profile {
             Some(sink) => {
                 let (executor, capture) = build_executor_with_profile(&vm.protocol_config, sink)?;
@@ -59,6 +61,10 @@ impl ExecutionEnv {
             }
             None => (vm.cached_executor()?.clone(), None),
         };
+        // wasm32 has no filesystem for the profiler to write through, so it runs
+        // with the VM's shared executor and never captures a gas profile.
+        #[cfg(target_arch = "wasm32")]
+        let executor = vm.cached_executor()?.clone();
 
         Ok(Self {
             protocol_config: vm.protocol_config.clone(),
@@ -69,6 +75,7 @@ impl ExecutionEnv {
             limits_metrics: vm.limits_metrics.clone(),
             bytecode_verifier_metrics: vm.bytecode_verifier_metrics.clone(),
             debug: debug.clone(),
+            #[cfg(not(target_arch = "wasm32"))]
             profile_capture,
         })
     }
@@ -91,7 +98,11 @@ impl ExecutionEnv {
         if !self.debug.any_enabled() {
             return Ok(None);
         }
+        #[cfg(not(target_arch = "wasm32"))]
         let profile = collect_profile(self.profile_capture.as_ref())?;
+        // The profiler writes through the filesystem, which wasm32 lacks.
+        #[cfg(target_arch = "wasm32")]
+        let profile = None;
 
         Ok(Some(DebugArtifacts {
             profile,
@@ -100,6 +111,7 @@ impl ExecutionEnv {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 impl Drop for ExecutionEnv {
     fn drop(&mut self) {
         if let Some(capture) = self.profile_capture.take() {
@@ -141,6 +153,7 @@ pub(super) fn build_executor(
     iota_execution::executor(protocol_config, true, None).map_err(|e| VmError::new(e).into())
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn build_executor_with_profile(
     protocol_config: &ProtocolConfig,
     sink: &ProfileSink,
@@ -161,6 +174,7 @@ fn build_executor_with_profile(
     Ok((executor, ProfileCapture { dir, target }))
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn collect_profile(capture: Option<&ProfileCapture>) -> Result<Option<ProfileOutput>, VmSdkError> {
     let Some(capture) = capture else {
         return Ok(None);
@@ -183,9 +197,11 @@ fn collect_profile(capture: Option<&ProfileCapture>) -> Result<Option<ProfileOut
 
 /// Name prefix for the per-run gas-profile capture directory created in the
 /// system temp dir.
+#[cfg(not(target_arch = "wasm32"))]
 const PROFILE_CAPTURE_DIR_PREFIX: &str = "iota-vm-sdk-gas-profile-";
 
-fn profile_capture_dir() -> PathBuf {
+#[cfg(not(target_arch = "wasm32"))]
+fn profile_capture_dir() -> std::path::PathBuf {
     use std::sync::atomic::{AtomicU64, Ordering};
     static COUNTER: AtomicU64 = AtomicU64::new(0);
     let n = COUNTER.fetch_add(1, Ordering::Relaxed);
@@ -198,7 +214,8 @@ fn profile_capture_dir() -> PathBuf {
 /// authenticator call plus the PTB body), each with its own frames table, so
 /// the merge concatenates `profiles` and rebuilds a de-duplicated
 /// `shared.frames`.
-fn merge_profile_dir(dir: &Path) -> Option<Vec<u8>> {
+#[cfg(not(target_arch = "wasm32"))]
+fn merge_profile_dir(dir: &std::path::Path) -> Option<Vec<u8>> {
     let entries = std::fs::read_dir(dir).ok()?;
     // Sort by file name: the profiler's nanosecond-stamped names put the
     // authenticator profile(s) before the PTB body, i.e. invocation order.
@@ -282,4 +299,24 @@ fn merge_profile_dir(dir: &Path) -> Option<Vec<u8>> {
         "profiles": merged_profiles,
     });
     serde_json::to_vec(&merged).ok()
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+pub(super) fn new_limits_metrics() -> LimitsMetrics {
+    LimitsMetrics::new(&prometheus_filtered::Registry::new())
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+pub(super) fn new_bytecode_verifier_metrics() -> BytecodeVerifierMetrics {
+    BytecodeVerifierMetrics::new(&prometheus_filtered::Registry::new())
+}
+
+#[cfg(target_arch = "wasm32")]
+pub(super) fn new_limits_metrics() -> LimitsMetrics {
+    LimitsMetrics::new_stub()
+}
+
+#[cfg(target_arch = "wasm32")]
+pub(super) fn new_bytecode_verifier_metrics() -> BytecodeVerifierMetrics {
+    BytecodeVerifierMetrics::new_stub()
 }

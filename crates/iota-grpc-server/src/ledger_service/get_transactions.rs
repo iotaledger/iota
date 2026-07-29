@@ -14,7 +14,7 @@ use iota_grpc_types::{
         transaction::ExecutedTransaction,
     },
 };
-use iota_types::digests::TransactionDigest;
+use iota_sdk_types::TransactionDigest;
 use prost::Message;
 use prost_types::FieldMask;
 

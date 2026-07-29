@@ -4,8 +4,7 @@
 
 use std::fmt::{Display, Formatter, Result};
 
-use iota_sdk_types::{Address, ObjectId, ObjectReference, Owner, StructTag, Version};
-use iota_types::base_types::ObjectDigest;
+use iota_sdk_types::{Address, ObjectDigest, ObjectId, ObjectReference, Owner, StructTag, Version};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;

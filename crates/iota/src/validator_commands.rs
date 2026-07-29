@@ -32,14 +32,14 @@ use iota_keys::{
 };
 use iota_sdk::{IotaClient, PagedFn, wallet_context::WalletContext};
 use iota_sdk_types::{
-    Address, Identifier, ObjectId, ObjectReference, Owner, TypeTag,
+    Address, Identifier, ObjectId, ObjectReference, Owner, SignatureScheme, TypeTag,
     crypto::{Intent, IntentMessage, IntentScope},
 };
 use iota_types::{
     crypto::{
         AuthorityKeyPair, AuthorityPublicKey, AuthorityPublicKeyBytes, DEFAULT_EPOCH_ID,
-        IotaKeyPair, NetworkKeyPair, NetworkPublicKey, Signable, SignatureScheme,
-        generate_proof_of_possession, get_authority_key_pair,
+        IotaKeyPair, NetworkKeyPair, NetworkPublicKey, Signable, generate_proof_of_possession,
+        get_authority_key_pair,
     },
     dynamic_field::{DynamicFieldName, Field},
     iota_system_state::{
@@ -183,7 +183,7 @@ fn make_key_files(
                 key
             }
             None => {
-                let (_, kp, _, _) = generate_new_key(SignatureScheme::ED25519, None, None)?;
+                let (_, kp, _, _) = generate_new_key(SignatureScheme::Ed25519, None, None)?;
                 println!("Generated new key file: {file_name:?}.");
                 kp
             }
@@ -214,7 +214,7 @@ impl IotaValidatorCommand {
 
                 let account_key = context.config().keystore().get_key(&iota_address)?;
 
-                if account_key.public().scheme() != SignatureScheme::ED25519 {
+                if account_key.public().scheme() != SignatureScheme::Ed25519 {
                     bail!("Only Ed25519 accounts are supported, please use Ed25519 keys for now.");
                 }
 
@@ -600,7 +600,7 @@ async fn call_0x5(
     let iota_client = context.get_client().await?;
 
     let signature = sign_transaction(context, &tx_data, &tx_data.sender(), None).await?;
-    let transaction = Transaction::from_generic_sig_data(tx_data, vec![signature]);
+    let transaction = Transaction::from_user_sig_data(tx_data, vec![signature]);
 
     iota_client
         .quorum_driver_api()

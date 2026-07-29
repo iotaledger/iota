@@ -33,10 +33,6 @@ pub struct Config {
     /// A config to sync the light client from a checkpoint store. If provided,
     /// will also be used to check objects/transactions for inclusion.
     pub checkpoint_store_config: Option<ObjectStoreConfig>,
-    /// A config to sync the light client from an archive store. Since the
-    /// archive does not store full checkpoints, it cannot be used to
-    /// check objects/transactions.
-    pub archive_store_config: Option<ObjectStoreConfig>,
 }
 
 impl Config {
@@ -80,8 +76,10 @@ impl Config {
     }
 
     pub fn validate(&self) -> Result<()> {
-        if self.graphql_url.is_none() && self.archive_store_config.is_none() {
-            bail!("Invalid config: either GraphQL URL or archive store config must be provided");
+        if self.graphql_url.is_none() && self.checkpoint_store_config.is_none() {
+            bail!(
+                "Invalid config: either a GraphQL URL or a checkpoint store config must be provided"
+            );
         }
         Ok(())
     }
@@ -133,15 +131,6 @@ impl Config {
                 no_sign_request: true,
                 ..Default::default()
             }),
-            archive_store_config: Some(ObjectStoreConfig {
-                object_store: Some(ObjectStoreType::S3),
-                object_store_connection_limit: 20,
-                aws_endpoint: Some(format!("https://archive.{network}.iota.cafe")),
-                aws_virtual_hosted_style_request: true,
-                aws_region: Some("weur".to_string()),
-                no_sign_request: true,
-                ..Default::default()
-            }),
         }
     }
 }
@@ -164,11 +153,6 @@ mod tests {
             checkpoint_store_config: Some(ObjectStoreConfig {
                 object_store: Some(ObjectStoreType::S3),
                 aws_endpoint: Some("http://localhost:9001".to_string()),
-                ..Default::default()
-            }),
-            archive_store_config: Some(ObjectStoreConfig {
-                object_store: Some(ObjectStoreType::File),
-                directory: Some(temp_dir.path().to_path_buf()),
                 ..Default::default()
             }),
         };

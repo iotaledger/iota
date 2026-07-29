@@ -5,13 +5,14 @@
 use std::collections::BTreeMap;
 
 use iota_config::genesis;
-use iota_sdk_types::{Address, ObjectId, ObjectReference, Version};
+use iota_sdk_types::{
+    Address, ObjectId, ObjectReference, TransactionDigest, Version, checkpoint::CheckpointContents,
+};
 use iota_types::{
     committee::{Committee, EpochId},
-    digests::TransactionDigest,
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     error::{IotaResult, UserInputError},
-    messages_checkpoint::{CheckpointContents, CheckpointSequenceNumber, VerifiedCheckpoint},
+    messages_checkpoint::{CheckpointSequenceNumber, VerifiedCheckpoint},
     object::Object,
     storage::{BackingStore, ChildObjectResolver},
     transaction::{

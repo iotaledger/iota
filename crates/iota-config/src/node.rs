@@ -11,9 +11,11 @@ use std::{
 };
 
 use anyhow::Result;
+use fastcrypto::{ed25519::Ed25519KeyPair, traits::ToFromBytes};
 use iota_keys::keypair_file::{read_authority_keypair_from_file, read_keypair_from_file};
 use iota_metrics::MetricGroups;
 use iota_names::config::IotaNamesConfig;
+use iota_sdk_crypto::ToFromBytes as _;
 use iota_sdk_types::Address;
 use iota_types::{
     committee::EpochId,
@@ -37,9 +39,6 @@ use crate::{
     migration_tx_data::MigrationTxData, object_storage_config::ObjectStoreConfig, p2p::P2pConfig,
     transaction_deny_config::TransactionDenyConfig, verifier_signing_config::VerifierSigningConfig,
 };
-
-// Default max number of concurrent requests served
-pub const DEFAULT_GRPC_CONCURRENCY_LIMIT: usize = 20000000000;
 
 /// Default gas price of 1000 Nanos
 pub const DEFAULT_VALIDATOR_GAS_PRICE: u64 = iota_types::transaction::DEFAULT_VALIDATOR_GAS_PRICE;
@@ -106,14 +105,30 @@ pub struct NodeConfig {
     /// - 'both' for both a websocket and http based service (deprecated)
     pub jsonrpc_server_type: Option<ServerType>,
 
-    /// Flag to enable gRPC load shedding to manage and
-    /// mitigate overload conditions by shedding excess
-    /// load with `LoadShedLayer` middleware.
+    /// Flag to enable gRPC load shedding: requests over a service's
+    /// concurrency limit are rejected immediately with `RESOURCE_EXHAUSTED`
+    /// instead of waiting for a slot.
     #[serde(default)]
     pub grpc_load_shed: Option<bool>,
 
-    #[serde(default = "default_concurrency_limit")]
-    pub grpc_concurrency_limit: Option<usize>,
+    /// Maximum number of concurrent in-flight requests per CPU core, applied
+    /// to each service of the validator gRPC server separately (`Validator`,
+    /// `ValidatorV2`, `ValidatorPeer`), so a flood of client transaction
+    /// submissions cannot crowd validator-peer RPCs out of admission slots.
+    /// The effective per-service limit is this value multiplied by the CPU
+    /// cores of the machine at server startup, so the same config file scales
+    /// with the hardware.
+    ///
+    /// Most request time is spent awaiting locks, I/O or consensus rather
+    /// than on-CPU, so the default ceiling is generous: it bounds total
+    /// in-flight work so a request flood cannot grow queues and memory
+    /// without limit, it does not throttle normal load. Operators wanting
+    /// hard load-shedding can lower it and set `grpc_load_shed`.
+    ///
+    /// A value of zero is rejected at config load: it would not disable the
+    /// limit, it would block every request.
+    #[serde(default = "default_grpc_concurrency_limit_per_core")]
+    pub grpc_concurrency_limit_per_core: NonZeroUsize,
 
     /// Configuration struct for P2P.
     #[serde(default)]
@@ -184,14 +199,8 @@ pub struct NodeConfig {
     #[serde(default)]
     pub state_debug_dump_config: StateDebugDumpConfig,
 
-    /// Configuration for writing state archive. If `ObjectStorage`
-    /// config is provided, `ArchiveWriter` will be created
-    /// for checkpoints archival.
     #[serde(default)]
-    pub state_archive_write_config: StateArchiveConfig,
-
-    #[serde(default)]
-    pub state_archive_read_config: Vec<StateArchiveConfig>,
+    pub checkpoint_archive_config: Option<CheckpointArchiveConfig>,
 
     /// Determines if snapshot should be uploaded to the remote storage.
     #[serde(default)]
@@ -354,6 +363,15 @@ pub struct GrpcApiConfig {
     #[serde(default = "default_grpc_api_max_simulate_transaction_batch_size")]
     pub max_simulate_transaction_batch_size: u32,
 
+    /// Maximum number of objects allowed in a single GetObjects batch request.
+    #[serde(default = "default_grpc_api_max_get_objects_batch_size")]
+    pub max_get_objects_batch_size: u32,
+
+    /// Maximum number of transactions allowed in a single GetTransactions batch
+    /// request.
+    #[serde(default = "default_grpc_api_max_get_transactions_batch_size")]
+    pub max_get_transactions_batch_size: u32,
+
     /// Maximum allowed timeout in milliseconds for waiting for checkpoint
     /// inclusion in ExecuteTransactions requests. Client-specified timeouts
     /// are clamped to this value.
@@ -389,6 +407,14 @@ fn default_grpc_api_max_simulate_transaction_batch_size() -> u32 {
     20
 }
 
+fn default_grpc_api_max_get_objects_batch_size() -> u32 {
+    1000
+}
+
+fn default_grpc_api_max_get_transactions_batch_size() -> u32 {
+    1000
+}
+
 fn default_grpc_api_max_checkpoint_inclusion_timeout_ms() -> u64 {
     60_000 // 60 seconds
 }
@@ -406,6 +432,8 @@ impl Default for GrpcApiConfig {
             ),
             max_simulate_transaction_batch_size:
                 default_grpc_api_max_simulate_transaction_batch_size(),
+            max_get_objects_batch_size: default_grpc_api_max_get_objects_batch_size(),
+            max_get_transactions_batch_size: default_grpc_api_max_get_transactions_batch_size(),
             max_checkpoint_inclusion_timeout_ms:
                 default_grpc_api_max_checkpoint_inclusion_timeout_ms(),
         }
@@ -690,8 +718,8 @@ pub fn default_grpc_api_config() -> Option<GrpcApiConfig> {
     Some(GrpcApiConfig::default())
 }
 
-pub fn default_concurrency_limit() -> Option<usize> {
-    Some(DEFAULT_GRPC_CONCURRENCY_LIMIT)
+pub fn default_grpc_concurrency_limit_per_core() -> NonZeroUsize {
+    NonZeroUsize::new(1000).unwrap()
 }
 
 pub fn default_end_of_epoch_broadcast_channel_capacity() -> usize {
@@ -714,21 +742,11 @@ impl NodeConfig {
     }
 
     pub fn protocol_key_pair(&self) -> &NetworkKeyPair {
-        match self.protocol_key_pair.keypair() {
-            IotaKeyPair::Ed25519(kp) => kp,
-            other => {
-                panic!("invalid keypair type: {other:?}, only Ed25519 is allowed for protocol key")
-            }
-        }
+        self.protocol_key_pair.ed25519_keypair()
     }
 
     pub fn network_key_pair(&self) -> &NetworkKeyPair {
-        match self.network_key_pair.keypair() {
-            IotaKeyPair::Ed25519(kp) => kp,
-            other => {
-                panic!("invalid keypair type: {other:?}, only Ed25519 is allowed for network key")
-            }
-        }
+        self.network_key_pair.ed25519_keypair()
     }
 
     pub fn authority_public_key(&self) -> AuthorityPublicKeyBytes {
@@ -741,10 +759,6 @@ impl NodeConfig {
 
     pub fn db_checkpoint_path(&self) -> PathBuf {
         self.db_path.join("db_checkpoints")
-    }
-
-    pub fn archive_path(&self) -> PathBuf {
-        self.db_path.join("archive")
     }
 
     pub fn snapshot_path(&self) -> PathBuf {
@@ -780,21 +794,8 @@ impl NodeConfig {
         (&self.account_key_pair.keypair().public()).into()
     }
 
-    pub fn archive_reader_config(&self) -> Vec<ArchiveReaderConfig> {
-        self.state_archive_read_config
-            .iter()
-            .flat_map(|config| {
-                config
-                    .object_store_config
-                    .as_ref()
-                    .map(|remote_store_config| ArchiveReaderConfig {
-                        remote_store_config: remote_store_config.clone(),
-                        download_concurrency: NonZeroUsize::new(config.concurrency)
-                            .unwrap_or(NonZeroUsize::new(5).unwrap()),
-                        use_for_pruning_watermark: config.use_for_pruning_watermark,
-                    })
-            })
-            .collect()
+    pub fn checkpoint_archive_config(&self) -> Option<&CheckpointArchiveConfig> {
+        self.checkpoint_archive_config.as_ref()
     }
 
     pub fn jsonrpc_server_type(&self) -> ServerType {
@@ -1131,20 +1132,20 @@ pub struct DBCheckpointConfig {
     pub prune_and_compact_before_upload: Option<bool>,
 }
 
-#[derive(Debug, Clone)]
-pub struct ArchiveReaderConfig {
-    pub remote_store_config: ObjectStoreConfig,
-    pub download_concurrency: NonZeroUsize,
-    pub use_for_pruning_watermark: bool,
+fn default_checkpoint_archive_download_concurrency() -> usize {
+    10
 }
 
-#[derive(Default, Debug, Clone, Deserialize, Serialize)]
+/// Configuration for backfilling checkpoint contents from the
+/// checkpoint archive when peers no longer serve the required range.
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
-pub struct StateArchiveConfig {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub object_store_config: Option<ObjectStoreConfig>,
-    pub concurrency: usize,
-    pub use_for_pruning_watermark: bool,
+pub struct CheckpointArchiveConfig {
+    /// URL of the checkpoint archive to backfill from.
+    pub url: String,
+    /// Non-zero number of checkpoints to download in parallel.
+    #[serde(default = "default_checkpoint_archive_download_concurrency")]
+    pub download_concurrency: usize,
 }
 
 /// Configuration for the per-epoch state-snapshot publisher.
@@ -1393,6 +1394,14 @@ pub struct KeyPairWithPath {
 
     #[serde(skip)]
     keypair: OnceCell<Arc<IotaKeyPair>>,
+
+    // The consensus/network stacks borrow their key as `&Ed25519KeyPair`
+    // (fastcrypto), while the key itself is stored as an SDK `IotaKeyPair`
+    // above. Converting on each access would return an owned value, which
+    // can't back the `&`-returning accessors, so the converted key is cached
+    // here. Never populated for account keys.
+    #[serde(skip)]
+    ed25519_keypair: OnceCell<Arc<Ed25519KeyPair>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize, Eq)]
@@ -1417,6 +1426,7 @@ impl KeyPairWithPath {
         Self {
             location: KeyPairLocation::InPlace { value: arc_kp },
             keypair: cell,
+            ed25519_keypair: OnceCell::new(),
         }
     }
 
@@ -1425,12 +1435,13 @@ impl KeyPairWithPath {
         // OK to unwrap panic because authority should not start without all keypairs
         // loaded.
         cell.set(Arc::new(read_keypair_from_file(&path).unwrap_or_else(
-            |e| panic!("invalid keypair file at path {:?}: {e}", &path),
+            |e| panic!("invalid keypair file at path {path:?}: {e}"),
         )))
         .expect("failed to set keypair");
         Self {
             location: KeyPairLocation::File { path },
             keypair: cell,
+            ed25519_keypair: OnceCell::new(),
         }
     }
 
@@ -1446,6 +1457,23 @@ impl KeyPairWithPath {
                             panic!("invalid keypair file at path {path:?}: {e}")
                         }),
                     )
+                }
+            })
+            .as_ref()
+    }
+
+    /// The keypair as a fastcrypto ed25519 keypair, for the network stacks
+    /// that consume that type directly. Panics if the stored keypair is not
+    /// ed25519.
+    pub fn ed25519_keypair(&self) -> &Ed25519KeyPair {
+        self.ed25519_keypair
+            .get_or_init(|| match self.keypair() {
+                IotaKeyPair::Ed25519(kp) => Arc::new(
+                    Ed25519KeyPair::from_bytes(&kp.to_bytes())
+                        .expect("valid ed25519 private key bytes"),
+                ),
+                other => {
+                    panic!("invalid keypair type: {other:?}, only Ed25519 is allowed")
                 }
             })
             .as_ref()
@@ -1490,7 +1518,7 @@ impl AuthorityKeyPairWithPath {
         // loaded.
         cell.set(Arc::new(
             read_authority_keypair_from_file(&path)
-                .unwrap_or_else(|_| panic!("invalid authority keypair file at path {:?}", &path)),
+                .unwrap_or_else(|_| panic!("invalid authority keypair file at path {path:?}")),
         ))
         .expect("failed to set authority keypair");
         Self {
@@ -1507,9 +1535,8 @@ impl AuthorityKeyPairWithPath {
                     // OK to unwrap panic because authority should not start without all keypairs
                     // loaded.
                     Arc::new(
-                        read_authority_keypair_from_file(path).unwrap_or_else(|_| {
-                            panic!("invalid authority keypair file {:?}", &path)
-                        }),
+                        read_authority_keypair_from_file(path)
+                            .unwrap_or_else(|_| panic!("invalid authority keypair file {path:?}")),
                     )
                 }
             })
@@ -1532,9 +1559,7 @@ mod tests {
 
     use fastcrypto::traits::KeyPair;
     use iota_keys::keypair_file::{write_authority_keypair_to_file, write_keypair_to_file};
-    use iota_types::crypto::{
-        AuthorityKeyPair, IotaKeyPair, NetworkKeyPair, get_key_pair_from_rng,
-    };
+    use iota_types::crypto::{AuthorityKeyPair, NetworkKeyPair, get_key_pair_from_rng};
     use rand::{SeedableRng, rngs::StdRng};
 
     use super::Genesis;
@@ -1579,12 +1604,12 @@ mod tests {
         write_authority_keypair_to_file(&authority_key_pair, PathBuf::from("authority.key"))
             .unwrap();
         write_keypair_to_file(
-            &IotaKeyPair::Ed25519(protocol_key_pair.copy()),
+            &protocol_key_pair.copy().into(),
             PathBuf::from("protocol.key"),
         )
         .unwrap();
         write_keypair_to_file(
-            &IotaKeyPair::Ed25519(network_key_pair.copy()),
+            &network_key_pair.copy().into(),
             PathBuf::from("network.key"),
         )
         .unwrap();

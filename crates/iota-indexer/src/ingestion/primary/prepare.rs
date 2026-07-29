@@ -12,9 +12,8 @@ use async_trait::async_trait;
 use iota_data_ingestion_core::Worker;
 use iota_json_rpc::{ObjectProvider, get_balance_changes_from_effect, get_object_changes};
 use iota_json_rpc_types::IotaTransactionKind;
-use iota_sdk_types::{ObjectId, Owner, Version};
+use iota_sdk_types::{ObjectId, Owner, TransactionDigest, Version, checkpoint::CheckpointContents};
 use iota_types::{
-    digests::TransactionDigest,
     effects::{
         TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt, TransactionEvents,
     },
@@ -22,8 +21,7 @@ use iota_types::{
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     iota_system_state::{IotaSystemStateTrait, get_iota_system_state},
     messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointContents, CheckpointContentsExt,
-        CheckpointSequenceNumber,
+        CertifiedCheckpointSummary, CheckpointContentsExt, CheckpointSequenceNumber,
     },
     object::Object,
     transaction::{TransactionData, TransactionDataAPI},
@@ -398,7 +396,7 @@ impl PrimaryWorker {
         } = tx;
 
         let tx_digest = sender_signed_data.digest();
-        let tx = sender_signed_data.transaction_data();
+        let tx = sender_signed_data.transaction();
         let events = events.clone().unwrap_or_default();
 
         let transaction_kind = IotaTransactionKind::from(tx.kind());
@@ -509,7 +507,7 @@ impl PrimaryWorker {
         metrics: &IndexerMetrics,
     ) -> IndexerResult<IndexedTransaction> {
         let tx_digest = tx.transaction.digest();
-        let tx_data = tx.transaction.transaction_data();
+        let txn = tx.transaction.transaction();
 
         let events = tx
             .events
@@ -517,7 +515,7 @@ impl PrimaryWorker {
             .map(|TransactionEvents(events)| events.clone())
             .unwrap_or_default();
 
-        let transaction_kind = IotaTransactionKind::from(tx_data.kind());
+        let transaction_kind = IotaTransactionKind::from(txn.kind());
 
         let objects = tx
             .input_objects
@@ -526,7 +524,7 @@ impl PrimaryWorker {
             .collect::<Vec<_>>();
 
         let (balance_change, object_changes) = InMemTxChanges::new(&objects, metrics.clone())
-            .get_changes(tx_data, &tx.effects, tx_digest)
+            .get_changes(txn, &tx.effects, tx_digest)
             .await?;
 
         Ok(IndexedTransaction {
@@ -536,7 +534,7 @@ impl PrimaryWorker {
             timestamp_ms: checkpoint_timestamp_ms,
             sender_signed_data: tx.transaction.data().clone(),
             successful_tx_num: if tx.effects.status().is_success() {
-                tx_data.kind().num_transactions() as u64
+                txn.kind().num_transactions() as u64
             } else {
                 0
             },

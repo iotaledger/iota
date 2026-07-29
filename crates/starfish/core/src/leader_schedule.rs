@@ -18,7 +18,7 @@ use crate::{
     context::Context,
     dag_state::DagState,
     error::ConsensusResult,
-    leader_scoring::ReputationScores,
+    leader_scoring::{ReputationScores, ScoringSubdag},
 };
 
 /// Calculates the seed index for leader swap table initialization.
@@ -117,13 +117,20 @@ impl LeaderSchedule {
         // In the normal online flow, `scoring_subdag` is cleared every time we
         // update the schedule, so its size stays within `num_commits_per_schedule`.
         //
-        // After fast-sync or when recovering from older/stale DBs where CommitInfo
-        // wasn't persisted frequently, recovery may rebuild a backlog of scoring
-        // subdags that exceeds the window. In that case, we should trigger an
-        // immediate schedule update rather than panic.
+        // The same bound holds for recovered state: every writer persists
+        // `CommitInfo` in the same write batch as the commits it covers (the
+        // online path buffers both at rotation, fast sync applies the scores
+        // embedded in fetched commits before flushing the batch), so on disk
+        // the last commit stays within one window of the last `CommitInfo`.
+        // A recovered backlog exceeding the window should therefore never
+        // occur — but it is a recoverable state, so recovering is preferred
+        // over panicking: returning 0 forces an immediate schedule update,
+        // which rebuilds the schedule from the backlog's last full window.
         if subdag_count > self.num_commits_per_schedule {
             tracing::warn!(
-                "Committed subdags count ({subdag_count}) exceeds commits-per-schedule ({}) - forcing immediate leader schedule update. This can happen after fast sync / recovery if CommitInfo was missing or stale.",
+                "Recovered scoring backlog ({subdag_count} subdags) exceeds the schedule \
+                 window ({}): commits and CommitInfo are inconsistent on disk, which current \
+                 persistence never produces. Forcing an immediate schedule update.",
                 self.num_commits_per_schedule,
             );
             return 0;
@@ -255,9 +262,14 @@ impl LeaderSchedule {
             .scope_processing_time
             .with_label_values(&["LeaderSchedule::update_leader_schedule"])
             .start_timer();
+        if dag_state_write_lock.scoring_subdags_count() as u32 > self.num_commits_per_schedule {
+            self.update_leader_schedule_from_backlog(dag_state_write_lock);
+            return;
+        }
+
         let (reputation_scores, last_commit_index) = {
             let reputation_scores = dag_state_write_lock.calculate_scoring_subdag_scores();
-            let last_commit_index = dag_state_write_lock.scoring_subdag_commit_range();
+            let last_commit_index = dag_state_write_lock.scoring_subdag_commit_range().end();
             (reputation_scores, last_commit_index)
         };
         let table = LeaderSwapTable::new(
@@ -341,6 +353,55 @@ impl LeaderSchedule {
         self.persist_scores(dag_state_write_lock, reputation_scores);
         self.apply_reputation_scores_inner(&mut self.leader_swap_table.write(), table);
         Ok(())
+    }
+
+    /// Updates the leader schedule from a recovered scoring backlog spanning
+    /// more than one rotation interval — a store state current persistence
+    /// never produces, recovered from rather than panicked on should it ever
+    /// occur.
+    ///
+    /// Only the last full window of the backlog is scored: it alone determines
+    /// the swap table a continuously running node had at that point, and
+    /// rotations stay on the same commit boundaries. The trailing partial
+    /// window becomes the live scoring subdag.
+    fn update_leader_schedule_from_backlog(&self, dag_state_write_lock: &mut DagState) {
+        let backlog_range = dag_state_write_lock.scoring_subdag_commit_range();
+        let window_size = self.num_commits_per_schedule;
+        // The caller only routes here when the backlog exceeds one window, so
+        // there is at least one full window.
+        let full_windows = backlog_range.size() as u32 / window_size;
+        let window_start = backlog_range.start() + (full_windows - 1) * window_size;
+        let window_end = window_start + (window_size - 1);
+
+        tracing::info!(
+            "Rebuilding leader schedule from the last full window \
+             ({window_start}..={window_end}) of the recovered scoring backlog {backlog_range:?}"
+        );
+
+        dag_state_write_lock.clear_scoring_subdag();
+
+        let mut scoring_subdag = ScoringSubdag::new(self.context.clone());
+        scoring_subdag.add_subdags(
+            dag_state_write_lock
+                .load_scoring_subdags_from_store((window_start..=window_end).into()),
+        );
+        let reputation_scores = scoring_subdag.calculate_distributed_vote_scores();
+        // The window is interval-wide and lands on the rotation boundaries by
+        // construction, so the steady-state range validation is not repeated.
+        let table =
+            LeaderSwapTable::new(self.context.clone(), window_end, reputation_scores.clone());
+        self.apply_reputation_scores_inner(&mut self.leader_swap_table.write(), table);
+
+        // Recovery resumes from the end of the last persisted commit range, so
+        // these are the only scores that need to be persisted.
+        dag_state_write_lock.add_commit_info(reputation_scores);
+
+        let remainder_start = window_end + 1;
+        if remainder_start <= backlog_range.end() {
+            let remainder_subdags = dag_state_write_lock
+                .load_scoring_subdags_from_store((remainder_start..=backlog_range.end()).into());
+            dag_state_write_lock.add_scoring_subdags(remainder_subdags);
+        }
     }
 
     #[cfg(test)]
@@ -1150,5 +1211,203 @@ mod tests {
 
         // Update leader from old swap table to new invalid swap table
         leader_schedule.update_leader_swap_table_strict_for_test(leader_swap_table);
+    }
+
+    // Recovers a schedule from a store whose last CommitInfo lags the last
+    // commit by more than one rotation interval, and checks that the schedule
+    // is rebuilt onto the same rotation boundaries a continuously running
+    // node used.
+    async fn run_update_after_recovery_backlog(restart: bool) {
+        telemetry_subscribers::init_for_testing();
+        let mut context = Context::new_for_test(4).0;
+        context
+            .protocol_config
+            .set_consensus_bad_nodes_stake_threshold_for_testing(33);
+        let context = Arc::new(context);
+        let store = Arc::new(MemStore::new());
+
+        const INTERVAL: u32 = 3;
+
+        // Persist commits 1..=11 but only one CommitInfo, covering (1..=3):
+        // recovery rebuilds a backlog of 8 commits — two full windows (4..=6)
+        // and (7..=9) plus the partial window (10..=11).
+        let mut dag_builder = DagBuilder::new(context.clone());
+        dag_builder.layers(1..=12).build();
+        let first_window = dag_builder.get_sub_dag_and_commits(1..=INTERVAL);
+        let committed_rounds = dag_builder.last_committed_rounds.clone();
+        let rest = dag_builder.get_sub_dag_and_commits(INTERVAL + 1..=12);
+
+        let mut headers_to_write = vec![];
+        let mut commits_to_write = vec![];
+        for (sub_dag, commit) in first_window.iter().chain(&rest[..8]) {
+            headers_to_write.extend(sub_dag.headers.iter().cloned());
+            commits_to_write.push(commit.clone());
+        }
+        let commit_info = CommitInfo {
+            reputation_scores: ReputationScores::new((1..=INTERVAL).into(), vec![1, 2, 4, 3]),
+            committed_rounds,
+        };
+        let commit_ref = first_window.last().unwrap().1.reference();
+        store
+            .write(
+                WriteBatch::default()
+                    .commit_info(vec![(commit_ref, commit_info)])
+                    .block_headers(headers_to_write)
+                    .commits(commits_to_write),
+            )
+            .unwrap();
+
+        let mut dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+        assert_eq!(dag_state.read().scoring_subdags_count(), 8);
+
+        let mut leader_schedule = LeaderSchedule::from_store(context.clone(), dag_state.clone())
+            .with_num_commits_per_schedule(INTERVAL);
+        assert_eq!(
+            leader_schedule
+                .leader_swap_table
+                .read()
+                .reputation_scores
+                .commit_range,
+            (1..=3).into()
+        );
+
+        // The backlog forces an immediate schedule update.
+        assert_eq!(
+            leader_schedule.commits_until_leader_schedule_update(dag_state.clone()),
+            0
+        );
+
+        // The last full window rebuilds the table; the partial window stays
+        // live.
+        leader_schedule.update_leader_schedule(&mut dag_state.write());
+        {
+            let table = leader_schedule.leader_swap_table.read();
+            assert_eq!(table.reputation_scores.commit_range, (7..=9).into());
+            assert_eq!(table.good_nodes.len(), 1);
+            assert_eq!(table.bad_nodes.len(), 1);
+        }
+        assert_eq!(dag_state.read().scoring_subdags_count(), 2);
+
+        if restart {
+            dag_state.write().flush();
+            assert_eq!(dag_state.read().last_commit_info_index(), 9);
+            dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
+            assert_eq!(dag_state.read().scoring_subdags_count(), 2);
+            leader_schedule = LeaderSchedule::from_store(context, dag_state.clone())
+                .with_num_commits_per_schedule(INTERVAL);
+            assert_eq!(
+                leader_schedule
+                    .leader_swap_table
+                    .read()
+                    .reputation_scores
+                    .commit_range,
+                (7..=9).into()
+            );
+        }
+
+        // The next rotation triggers after commit 12 and validates strictly:
+        // (10..=12) continues on the same window boundaries.
+        let (sub_dag, commit) = &rest[8];
+        {
+            let mut write = dag_state.write();
+            write.add_commit(commit.clone());
+            write.add_scoring_subdags(vec![sub_dag.base.clone()]);
+        }
+        assert_eq!(
+            leader_schedule.commits_until_leader_schedule_update(dag_state.clone()),
+            0
+        );
+        leader_schedule.update_leader_schedule(&mut dag_state.write());
+        assert_eq!(
+            leader_schedule
+                .leader_swap_table
+                .read()
+                .reputation_scores
+                .commit_range,
+            (10..=12).into()
+        );
+    }
+
+    #[tokio::test]
+    async fn test_leader_schedule_update_after_recovery_backlog() {
+        run_update_after_recovery_backlog(false).await;
+    }
+
+    #[tokio::test]
+    async fn test_leader_schedule_update_after_recovery_backlog_with_restart() {
+        run_update_after_recovery_backlog(true).await;
+    }
+
+    /// Verifies that rebuilding the schedule from an oversized recovered
+    /// backlog produces the exact same `LeaderSwapTable` as a node that never
+    /// crashed and updated its schedule incrementally over the same commits.
+    #[tokio::test]
+    async fn test_update_leader_schedule_from_backlog_matches_live_schedule() {
+        telemetry_subscribers::init_for_testing();
+        let mut context = Context::new_for_test(4).0;
+        context
+            .protocol_config
+            .set_consensus_bad_nodes_stake_threshold_for_testing(33);
+        let context = Arc::new(context);
+
+        // Two full 5-commit windows, built once and shared by both scenarios so
+        // both operate on identical committed subdags.
+        let mut dag_builder = DagBuilder::new(context.clone());
+        dag_builder.layers(1..=10).build();
+        let sub_dags_and_commits = dag_builder.get_sub_dag_and_commits(1..=10);
+
+        // Live scenario: commits are added one at a time and the schedule is
+        // updated as soon as each 5-commit window fills up.
+        let dag_state_live = Arc::new(RwLock::new(DagState::new(
+            context.clone(),
+            Arc::new(MemStore::new()),
+        )));
+        let leader_schedule_live = LeaderSchedule::new(context.clone(), LeaderSwapTable::default())
+            .with_num_commits_per_schedule(5);
+        for (index, (sub_dag, commit)) in sub_dags_and_commits.iter().enumerate() {
+            let mut dag_state_write = dag_state_live.write();
+            dag_state_write.set_last_commit(commit.clone());
+            dag_state_write.add_scoring_subdags(vec![sub_dag.base.clone()]);
+            if (index + 1) % 5 == 0 {
+                leader_schedule_live.update_leader_schedule(&mut dag_state_write);
+            }
+        }
+        let live_table_window_2 = leader_schedule_live.leader_swap_table.read().clone();
+
+        // Recovered scenario: the same 10 commits are persisted with no
+        // CommitInfo at all, so DagState recovers them as a single 10-commit
+        // backlog exceeding the 5-commit schedule window.
+        let store = Arc::new(MemStore::new());
+        let mut headers_to_write = vec![];
+        let mut commits_to_write = vec![];
+        for (sub_dag, commit) in &sub_dags_and_commits {
+            headers_to_write.extend(sub_dag.headers.iter().cloned());
+            commits_to_write.push(commit.clone());
+        }
+        store
+            .write(
+                WriteBatch::default()
+                    .block_headers(headers_to_write)
+                    .commits(commits_to_write),
+            )
+            .unwrap();
+
+        let dag_state_recovered = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
+        assert_eq!(dag_state_recovered.read().scoring_subdags_count(), 10);
+
+        let leader_schedule_recovered =
+            LeaderSchedule::from_store(context, dag_state_recovered.clone())
+                .with_num_commits_per_schedule(5);
+        leader_schedule_recovered.update_leader_schedule(&mut dag_state_recovered.write());
+        let recovered_table = leader_schedule_recovered.leader_swap_table.read().clone();
+
+        // The table rebuilt from the backlog (last full window) must match the
+        // live node's window-2 table exactly.
+        assert_eq!(
+            recovered_table.reputation_scores,
+            live_table_window_2.reputation_scores
+        );
+        assert_eq!(recovered_table.good_nodes, live_table_window_2.good_nodes);
+        assert_eq!(recovered_table.bad_nodes, live_table_window_2.bad_nodes);
     }
 }

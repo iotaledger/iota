@@ -13,38 +13,30 @@ use anyhow::anyhow;
 use fastcrypto::hash::HashFunction;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    Address, Identifier, MoveObjectType, ObjectId, ObjectReference, Owner, StructTag, TypeTag,
-    Version,
+    Address, Identifier, MoveObjectType, ObjectDigest, ObjectId, ObjectReference, Owner,
+    SignatureScheme, StructTag, TransactionDigest, TransactionEffectsDigest, TypeTag, Version,
 };
 use move_binary_format::{CompiledModule, file_format::SignatureToken};
 use move_bytecode_utils::resolve_struct;
 use move_core_types::{
     account_address::AccountAddress, annotated_value as A, ident_str, identifier::IdentStr,
 };
-use serde::{
-    Deserialize, Serialize, Serializer,
-    ser::{Error, SerializeSeq},
-};
+use serde::{Deserialize, Serialize, ser::Error};
 
+pub use crate::committee::EpochId;
 use crate::{
     MOVE_STDLIB_ADDRESS,
-    crypto::{AuthorityPublicKeyBytes, DefaultHash, IotaPublicKey, IotaSignature, PublicKey},
+    crypto::{AuthorityPublicKeyBytes, DefaultHash, PublicKey},
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
     epoch_data::EpochData,
-    error::{ExecutionError, ExecutionErrorKind, IotaError, IotaResult},
+    error::{ExecutionError, ExecutionErrorKind},
     id::RESOLVED_IOTA_ID,
     iota_sdk_types_conversions::struct_tag_sdk_to_core,
     iota_serde::to_iota_struct_tag_string,
     messages_checkpoint::CheckpointTimestamp,
-    move_authenticator::MoveAuthenticatorExt,
     object::Object,
     parse_iota_struct_tag,
-    signature::GenericSignature,
     transaction::{Transaction, VerifiedTransaction},
-};
-pub use crate::{
-    committee::EpochId,
-    digests::{ObjectDigest, TransactionDigest, TransactionEffectsDigest},
 };
 
 #[cfg(test)]
@@ -218,50 +210,21 @@ impl From<&ObjectInfo> for ObjectReference {
 
 pub const IOTA_ADDRESS_LENGTH: usize = ObjectId::LENGTH;
 
-pub fn address_from_iota_pub_key<T: IotaPublicKey>(pk: &T) -> Address {
-    let mut hasher = DefaultHash::default();
-    T::SIGNATURE_SCHEME.update_hasher_with_flag(&mut hasher);
-    hasher.update(pk);
-    let g_arr = hasher.finalize();
-    Address::new(g_arr.digest)
+/// Updates the hasher with the scheme's flag byte, except for Ed25519 whose
+/// addresses are derived from the bare public key.
+fn update_hasher_with_flag(hasher: &mut DefaultHash, scheme: SignatureScheme) {
+    if scheme != SignatureScheme::Ed25519 {
+        hasher.update([scheme.to_u8()]);
+    }
 }
 
 impl From<&PublicKey> for Address {
     fn from(pk: &PublicKey) -> Self {
         let mut hasher = DefaultHash::default();
-        pk.scheme().update_hasher_with_flag(&mut hasher);
+        update_hasher_with_flag(&mut hasher, pk.scheme());
         hasher.update(pk);
         let g_arr = hasher.finalize();
         Address::new(g_arr.digest)
-    }
-}
-
-impl TryFrom<&GenericSignature> for Address {
-    type Error = IotaError;
-    /// Derive an Address from a serialized signature in IOTA
-    /// [GenericSignature].
-    fn try_from(sig: &GenericSignature) -> IotaResult<Self> {
-        match sig {
-            GenericSignature::Signature(sig) => {
-                let scheme = sig.signature_scheme();
-                let pub_key = PublicKey::try_from_bytes(scheme, sig.to_public_key().as_ref())
-                    .map_err(|_| IotaError::InvalidSignature {
-                        error: "Cannot parse pubkey".to_string(),
-                    })?;
-                Ok(Address::from(&pub_key))
-            }
-            GenericSignature::MultiSig(ms) => Ok(ms.committee().into()),
-            #[allow(deprecated)]
-            GenericSignature::ZkLoginAuthenticatorDeprecated(_) => {
-                Err(IotaError::UnsupportedFeature {
-                    error: "zkLogin is not supported".to_string(),
-                })
-            }
-            GenericSignature::PasskeyAuthenticator(s) => Ok(Address::from(s.public_key())),
-            GenericSignature::MoveAuthenticator(move_authenticator) => {
-                Ok(move_authenticator.address())
-            }
-        }
     }
 }
 
@@ -701,88 +664,4 @@ impl fmt::Display for ObjectType {
             ),
         }
     }
-}
-
-// SizeOneVec is a wrapper around Vec<T> that enforces the size of the vec to be
-// 1. This seems pointless, but it allows us to have fields in protocol messages
-// that are current enforced to be of size 1, but might later allow other sizes,
-// and to have that constraint enforced in the serialization/deserialization
-// layer, instead of requiring manual input validation.
-#[derive(Debug, Deserialize, Clone, Eq, PartialEq, Hash, Ord, PartialOrd)]
-#[serde(try_from = "Vec<T>")]
-pub struct SizeOneVec<T> {
-    e: T,
-}
-
-impl<T> SizeOneVec<T> {
-    pub fn new(e: T) -> Self {
-        Self { e }
-    }
-
-    pub fn element(&self) -> &T {
-        &self.e
-    }
-
-    pub fn element_mut(&mut self) -> &mut T {
-        &mut self.e
-    }
-
-    pub fn into_inner(self) -> T {
-        self.e
-    }
-
-    pub fn iter(&self) -> std::iter::Once<&T> {
-        std::iter::once(&self.e)
-    }
-}
-
-impl<T> Serialize for SizeOneVec<T>
-where
-    T: Serialize,
-{
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        let mut seq = serializer.serialize_seq(Some(1))?;
-        seq.serialize_element(&self.e)?;
-        seq.end()
-    }
-}
-
-impl<T> TryFrom<Vec<T>> for SizeOneVec<T> {
-    type Error = anyhow::Error;
-
-    fn try_from(mut v: Vec<T>) -> Result<Self, Self::Error> {
-        if v.len() != 1 {
-            Err(anyhow!("Expected a vec of size 1"))
-        } else {
-            Ok(SizeOneVec {
-                e: v.pop().unwrap(),
-            })
-        }
-    }
-}
-
-#[test]
-fn test_size_one_vec_is_transparent() {
-    let regular = vec![42u8];
-    let size_one = SizeOneVec::new(42u8);
-
-    // Vec -> SizeOneVec serialization is transparent
-    let regular_ser = bcs::to_bytes(&regular).unwrap();
-    let size_one_deser = bcs::from_bytes::<SizeOneVec<u8>>(&regular_ser).unwrap();
-    assert_eq!(size_one, size_one_deser);
-
-    // other direction works too
-    let size_one_ser = bcs::to_bytes(&SizeOneVec::new(43u8)).unwrap();
-    let regular_deser = bcs::from_bytes::<Vec<u8>>(&size_one_ser).unwrap();
-    assert_eq!(regular_deser, vec![43u8]);
-
-    // we get a deserialize error when deserializing a vec with size != 1
-    let empty_ser = bcs::to_bytes(&Vec::<u8>::new()).unwrap();
-    bcs::from_bytes::<SizeOneVec<u8>>(&empty_ser).unwrap_err();
-
-    let size_greater_than_one_ser = bcs::to_bytes(&vec![1u8, 2u8]).unwrap();
-    bcs::from_bytes::<SizeOneVec<u8>>(&size_greater_than_one_ser).unwrap_err();
 }

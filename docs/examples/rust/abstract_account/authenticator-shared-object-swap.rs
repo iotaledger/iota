@@ -17,16 +17,16 @@ use iota_sdk::{
     IotaClient, IotaClientBuilder,
     rpc_types::{IotaTransactionBlockEffectsAPI, ObjectChange},
     types::{
-        crypto::SignatureScheme::ED25519,
         programmable_transaction_builder::ProgrammableTransactionBuilder, transaction::Transaction,
     },
 };
 use iota_sdk_types::{
-    Address, Argument, Identifier, ObjectId, ObjectReference, Owner, SharedObjectReference, TypeTag,
+    Address, Argument, Identifier, ObjectId, ObjectReference, Owner, SharedObjectReference,
+    SignatureScheme, TypeTag, UserSignature,
 };
 use iota_types::{
-    crypto::PublicKey, move_authenticator::MoveAuthenticatorExt, signature::GenericSignature,
-    transaction::CallArg, utils::MoveAuthenticatorV1,
+    crypto::PublicKey, move_authenticator::MoveAuthenticatorExt, transaction::CallArg,
+    utils::MoveAuthenticatorV1,
 };
 
 /// Got from iota-genesis-builder/src/stardust/test_outputs/stardust_mix.rs
@@ -65,7 +65,12 @@ async fn main() -> Result<(), anyhow::Error> {
     let mut keystore = InMemKeystore::new_insecure_for_tests(0);
 
     // Derive the address of the first account and set it as default
-    let publisher = keystore.import_from_mnemonic(MAIN_ADDRESS_MNEMONIC, ED25519, None, None)?;
+    let publisher = keystore.import_from_mnemonic(
+        MAIN_ADDRESS_MNEMONIC,
+        SignatureScheme::Ed25519,
+        None,
+        None,
+    )?;
 
     println!("Publisher address: {publisher}");
 
@@ -410,7 +415,7 @@ pub async fn create_test_transaction(
     );
     let signature_call_arg = CallArg::Pure(bcs::to_bytes(&hex_encoded_signature)?);
 
-    let signature = GenericSignature::MoveAuthenticator(
+    let signature = UserSignature::MoveAuthenticator(
         MoveAuthenticatorV1::new_with_shared_account_object(
             vec![signature_call_arg, blacklist_call_arg],
             vec![],
@@ -419,7 +424,7 @@ pub async fn create_test_transaction(
         .into(),
     );
 
-    Ok(Transaction::from_generic_sig_data(tx_data, vec![signature]))
+    Ok(Transaction::from_user_sig_data(tx_data, vec![signature]))
 }
 
 /// Swaps the blacklist shared object in the transaction with a new one.
@@ -433,8 +438,8 @@ pub fn swap_blacklist_in_transaction(
         false,
     ));
 
-    let new_sig = match &transaction.inner_mut().tx_signatures[0] {
-        GenericSignature::MoveAuthenticator(move_authenticator) => {
+    let new_sig = match &transaction.0.signatures[0] {
+        UserSignature::MoveAuthenticator(move_authenticator) => {
             let signature_call_arg = move_authenticator.call_args()[0].clone();
 
             let call_args = vec![signature_call_arg, new_blacklist_ref_call_arg];
@@ -455,12 +460,12 @@ pub fn swap_blacklist_in_transaction(
                 _ => panic!("Expected ImmutableOrOwned or Shared object"),
             };
 
-            GenericSignature::MoveAuthenticator(authenticator.into())
+            UserSignature::MoveAuthenticator(authenticator.into())
         }
         _ => panic!("Expected MoveAuthenticator signature"),
     };
 
-    transaction.inner_mut().tx_signatures[0] = new_sig;
+    transaction.0.signatures[0] = new_sig;
 
     transaction
 }

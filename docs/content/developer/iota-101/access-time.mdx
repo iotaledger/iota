@@ -6,9 +6,6 @@ teams:
   - iotaledger/vm-language
 ---
 
-import Quiz from '@site/src/components/Quiz';
-import questions from '/json/developer/iota-101/access-time.json';
-
 # Accessing On-Chain Time in IOTA
 
 When you need to access network-based time for your transactions on IOTA, you have several options:
@@ -89,5 +86,3 @@ Tests based on [`iota::test_scenario`] can use `later_epoch` to exercise time-se
 
 The `later_epoch` function behaves like `iota::test_scenario::next_epoch` (finishes the current transaction and epoch in the test scenario)
 but also increments the timestamp by `delta_ms` milliseconds to simulate the passage of time.
-
-<Quiz questions={questions} />

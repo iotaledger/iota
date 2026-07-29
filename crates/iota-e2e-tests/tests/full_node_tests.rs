@@ -15,7 +15,8 @@ use iota_macros::*;
 use iota_node::IotaNodeHandle;
 use iota_sdk::wallet_context::WalletContext;
 use iota_sdk_types::{
-    Address, GasPayment, Identifier, ObjectId, ObjectReference, Owner, TransactionKind, Version,
+    Address, GasPayment, Identifier, ObjectId, ObjectReference, Owner, TransactionDigest,
+    TransactionKind, Version,
 };
 use iota_storage::{
     key_value_store::TransactionKeyValueStore, key_value_store_metrics::KeyValueStoreMetrics,
@@ -27,7 +28,6 @@ use iota_test_transaction_builder::{
 };
 use iota_tool::restore_from_db_checkpoint;
 use iota_types::{
-    base_types::TransactionDigest,
     crypto::{IotaKeyPair, get_key_pair},
     error::{IotaError, UserInputError},
     messages_grpc::TransactionInfoRequest,
@@ -69,7 +69,7 @@ async fn test_full_node_follows_txes() -> Result<(), anyhow::Error> {
     fullnode
         .state()
         .get_transaction_cache_reader()
-        .notify_read_executed_effects(&[digest])
+        .notify_read_executed_effects_for_testing(&[digest])
         .await;
 
     // A small delay is needed for post processing operations following the
@@ -115,7 +115,7 @@ async fn test_full_node_shared_objects() -> Result<(), anyhow::Error> {
         .iota_node
         .state()
         .get_transaction_cache_reader()
-        .notify_read_executed_effects(&[digest])
+        .notify_read_executed_effects_for_testing(&[digest])
         .await;
 
     Ok(())
@@ -488,7 +488,7 @@ async fn test_full_node_cold_sync() -> Result<(), anyhow::Error> {
     fullnode
         .state()
         .get_transaction_cache_reader()
-        .notify_read_executed_effects(&[digest])
+        .notify_read_executed_effects_for_testing(&[digest])
         .await;
 
     let info = fullnode
@@ -598,7 +598,7 @@ async fn do_test_full_node_sync_flood() {
     fullnode
         .state()
         .get_transaction_cache_reader()
-        .notify_read_executed_effects(&digests)
+        .notify_read_executed_effects_for_testing(&digests)
         .await;
 }
 
@@ -784,7 +784,7 @@ async fn test_full_node_transaction_orchestrator_basic() -> Result<(), anyhow::E
     fullnode
         .state()
         .get_transaction_cache_reader()
-        .notify_read_executed_effects(&[digest])
+        .notify_read_executed_effects_for_testing(&[digest])
         .await;
     fullnode.state().get_executed_transaction_and_effects(digest, kv_store).await
         .unwrap_or_else(|e| panic!("Fullnode does not know about the txn {digest:?} that was executed with WaitForEffectsCert: {e:?}"));
@@ -894,6 +894,33 @@ async fn test_full_node_transaction_orchestrator_rpc_ok() -> Result<(), anyhow::
         .unwrap();
 
     // Test request with ExecuteTransactionRequestType::WaitForEffectsCert
+    // Use the same txn which should return local finalized effects
+    let (tx_bytes, signatures) = txn.to_tx_bytes_and_signatures();
+    let params = rpc_params![
+        tx_bytes,
+        signatures,
+        IotaTransactionBlockResponseOptions::new().with_effects(),
+        ExecuteTransactionRequestType::WaitForEffectsCert
+    ];
+    let response: IotaTransactionBlockResponse = jsonrpc_client
+        .request("iota_executeTransactionBlock", params)
+        .await
+        .unwrap();
+
+    let IotaTransactionBlockResponse {
+        effects,
+        confirmed_local_execution,
+        ..
+    } = response;
+    assert_eq!(effects.unwrap().transaction_digest(), tx_digest);
+    assert!(confirmed_local_execution.unwrap());
+
+    // Test request with ExecuteTransactionRequestType::WaitForEffectsCert
+    // Use a different txn to avoid the case where the txn effects are already
+    // cached locally
+    let txn = txns.swap_remove(0);
+    let tx_digest = txn.digest();
+
     let (tx_bytes, signatures) = txn.to_tx_bytes_and_signatures();
     let params = rpc_params![
         tx_bytes,
@@ -1087,7 +1114,7 @@ async fn test_full_node_bootstrap_from_snapshot() -> Result<(), anyhow::Error> {
 
     node.state()
         .get_transaction_cache_reader()
-        .notify_read_executed_effects(&[digest])
+        .notify_read_executed_effects_for_testing(&[digest])
         .await;
 
     loop {
@@ -1106,7 +1133,7 @@ async fn test_full_node_bootstrap_from_snapshot() -> Result<(), anyhow::Error> {
         transfer_coin(&test_cluster.wallet).await?;
     node.state()
         .get_transaction_cache_reader()
-        .notify_read_executed_effects(&[digest_after_restore])
+        .notify_read_executed_effects_for_testing(&[digest_after_restore])
         .await;
     Ok(())
 }

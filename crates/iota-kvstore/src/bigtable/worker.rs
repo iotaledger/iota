@@ -9,11 +9,10 @@ use std::{
 
 use async_trait::async_trait;
 use iota_data_ingestion_core::Worker;
-use iota_sdk_types::{Address, Owner};
+use iota_sdk_types::{Address, Owner, TransactionDigest};
 use iota_types::{
-    digests::TransactionDigest, effects::TransactionEffectsExt,
-    full_checkpoint_content::CheckpointData, messages_checkpoint::CheckpointContentsExt,
-    transaction::TransactionDataAPI,
+    effects::TransactionEffectsExt, full_checkpoint_content::CheckpointData,
+    messages_checkpoint::CheckpointContentsExt, transaction::TransactionDataAPI,
 };
 use strum::IntoEnumIterator;
 
@@ -55,7 +54,7 @@ pub enum Table {
     /// [`Object`](iota_types::object::Object) for every object.
     Objects,
     /// Stores a mapping of
-    /// [`TransactionDigest`](iota_types::base_types::TransactionDigest) to
+    /// [`TransactionDigest`](iota_sdk_types::TransactionDigest) to
     /// [`Transaction`](iota_types::transaction::Transaction),
     /// [`TransactionEffects`](iota_types::effects::TransactionEffects),
     /// [`TransactionEvents`](iota_types::effects::TransactionEvents) and
@@ -69,11 +68,11 @@ pub enum Table {
     TransactionsByAddress,
     /// Stores a mapping of
     /// [`CheckpointSequenceNumber`](iota_types::messages_checkpoint::CheckpointSequenceNumber)
-    /// to [`CheckpointContents`](iota_types::messages_checkpoint::CheckpointContents) and [`CertifiedCheckpointSummary`](iota_types::messages_checkpoint::CertifiedCheckpointSummary) for
+    /// to [`CheckpointContents`](iota_sdk_types::checkpoint::CheckpointContents) and [`CertifiedCheckpointSummary`](iota_types::messages_checkpoint::CertifiedCheckpointSummary) for
     /// every checkpoint.
     Checkpoints,
     /// Stores a mapping of
-    /// [`CheckpointDigest`](iota_types::digests::CheckpointDigest) to
+    /// [`CheckpointDigest`](iota_sdk_types::CheckpointDigest) to
     /// [`CheckpointSequenceNumber`](iota_types::messages_checkpoint::CheckpointSequenceNumber)
     /// for every checkpoint.
     CheckpointsByDigest,
@@ -204,10 +203,10 @@ pub fn transactions_by_address<'a>(
         .enumerate_transactions(&checkpoint.checkpoint_summary)
         .zip(&checkpoint.transactions)
         .flat_map(|((seq, exec_digest), tx)| {
-            let tx_data = tx.transaction.transaction_data();
+            let txn = tx.transaction.transaction();
             let affected: HashSet<Address> =
-                std::iter::once(tx_data.sender())
-                    .chain(std::iter::once(tx_data.gas_owner()))
+                std::iter::once(txn.sender())
+                    .chain(std::iter::once(txn.gas_owner()))
                     .chain(tx.effects.all_changed_objects().into_iter().filter_map(
                         |(_, owner, _)| match owner {
                             Owner::Address(a) => Some(a),

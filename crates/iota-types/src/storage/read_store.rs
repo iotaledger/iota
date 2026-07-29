@@ -4,7 +4,10 @@
 
 use std::{collections::HashMap, sync::Arc};
 
-use iota_sdk_types::{Address, MoveObjectType, ObjectId, Version};
+use iota_sdk_types::{
+    Address, CheckpointContentsDigest, CheckpointDigest, MoveObjectType, ObjectId,
+    TransactionDigest, Version, checkpoint::CheckpointContents,
+};
 use serde::{Deserialize, Serialize};
 use typed_store_error::TypedStoreError;
 
@@ -12,13 +15,12 @@ use super::{ObjectStore, error::Result};
 use crate::{
     base_types::{EpochId, ObjectType},
     committee::Committee,
-    digests::{CheckpointContentsDigest, CheckpointDigest, TransactionDigest},
     effects::{TransactionEffects, TransactionEvents},
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     iota_system_state::{IotaSystemState, IotaSystemStateTrait},
     messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointContents, CheckpointContentsExt,
-        CheckpointSequenceNumber, FullCheckpointContents, VerifiedCheckpoint,
+        CertifiedCheckpointSummary, CheckpointContentsExt, CheckpointSequenceNumber,
+        FullCheckpointContents, VerifiedCheckpoint,
     },
     object::Object,
     storage::{get_transaction_input_objects, get_transaction_output_objects},
@@ -911,7 +913,7 @@ pub struct EpochInfoV1Entry {
     /// anchor every other field is proven against.
     pub last_checkpoint_summary: CertifiedCheckpointSummary,
     /// Contents of that closing checkpoint; `hash == last_checkpoint_summary`'s
-    /// `content_digest`.
+    /// `contents_digest`.
     pub last_checkpoint_contents: CheckpointContents,
     /// Effects of the epoch-change tx (the last tx of the closing checkpoint);
     /// its `(transaction, effects)` digest pair is the last entry of

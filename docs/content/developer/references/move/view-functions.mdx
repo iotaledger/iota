@@ -1,0 +1,77 @@
+---
+description: 'Specification of the Move #[view] attribute on IOTA: the signature constraints enforced on view functions and the on-chain metadata recorded for them.'
+tags:
+  - reference
+  - move-sc
+  - move-vm
+---
+
+# View Functions Reference
+
+A view function is a `public` Move function annotated with `#[view]`. The attribute applies only to functions. A function carrying the attribute must satisfy the signature constraints below; a violation is a compile error and is independently rejected by the IOTA bytecode verifier at publish time.
+
+```move
+#[view]
+public fun total_entries(board: &Leaderboard): u64 {
+    board.entries.length()
+}
+```
+
+## Signature constraints
+
+### Visibility
+
+A view function must be declared `public`. The `entry` modifier is permitted: `public entry` may also be a view. `public(package)`, `friend`, and internal (private) functions **cannot** be views.
+
+### Parameters
+
+Each row is a parameter form you might write; the verdict applies to every parameter of a view function.
+
+| Parameter form | Verdict |
+| --- | --- |
+| Immutable reference `&T` (including `&` to an object) | **Allowed.** The value is borrowed, not moved in, so a view can read any object by taking `&T`. |
+| Mutable reference `&mut T` | **Rejected**, including when nested inside a reference, vector, or generic. |
+| Primitive by value (`u64`, `bool`, `address`, …) | **Allowed.** |
+| Non-object struct by value | **Allowed** only if it has `copy` or `drop`. |
+| `vector<T>` or `Option<T>` by value | **Allowed** when `T` is itself an allowed by-value type. |
+| Object by value (any `key` type), or a value that could contain one | **Rejected** — passing it by value could let the view destroy or transfer it. |
+| Generic type parameter `T` | **Allowed** behind a reference (`&T`) with no constraint; by value only if `T` is bound by `copy` or `drop`. |
+| `mut` parameter binding (e.g. `mut x: u64`) | **Rejected** — the parameter binding itself must be immutable, independent of the parameter's type. |
+
+### Return type
+
+A view must return at least one value; a `unit` (`()`) return is rejected. Each row below is a return form, with the verdict applying to every value a view returns (including each element of a returned tuple).
+
+| Return form | Verdict |
+| --- | --- |
+| Immutable reference `&T` | **Allowed** — for example, a reference into a field of an object received by reference. |
+| Mutable reference `&mut T` | **Rejected**, including when nested. |
+| Primitive (`u64`, `bool`, `address`, …) | **Allowed.** |
+| Non-object struct by value | **Allowed** only if it has `copy` or `drop`. |
+| `vector<T>` or `Option<T>` by value | **Allowed** when `T` is itself an allowed by-value type. |
+| Object by value (any `key` type), or a value that could contain one | **Rejected.** |
+| Tuple | **Allowed** when every element is an allowed return form. |
+
+### What counts as "could contain an object"
+
+A by-value type is rejected as a parameter or return when it has the `key` ability (it is an object) or when it lacks both `copy` and `drop`, or when any of its type arguments is itself rejected. Equivalently, a by-value struct is allowed only if it has `copy` or `drop`, does not have `key`, and all of its type arguments are likewise allowed.
+
+## On-chain metadata
+
+At publish time the names of a module's view functions are recorded on-chain, queryable through the `iota::module_metadata` module:
+
+- Each module has a `ModuleMetadata` object whose address is derived deterministically from the package storage ID and the module name (`derived_object::derive_address`).
+- The view-function names for a module are stored as a dynamic field under that object, keyed by `ViewFunctionMetadataV1FieldName`, with value type `vector<std::ascii::String>`.
+
+| Function | Returns |
+| --- | --- |
+| `borrow_view_functions_metadata_v1(&ModuleMetadata): &vector<ascii::String>` | the recorded view-function names for the module |
+| `is_view_function_v1(&ModuleMetadata, &ascii::String): bool` | whether the named function is a recorded view in the module |
+
+The `V1` suffix on the field-name key and accessors reflects that the metadata is versioned; additional metadata can be added under new dynamic-field keys without changing the `ModuleMetadata` type.
+
+## Related
+
+- [View Functions](../../move/explanations/view-functions.mdx) — what view functions are and why the constraints exist.
+- [Define a view function](../../move/how-tos/define-a-view-function.mdx) — annotate a function as a view.
+- [Call a view function](../../move/how-tos/call-a-view-function.mdx) — call a view from off-chain over JSON-RPC or GraphQL.

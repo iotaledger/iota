@@ -5,7 +5,7 @@
 use std::sync::Arc;
 
 use prometheus_filtered::{
-    HistogramVec, IntCounterVec, IntGauge, IntGaugeVec, Registry,
+    HistogramVec, IntCounterVec, IntGauge, IntGaugeVec, MetricLevel, Registry,
     register_histogram_vec_with_registry, register_int_counter_vec_with_registry,
     register_int_gauge_vec_with_registry, register_int_gauge_with_registry,
 };
@@ -42,14 +42,16 @@ impl NetworkMetrics {
                 "inbound_admission_rejected",
                 "Inbound consensus requests rejected by per-peer admission control, by RPC group",
                 &["group"],
-                registry
+                registry;
+                MetricLevel::Warn,
             )
             .unwrap(),
             admission_in_use: register_int_gauge_vec_with_registry!(
                 "inbound_admission_in_use",
                 "Inbound consensus requests currently in flight under admission control, by RPC group",
                 &["group"],
-                registry
+                registry;
+                MetricLevel::Warn,
             )
             .unwrap(),
         }
@@ -139,7 +141,8 @@ impl NetworkRouteMetrics {
             format!("{direction}_requests"),
             "The number of requests made on the network",
             &["route"],
-            registry
+            registry;
+            MetricLevel::Warn,
         )
         .unwrap();
 
@@ -148,7 +151,8 @@ impl NetworkRouteMetrics {
             "Latency of a request by route",
             &["route"],
             LATENCY_SEC_BUCKETS.to_vec(),
-            registry,
+            registry;
+            MetricLevel::Warn,
         )
         .unwrap();
 
@@ -157,7 +161,8 @@ impl NetworkRouteMetrics {
             "Size of a request by route",
             &["route"],
             SIZE_BYTE_BUCKETS.to_vec(),
-            registry,
+            registry;
+            MetricLevel::Warn,
         )
         .unwrap();
 
@@ -166,7 +171,8 @@ impl NetworkRouteMetrics {
             "Size of a response by route",
             &["route"],
             SIZE_BYTE_BUCKETS.to_vec(),
-            registry,
+            registry;
+            MetricLevel::Warn,
         )
         .unwrap();
 

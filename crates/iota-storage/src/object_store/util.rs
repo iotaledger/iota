@@ -158,7 +158,7 @@ pub async fn copy_files<S: ObjectStoreGetExt, D: ObjectStorePutExt>(
             Ok((path_out.clone(), ret))
         })
         .boxed()
-        .buffer_unordered(concurrency.get())
+        .buffer_unordered(concurrency.into())
         .try_for_each(|(path, ret)| {
             if let Some(progress_bar_clone) = &progress_bar_clone {
                 progress_bar_clone.inc(1);
@@ -216,7 +216,7 @@ pub async fn delete_files<S: ObjectStoreDeleteExt>(
             })
         })
         .boxed()
-        .buffer_unordered(concurrency.get())
+        .buffer_unordered(concurrency.into())
         .collect()
         .await;
     results.into_iter().collect()

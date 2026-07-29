@@ -2,17 +2,21 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::sync::Arc;
+use std::{sync::Arc, time::Instant};
 
 use prometheus_filtered::{
-    Histogram, HistogramVec, IntCounter, IntCounterVec, IntGauge, IntGaugeVec, MetricLevel,
-    Registry, exponential_buckets, register_histogram_vec_with_registry,
-    register_histogram_with_registry, register_int_counter_vec_with_registry,
-    register_int_counter_with_registry, register_int_gauge_vec_with_registry,
-    register_int_gauge_with_registry,
+    Counter, CounterVec, GaugeVec, Histogram, HistogramVec, IntCounter, IntCounterVec, IntGauge,
+    IntGaugeVec, MetricLevel, Registry, register_counter_vec_with_registry,
+    register_counter_with_registry, register_gauge_vec_with_registry,
+    register_histogram_vec_with_registry, register_histogram_with_registry,
+    register_int_counter_vec_with_registry, register_int_counter_with_registry,
+    register_int_gauge_vec_with_registry, register_int_gauge_with_registry,
 };
 
-use crate::network::metrics::NetworkMetrics;
+use crate::{
+    network::metrics::NetworkMetrics,
+    quantile_gauge::{QuantileGauge, QuantileGaugeVec},
+};
 
 // starts from 1μs, 50μs, 100μs...
 const FINE_GRAINED_LATENCY_SEC_BUCKETS: &[f64] = &[
@@ -69,27 +73,100 @@ const LATENCY_SEC_BUCKETS: &[f64] = &[
     9.0, 9.5, 10., 12.5, 15., 17.5, 20., 25., 30., 60., 90., 120., 180., 300.,
 ];
 
-const SIZE_BUCKETS: &[f64] = &[
-    100.,
-    400.,
-    800.,
-    1_000.,
-    2_000.,
-    5_000.,
-    10_000.,
-    20_000.,
-    50_000.,
-    100_000.,
-    200_000.0,
-    300_000.0,
-    400_000.0,
-    500_000.0,
-    1_000_000.0,
-    2_000_000.0,
-    3_000_000.0,
-    5_000_000.0,
-    10_000_000.0,
-]; // size in bytes
+/// A pair of counters exposed as `<name>_sum` / `<name>_count` — the same
+/// series a histogram of that name would produce, minus the buckets. Use it
+/// instead of a histogram when only the average
+/// (`rate(<name>_sum) / rate(<name>_count)`) is consumed, so the per-bucket
+/// series cost is avoided while existing average queries keep working
+/// unchanged.
+#[derive(Clone)]
+pub(crate) struct SumCount {
+    sum: Counter,
+    count: IntCounter,
+}
+
+impl SumCount {
+    fn register(name: &str, help: &str, registry: &Registry, level: MetricLevel) -> Self {
+        Self {
+            sum: register_counter_with_registry!(format!("{name}_sum"), help, registry; level)
+                .unwrap(),
+            count: register_int_counter_with_registry!(
+                format!("{name}_count"),
+                help,
+                registry;
+                level
+            )
+            .unwrap(),
+        }
+    }
+
+    pub(crate) fn observe(&self, value: f64) {
+        self.sum.inc_by(value);
+        self.count.inc();
+    }
+
+    /// Observes the elapsed time in seconds when the returned guard drops.
+    #[must_use]
+    pub(crate) fn start_timer(&self) -> SumCountTimer {
+        SumCountTimer {
+            pair: self.clone(),
+            start: Instant::now(),
+        }
+    }
+}
+
+pub(crate) struct SumCountTimer {
+    pair: SumCount,
+    start: Instant,
+}
+
+impl Drop for SumCountTimer {
+    fn drop(&mut self) {
+        self.pair.observe(self.start.elapsed().as_secs_f64());
+    }
+}
+
+/// Labeled variant of [`SumCount`].
+pub(crate) struct SumCountVec {
+    sum: CounterVec,
+    count: IntCounterVec,
+}
+
+impl SumCountVec {
+    fn register(
+        name: &str,
+        help: &str,
+        labels: &[&str],
+        registry: &Registry,
+        level: MetricLevel,
+    ) -> Self {
+        Self {
+            sum: register_counter_vec_with_registry!(
+                format!("{name}_sum"),
+                help,
+                labels,
+                registry;
+                level
+            )
+            .unwrap(),
+            count: register_int_counter_vec_with_registry!(
+                format!("{name}_count"),
+                help,
+                labels,
+                registry;
+                level
+            )
+            .unwrap(),
+        }
+    }
+
+    pub(crate) fn with_label_values(&self, label_values: &[&str]) -> SumCount {
+        SumCount {
+            sum: self.sum.with_label_values(label_values),
+            count: self.count.with_label_values(label_values),
+        }
+    }
+}
 
 pub(crate) struct Metrics {
     pub(crate) node_metrics: NodeMetrics,
@@ -115,26 +192,27 @@ pub(crate) struct NodeMetrics {
     pub(crate) delay_in_sending_blocks: Histogram,
     pub(crate) block_header_commit_latency: Histogram,
     pub(crate) proposed_blocks: IntCounterVec,
-    pub(crate) proposed_block_header_size: Histogram,
-    pub(crate) proposed_block_size: Histogram,
-    pub(crate) proposed_block_transactions: Histogram,
-    pub(crate) proposed_block_ancestors: Histogram,
-    pub(crate) proposed_block_ancestors_depth: HistogramVec,
+    pub(crate) proposed_block_header_size: SumCount,
+    pub(crate) proposed_block_size: SumCount,
+    pub(crate) proposed_block_transactions: SumCount,
+    pub(crate) proposed_block_ancestors: SumCount,
+    pub(crate) proposed_block_ancestors_depth: SumCountVec,
     pub(crate) proposed_block_ancestors_timestamp_drift_ms: IntCounterVec,
-    pub(crate) proposed_block_acknowledgments: Histogram,
-    pub(crate) proposed_block_acknowledgments_depth: HistogramVec,
+    pub(crate) proposed_block_acknowledgments: SumCount,
+    pub(crate) proposed_block_acknowledgments_depth: SumCountVec,
     pub(crate) gap_to_available_commit: IntGauge,
     pub(crate) gap_to_unavailable_transactions: IntGauge,
     pub(crate) highest_verified_authority_round: IntGaugeVec,
     pub(crate) lowest_verified_authority_round: IntGaugeVec,
-    pub(crate) block_proposal_interval: Histogram,
+    pub(crate) block_proposal_interval: SumCount,
     pub(crate) block_proposal_leader_wait_ms: IntCounterVec,
     pub(crate) block_proposal_leader_wait_count: IntCounterVec,
     pub(crate) block_timestamp_drift_ms: IntCounterVec,
-    pub(crate) latency_to_process_stream: HistogramVec,
-    pub(crate) blocks_per_commit_count: HistogramVec,
-    pub(crate) core_add_blocks_batch_size: Histogram,
-    pub(crate) core_add_block_headers_batch_size: Histogram,
+    pub(crate) latency_to_process_stream: QuantileGauge,
+    pub(crate) latency_to_process_stream_by_peer: SumCountVec,
+    pub(crate) blocks_per_commit_count: SumCountVec,
+    pub(crate) core_add_blocks_batch_size: SumCount,
+    pub(crate) core_add_block_headers_batch_size: SumCount,
     pub(crate) core_lock_dequeued: IntCounter,
     pub(crate) reconstruction_jobs_started: IntCounter,
     pub(crate) reconstruction_jobs_finished: IntCounter,
@@ -189,7 +267,7 @@ pub(crate) struct NodeMetrics {
     pub(crate) received_unique_headers_from_bundles: IntCounterVec,
     pub(crate) processed_duplicated_headers_in_bundles: IntCounterVec,
     pub(crate) valid_shards_in_bundles: IntCounterVec,
-    pub(crate) missing_ancestors_from_streaming: HistogramVec,
+    pub(crate) missing_ancestors_from_streaming: SumCountVec,
     pub(crate) missing_ancestors_from_streaming_round_gap: Histogram,
     pub(crate) additional_headers_round_gap: Histogram,
     pub(crate) rejected_blocks: IntCounterVec,
@@ -201,35 +279,37 @@ pub(crate) struct NodeMetrics {
     pub(crate) last_committed_leader_round: IntGauge,
     pub(crate) last_commit_index: IntGauge,
     pub(crate) commit_observer_last_recovered_commit_index: IntGauge,
-    pub(crate) last_commit_time_diff: Histogram,
+    pub(crate) last_commit_time_diff: SumCount,
     pub(crate) last_known_own_block_header_round: IntGauge,
     pub(crate) sync_last_known_own_block_header_retries: IntCounter,
-    pub(crate) commit_round_advancement_interval: Histogram,
+    pub(crate) commit_round_advancement_interval: SumCount,
     pub(crate) last_decided_leader_round: IntGauge,
     pub(crate) missing_block_headers_total: IntCounter,
     pub(crate) missing_block_headers_after_fetch_total: IntCounter,
     pub(crate) num_of_bad_nodes: IntGauge,
     pub(crate) quorum_receive_latency: Histogram,
     pub(crate) block_receive_delay: IntCounterVec,
-    pub(crate) transactions_per_commit_count: HistogramVec,
-    pub(crate) non_empty_blocks_per_commit_count: HistogramVec,
+    pub(crate) transactions_per_commit_count: SumCountVec,
+    pub(crate) non_empty_blocks_per_commit_count: SumCountVec,
     pub(crate) committed_non_empty_blocks_per_authority: IntCounterVec,
     pub(crate) transactions_synchronizer_fetched_transactions_by_peer: IntCounterVec,
     pub(crate) transactions_synchronizer_fetched_transactions_by_authority: IntCounterVec,
     pub(crate) transactions_synchronizer_missing_transactions_by_authority: IntCounterVec,
     pub(crate) transactions_synchronizer_current_missing_transactions_by_authority: IntGaugeVec,
     pub(crate) transactions_synchronizer_periodic_inflight: IntGauge,
-    pub(crate) transactions_synchronizer_fetch_latency: HistogramVec,
+    pub(crate) transactions_synchronizer_fetch_latency: QuantileGauge,
+    pub(crate) transactions_synchronizer_fetch_latency_by_peer: SumCountVec,
     pub(crate) transactions_synchronizer_success_by_peer: IntCounterVec,
     pub(crate) transactions_synchronizer_failure_by_peer: IntCounterVec,
     pub(crate) transactions_synchronizer_inflight_requests: IntGauge,
+    pub(crate) peer_responsiveness_expected_latency_ms: GaugeVec,
     pub(crate) reputation_scores: IntGaugeVec,
-    pub(crate) scope_processing_time: HistogramVec,
-    pub(crate) sub_dags_per_commit_count: HistogramVec,
+    pub(crate) scope_processing_time: SumCountVec,
+    pub(crate) sub_dags_per_commit_count: SumCountVec,
     pub(crate) transaction_commit_latency: Histogram,
     pub(crate) block_headers_suspensions: IntCounterVec,
     pub(crate) block_header_unsuspensions: IntCounterVec,
-    pub(crate) suspended_block_header_time: HistogramVec,
+    pub(crate) suspended_block_header_time: QuantileGaugeVec,
     pub(crate) block_manager_suspended_block_headers: IntGauge,
     pub(crate) block_manager_suspended_blocks: IntGauge,
     pub(crate) block_manager_missing_ancestors: IntGauge,
@@ -259,15 +339,16 @@ pub(crate) struct NodeMetrics {
     pub(crate) commit_sync_highest_fetched_index: IntGaugeVec,
     pub(crate) commit_sync_local_index: IntGauge,
     pub(crate) commit_sync_gap_on_processing: IntCounterVec,
-    pub(crate) commit_sync_fetch_loop_latency: Histogram,
-    pub(crate) commit_sync_fetch_once_latency: HistogramVec,
+    pub(crate) commit_sync_truncated_fetches: IntCounterVec,
+    pub(crate) commit_sync_fetch_loop_latency: SumCount,
+    pub(crate) commit_sync_fetch_once_latency: SumCountVec,
     pub(crate) commit_sync_fetch_once_errors: IntCounterVec,
     pub(crate) commit_sync_fetch_missing_block_headers: IntCounterVec,
     pub(crate) commit_sync_fetch_missing_transactions: IntCounterVec,
     pub(crate) commit_sync_voting_block_headers_hits: IntCounter,
     pub(crate) commit_sync_voting_block_headers_fallbacks: IntCounter,
     pub(crate) syncer_paused_by_fast_sync: IntCounterVec,
-    pub(crate) uptime: Histogram,
+    pub(crate) uptime: SumCount,
     pub(crate) faulty_blocks_provable_by_authority: IntGaugeVec,
     pub(crate) faulty_blocks_unprovable_by_peer: IntGaugeVec,
     pub(crate) equivocations_by_authority: IntGaugeVec,
@@ -287,19 +368,22 @@ impl NodeMetrics {
                 "delay_in_sending_blocks",
                 "The time taken between block creation and block sending.",
                 LATENCY_SEC_BUCKETS.to_vec(),
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             block_header_commit_latency: register_histogram_with_registry!(
                 "block_header_commit_latency",
                 "The time taken between block creation and commit of block header.",
                 LATENCY_SEC_BUCKETS.to_vec(),
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             transaction_commit_latency: register_histogram_with_registry!(
                 "transaction_commit_latency",
                 "The time taken between inclusion transactions in a block and transactions are sequenced.",
                 LATENCY_SEC_BUCKETS.to_vec(),
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             proposed_blocks: register_int_counter_vec_with_registry!(
                 "proposed_blocks",
@@ -308,68 +392,76 @@ impl NodeMetrics {
                 registry;
                 MetricLevel::Warn,
             ).unwrap(),
-            proposed_block_header_size: register_histogram_with_registry!(
+            proposed_block_header_size: SumCount::register(
                 "proposed_block_header_size",
                 "The size (in bytes) of proposed block headers",
-                SIZE_BUCKETS.to_vec(),
-                registry
-            ).unwrap(),
-            proposed_block_size: register_histogram_with_registry!(
+                registry,
+                MetricLevel::Warn,
+            ),
+            proposed_block_size: SumCount::register(
                 "proposed_block_size",
                 "The size (in bytes) of proposed blocks",
-                SIZE_BUCKETS.to_vec(),
-                registry
-            ).unwrap(),
-            proposed_block_transactions: register_histogram_with_registry!(
+                registry,
+                MetricLevel::Warn,
+            ),
+            proposed_block_transactions: SumCount::register(
                 "proposed_block_transactions",
                 "# of transactions contained in proposed blocks",
-                NUM_BUCKETS.to_vec(),
-                registry
-            ).unwrap(),
-            proposed_block_ancestors: register_histogram_with_registry!(
+                registry,
+                MetricLevel::Debug,
+            ),
+            proposed_block_ancestors: SumCount::register(
                 "proposed_block_ancestors",
                 "Number of ancestors in proposed blocks",
-                exponential_buckets(1.0, 1.4, 20).unwrap(),
                 registry,
-            ).unwrap(),
-            proposed_block_ancestors_depth: register_histogram_vec_with_registry!(
+                MetricLevel::Warn,
+            ),
+            proposed_block_ancestors_depth: SumCountVec::register(
                 "proposed_block_ancestors_depth",
                 "The depth in rounds of ancestors included in newly proposed blocks",
                 &["authority"],
-                exponential_buckets(1.0, 2.0, 14).unwrap(),
                 registry,
-            ).unwrap(),
+                MetricLevel::Debug,
+            ),
             proposed_block_ancestors_timestamp_drift_ms: register_int_counter_vec_with_registry!(
                 "proposed_block_ancestors_timestamp_drift_ms",
                 "The drift in ms of ancestors' timestamps included in newly proposed blocks",
                 &["authority"],
                 registry,
             ).unwrap(),
-            proposed_block_acknowledgments: register_histogram_with_registry!(
+            proposed_block_acknowledgments: SumCount::register(
                 "proposed_block_acknowledgments",
                 "Number of acknowledgments in proposed blocks",
-                exponential_buckets(1.0, 1.4, 20).unwrap(),
                 registry,
-            ).unwrap(),
-            proposed_block_acknowledgments_depth: register_histogram_vec_with_registry!(
+                MetricLevel::Warn,
+            ),
+            proposed_block_acknowledgments_depth: SumCountVec::register(
                 "proposed_block_acknowledgments_depth",
                 "The depth in rounds of acknowledgments included in newly proposed blocks",
                 &["authority"],
-                exponential_buckets(1.0, 2.0, 14).unwrap(),
                 registry,
-            ).unwrap(),
-            latency_to_process_stream: register_histogram_vec_with_registry!(
+                MetricLevel::Warn,
+            ),
+            latency_to_process_stream: QuantileGauge::register(
+                "latency_to_process_stream",
+                "The latency between block creation and processing stream from peer",
+                module_path!(),
+                registry,
+                MetricLevel::Warn,
+            ),
+            latency_to_process_stream_by_peer: SumCountVec::register(
                 "latency_to_process_stream",
                 "The latency between block creation and processing stream from peer",
                 &["peer"],
-                exponential_buckets(0.002, 1.5, 18).unwrap(),
                 registry,
-            ).unwrap(),
+                MetricLevel::Warn,
+            ),
             highest_verified_authority_round: register_int_gauge_vec_with_registry!(
                 "highest_verified_authority_round",
                 "The highest round of received verified block for the corresponding authority",
                 &["authority"],
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             lowest_verified_authority_round: register_int_gauge_vec_with_registry!(
                 "lowest_verified_authority_round",
@@ -377,12 +469,12 @@ impl NodeMetrics {
                 &["authority"],
                 registry,
             ).unwrap(),
-            block_proposal_interval: register_histogram_with_registry!(
+            block_proposal_interval: SumCount::register(
                 "block_proposal_interval",
                 "Intervals (in secs) between block proposals.",
-                FINE_GRAINED_LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
-            ).unwrap(),
+                MetricLevel::Warn,
+            ),
             block_proposal_leader_wait_ms: register_int_counter_vec_with_registry!(
                 "block_proposal_leader_wait_ms",
                 "Total time in ms spent waiting for a leader when proposing blocks.",
@@ -401,40 +493,43 @@ impl NodeMetrics {
                 &["authority", "source"],
                 registry,
             ).unwrap(),
-            blocks_per_commit_count: register_histogram_vec_with_registry!(
+            blocks_per_commit_count: SumCountVec::register(
                 "blocks_per_commit_count",
                 "The number of blocks per commit.",
                 &["source"],
-                NUM_BUCKETS.to_vec(),
                 registry,
-            ).unwrap(),
+                MetricLevel::Debug,
+            ),
             reconstruction_lag: register_histogram_with_registry!(
                 "reconstruction_lag",
                 "The number of rounds between current round and reconstructed transactions.",
                 NUM_BUCKETS.to_vec(),
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
-            core_add_blocks_batch_size: register_histogram_with_registry!(
+            core_add_blocks_batch_size: SumCount::register(
                 "core_add_blocks_batch_size",
                 "The number of blocks received from Core for processing on a single batch",
-                NUM_BUCKETS.to_vec(),
                 registry,
-            ).unwrap(),
-            core_add_block_headers_batch_size: register_histogram_with_registry!(
+                MetricLevel::Debug,
+            ),
+            core_add_block_headers_batch_size: SumCount::register(
                 "core_add_block_headers_batch_size",
                 "The number of block headers received from Core for processing on a single batch",
-                NUM_BUCKETS.to_vec(),
                 registry,
-            ).unwrap(),
+                MetricLevel::Debug,
+            ),
             gap_to_available_commit: register_int_gauge_with_registry!(
                 "gap_to_available_commit",
                 "Gap in rounds between last pending commit and last available commit",
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             gap_to_unavailable_transactions: register_int_gauge_with_registry!(
                 "gap_to_unavailable_transactions",
                 "Gap in rounds between current round and the oldest unavailable transaction",
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             reconstruction_jobs_started: register_int_counter_with_registry!(
                 "reconstruction_jobs_started",
@@ -444,20 +539,23 @@ impl NodeMetrics {
             reconstruction_jobs_finished: register_int_counter_with_registry!(
                 "reconstruction_jobs_finished",
                 "Number of reconstruction jobs finished",
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             accepted_transactions_source: register_int_counter_vec_with_registry!(
                 "accepted_transactions_source",
                 "Number of accepted transactions by source and authority",
                 &["source", "authority"],
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             accepted_transactions_round_gap: register_histogram_vec_with_registry!(
                 "accepted_transactions_round_gap",
                 "Round gap of accepted transactions to clock round",
                 &["source"],
                 vec![0.0, 1.0, 2.0, 5.0, 10.0, 20.0, 40.0, 80.0, 100.0, 200.0, 400.0, 800.0, 1000.0],
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             core_lock_dequeued: register_int_counter_with_registry!(
                 "core_lock_dequeued",
@@ -480,7 +578,8 @@ impl NodeMetrics {
                 "highest_accepted_authority_round",
                 "The highest round where a block header has been accepted per authority. Resets on restart.",
                 &["authority"],
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             highest_accepted_round: register_int_gauge_with_registry!(
                 "highest_accepted_round",
@@ -497,57 +596,67 @@ impl NodeMetrics {
                 "accepted_block_headers",
                 "Number of accepted block headers by source (own, others)",
                 &["source"],
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             accepted_block_headers_source: register_int_counter_vec_with_registry!(
                 "accepted_block_headers_source",
                 "Number of accepted block headers by source and authority",
                 &["source", "authority"],
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             accepted_block_headers_round_gap: register_histogram_vec_with_registry!(
                 "accepted_block_headers_round_gap",
                 "Round gap of accepted block headers to clock round",
                 &["source"],
                 vec![0.0, 1.0, 2.0, 5.0, 10.0, 20.0, 40.0, 80.0, 100.0, 200.0, 400.0, 800.0, 1000.0],
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             core_skipped_headers: register_int_counter_vec_with_registry!(
                 "core_skipped_headers",
                 "Number of block headers skipped in core because already in DAG or suspended",
                 &["authority", "source"],
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             core_skipped_transactions: register_int_counter_vec_with_registry!(
                 "core_skipped_transactions",
                 "Number of non-empty transactions skipped in core because already in DAG",
                 &["authority", "source"],
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             shard_accumulators: register_int_gauge_with_registry!(
                 "shard_accumulators",
                 "The number of shard accumulators currently in memory",
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             reconstruction_queue: register_int_gauge_with_registry!(
                 "reconstruction_queue",
                 "The current number of pending reconstruction jobs in the queue",
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             shard_reconstructor_processed_transactions: register_int_gauge_with_registry!(
                 "shard_reconstructor_processed_transactions",
                 "Number of processed transactions tracked to prevent duplicate reconstruction",
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             reconstructed_transactions_unknown: register_int_gauge_with_registry!(
             "reconstructed_transactions_unknown",
             "The current number of reconstructed transactions which are unknown to dag state",
-            registry,
+            registry;
+            MetricLevel::Warn,
             ).unwrap(),
             dag_state_recent_transactions: register_int_gauge_with_registry!(
                 "dag_state_recent_transactions",
                 "Number of recent transactions cached in the DagState",
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             dag_state_recent_headers: register_int_gauge_with_registry!(
                 "dag_state_recent_headers",
@@ -562,44 +671,52 @@ impl NodeMetrics {
             dag_state_recent_refs: register_int_gauge_with_registry!(
                 "dag_state_recent_refs",
                 "Number of recent refs cached in the DagState",
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             dag_state_pending_commit_votes: register_int_gauge_with_registry!(
                 "dag_state_pending_commit_votes",
                 "Number of pending commit votes in the DagState",
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             dag_state_pending_acknowledgments: register_int_gauge_with_registry!(
                 "dag_state_pending_acknowledgments",
                 "Number of pending acknowledgments in the DagState",
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             cordial_knowledge_message_batch_size: register_histogram_with_registry!(
                 "cordial_knowledge_message_batch_size",
                 "Size of the batch of messages sent to connections in cordial knowledge",
                 vec![0.0, 1.0, 2.0, 5.0, 10.0, 20.0, 40.0, 80.0, 100.0, 200.0, 400.0, 800.0, 1000.0],
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             cordial_knowledge_processed_messages: register_int_counter_vec_with_registry!(
                 "cordial_knowledge_processed_messages",
                 "Number of Cordial Knowledge messages processed",
                 &["type"],
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             cordial_knowledge_entries: register_int_gauge_with_registry!(
                 "cordial_knowledge_entries",
                 "Total entries in the global cordial knowledge map",
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             cordial_knowledge_headers_not_known: register_int_gauge_with_registry!(
                 "cordial_knowledge_headers_not_known",
                 "Total unknown header entries across all connection knowledges",
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             cordial_knowledge_shards_not_known: register_int_gauge_with_registry!(
                 "cordial_knowledge_shards_not_known",
                 "Total unknown shard entries across all connection knowledges",
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             dag_state_store_read_count: register_int_counter_vec_with_registry!(
                 "dag_state_store_read_count",
@@ -615,7 +732,8 @@ impl NodeMetrics {
             synchronizer_fetch_block_headers_scheduler_inflight: register_int_gauge_with_registry!(
                 "synchronizer_fetch_block_headers_scheduler_inflight",
                 "Designates whether the synchronizer scheduler task to fetch block headers is currently running",
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             synchronizer_fetch_block_headers_scheduler_skipped: register_int_counter_vec_with_registry!(
                 "synchronizer_fetch_block_headers_scheduler_skipped",
@@ -627,7 +745,8 @@ impl NodeMetrics {
                 "synchronizer_fetched_block_headers_by_peer",
                 "Number of fetched block headers per peer authority via the synchronizer and also by block authority",
                 &["peer", "type"],
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             synchronizer_skipped_block_headers_by_peer: register_int_counter_vec_with_registry!(
                 "synchronizer_skipped_block_headers_by_peer",
@@ -639,13 +758,15 @@ impl NodeMetrics {
                 "cordial_knowledge_useful_headers_authors",
                 "Useful authors for pushing headers to the local node",
                 &["peer", "author"],
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             cordial_knowledge_useful_shards_authors: register_int_counter_vec_with_registry!(
                 "cordial_knowledge_useful_shards_authors",
                 "Useful authors for pushing shards to the local node",
                 &["author"],
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             synchronizer_requested_block_headers_by_peer: register_int_counter_vec_with_registry!(
                 "synchronizer_requested_block_headers_by_peer",
@@ -687,13 +808,15 @@ impl NodeMetrics {
                 "synchronizer_fetched_block_headers_by_authority",
                 "Number of fetched block headers per block author via the synchronizer",
                 &["authority", "type"],
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             synchronizer_requested_block_headers_by_authority: register_int_counter_vec_with_registry!(
                 "synchronizer_requested_block_headers_by_authority",
                 "Number of requested block headers per block author via the synchronizer",
                 &["authority", "type"],
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             last_known_own_block_header_round: register_int_gauge_with_registry!(
                 "last_known_own_block_header_round",
@@ -705,20 +828,20 @@ impl NodeMetrics {
                 "Number of times this node tried to fetch the last own block header from peers",
                 registry,
             ).unwrap(),
-            transactions_per_commit_count: register_histogram_vec_with_registry!(
+            transactions_per_commit_count: SumCountVec::register(
                 "transactions_per_commit_count",
                 "The number of transactions per commit.",
                 &["source"],
-                NUM_BUCKETS.to_vec(),
                 registry,
-            ).unwrap(),
-            non_empty_blocks_per_commit_count: register_histogram_vec_with_registry!(
+                MetricLevel::Debug,
+            ),
+            non_empty_blocks_per_commit_count: SumCountVec::register(
                 "non_empty_blocks_per_commit_count",
                 "The number of non-empty blocks per commit.",
                 &["source"],
-                NUM_BUCKETS.to_vec(),
                 registry,
-            ).unwrap(),
+                MetricLevel::Debug,
+            ),
             committed_non_empty_blocks_per_authority: register_int_counter_vec_with_registry!(
                 "committed_non_empty_blocks_per_authority",
                 "Number of blocks committed with transactions per block author",
@@ -729,7 +852,8 @@ impl NodeMetrics {
                 "bundles_with_invalid_parts",
                 "Number of bundles that contain invalid parts per peer",
                 &["authority", "invalid_part", "error"],
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             valid_headers_in_bundles: register_int_counter_vec_with_registry!(
                 "valid_headers_in_bundles",
@@ -741,49 +865,57 @@ impl NodeMetrics {
                 "filtered_headers_in_bundles",
                 "Number of filtered block headers received from block bundles per sender authority",
                 &["authority", "source"],
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             received_unique_headers_from_bundles: register_int_counter_vec_with_registry!(
                 "received_unique_headers_from_a_bundle",
                 "Number of unique block headers received from block bundles per sender authority",
                 &["authority", "source"],
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             processed_duplicated_headers_in_bundles: register_int_counter_vec_with_registry!(
                 "processed_duplicated_headers_in_bundles",
                 "Number of times block headers from bundles were not filtered and processed extra time (i.e. deserialized and verified) per sender authority",
                 &["authority", "source"],
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             valid_shards_in_bundles: register_int_counter_vec_with_registry!(
                 "valid_shards_in_bundles",
                 "Number of valid shards received from block bundles per sender authority",
                 &["authority", "source"],
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
-            missing_ancestors_from_streaming: register_histogram_vec_with_registry!(
+            missing_ancestors_from_streaming: SumCountVec::register(
                 "missing_ancestors_from_streaming",
                 "Number of missing ancestors of blocks and headers received through streaming",
                 &["source"],
                 registry,
-            ).unwrap(),
+                MetricLevel::Warn,
+            ),
             missing_ancestors_from_streaming_round_gap: register_histogram_with_registry!(
                 "missing_ancestors_from_streaming_round_gap",
                 "Round gap to missing ancestors of blocks and headers received through streaming",
                 vec![0.0, 1.0, 2.0, 5.0, 10.0, 20.0, 40.0, 80.0, 100.0, 200.0, 400.0, 800.0, 1000.0],
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             additional_headers_round_gap: register_histogram_with_registry!(
                 "additional_headers_round_gap",
                 "Round gap between additional block headers in bundles and the main block",
                 vec![0.0, 1.0, 2.0, 5.0, 10.0, 20.0, 40.0, 80.0, 100.0, 200.0, 400.0, 800.0, 1000.0],
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             rejected_blocks: register_int_counter_vec_with_registry!(
                 "rejected_blocks",
                 "Number of blocks rejected because last commit index is lagging quorum commit index too much",
                 &["reason"],
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             skipped_empty_transaction_acknowledgments: register_int_counter_vec_with_registry!(
                 "skipped_empty_transaction_acknowledgments",
@@ -813,35 +945,38 @@ impl NodeMetrics {
                 "last_committed_authority_round",
                 "The last round committed by authority.",
                 &["authority"],
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             last_committed_leader_round: register_int_gauge_with_registry!(
                 "last_committed_leader_round",
                 "The last round where a leader was committed to store and sent to commit consumer.",
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             last_commit_index: register_int_gauge_with_registry!(
                 "last_commit_index",
                 "Index of the last commit.",
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             commit_observer_last_recovered_commit_index: register_int_gauge_with_registry!(
                 "commit_observer_last_recovered_commit_index",
                 "The last commit index recovered by the commit observer",
                 registry,
             ).unwrap(),
-            last_commit_time_diff: register_histogram_with_registry!(
+            last_commit_time_diff: SumCount::register(
                 "last_commit_time_diff",
                 "The time diff between the last commit and previous one.",
-                LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
-            ).unwrap(),
-            commit_round_advancement_interval: register_histogram_with_registry!(
+                MetricLevel::Debug,
+            ),
+            commit_round_advancement_interval: SumCount::register(
                 "commit_round_advancement_interval",
                 "Intervals (in secs) between commit round advancements.",
-                FINE_GRAINED_LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
-            ).unwrap(),
+                MetricLevel::Debug,
+            ),
             last_decided_leader_round: register_int_gauge_with_registry!(
                 "last_decided_leader_round",
                 "The last round where a commit decision was made.",
@@ -860,48 +995,56 @@ impl NodeMetrics {
             num_of_bad_nodes: register_int_gauge_with_registry!(
                 "num_of_bad_nodes",
                 "The number of bad nodes in the new leader schedule",
-                registry
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             quorum_receive_latency: register_histogram_with_registry!(
                 "quorum_receive_latency",
                 "The time it took to receive a new round quorum of blocks",
-                registry
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             block_receive_delay: register_int_counter_vec_with_registry!(
                 "block_receive_delay",
                 "Total delay from the start of the round to receiving the block, in milliseconds per authority",
                 &["authority"],
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             invalid_transactions: register_int_counter_vec_with_registry!(
                 "invalid_transactions",
                 "Number of invalid transactions per peer authority",
                 &["authority", "source", "error"],
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             transactions_synchronizer_fetched_transactions_by_peer: register_int_counter_vec_with_registry!(
                 "transaction_synchronizer_fetched_transactions_by_peer",
                 "Number of fetched transactions per peer authority via the transaction synchronizer",
                 &["peer", "type"],
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             transactions_synchronizer_fetched_transactions_by_authority: register_int_counter_vec_with_registry!(
                 "transaction_synchronizer_fetched_transactions_by_authority",
                 "Number of fetched transactions per block author via the transaction synchronizer",
                 &["authority", "type"],
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             transactions_synchronizer_missing_transactions_by_authority: register_int_counter_vec_with_registry!(
                 "transactions_synchronizer_missing_transactions_by_authority",
                 "Number of missing transactions per block author, as observed by the transaction synchronizer during periodic sync.",
                 &["authority"],
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             transactions_synchronizer_current_missing_transactions_by_authority: register_int_gauge_vec_with_registry!(
                 "transactions_synchronizer_current_missing_transactions_by_authority",
                 "Current number of missing transactions per block author, as observed by the transaction synchronizer during periodic sync.",
                 &["authority"],
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             transactions_synchronizer_periodic_inflight: register_int_gauge_with_registry!(
                 "fetch_transactions_scheduler_inflight",
@@ -912,21 +1055,23 @@ impl NodeMetrics {
                 "reputation_scores",
                 "Reputation scores for each authority",
                 &["authority"],
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
-            scope_processing_time: register_histogram_vec_with_registry!(
+            scope_processing_time: SumCountVec::register(
                 "scope_processing_time",
                 "The processing time of a specific code scope",
                 &["scope"],
-                FINE_GRAINED_LATENCY_SEC_BUCKETS.to_vec(),
-                registry
-            ).unwrap(),
-            sub_dags_per_commit_count: register_histogram_vec_with_registry!(
+                registry,
+                MetricLevel::Warn,
+            ),
+            sub_dags_per_commit_count: SumCountVec::register(
                 "sub_dags_per_commit_count",
                 "The number of subdags per commit.",
                 &["source"],
                 registry,
-            ).unwrap(),
+                MetricLevel::Warn,
+            ),
             block_headers_suspensions: register_int_counter_vec_with_registry!(
                 "block_headers_suspensions",
                 "The number block headers suspensions. The counter is reported uniquely, so if a header is sent for reprocessing while already suspended then is not double counted",
@@ -939,31 +1084,37 @@ impl NodeMetrics {
                 &["authority"],
                 registry,
             ).unwrap(),
-            suspended_block_header_time: register_histogram_vec_with_registry!(
+            suspended_block_header_time: QuantileGaugeVec::register(
                 "suspended_block_header_time",
                 "The time for which a block header remains suspended",
-                &["authority"],
+                "authority",
+                module_path!(),
                 registry,
-            ).unwrap(),
+                MetricLevel::Warn,
+            ),
             block_manager_suspended_block_headers: register_int_gauge_with_registry!(
                 "block_manager_suspended_block_headers",
                 "The number of block headers currently suspended in the block manager",
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             block_manager_suspended_blocks: register_int_gauge_with_registry!(
                 "block_manager_suspended_blocks",
                 "The number of full blocks suspended in the block manager awaiting header acceptance",
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             block_manager_missing_ancestors: register_int_gauge_with_registry!(
                 "block_manager_missing_ancestors",
                 "The number of headers that are missing or suspended in the block manager",
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             block_manager_missing_block_headers: register_int_gauge_with_registry!(
                 "block_manager_missing_block_headers",
                 "The number of block headers that are missing in the block manager and should be fetched",
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             block_manager_missing_block_headers_by_authority: register_int_counter_vec_with_registry!(
                 "block_manager_missing_block_headers_by_authority",
@@ -975,43 +1126,51 @@ impl NodeMetrics {
                 "block_manager_missing_ancestors_by_authority",
                 "The number of headers that are missing or suspended in the block manager by authority",
                 &["authority"],
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             block_manager_gc_floor: register_int_gauge_with_registry!(
                 "block_manager_gc_floor",
                 "The last GC round floor applied by the block manager. Suspended state at or below this round has been evicted.",
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             block_manager_gc_evicted_missing_ancestors_total: register_int_counter_with_registry!(
                 "block_manager_gc_evicted_missing_ancestors_total",
                 "Total number of missing-ancestor entries dropped by the block manager GC sweep",
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             block_manager_gc_evicted_fetch_entries_total: register_int_counter_with_registry!(
                 "block_manager_gc_evicted_fetch_entries_total",
                 "Total number of headers_to_fetch entries dropped by the block manager GC sweep",
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             block_manager_gc_unsuspended_total: register_int_counter_with_registry!(
                 "block_manager_gc_unsuspended_total",
                 "Total number of headers unsuspended by the block manager GC sweep because all their missing ancestors fell below the GC floor",
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             block_manager_gc_evicted_suspended_transactions_total: register_int_counter_with_registry!(
                 "block_manager_gc_evicted_suspended_transactions_total",
                 "Total number of suspended_transactions entries dropped by the block manager GC sweep",
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             block_manager_gc_evicted_old_headers_total: register_int_counter_with_registry!(
                 "block_manager_gc_evicted_old_headers_total",
                 "Total number of incoming block headers dropped because their round is at or below the GC floor",
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             dropped_far_future_headers_total: register_int_counter_vec_with_registry!(
                 "dropped_far_future_headers_total",
                 "Number of block headers dropped because their round is too far above the accepted frontier to ever connect, by source",
                 &["source"],
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             threshold_clock_round: register_int_gauge_with_registry!(
                 "threshold_clock_round",
@@ -1029,31 +1188,36 @@ impl NodeMetrics {
                 "subscribed_to",
                 "Peers that this authority subscribed to for block streams.",
                 &["authority"],
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             subscribed_by: register_int_gauge_vec_with_registry!(
                 "subscribed_by",
                 "Peers subscribing for block streams from this authority.",
                 &["authority"],
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             commit_sync_inflight_fetches: register_int_gauge_vec_with_registry!(
                 "commit_sync_inflight_fetches",
                 "The number of inflight fetches in commit syncer",
                 &["source"],
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             commit_sync_pending_fetches: register_int_gauge_vec_with_registry!(
                 "commit_sync_pending_fetches",
                 "The number of pending fetches in commit syncer",
                 &["source"],
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             commit_sync_fetched_commits: register_int_counter_vec_with_registry!(
                 "commit_sync_fetched_commits",
                 "The number of commits fetched via commit syncer",
                 &["source"],
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             commit_sync_fetched_block_headers: register_int_counter_with_registry!(
                 "commit_sync_fetched_block_headers",
@@ -1099,26 +1263,34 @@ impl NodeMetrics {
                 "commit_sync_gap_on_processing",
                 "Number of instances where a gap was found in fetched commit processing",
                 &["source"],
+                registry;
+                MetricLevel::Warn,
+            ).unwrap(),
+            commit_sync_truncated_fetches: register_int_counter_vec_with_registry!(
+                "commit_sync_truncated_fetches",
+                "Number of fetches whose response covered only a prefix of the returned commits",
+                &["source"],
                 registry,
             ).unwrap(),
-            commit_sync_fetch_loop_latency: register_histogram_with_registry!(
+            commit_sync_fetch_loop_latency: SumCount::register(
                 "commit_sync_fetch_loop_latency",
                 "The time taken to finish fetching commits and block headers from a given range",
-                LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
-            ).unwrap(),
-            commit_sync_fetch_once_latency: register_histogram_vec_with_registry!(
+                MetricLevel::Debug,
+            ),
+            commit_sync_fetch_once_latency: SumCountVec::register(
                 "commit_sync_fetch_once_latency",
                 "The time taken to fetch commits and block headers once",
                 &["source"],
-                LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
-            ).unwrap(),
+                MetricLevel::Warn,
+            ),
             commit_sync_fetch_once_errors: register_int_counter_vec_with_registry!(
                 "commit_sync_fetch_once_errors",
                 "Number of errors when attempting to fetch commits and block headers from single authority during commit sync.",
                 &["authority", "error", "source"],
-                registry
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             commit_sync_fetch_commits_handler_uncertified_skipped: register_int_counter_vec_with_registry!(
                 "commit_sync_fetch_commits_handler_uncertified_skipped",
@@ -1154,37 +1326,53 @@ impl NodeMetrics {
                 &["source"],
                 registry,
             ).unwrap(),
-            uptime: register_histogram_with_registry!(
+            uptime: SumCount::register(
                 "uptime",
                 "Total node uptime",
-                LATENCY_SEC_BUCKETS.to_vec(),
-                registry;
-                MetricLevel::Warn,
-            ).unwrap(),
+                registry,
+                MetricLevel::Debug,
+            ),
             // New metrics for transaction synchronizer
-            transactions_synchronizer_fetch_latency: register_histogram_vec_with_registry!(
+            transactions_synchronizer_fetch_latency: QuantileGauge::register(
+                "transaction_synchronizer_fetch_latency",
+                "The time taken to fetch transactions from a peer",
+                module_path!(),
+                registry,
+                MetricLevel::Warn,
+            ),
+            transactions_synchronizer_fetch_latency_by_peer: SumCountVec::register(
                 "transaction_synchronizer_fetch_latency",
                 "The time taken to fetch transactions from a peer",
                 &["peer", "type"],
-                LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
-            ).unwrap(),
+                MetricLevel::Warn,
+            ),
             transactions_synchronizer_success_by_peer: register_int_counter_vec_with_registry!(
                 "transaction_synchronizer_success_by_peer",
                 "Number of successful transaction fetches per peer",
                 &["peer", "type"],
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             transactions_synchronizer_failure_by_peer: register_int_counter_vec_with_registry!(
                 "transaction_synchronizer_failure_by_peer",
                 "Number of failed transaction fetches per peer",
                 &["peer", "type", "error"],
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             transactions_synchronizer_inflight_requests: register_int_gauge_with_registry!(
                 "transaction_synchronizer_concurrent_requests",
                 "Number of concurrent transaction fetch requests",
-                registry,
+                registry;
+                MetricLevel::Warn,
+            ).unwrap(),
+            peer_responsiveness_expected_latency_ms: register_gauge_vec_with_registry!(
+                "peer_responsiveness_expected_latency_ms",
+                "Expected per-fetch latency (ms) over measured peers per fetch kind under uniform vs responsiveness-weighted selection; their ratio is the improvement the ranking buys",
+                &["kind", "selection"],
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             faulty_blocks_provable_by_authority: register_int_gauge_vec_with_registry!(
                 "faulty_blocks_provable_by_authority",
@@ -1218,35 +1406,41 @@ impl NodeMetrics {
                 "strong_vote_extra_wait_seconds",
                 "Extra wait at block proposal time imposed by the StarfishSpeed strong-vote condition: time between when the ordinary (base Starfish) propose condition first became satisfiable for the current clock round and when the proposal actually happened. Observed only when consensus_starfish_speed is enabled.",
                 FINE_GRAINED_LATENCY_SEC_BUCKETS.to_vec(),
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             strong_vote_missing_authorities: register_histogram_with_registry!(
                 "strong_vote_missing_authorities",
                 "Size of the `missing` set in the strong-vote payload of each proposed block: authorities whose transactions are not locally available among the leader and its acknowledgments. 0 means a clean strong vote; >0 means strong blame. Observed only when consensus_starfish_speed is enabled.",
                 COMMITTEE_COUNT_BUCKETS.to_vec(),
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             strong_blames_emitted_for_leader: register_int_counter_vec_with_registry!(
                 "strong_blames_emitted_for_leader",
                 "Number of proposed blocks that strong-blame the leader (non-empty `missing` set), labeled by leader authority.",
                 &["leader"],
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             strong_blames_received_from_voter: register_int_counter_vec_with_registry!(
                 "strong_blames_received_from_voter",
                 "Number of strong blames received against this node (when acting as leader), labeled by the voter authority that emitted the blame.",
                 &["voter"],
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             adaptive_ack_excluded_authorities: register_int_gauge_with_registry!(
                 "adaptive_ack_excluded_authorities",
                 "Number of authorities currently in the adaptive-ack exclusion set, as observed at the most recent leader block proposal. Empty when consensus_starfish_speed or enable_starfish_speed_adaptive_acknowledgments is off.",
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             adaptive_ack_acks_dropped: register_int_counter_with_registry!(
                 "adaptive_ack_acks_dropped",
                 "Total pending acknowledgments skipped because their author was in the adaptive-ack exclusion set at proposal time. Skipped refs remain pending and may be included later if the author leaves the exclusion set.",
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
         }
     }

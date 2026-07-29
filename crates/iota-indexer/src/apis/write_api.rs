@@ -24,24 +24,21 @@ use iota_json_rpc_types::{
 };
 use iota_open_rpc::Module;
 use iota_package_resolver::{PackageStore, Resolver};
-use iota_protocol_config::Chain;
 use iota_sdk_types::{
-    Address, GasPayment, ObjectId, TransactionExpiration, TransactionKind, Version,
+    Address, GasPayment, ObjectId, TransactionDigest, TransactionExpiration, TransactionKind,
+    UserSignature, Version,
 };
 use iota_transaction_builder::TransactionBuilder;
 use iota_types::{
-    digests::TransactionDigest,
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
     error::ExecutionError,
     iota_serde::BigInt,
     object::{Object, PastObjectRead},
-    signature::GenericSignature,
     transaction::{SenderSignedData, TransactionData, TransactionDataAPI, TransactionDataV1},
 };
 use jsonrpsee::{RpcModule, core::RpcResult};
 
 use crate::{
-    apis::error::Error as ApiError,
     errors::{IndexerError, IndexerResult},
     ingestion::primary::prepare::InMemObjectCache,
     models::transactions::{StoredTransaction, tx_events_to_iota_tx_events},
@@ -135,8 +132,8 @@ impl WriteApi {
             .signatures()?
             .signatures
             .iter()
-            .map(|s| -> IndexerResult<_> { Ok(GenericSignature::try_from(s.signature()?)?) })
-            .collect::<IndexerResult<Vec<GenericSignature>>>()?;
+            .map(|s| -> IndexerResult<_> { Ok(s.signature()?) })
+            .collect::<IndexerResult<Vec<UserSignature>>>()?;
 
         let sender_signed_data = SenderSignedData::new(transaction_data.clone(), tx_signatures);
 
@@ -486,20 +483,6 @@ impl WriteApiServer for OptimisticWriteApi {
         type_args: Option<Vec<IotaTypeTag>>,
         arguments: Vec<IotaJsonValue>,
     ) -> RpcResult<IotaMoveViewCallResults> {
-        let chain = self
-            .optimistic_tx_executor
-            .read
-            .get_chain_identifier_in_blocking_task()
-            .await?
-            .chain();
-        if !matches!(chain, Chain::Unknown) {
-            return Err(ApiError::UnsupportedFeature(format!(
-                "View calls are not yet supported on {}",
-                chain.as_str()
-            ))
-            .into());
-        }
-
         self.write_api
             .view_function_call(function_name, type_args, arguments)
             .await

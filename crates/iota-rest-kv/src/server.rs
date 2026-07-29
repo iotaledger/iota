@@ -3,16 +3,27 @@
 
 //! This module includes helper wrappers for building and starting a REST API
 //! server.
-use std::{net::SocketAddr, sync::Arc};
+use std::{net::SocketAddr, sync::Arc, time::Duration};
 
 use anyhow::Result;
 use axum::{
     Router,
-    response::IntoResponse,
+    extract::{MatchedPath, Request},
+    http::{StatusCode, header::HeaderName},
+    response::{IntoResponse, Response},
     routing::{get, post},
 };
 use iota_storage::http_key_value_store::ItemType;
 use tokio_util::sync::CancellationToken;
+use tower::ServiceBuilder;
+use tower_http::{
+    classify::ServerErrorsFailureClass,
+    request_id::{MakeRequestUuid, PropagateRequestIdLayer, SetRequestIdLayer},
+    trace::TraceLayer,
+};
+use tracing::{Level, Span, field};
+
+const REQUEST_ID_HEADER: HeaderName = HeaderName::from_static("x-request-id");
 
 use crate::{
     RestApiConfig,
@@ -53,8 +64,29 @@ impl Server {
                 &format!("/{}/{{address}}", ItemType::TransactionDigestsByAddress),
                 get(kv_store::transaction_digests_by_address),
             )
-            .with_state(shared_state)
-            .fallback(fallback);
+            // register the fallback before the layers so that requests to
+            // unmatched routes are traced as well
+            .fallback(fallback)
+            .layer(
+                ServiceBuilder::new()
+                    .layer(SetRequestIdLayer::new(REQUEST_ID_HEADER, MakeRequestUuid))
+                    .layer(
+                        TraceLayer::new_for_http()
+                            .make_span_with(make_request_span)
+                            .on_response(log_response)
+                            .on_failure(
+                                |class: ServerErrorsFailureClass, latency: Duration, _: &Span| {
+                                    tracing::error!(
+                                        %class,
+                                        latency_ms = latency.as_millis() as u64,
+                                        "request failed"
+                                    );
+                                },
+                            ),
+                    )
+                    .layer(PropagateRequestIdLayer::new(REQUEST_ID_HEADER)),
+            )
+            .with_state(shared_state);
 
         Ok(Self {
             router,
@@ -92,4 +124,63 @@ impl Server {
 /// the request.
 async fn fallback() -> impl IntoResponse {
     ApiError::NotFound
+}
+
+/// Creates a tracing span that wraps a single request.
+///
+/// - If `DEBUG` logging is enabled, a detailed span is created containing:
+///   - `request_id`: Extracted from the request header (or empty if missing).
+///   - `method`: The HTTP method of the request.
+///   - `route`: The matched route template (falling back to the raw URI path).
+///   - `uri`: The concrete request path data.
+///   - `error`: Starts empty and is recorded by [`ApiError::into_response`]
+///     when the request fails.
+/// - Otherwise, a lighter span is created containing only `uri` and `error`.
+fn make_request_span(request: &Request) -> Span {
+    if tracing::span_enabled!(Level::DEBUG) {
+        let request_id = request
+            .headers()
+            .get(REQUEST_ID_HEADER)
+            .and_then(|value| value.to_str().ok())
+            .unwrap_or_default();
+        let route = request
+            .extensions()
+            .get::<MatchedPath>()
+            .map_or_else(|| request.uri().path(), MatchedPath::as_str);
+
+        tracing::debug_span!(
+            "request",
+            request_id,
+            method = %request.method(),
+            route,
+            uri = %request.uri(),
+            error = field::Empty,
+        )
+    } else {
+        tracing::info_span!(
+            "request",
+            uri = %request.uri(),
+            error = field::Empty,
+        )
+    }
+}
+
+/// Logs the completion of a request, choosing the level by status code range.
+///
+/// # Note
+/// Server errors are skipped here, they are logged by
+/// [`TraceLayer::on_failure`] together with the failure class.
+fn log_response(response: &Response, latency: Duration, _: &Span) {
+    let status = response.status();
+    let latency_ms = latency.as_millis() as u64;
+
+    if status.is_server_error() {
+        return;
+    }
+
+    if status.is_client_error() && status != StatusCode::NOT_FOUND {
+        tracing::warn!(%status, latency_ms, "request failed with client error");
+    } else {
+        tracing::info!(%status, latency_ms, "request completed");
+    }
 }

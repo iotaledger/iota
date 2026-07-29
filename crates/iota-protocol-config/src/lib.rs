@@ -19,7 +19,7 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 31;
+pub const MAX_PROTOCOL_VERSION: u64 = 32;
 
 /// Protocol version that IIP8 took effect.
 pub const PROTOCOL_VERSION_IIP8: u64 = 20;
@@ -180,6 +180,17 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             on non-Mainnet/Testnet chains.
 //             Start publishing package metadata using module metadata as a
 //             dynamic field.
+//             Report a failure of the Move authentication with a distinct
+//             `MoveAuthenticationError` execution error.
+//             Enable the optimistic commit rule (StarfishSpeed) in Starfish
+//             consensus on devnet.
+// Version 32: Move validator count limits (min/max validator count) and
+//             stake thresholds (joining stake, low/very low stake
+//             thresholds, grace period) into the protocol config.
+//             Enable the optimistic commit rule (StarfishSpeed) in Starfish
+//             consensus on testnet.
+//             Amortize the minimum checkpoint interval over a sliding window
+//             on testnet.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -562,6 +573,11 @@ struct FeatureFlags {
     // field.
     #[serde(skip_serializing_if = "is_false")]
     package_metadata_with_dynamic_module_metadata: bool,
+
+    // If true, a failure of the Move authentication is reported with a distinct
+    // `MoveAuthenticationError` execution error.
+    #[serde(skip_serializing_if = "is_false")]
+    report_move_authentication_error: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1444,6 +1460,36 @@ pub struct ProtocolConfig {
     /// Number of committed subdags between leader-schedule recomputations.
     /// When unset, defaults to 300.
     consensus_commits_per_schedule: Option<u32>,
+
+    /// Minimum number of active validators at any moment.
+    /// Supersedes `SystemParametersV1::min_validator_count`.
+    min_validator_count: Option<u64>,
+
+    /// Maximum number of active validators at any moment. The number of
+    /// validators in any epoch is not allowed to go above this.
+    /// Supersedes `SystemParametersV1::max_validator_count`.
+    max_validator_count: Option<u64>,
+
+    /// Minimum stake, in nanos, a validator candidate needs to join the
+    /// active set. Supersedes
+    /// `SystemParametersV1::min_validator_joining_stake`.
+    min_validator_joining_stake: Option<u64>,
+
+    /// Active validators with stake, in nanos, below this threshold are
+    /// considered at risk and are removed after
+    /// `validator_low_stake_grace_period` consecutive epochs below it.
+    /// Supersedes `SystemParametersV1::validator_low_stake_threshold`.
+    validator_low_stake_threshold: Option<u64>,
+
+    /// Active validators with stake, in nanos, below this threshold are
+    /// removed at the next epoch boundary without a grace period.
+    /// Supersedes `SystemParametersV1::validator_very_low_stake_threshold`.
+    validator_very_low_stake_threshold: Option<u64>,
+
+    /// Number of consecutive epochs a validator may stay below
+    /// `validator_low_stake_threshold` before being removed.
+    /// Supersedes `SystemParametersV1::validator_low_stake_grace_period`.
+    validator_low_stake_grace_period: Option<u64>,
 }
 
 // feature flags
@@ -1853,6 +1899,15 @@ impl ProtocolConfig {
             "package_metadata_with_dynamic_module_metadata requires publish_package_metadata to be enabled"
         );
         res
+    }
+
+    pub fn report_move_authentication_error(&self) -> bool {
+        let report_move_authentication_error = self.feature_flags.report_move_authentication_error;
+        assert!(
+            !report_move_authentication_error || self.enable_move_authentication(),
+            "report_move_authentication_error requires enable_move_authentication to be set"
+        );
+        report_move_authentication_error
     }
 }
 
@@ -2457,6 +2512,12 @@ impl ProtocolConfig {
             auth_context_replace_cost_per_byte: None,
             auth_context_authenticator_function_info_v1_cost_base: None,
             consensus_commits_per_schedule: None,
+            min_validator_count: None,
+            max_validator_count: None,
+            min_validator_joining_stake: None,
+            validator_low_stake_threshold: None,
+            validator_very_low_stake_threshold: None,
+            validator_low_stake_grace_period: None,
             // When adding a new constant, set it to None in the earliest version, like this:
             // new_constant: None,
         };
@@ -3021,15 +3082,39 @@ impl ProtocolConfig {
                 31 => {
                     cfg.feature_flags.validator_metadata_verify_v2 = true;
 
-                    // Amortize the minimum checkpoint interval over a sliding
-                    // window so the checkpoint rate holds at the ceiling.
-                    // Enabled on non-Mainnet/Testnet chains only for now.
                     if chain != Chain::Mainnet && chain != Chain::Testnet {
+                        // Amortize the minimum checkpoint interval over a sliding
+                        // window so the checkpoint rate holds at the ceiling.
                         cfg.checkpoint_rate_window_size = Some(20);
                         // Publish package metadata with the module metadata stored as a
                         // dynamic field.
                         cfg.feature_flags
                             .package_metadata_with_dynamic_module_metadata = true;
+                        // Enable the optimistic commit rule (StarfishSpeed) in
+                        // Starfish consensus.
+                        cfg.feature_flags.consensus_starfish_speed = true;
+                    }
+
+                    cfg.feature_flags.report_move_authentication_error = true;
+                }
+                32 => {
+                    // Identical to the genesis SystemParametersV1 values on
+                    // all existing networks; enforcement moves from on-chain
+                    // state to the protocol config.
+                    cfg.min_validator_count = Some(4);
+                    cfg.max_validator_count = Some(150);
+                    cfg.min_validator_joining_stake = Some(2_000_000_000_000_000);
+                    cfg.validator_low_stake_threshold = Some(1_500_000_000_000_000);
+                    cfg.validator_very_low_stake_threshold = Some(1_000_000_000_000_000);
+                    cfg.validator_low_stake_grace_period = Some(7);
+
+                    if chain != Chain::Mainnet {
+                        // Enable the optimistic commit rule (StarfishSpeed) in
+                        // Starfish consensus.
+                        cfg.feature_flags.consensus_starfish_speed = true;
+                        // Amortize the minimum checkpoint interval over a sliding
+                        // window so the checkpoint rate holds at the ceiling.
+                        cfg.checkpoint_rate_window_size = Some(20);
                     }
                 }
                 // Use this template when making changes:
@@ -3294,6 +3379,10 @@ impl ProtocolConfig {
     pub fn set_package_metadata_with_dynamic_module_metadata_for_testing(&mut self, val: bool) {
         self.feature_flags
             .package_metadata_with_dynamic_module_metadata = val;
+    }
+
+    pub fn set_report_move_authentication_error_for_testing(&mut self, val: bool) {
+        self.feature_flags.report_move_authentication_error = val;
     }
 }
 

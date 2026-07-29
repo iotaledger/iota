@@ -6,15 +6,15 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    Address, EndOfEpochTransactionKind, Event, Identifier, ObjectId, ObjectReference, Owner,
-    SharedObjectReference, StructTag, TransactionKind, TypeTag, Version,
+    Address, EndOfEpochTransactionKind, Event, Identifier, MoveStruct, ObjectId, ObjectReference,
+    Owner, SharedObjectReference, StructTag, TransactionDigest, TransactionKind, TypeTag, Version,
+    checkpoint::{CheckpointContents, CheckpointSummary, EndOfEpochData},
 };
 use tap::Pipe;
 
 use crate::{
     base_types::{ExecutionDigests, dbg_addr, random_object_ref},
     committee::Committee,
-    digests::TransactionDigest,
     effects::{
         TestEffectsBuilder, TransactionEffects, TransactionEffectsAPI,
         TransactionEffectsExtForTesting, TransactionEvents,
@@ -23,10 +23,9 @@ use crate::{
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     gas_coin::GAS,
     messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointContents, CheckpointContentsExt, CheckpointSummary,
-        CheckpointSummaryExt, EndOfEpochData,
+        CertifiedCheckpointSummary, CheckpointContentsExt, CheckpointSummaryExt,
     },
-    object::{GAS_VALUE_FOR_TESTING, MoveObject, MoveObjectExt, Object},
+    object::{GAS_VALUE_FOR_TESTING, MoveStructExt, Object},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{CallArg, SenderSignedData, Transaction, TransactionData, TransactionDataAPI},
 };
@@ -220,7 +219,7 @@ impl TestCheckpointDataBuilder {
             !self.live_objects.contains_key(&object_id),
             "Object already exists: {object_id}. Please use a different object index.",
         );
-        let move_object = MoveObject::new_coin(
+        let move_object = MoveStruct::new_coin(
             coin_type,
             // version doesn't matter since we will set it to the lamport version when we finalize
             // the transaction
@@ -746,7 +745,7 @@ mod tests {
         let senders: Vec<_> = checkpoint
             .transactions
             .iter()
-            .map(|tx| tx.transaction.transaction_data().sender())
+            .map(|tx| tx.transaction.transaction().sender())
             .collect();
         assert_eq!(
             senders,
@@ -1050,7 +1049,7 @@ mod tests {
         // Verify the transaction has a move call matching the arguments provided.
         assert!(
             tx.transaction
-                .transaction_data()
+                .transaction()
                 .kind()
                 .iter_commands()
                 .any(|cmd| {

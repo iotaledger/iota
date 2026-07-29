@@ -23,7 +23,7 @@ use iota_primitives::{
     TypeTag as TypeTagSchema,
 };
 pub use iota_protocol::*;
-use iota_sdk_types::{ObjectId, TypeTag};
+use iota_sdk_types::{ObjectDigest, ObjectId, TypeTag};
 pub use iota_system_state_summary::*;
 pub use iota_transaction::*;
 use iota_types::{
@@ -197,7 +197,7 @@ pub struct IotaDynamicFieldInfo {
     pub version: SequenceNumberU64,
     #[serde_as(as = "Base58Schema")]
     #[schemars(with = "Base58Schema")]
-    pub digest: iota_types::digests::ObjectDigest,
+    pub digest: ObjectDigest,
 }
 
 impl From<DynamicFieldInfo> for IotaDynamicFieldInfo {

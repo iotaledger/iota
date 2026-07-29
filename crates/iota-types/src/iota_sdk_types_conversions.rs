@@ -14,7 +14,7 @@ use fastcrypto::traits::ToFromBytes;
 use iota_sdk_types::{
     address::Address,
     checkpoint::{CheckpointData, CheckpointTransaction, SignedCheckpointSummary},
-    crypto::{Bls12381PublicKey, Bls12381Signature, UserSignature},
+    crypto::{Bls12381PublicKey, Bls12381Signature},
     move_core::{Identifier, StructTag, TypeParseError, TypeTag},
     object::Object,
     transaction::SignedTransaction,
@@ -119,7 +119,7 @@ impl TryFrom<crate::full_checkpoint_content::CheckpointTransaction> for Checkpoi
             .collect::<Result<_, _>>();
         match (input_objects, output_objects) {
             (Ok(input_objects), Ok(output_objects)) => Ok(Self {
-                transaction: value.transaction.try_into()?,
+                transaction: value.transaction.into(),
                 effects: value.effects,
                 events: value.events,
                 input_objects,
@@ -146,28 +146,12 @@ impl TryFrom<CheckpointTransaction> for crate::full_checkpoint_content::Checkpoi
             .collect();
 
         Ok(Self {
-            transaction: value.transaction.try_into()?,
+            transaction: value.transaction.into(),
             effects: value.effects,
             events: value.events,
             input_objects,
             output_objects,
         })
-    }
-}
-
-impl TryFrom<crate::signature::GenericSignature> for UserSignature {
-    type Error = bcs::Error;
-
-    fn try_from(value: crate::signature::GenericSignature) -> Result<Self, Self::Error> {
-        bcs::from_bytes(&bcs::to_bytes(&value)?)
-    }
-}
-
-impl TryFrom<UserSignature> for crate::signature::GenericSignature {
-    type Error = bcs::Error;
-
-    fn try_from(value: UserSignature) -> Result<Self, Self::Error> {
-        bcs::from_bytes(&bcs::to_bytes(&value)?)
     }
 }
 
@@ -235,59 +219,15 @@ impl<const T: bool> From<ValidatorAggregatedSignature>
     }
 }
 
-impl TryFrom<crate::transaction::SenderSignedData> for SignedTransaction {
-    type Error = SdkTypeConversionError;
-
-    fn try_from(value: crate::transaction::SenderSignedData) -> Result<Self, Self::Error> {
-        let crate::transaction::SenderSignedTransaction {
-            intent_message,
-            tx_signatures,
-        } = value.into_inner();
-
-        Self {
-            transaction: intent_message.value,
-            signatures: tx_signatures
-                .into_iter()
-                .map(TryInto::try_into)
-                .collect::<Result<_, _>>()?,
-        }
-        .pipe(Ok)
+impl From<crate::transaction::Transaction> for SignedTransaction {
+    fn from(value: crate::transaction::Transaction) -> Self {
+        value.into_data().into()
     }
 }
 
-impl TryFrom<SignedTransaction> for crate::transaction::SenderSignedData {
-    type Error = SdkTypeConversionError;
-
-    fn try_from(value: SignedTransaction) -> Result<Self, Self::Error> {
-        let SignedTransaction {
-            transaction,
-            signatures,
-        } = value;
-
-        Self::new(
-            transaction,
-            signatures
-                .into_iter()
-                .map(TryInto::try_into)
-                .collect::<Result<_, _>>()?,
-        )
-        .pipe(Ok)
-    }
-}
-
-impl TryFrom<crate::transaction::Transaction> for SignedTransaction {
-    type Error = SdkTypeConversionError;
-
-    fn try_from(value: crate::transaction::Transaction) -> Result<Self, Self::Error> {
-        value.into_data().try_into()
-    }
-}
-
-impl TryFrom<SignedTransaction> for crate::transaction::Transaction {
-    type Error = SdkTypeConversionError;
-
-    fn try_from(value: SignedTransaction) -> Result<Self, Self::Error> {
-        Ok(Self::new(value.try_into()?))
+impl From<SignedTransaction> for crate::transaction::Transaction {
+    fn from(value: SignedTransaction) -> Self {
+        Self::new(value.into())
     }
 }
 

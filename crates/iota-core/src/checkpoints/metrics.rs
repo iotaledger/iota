@@ -72,7 +72,7 @@ impl CheckpointMetrics {
                 "transactions_included_in_checkpoint",
                 "Transactions included in a checkpoint",
                 registry;
-                MetricLevel::Info,
+                MetricLevel::Warn,
             )
             .unwrap(),
             checkpoint_roots_count: register_int_counter_with_registry!(
@@ -98,7 +98,8 @@ impl CheckpointMetrics {
             last_sent_checkpoint_signature: register_int_gauge_with_registry!(
                 "last_sent_checkpoint_signature",
                 "Last checkpoint signature sent by myself",
-                registry
+                registry;
+                MetricLevel::Warn,
             )
             .unwrap(),
             last_skipped_checkpoint_signature_submission: register_int_gauge_with_registry!(
@@ -130,7 +131,8 @@ impl CheckpointMetrics {
                 "commits_per_checkpoint",
                 "Number of consensus commits coalesced into a single checkpoint",
                 vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0],
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             remote_checkpoint_forks: register_int_counter_with_registry!(
                 "remote_checkpoint_forks",

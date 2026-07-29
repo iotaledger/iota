@@ -13,18 +13,16 @@ use iota_sdk::{
     },
     wallet_context::WalletContext,
 };
-use iota_sdk_crypto::Signer as SdkSigner;
+use iota_sdk_crypto::Signer;
 use iota_sdk_transaction_builder::{PTBArgumentList, TransactionBuilder};
 use iota_sdk_types::{
     Address, Identifier, Input, ObjectId, ObjectReference, Owner, ProgrammableTransaction,
-    SharedObjectReference, StructTag, TransactionKind, TypeTag, Version,
-    crypto::{Intent, IntentMessage, SimpleSignature},
+    SharedObjectReference, StructTag, TransactionDigest, TransactionKind, TypeTag, UserSignature,
+    Version, crypto::SimpleSignature,
 };
 use iota_types::{
-    crypto::{AccountKeyPair, IotaKeyPair, get_key_pair},
-    digests::TransactionDigest,
+    crypto::{AccountKeyPair, get_key_pair},
     multisig::{BitmapUnit, MultiSig, MultiSigPublicKey},
-    signature::GenericSignature,
     transaction::{
         CallArg, DEFAULT_VALIDATOR_GAS_PRICE, TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE,
         TEST_ONLY_GAS_UNIT_FOR_TRANSFER, Transaction, TransactionData, TransactionDataAPI,
@@ -411,23 +409,23 @@ impl TestTransactionBuilder {
         }
     }
 
-    pub fn build_and_sign(self, signer: impl Into<IotaKeyPair>) -> Transaction {
+    pub fn build_and_sign(self, signer: &impl Signer<SimpleSignature>) -> Transaction {
         Transaction::from_data_and_signer(self.build(), vec![signer])
     }
 
     pub fn build_and_sign_multisig(
         self,
         multisig_pk: MultiSigPublicKey,
-        signers: &[&dyn SdkSigner<SimpleSignature>],
+        signers: &[&dyn Signer<SimpleSignature>],
         bitmap: BitmapUnit,
     ) -> Transaction {
         let data = self.build();
-        let digest = IntentMessage::new(Intent::iota_transaction(), data.clone()).signing_digest();
-        let signatures = signers.iter().map(|s| s.sign(&*digest).into()).collect();
+        let digest = data.signing_digest();
+        let signatures = signers.iter().map(|s| s.sign(&digest).into()).collect();
         let multisig =
-            GenericSignature::MultiSig(MultiSig::new_unchecked(signatures, bitmap, multisig_pk));
+            UserSignature::Multisig(MultiSig::new_unchecked(signatures, bitmap, multisig_pk));
 
-        Transaction::from_generic_sig_data(data, vec![multisig])
+        Transaction::from_user_sig_data(data, vec![multisig])
     }
 }
 

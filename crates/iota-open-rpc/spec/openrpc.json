@@ -12,7 +12,7 @@
       "name": "Apache-2.0",
       "url": "https://raw.githubusercontent.com/iotaledger/iota/main/LICENSE"
     },
-    "version": "1.28.0-alpha"
+    "version": "1.29.0-alpha"
   },
   "methods": [
     {
@@ -1287,15 +1287,15 @@
           "params": [
             {
               "name": "version",
-              "value": 31
+              "value": 32
             }
           ],
           "result": {
             "name": "Result",
             "value": {
               "minSupportedProtocolVersion": "1",
-              "maxSupportedProtocolVersion": "31",
-              "protocolVersion": "31",
+              "maxSupportedProtocolVersion": "32",
+              "protocolVersion": "32",
               "featureFlags": {
                 "accept_passkey_in_multisig": true,
                 "additional_borrow_checks": true,
@@ -1316,7 +1316,7 @@
                 "consensus_round_prober": true,
                 "consensus_round_prober_probe_accepted_rounds": true,
                 "consensus_smart_ancestor_selection": false,
-                "consensus_starfish_speed": false,
+                "consensus_starfish_speed": true,
                 "consensus_zstd_compression": true,
                 "convert_type_argument_error": true,
                 "deny_rule_governance": false,
@@ -1344,6 +1344,7 @@
                 "protocol_defined_base_fee": true,
                 "publish_package_metadata": true,
                 "relocate_event_module": true,
+                "report_move_authentication_error": true,
                 "rethrow_serialization_type_layout_errors": true,
                 "select_committee_from_eligible_validators": true,
                 "select_committee_supporting_next_epoch_version": true,
@@ -2030,6 +2031,9 @@
                 "max_type_to_layout_nodes": {
                   "u64": "512"
                 },
+                "max_validator_count": {
+                  "u64": "150"
+                },
                 "max_value_stack_size": {
                   "u64": "1024"
                 },
@@ -2041,6 +2045,12 @@
                 },
                 "min_move_binary_format_version": {
                   "u32": "6"
+                },
+                "min_validator_count": {
+                  "u64": "4"
+                },
+                "min_validator_joining_stake": {
+                  "u64": "2000000000000000"
                 },
                 "move_binary_format_version": {
                   "u32": "7"
@@ -2210,6 +2220,12 @@
                 "types_is_one_time_witness_type_tag_cost_per_byte": {
                   "u64": "2"
                 },
+                "validator_low_stake_grace_period": {
+                  "u64": "7"
+                },
+                "validator_low_stake_threshold": {
+                  "u64": "1500000000000000"
+                },
                 "validator_target_reward": {
                   "u64": "767000000000000"
                 },
@@ -2218,6 +2234,9 @@
                 },
                 "validator_validate_metadata_data_cost_per_byte": {
                   "u64": "2"
+                },
+                "validator_very_low_stake_threshold": {
+                  "u64": "1000000000000000"
                 },
                 "vdf_hash_to_input_cost": {
                   "u64": "100"
@@ -3335,11 +3354,11 @@
           "name": "Write API"
         }
       ],
-      "description": "Calls a move view function.",
+      "description": "Calls a Move view function. The function must be declared with the `#[view]` attribute.",
       "params": [
         {
           "name": "function_name",
-          "description": "The fully qualified function name `<package_id>::<module_name>::<function_name>`. E.g.  `0x3::iota_system::get_total_iota_supply`.",
+          "description": "The fully qualified function name `<package_id>::<module_name>::<function_name>`, where the function is declared with the `#[view]` attribute. E.g. `0x1234::counter::value`.",
           "required": true,
           "schema": {
             "type": "string"
@@ -7502,11 +7521,6 @@
           }
         }
       },
-      "GenericSignature": {
-        "description": "Base64 encoded signature",
-        "type": "string",
-        "format": "base64"
-      },
       "GetPastObjectRequest": {
         "type": "object",
         "required": [
@@ -11323,7 +11337,7 @@
           "txSignatures": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/GenericSignature"
+              "$ref": "#/components/schemas/UserSignature"
             }
           }
         }
@@ -12309,6 +12323,11 @@
             ]
           }
         }
+      },
+      "UserSignature": {
+        "description": "Base64 encoded signature",
+        "type": "string",
+        "format": "base64"
       },
       "ValidatorApy": {
         "type": "object",

@@ -13,6 +13,7 @@ use iota::system_admin_cap::IotaSystemAdminCap;
 use iota::table::Table;
 use iota::vec_map::{Self, VecMap};
 use iota::vec_set::{Self, VecSet};
+use iota_system::protocol_config;
 use iota_system::staking_pool::{PoolTokenExchangeRate, StakedIota};
 use iota_system::storage_fund::{Self, StorageFundV1};
 use iota_system::validator::{Self, ValidatorV1};
@@ -28,26 +29,42 @@ const ANY_VALIDATOR: u8 = 3;
 
 const SYSTEM_STATE_VERSION_V1: u64 = 1;
 
+/// Protocol config parameter names, read via `protocol_config::get_attr`.
+const MIN_VALIDATOR_COUNT_PARAM: vector<u8> = b"min_validator_count";
+const MAX_VALIDATOR_COUNT_PARAM: vector<u8> = b"max_validator_count";
+const MIN_VALIDATOR_JOINING_STAKE_PARAM: vector<u8> = b"min_validator_joining_stake";
+const VALIDATOR_LOW_STAKE_THRESHOLD_PARAM: vector<u8> = b"validator_low_stake_threshold";
+const VALIDATOR_VERY_LOW_STAKE_THRESHOLD_PARAM: vector<u8> =
+    b"validator_very_low_stake_threshold";
+const VALIDATOR_LOW_STAKE_GRACE_PERIOD_PARAM: vector<u8> = b"validator_low_stake_grace_period";
+
 /// A list of system config parameters.
 public struct SystemParametersV1 has store {
     /// The duration of an epoch, in milliseconds.
     epoch_duration_ms: u64,
-    /// Minimum number of active validators at any moment.
+    /// Deprecated: superseded by the `min_validator_count` protocol config
+    /// parameter; retained only for struct layout compatibility and no
+    /// longer read.
     min_validator_count: u64,
-    /// Maximum number of active validators at any moment.
-    /// We do not allow the number of validators in any epoch to go above this.
+    /// Deprecated: superseded by the `max_validator_count` protocol config
+    /// parameter; retained only for struct layout compatibility and no
+    /// longer read.
     max_validator_count: u64,
-    /// Lower-bound on the amount of stake required to become a validator.
+    /// Deprecated: superseded by the `min_validator_joining_stake` protocol
+    /// config parameter; retained only for struct layout compatibility and
+    /// no longer read.
     min_validator_joining_stake: u64,
-    /// Validators with stake amount below `validator_low_stake_threshold` are considered to
-    /// have low stake and will be escorted out of the validator set after being below this
-    /// threshold for more than `validator_low_stake_grace_period` number of epochs.
+    /// Deprecated: superseded by the `validator_low_stake_threshold` protocol
+    /// config parameter; retained only for struct layout compatibility and
+    /// no longer read.
     validator_low_stake_threshold: u64,
-    /// Validators with stake below `validator_very_low_stake_threshold` will be removed
-    /// immediately at epoch change, no grace period.
+    /// Deprecated: superseded by the `validator_very_low_stake_threshold`
+    /// protocol config parameter; retained only for struct layout
+    /// compatibility and no longer read.
     validator_very_low_stake_threshold: u64,
-    /// A validator can have stake below `validator_low_stake_threshold`
-    /// for this many epochs before being kicked out.
+    /// Deprecated: superseded by the `validator_low_stake_grace_period`
+    /// protocol config parameter; retained only for struct layout
+    /// compatibility and no longer read.
     validator_low_stake_grace_period: u64,
     /// Any extra fields that's not defined statically.
     extra_fields: Bag,
@@ -242,22 +259,18 @@ public(package) fun create(
 
 public(package) fun create_system_parameters(
     epoch_duration_ms: u64,
-    // ValidatorV1 committee parameters
-    max_validator_count: u64,
-    min_validator_joining_stake: u64,
-    validator_low_stake_threshold: u64,
-    validator_very_low_stake_threshold: u64,
-    validator_low_stake_grace_period: u64,
     ctx: &mut TxContext,
 ): SystemParametersV1 {
     SystemParametersV1 {
         epoch_duration_ms,
-        min_validator_count: 4,
-        max_validator_count,
-        min_validator_joining_stake,
-        validator_low_stake_threshold,
-        validator_very_low_stake_threshold,
-        validator_low_stake_grace_period,
+        // The validator count limits and stake thresholds are enforced from
+        // the protocol config; the deprecated fields are recorded as zero.
+        min_validator_count: 0,
+        max_validator_count: 0,
+        min_validator_joining_stake: 0,
+        validator_low_stake_threshold: 0,
+        validator_very_low_stake_threshold: 0,
+        validator_low_stake_grace_period: 0,
         extra_fields: bag::new(ctx),
     }
 }
@@ -366,12 +379,16 @@ public(package) fun request_remove_validator_candidate(
 /// stake the validator has doesn't meet the min threshold, or if the number of new validators for the next
 /// epoch has already reached the maximum.
 public(package) fun request_add_validator(self: &mut IotaSystemStateV2, ctx: &TxContext) {
+    let max_validator_count: u64 = protocol_config::get_attr(MAX_VALIDATOR_COUNT_PARAM);
     assert!(
-        self.validators.next_epoch_validator_count() < self.parameters.max_validator_count,
+        self.validators.next_epoch_validator_count() < max_validator_count,
         ELimitExceeded,
     );
 
-    self.validators.request_add_validator(self.parameters.min_validator_joining_stake, ctx);
+    let min_validator_joining_stake: u64 = protocol_config::get_attr(
+        MIN_VALIDATOR_JOINING_STAKE_PARAM,
+    );
+    self.validators.request_add_validator(min_validator_joining_stake, ctx);
 }
 
 /// A validator can call this function to request a removal in the next epoch.
@@ -380,12 +397,13 @@ public(package) fun request_add_validator(self: &mut IotaSystemStateV2, ctx: &Tx
 /// At the end of the epoch, the `validator` object will be returned to the iota_address
 /// of the validator.
 public(package) fun request_remove_validator(self: &mut IotaSystemStateV2, ctx: &TxContext) {
+    let min_validator_count: u64 = protocol_config::get_attr(MIN_VALIDATOR_COUNT_PARAM);
     // Only check min validator condition if the current number of validators satisfy the constraint.
     // This is so that if we somehow already are in a state where we have less than min validators, it no longer matters
     // and is ok to stay so. This is useful for a test setup.
-    if (self.validators.active_validators_inner().length() >= self.parameters.min_validator_count) {
+    if (self.validators.active_validators_inner().length() >= min_validator_count) {
         assert!(
-            self.validators.next_epoch_validator_count() > self.parameters.min_validator_count,
+            self.validators.next_epoch_validator_count() > min_validator_count,
             ELimitExceeded,
         );
     };
@@ -828,15 +846,24 @@ public(package) fun advance_epoch(
 
     let total_validator_rewards_amount_before_distribution = total_validator_rewards.value();
 
+    let validator_low_stake_threshold: u64 = protocol_config::get_attr(
+        VALIDATOR_LOW_STAKE_THRESHOLD_PARAM,
+    );
+    let validator_very_low_stake_threshold: u64 = protocol_config::get_attr(
+        VALIDATOR_VERY_LOW_STAKE_THRESHOLD_PARAM,
+    );
+    let validator_low_stake_grace_period: u64 = protocol_config::get_attr(
+        VALIDATOR_LOW_STAKE_GRACE_PERIOD_PARAM,
+    );
     self
         .validators
         .advance_epoch(
             &mut total_validator_rewards,
             &mut self.validator_report_records,
             reward_slashing_rate,
-            self.parameters.validator_low_stake_threshold,
-            self.parameters.validator_very_low_stake_threshold,
-            self.parameters.validator_low_stake_grace_period,
+            validator_low_stake_threshold,
+            validator_very_low_stake_threshold,
+            validator_low_stake_grace_period,
             max_committee_members_count,
             eligible_active_validators,
             scores,
@@ -1111,8 +1138,9 @@ public(package) fun request_add_validator_for_testing(
     min_joining_stake_for_testing: u64,
     ctx: &TxContext,
 ) {
+    let max_validator_count: u64 = protocol_config::get_attr(MAX_VALIDATOR_COUNT_PARAM);
     assert!(
-        self.validators.next_epoch_validator_count() < self.parameters.max_validator_count,
+        self.validators.next_epoch_validator_count() < max_validator_count,
         ELimitExceeded,
     );
 

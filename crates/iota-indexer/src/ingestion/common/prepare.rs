@@ -6,9 +6,8 @@
 
 use std::collections::BTreeMap;
 
-use iota_sdk_types::{ObjectId, ObjectReference, TypeTag};
+use iota_sdk_types::{ObjectId, ObjectReference, TransactionDigest, TypeTag};
 use iota_types::{
-    digests::TransactionDigest,
     dynamic_field::{DynamicFieldInfo, DynamicFieldType},
     full_checkpoint_content::CheckpointData,
     messages_checkpoint::CheckpointSequenceNumber,

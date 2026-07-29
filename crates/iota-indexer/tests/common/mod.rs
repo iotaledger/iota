@@ -11,6 +11,7 @@ use std::{
     time::Duration,
 };
 
+use iota_sdk_crypto::Signer;
 use iota_sdk_types::{Address, ObjectId, ObjectReference, Version};
 
 const PRUNING_WAIT_TIMEOUT: Duration = Duration::from_secs(60);
@@ -19,7 +20,7 @@ use diesel::{ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl};
 use iota_config::local_ip_utils::{get_available_port, new_local_tcp_socket_for_testing};
 use iota_grpc_server::GrpcServerHandle;
 use iota_indexer::{
-    config::{IotaNamesOptions, JsonRpcConfig, PruningOptions},
+    config::{IotaNamesOptions, JsonRpcConfig, RetentionConfig},
     db::{ConnectionPoolConfig, new_connection_pool},
     errors::IndexerError,
     indexer::Indexer,
@@ -39,9 +40,11 @@ use iota_json_rpc_types::{
 };
 use iota_metrics::init_metrics;
 use iota_move_build::BuildConfig;
+use iota_sdk_types::TransactionDigest;
 use iota_types::{
-    crypto::IotaKeyPair, digests::TransactionDigest,
-    quorum_driver_types::ExecuteTransactionRequestType, utils::to_sender_signed_transaction,
+    crypto::{IotaKeyPair, Signature},
+    quorum_driver_types::ExecuteTransactionRequestType,
+    utils::to_sender_signed_transaction,
 };
 use jsonrpsee::{
     http_client::{HttpClient, HttpClientBuilder},
@@ -138,11 +141,11 @@ impl SimulacrumTestSetup {
 }
 
 /// Start a [`TestCluster`][`test_cluster::TestCluster`] with a `Read` &
-/// `Write` indexer. Set `epochs_to_keep` (> 0) to enable indexer pruning.
+/// `Write` indexer. Pass a `retention_config` to enable indexer pruning.
 pub async fn start_test_cluster_with_read_write_indexer(
     database_name: impl Into<Option<&str>>,
     builder_modifier: Option<Box<dyn FnOnce(TestClusterBuilder) -> TestClusterBuilder>>,
-    pruning_options: Option<PruningOptions>,
+    retention_config: Option<RetentionConfig>,
 ) -> (TestCluster, PgIndexerStore, HttpClient) {
     let database_name = database_name.into();
     let mut builder = TestClusterBuilder::new().disable_fullnode_pruning();
@@ -160,7 +163,7 @@ pub async fn start_test_cluster_with_read_write_indexer(
         true,
         None,
         cluster.grpc_url(),
-        IndexerTypeConfig::writer_mode(pruning_options),
+        IndexerTypeConfig::writer_mode_with_retention(retention_config),
         None,
     )
     .await;
@@ -388,7 +391,7 @@ pub async fn execute_tx_and_wait_for_indexer_checkpoint(
     indexer_client: &HttpClient,
     store: &PgIndexerStore,
     tx_bytes: TransactionBlockBytes,
-    keypair: impl Into<IotaKeyPair>,
+    keypair: &impl Signer<Signature>,
 ) -> TransactionDigest {
     let digest = execute_tx_must_succeed(indexer_client, tx_bytes, keypair).await;
     indexer_wait_for_transaction(digest, store, indexer_client).await;
@@ -398,7 +401,7 @@ pub async fn execute_tx_and_wait_for_indexer_checkpoint(
 pub async fn execute_tx_must_succeed(
     indexer_client: &HttpClient,
     tx_bytes: TransactionBlockBytes,
-    keypair: impl Into<IotaKeyPair>,
+    keypair: &impl Signer<Signature>,
 ) -> TransactionDigest {
     let txn = to_sender_signed_transaction(tx_bytes.to_data().unwrap(), keypair);
     let (tx_bytes, signatures) = txn.to_tx_bytes_and_signatures();
@@ -567,7 +570,10 @@ pub async fn publish_test_move_package(
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     path.extend(["tests", "data", test_package_name]);
 
-    let compiled_package = BuildConfig::new_for_testing().build(&path).unwrap();
+    let compiled_package = BuildConfig::new_for_testing()
+        .with_allow_view_function()
+        .build(&path)
+        .unwrap();
     let with_unpublished_deps = false;
     let compiled_modules_bytes = compiled_package.get_package_base64(with_unpublished_deps);
     let dependencies = compiled_package.get_dependency_storage_package_ids();

@@ -68,11 +68,10 @@ mod sim_only_tests {
     use iota_protocol_config::Chain;
     use iota_sdk_types::{
         Address, Command, Identifier, MoveCall, ObjectId, ObjectReference, Owner,
-        ProgrammableTransaction, TransactionKind, Version,
+        ProgrammableTransaction, TransactionDigest, TransactionKind, Version,
     };
     use iota_types::{
         base_types::ConciseableName,
-        digests::TransactionDigest,
         effects::{TransactionEffects, TransactionEffectsAPI},
         id::ID,
         iota_system_state::{
@@ -808,6 +807,7 @@ mod sim_only_tests {
         assert!(system_state.epoch_start_timestamp_ms() >= genesis_epoch_start_time + 20000);
 
         // We are getting out of safe mode soon.
+        test_cluster.wait_for_epoch_all_nodes(1).await;
         test_cluster.set_safe_mode_expected(false);
 
         // This epoch change should execute successfully without any upgrade and get us
@@ -954,8 +954,14 @@ mod sim_only_tests {
         // The system state object will be upgraded next time we execute advance_epoch
         // transaction at epoch boundary.
         let system_state = test_cluster.wait_for_epoch(Some(2)).await;
-        if let IotaSystemState::V2(inner) = system_state {
-            assert_eq!(inner.parameters.min_validator_count, 4);
+        if let IotaSystemState::V2(_) = system_state {
+            // min_validator_count is deprecated and zeroed on-chain; the enforced
+            // minimum now lives in the protocol config.
+            assert_eq!(
+                ProtocolConfig::get_for_version(FINISH.into(), Chain::Unknown)
+                    .min_validator_count(),
+                4
+            );
         } else {
             unreachable!("Unexpected iota system state version");
         }

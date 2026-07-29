@@ -7,12 +7,11 @@ use std::sync::{Arc, OnceLock};
 
 use iota_execution::Executor;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::Address;
+use iota_sdk_types::{Address, MoveAuthenticator};
 use iota_types::{
     effects::{TransactionEffectsAPI, TransactionEvents},
     gas::IotaGasStatus,
     metrics::{BytecodeVerifierMetrics, LimitsMetrics},
-    move_authenticator::{MoveAuthenticator, MoveAuthenticatorExt},
     signature::VerifyParams,
     signature_verification::verify_sender_signed_data_message_signatures,
     transaction::{SenderSignedData, TransactionData, TransactionDataAPI},
@@ -26,7 +25,7 @@ use crate::{
     debug::{DebugArtifacts, DebugConfig},
     error::{ExecutionError, ValidationError, VmSdkError},
     executor::{
-        env::{ExecutionEnv, build_executor},
+        env::{ExecutionEnv, build_executor, new_bytecode_verifier_metrics, new_limits_metrics},
         prepare::{
             authenticate_only, build_auth_context_data, decode_one_event, execute_prepared,
             execute_with_move_authenticators, prepare_authenticators, prepare_transaction,
@@ -92,10 +91,8 @@ impl LocalVm {
             reference_gas_price: ctx.reference_gas_price,
             epoch_id: ctx.epoch_id,
             epoch_timestamp_ms: ctx.epoch_timestamp_ms,
-            limits_metrics: Arc::new(LimitsMetrics::new(&prometheus_filtered::Registry::new())),
-            bytecode_verifier_metrics: Arc::new(BytecodeVerifierMetrics::new(
-                &prometheus_filtered::Registry::new(),
-            )),
+            limits_metrics: Arc::new(new_limits_metrics()),
+            bytecode_verifier_metrics: Arc::new(new_bytecode_verifier_metrics()),
             store: Box::new(store),
             cached_executor: OnceLock::new(),
         })
@@ -156,7 +153,7 @@ impl LocalVm {
     /// Run a signed transaction, verifying signatures first.
     ///
     /// Standard schemes are verified cryptographically first. Every
-    /// [`MoveAuthenticator`](iota_types::move_authenticator::MoveAuthenticator)
+    /// [`MoveAuthenticator`](iota_sdk_types::MoveAuthenticator)
     /// — the sender's and, for a sponsored tx, the sponsor's — is verified by
     /// running its function in the VM. On failure the authenticators are re-run
     /// alone to tell a rejection from a body abort.
@@ -191,14 +188,14 @@ impl LocalVm {
             signed.move_authenticators().into_iter().cloned().collect();
         // The deny checks inspect the signatures (e.g. `move_authenticator_disabled`,
         // deprecated zkLogin), so they must survive `signed` being consumed.
-        let tx_signatures = signed.tx_signatures().to_vec();
+        let tx_signatures = signed.signatures().to_vec();
         // The auth digests must be computed from the signed data before it is
         // consumed; the `MoveAuthenticator` execution path needs them in its
         // `AuthContextData`.
         let auth_digests = signed
             .compute_auth_digests()
-            .map_err(VmSdkError::SignatureVerification)?;
-        let transaction = signed.into_inner().intent_message.value;
+            .map_err(|e| VmSdkError::SignatureVerification(e.into()))?;
+        let transaction = signed.0.transaction;
 
         // A `MoveAuthenticator` on a protocol version that predates Move
         // authentication cannot be run; reject it with a typed error rather
@@ -303,8 +300,8 @@ impl LocalVm {
             pre_consensus_authenticator_addresses(&signed, &self.protocol_config);
         let auth_digests = signed
             .compute_auth_digests()
-            .map_err(VmSdkError::SignatureVerification)?;
-        let transaction = signed.into_inner().intent_message.value;
+            .map_err(|e| VmSdkError::SignatureVerification(e.into()))?;
+        let transaction = signed.0.transaction;
 
         let env = ExecutionEnv::new(self, &DebugConfig::default())?;
         let backend = StoreBackend::new(self.store.as_ref());
@@ -483,7 +480,7 @@ fn pre_consensus_authenticator_addresses(
 ) -> Vec<Address> {
     let selected: Vec<&MoveAuthenticator> = if protocol_config
         .pre_consensus_sponsor_only_move_authentication()
-        && signed.transaction_data().is_sponsored_tx()
+        && signed.transaction().is_sponsored_tx()
     {
         signed.sponsor_move_authenticator().into_iter().collect()
     } else {

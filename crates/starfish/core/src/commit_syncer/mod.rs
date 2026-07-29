@@ -366,11 +366,11 @@ pub(crate) fn verify_commits(
             .map_err(ConsensusError::MalformedHeader)
             .inspect_err(|e| {
                 // Author is unknown when deserialization fails — blame the peer.
-                misbehavior_store.record_faulty_block_header(peer, peer, e);
+                misbehavior_store.record_faulty_block(peer, peer, e);
             })?;
         // The block signature needs to be verified.
         if let Err(e) = block_verifier.verify(&signed_block_header) {
-            misbehavior_store.record_faulty_block_header(peer, signed_block_header.author(), &e);
+            misbehavior_store.record_faulty_block(peer, signed_block_header.author(), &e);
             return Err(e);
         }
         for vote in signed_block_header.commit_votes() {
@@ -810,14 +810,85 @@ pub(crate) fn requeue_partial_range(
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use crate::{
+        Round,
         block_header::BlockHeaderDigest,
         block_verifier::NoopBlockVerifier,
         commit::{CommitV1, CommitV2, CommitV3},
+        network::BlockBundleStream,
         transaction_ref::TransactionRef,
     };
+
+    /// Fake `NetworkClient` for commit syncer tests. Serves the canned
+    /// `fetch_commits_and_transactions` response when one is set; all other
+    /// endpoints are unimplemented.
+    #[derive(Default)]
+    pub(crate) struct FakeNetworkClient {
+        pub(crate) commits_and_transactions: Option<(Vec<Bytes>, Vec<Bytes>, Vec<Bytes>)>,
+    }
+
+    #[async_trait::async_trait]
+    impl NetworkClient for FakeNetworkClient {
+        async fn subscribe_block_bundles(
+            &self,
+            _peer: AuthorityIndex,
+            _last_received: Round,
+            _timeout: Duration,
+        ) -> ConsensusResult<BlockBundleStream> {
+            unimplemented!("Unimplemented")
+        }
+
+        async fn fetch_transactions(
+            &self,
+            _peer: AuthorityIndex,
+            _block_refs: Vec<GenericTransactionRef>,
+            _timeout: Duration,
+        ) -> ConsensusResult<Vec<Bytes>> {
+            unimplemented!("Unimplemented")
+        }
+
+        async fn fetch_block_headers(
+            &self,
+            _peer: AuthorityIndex,
+            _block_refs: Vec<BlockRef>,
+            _highest_accepted_rounds: Vec<Round>,
+            _timeout: Duration,
+        ) -> ConsensusResult<Vec<Bytes>> {
+            unimplemented!("Unimplemented")
+        }
+
+        async fn fetch_commits(
+            &self,
+            _peer: AuthorityIndex,
+            _commit_range: CommitRange,
+            _timeout: Duration,
+        ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>)> {
+            unimplemented!("Unimplemented")
+        }
+
+        async fn fetch_commits_and_transactions(
+            &self,
+            _peer: AuthorityIndex,
+            _commit_range: CommitRange,
+            _timeout: Duration,
+        ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>, Vec<Bytes>)> {
+            match &self.commits_and_transactions {
+                Some(response) => Ok(response.clone()),
+                None => unimplemented!("Unimplemented"),
+            }
+        }
+
+        async fn fetch_latest_block_headers(
+            &self,
+            _peer: AuthorityIndex,
+            _authorities: Vec<AuthorityIndex>,
+            _timeout: Duration,
+        ) -> ConsensusResult<Vec<Bytes>> {
+            unimplemented!("Unimplemented")
+        }
+    }
 
     /// Builds a single-commit byte stream from `commit` and runs it through
     /// `verify_commits` with the two protocol flags set as specified. The

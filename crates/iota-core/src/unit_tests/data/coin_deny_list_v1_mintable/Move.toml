@@ -1,0 +1,10 @@
+[package]
+name = "coin_deny_list_v1_mintable"
+version = "0.0.1"
+edition = "2024"
+
+[dependencies]
+Iota = { local = "../../../../../iota-framework/packages/iota-framework" }
+
+[addresses]
+coin_deny_list_v1_mintable = "0x0"

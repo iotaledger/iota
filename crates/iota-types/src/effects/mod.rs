@@ -5,7 +5,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use iota_sdk_types::{
-    EpochId, ExecutionStatus, GasCostSummary, IntentScope, ObjectId, ObjectReference, Owner,
+    EpochId, ExecutionStatus, GasCostSummary, IntentScope, ObjectDigest, ObjectId, ObjectReference,
+    Owner, TransactionDigest, TransactionEffectsDigest, TransactionEventsDigest,
     UnchangedSharedKind, UnchangedSharedObject, Version, crypto::Intent,
 };
 pub use iota_sdk_types::{
@@ -25,7 +26,6 @@ use crate::{
         AuthoritySignInfo, AuthoritySignInfoTrait, AuthorityStrongQuorumSignInfo, EmptySignInfo,
         default_hash,
     },
-    digests::{ObjectDigest, TransactionDigest, TransactionEffectsDigest, TransactionEventsDigest},
     error::IotaResult,
     execution::SharedInput,
     message_envelope::{Envelope, Message, TrustedEnvelope, VerifiedEnvelope},

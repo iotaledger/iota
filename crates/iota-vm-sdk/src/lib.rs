@@ -21,20 +21,31 @@
 //! - `tracing` — compile the Move VM gas profiler and instruction tracer into
 //!   the engine so [`DebugConfig::with_profiling`] /
 //!   [`DebugConfig::with_tracing`] capture output.
+//! - `wasm-bindgen` — a JS-facing surface for the browser.
+//!
+//! The networked stores and their heavy dependencies are additionally
+//! target-gated to `cfg(not(target_arch = "wasm32"))`, so the wasm bundle never
+//! sees tonic / reqwest / the gRPC client.
 
 mod debug;
 mod error;
 mod executor;
 mod store;
 
-#[cfg(any(feature = "grpc", feature = "graphql"))]
+#[cfg(all(
+    any(feature = "grpc", feature = "graphql"),
+    not(target_arch = "wasm32")
+))]
 mod caching;
 
-#[cfg(feature = "grpc")]
+#[cfg(all(feature = "grpc", not(target_arch = "wasm32")))]
 pub mod grpc;
 
-#[cfg(feature = "graphql")]
+#[cfg(all(feature = "graphql", not(target_arch = "wasm32")))]
 pub mod graphql;
+
+#[cfg(all(feature = "wasm-bindgen", target_arch = "wasm32"))]
+mod wasm;
 
 pub use debug::{DebugArtifacts, DebugConfig, ProfileOutput, ProfileSink};
 pub use error::{ExecutionError, SignatureError, StoreError, ValidationError, VmError, VmSdkError};
@@ -47,11 +58,12 @@ pub use iota_config::transaction_deny_config::{
     TransactionDenyConfig, TransactionDenyConfigBuilder,
 };
 pub use iota_protocol_config::{Chain, ProtocolVersion};
-pub use iota_sdk_types::{Address, MoveAuthenticator, ObjectId, StructTag, TypeTag, Version};
+pub use iota_sdk_types::{
+    Address, MoveAuthenticator, ObjectId, StructTag, TypeTag, UserSignature, Version,
+};
 pub use iota_types::{
     effects::{TransactionEffects, TransactionEvents},
     object::Object,
-    signature::GenericSignature,
     transaction::{SenderSignedData, TransactionData},
 };
 pub use store::{InMemoryStore, Store};

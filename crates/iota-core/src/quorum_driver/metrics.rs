@@ -62,7 +62,7 @@ impl QuorumDriverMetrics {
                 "Total number of requests returned with Err responses, grouped by error type",
                 &["error"],
                 registry;
-                MetricLevel::Info,
+                MetricLevel::Warn,
             )
             .unwrap(),
             attempt_times_ok_response: register_histogram_with_registry!(

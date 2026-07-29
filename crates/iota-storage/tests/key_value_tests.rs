@@ -7,19 +7,21 @@ use std::{collections::HashMap, sync::Arc};
 use async_trait::async_trait;
 use futures::FutureExt;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::ObjectId;
+use iota_sdk_types::{
+    CheckpointContentsDigest, CheckpointDigest, ObjectId, TransactionDigest,
+    checkpoint::{CheckpointContents, CheckpointSummary},
+};
 use iota_storage::{key_value_store::*, key_value_store_metrics::KeyValueStoreMetrics};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     base_types::{ExecutionDigests, VersionNumber, random_object_ref},
     committee::Committee,
     crypto::{AccountKeyPair, KeypairTraits, get_key_pair},
-    digests::{CheckpointContentsDigest, CheckpointDigest, TransactionDigest},
     effects::{TestEffectsBuilder, TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     error::IotaResult,
     messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointContents, CheckpointContentsExt,
-        CheckpointSequenceNumber, CheckpointSummary, CheckpointSummaryExt, SignedCheckpointSummary,
+        CertifiedCheckpointSummary, CheckpointContentsExt, CheckpointSequenceNumber,
+        CheckpointSummaryExt, SignedCheckpointSummary,
     },
     object::Object,
     storage::ObjectKey,

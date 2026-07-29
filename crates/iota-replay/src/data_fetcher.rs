@@ -15,10 +15,12 @@ use iota_json_rpc_types::{
 };
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_sdk::IotaClient;
-use iota_sdk_types::{EndOfEpochTransactionKind, ObjectId, StructTag, TransactionKind, Version};
+use iota_sdk_types::{
+    EndOfEpochTransactionKind, ObjectId, StructTag, TransactionDigest, TransactionKind, Version,
+};
 use iota_types::{
     base_types::VersionNumber,
-    digests::{ChainIdentifier, TransactionDigest},
+    digests::ChainIdentifier,
     object::Object,
     transaction::{SenderSignedData, TransactionDataAPI},
 };
@@ -546,7 +548,7 @@ impl DataFetcher for RemoteFetcher {
         let tx_info = self.get_transaction(&epoch_change_tx).await?;
 
         let orig_tx: SenderSignedData = bcs::from_bytes(&tx_info.raw_transaction).unwrap();
-        let tx_kind_orig = orig_tx.transaction_data().kind();
+        let tx_kind_orig = orig_tx.transaction().kind();
 
         if let TransactionKind::EndOfEpoch(kinds) = tx_kind_orig {
             if let Some(kind) = kinds.iter().next() {

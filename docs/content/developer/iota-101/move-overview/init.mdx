@@ -4,8 +4,6 @@ teams:
   - iotaledger/vm-language
 description: Learn about the `init` function in Move modules, including its unique characteristics and proper usage.
 ---
-import Quiz from '@site/src/components/Quiz';
-import questions from '/json/developer/iota-101/move-overview/init.json';
 
 # Module Initializers
 
@@ -33,11 +31,7 @@ They do not run during subsequent package upgrades.
 If an `init` function is added during an upgrade (whether in a new or existing module), it will not be executed.
 :::
 
-
 Below is an example of a valid `init` function within a Move module:
-
 
 ```move file=<rootDir>/docs/examples/move/move-overview/init.move
 ```
-
-<Quiz questions={questions} />

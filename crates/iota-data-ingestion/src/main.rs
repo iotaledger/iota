@@ -6,8 +6,8 @@ use std::{collections::BTreeSet, env, path::PathBuf, time::Duration};
 
 use anyhow::Result;
 use iota_data_ingestion::{
-    ArchivalConfig, ArchivalReducer, BlobTaskConfig, BlobWorker, HistoricalReducer,
-    HistoricalWriterConfig, KVStoreTaskConfig, KVStoreWorker, RelayWorker, common,
+    BlobTaskConfig, BlobWorker, HistoricalReducer, HistoricalWriterConfig, KVStoreTaskConfig,
+    KVStoreWorker, RelayWorker, common,
 };
 use iota_data_ingestion_core::{
     DataIngestionMetrics, FileProgressStore, IndexerExecutor, IngestionLimit, ReaderOptions,
@@ -24,7 +24,6 @@ use tokio_util::sync::CancellationToken;
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all = "kebab-case")]
 enum Task {
-    Archival(ArchivalConfig),
     Blob(BlobTaskConfig),
     BigTableKv(BigTableTaskConfig),
     Kv(KVStoreTaskConfig),
@@ -183,20 +182,6 @@ async fn main() -> Result<()> {
         IndexerExecutor::new(progress_store, config.tasks.len(), metrics, child_token);
     for task_config in config.tasks {
         match task_config.task {
-            Task::Archival(archival_config) => {
-                let reducer = ArchivalReducer::new(archival_config).await?;
-                executor
-                    .update_watermark(task_config.name.clone(), reducer.get_watermark().await?)
-                    .await?;
-                let worker_pool = WorkerPool::new_with_reducer(
-                    RelayWorker,
-                    task_config.name,
-                    task_config.concurrency,
-                    Default::default(),
-                    reducer,
-                );
-                executor.register(worker_pool).await?;
-            }
             Task::Blob(blob_config) => {
                 let Some(RemoteStoreUrl::Fullnode(url)) = config.remote_store_url.as_ref() else {
                     anyhow::bail!("Blob worker type requires a fullnode remote store URL");

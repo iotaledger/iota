@@ -5,8 +5,6 @@ teams:
   - iotaledger/dev-tools
   - iotaledger/vm-language
 ---
-import Quiz from '@site/src/components/Quiz';
-import questions from '/json/developer/iota-101/transactions/ptb/programmable-transaction-blocks.json';
 
 # Use Programmable Transaction Blocks
 
@@ -69,7 +67,6 @@ Exceeding any of these limits will cause the transaction to fail during validati
 | Maximum arguments                 | 512                     | Total number of arguments (pure values + object references) across all commands in the PTB.
 | Maximum new Move object IDs       | 2,048                   | Maximum number of new objects that can be created by the PTB (e.g., via `SplitCoins`, `MoveCall` that returns new objects, etc.).
 | Maximum size of a created Move object| 250 KiB (256,000 bytes)| Size limit for any individual Move object created during PTB execution.
-
 
 :::info
 For the most up to date and complete list of [protocol configuration values](https://github.com/iotaledger/iota/blob/mainnet/crates/iota-protocol-config/src/lib.rs#L1581) (including any newly added limits), refer to the source in the IOTA repository.
@@ -187,7 +184,6 @@ When borrowing arguments:
     - Cannot be transferred or frozen. These checks are done at the end of the transaction only. For example, `TransferObjects` succeeds if passed a shared object, but at the end of execution the transaction fails.
     - Can be wrapped and can become a dynamic field transiently, but by the end of the transaction it must be re-shared or deleted.
 
-
 #### Pure Values
 
 Pure values are not type-checked until used.
@@ -294,7 +290,6 @@ After all the commands have executed:
 **Gas Refund**: Any unused gas is returned to the gas coin, regardless of ownership changes.
 
 Finally, the transaction's effects (created, mutated, and deleted objects) are applied atomically by the IOTA network.
-
 
 ## Usage Example
 
@@ -506,5 +501,3 @@ The transaction produces the following effects:
 - **Mutated Objects**:
   - The gas coin's balance is updated.
   - The marketplace object is mutated but remains shared.
-
-<Quiz questions={questions} />

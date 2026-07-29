@@ -24,20 +24,17 @@ use iota_open_rpc::Module;
 use iota_package_resolver::{
     Package, PackageStore, Resolver, error::Error as PackageResolverError,
 };
-use iota_protocol_config::Chain;
 use iota_sdk_types::{
-    Address, ObjectId, TransactionKind,
+    Address, ObjectId, TransactionDigest, TransactionKind, UserSignature,
     crypto::{Intent, IntentAppId, IntentMessage, IntentScope, IntentVersion},
 };
 use iota_transaction_builder::TransactionBuilder;
 use iota_types::{
-    digests::TransactionDigest,
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
     iota_serde::BigInt,
     quorum_driver_types::{
         ExecuteTransactionRequestType, ExecuteTransactionRequestV1, ExecuteTransactionResponseV1,
     },
-    signature::GenericSignature,
     storage::PostExecutionPackageResolver,
     transaction::{InputObjectKind, Transaction, TransactionData, TransactionDataAPI},
 };
@@ -109,9 +106,12 @@ impl TransactionExecutionApi {
 
         let mut sigs = Vec::new();
         for sig in signatures {
-            sigs.push(GenericSignature::from_bytes(&sig.to_vec()?)?);
+            sigs.push(
+                UserSignature::from_bytes(sig.to_vec()?)
+                    .map_err(|e| IotaRpcInputError::GenericInvalid(e.to_string()))?,
+            );
         }
-        let txn = Transaction::from_generic_sig_data(tx_data, sigs);
+        let txn = Transaction::from_user_sig_data(tx_data, sigs);
         let raw_transaction = if opts.show_raw_input {
             bcs::to_bytes(txn.data())?
         } else {
@@ -409,18 +409,6 @@ impl WriteApiServer for TransactionExecutionApi {
         type_args: Option<Vec<IotaTypeTag>>,
         arguments: Vec<IotaJsonValue>,
     ) -> RpcResult<IotaMoveViewCallResults> {
-        let chain = self
-            .state
-            .get_chain_identifier()
-            .map_err(Error::from)?
-            .chain();
-        if !matches!(chain, Chain::Unknown) {
-            return Err(Error::UnsupportedFeature(format!(
-                "View function calls not supported yet on {}",
-                chain.as_str()
-            ))
-            .into());
-        }
         let MoveFunctionName {
             package,
             module,

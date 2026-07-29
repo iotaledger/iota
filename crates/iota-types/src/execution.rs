@@ -5,14 +5,14 @@
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 
 use iota_sdk_types::{
-    Argument, Event, ObjectData, ObjectId, ObjectReference, Owner, TypeTag, Version,
+    Argument, Event, ObjectData, ObjectDigest, ObjectId, ObjectReference, Owner, TransactionDigest,
+    TypeTag, Version,
 };
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    digests::{ObjectDigest, TransactionDigest},
-    object::{MoveObjectExt, Object},
+    object::{MoveStructExt, Object},
     storage::BackingPackageStore,
 };
 

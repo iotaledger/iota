@@ -43,13 +43,7 @@ metrics:
   push-interval-seconds: 60
   push-url: https://metrics-proxy.mainnet.iota.cafe:8443/publish/metrics
 
-# State Sync Archive Fallback
-state-archive-read-config:
-  - object-store-config:
-      object-store: "S3"
-      aws-endpoint: "https://archive.mainnet.iota.cafe"
-      aws-virtual-hosted-style-request: true
-      object-store-connection-limit: 20
-      no-sign-request: true
-    concurrency: 5
-    use-for-pruning-watermark: false
+# State Sync Checkpoint Archive Fallback
+checkpoint-archive-config:
+  url: "https://checkpoints.mainnet.iota.cafe/ingestion/historical"
+  download-concurrency: 5

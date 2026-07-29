@@ -8,10 +8,8 @@ use std::{cmp::min, ops::Add, sync::Arc, time::Duration};
 
 use arc_swap::ArcSwap;
 use iota_metrics::LATENCY_SEC_BUCKETS;
-use iota_types::{
-    base_types::{AuthorityName, TransactionDigest},
-    transaction::VerifiedSignedTransaction,
-};
+use iota_sdk_types::TransactionDigest;
+use iota_types::{base_types::AuthorityName, transaction::VerifiedSignedTransaction};
 use prometheus_filtered::{
     Histogram, IntCounter, Registry, register_histogram_with_registry,
     register_int_counter_with_registry,
@@ -293,11 +291,11 @@ mod tests {
     use arc_swap::ArcSwap;
     use async_trait::async_trait;
     use iota_macros::sim_test;
-    use iota_sdk_types::{Address, ObjectId};
+    use iota_sdk_types::{Address, ObjectId, TransactionDigest};
     use iota_swarm_config::network_config_builder::ConfigBuilder;
     use iota_test_transaction_builder::TestTransactionBuilder;
     use iota_types::{
-        base_types::{AuthorityName, TransactionDigest},
+        base_types::AuthorityName,
         committee::{CommitteeTrait, StakeUnit},
         crypto::{AccountKeyPair, get_account_key_pair},
         effects::{TransactionEffectsAPI, TransactionEvents},
@@ -636,7 +634,7 @@ mod tests {
         let network_config = ConfigBuilder::new_with_temp_dir()
             .committee_size(NonZeroUsize::new(COMMITTEE_SIZE).unwrap())
             .build();
-        let (auth_agg, _) = AuthorityAggregatorBuilder::from_network_config(&network_config)
+        let (auth_agg, _) = AuthorityAggregatorBuilder::from_genesis(&network_config.genesis)
             .build_network_clients();
         let auth_agg = Arc::new(auth_agg);
         let finalizers = (0..COMMITTEE_SIZE)
@@ -704,7 +702,7 @@ mod tests {
                 )
             })
             .collect();
-        let auth_agg = AuthorityAggregatorBuilder::from_network_config(&network_config)
+        let auth_agg = AuthorityAggregatorBuilder::from_genesis(&network_config.genesis)
             .build_custom_clients(clients.clone());
         (
             authority_states,

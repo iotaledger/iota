@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{iter, mem, ops::Not, sync::Arc, thread};
+use std::{iter, mem, sync::Arc, thread};
 
 use either::Either;
 use fastcrypto::hash::{HashFunction, Sha3_256};
@@ -14,7 +14,6 @@ use iota_sdk_types::Version;
 use iota_storage::mutex_table::{MutexGuard, MutexTable};
 use iota_types::{
     base_types::VerifiedExecutionData,
-    digests::TransactionEventsDigest,
     effects::{TransactionEffects, TransactionEffectsExt, TransactionEvents},
     error::UserInputError,
     execution::TypeLayoutStore,
@@ -75,32 +74,38 @@ impl AuthorityStoreMetrics {
             iota_conservation_check_latency: register_int_gauge_with_registry!(
                 "iota_conservation_check_latency",
                 "Number of seconds took to scan all live objects in the store for IOTA conservation check",
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             iota_conservation_live_object_count: register_int_gauge_with_registry!(
                 "iota_conservation_live_object_count",
                 "Number of live objects in the store",
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             iota_conservation_live_object_size: register_int_gauge_with_registry!(
                 "iota_conservation_live_object_size",
                 "Size in bytes of live objects in the store",
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             iota_conservation_imbalance: register_int_gauge_with_registry!(
                 "iota_conservation_imbalance",
                 "Total amount of IOTA in the network - 10B * 10^9. This delta shows the amount of imbalance",
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             iota_conservation_storage_fund: register_int_gauge_with_registry!(
                 "iota_conservation_storage_fund",
                 "Storage Fund pool balance (only includes the storage fund proper that represents object storage)",
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             iota_conservation_storage_fund_imbalance: register_int_gauge_with_registry!(
                 "iota_conservation_storage_fund_imbalance",
                 "Imbalance of storage fund, computed with storage_fund_balance - total_object_storage_rebates",
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             epoch_flags: register_int_gauge_vec_with_registry!(
                 "epoch_flags",
@@ -287,13 +292,6 @@ impl AuthorityStore {
                     .insert(transaction.digest(), genesis.events())
                     .unwrap();
             }
-            let event_digests = genesis.events().digest();
-            let events = genesis
-                .events()
-                .iter()
-                .enumerate()
-                .map(|(i, e)| ((event_digests, i), e));
-            store.perpetual_tables.events.multi_insert(events).unwrap();
 
             // Initialize with migration data if genesis contained migration transactions
             if let Some(migration_transactions) = migration_tx_data {
@@ -336,17 +334,6 @@ impl AuthorityStore {
                         .effects
                         .insert(&effects.digest(), effects)
                         .expect("cannot insert migration effects");
-                    let events_iter = events
-                        .iter()
-                        .enumerate()
-                        .map(|(i, e)| ((events.digest(), i), e));
-                    store
-                        .perpetual_tables
-                        .events
-                        .multi_insert(events_iter)
-                        .unwrap();
-
-                    // Insert to events_2 table
                     if effects.events_digest().is_some() {
                         store
                             .perpetual_tables
@@ -405,31 +392,7 @@ impl AuthorityStore {
         &self,
         digest: &TransactionDigest,
     ) -> Result<Option<TransactionEvents>, TypedStoreError> {
-        // For now, during this transition period, if we don't find events for a
-        // particular Transaction we need to fallback to try and read from the
-        // older table. Once the migration has finished and we've removed the
-        // older events table we can stop doing the fallback
-        if let Some(events) = self.perpetual_tables.events_2.get(digest)? {
-            return Ok(Some(events));
-        }
-
-        self.get_executed_effects(digest)?
-            .and_then(|effects| effects.events_digest().copied())
-            .and_then(|events_digest| self.get_events_by_events_digest(&events_digest).transpose())
-            .transpose()
-    }
-
-    pub fn get_events_by_events_digest(
-        &self,
-        event_digest: &TransactionEventsDigest,
-    ) -> Result<Option<TransactionEvents>, TypedStoreError> {
-        let data = self
-            .perpetual_tables
-            .events
-            .safe_iter_with_prefix(event_digest)
-            .map_ok(|(_, event)| event)
-            .collect::<Result<Vec<_>, TypedStoreError>>()?;
-        Ok(data.is_empty().not().then_some(TransactionEvents(data)))
+        self.perpetual_tables.events_2.get(digest)
     }
 
     pub fn multi_get_events(
@@ -921,15 +884,6 @@ impl AuthorityStore {
             )?;
         }
 
-        // Continue writing events into the old table for now keyed off of events digest
-        let event_digest = events.digest();
-        let events = events
-            .iter()
-            .enumerate()
-            .map(|(i, e)| ((event_digest, i), e));
-
-        write_batch.insert_batch(&self.perpetual_tables.events, events)?;
-
         self.initialize_live_object_markers_impl(write_batch, new_live_object_markers_to_init)?;
 
         // Note: deletes live object markers for received objects as well (but not for
@@ -1077,13 +1031,7 @@ impl AuthorityStore {
         Ok(iterator
             .next()
             .transpose()?
-            .and_then(|value| {
-                if value.0.object_id == object_id {
-                    Some(value)
-                } else {
-                    None
-                }
-            })
+            .filter(|&value| value.0.object_id == object_id)
             .ok_or_else(|| {
                 IotaError::from(UserInputError::ObjectNotFound {
                     object_id,
@@ -1217,13 +1165,8 @@ impl AuthorityStore {
             &self.perpetual_tables.executed_effects,
             iter::once(tx_digest),
         )?;
-        if let Some(events_digest) = effects.events_digest() {
+        if effects.events_digest().is_some() {
             write_batch.delete_batch(&self.perpetual_tables.events_2, [tx_digest])?;
-            write_batch.schedule_delete_range(
-                &self.perpetual_tables.events,
-                &(*events_digest, usize::MIN),
-                &(*events_digest, usize::MAX),
-            )?;
         }
 
         let tombstones = effects

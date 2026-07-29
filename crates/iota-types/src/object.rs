@@ -10,20 +10,19 @@ use std::{
 };
 
 use iota_protocol_config::ProtocolConfig;
+pub use iota_sdk_types::Object as ObjectInner;
 use iota_sdk_types::{
-    Address, MoveObjectType, ObjectData, ObjectId, ObjectReference, Owner, StructTag, TypeTag,
-    Version, move_package::MovePackage,
+    Address, MoveObjectType, MoveStruct, ObjectData, ObjectId, ObjectReference, Owner, StructTag,
+    TransactionDigest, TypeTag, Version, move_package::MovePackage,
 };
-pub use iota_sdk_types::{MoveStruct as MoveObject, Object as ObjectInner};
 use move_binary_format::CompiledModule;
 use move_bytecode_utils::{layout::TypeLayoutBuilder, module_cache::GetModule};
-use move_core_types::annotated_value::{MoveStruct, MoveStructLayout, MoveTypeLayout, MoveValue};
+use move_core_types::annotated_value::{self, MoveStructLayout, MoveTypeLayout, MoveValue};
 use serde::{Deserialize, Serialize};
 
 use self::{balance_traversal::BalanceTraversal, bounded_visitor::BoundedVisitor};
 use crate::{
     balance::Balance,
-    base_types::TransactionDigest,
     coin::{Coin, CoinMetadata, TreasuryCap},
     crypto::deterministic_random_account_key,
     error::{
@@ -46,12 +45,12 @@ pub const OBJECT_START_VERSION: Version = Version::from_u64(1);
 /// Index marking the end of the object's ID + the beginning of its version
 pub const ID_END_INDEX: usize = ObjectId::LENGTH;
 
-mod move_object_ext {
+mod move_struct_ext {
     pub trait Sealed {}
-    impl Sealed for super::MoveObject {}
+    impl Sealed for super::MoveStruct {}
 }
 
-pub trait MoveObjectExt: Sized + move_object_ext::Sealed {
+pub trait MoveStructExt: Sized + move_struct_ext::Sealed {
     fn new_from_execution(
         tag: StructTag,
         version: Version,
@@ -86,7 +85,10 @@ pub trait MoveObjectExt: Sized + move_object_ext::Sealed {
         struct_tag: StructTag,
         resolver: &impl GetModule,
     ) -> Result<MoveStructLayout, IotaError>;
-    fn to_move_struct(&self, layout: &MoveStructLayout) -> Result<MoveStruct, IotaError>;
+    fn to_move_struct(
+        &self,
+        layout: &MoveStructLayout,
+    ) -> Result<annotated_value::MoveStruct, IotaError>;
     fn object_size_for_gas_metering(&self) -> usize;
     fn get_total_iota(&self, layout_resolver: &mut dyn LayoutResolver) -> Result<u64, IotaError>;
     fn get_coin_balances(
@@ -95,7 +97,7 @@ pub trait MoveObjectExt: Sized + move_object_ext::Sealed {
     ) -> Result<BTreeMap<TypeTag, u64>, IotaError>;
 }
 
-impl MoveObjectExt for MoveObject {
+impl MoveStructExt for MoveStruct {
     /// Creates a new Move object of type `tag` with BCS encoded bytes in
     /// `contents`.
     fn new_from_execution(
@@ -282,7 +284,10 @@ impl MoveObjectExt for MoveObject {
     }
 
     /// Convert `self` to the JSON representation dictated by `layout`.
-    fn to_move_struct(&self, layout: &MoveStructLayout) -> Result<MoveStruct, IotaError> {
+    fn to_move_struct(
+        &self,
+        layout: &MoveStructLayout,
+    ) -> Result<annotated_value::MoveStruct, IotaError> {
         BoundedVisitor::deserialize_struct(self.contents(), layout).map_err(|e| {
             IotaError::ObjectSerialization {
                 error: e.to_string(),
@@ -372,7 +377,7 @@ impl Object {
     }
 
     /// Create a new Move object
-    pub fn new_move(o: MoveObject, owner: Owner, previous_transaction: TransactionDigest) -> Self {
+    pub fn new_move(o: MoveStruct, owner: Owner, previous_transaction: TransactionDigest) -> Self {
         ObjectInner {
             data: ObjectData::Struct(o),
             owner,
@@ -585,7 +590,7 @@ impl Object {
 
     pub fn immutable_with_id_for_testing(id: ObjectId) -> Self {
         let data = ObjectData::Struct(
-            MoveObject::new(
+            MoveStruct::new(
                 StructTag::new_gas_coin().into(),
                 OBJECT_START_VERSION,
                 GasCoin::new(id, GAS_VALUE_FOR_TESTING).to_bcs_bytes(),
@@ -612,14 +617,14 @@ impl Object {
     /// Make a new random test shared object.
     pub fn shared_for_testing() -> Object {
         let id = ObjectId::random();
-        let obj = MoveObject::new_gas_coin(OBJECT_START_VERSION, id, 10);
+        let obj = MoveStruct::new_gas_coin(OBJECT_START_VERSION, id, 10);
         let owner = Owner::Shared(obj.version());
         Object::new_move(obj, owner, TransactionDigest::GENESIS_MARKER)
     }
 
     pub fn with_id_owner_gas_for_testing(id: ObjectId, owner: Address, gas: u64) -> Self {
         let data = ObjectData::Struct(
-            MoveObject::new(
+            MoveStruct::new(
                 StructTag::new_gas_coin().into(),
                 OBJECT_START_VERSION,
                 GasCoin::new(id, gas).to_bcs_bytes(),
@@ -637,7 +642,7 @@ impl Object {
 
     pub fn treasury_cap_for_testing(struct_tag: StructTag, treasury_cap: TreasuryCap) -> Self {
         let data = ObjectData::Struct(
-            MoveObject::new(
+            MoveStruct::new(
                 StructTag::new_treasury_cap(struct_tag).into(),
                 OBJECT_START_VERSION,
                 bcs::to_bytes(&treasury_cap).expect("Failed to serialize"),
@@ -655,7 +660,7 @@ impl Object {
 
     pub fn coin_metadata_for_testing(struct_tag: StructTag, metadata: CoinMetadata) -> Self {
         let data = ObjectData::Struct(
-            MoveObject::new(
+            MoveStruct::new(
                 StructTag::new_coin_metadata(struct_tag).into(),
                 OBJECT_START_VERSION,
                 bcs::to_bytes(&metadata).expect("Failed to serialize"),
@@ -673,7 +678,7 @@ impl Object {
 
     pub fn with_object_owner_for_testing(id: ObjectId, owner: ObjectId) -> Self {
         let data = ObjectData::Struct(
-            MoveObject::new(
+            MoveStruct::new(
                 StructTag::new_gas_coin().into(),
                 OBJECT_START_VERSION,
                 GasCoin::new(id, GAS_VALUE_FOR_TESTING).to_bcs_bytes(),
@@ -696,7 +701,7 @@ impl Object {
 
     pub fn with_id_owner_version_for_testing(id: ObjectId, version: Version, owner: Owner) -> Self {
         let data = ObjectData::Struct(
-            MoveObject::new(
+            MoveStruct::new(
                 StructTag::new_gas_coin().into(),
                 version,
                 GasCoin::new(id, GAS_VALUE_FOR_TESTING).to_bcs_bytes(),
@@ -719,7 +724,7 @@ impl Object {
     /// Generate a new gas coin worth `value` with a random object ID and owner
     /// For testing purposes only
     pub fn new_gas_with_balance_and_owner_for_testing(value: u64, owner: Address) -> Self {
-        let obj = MoveObject::new_gas_coin(OBJECT_START_VERSION, ObjectId::random(), value);
+        let obj = MoveStruct::new_gas_coin(OBJECT_START_VERSION, ObjectId::random(), value);
         Object::new_move(
             obj,
             Owner::Address(owner),
@@ -888,12 +893,11 @@ impl Display for PastObjectRead {
 
 #[cfg(test)]
 mod tests {
-    use iota_sdk_types::{Address, ObjectId};
+    use iota_sdk_types::{Address, ObjectId, TransactionDigest};
 
     use crate::{
-        base_types::TransactionDigest,
         gas_coin::GasCoin,
-        object::{MoveObjectExt, OBJECT_START_VERSION, Object, Owner},
+        object::{MoveStructExt, OBJECT_START_VERSION, Object, Owner},
     };
 
     // Ensure that object digest computation and bcs serialized format are not

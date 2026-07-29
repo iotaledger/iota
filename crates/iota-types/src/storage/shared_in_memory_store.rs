@@ -4,18 +4,20 @@
 
 use std::{collections::HashMap, sync::Arc};
 
+use iota_sdk_types::{
+    CheckpointContentsDigest, CheckpointDigest, TransactionDigest, checkpoint::CheckpointContents,
+};
 use tap::Pipe;
 use tracing::error;
 
 use super::{ObjectStore, error::Result};
 use crate::{
-    base_types::{EpochId, ExecutionData, TransactionDigest},
+    base_types::{EpochId, ExecutionData},
     committee::Committee,
-    digests::{CheckpointContentsDigest, CheckpointDigest},
     effects::{TransactionEffects, TransactionEvents},
     messages_checkpoint::{
-        CheckpointContents, CheckpointContentsExt, CheckpointSequenceNumber,
-        FullCheckpointContents, VerifiedCheckpoint, VerifiedCheckpointContents,
+        CheckpointContentsExt, CheckpointSequenceNumber, FullCheckpointContents,
+        VerifiedCheckpoint, VerifiedCheckpointContents,
     },
     storage::{ReadStore, WriteStore},
     transaction::VerifiedTransaction,
@@ -336,7 +338,7 @@ impl InMemoryStore {
                 .insert(*tx.transaction.digest(), tx.effects.to_owned());
         }
         self.contents_digest_to_sequence_number
-            .insert(checkpoint.content_digest, checkpoint.sequence_number());
+            .insert(checkpoint.contents_digest, checkpoint.sequence_number());
         let contents = contents.into_inner();
         self.full_checkpoint_contents
             .insert(checkpoint.sequence_number(), contents.clone());

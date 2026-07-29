@@ -41,13 +41,13 @@ use iota_macros::sim_test;
 use iota_move_build::{BuildConfig, IotaPackageHooks};
 use iota_sdk::{IotaClient, PagedFn, wallet_context::WalletContext};
 use iota_sdk_types::{
-    Address, ObjectId, ObjectReference, Owner, StructTag,
+    Address, ObjectId, ObjectReference, Owner, SignatureScheme, StructTag,
     move_package::{MovePackage, UpgradeInfo},
 };
 use iota_swarm_config::genesis_config::{AccountConfig, GenesisConfig};
 use iota_test_transaction_builder::batch_make_transfer_transactions;
 use iota_types::{
-    crypto::{AccountKeyPair, IotaKeyPair, SignatureScheme, get_key_pair},
+    crypto::{AccountKeyPair, IotaKeyPair, get_key_pair},
     gas_coin::GasCoin,
     transaction::{
         TEST_ONLY_GAS_UNIT_FOR_GENERIC, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS,
@@ -264,10 +264,10 @@ fn copy_dir_all(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> io::Result<()> 
     Ok(())
 }
 
-/// Copy a `tests/data/<pkg>/` Move package into a fresh `TempDir` so
-/// parallel PTB `--publish` / `--upgrade` tests don't race on the
-/// shared on-disk `build/` and `Move.lock`. The caller must keep the
-/// returned `TempDir` alive (drop deletes it).
+/// Copy an in-tree Move package into a fresh `TempDir` so parallel
+/// tests publishing the same package don't race on the shared on-disk
+/// `build/` and `Move.lock`. The caller must keep the returned
+/// `TempDir` alive (drop deletes it).
 fn isolate_test_package(src_pkg: &Path) -> (TempDir, PathBuf) {
     let temp_dir = tempfile::TempDir::new().unwrap();
     let dst_pkg = temp_dir.path().join(src_pkg.file_name().unwrap());
@@ -3277,7 +3277,7 @@ async fn test_switch_command() -> Result<(), anyhow::Error> {
 
     // Create a new address
     let os = IotaClientCommands::NewAddress {
-        key_scheme: SignatureScheme::ED25519,
+        key_scheme: SignatureScheme::Ed25519,
         alias: None,
         derivation_path: None,
         word_length: None,
@@ -3324,7 +3324,7 @@ async fn test_new_address_command_by_flag() -> Result<(), anyhow::Error> {
             .keystore()
             .keys()
             .iter()
-            .filter(|k| k.public().flag() == SignatureScheme::ED25519.flag())
+            .filter(|k| k.public().flag() == SignatureScheme::Ed25519.to_u8())
             .count(),
         5
     );
@@ -3345,7 +3345,7 @@ async fn test_new_address_command_by_flag() -> Result<(), anyhow::Error> {
             .keystore()
             .keys()
             .iter()
-            .filter(|k| k.public().flag() == SignatureScheme::Secp256k1.flag())
+            .filter(|k| k.public().flag() == SignatureScheme::Secp256k1.to_u8())
             .count(),
         1
     );
@@ -3900,20 +3900,16 @@ async fn test_split_coin() -> Result<(), anyhow::Error> {
 
 #[sim_test]
 async fn test_signature_flag() -> Result<(), anyhow::Error> {
-    let res = SignatureScheme::from_flag("0");
-    assert!(res.is_ok());
-    assert_eq!(res.unwrap().flag(), SignatureScheme::ED25519.flag());
-
-    let res = SignatureScheme::from_flag("1");
-    assert!(res.is_ok());
-    assert_eq!(res.unwrap().flag(), SignatureScheme::Secp256k1.flag());
-
-    let res = SignatureScheme::from_flag("2");
-    assert!(res.is_ok());
-    assert_eq!(res.unwrap().flag(), SignatureScheme::Secp256r1.flag());
-
-    let res = SignatureScheme::from_flag("something");
-    assert!(res.is_err());
+    assert_eq!(SignatureScheme::from_byte(0), Ok(SignatureScheme::Ed25519));
+    assert_eq!(
+        SignatureScheme::from_byte(1),
+        Ok(SignatureScheme::Secp256k1)
+    );
+    assert_eq!(
+        SignatureScheme::from_byte(2),
+        Ok(SignatureScheme::Secp256r1)
+    );
+    assert!(SignatureScheme::from_byte(0x05).is_err());
     Ok(())
 }
 
@@ -6627,12 +6623,13 @@ async fn setup_move_authenticator_account(
         .unwrap()
         .coin_object_id;
 
-    let package_path = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap())
+    let src_pkg = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap())
         .parent()
         .unwrap()
         .parent()
         .unwrap()
         .join(package_relative_path);
+    let (_temp_dir, package_path) = isolate_test_package(&src_pkg);
     let mut build_config = BuildConfig::new_for_testing().config;
     build_config.lock_file = Some(package_path.join("Move.lock"));
 
