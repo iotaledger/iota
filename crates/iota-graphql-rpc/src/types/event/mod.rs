@@ -2,8 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::ops::Bound;
-
 use async_graphql::{
     connection::{Connection, CursorType, Edge},
     *,
@@ -18,7 +16,7 @@ use iota_indexer::{
     schema::{checkpoints, events},
 };
 use iota_sdk_types::{Address as NativeAddress, Event as NativeEvent, Identifier, ObjectId};
-use iota_types::parse_iota_struct_tag;
+use iota_types::{event::EventID, parse_iota_struct_tag};
 use lookups::{add_bounds, select_emit_module, select_event_type, select_sender};
 
 use crate::{
@@ -295,22 +293,32 @@ impl Event {
         checkpoint_viewed_at: u64,
         tx_hi: i64,
     ) -> Result<Connection<String, Event>, Error> {
-        // Fetch the page plus the rows at the cursors, to later compute
-        // `has_next`/`has_prev` via `paginate_results`.
-        let min_tx_ev_seq = page
-            .after()
-            .map_or(Bound::Unbounded, |c| Bound::Included((c.tx, c.e)));
-        // Events of transactions at or above `tx_hi` are not visible at
-        // `checkpoint_viewed_at`.
-        let max_tx_ev_seq = match page.before() {
-            Some(c) if c.tx < tx_hi as u64 => Bound::Included((c.tx, c.e)),
-            _ => Bound::Excluded((tx_hi as u64, 0)),
+        // Page cursors are inclusive, we need to convert them to exclusive
+        let cursor = if page.is_from_front() {
+            // Cannot do -1 when cursor=0
+            page.after().and_then(|cursor| {
+                cursor.e.checked_sub(1).map(|event_seq| EventID {
+                    tx_digest: tx_digest.into(),
+                    event_seq,
+                })
+            })
+        } else {
+            // Cannot do +1 when cursor=`u64::MAX`
+            page.before().and_then(|cursor| {
+                cursor.e.checked_add(1).map(|event_seq| EventID {
+                    tx_digest: tx_digest.into(),
+                    event_seq,
+                })
+            })
         };
+
+        // we fetch with limit+2, so that we receive back both cursors in case of full
+        // page, as required by `page.paginate_results`
         let mut results = db
             .inner
             .query_stored_events_by_tx_digest_with_fallback(
                 tx_digest.into(),
-                (min_tx_ev_seq, max_tx_ev_seq),
+                cursor,
                 page.limit() + 2,
                 !page.is_from_front(),
             )
@@ -319,6 +327,18 @@ impl Event {
         if !page.is_from_front() {
             results.reverse();
         }
+
+        // Initial fetch above honored only the start cursor. We filter the result to
+        // also honor the end cursor and the `tx_hi`
+        results.retain(|ev| {
+            let key = (
+                ev.tx_sequence_number as u64,
+                ev.event_sequence_number as u64,
+            );
+            ev.tx_sequence_number < tx_hi
+                && page.after().is_none_or(|c| (c.tx, c.e) <= key)
+                && page.before().is_none_or(|c| key <= (c.tx, c.e))
+        });
 
         let (prev, next, results) = page.paginate_results(
             results.first().map(|f| f.cursor(checkpoint_viewed_at)),
