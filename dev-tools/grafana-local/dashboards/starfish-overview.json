@@ -2106,7 +2106,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "max by (validator, series) (label_replace(label_replace(histogram_quantile(0.33, sum by(host, le) (rate(consensus_latency_to_process_stream_bucket[2m])) and on(host) label_replace(bottomk(5, (avg_over_time((avg(irate(consensus_committed_messages[2m])) by (authority))[30m:1m] @ end()) or avg_over_time((avg(irate(consensus_committed_messages[2m])) by (authority))[5m:1m] @ end()) or (avg(irate(consensus_committed_messages[2m] @ end())) by (authority))) and on(authority) label_replace(current_voting_right{host!~\"access.*|backup.*|archive.*|indexer.*\"} > 0, \"authority\", \"$1\", \"host\", \"(.*)\")), \"host\", \"$1\", \"authority\", \"(.*)\")), \"validator\", \"$1\", \"host\", \"(.*)\"), \"series\", \"recv p33\", \"host\", \".*\")) or max by (validator, series) (label_replace(label_replace(histogram_quantile(0.66, sum by(host, le) (rate(consensus_latency_to_process_stream_bucket[2m])) and on(host) label_replace(bottomk(5, (avg_over_time((avg(irate(consensus_committed_messages[2m])) by (authority))[30m:1m] @ end()) or avg_over_time((avg(irate(consensus_committed_messages[2m])) by (authority))[5m:1m] @ end()) or (avg(irate(consensus_committed_messages[2m] @ end())) by (authority))) and on(authority) label_replace(current_voting_right{host!~\"access.*|backup.*|archive.*|indexer.*\"} > 0, \"authority\", \"$1\", \"host\", \"(.*)\")), \"host\", \"$1\", \"authority\", \"(.*)\")), \"validator\", \"$1\", \"host\", \"(.*)\"), \"series\", \"recv p66\", \"host\", \".*\")) or max by (validator, series) (label_replace(label_replace(histogram_quantile(0.33, sum by(peer, le) (rate(consensus_latency_to_process_stream_bucket[2m])) and on(peer) label_replace(bottomk(5, (avg_over_time((avg(irate(consensus_committed_messages[2m])) by (authority))[30m:1m] @ end()) or avg_over_time((avg(irate(consensus_committed_messages[2m])) by (authority))[5m:1m] @ end()) or (avg(irate(consensus_committed_messages[2m] @ end())) by (authority))) and on(authority) label_replace(current_voting_right{host!~\"access.*|backup.*|archive.*|indexer.*\"} > 0, \"authority\", \"$1\", \"host\", \"(.*)\")), \"peer\", \"$1\", \"authority\", \"(.*)\")), \"validator\", \"$1\", \"peer\", \"(.*)\"), \"series\", \"sent p33\", \"peer\", \".*\")) or max by (validator, series) (label_replace(label_replace(histogram_quantile(0.66, sum by(peer, le) (rate(consensus_latency_to_process_stream_bucket[2m])) and on(peer) label_replace(bottomk(5, (avg_over_time((avg(irate(consensus_committed_messages[2m])) by (authority))[30m:1m] @ end()) or avg_over_time((avg(irate(consensus_committed_messages[2m])) by (authority))[5m:1m] @ end()) or (avg(irate(consensus_committed_messages[2m] @ end())) by (authority))) and on(authority) label_replace(current_voting_right{host!~\"access.*|backup.*|archive.*|indexer.*\"} > 0, \"authority\", \"$1\", \"host\", \"(.*)\")), \"peer\", \"$1\", \"authority\", \"(.*)\")), \"validator\", \"$1\", \"peer\", \"(.*)\"), \"series\", \"sent p66\", \"peer\", \".*\")) or max by (validator, series) (label_replace(label_replace(sum by(host) (consensus_subscribed_to == 1) and on(host) label_replace(bottomk(5, (avg_over_time((avg(irate(consensus_committed_messages[2m])) by (authority))[30m:1m] @ end()) or avg_over_time((avg(irate(consensus_committed_messages[2m])) by (authority))[5m:1m] @ end()) or (avg(irate(consensus_committed_messages[2m] @ end())) by (authority))) and on(authority) label_replace(current_voting_right{host!~\"access.*|backup.*|archive.*|indexer.*\"} > 0, \"authority\", \"$1\", \"host\", \"(.*)\")), \"host\", \"$1\", \"authority\", \"(.*)\"), \"validator\", \"$1\", \"host\", \"(.*)\"), \"series\", \"recv conns\", \"host\", \".*\")) or max by (validator, series) (label_replace(label_replace(sum by(host) (consensus_subscribed_by == 1) and on(host) label_replace(bottomk(5, (avg_over_time((avg(irate(consensus_committed_messages[2m])) by (authority))[30m:1m] @ end()) or avg_over_time((avg(irate(consensus_committed_messages[2m])) by (authority))[5m:1m] @ end()) or (avg(irate(consensus_committed_messages[2m] @ end())) by (authority))) and on(authority) label_replace(current_voting_right{host!~\"access.*|backup.*|archive.*|indexer.*\"} > 0, \"authority\", \"$1\", \"host\", \"(.*)\")), \"host\", \"$1\", \"authority\", \"(.*)\"), \"validator\", \"$1\", \"host\", \"(.*)\"), \"series\", \"sent conns\", \"host\", \".*\")) or max by (validator, series) (label_replace(label_replace(avg(irate(consensus_committed_messages[2m])) by (authority) and on(authority) bottomk(5, (avg_over_time((avg(irate(consensus_committed_messages[2m])) by (authority))[30m:1m] @ end()) or avg_over_time((avg(irate(consensus_committed_messages[2m])) by (authority))[5m:1m] @ end()) or (avg(irate(consensus_committed_messages[2m] @ end())) by (authority))) and on(authority) label_replace(current_voting_right{host!~\"access.*|backup.*|archive.*|indexer.*\"} > 0, \"authority\", \"$1\", \"host\", \"(.*)\")), \"validator\", \"$1\", \"authority\", \"(.*)\"), \"series\", \"commit msg/s\", \"authority\", \".*\"))",
+          "expr": "max by (validator, series) (label_replace(label_replace((consensus_latency_to_process_stream{quantile=\"0.33\"} and on(host) label_replace(bottomk(5, (avg_over_time((avg(irate(consensus_committed_messages[2m])) by (authority))[30m:1m] @ end()) or avg_over_time((avg(irate(consensus_committed_messages[2m])) by (authority))[5m:1m] @ end()) or (avg(irate(consensus_committed_messages[2m] @ end())) by (authority))) and on(authority) label_replace(current_voting_right{host!~\"access.*|backup.*|archive.*|indexer.*\"} > 0, \"authority\", \"$1\", \"host\", \"(.*)\")), \"host\", \"$1\", \"authority\", \"(.*)\")), \"validator\", \"$1\", \"host\", \"(.*)\"), \"series\", \"recv p33\", \"host\", \".*\")) or max by (validator, series) (label_replace(label_replace((consensus_latency_to_process_stream{quantile=\"0.66\"} and on(host) label_replace(bottomk(5, (avg_over_time((avg(irate(consensus_committed_messages[2m])) by (authority))[30m:1m] @ end()) or avg_over_time((avg(irate(consensus_committed_messages[2m])) by (authority))[5m:1m] @ end()) or (avg(irate(consensus_committed_messages[2m] @ end())) by (authority))) and on(authority) label_replace(current_voting_right{host!~\"access.*|backup.*|archive.*|indexer.*\"} > 0, \"authority\", \"$1\", \"host\", \"(.*)\")), \"host\", \"$1\", \"authority\", \"(.*)\")), \"validator\", \"$1\", \"host\", \"(.*)\"), \"series\", \"recv p66\", \"host\", \".*\")) or max by (validator, series) (label_replace(label_replace((sum by (host, peer) (rate(consensus_latency_to_process_stream_sum[2m])) / sum by (host, peer) (rate(consensus_latency_to_process_stream_count[2m])) and on(peer) label_replace(bottomk(5, (avg_over_time((avg(irate(consensus_committed_messages[2m])) by (authority))[30m:1m] @ end()) or avg_over_time((avg(irate(consensus_committed_messages[2m])) by (authority))[5m:1m] @ end()) or (avg(irate(consensus_committed_messages[2m] @ end())) by (authority))) and on(authority) label_replace(current_voting_right{host!~\"access.*|backup.*|archive.*|indexer.*\"} > 0, \"authority\", \"$1\", \"host\", \"(.*)\")), \"peer\", \"$1\", \"authority\", \"(.*)\")), \"validator\", \"$1\", \"peer\", \"(.*)\"), \"series\", \"sent mean\", \"peer\", \".*\")) or max by (validator, series) (label_replace(label_replace(sum by(host) (consensus_subscribed_to == 1) and on(host) label_replace(bottomk(5, (avg_over_time((avg(irate(consensus_committed_messages[2m])) by (authority))[30m:1m] @ end()) or avg_over_time((avg(irate(consensus_committed_messages[2m])) by (authority))[5m:1m] @ end()) or (avg(irate(consensus_committed_messages[2m] @ end())) by (authority))) and on(authority) label_replace(current_voting_right{host!~\"access.*|backup.*|archive.*|indexer.*\"} > 0, \"authority\", \"$1\", \"host\", \"(.*)\")), \"host\", \"$1\", \"authority\", \"(.*)\"), \"validator\", \"$1\", \"host\", \"(.*)\"), \"series\", \"recv conns\", \"host\", \".*\")) or max by (validator, series) (label_replace(label_replace(sum by(host) (consensus_subscribed_by == 1) and on(host) label_replace(bottomk(5, (avg_over_time((avg(irate(consensus_committed_messages[2m])) by (authority))[30m:1m] @ end()) or avg_over_time((avg(irate(consensus_committed_messages[2m])) by (authority))[5m:1m] @ end()) or (avg(irate(consensus_committed_messages[2m] @ end())) by (authority))) and on(authority) label_replace(current_voting_right{host!~\"access.*|backup.*|archive.*|indexer.*\"} > 0, \"authority\", \"$1\", \"host\", \"(.*)\")), \"host\", \"$1\", \"authority\", \"(.*)\"), \"validator\", \"$1\", \"host\", \"(.*)\"), \"series\", \"sent conns\", \"host\", \".*\")) or max by (validator, series) (label_replace(label_replace(avg(irate(consensus_committed_messages[2m])) by (authority) and on(authority) bottomk(5, (avg_over_time((avg(irate(consensus_committed_messages[2m])) by (authority))[30m:1m] @ end()) or avg_over_time((avg(irate(consensus_committed_messages[2m])) by (authority))[5m:1m] @ end()) or (avg(irate(consensus_committed_messages[2m] @ end())) by (authority))) and on(authority) label_replace(current_voting_right{host!~\"access.*|backup.*|archive.*|indexer.*\"} > 0, \"authority\", \"$1\", \"host\", \"(.*)\")), \"validator\", \"$1\", \"authority\", \"(.*)\"), \"series\", \"commit msg/s\", \"authority\", \".*\"))",
           "format": "table",
           "instant": true,
           "legendFormat": "__auto",
@@ -11175,11 +11175,11 @@
               },
               "disableTextWrap": false,
               "editorMode": "code",
-              "expr": "histogram_quantile(0.5,\n  sum by (host, type, le) (\n    rate(consensus_transaction_synchronizer_fetch_latency_bucket[2m])\n  )\n)",
+              "expr": "consensus_transaction_synchronizer_fetch_latency{quantile=\"0.5\"}",
               "fullMetaSearch": false,
               "includeNullMetadata": true,
               "instant": false,
-              "legendFormat": "p50 - {{type}} @ {{host}}",
+              "legendFormat": "p50 @ {{host}}",
               "range": true,
               "refId": "A",
               "useBackend": false
@@ -11190,10 +11190,10 @@
                 "uid": "prometheus"
               },
               "editorMode": "code",
-              "expr": "histogram_quantile(0.75,\n  sum by (host, type, le) (\n    rate(consensus_transaction_synchronizer_fetch_latency_bucket[2m])\n  )\n)",
+              "expr": "consensus_transaction_synchronizer_fetch_latency{quantile=\"0.66\"}",
               "hide": false,
               "instant": false,
-              "legendFormat": "p75 - {{type}} @ {{host}}",
+              "legendFormat": "p66 @ {{host}}",
               "range": true,
               "refId": "B"
             },
@@ -11203,10 +11203,10 @@
                 "uid": "prometheus"
               },
               "editorMode": "code",
-              "expr": "histogram_quantile(0.9,\n  sum by (host, type, le) (\n    rate(consensus_transaction_synchronizer_fetch_latency_bucket[2m])\n  )\n)",
+              "expr": "consensus_transaction_synchronizer_fetch_latency{quantile=\"0.95\"}",
               "hide": false,
               "instant": false,
-              "legendFormat": "p90 - {{type}} @ {{host}}",
+              "legendFormat": "p95 @ {{host}}",
               "range": true,
               "refId": "C"
             }
@@ -11823,7 +11823,7 @@
                 "uid": "prometheus"
               },
               "editorMode": "code",
-              "expr": "histogram_quantile(0.5, sum by(host,peer, le) (rate(consensus_transaction_synchronizer_fetch_latency_bucket{type=\"live\"}[5m])))",
+              "expr": "(sum by (host, peer) (rate(consensus_transaction_synchronizer_fetch_latency_sum{type=\"live\"}[5m])) / sum by (host, peer) (rate(consensus_transaction_synchronizer_fetch_latency_count{type=\"live\"}[5m])))",
               "hide": false,
               "instant": false,
               "legendFormat": "{{host }} -> {{peer}}",
@@ -11831,7 +11831,7 @@
               "refId": "B"
             }
           ],
-          "title": "Median transaction synchronizer fetch latency (live)",
+          "title": "Mean transaction synchronizer fetch latency by peer (live)",
           "type": "timeseries"
         },
         {
@@ -11924,7 +11924,7 @@
               },
               "disableTextWrap": false,
               "editorMode": "code",
-              "expr": "histogram_quantile(0.5, sum by(host,peer, le) (rate(consensus_transaction_synchronizer_fetch_latency_bucket{type=\"periodic\"}[5m])))",
+              "expr": "(sum by (host, peer) (rate(consensus_transaction_synchronizer_fetch_latency_sum{type=\"periodic\"}[5m])) / sum by (host, peer) (rate(consensus_transaction_synchronizer_fetch_latency_count{type=\"periodic\"}[5m])))",
               "fullMetaSearch": false,
               "includeNullMetadata": true,
               "instant": false,
@@ -11934,7 +11934,7 @@
               "useBackend": false
             }
           ],
-          "title": "Median transaction synchronizer fetch latency (periodic)",
+          "title": "Mean transaction synchronizer fetch latency by peer (periodic)",
           "type": "timeseries"
         },
         {
@@ -14629,9 +14629,9 @@
                 "uid": "prometheus"
               },
               "editorMode": "code",
-              "expr": "histogram_quantile(0.5, sum by (le, authority) (rate(consensus_suspended_block_header_time_bucket[2m])))",
+              "expr": "consensus_suspended_block_header_time{quantile=\"0.5\"}",
               "instant": false,
-              "legendFormat": "{{authority}} p50",
+              "legendFormat": "{{authority}} p50 @ {{host}}",
               "range": true,
               "refId": "A"
             },
@@ -14641,9 +14641,9 @@
                 "uid": "prometheus"
               },
               "editorMode": "code",
-              "expr": "histogram_quantile(0.95, sum by (le, authority) (rate(consensus_suspended_block_header_time_bucket[2m])))",
+              "expr": "consensus_suspended_block_header_time{quantile=\"0.95\"}",
               "instant": false,
-              "legendFormat": "{{authority}} p95",
+              "legendFormat": "{{authority}} p95 @ {{host}}",
               "range": true,
               "refId": "B"
             }

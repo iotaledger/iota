@@ -13433,6 +13433,7 @@ dependencies = [
  "eyre",
  "fastcrypto",
  "futures",
+ "hdrhistogram",
  "http 1.4.0",
  "iota-common",
  "iota-http",
