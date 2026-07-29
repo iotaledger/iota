@@ -125,7 +125,7 @@ To restore from a RocksDB snapshot, follow these steps:
       <TabItem label="Mainnet (Docker)" value="mainnet-docker">
       ```shell
       docker run --rm \
-         -v "<PATH-TO-NODE-DB>":/opt/iota/db \
+         -v "$PWD/data/db":/opt/iota/db \
          iotaledger/iota-tools:mainnet \
          /bin/sh -c "/usr/local/bin/iota-tool download-db-snapshot \
             --latest \
@@ -152,7 +152,7 @@ To restore from a RocksDB snapshot, follow these steps:
       <TabItem label="Testnet (Docker)" value="testnet-docker">
       ```shell
       docker run --rm \
-         -v "<PATH-TO-NODE-DB>":/opt/iota/db \
+         -v "$PWD/data/db":/opt/iota/db \
          iotaledger/iota-tools:testnet \
          /bin/sh -c "/usr/local/bin/iota-tool download-db-snapshot \
             --latest \
