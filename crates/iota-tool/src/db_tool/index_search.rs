@@ -6,9 +6,7 @@ use std::{fmt::Debug, path::PathBuf, str::FromStr};
 
 use anyhow::{anyhow, bail};
 use iota_core::jsonrpc_index::IndexStoreTables;
-use iota_sdk_types::{Address, Identifier, ObjectId, TransactionDigest};
-use iota_types::base_types::TxSequenceNumber;
-use move_core_types::{account_address::AccountAddress, language_storage::ModuleId};
+use iota_sdk_types::{Address, ObjectId};
 use serde::{Serialize, de::DeserializeOwned};
 use typed_store::{
     rocks::{DBMap, MetricConf},
@@ -48,62 +46,6 @@ pub fn search_index(
     let db_read_only_handle =
         IndexStoreTables::get_read_only_handle(db_path, None, None, MetricConf::default());
     match table_name.as_str() {
-        "transactions_from_addr" => {
-            get_db_entries!(
-                db_read_only_handle.transactions_from_addr,
-                from_addr_seq,
-                start,
-                termination
-            )
-        }
-        "transactions_to_addr" => {
-            get_db_entries!(
-                db_read_only_handle.transactions_to_addr,
-                from_addr_seq,
-                start,
-                termination
-            )
-        }
-        "transactions_by_input_object_id" => {
-            get_db_entries!(
-                db_read_only_handle.transactions_by_input_object_id,
-                from_id_seq,
-                start,
-                termination
-            )
-        }
-        "transactions_by_mutated_object_id" => {
-            get_db_entries!(
-                db_read_only_handle.transactions_by_mutated_object_id,
-                from_id_seq,
-                start,
-                termination
-            )
-        }
-        "transactions_by_move_function" => {
-            get_db_entries!(
-                db_read_only_handle.transactions_by_move_function,
-                from_id_module_function_txseq,
-                start,
-                termination
-            )
-        }
-        "transaction_order" => {
-            get_db_entries!(
-                db_read_only_handle.transaction_order,
-                u64::from_str,
-                start,
-                termination
-            )
-        }
-        "transactions_seq" => {
-            get_db_entries!(
-                db_read_only_handle.transactions_seq,
-                TransactionDigest::from_str,
-                start,
-                termination
-            )
-        }
         "owner_index" => {
             get_db_entries!(
                 db_read_only_handle.owner_index,
@@ -116,38 +58,6 @@ pub fn search_index(
             get_db_entries!(
                 db_read_only_handle.dynamic_field_index,
                 from_oid_oid,
-                start,
-                termination
-            )
-        }
-        "event_by_event_module" => {
-            get_db_entries!(
-                db_read_only_handle.event_by_event_module,
-                from_module_id_and_event_id,
-                start,
-                termination
-            )
-        }
-        "event_by_move_module" => {
-            get_db_entries!(
-                db_read_only_handle.event_by_move_module,
-                from_module_id_and_event_id,
-                start,
-                termination
-            )
-        }
-        "event_order" => {
-            get_db_entries!(
-                db_read_only_handle.event_order,
-                from_event_id,
-                start,
-                termination
-            )
-        }
-        "event_by_sender" => {
-            get_db_entries!(
-                db_read_only_handle.event_by_sender,
-                from_address_and_event_id,
                 start,
                 termination
             )
@@ -233,49 +143,6 @@ where
     Ok(entries)
 }
 
-fn from_addr_seq(s: &str) -> Result<(Address, TxSequenceNumber), anyhow::Error> {
-    // Remove whitespaces
-    let s = s.trim();
-    let tokens = s.split(',').collect::<Vec<&str>>();
-    if tokens.len() != 2 {
-        bail!("Invalid address, sequence number pair");
-    }
-    let address = Address::from_str(tokens[0].trim())?;
-    let sequence_number = TxSequenceNumber::from_str(tokens[1].trim())?;
-
-    Ok((address, sequence_number))
-}
-
-fn from_id_seq(s: &str) -> Result<(ObjectId, TxSequenceNumber), anyhow::Error> {
-    // Remove whitespaces
-    let s = s.trim();
-    let tokens = s.split(',').collect::<Vec<&str>>();
-    if tokens.len() != 2 {
-        bail!("Invalid object id, sequence number pair");
-    }
-    let oid = ObjectId::from_str(tokens[0].trim())?;
-    let sequence_number = TxSequenceNumber::from_str(tokens[1].trim())?;
-
-    Ok((oid, sequence_number))
-}
-
-fn from_id_module_function_txseq(
-    s: &str,
-) -> Result<(ObjectId, String, String, TxSequenceNumber), anyhow::Error> {
-    // Remove whitespaces
-    let s = s.trim();
-    let tokens = s.split(',').collect::<Vec<&str>>();
-    if tokens.len() != 4 {
-        bail!("Invalid object id, module name, function name, TX sequence number quad");
-    }
-    let pid = ObjectId::from_str(tokens[0].trim())?;
-    let module: Identifier = Identifier::from_str(tokens[1].trim())?;
-    let func: Identifier = Identifier::from_str(tokens[2].trim())?;
-    let seq: TxSequenceNumber = TxSequenceNumber::from_str(tokens[3].trim())?;
-
-    Ok((pid, module.to_string(), func.to_string(), seq))
-}
-
 fn from_addr_oid(s: &str) -> Result<(Address, ObjectId), anyhow::Error> {
     // Remove whitespaces
     let s = s.trim();
@@ -300,54 +167,4 @@ fn from_oid_oid(s: &str) -> Result<(ObjectId, ObjectId), anyhow::Error> {
     let oid2: ObjectId = ObjectId::from_str(tokens[1].trim())?;
 
     Ok((oid1, oid2))
-}
-
-fn from_module_id_and_event_id(
-    s: &str,
-) -> Result<(ModuleId, (TxSequenceNumber, usize)), anyhow::Error> {
-    // Example: "0x1::Event 1234 5"
-    let tokens = s.split(' ').collect::<Vec<&str>>();
-    if tokens.len() != 3 {
-        bail!("Invalid input");
-    }
-    let tx_seq = TxSequenceNumber::from_str(tokens[1])?;
-    let event_seq = usize::from_str(tokens[2])?;
-    let tokens = tokens[0].split("::").collect::<Vec<&str>>();
-    if tokens.len() != 2 {
-        bail!("Invalid module id");
-    }
-    let package = ObjectId::from_str(tokens[0].trim())?;
-
-    Ok((
-        ModuleId::new(
-            AccountAddress::new(package.into_bytes()),
-            move_core_types::identifier::Identifier::from_str(tokens[1].trim())?,
-        ),
-        (tx_seq, event_seq),
-    ))
-}
-
-fn from_event_id(s: &str) -> Result<(TxSequenceNumber, usize), anyhow::Error> {
-    // Example: "1234 5"
-    let tokens = s.split(' ').collect::<Vec<&str>>();
-    if tokens.len() != 2 {
-        bail!("Invalid input");
-    }
-    let tx_seq = TxSequenceNumber::from_str(tokens[0])?;
-    let event_seq = usize::from_str(tokens[1])?;
-    Ok((tx_seq, event_seq))
-}
-
-fn from_address_and_event_id(
-    s: &str,
-) -> Result<(Address, (TxSequenceNumber, usize)), anyhow::Error> {
-    // Example: "0x1 1234 5"
-    let tokens = s.split(' ').collect::<Vec<&str>>();
-    if tokens.len() != 3 {
-        bail!("Invalid input");
-    }
-    let tx_seq = TxSequenceNumber::from_str(tokens[1])?;
-    let event_seq = usize::from_str(tokens[2])?;
-    let address = Address::from_str(tokens[0].trim())?;
-    Ok((address, (tx_seq, event_seq)))
 }
