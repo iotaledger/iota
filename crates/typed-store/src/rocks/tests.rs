@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::ops::RangeBounds;
+use std::ops::{Bound, RangeBounds};
 
 use rstest::rstest;
 use serde::{Serialize, de::DeserializeOwned};
@@ -1107,11 +1107,10 @@ async fn test_tagged_dbmaps_share_a_column_family() {
             .expect("failed to open the words map");
 
     let mut batch = numbers.batch();
-    numbers
-        .insert_batch(&mut batch, [(1, "one".to_string()), (2, "two".to_string())])
-        .unwrap();
-    words
-        .insert_batch(&mut batch, [("one".to_string(), 1), ("two".to_string(), 2)])
+    batch
+        .insert_batch_tagged(&numbers, [(1, "one".to_string()), (2, "two".to_string())])
+        .unwrap()
+        .insert_batch_tagged(&words, [("one".to_string(), 1), ("two".to_string(), 2)])
         .unwrap();
     batch.write().unwrap();
 
@@ -1119,37 +1118,94 @@ async fn test_tagged_dbmaps_share_a_column_family() {
     assert_eq!(numbers.get(&1).unwrap(), Some("one".to_string()));
     assert_eq!(words.get(&"two".to_string()).unwrap(), Some(2));
     assert_eq!(
-        numbers.multi_get(&[1, 2, 3]).unwrap(),
+        numbers.multi_get([1, 2, 3]).unwrap(),
         vec![Some("one".to_string()), Some("two".to_string()), None]
+    );
+    assert_eq!(
+        numbers.multi_contains_keys([1, 3]).unwrap(),
+        vec![true, false]
     );
     assert!(words.contains_key(&"one".to_string()).unwrap());
 
     // Full scans in both directions yield only the map's own rows.
-    let rows: Vec<_> = numbers.iter().collect::<Result<_, _>>().unwrap();
+    let rows: Vec<_> = numbers.safe_iter().collect::<Result<_, _>>().unwrap();
     assert_eq!(rows, vec![(1, "one".to_string()), (2, "two".to_string())]);
-    let rows: Vec<_> = numbers.iter_reversed().collect::<Result<_, _>>().unwrap();
+    let rows: Vec<_> = numbers
+        .safe_range_iter_reversed(..)
+        .collect::<Result<_, _>>()
+        .unwrap();
     assert_eq!(rows, vec![(2, "two".to_string()), (1, "one".to_string())]);
-    let rows: Vec<_> = words.iter().collect::<Result<_, _>>().unwrap();
+    let rows: Vec<_> = words.safe_iter().collect::<Result<_, _>>().unwrap();
     assert_eq!(rows, vec![("one".to_string(), 1), ("two".to_string(), 2)]);
 
-    // Bounded ranges, both directions.
+    // Bounded ranges honour their own inclusivity, in both directions.
     let rows: Vec<_> = numbers
-        .range_iter(2, u32::MAX)
+        .safe_range_iter(2..=u32::MAX)
         .collect::<Result<_, _>>()
         .unwrap();
     assert_eq!(rows, vec![(2, "two".to_string())]);
     let rows: Vec<_> = numbers
-        .range_iter_reversed(u32::MIN, 1)
+        .safe_iter_with_bounds(None, Some(2))
+        .collect::<Result<_, _>>()
+        .unwrap();
+    assert_eq!(rows, vec![(1, "one".to_string())]);
+    let rows: Vec<_> = numbers
+        .safe_range_iter(1..2)
+        .collect::<Result<_, _>>()
+        .unwrap();
+    assert_eq!(rows, vec![(1, "one".to_string())]);
+    let rows: Vec<_> = numbers
+        .safe_range_iter((Bound::Excluded(1), Bound::Included(2)))
+        .collect::<Result<_, _>>()
+        .unwrap();
+    assert_eq!(rows, vec![(2, "two".to_string())]);
+    let rows: Vec<_> = numbers
+        .safe_range_iter_reversed(u32::MIN..=1)
+        .collect::<Result<_, _>>()
+        .unwrap();
+    assert_eq!(rows, vec![(1, "one".to_string())]);
+    let rows: Vec<_> = numbers
+        .safe_range_iter_reversed(..2)
         .collect::<Result<_, _>>()
         .unwrap();
     assert_eq!(rows, vec![(1, "one".to_string())]);
 
+    // Single-key writes stay within the tag as well.
+    numbers.insert(&3, &"three".to_string()).unwrap();
+    assert_eq!(numbers.get(&3).unwrap(), Some("three".to_string()));
+    numbers.remove(&3).unwrap();
+    assert_eq!(numbers.get(&3).unwrap(), None);
+
     // Deletes stay within the tag.
     let mut batch = numbers.batch();
-    numbers.delete_batch(&mut batch, [1, 2]).unwrap();
+    batch.delete_batch_tagged(&numbers, [1, 2]).unwrap();
     batch.write().unwrap();
-    assert!(numbers.iter().next().is_none());
+    assert!(numbers.is_empty());
+    assert!(!words.is_empty());
     assert_eq!(words.get(&"one".to_string()).unwrap(), Some(1));
+}
+
+/// A tagged batch write refuses a map from another database, as an untagged
+/// one does.
+#[tokio::test]
+async fn tagged_batch_rejects_a_map_from_another_database() {
+    let tmp_dirs = [iota_common::tempdir(), iota_common::tempdir()];
+    let dbs = tmp_dirs.each_ref().map(|dir| {
+        let db = open_rocksdb(dir.path(), &["shared"]);
+        TaggedDBMap::<u32, String>::reopen(&db, "shared", 0, &ReadWriteOptions::default(), false)
+            .expect("failed to open the map")
+    });
+    let [map, other] = &dbs;
+
+    let mut batch = map.batch();
+    assert!(matches!(
+        batch.insert_batch_tagged(other, [(1, "one".to_string())]),
+        Err(TypedStoreError::CrossDBBatch)
+    ));
+    assert!(matches!(
+        batch.delete_batch_tagged(other, [1]),
+        Err(TypedStoreError::CrossDBBatch)
+    ));
 }
 
 /// A bounded range stays within its own tag even when the upper bound is the
@@ -1170,18 +1226,18 @@ async fn tagged_range_iter_stays_within_its_tag() {
             .expect("failed to open the narrow map");
 
     let mut batch = wide.batch();
-    wide.insert_batch(
-        &mut batch,
-        [(1, "one".to_string()), (u64::MAX, "max".to_string())],
-    )
-    .unwrap();
-    narrow
-        .insert_batch(&mut batch, [(0, "zero".to_string())])
+    batch
+        .insert_batch_tagged(
+            &wide,
+            [(1, "one".to_string()), (u64::MAX, "max".to_string())],
+        )
+        .unwrap()
+        .insert_batch_tagged(&narrow, [(0, "zero".to_string())])
         .unwrap();
     batch.write().unwrap();
 
     let rows: Vec<_> = wide
-        .range_iter(0, u64::MAX)
+        .safe_range_iter(0..=u64::MAX)
         .collect::<Result<_, _>>()
         .unwrap();
     assert_eq!(
@@ -1189,7 +1245,7 @@ async fn tagged_range_iter_stays_within_its_tag() {
         vec![(1, "one".to_string()), (u64::MAX, "max".to_string())]
     );
     let rows: Vec<_> = wide
-        .range_iter_reversed(0, u64::MAX)
+        .safe_range_iter_reversed(0..=u64::MAX)
         .collect::<Result<_, _>>()
         .unwrap();
     assert_eq!(
@@ -1199,7 +1255,7 @@ async fn tagged_range_iter_stays_within_its_tag() {
 
     // The neighbouring tag keeps its row and reaches it through its own range.
     let rows: Vec<_> = narrow
-        .range_iter(0, u8::MAX)
+        .safe_range_iter(0..=u8::MAX)
         .collect::<Result<_, _>>()
         .unwrap();
     assert_eq!(rows, vec![(0, "zero".to_string())]);
@@ -1224,16 +1280,17 @@ async fn tagged_schedule_delete_all_clears_only_its_own_tag() {
 
     let mut batch = cleared.batch();
     for map in [&below, &cleared, &above, &last] {
-        map.insert_batch(
-            &mut batch,
-            [(0, "zero".to_string()), (u32::MAX, "max".to_string())],
-        )
-        .unwrap();
+        batch
+            .insert_batch_tagged(
+                map,
+                [(0, "zero".to_string()), (u32::MAX, "max".to_string())],
+            )
+            .unwrap();
     }
     batch.write().unwrap();
 
     let entries = |map: &TaggedDBMap<u32, String>| -> Vec<(u32, String)> {
-        map.iter().collect::<Result<_, _>>().unwrap()
+        map.safe_iter().collect::<Result<_, _>>().unwrap()
     };
     let expected = vec![(0, "zero".to_string()), (u32::MAX, "max".to_string())];
 

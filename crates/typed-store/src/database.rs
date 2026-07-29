@@ -1078,14 +1078,28 @@ impl DBBatch {
         db: &DBMap<K, V>,
         purged_vals: impl IntoIterator<Item = J>,
     ) -> Result<(), TypedStoreError> {
+        self.delete_batch_raw_keys(
+            db,
+            purged_vals
+                .into_iter()
+                .map(|key| be_fix_int_ser(key.borrow())),
+        )
+    }
+
+    /// [`Self::delete_batch`] for keys already in the column family's
+    /// `be_fix_int_ser` encoding.
+    fn delete_batch_raw_keys<K, V>(
+        &mut self,
+        db: &DBMap<K, V>,
+        purged_vals: impl IntoIterator<Item = Vec<u8>>,
+    ) -> Result<(), TypedStoreError> {
         if !Arc::ptr_eq(&db.db, &self.database) {
             return Err(TypedStoreError::CrossDBBatch);
         }
 
         purged_vals
             .into_iter()
-            .try_for_each::<_, Result<_, TypedStoreError>>(|k| {
-                let k_buf = be_fix_int_ser(k.borrow());
+            .try_for_each::<_, Result<_, TypedStoreError>>(|k_buf| {
                 match (&mut self.batch, &db.column_family) {
                     (StorageWriteBatch::Rocks(b), ColumnFamily::Rocks(name)) => {
                         b.delete_cf(&rocks_cf_from_db(&self.database, name)?, k_buf)
@@ -1141,14 +1155,28 @@ impl DBBatch {
         db: &DBMap<K, V>,
         new_vals: impl IntoIterator<Item = (J, U)>,
     ) -> Result<&mut Self, TypedStoreError> {
+        self.insert_batch_raw_keys(
+            db,
+            new_vals
+                .into_iter()
+                .map(|(key, value)| (be_fix_int_ser(key.borrow()), value)),
+        )
+    }
+
+    /// [`Self::insert_batch`] for keys already in the column family's
+    /// `be_fix_int_ser` encoding.
+    fn insert_batch_raw_keys<K, U: Borrow<V>, V: Serialize>(
+        &mut self,
+        db: &DBMap<K, V>,
+        new_vals: impl IntoIterator<Item = (Vec<u8>, U)>,
+    ) -> Result<&mut Self, TypedStoreError> {
         if !Arc::ptr_eq(&db.db, &self.database) {
             return Err(TypedStoreError::CrossDBBatch);
         }
         let mut total = 0usize;
         new_vals
             .into_iter()
-            .try_for_each::<_, Result<_, TypedStoreError>>(|(k, v)| {
-                let k_buf = be_fix_int_ser(k.borrow());
+            .try_for_each::<_, Result<_, TypedStoreError>>(|(k_buf, v)| {
                 let v_buf = bcs::to_bytes(v.borrow()).map_err(typed_store_err_from_bcs_err)?;
                 total += k_buf.len() + v_buf.len();
                 if db.opts.log_value_hash {
@@ -1180,6 +1208,34 @@ impl DBBatch {
             .with_label_values(&[db.cf_name()])
             .observe(total as f64);
         Ok(self)
+    }
+
+    /// [`Self::insert_batch`] for a map sharing its column family by tag.
+    pub fn insert_batch_tagged<J: Borrow<K>, K: Serialize, U: Borrow<V>, V: Serialize>(
+        &mut self,
+        map: &TaggedDBMap<K, V>,
+        new_vals: impl IntoIterator<Item = (J, U)>,
+    ) -> Result<&mut Self, TypedStoreError> {
+        self.insert_batch_raw_keys(
+            &map.map,
+            new_vals
+                .into_iter()
+                .map(|(key, value)| (be_fix_int_ser(&(map.tag, key.borrow())), value)),
+        )
+    }
+
+    /// [`Self::delete_batch`] for a map sharing its column family by tag.
+    pub fn delete_batch_tagged<J: Borrow<K>, K: Serialize, V>(
+        &mut self,
+        map: &TaggedDBMap<K, V>,
+        purged_vals: impl IntoIterator<Item = J>,
+    ) -> Result<(), TypedStoreError> {
+        self.delete_batch_raw_keys(
+            &map.map,
+            purged_vals
+                .into_iter()
+                .map(|key| be_fix_int_ser(&(map.tag, key.borrow()))),
+        )
     }
 }
 
@@ -1476,6 +1532,12 @@ where
     K: Clone + Serialize + DeserializeOwned,
     V: Serialize + DeserializeOwned,
 {
+    /// Drops the tag prefixed to a key of the underlying map, turning its row
+    /// into a row of this map.
+    fn strip_tag(row: Result<((u8, K), V), TypedStoreError>) -> Result<(K, V), TypedStoreError> {
+        row.map(|((_, key), value)| (key, value))
+    }
+
     /// Reopens an open database as a tagged map operating under `cf_name`.
     /// See [`DBMap::reopen`] for the remaining parameters.
     pub fn reopen(
@@ -1496,45 +1558,91 @@ where
         self.map.batch()
     }
 
-    pub fn get(&self, key: &K) -> Result<Option<V>, TypedStoreError> {
-        self.map.get(&(self.tag, key.clone()))
+    /// Reverse counterpart of [`Map::safe_range_iter`]: yields exactly the keys
+    /// of `safe_range_iter(range)` in descending order.
+    pub fn safe_range_iter_reversed(&self, range: impl RangeBounds<K>) -> DbIterator<'_, (K, V)> {
+        let (lower_bound, upper_bound) = prefix_iterator_bounds_with_range(&self.tag, range);
+        Box::new(
+            self.map
+                .iter_reversed_raw(lower_bound, upper_bound)
+                .map(Self::strip_tag),
+        )
     }
+}
 
-    pub fn multi_get(&self, keys: &[K]) -> Result<Vec<Option<V>>, TypedStoreError> {
-        self.map
-            .multi_get(keys.iter().map(|key| (self.tag, key.clone())))
-    }
+impl<'a, K, V> Map<'a, K, V> for TaggedDBMap<K, V>
+where
+    K: Clone + Serialize + DeserializeOwned,
+    V: Serialize + DeserializeOwned,
+{
+    type Error = TypedStoreError;
 
-    pub fn contains_key(&self, key: &K) -> Result<bool, TypedStoreError> {
+    fn contains_key(&self, key: &K) -> Result<bool, TypedStoreError> {
         self.map.contains_key(&(self.tag, key.clone()))
     }
 
-    pub fn insert_batch(
+    fn multi_contains_keys<J>(
         &self,
-        batch: &mut DBBatch,
-        key_val_pairs: impl IntoIterator<Item = (K, V)>,
-    ) -> Result<(), TypedStoreError> {
-        batch.insert_batch(
-            &self.map,
-            key_val_pairs
-                .into_iter()
-                .map(|(key, value)| ((self.tag, key), value)),
-        )?;
-        Ok(())
+        keys: impl IntoIterator<Item = J>,
+    ) -> Result<Vec<bool>, TypedStoreError>
+    where
+        J: Borrow<K>,
+    {
+        self.map
+            .multi_contains_keys(keys.into_iter().map(|key| (self.tag, key.borrow().clone())))
     }
 
-    pub fn delete_batch(
+    fn get(&self, key: &K) -> Result<Option<V>, TypedStoreError> {
+        self.map.get(&(self.tag, key.clone()))
+    }
+
+    fn multi_get<J>(
         &self,
-        batch: &mut DBBatch,
-        keys: impl IntoIterator<Item = K>,
-    ) -> Result<(), TypedStoreError> {
-        batch.delete_batch(&self.map, keys.into_iter().map(|key| (self.tag, key)))?;
-        Ok(())
+        keys: impl IntoIterator<Item = J>,
+    ) -> Result<Vec<Option<V>>, TypedStoreError>
+    where
+        J: Borrow<K>,
+    {
+        self.map
+            .multi_get(keys.into_iter().map(|key| (self.tag, key.borrow().clone())))
+    }
+
+    fn insert(&self, key: &K, value: &V) -> Result<(), TypedStoreError> {
+        self.map.insert(&(self.tag, key.clone()), value)
+    }
+
+    fn remove(&self, key: &K) -> Result<(), TypedStoreError> {
+        self.map.remove(&(self.tag, key.clone()))
+    }
+
+    #[instrument(level = "trace", skip_all, err)]
+    fn multi_insert<J, U>(
+        &self,
+        key_val_pairs: impl IntoIterator<Item = (J, U)>,
+    ) -> Result<(), TypedStoreError>
+    where
+        J: Borrow<K>,
+        U: Borrow<V>,
+    {
+        let mut batch = self.batch();
+        batch.insert_batch_tagged(self, key_val_pairs)?;
+        batch.write()
+    }
+
+    #[instrument(level = "trace", skip_all, err)]
+    fn multi_remove<J>(&self, keys: impl IntoIterator<Item = J>) -> Result<(), TypedStoreError>
+    where
+        J: Borrow<K>,
+    {
+        let mut batch = self.batch();
+        batch.delete_batch_tagged(self, keys)?;
+        batch.write()
     }
 
     /// Deletes every entry of the map with a single range tombstone over the
     /// tag's key range, leaving the other tags of the column family untouched.
-    pub fn schedule_delete_all(&self) -> Result<(), TypedStoreError> {
+    #[instrument(level = "trace", skip_all, err)]
+    fn schedule_delete_all(&self) -> Result<(), TypedStoreError> {
         let from = be_fix_int_ser(&self.tag);
         let to = match prefix_iterator_bounds(&self.tag).1 {
             Some(to) => to,
@@ -1542,7 +1650,7 @@ where
             // against, so end it just past the last entry. That read is why a
             // row written in between survives the clear, and why a value that
             // does not deserialize fails it.
-            None => match self.iter_reversed().next().transpose()? {
+            None => match self.safe_range_iter_reversed(..).next().transpose()? {
                 Some((last_key, _)) => {
                     let mut to = be_fix_int_ser(&(self.tag, last_key));
                     to.push(0);
@@ -1557,44 +1665,41 @@ where
         batch.write()
     }
 
-    /// Forward iterator over all of the map's entries.
-    pub fn iter(&self) -> impl Iterator<Item = Result<(K, V), TypedStoreError>> + '_ {
-        self.map
-            .safe_iter_with_prefix(&self.tag)
-            .map(|result| result.map(|((_, key), value)| (key, value)))
+    fn is_empty(&self) -> bool {
+        self.safe_iter().next().is_none()
     }
 
-    /// Reverse iterator over all of the map's entries.
-    pub fn iter_reversed(&self) -> impl Iterator<Item = Result<(K, V), TypedStoreError>> + '_ {
-        self.map
-            .safe_iter_with_prefix_reversed(&self.tag)
-            .map(|result| result.map(|((_, key), value)| (key, value)))
+    fn safe_iter(&'a self) -> DbIterator<'a, (K, V)> {
+        Box::new(
+            self.map
+                .safe_iter_with_prefix(&self.tag)
+                .map(Self::strip_tag),
+        )
     }
 
-    /// Forward iterator over the map's entries in `lower..=upper`.
-    pub fn range_iter(
-        &self,
-        lower: K,
-        upper: K,
-    ) -> impl Iterator<Item = Result<(K, V), TypedStoreError>> + '_ {
-        let (lower_bound, upper_bound) =
-            prefix_iterator_bounds_with_range(&self.tag, lower..=upper);
-        self.map
-            .iter_forward_raw(lower_bound, upper_bound)
-            .map(|result| result.map(|((_, key), value)| (key, value)))
+    fn safe_iter_with_bounds(
+        &'a self,
+        lower_bound: Option<K>,
+        upper_bound: Option<K>,
+    ) -> DbIterator<'a, (K, V)> {
+        let range = (
+            lower_bound.map(Bound::Included).unwrap_or(Bound::Unbounded),
+            upper_bound.map(Bound::Excluded).unwrap_or(Bound::Unbounded),
+        );
+        self.safe_range_iter(range)
     }
 
-    /// Reverse iterator over the map's entries in `lower..=upper`.
-    pub fn range_iter_reversed(
-        &self,
-        lower: K,
-        upper: K,
-    ) -> impl Iterator<Item = Result<(K, V), TypedStoreError>> + '_ {
-        let (lower_bound, upper_bound) =
-            prefix_iterator_bounds_with_range(&self.tag, lower..=upper);
-        self.map
-            .iter_reversed_raw(lower_bound, upper_bound)
-            .map(|result| result.map(|((_, key), value)| (key, value)))
+    fn safe_range_iter(&'a self, range: impl RangeBounds<K>) -> DbIterator<'a, (K, V)> {
+        let (lower_bound, upper_bound) = prefix_iterator_bounds_with_range(&self.tag, range);
+        Box::new(
+            self.map
+                .iter_forward_raw(lower_bound, upper_bound)
+                .map(Self::strip_tag),
+        )
+    }
+
+    fn try_catch_up_with_primary(&self) -> Result<(), TypedStoreError> {
+        self.map.try_catch_up_with_primary()
     }
 }
 
