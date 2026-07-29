@@ -7,7 +7,9 @@ Manifest {
             file: "tests/data/basic_implicit_deps/Move.toml",
             value: Spanned {
                 span: 17..26,
-                value: "example",
+                value: Identifier(
+                    "example",
+                ),
             },
         },
         edition: Located {
@@ -20,13 +22,16 @@ Manifest {
         metadata: (),
     },
     environments: {
-        "mainnet": "35834a8a",
+        "mainnet": "6364aad5",
     },
     dependencies: {
-        "Iota": ManifestDependency {
+        Identifier(
+            "Iota",
+        ): ManifestDependency {
             dependency_info: Local(
                 LocalDependency {
                     local: "../../../../../../../../../crates/iota-framework/packages/iota-framework",
+                    relative_to_parent_dir: "tests/data/basic_implicit_deps",
                 },
             ),
             is_override: false,

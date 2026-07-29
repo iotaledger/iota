@@ -16,14 +16,12 @@ use std::{
 
 use serde::{Deserialize, Serialize};
 
-use crate::dependency::{DependencySet, PinnedDependencyInfo};
+use super::MoveFlavor;
 use crate::{
-    dependency::{Pinned, Unpinned},
+    dependency::{DependencySet, Pinned, PinnedDependencyInfo, Unpinned},
     errors::PackageResult,
     package::PackageName,
 };
-
-use super::MoveFlavor;
 
 /// The [Vanilla] implementation of the [MoveFlavor] trait. This implementation
 /// supports no flavor-specific resolvers and stores no additional metadata in
