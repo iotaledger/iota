@@ -32,7 +32,10 @@ use crate::{
         safe_iter::{SafeIter, SafeRevIter},
     },
     traits::{Map, TableSummary},
-    util::{be_fix_int_ser, iterator_bounds_with_range, prefix_iterator_bounds},
+    util::{
+        be_fix_int_ser, iterator_bounds_with_range, prefix_iterator_bounds,
+        prefix_iterator_bounds_with_range,
+    },
 };
 
 // The throughput floor is used to compute the threshold for when a batch write
@@ -1543,8 +1546,10 @@ where
         lower: K,
         upper: K,
     ) -> impl Iterator<Item = Result<(K, V), TypedStoreError>> + '_ {
+        let (lower_bound, upper_bound) =
+            prefix_iterator_bounds_with_range(&self.tag, lower..=upper);
         self.map
-            .safe_range_iter((self.tag, lower)..=(self.tag, upper))
+            .iter_forward_raw(lower_bound, upper_bound)
             .map(|result| result.map(|((_, key), value)| (key, value)))
     }
 
@@ -1554,8 +1559,10 @@ where
         lower: K,
         upper: K,
     ) -> impl Iterator<Item = Result<(K, V), TypedStoreError>> + '_ {
+        let (lower_bound, upper_bound) =
+            prefix_iterator_bounds_with_range(&self.tag, lower..=upper);
         self.map
-            .safe_range_iter_reversed((self.tag, lower)..=(self.tag, upper))
+            .iter_reversed_raw(lower_bound, upper_bound)
             .map(|result| result.map(|((_, key), value)| (key, value)))
     }
 }

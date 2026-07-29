@@ -1152,6 +1152,59 @@ async fn test_tagged_dbmaps_share_a_column_family() {
     assert_eq!(words.get(&"one".to_string()).unwrap(), Some(1));
 }
 
+/// A bounded range stays within its own tag even when the upper bound is the
+/// maximum key, where making the exclusive rocksdb bound would otherwise carry
+/// into the next tag's key range — while still yielding that maximum key.
+#[tokio::test]
+async fn tagged_range_iter_stays_within_its_tag() {
+    let tmp_dir = iota_common::tempdir();
+    let db = open_rocksdb(tmp_dir.path(), &["shared"]);
+    // The neighbouring tag's key must serialize to fewer, all-zero bytes: the
+    // escaped bound is tag 1 followed by zeros, and only a shorter all-zero key
+    // sorts below it.
+    let wide: TaggedDBMap<u64, String> =
+        TaggedDBMap::reopen(&db, "shared", 0, &ReadWriteOptions::default(), false)
+            .expect("failed to open the wide map");
+    let narrow: TaggedDBMap<u8, String> =
+        TaggedDBMap::reopen(&db, "shared", 1, &ReadWriteOptions::default(), false)
+            .expect("failed to open the narrow map");
+
+    let mut batch = wide.batch();
+    wide.insert_batch(
+        &mut batch,
+        [(1, "one".to_string()), (u64::MAX, "max".to_string())],
+    )
+    .unwrap();
+    narrow
+        .insert_batch(&mut batch, [(0, "zero".to_string())])
+        .unwrap();
+    batch.write().unwrap();
+
+    let rows: Vec<_> = wide
+        .range_iter(0, u64::MAX)
+        .collect::<Result<_, _>>()
+        .unwrap();
+    assert_eq!(
+        rows,
+        vec![(1, "one".to_string()), (u64::MAX, "max".to_string())]
+    );
+    let rows: Vec<_> = wide
+        .range_iter_reversed(0, u64::MAX)
+        .collect::<Result<_, _>>()
+        .unwrap();
+    assert_eq!(
+        rows,
+        vec![(u64::MAX, "max".to_string()), (1, "one".to_string())]
+    );
+
+    // The neighbouring tag keeps its row and reaches it through its own range.
+    let rows: Vec<_> = narrow
+        .range_iter(0, u8::MAX)
+        .collect::<Result<_, _>>()
+        .unwrap();
+    assert_eq!(rows, vec![(0, "zero".to_string())]);
+}
+
 fn open_map<P: AsRef<Path>, K, V>(path: P, opt_cf: Option<&str>) -> DBMap<K, V> {
     let cf_key = opt_cf.unwrap_or(rocksdb::DEFAULT_COLUMN_FAMILY_NAME);
     DBMap::<K, V>::reopen(
