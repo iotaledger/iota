@@ -271,6 +271,15 @@ impl ScoringSubdag {
     }
 }
 
+/// Reputation multiplier applied to a strong vote relative to an ordinary vote.
+/// A strong vote (only produced under `consensus_starfish_speed`) is a stronger
+/// signal that the voter promptly saw and backed the leader — it attests
+/// holding the leader's transaction data, not just its header — so it scores
+/// double. This scorer only runs under
+/// `consensus_enable_sliding_window_leader_schedule`, so the weighting ships
+/// as part of the redesigned schedule and V2 scoring is unaffected.
+const STRONG_VOTE_MULTIPLIER: u64 = 2;
+
 /// Compute the per-commit score contribution for the new commit `c`, scoring
 /// the oldest of the 3 pending commits (`c_minus_3`). Returns per-authority
 /// score deltas indexed by `AuthorityIndex`.
@@ -281,6 +290,9 @@ impl ScoringSubdag {
 /// where A's voting block strongly links to `c_minus_3`'s leader block (round
 /// r). The round-(r+1) and round-(r+2) blocks are collected from all three
 /// commits following `c_minus_3` (`c_minus_2`, `c_minus_1`, `c`).
+///
+/// Under `consensus_starfish_speed`, a voting block that is a *strong* vote for
+/// the leader has its contribution multiplied by [`STRONG_VOTE_MULTIPLIER`].
 ///
 /// Equivocation: if A has multiple voting blocks at r+1 within that window,
 /// `contribution[A] = 0`.
@@ -297,10 +309,16 @@ pub(crate) fn compute_per_commit_contribution(
     let vote_round = r + 1;
     let certify_round = r + 2;
 
-    // Voting blocks at round r+1 that strongly link to the leader block, grouped by
-    // author. Multiple blocks per author indicates equivocation in the lookback
-    // window.
-    let mut voting_blocks_by_author: BTreeMap<AuthorityIndex, Vec<BlockRef>> = BTreeMap::new();
+    // Strong votes score double. Gate on the flag so a stray strong_vote on a
+    // non-speed block can never change scoring (strong votes only exist under
+    // starfish speed).
+    let double_strong_votes = context.protocol_config.consensus_starfish_speed();
+
+    // Voting blocks at round r+1 that strongly link to the leader block, grouped
+    // by author, each tagged with whether it is a strong vote for the leader.
+    // Multiple blocks per author indicates equivocation in the lookback window.
+    let mut voting_blocks_by_author: BTreeMap<AuthorityIndex, Vec<(BlockRef, bool)>> =
+        BTreeMap::new();
     for commit in [c_minus_2, c_minus_1, c] {
         for header in &commit.headers {
             if header.round() != vote_round {
@@ -312,16 +330,22 @@ pub(crate) fn compute_per_commit_contribution(
             voting_blocks_by_author
                 .entry(header.author())
                 .or_default()
-                .push(header.reference());
+                .push((
+                    header.reference(),
+                    header.is_strong_vote_for(leader_ref.author),
+                ));
         }
     }
 
     // Voting-block ref → author, for authors with exactly one voting block.
     // Equivocation in the lookback window → excluded, zero contribution.
+    // `strong_voter[A]` is true when A's single voting block is a strong vote.
     let mut voting_author_by_ref: HashMap<BlockRef, AuthorityIndex> = HashMap::new();
+    let mut strong_voter = vec![false; committee.size()];
     for (author, voting_refs) in &voting_blocks_by_author {
-        if let [voting_ref] = voting_refs.as_slice() {
+        if let [(voting_ref, strong)] = voting_refs.as_slice() {
             voting_author_by_ref.insert(*voting_ref, *author);
+            strong_voter[author.value()] = *strong;
         }
     }
 
@@ -343,7 +367,17 @@ pub(crate) fn compute_per_commit_contribution(
         }
     }
 
-    certifying_stake.iter().map(|agg| agg.stake()).collect()
+    certifying_stake
+        .iter()
+        .enumerate()
+        .map(|(author, agg)| {
+            if double_strong_votes && strong_voter[author] {
+                agg.stake() * STRONG_VOTE_MULTIPLIER
+            } else {
+                agg.stake()
+            }
+        })
+        .collect()
 }
 
 #[cfg(test)]
@@ -351,7 +385,10 @@ mod tests {
 
     use super::*;
     use crate::{
-        block_header::{BlockHeaderDigest, Round, TestBlockHeader, VerifiedBlockHeader},
+        authority_set::AuthoritySet,
+        block_header::{
+            BlockHeaderDigest, Round, StrongVote, TestBlockHeader, VerifiedBlockHeader,
+        },
         commit::{CommitDigest, CommitRef},
         test_dag_builder::DagBuilder,
     };
@@ -640,6 +677,72 @@ mod tests {
             scores, expected,
             "each voting author must be credited exactly its own certifiers' stake"
         );
+    }
+
+    #[tokio::test]
+    async fn test_compute_per_commit_contribution_doubles_strong_vote() {
+        telemetry_subscribers::init_for_testing();
+        // Strong votes score double under starfish speed.
+        let mut ctx = Context::new_for_test(4).0;
+        ctx.protocol_config
+            .set_consensus_starfish_speed_for_testing(true);
+        let context = Arc::new(ctx);
+        let committee = &context.committee;
+        let r: Round = 10;
+        let leader_authority = AuthorityIndex::new_for_test(0);
+
+        let subdag = |leader_round: Round, headers: Vec<VerifiedBlockHeader>| SubDagBase {
+            leader: BlockRef::new(leader_round, leader_authority, BlockHeaderDigest::MIN),
+            headers,
+            committed_header_refs: vec![],
+            timestamp_ms: 0,
+            commit_ref: CommitRef::new(0, CommitDigest::MIN),
+            reputation_scores_desc: vec![],
+        };
+
+        let c_minus_3 = subdag(r, vec![]);
+
+        // Authority 1 casts an ordinary vote; authority 2 casts a strong vote
+        // for the same leader. Both link the leader at round r+1.
+        let ordinary_vote = VerifiedBlockHeader::new_for_test(
+            TestBlockHeader::new(r + 1, 1)
+                .set_ancestors(vec![c_minus_3.leader])
+                .build(),
+        );
+        let strong_vote = VerifiedBlockHeader::new_for_test(
+            TestBlockHeader::new(r + 1, 2)
+                .set_ancestors(vec![c_minus_3.leader])
+                .set_strong_vote(Some(StrongVote {
+                    leader_authority,
+                    missing: AuthoritySet::new(),
+                }))
+                .build(),
+        );
+        let ordinary_ref = ordinary_vote.reference();
+        let strong_ref = strong_vote.reference();
+
+        // One certifier (authority 3) certifies both voting blocks at r+2, so
+        // both voters collect the same certifying stake — the only difference
+        // is that the strong vote is doubled.
+        let certifier = VerifiedBlockHeader::new_for_test(
+            TestBlockHeader::new(r + 2, 3)
+                .set_ancestors(vec![ordinary_ref, strong_ref])
+                .build(),
+        );
+
+        let c_minus_2 = subdag(r + 1, vec![ordinary_vote, strong_vote]);
+        let c_minus_1 = subdag(r + 2, vec![certifier]);
+        let c = subdag(r + 3, vec![]);
+
+        let scores =
+            compute_per_commit_contribution(&context, &c_minus_3, &c_minus_2, &c_minus_1, &c);
+
+        let stake_3 = committee.stake(AuthorityIndex::new_for_test(3));
+        assert_eq!(
+            scores[1], stake_3,
+            "ordinary vote earns the certifying stake"
+        );
+        assert_eq!(scores[2], 2 * stake_3, "strong vote earns double");
     }
 
     #[tokio::test]
