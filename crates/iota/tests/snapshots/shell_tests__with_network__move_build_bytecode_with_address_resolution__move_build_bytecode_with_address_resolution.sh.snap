@@ -34,3 +34,6 @@ INCLUDING DEPENDENCY Stardust
 INCLUDING DEPENDENCY Iota
 INCLUDING DEPENDENCY MoveStdlib
 BUILDING depends_on_simple
+Package size: 96 bytes
+Protocol maximum package size: 102400 bytes
+Status: publishable
