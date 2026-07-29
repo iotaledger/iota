@@ -7,6 +7,7 @@
 #[cfg(test)]
 mod tests;
 
+pub mod progress;
 pub mod reader;
 pub mod restore;
 pub mod uploader;

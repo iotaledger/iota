@@ -114,6 +114,25 @@ async fn exists(url: &str, store: &'static str, location: &Path, client: &Client
     }
 }
 
+async fn size(url: &str, store: &'static str, location: &Path, client: &Client) -> Result<u64> {
+    let request = client.request(Method::HEAD, url);
+    let response = request
+        .send()
+        .await
+        .with_context(|| format!("failed to send HEAD request for {location} to {store}"))?
+        .error_for_status()
+        .with_context(|| format!("{store} returned an error status for {location}"))?;
+    let content_length = response
+        .headers()
+        .get(CONTENT_LENGTH)
+        .with_context(|| format!("{store} returned no content length for {location}"))?;
+    content_length
+        .to_str()
+        .context("bad content length header")?
+        .parse()
+        .context("invalid content length")
+}
+
 fn header_meta(location: &Path, headers: &HeaderMap) -> Result<ObjectMeta> {
     let last_modified = headers
         .get(LAST_MODIFIED)
@@ -193,6 +212,29 @@ mod tests {
 
         assert!(input_store.exists(&Path::from("file1")).await?);
         assert!(!input_store.exists(&Path::from("missing")).await?);
+        Ok(())
+    }
+
+    #[tokio::test]
+    pub async fn test_local_object_size() -> anyhow::Result<()> {
+        let input = TempDir::new()?;
+        let input_path = input.path();
+        fs::write(input_path.join("file1"), b"Lorem ipsum")?;
+
+        let input_store = ObjectStoreConfig {
+            object_store: Some(ObjectStoreType::File),
+            directory: Some(input_path.to_path_buf()),
+            ..Default::default()
+        }
+        .make_http()?;
+
+        assert_eq!(input_store.object_size(&Path::from("file1")).await?, 11);
+        assert!(
+            input_store
+                .object_size(&Path::from("missing"))
+                .await
+                .is_err()
+        );
         Ok(())
     }
 }

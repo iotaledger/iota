@@ -19,6 +19,9 @@ pub trait ObjectStoreGetExt: std::fmt::Display + Send + Sync + 'static {
 
     /// Return whether an object exists at the given path.
     async fn exists(&self, src: &Path) -> Result<bool>;
+
+    /// Return the size in bytes of the object at the given path.
+    async fn object_size(&self, src: &Path) -> Result<u64>;
 }
 
 macro_rules! as_ref_get_ext_impl {
@@ -31,6 +34,10 @@ macro_rules! as_ref_get_ext_impl {
 
             async fn exists(&self, src: &Path) -> Result<bool> {
                 self.as_ref().exists(src).await
+            }
+
+            async fn object_size(&self, src: &Path) -> Result<u64> {
+                self.as_ref().object_size(src).await
             }
         }
     };
@@ -61,6 +68,13 @@ macro_rules! as_ref_get_impl {
                     Err(object_store::Error::NotFound { .. }) => Ok(false),
                     Err(e) => Err(anyhow!("Failed to check if file {src} exists with error: {e:?}")),
                 }
+            }
+
+            async fn object_size(&self, src: &Path) -> Result<u64> {
+                self.head(src)
+                    .await
+                    .map(|meta| meta.size)
+                    .map_err(|e| anyhow!("Failed to get size of file {src} with error: {e:?}"))
             }
         }
     };
@@ -180,6 +194,19 @@ mod tests {
 
         assert!(store.exists(&path).await?);
         assert!(!store.exists(&Path::from("missing")).await?);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_dyn_object_store_object_size() -> anyhow::Result<()> {
+        let store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+        let path = Path::from("file1");
+        store
+            .put_bytes(&path, bytes::Bytes::from_static(b"Lorem ipsum"))
+            .await?;
+
+        assert_eq!(store.object_size(&path).await?, 11);
+        assert!(store.object_size(&Path::from("missing")).await.is_err());
         Ok(())
     }
 }

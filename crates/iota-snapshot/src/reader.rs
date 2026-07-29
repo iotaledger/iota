@@ -10,7 +10,7 @@ use std::{
     path::PathBuf,
     sync::{
         Arc,
-        atomic::{AtomicU64, AtomicUsize, Ordering},
+        atomic::{AtomicU64, Ordering},
     },
 };
 
@@ -35,9 +35,7 @@ use iota_storage::{
     object_store::{
         ObjectStoreGetExt, ObjectStoreListExt, ObjectStorePutExt,
         http::HttpDownloaderBuilder,
-        util::{
-            MANIFEST_FILENAME, RootManifest, copy_file, copy_files, get_path, path_to_filesystem,
-        },
+        util::{MANIFEST_FILENAME, RootManifest, copy_file, get_path, path_to_filesystem},
     },
 };
 use iota_types::{digests::ChainIdentifier, global_state_hash::GlobalStateHash};
@@ -52,7 +50,9 @@ use tracing::{error, info};
 use crate::{
     EPOCH_INFO_FILE_MAGIC, EpochInfo, FileMetadata, FileType, MAGIC_BYTES, MANIFEST_FILE_MAGIC,
     Manifest, OBJECT_FILE_MAGIC, OBJECT_ID_BYTES, OBJECT_REF_BYTES, REFERENCE_FILE_MAGIC,
-    SEQUENCE_NUM_BYTES, SHA3_BYTES, restore::Restore,
+    SEQUENCE_NUM_BYTES, SHA3_BYTES,
+    progress::{DownloadProgressBar, copy_files_with_progress, fetch_total_bytes},
+    restore::Restore,
 };
 
 pub type SnapshotChecksums = (DigestByBucketAndPartition, GlobalStateHash);
@@ -103,8 +103,9 @@ impl StateSnapshotReaderV1 {
             }
             fs::create_dir_all(&local_epoch_dir_path)?;
         }
+        let epoch_dir_path = Path::from(epoch_dir);
         // Downloads MANIFEST from remote store
-        let manifest_file_path = Path::from(epoch_dir.clone()).child("MANIFEST");
+        let manifest_file_path = epoch_dir_path.child("MANIFEST");
         copy_file(
             &manifest_file_path,
             &manifest_file_path,
@@ -149,17 +150,14 @@ impl StateSnapshotReaderV1 {
             }
         }
         let epoch_info_metadata = Self::single_epoch_info_metadata(epoch_info_files)?;
-        let epoch_dir_path = Path::from(epoch_dir);
         let epoch_info_path = epoch_info_metadata.file_path(&epoch_dir_path);
         // Collects the path of all reference files
         let files: Vec<Path> = ref_files
             .values()
             .flat_map(|entry| {
-                let files: Vec<_> = entry
+                entry
                     .values()
                     .map(|file_metadata| file_metadata.file_path(&epoch_dir_path))
-                    .collect();
-                files
             })
             .collect();
 
@@ -181,29 +179,34 @@ impl StateSnapshotReaderV1 {
         } else {
             files
         };
-        let progress_bar = multi_progress_bar.add(
-            ProgressBar::new(files_to_download.len() as u64).with_style(
-                ProgressStyle::with_template(
-                    "[{elapsed_precise}] {wide_bar} {pos} out of {len} missing .ref files done ({msg})",
-                )
-                .unwrap(),
-            ),
+
+        let ref_total_bytes = fetch_total_bytes(
+            &remote_object_store,
+            files_to_download.clone(),
+            download_concurrency.get(),
+            &multi_progress_bar,
+        )
+        .await;
+        let progress = DownloadProgressBar::new(
+            &multi_progress_bar,
+            "Downloading .ref files",
+            files_to_download.len() as u64,
+            ref_total_bytes,
         );
-        // Render the bar on a timer so it stays visible while the first files are
-        // still in flight, rather than only repainting on completion.
-        progress_bar.enable_steady_tick(Duration::from_millis(100));
         // Downloads all reference files from remote store to local store in parallel
         // and updates the progress bar accordingly
-        copy_files(
+        copy_files_with_progress(
             &files_to_download,
             &files_to_download,
             &remote_object_store,
             &local_object_store,
-            download_concurrency,
-            Some(progress_bar.clone()),
+            download_concurrency.get(),
+            &progress,
         )
         .await?;
-        progress_bar.finish_with_message("Missing ref files download complete");
+        progress
+            .bar()
+            .finish_with_message("Missing ref files download complete");
         Ok(StateSnapshotReaderV1 {
             epoch,
             local_staging_dir_root,
@@ -363,7 +366,7 @@ impl StateSnapshotReaderV1 {
         let checksum_progress_bar = self.multi_progress_bar.add(
             ProgressBar::new(num_part_files as u64).with_style(
                 ProgressStyle::with_template(
-                    "[{elapsed_precise}] {wide_bar} {pos} out of {len} ref files checksummed ({msg})",
+                    "[{elapsed_precise}] {wide_bar} {pos} out of {len} ref files checksummed (ETA {eta}) ({msg})",
                 )
                 .unwrap(),
             ),
@@ -448,7 +451,7 @@ impl StateSnapshotReaderV1 {
         let accum_progress_bar = self.multi_progress_bar.add(
              ProgressBar::new(num_part_files as u64).with_style(
                  ProgressStyle::with_template(
-                     "[{elapsed_precise}] {wide_bar} {pos} out of {len} ref files accumulated from snapshot ({msg})",
+                     "[{elapsed_precise}] {wide_bar} {pos} out of {len} ref files accumulated from snapshot (ETA {eta}) ({msg})",
                  )
                  .unwrap(),
              ),
@@ -558,18 +561,24 @@ impl StateSnapshotReaderV1 {
                     .collect::<Vec<_>>()
             })
             .collect();
+        let obj_total_bytes = fetch_total_bytes(
+            &remote_object_store,
+            input_files
+                .iter()
+                .map(|(_, (_, file_metadata))| file_metadata.file_path(&epoch_dir))
+                .collect(),
+            concurrency,
+            &self.multi_progress_bar,
+        )
+        .await;
         // Creates a progress bar for object files
-        let obj_progress_bar = self.multi_progress_bar.add(
-            ProgressBar::new(input_files.len() as u64).with_style(
-                ProgressStyle::with_template(
-                    "[{elapsed_precise}] {wide_bar} {pos} out of {len} .obj files done ({msg})",
-                )
-                .unwrap(),
-            ),
-        );
-        let obj_progress_bar_clone = obj_progress_bar.clone();
-        let instant = Instant::now();
-        let downloaded_bytes = AtomicUsize::new(0);
+        let obj_progress = Arc::new(DownloadProgressBar::new(
+            &self.multi_progress_bar,
+            "Downloading .obj files",
+            input_files.len() as u64,
+            obj_total_bytes,
+        ));
+        let obj_progress_clone = obj_progress.clone();
 
         let ret = Abortable::new(
             async move {
@@ -635,22 +644,13 @@ impl StateSnapshotReaderV1 {
                     .boxed()
                     .buffer_unordered(concurrency.into())
                     .try_for_each(|(bytes, file_metadata, sha3_digest)| {
-                        let downloaded_bytes = &downloaded_bytes;
-                        let obj_progress_bar = &obj_progress_bar_clone;
-                        let instant = &instant;
+                        let obj_progress = &obj_progress_clone;
                         async move {
-                            let bytes_len = bytes.len();
+                            let bytes_len = bytes.len() as u64;
                             database
                                 .insert_partition(file_metadata, bytes, &sha3_digest)
                                 .await?;
-                            downloaded_bytes.fetch_add(bytes_len, Ordering::Relaxed);
-                            obj_progress_bar.inc(1);
-                            obj_progress_bar.set_message(format!(
-                                "Download speed: {} MiB/s",
-                                downloaded_bytes.load(Ordering::Relaxed) as f64
-                                    / (1024 * 1024) as f64
-                                    / instant.elapsed().as_secs_f64(),
-                            ));
+                            obj_progress.file_done(bytes_len);
                             Ok(())
                         }
                     })
@@ -659,7 +659,9 @@ impl StateSnapshotReaderV1 {
             abort_registration,
         )
         .await?;
-        obj_progress_bar.finish_with_message("Objects download complete");
+        obj_progress
+            .bar()
+            .finish_with_message("Objects download complete");
         ret
     }
 
