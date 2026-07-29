@@ -138,8 +138,8 @@ edition = "2025"
 ...
 
 [environments]
-mainnet = "35834a8a"
-testnet = "4c78adac"
+mainnet = "6364aad5"
+testnet = "2304aa97"
 
 [dependencies]
 foo = {
@@ -190,7 +190,7 @@ std = { ... } # system deps are chain-dependent so would be pinned here
 foo = { ... } # unpinned versions of the dep-replacements from Move.toml
 
 [published.mainnet] # metadata from most recent publish to mainnet
-chain-id = "35834a8a"
+chain-id = "6364aad5"
 published-at = "..."
 original-id  = "..."
 upgrade-cap = "..."
@@ -207,7 +207,7 @@ foo = { ... }
 bar = { ... }
 
 [published.testnet] # metadata from most recent publish to testnet
-chain-id = "4c78adac"
+chain-id = "2304aa97"
 published-at = "..."
 original-id = "..."
 upgrade-cap = "..."

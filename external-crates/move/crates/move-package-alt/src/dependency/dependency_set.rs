@@ -3,8 +3,8 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! Conveniences for managing the entire collection of dependencies (including replacements) for a
-//! package
+//! Conveniences for managing the entire collection of dependencies (including
+//! replacements) for a package
 
 use std::{
     collections::{BTreeMap, btree_map},
@@ -15,24 +15,28 @@ use serde::{Deserialize, Serialize};
 
 use crate::package::{EnvironmentName, PackageName};
 
-// TODO (potential refactor): using [Option] here and representing the default environment as
-// [None] has led to some confusion, it might be better to make a specific enumeration, so that
-// [DependencySet] becomes closer to a vanilla map. In fact, in the dependency graph we'll have
-// `Option<EnvironmentName>, PackageName` edges - this might be a good type to encapsulate; then
-// DependencySet just becomes a map from edges to T. A little curry can go a long way
+// TODO (potential refactor): using [Option] here and representing the default
+// environment as [None] has led to some confusion, it might be better to make a
+// specific enumeration, so that [DependencySet] becomes closer to a vanilla
+// map. In fact, in the dependency graph we'll have `Option<EnvironmentName>,
+// PackageName` edges - this might be a good type to encapsulate; then
+// DependencySet just becomes a map from edges to T. A little curry can go a
+// long way
 
-/// A set of default dependencies and dep replacements. Within each environment, package names are
-/// unique.
+/// A set of default dependencies and dep replacements. Within each environment,
+/// package names are unique.
 ///
-/// Iterating over a dependency set produces Option<[EnvironmentName]>, [PackageName], T) tuples for
-/// all declared dependencies (an environment name of `None` represents the default environment).
+/// Iterating over a dependency set produces Option<[EnvironmentName]>,
+/// [PackageName], T) tuples for all declared dependencies (an environment name
+/// of `None` represents the default environment).
 ///
-/// Note that most operations do not do any merging or inheritance - default dependencies are
-/// returned with the environment `None`, and the only dependencies returned with `Some(e)` are
-/// those that were explicitly added with `Some(e)`.
+/// Note that most operations do not do any merging or inheritance - default
+/// dependencies are returned with the environment `None`, and the only
+/// dependencies returned with `Some(e)` are those that were explicitly added
+/// with `Some(e)`.
 ///
-/// To get the correctly merged set of dependencies for a given environment, see [Self::default_deps],
-/// [Self::deps_for_env], and [Self::deps_for].
+/// To get the correctly merged set of dependencies for a given environment, see
+/// [Self::default_deps], [Self::deps_for_env], and [Self::deps_for].
 #[derive(Clone, Serialize, Deserialize)]
 pub struct DependencySet<T> {
     /// The declared default dependencies
@@ -58,8 +62,8 @@ impl<T> DependencySet<T> {
         self.defaults.is_empty() && self.replacements.iter().all(|(_, it)| it.is_empty())
     }
 
-    /// Combine all elements of [sets] into one. Any duplicate entries (with the same environment
-    /// and package name) are silently dropped.
+    /// Combine all elements of [sets] into one. Any duplicate entries (with the
+    /// same environment and package name) are silently dropped.
     pub fn merge(sets: impl IntoIterator<Item = Self>) -> Self {
         sets.into_iter().flatten().collect()
     }
@@ -69,8 +73,9 @@ impl<T> DependencySet<T> {
         &self.defaults
     }
 
-    /// Return all of the dependencies for [env]: this includes the default dependencies along with
-    /// any replacements (if the same package name has both, the replacement is returned).
+    /// Return all of the dependencies for [env]: this includes the default
+    /// dependencies along with any replacements (if the same package name
+    /// has both, the replacement is returned).
     pub fn deps_for_env(&self, env: &EnvironmentName) -> BTreeMap<PackageName, &T> {
         let mut result: BTreeMap<PackageName, &T> = BTreeMap::new();
         result.extend(self.defaults.iter().map(|(k, t)| (k.clone(), t)));
@@ -82,9 +87,9 @@ impl<T> DependencySet<T> {
         result
     }
 
-    /// Convenience method to return either [default_deps] or [deps_for_env] depending on [env]; an
-    /// [env] of [None] indicates a request for the default dependencies.
-    /// TODO rename to deps
+    /// Convenience method to return either [default_deps] or [deps_for_env]
+    /// depending on [env]; an [env] of [None] indicates a request for the
+    /// default dependencies. TODO rename to deps
     pub fn deps_for(&self, env: Option<&EnvironmentName>) -> BTreeMap<PackageName, &T> {
         match env {
             Some(env) => self.deps_for_env(env),
@@ -121,8 +126,8 @@ impl<T> DependencySet<T> {
         }
     }
 
-    /// Get the dependency for [`package_name`] in [`env`]. If the dependency is not found,
-    /// return None.
+    /// Get the dependency for [`package_name`] in [`env`]. If the dependency is
+    /// not found, return None.
     pub fn get(&self, env: &Option<EnvironmentName>, package_name: &PackageName) -> Option<&T> {
         match env {
             Some(env) => self
@@ -153,10 +158,11 @@ impl<T> DependencySet<T> {
         }
     }
 
-    /// Remove any replacement entries from [self] that are the same as the default entries.
+    /// Remove any replacement entries from [self] that are the same as the
+    /// default entries.
     ///
-    /// Calling [collapse] changes the results of iteration but leaves the `deps_for...` methods
-    /// unchanged
+    /// Calling [collapse] changes the results of iteration but leaves the
+    /// `deps_for...` methods unchanged
     pub fn collapse(&mut self)
     where
         T: Eq,
@@ -243,8 +249,8 @@ impl<'a, T> IntoIterator for &'a DependencySet<T> {
 }
 
 impl<T> FromIterator<(Option<EnvironmentName>, PackageName, T)> for DependencySet<T> {
-    /// If [iter] produces multiple items with the same environment and package, only one of them
-    /// is retained; the others are silently dropped.
+    /// If [iter] produces multiple items with the same environment and package,
+    /// only one of them is retained; the others are silently dropped.
     fn from_iter<I: IntoIterator<Item = (Option<EnvironmentName>, PackageName, T)>>(
         iter: I,
     ) -> Self {
