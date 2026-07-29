@@ -5,7 +5,7 @@ license = "license"
 authors = ["some author"]
 
 [environments]
-mainnet = "35834a8a"
+mainnet = "6364aad5"
 
 [unknown_field]
 

@@ -5,8 +5,9 @@
 
 use std::path::PathBuf;
 
-use crate::{errors::PackageResult, flavor::Vanilla, package::Package};
 use clap::{Command, Parser, Subcommand};
+
+use crate::{errors::PackageResult, flavor::Vanilla, package::Package};
 
 /// Build the package
 #[derive(Debug, Clone, Parser)]
@@ -20,7 +21,7 @@ impl Build {
     pub async fn execute(&self) -> PackageResult<()> {
         let path = self.path.clone().unwrap_or_else(|| PathBuf::from("."));
 
-        let package = Package::<Vanilla>::load(path, &Vanilla {}).await?;
+        let package = Package::<Vanilla>::load_root(path).await?;
 
         Ok(())
     }

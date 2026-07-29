@@ -11,7 +11,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{Serialize, de::DeserializeOwned};
 pub use vanilla::Vanilla;
 
 use crate::{
@@ -24,8 +24,8 @@ use crate::{
 /// defines the types and methods for package management that are specific to a
 /// particular instantiation of the Move language.
 pub trait MoveFlavor: Debug {
-    /// Return an identifier for the flavor, used to ensure that the correct compiler is being used
-    /// to parse a manifest.
+    /// Return an identifier for the flavor, used to ensure that the correct
+    /// compiler is being used to parse a manifest.
     fn name() -> String;
 
     /// Additional flavor-specific dependency types. Currently we only support
@@ -68,7 +68,8 @@ pub trait MoveFlavor: Debug {
     // determined
     type EnvironmentID: Serialize + DeserializeOwned + Clone + Eq + Ord + Debug + ToString;
 
-    /// Return the implicit dependencies for the environments listed in [environments]
+    /// Return the implicit dependencies for the environments listed in
+    /// [environments]
     fn implicit_deps(
         &self,
         environments: impl Iterator<Item = Self::EnvironmentID>,

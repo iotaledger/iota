@@ -3,10 +3,11 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! A mock resolver that can return a few different response types depending on its argument.
+//! A mock resolver that can return a few different response types depending on
+//! its argument.
 //!
 //! ```toml
-//!
+//! 
 //! [dependencies._.r.mock-resolver]
 //! # halt immediately with the following stdout/stderr/exit code:
 //! stdout = "..."
@@ -20,7 +21,6 @@
 //! output.default.error = { code = ... , message = "...", data = ... } # JSON RPC error
 //! stderr = "..."
 //! ```
-//!
 
 use std::{collections::BTreeMap, env, io::stdin};
 
@@ -44,7 +44,8 @@ struct ResolveRequest {
 #[derive(Deserialize)]
 #[serde(untagged)]
 enum RequestData {
-    /// Execution should be halted with [exit_code] and return the given [stdout]/[stderr]
+    /// Execution should be halted with [exit_code] and return the given
+    /// [stdout]/[stderr]
     Stdio(Exit),
 
     /// [stderr] should be printed and [output] should be included in the output
