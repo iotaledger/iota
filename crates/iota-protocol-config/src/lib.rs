@@ -189,6 +189,8 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             thresholds, grace period) into the protocol config.
 //             Enable the optimistic commit rule (StarfishSpeed) in Starfish
 //             consensus on testnet.
+//             Amortize the minimum checkpoint interval over a sliding window
+//             on testnet.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -3110,6 +3112,9 @@ impl ProtocolConfig {
                         // Enable the optimistic commit rule (StarfishSpeed) in
                         // Starfish consensus.
                         cfg.feature_flags.consensus_starfish_speed = true;
+                        // Amortize the minimum checkpoint interval over a sliding
+                        // window so the checkpoint rate holds at the ceiling.
+                        cfg.checkpoint_rate_window_size = Some(20);
                     }
                 }
                 // Use this template when making changes:
