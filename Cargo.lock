@@ -5643,7 +5643,7 @@ dependencies = [
 [[package]]
 name = "iota-bigtable"
 version = "0.1.2"
-source = "git+https://github.com/iotaledger/iota-bigtable.git?tag=v0.1.2#3c9c781e3db51206519992c0ed8ac94ce889095e"
+source = "git+https://github.com/iotaledger/iota-bigtable.git?tag=v0.1.2#e9292275b892cf0e81b5a4c0110b0a2a5b9c91be"
 dependencies = [
  "backoff",
  "gcp_auth",
@@ -5656,6 +5656,7 @@ dependencies = [
  "tonic 0.14.2",
  "tonic-prost",
  "tonic-prost-build",
+ "tracing",
 ]
 
 [[package]]
@@ -7429,6 +7430,8 @@ dependencies = [
  "thiserror 1.0.64",
  "tokio",
  "tokio-util 0.7.18 (registry+https://github.com/rust-lang/crates.io-index)",
+ "tower 0.4.13",
+ "tower-http 0.5.2",
  "tracing",
  "tracing-subscriber",
 ]
@@ -14614,6 +14617,7 @@ dependencies = [
  "tower-layer",
  "tower-service",
  "tracing",
+ "uuid",
 ]
 
 [[package]]
