@@ -15,7 +15,10 @@ use iota_types::{
     digests::TransactionDigest,
     effects::TransactionEvents,
     full_checkpoint_content::CheckpointTransaction,
-    messages_checkpoint::{CertifiedCheckpointSummary, CheckpointContents, CheckpointContentsExt},
+    messages_checkpoint::{
+        CertifiedCheckpointSummary, CheckpointContents, CheckpointContentsExt,
+        CheckpointSequenceNumber,
+    },
     object::Object,
 };
 use prometheus_filtered::Registry;
@@ -26,10 +29,11 @@ use crate::{
     metrics::IndexerMetrics,
     models::{
         checkpoints::StoredCheckpoint,
+        events::StoredEvent,
         objects::StoredObject,
         transactions::{StoredTransaction, tx_events_to_iota_tx_events},
     },
-    types::{IndexedCheckpoint, IndexedObject},
+    types::{IndexedCheckpoint, IndexedEvent, IndexedObject},
 };
 
 /// Alias for an [`Object`] fetched from historical fallback storage.
@@ -66,21 +70,52 @@ impl From<HistoricalFallbackCheckpoint> for StoredCheckpoint {
 /// Wrapper for [`TransactionEvents`] and additional data fetched from
 /// historical fallback storage.
 ///
-/// Contains all data needed to reconstruct [`IotaEvent`]s.
+/// Contains all data needed to reconstruct [`IotaEvent`]s or [`StoredEvent`]s.
 #[derive(Debug, Clone)]
 pub struct HistoricalFallbackEvents {
     /// Events emitted during transaction execution.
     events: TransactionEvents,
+    /// Digest of the transaction that emitted the events.
+    tx_digest: TransactionDigest,
+    /// Sequence number of the transaction that emitted the events.
+    tx_sequence_number: u64,
+    /// Sequence number of the checkpoint the transaction is part of.
+    checkpoint_sequence_number: CheckpointSequenceNumber,
     /// Checkpoint timestamp.
     timestamp: u64,
 }
 
 impl HistoricalFallbackEvents {
-    pub fn new(events: TransactionEvents, checkpoint_summary: CertifiedCheckpointSummary) -> Self {
-        Self {
+    /// Creates the wrapper from the events of the `tx_digest` transaction and
+    /// the checkpoint the transaction is part of.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`IndexerError::HistoricalFallbackStorageError`] when
+    /// transaction is not part of the provided checkpoint.
+    pub fn new(
+        events: TransactionEvents,
+        tx_digest: TransactionDigest,
+        checkpoint_summary: &CertifiedCheckpointSummary,
+        checkpoint_contents: &CheckpointContents,
+    ) -> IndexerResult<Self> {
+        let Some(tx_sequence_number) = checkpoint_contents
+            .enumerate_transactions(checkpoint_summary)
+            .find(|(_, execution_digest)| execution_digest.transaction == tx_digest)
+            .map(|(seq, _)| seq)
+        else {
+            return Err(IndexerError::HistoricalFallbackStorageError(format!(
+                "cannot find transaction sequence number to transaction: {tx_digest}"
+            )));
+        };
+
+        Ok(Self {
             events,
+            tx_digest,
+            tx_sequence_number,
+            checkpoint_sequence_number: checkpoint_summary.sequence_number,
             timestamp: checkpoint_summary.timestamp_ms,
-        }
+        })
     }
 
     /// Converts the raw [`TransactionEvents`] into JSON RPC compatible
@@ -88,16 +123,33 @@ impl HistoricalFallbackEvents {
     pub(crate) async fn into_iota_events(
         self,
         package_resolver: &Arc<Resolver<impl PackageStore>>,
-        tx_digest: TransactionDigest,
     ) -> IndexerResult<Vec<IotaEvent>> {
         tx_events_to_iota_tx_events(
             self.events,
             package_resolver,
-            tx_digest,
+            self.tx_digest,
             Some(self.timestamp),
         )
         .await
         .map(|tx_block_event| tx_block_event.data)
+    }
+
+    /// Converts the raw [`TransactionEvents`] into [`StoredEvent`]s.
+    pub(crate) fn into_stored_events(self) -> Vec<StoredEvent> {
+        self.events
+            .iter()
+            .enumerate()
+            .map(|(idx, event)| {
+                StoredEvent::from(IndexedEvent::from_event(
+                    self.tx_sequence_number,
+                    idx as u64,
+                    self.checkpoint_sequence_number,
+                    self.tx_digest,
+                    event,
+                    self.timestamp,
+                ))
+            })
+            .collect()
     }
 }
 
