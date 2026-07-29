@@ -664,11 +664,11 @@ where
                         .get_checkpoint_by_sequence_number(n)
                         .unwrap_or_else(|| panic!("store should contain checkpoint {n}"));
                     self.store
-                        .get_full_checkpoint_contents(&checkpoint.content_digest)
+                        .get_full_checkpoint_contents(&checkpoint.contents_digest)
                         .unwrap_or_else(|| {
                             panic!(
                                 "store should contain checkpoint contents for {:?}",
-                                checkpoint.content_digest
+                                checkpoint.contents_digest
                             )
                         });
                 })
@@ -1711,7 +1711,7 @@ async fn get_full_checkpoint_contents<S>(
 where
     S: WriteStore,
 {
-    let digest = checkpoint.content_digest;
+    let digest = checkpoint.contents_digest;
     if let Some(contents) = store
         .get_full_checkpoint_contents_by_sequence_number(checkpoint.sequence_number())
         .or_else(|| store.get_full_checkpoint_contents(&digest))

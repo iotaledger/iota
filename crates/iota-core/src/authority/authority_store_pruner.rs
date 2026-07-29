@@ -363,11 +363,11 @@ impl AuthorityStorePruner {
 
         let mut checkpoints_batch = checkpoint_db.tables.certified_checkpoints.batch();
 
-        let checkpoint_content_digests =
+        let checkpoint_contents_digests =
             checkpoint_content_to_prune.iter().map(|ckpt| ckpt.digest());
         checkpoints_batch.delete_batch(
             &checkpoint_db.tables.checkpoint_content,
-            checkpoint_content_digests,
+            checkpoint_contents_digests,
         )?;
 
         checkpoints_batch.delete_batch(
@@ -550,7 +550,7 @@ impl AuthorityStorePruner {
             last_pruned_timestamp_ms = checkpoint.timestamp_ms;
 
             let content = checkpoint_store
-                .get_checkpoint_contents(&checkpoint.content_digest)?
+                .get_checkpoint_contents(&checkpoint.contents_digest)?
                 .ok_or_else(|| {
                     anyhow::anyhow!(
                         "checkpoint content data is missing: {}",

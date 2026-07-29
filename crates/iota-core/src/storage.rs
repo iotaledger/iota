@@ -244,7 +244,7 @@ impl ReadStore for RocksDbStore {
     ) -> iota_types::storage::error::Result<Option<CheckpointContents>> {
         match self.try_get_checkpoint_by_sequence_number(sequence_number) {
             Ok(Some(checkpoint)) => {
-                self.try_get_checkpoint_contents_by_digest(&checkpoint.content_digest)
+                self.try_get_checkpoint_contents_by_digest(&checkpoint.contents_digest)
             }
             Ok(None) => Ok(None),
             Err(e) => Err(e),

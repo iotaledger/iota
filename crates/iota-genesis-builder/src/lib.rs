@@ -1277,7 +1277,7 @@ fn create_genesis_checkpoint(
         epoch: 0,
         sequence_number: 0,
         network_total_transactions: contents.len().try_into().unwrap(),
-        content_digest: contents.digest(),
+        contents_digest: contents.digest(),
         previous_digest: None,
         epoch_rolling_gas_cost_summary: Default::default(),
         end_of_epoch_data: None,

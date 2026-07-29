@@ -557,7 +557,7 @@ impl IndexStoreTables {
                     ))
                 })?;
             let contents = checkpoint_store
-                .get_checkpoint_contents(&summary.content_digest)?
+                .get_checkpoint_contents(&summary.contents_digest)?
                 .ok_or_else(|| {
                     StorageError::missing(format!(
                         "missing checkpoint {checkpoint_sequence_number}"
@@ -1391,7 +1391,7 @@ mod tests {
             epoch,
             sequence_number,
             network_total_transactions: 0,
-            content_digest: Default::default(),
+            contents_digest: Default::default(),
             previous_digest: None,
             epoch_rolling_gas_cost_summary: GasCostSummary::default(),
             end_of_epoch_data: None,

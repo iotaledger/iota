@@ -110,7 +110,7 @@ fn end_of_epoch_summary(epoch: EpochId) -> CheckpointSummary {
         epoch,
         sequence_number: 0,
         network_total_transactions: 0,
-        content_digest: Default::default(),
+        contents_digest: Default::default(),
         previous_digest: None,
         epoch_rolling_gas_cost_summary: GasCostSummary::default(),
         end_of_epoch_data: Some(EndOfEpochData {

@@ -191,17 +191,17 @@ impl TryFrom<StoredCheckpoint> for CheckpointSummary {
     fn try_from(checkpoint: StoredCheckpoint) -> Result<CheckpointSummary, IndexerError> {
         let computation_cost_burned = checkpoint.computation_cost_burned();
 
-        let content_digest_bytes = checkpoint.content_digest.ok_or_else(|| {
+        let contents_digest_bytes = checkpoint.content_digest.ok_or_else(|| {
             IndexerError::PersistentStorageDataCorruption(
                 "checkpoint content_digest is missing; re-index to populate it".to_string(),
             )
         })?;
-        let content_digest = CheckpointContentsDigest::from_bytes(content_digest_bytes.clone())
+        let contents_digest = CheckpointContentsDigest::from_bytes(contents_digest_bytes.clone())
             .map_err(|e| {
-                IndexerError::PersistentStorageDataCorruption(format!(
-                    "Failed to decode content digest: {content_digest_bytes:?} with err: {e:?}"
-                ))
-            })?;
+            IndexerError::PersistentStorageDataCorruption(format!(
+                "Failed to decode content digest: {contents_digest_bytes:?} with err: {e:?}"
+            ))
+        })?;
 
         let version_specific_data = checkpoint.version_specific_data.ok_or_else(|| {
             IndexerError::PersistentStorageDataCorruption(
@@ -244,7 +244,7 @@ impl TryFrom<StoredCheckpoint> for CheckpointSummary {
             epoch: checkpoint.epoch as u64,
             sequence_number: checkpoint.sequence_number as u64,
             network_total_transactions: checkpoint.network_total_transactions as u64,
-            content_digest,
+            contents_digest,
             previous_digest,
             epoch_rolling_gas_cost_summary: GasCostSummary {
                 computation_cost: checkpoint.computation_cost as u64,
@@ -290,7 +290,7 @@ mod tests {
             epoch: 7,
             sequence_number: 42,
             network_total_transactions: 100,
-            content_digest: CheckpointContentsDigest::new([1u8; 32]),
+            contents_digest: CheckpointContentsDigest::new([1u8; 32]),
             previous_digest: Some(CheckpointDigest::new([2u8; 32])),
             epoch_rolling_gas_cost_summary: GasCostSummary {
                 computation_cost: 10,
@@ -334,7 +334,7 @@ mod tests {
                     .epoch_rolling_gas_cost_summary
                     .computation_cost_burned as i64,
             ),
-            content_digest: Some(summary.content_digest.into_inner().to_vec()),
+            content_digest: Some(summary.contents_digest.into_inner().to_vec()),
             version_specific_data: Some(summary.version_specific_data.clone()),
         };
 
