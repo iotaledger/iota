@@ -7751,7 +7751,6 @@ dependencies = [
  "fastcrypto",
  "futures",
  "hyper",
- "indicatif",
  "integer-encoding",
  "iota-common",
  "iota-config",
