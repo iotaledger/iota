@@ -30,6 +30,7 @@ use iota_swarm_config::{
         SupportedProtocolVersionsCallback,
     },
     node_config_builder::FullnodeConfigBuilder,
+    node_config_override::{NodeConfigOverride, OverrideScope},
 };
 use iota_types::{
     base_types::AuthorityName,
@@ -75,6 +76,7 @@ pub struct SwarmBuilder<R = OsRng> {
     fullnode_enable_grpc_api: bool,
     fullnode_grpc_api_config: Option<GrpcApiConfig>,
     disable_address_verification_cooldown: bool,
+    node_config_overrides: Vec<NodeConfigOverride>,
 }
 
 impl SwarmBuilder {
@@ -110,6 +112,7 @@ impl SwarmBuilder {
             fullnode_enable_grpc_api: false,
             fullnode_grpc_api_config: None,
             disable_address_verification_cooldown: false,
+            node_config_overrides: vec![],
         }
     }
 }
@@ -147,6 +150,7 @@ impl<R> SwarmBuilder<R> {
             fullnode_enable_grpc_api: self.fullnode_enable_grpc_api,
             fullnode_grpc_api_config: self.fullnode_grpc_api_config,
             disable_address_verification_cooldown: self.disable_address_verification_cooldown,
+            node_config_overrides: self.node_config_overrides,
         }
     }
 
@@ -375,6 +379,16 @@ impl<R> SwarmBuilder<R> {
         self.disable_address_verification_cooldown = true;
         self
     }
+
+    /// Set overrides applied to every node config this builder produces, in
+    /// the given order, after all other configuration.
+    pub fn with_node_config_overrides(
+        mut self,
+        node_config_overrides: Vec<NodeConfigOverride>,
+    ) -> Self {
+        self.node_config_overrides = node_config_overrides;
+        self
+    }
 }
 
 impl<R: rand::RngCore + rand::CryptoRng> SwarmBuilder<R> {
@@ -469,6 +483,24 @@ impl<R: rand::RngCore + rand::CryptoRng> SwarmBuilder<R> {
             }
         }
 
+        let num_validators = network_config.validator_configs.len();
+        for config_override in &self.node_config_overrides {
+            if let OverrideScope::Validator(index) = config_override.scope {
+                assert!(
+                    index < num_validators,
+                    "node config override `{config_override}` targets validator {index}, but there are only {num_validators} validators"
+                );
+            }
+        }
+        for (index, validator) in network_config.validator_configs.iter_mut().enumerate() {
+            apply_node_config_overrides(
+                self.node_config_overrides
+                    .iter()
+                    .filter(|config_override| config_override.applies_to_validator(index)),
+                validator,
+            );
+        }
+
         let mut nodes: HashMap<_, _> = network_config
             .validator_configs()
             .iter()
@@ -538,7 +570,13 @@ impl<R: rand::RngCore + rand::CryptoRng> SwarmBuilder<R> {
                         builder = builder.with_rpc_port(rpc_port);
                     }
                 }
-                let config = builder.build(&mut OsRng, &network_config);
+                let mut config = builder.build(&mut OsRng, &network_config);
+                apply_node_config_overrides(
+                    self.node_config_overrides
+                        .iter()
+                        .filter(|config_override| config_override.applies_to_fullnode()),
+                    &mut config,
+                );
                 info!(
                     "SwarmBuilder configuring full node with name {}",
                     config.authority_public_key()
@@ -675,6 +713,17 @@ impl Swarm {
     }
 }
 
+fn apply_node_config_overrides<'a>(
+    overrides: impl Iterator<Item = &'a NodeConfigOverride>,
+    config: &mut NodeConfig,
+) {
+    for config_override in overrides {
+        config_override
+            .apply_to(config)
+            .unwrap_or_else(|err| panic!("{err:#}"));
+    }
+}
+
 #[derive(Debug)]
 enum SwarmDirectory {
     Persistent(PathBuf),
@@ -712,6 +761,45 @@ mod test {
     use std::num::NonZeroUsize;
 
     use super::Swarm;
+
+    #[test]
+    fn node_config_overrides() {
+        let swarm = Swarm::builder()
+            .committee_size(NonZeroUsize::new(2).unwrap())
+            .with_fullnode_count(1)
+            .with_node_config_overrides(vec![
+                "fullnode:authority-store-pruning-config.num-epochs-to-retain=18446744073709551615"
+                    .parse()
+                    .unwrap(),
+                "validator-0:authority-store-pruning-config.num-epochs-to-retain=5"
+                    .parse()
+                    .unwrap(),
+            ])
+            .build();
+
+        let validators = swarm.config().validator_configs();
+        assert_eq!(
+            validators[0]
+                .authority_store_pruning_config
+                .num_epochs_to_retain,
+            5
+        );
+        assert_eq!(
+            validators[1]
+                .authority_store_pruning_config
+                .num_epochs_to_retain,
+            0
+        );
+
+        let fullnode = swarm.fullnodes().next().unwrap();
+        assert_eq!(
+            fullnode
+                .config()
+                .authority_store_pruning_config
+                .num_epochs_to_retain,
+            u64::MAX
+        );
+    }
 
     #[tokio::test]
     async fn launch() {

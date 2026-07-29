@@ -6,7 +6,7 @@ use std::{
     fs,
     net::{AddrParseError, IpAddr, Ipv4Addr, SocketAddr},
     num::NonZeroUsize,
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::Arc,
 };
 
@@ -41,6 +41,7 @@ use iota_swarm_config::{
     network_config::{NetworkConfig, NetworkConfigLight},
     network_config_builder::ConfigBuilder,
     node_config_builder::FullnodeConfigBuilder,
+    node_config_override::NodeConfigOverride,
 };
 use rand::rngs::OsRng;
 use tempfile::tempdir;
@@ -57,6 +58,20 @@ const DEFAULT_GRPC_PORT: u16 = 50051;
 const DEFAULT_GRAPHQL_PORT: u16 = 9125;
 #[cfg(feature = "indexer")]
 const DEFAULT_INDEXER_PORT: u16 = 9124;
+
+const FULLNODE_CONFIG_NOTE: &str = "\
+# `iota-localnet start` reads only the following values from this file:
+# iota-names-config, enable-grpc-api, grpc-api-config, db-path, genesis,
+# migration-tx-data-path. Change other values at start time with
+# `iota-localnet start --node-config-override [scope:]<path>=<value>`.
+# The file remains a complete config for running a standalone `iota-node`.
+";
+
+const VALIDATOR_CONFIG_NOTE: &str = "\
+# `iota-localnet start` does not read this file; it loads validator configs
+# from network.yaml. Change values at start time with
+# `iota-localnet start --node-config-override [scope:]<path>=<value>`.
+";
 
 #[cfg(feature = "indexer")]
 #[derive(Args)]
@@ -196,6 +211,11 @@ pub enum LocalnetCommand {
         /// request. Defaults to 5.
         #[arg(long)]
         faucet_coin_count: Option<usize>,
+        /// DEPRECATED: use `--node-config-override
+        /// fullnode:enable-grpc-api=true` and optionally
+        /// `--node-config-override
+        /// fullnode:grpc-api-config.address=<HOST:PORT>` instead.
+        ///
         /// Start the gRPC API server with default host and port: 0.0.0.0:50051.
         /// This flag accepts also a port, a host, or both (e.g.,
         /// 0.0.0.0:50051). When providing a specific value, please use
@@ -232,6 +252,21 @@ pub enum LocalnetCommand {
         /// Start the network without a fullnode
         #[arg(long)]
         no_full_node: bool,
+        /// Disable pruning on the fullnode so that all historical data (e.g.
+        /// old object versions) is retained. Useful for tests and tools that
+        /// query historical state via JSON-RPC.
+        #[arg(long, conflicts_with = "no_full_node")]
+        disable_fullnode_pruning: bool,
+        /// Override a value in the generated node configs, in the form
+        /// `[scope:]<path>=<value>` where scope is `all` (default),
+        /// `fullnode`, or `validator-<N>`, and path is a dot-separated list
+        /// of the kebab-case field names used in the node config YAML.
+        /// Can be repeated; overrides are applied in the given order, after
+        /// all other configuration. Example:
+        /// `--node-config-override
+        /// fullnode:authority-store-pruning-config.num-epochs-to-retain=5`
+        #[arg(long, value_name = "[SCOPE:]PATH=VALUE")]
+        node_config_override: Vec<NodeConfigOverride>,
         /// Set the number of validators in the network.
         /// If a genesis was already generated with a specific number of
         /// validators, this will not override it; the user should recreate the
@@ -308,6 +343,8 @@ impl LocalnetCommand {
                 #[cfg(feature = "indexer")]
                 data_ingestion_dir,
                 no_full_node,
+                disable_fullnode_pruning,
+                node_config_override,
                 committee_size,
                 epoch_duration_ms,
             } => {
@@ -325,6 +362,8 @@ impl LocalnetCommand {
                     #[cfg(feature = "indexer")]
                     data_ingestion_dir,
                     no_full_node,
+                    disable_fullnode_pruning,
+                    node_config_override,
                     committee_size,
                 )
                 .await
@@ -374,6 +413,8 @@ async fn start(
     fullnode_rpc_port: u16,
     #[cfg(feature = "indexer")] mut data_ingestion_dir: Option<PathBuf>,
     no_full_node: bool,
+    disable_fullnode_pruning: bool,
+    node_config_overrides: Vec<NodeConfigOverride>,
     committee_size: Option<usize>,
 ) -> Result<(), anyhow::Error> {
     if force_regenesis {
@@ -423,7 +464,35 @@ async fn start(
     // Resolve the configuration directory.
     let config_path = config_dir.clone().map_or_else(iota_config_dir, Ok)?;
 
+    // Deprecated --with-grpc becomes node config overrides; prepended so
+    // explicit --node-config-override values win.
+    let mut node_config_overrides = node_config_overrides;
+    if let Some(input) = with_grpc {
+        eprintln!(
+            "{}",
+            "[warning] The --with-grpc flag is deprecated. Use `--node-config-override \
+             fullnode:enable-grpc-api=true` and optionally `--node-config-override \
+             fullnode:grpc-api-config.address=<HOST:PORT>` instead."
+                .yellow()
+                .bold()
+        );
+        let grpc_address = parse_host_port(input, DEFAULT_GRPC_PORT)
+            .map_err(|_| anyhow!("Invalid gRPC host and port"))?;
+        node_config_overrides.splice(
+            0..0,
+            [
+                "fullnode:enable-grpc-api=true".parse()?,
+                format!("fullnode:grpc-api-config.address={grpc_address}").parse()?,
+            ],
+        );
+    }
+
     let mut swarm_builder = Swarm::builder();
+
+    if disable_fullnode_pruning {
+        swarm_builder = swarm_builder.with_disable_fullnode_pruning();
+    }
+    swarm_builder = swarm_builder.with_node_config_overrides(node_config_overrides);
 
     // If this is set, then no data will be persisted between runs, and a new
     // genesis will be generated each run.
@@ -564,16 +633,6 @@ async fn start(
             .with_network_config(network_config);
     }
 
-    if let Some(ref input) = with_grpc {
-        let grpc_address = parse_host_port(input.clone(), DEFAULT_GRPC_PORT)
-            .map_err(|_| anyhow!("Invalid gRPC host and port"))?;
-        swarm_builder = swarm_builder.with_fullnode_enable_grpc_api(true);
-        swarm_builder = swarm_builder.with_fullnode_grpc_api_config(GrpcApiConfig {
-            address: grpc_address,
-            ..Default::default()
-        });
-    }
-
     // the indexer and GraphQL services communicate with the fullnode via gRPC, we
     // must enable it by default.
     #[cfg(feature = "indexer")]
@@ -613,23 +672,41 @@ async fn start(
     tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
     info!("Cluster started");
 
+    // Derive service wiring from the launched fullnode's config, which
+    // reflects any node config overrides.
+    let fullnode_url = swarm
+        .fullnodes()
+        .next()
+        .map(|node| node.config().json_rpc_address)
+        .unwrap_or(fullnode_url);
     // the indexer requires a fullnode url with protocol specified
     let fullnode_url = format!("http://{fullnode_url}");
     info!("Fullnode URL: {}", fullnode_url);
 
-    if with_grpc.is_some() {
-        let grpc_url = swarm
-            .fullnodes()
-            .next()
-            .and_then(|node| {
-                node.config()
-                    .grpc_api_config
-                    .as_ref()
-                    .map(|grpc| grpc.address)
-            })
-            .unwrap_or_else(|| GrpcApiConfig::default().address);
+    if let Some(grpc_url) = swarm.fullnodes().next().and_then(|node| {
+        let config = node.config();
+        config.enable_grpc_api.then(|| {
+            config
+                .grpc_api_config
+                .as_ref()
+                .map(|grpc| grpc.address)
+                .unwrap_or_else(|| GrpcApiConfig::default().address)
+        })
+    }) {
         info!("gRPC URL: http://{grpc_url}");
     }
+
+    #[cfg(feature = "indexer")]
+    let data_ingestion_dir = swarm
+        .fullnodes()
+        .next()
+        .and_then(|node| {
+            node.config()
+                .checkpoint_executor_config
+                .data_ingestion_dir
+                .clone()
+        })
+        .or(data_ingestion_dir);
 
     #[cfg(feature = "indexer")]
     let pg_address = format!("postgres://{pg_user}:{pg_password}@{pg_host}:{pg_port}/{pg_db_name}");
@@ -997,7 +1074,9 @@ async fn genesis(
         .with_admin_interface_address(admin_interface_address_with_port)
         .build_from_parts(&mut OsRng, network_config.validator_configs(), genesis);
 
-    fullnode_config.save(iota_config_dir.join(IOTA_FULLNODE_CONFIG))?;
+    let fullnode_config_path = iota_config_dir.join(IOTA_FULLNODE_CONFIG);
+    fullnode_config.save(&fullnode_config_path)?;
+    prepend_note(&fullnode_config_path, FULLNODE_CONFIG_NOTE)?;
     let mut ssfn_nodes = vec![];
     if let Some(ssfn_info) = ssfn_info {
         for (i, ssfn) in ssfn_info.into_iter().enumerate() {
@@ -1043,7 +1122,8 @@ async fn genesis(
             let mut val_p2p = validator.p2p_config.clone();
             val_p2p.seed_peers.clone_from(&ssfn_seed_peers);
             validator.p2p_config = val_p2p;
-            validator.save(path)?;
+            validator.save(&path)?;
+            prepend_note(&path, VALIDATOR_CONFIG_NOTE)?;
         }
     } else {
         for (i, validator) in network_config
@@ -1055,7 +1135,8 @@ async fn genesis(
                 validator.network_address.clone(),
                 i,
             ));
-            validator.save(path)?;
+            validator.save(&path)?;
+            prepend_note(&path, VALIDATOR_CONFIG_NOTE)?;
         }
     }
 
@@ -1095,6 +1176,13 @@ async fn genesis(
     client_config.save(&client_path)?;
     info!("Client config file is stored in {:?}.", client_path);
 
+    Ok(())
+}
+
+/// Prepend a comment header to a saved YAML config file.
+fn prepend_note(path: &Path, note: &str) -> Result<(), anyhow::Error> {
+    let config = fs::read_to_string(path)?;
+    fs::write(path, format!("{note}{config}"))?;
     Ok(())
 }
 
