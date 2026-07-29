@@ -503,7 +503,7 @@ impl OperationMetrics {
             .unwrap(),
             rocksdb_very_slow_batch_writes_duration_ms: register_int_counter_vec_with_registry!(
                 "rocksdb_very_slow_batch_writes_duration",
-                "Total duration of batch writes that took more than 1 second and were slower than 32 MiB/s",
+                "Total time in milliseconds spent on batch writes that took more than 1 second and were slower than 32 MiB/s",
                 &["db_name"],
                 registry;
                 MetricLevel::Trace,
@@ -519,7 +519,7 @@ impl OperationMetrics {
             .unwrap(),
             rocksdb_very_slow_puts_duration_ms: register_int_counter_vec_with_registry!(
                 "rocksdb_very_slow_puts_duration",
-                "Total duration of puts that took more than 1 second",
+                "Total time in milliseconds spent on puts that took more than 1 second",
                 &["cf_name"],
                 registry;
                 MetricLevel::Trace,

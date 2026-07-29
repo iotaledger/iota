@@ -1012,7 +1012,7 @@ impl DBBatch {
             .rocksdb_batch_commit_latency_seconds
             .with_label_values(&[&db_name])
             .start_timer();
-        let batch_size = self.size_in_bytes();
+        let batch_size_bytes = self.size_in_bytes();
 
         let perf_ctx = if self.write_sample_interval.sample() {
             Some(RocksDBPerfContext)
@@ -1024,20 +1024,20 @@ impl DBBatch {
             .op_metrics
             .rocksdb_batch_commit_bytes
             .with_label_values(&[&db_name])
-            .observe(batch_size as f64);
+            .observe(batch_size_bytes as f64);
 
         if perf_ctx.is_some() {
             self.db_metrics
                 .write_perf_ctx_metrics
                 .report_metrics(&db_name);
         }
-        let elapsed = timer.stop_and_record();
-        let threshold_secs = very_slow_batch_write_threshold_secs(batch_size);
-        if elapsed > threshold_secs {
+        let elapsed_secs = timer.stop_and_record();
+        let threshold_secs = very_slow_batch_write_threshold_secs(batch_size_bytes);
+        if elapsed_secs > threshold_secs {
             warn!(
-                ?elapsed,
+                elapsed_secs,
                 threshold_secs,
-                batch_size,
+                batch_size_bytes,
                 ?db_name,
                 "very slow batch write"
             );
@@ -1050,7 +1050,7 @@ impl DBBatch {
                 .op_metrics
                 .rocksdb_very_slow_batch_writes_duration_ms
                 .with_label_values(&[&db_name])
-                .inc_by((elapsed * 1000.0) as u64);
+                .inc_by((elapsed_secs * 1000.0) as u64);
         }
         Ok(())
     }
@@ -1334,9 +1334,9 @@ where
         }
         self.db.put_cf(&self.column_family, key_buf, value_buf)?;
 
-        let elapsed = timer.stop_and_record();
-        if elapsed > 1.0 {
-            warn!(?elapsed, cf = ?self.cf_name(), "very slow insert");
+        let elapsed_secs = timer.stop_and_record();
+        if elapsed_secs > 1.0 {
+            warn!(elapsed_secs, cf = ?self.cf_name(), "very slow insert");
             self.db_metrics
                 .op_metrics
                 .rocksdb_very_slow_puts_count
@@ -1346,7 +1346,7 @@ where
                 .op_metrics
                 .rocksdb_very_slow_puts_duration_ms
                 .with_label_values(&[self.cf_name()])
-                .inc_by((elapsed * 1000.0) as u64);
+                .inc_by((elapsed_secs * 1000.0) as u64);
         }
 
         Ok(())
@@ -1698,9 +1698,11 @@ fn default_hash(value: &[u8]) -> Digest<32> {
     hasher.finalize()
 }
 
-// Kept well below the write rate a healthy disk sustains, so that only
-// genuinely degraded writes are reported.
-const THROUGHPUT_FLOOR_BYTES_PER_SEC: f64 = 32.0 * 1024.0 * 1024.0;
+// The throughput floor is used to compute the threshold for when a batch write
+// is considered "very slow".
+const THROUGHPUT_FLOOR_BYTES_PER_SEC: f64 = 32.0 * 1024.0 * 1024.0; // 32 MiB/s
+
+// A batch write that took less than this is never reported as very slow.
 const MIN_VERY_SLOW_BATCH_WRITE_SECS: f64 = 1.0;
 
 /// Returns the elapsed time above which a batch write of `batch_size_bytes` is
