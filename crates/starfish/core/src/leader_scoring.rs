@@ -314,12 +314,11 @@ pub(crate) fn compute_per_commit_contribution(
     // starfish speed).
     let double_strong_votes = context.protocol_config.consensus_starfish_speed();
 
-    // Voting blocks at round r+1 that strongly link to the leader block, grouped by
-    // author. Multiple blocks per author indicates equivocation in the lookback
-    // window. `strong_by_ref` records whether each voting block is a strong vote
-    // for the leader.
-    let mut voting_blocks_by_author: BTreeMap<AuthorityIndex, Vec<BlockRef>> = BTreeMap::new();
-    let mut strong_by_ref: HashMap<BlockRef, bool> = HashMap::new();
+    // Voting blocks at round r+1 that strongly link to the leader block, grouped
+    // by author, each tagged with whether it is a strong vote for the leader.
+    // Multiple blocks per author indicates equivocation in the lookback window.
+    let mut voting_blocks_by_author: BTreeMap<AuthorityIndex, Vec<(BlockRef, bool)>> =
+        BTreeMap::new();
     for commit in [c_minus_2, c_minus_1, c] {
         for header in &commit.headers {
             if header.round() != vote_round {
@@ -328,12 +327,13 @@ pub(crate) fn compute_per_commit_contribution(
             if !header.ancestors().contains(&leader_ref) {
                 continue;
             }
-            let vote_ref = header.reference();
             voting_blocks_by_author
                 .entry(header.author())
                 .or_default()
-                .push(vote_ref);
-            strong_by_ref.insert(vote_ref, header.is_strong_vote_for(leader_ref.author));
+                .push((
+                    header.reference(),
+                    header.is_strong_vote_for(leader_ref.author),
+                ));
         }
     }
 
@@ -343,9 +343,9 @@ pub(crate) fn compute_per_commit_contribution(
     let mut voting_author_by_ref: HashMap<BlockRef, AuthorityIndex> = HashMap::new();
     let mut strong_voter = vec![false; committee.size()];
     for (author, voting_refs) in &voting_blocks_by_author {
-        if let [voting_ref] = voting_refs.as_slice() {
+        if let [(voting_ref, strong)] = voting_refs.as_slice() {
             voting_author_by_ref.insert(*voting_ref, *author);
-            strong_voter[author.value()] = strong_by_ref.get(voting_ref).copied().unwrap_or(false);
+            strong_voter[author.value()] = *strong;
         }
     }
 
