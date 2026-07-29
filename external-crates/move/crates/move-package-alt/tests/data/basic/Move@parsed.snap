@@ -7,7 +7,9 @@ Manifest {
             file: "tests/data/basic/Move.toml",
             value: Spanned {
                 span: 17..26,
-                value: "example",
+                value: Identifier(
+                    "example",
+                ),
             },
         },
         edition: Located {
@@ -20,11 +22,13 @@ Manifest {
         metadata: (),
     },
     environments: {
-        "mainnet": "35834a8a",
-        "testnet": "4c78adac",
+        "mainnet": "6364aad5",
+        "testnet": "2304aa97",
     },
     dependencies: {
-        "foo": ManifestDependency {
+        Identifier(
+            "foo",
+        ): ManifestDependency {
             dependency_info: Git(
                 UnpinnedGitDependency {
                     repo: "https://example.com/foo.git",
@@ -36,16 +40,21 @@ Manifest {
             ),
             is_override: true,
             rename_from: Some(
-                "Foo",
+                Identifier(
+                    "Foo",
+                ),
             ),
         },
-        "qwer": ManifestDependency {
+        Identifier(
+            "qwer",
+        ): ManifestDependency {
             dependency_info: External(
                 ExternalDependency {
                     resolver: "mvr",
                     data: String(
                         "@pkg/qwer",
                     ),
+                    containing_file: "tests/data/basic/Move.toml",
                 },
             ),
             is_override: false,
@@ -54,7 +63,9 @@ Manifest {
     },
     dep_replacements: {
         "mainnet": {
-            "bar": ManifestDependencyReplacement {
+            Identifier(
+                "bar",
+            ): ManifestDependencyReplacement {
                 dependency: Some(
                     ManifestDependency {
                         dependency_info: Git(
@@ -75,7 +86,9 @@ Manifest {
                     "mainnet_beta",
                 ),
             },
-            "foo": ManifestDependencyReplacement {
+            Identifier(
+                "foo",
+            ): ManifestDependencyReplacement {
                 dependency: Some(
                     ManifestDependency {
                         dependency_info: Git(

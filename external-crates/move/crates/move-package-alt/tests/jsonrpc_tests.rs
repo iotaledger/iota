@@ -4,6 +4,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 mod jsonrpc_tests {
+    use move_package_alt::jsonrpc::{
+        client::{Endpoint, JsonRpcError},
+        types::RemoteError,
+    };
     use serde::{Deserialize, Serialize};
     use serde_json::json;
     use tokio::{
@@ -15,11 +19,6 @@ mod jsonrpc_tests {
     };
     use tracing::debug;
     use tracing_subscriber::EnvFilter;
-
-    use move_package_alt::jsonrpc::{
-        client::{Endpoint, JsonRpcError},
-        types::RemoteError,
-    };
 
     type HarnessEndpoint = Endpoint<ReadHalf<SimplexStream>, WriteHalf<SimplexStream>>;
 
@@ -49,7 +48,8 @@ mod jsonrpc_tests {
         }
     }
 
-    /// Set up an [Endpoint] that communicates over in-memory pipes; return it and the pipes
+    /// Set up an [Endpoint] that communicates over in-memory pipes; return it
+    /// and the pipes
     fn create_harness() -> (HarnessEndpoint, impl AsyncBufRead, impl AsyncWrite) {
         let _ = tracing_subscriber::fmt::fmt()
             .with_env_filter(EnvFilter::from_default_env())
@@ -116,7 +116,8 @@ mod jsonrpc_tests {
         input.write_all(output.as_bytes()).await.unwrap();
     }
 
-    /// Calling [Endpoint::call] has correct end-to-end behavior with a normal response
+    /// Calling [Endpoint::call] has correct end-to-end behavior with a normal
+    /// response
     #[tokio::test]
     async fn test_call_normal() {
         let (endpoint, output, input) = create_harness();
@@ -138,7 +139,8 @@ mod jsonrpc_tests {
         assert_eq!(call.unwrap(), TestData2::new());
     }
 
-    /// Calling [Endpoint::call] has correct end-to-end behavior with an error response
+    /// Calling [Endpoint::call] has correct end-to-end behavior with an error
+    /// response
     #[tokio::test]
     async fn test_call_error() {
         let (endpoint, _, input) = create_harness();
@@ -161,8 +163,8 @@ mod jsonrpc_tests {
         assert_eq!(received_error, error);
     }
 
-    /// [Endpoint::batch_call] has correct end-to-end behavior with only normal responses (in
-    /// unsorted order)
+    /// [Endpoint::batch_call] has correct end-to-end behavior with only normal
+    /// responses (in unsorted order)
     #[tokio::test]
     async fn test_batch_call_normal() {
         let (endpoint, output, input) = create_harness();
@@ -210,8 +212,8 @@ mod jsonrpc_tests {
         assert_eq!(call.unwrap(), expected);
     }
 
-    /// [Endpoint::batch_call] has correct end-to-end behavior with a mix of normal and error
-    /// responses
+    /// [Endpoint::batch_call] has correct end-to-end behavior with a mix of
+    /// normal and error responses
     #[tokio::test]
     async fn test_batch_call_error() {
         let (endpoint, _, input) = create_harness();
@@ -245,7 +247,8 @@ mod jsonrpc_tests {
         assert_eq!(received_error, error);
     }
 
-    /// [Endpoint::batch_call] fails gracefully with an incomplete batch response
+    /// [Endpoint::batch_call] fails gracefully with an incomplete batch
+    /// response
     #[tokio::test]
     async fn test_batch_missing_results() {
         let (endpoint, _, input) = create_harness();
@@ -288,7 +291,8 @@ mod jsonrpc_tests {
         };
     }
 
-    /// [Endpoint::batch_call] fails gracefully with incorrectly serialized responses
+    /// [Endpoint::batch_call] fails gracefully with incorrectly serialized
+    /// responses
     #[tokio::test]
     async fn test_batch_bad_data() {
         let (endpoint, _, input) = create_harness();

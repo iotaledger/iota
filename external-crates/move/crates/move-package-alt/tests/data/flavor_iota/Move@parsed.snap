@@ -7,7 +7,9 @@ Manifest {
             file: "tests/data/flavor_iota/Move.toml",
             value: Spanned {
                 span: 17..23,
-                value: "name",
+                value: Identifier(
+                    "name",
+                ),
             },
         },
         edition: Located {
@@ -20,7 +22,7 @@ Manifest {
         metadata: (),
     },
     environments: {
-        "mainnet": "35834a8a",
+        "mainnet": "6364aad5",
     },
     dependencies: {},
     dep_replacements: {},

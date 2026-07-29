@@ -3,23 +3,24 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use anyhow::bail;
-use move_command_line_common::testing::insta_assert;
+use std::path::Path;
 
+use anyhow::bail;
 use codespan_reporting::{
     files::SimpleFiles,
     term::{self, Config, termcolor::Buffer},
 };
+use move_command_line_common::testing::insta_assert;
 use move_package_alt::{
-    dependency::{self, DependencySet, ManifestDependencyInfo},
+    dependency::{self, DependencySet, UnpinnedDependencyInfo},
     flavor::Vanilla,
-    package::{lockfile::Lockfile, manifest::Manifest},
+    graph::PackageGraph,
+    package::{lockfile::Lockfile, manifest::Manifest, paths::PackagePath},
 };
-use std::path::Path;
 use tracing_subscriber::EnvFilter;
 
-/// Resolve the package contained in the same directory as [path], and snapshot a value based
-/// on the extension of [path]:
+/// Resolve the package contained in the same directory as [path], and snapshot
+/// a value based on the extension of [path]:
 ///  - ".parsed": the contents of the manifest
 ///  - ".locked": the contents of the lockfile
 ///  - ".pinned": the contents of the pinned dependencies
@@ -37,6 +38,7 @@ pub fn run_test(path: &Path) -> datatest_stable::Result<()> {
     let kind = path.extension().unwrap().to_string_lossy();
     let toml_path = path.with_extension("toml");
     let test = Test::from_path_with_kind(&toml_path, &kind)?;
+
     test.run()
 }
 
@@ -66,11 +68,12 @@ impl Test<'_> {
         Ok(())
     }
 
-    /// Return the value to be snapshotted, based on `self.kind`, as described in [run_test]
+    /// Return the value to be snapshotted, based on `self.kind`, as described
+    /// in [run_test]
     fn output(&self) -> anyhow::Result<String> {
         Ok(match self.kind {
             "parsed" => {
-                let manifest = Manifest::<Vanilla>::read_from(self.toml_path);
+                let manifest = Manifest::<Vanilla>::read_from_file(self.toml_path);
                 let contents = match manifest.as_ref() {
                     Ok(m) => format!("{:#?}", m),
                     Err(_) => {
@@ -95,9 +98,9 @@ impl Test<'_> {
                 contents
             }
             "locked" => {
-                let lockfile = Lockfile::<Vanilla>::read_from(self.toml_path.parent().unwrap());
+                let lockfile = Lockfile::<Vanilla>::read_from_dir(self.toml_path.parent().unwrap());
                 match lockfile {
-                    Ok(l) => format!("{:#?}", l),
+                    Ok(l) => l.render_as_toml().to_string(),
                     Err(e) => e.to_string(),
                 }
             }
@@ -107,10 +110,28 @@ impl Test<'_> {
     }
 }
 
-async fn run_pinning_tests(input_path: &Path) -> datatest_stable::Result<String> {
-    let manifest = Manifest::<Vanilla>::read_from(input_path).unwrap();
+async fn _run_graph_test(input_path: &Path) -> Result<String, Box<dyn std::error::Error>> {
+    let package_path = PackagePath::new(input_path.parent().unwrap().to_path_buf())?;
+    let package = PackageGraph::<Vanilla>::load_from_lockfile_ignore_digests(
+        &package_path,
+        &"mainnet".to_string(),
+    )
+    .await?;
 
-    let deps: DependencySet<ManifestDependencyInfo<Vanilla>> = manifest.dependencies();
+    let output = format!("{:#?}", package);
+    Ok(output)
+}
+
+fn _run_graph_test_wrapper(path: &Path) -> Result<String, Box<dyn std::error::Error>> {
+    let rt = tokio::runtime::Runtime::new()?;
+    let data = rt.block_on(_run_graph_test(path))?;
+    Ok(data)
+}
+
+async fn run_pinning_tests(input_path: &Path) -> datatest_stable::Result<String> {
+    let manifest = Manifest::<Vanilla>::read_from_file(input_path).unwrap();
+
+    let deps: DependencySet<UnpinnedDependencyInfo<Vanilla>> = manifest.dependencies();
 
     add_bindir();
     let pinned = dependency::pin(&Vanilla, deps, manifest.environments()).await;
