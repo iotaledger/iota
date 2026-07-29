@@ -10,6 +10,7 @@ mod clever_error_rendering;
 #[cfg(feature = "gen-completions")]
 mod completions;
 pub mod displays;
+mod grpc_transaction_builder;
 pub mod iota_commands;
 pub mod key_identity;
 pub mod keytool;
