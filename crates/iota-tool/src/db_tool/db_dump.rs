@@ -118,7 +118,7 @@ pub fn print_table_metadata(
         }
         StoreName::Index => {
             IndexStoreTables::get_read_only_handle(db_path, None, None, MetricConf::default())
-                .event_by_move_module
+                .owner_index
                 .db
         }
         StoreName::Epoch => {
