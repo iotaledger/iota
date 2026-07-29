@@ -38,10 +38,6 @@ use crate::{
     },
 };
 
-// The throughput floor is used to compute the threshold for when a batch write
-// is considered "very slow".
-const THROUGHPUT_FLOOR_BYTES_PER_SEC: f64 = 32.0 * 1024.0 * 1024.0;
-
 #[derive(Clone)]
 pub(crate) enum ColumnFamily {
     Rocks(String),
@@ -1036,8 +1032,15 @@ impl DBBatch {
                 .report_metrics(&db_name);
         }
         let elapsed = timer.stop_and_record();
-        if elapsed > very_slow_batch_write_threshold_secs(batch_size) {
-            warn!(?elapsed, batch_size, ?db_name, "very slow batch write");
+        let threshold_secs = very_slow_batch_write_threshold_secs(batch_size);
+        if elapsed > threshold_secs {
+            warn!(
+                ?elapsed,
+                threshold_secs,
+                batch_size,
+                ?db_name,
+                "very slow batch write"
+            );
             self.db_metrics
                 .op_metrics
                 .rocksdb_very_slow_batch_writes_count
@@ -1695,11 +1698,37 @@ fn default_hash(value: &[u8]) -> Digest<32> {
     hasher.finalize()
 }
 
-/// Elapsed time above which a batch write is reported as very slow.
-/// Large batches get time proportional to their size, at a deliberately
-/// conservative throughput floor, while a small write taking that long is a
-/// genuine stall and must be reported.
+// Kept well below the write rate a healthy disk sustains, so that only
+// genuinely degraded writes are reported.
+const THROUGHPUT_FLOOR_BYTES_PER_SEC: f64 = 32.0 * 1024.0 * 1024.0;
+const MIN_VERY_SLOW_BATCH_WRITE_SECS: f64 = 1.0;
+
+/// Returns the elapsed time above which a batch write of `batch_size_bytes` is
+/// reported as very slow: what it would take at
+/// [`THROUGHPUT_FLOOR_BYTES_PER_SEC`], and never less than
+/// [`MIN_VERY_SLOW_BATCH_WRITE_SECS`].
 fn very_slow_batch_write_threshold_secs(batch_size_bytes: usize) -> f64 {
-    const MIN_THRESHOLD_SECS: f64 = 1.0;
-    (batch_size_bytes as f64 / THROUGHPUT_FLOOR_BYTES_PER_SEC).max(MIN_THRESHOLD_SECS)
+    (batch_size_bytes as f64 / THROUGHPUT_FLOOR_BYTES_PER_SEC).max(MIN_VERY_SLOW_BATCH_WRITE_SECS)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::very_slow_batch_write_threshold_secs;
+
+    const MIB: usize = 1024 * 1024;
+
+    #[test]
+    fn very_slow_batch_write_threshold_never_below_one_second() {
+        assert_eq!(very_slow_batch_write_threshold_secs(0), 1.0);
+        assert_eq!(very_slow_batch_write_threshold_secs(1), 1.0);
+        assert_eq!(very_slow_batch_write_threshold_secs(MIB), 1.0);
+        assert_eq!(very_slow_batch_write_threshold_secs(32 * MIB), 1.0);
+    }
+
+    #[test]
+    fn very_slow_batch_write_threshold_grows_with_batch_size() {
+        assert_eq!(very_slow_batch_write_threshold_secs(48 * MIB), 1.5);
+        assert_eq!(very_slow_batch_write_threshold_secs(64 * MIB), 2.0);
+        assert_eq!(very_slow_batch_write_threshold_secs(320 * MIB), 10.0);
+    }
 }
