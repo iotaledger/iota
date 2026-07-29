@@ -12,9 +12,8 @@ use std::{
 use better_any::{Tid, TidAble};
 use indexmap::{map::IndexMap, set::IndexSet};
 use iota_protocol_config::{LimitThresholdCrossed, ProtocolConfig, check_limit_by_meter};
-use iota_sdk_types::{Address, ObjectId, Owner, StructTag};
+use iota_sdk_types::{Address, ObjectId, Owner, StructTag, Version};
 use iota_types::{
-    base_types::SequenceNumber,
     committee::EpochId,
     error::{ExecutionError, ExecutionErrorKind, VMMemoryLimitExceededSubStatusCode},
     execution::DynamicallyLoadedObjectMetadata,
@@ -71,7 +70,7 @@ pub(crate) struct TestInventories {
 }
 
 pub struct LoadedRuntimeObject {
-    pub version: SequenceNumber,
+    pub version: Version,
     pub is_modified: bool,
 }
 
@@ -124,7 +123,7 @@ pub enum TransferResult {
 
 pub struct InputObject {
     pub contained_uids: BTreeSet<ObjectId>,
-    pub version: SequenceNumber,
+    pub version: Version,
     pub owner: Owner,
 }
 
@@ -348,7 +347,7 @@ impl<'a> ObjectRuntime<'a> {
         &mut self,
         parent: ObjectId,
         child: ObjectId,
-        child_version: SequenceNumber,
+        child_version: Version,
         child_ty: &Type,
         child_layout: &R::MoveTypeLayout,
         child_fully_annotated_layout: &MoveTypeLayout,

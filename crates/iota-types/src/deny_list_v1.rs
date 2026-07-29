@@ -7,13 +7,13 @@ use std::{
     fmt,
 };
 
-use iota_sdk_types::{Address, Identifier, ObjectId, StructTag, TypeTag};
+use iota_sdk_types::{Address, Identifier, ObjectId, StructTag, TypeTag, Version};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use tracing::{error, instrument};
 
 use crate::{
     IOTA_DENY_LIST_OBJECT_ID, MoveTypeTagTrait,
-    base_types::{EpochId, SequenceNumber},
+    base_types::EpochId,
     config::{Config, Setting},
     dynamic_field::{DOFWrapper, get_dynamic_field_from_store},
     error::{ExecutionError, ExecutionErrorKind, UserInputError, UserInputResult},
@@ -234,7 +234,7 @@ pub fn get_deny_list_root_object(object_store: &dyn ObjectStore) -> Option<Objec
     }
 }
 
-pub fn get_deny_list_obj_initial_shared_version(object_store: &dyn ObjectStore) -> SequenceNumber {
+pub fn get_deny_list_obj_initial_shared_version(object_store: &dyn ObjectStore) -> Version {
     get_deny_list_root_object(object_store)
         .map(|obj| {
             obj.owner

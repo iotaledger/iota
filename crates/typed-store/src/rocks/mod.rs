@@ -217,6 +217,31 @@ pub fn open_cf_opts_secondary<P: AsRef<Path>>(
 }
 
 // Drops a database if there is no other handle to it, with retries and timeout.
+#[cfg(msim)]
+pub async fn safe_drop_db(path: PathBuf, timeout: Duration) -> Result<(), rocksdb::Error> {
+    // The destroy fails until rocksdb's background threads release the file
+    // lock, which happens on the real clock. Retrying on the simulated clock
+    // would consume a machine-load-dependent amount of simulated time (and rng,
+    // through the backoff jitter), breaking simtest determinism, so retry on a
+    // real thread with real sleeps instead.
+    nondeterministic!({
+        let deadline = std::time::Instant::now() + timeout;
+        loop {
+            match rocksdb::DB::destroy(&rocksdb::Options::default(), path.clone()) {
+                Ok(()) => return Ok(()),
+                Err(err) => {
+                    if std::time::Instant::now() >= deadline {
+                        return Err(err);
+                    }
+                    std::thread::sleep(Duration::from_millis(100));
+                }
+            }
+        }
+    })
+}
+
+// Drops a database if there is no other handle to it, with retries and timeout.
+#[cfg(not(msim))]
 pub async fn safe_drop_db(path: PathBuf, timeout: Duration) -> Result<(), rocksdb::Error> {
     let mut backoff = backoff::ExponentialBackoff {
         max_elapsed_time: Some(timeout),

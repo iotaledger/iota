@@ -14,14 +14,13 @@ use iota_json_rpc_types::{
 };
 use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{ObjectData, ObjectId, Owner, StructTag};
+use iota_sdk_types::{ObjectData, ObjectId, Owner, StructTag, TransactionDigest};
 use iota_swarm_config::genesis_config::{
     AccountConfig, ValidatorGenesisConfig, ValidatorGenesisConfigBuilder,
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     crypto::deterministic_random_account_key,
-    digests::TransactionDigest,
     governance::MIN_VALIDATOR_JOINING_STAKE_NANOS,
     id::UID,
     iota_system_state::{IotaSystemStateTrait, iota_system_state_summary::IotaSystemStateSummary},
@@ -379,9 +378,12 @@ async fn test_staking() -> Result<(), anyhow::Error> {
 }
 
 #[sim_test]
-#[ignore = "https://github.com/iotaledger/iota/issues/5085"]
 async fn test_unstaking() -> Result<(), anyhow::Error> {
-    let cluster = TestClusterBuilder::new().build().await;
+    // disable pruning so that we can query the unstaked object after it is deleted
+    let cluster = TestClusterBuilder::new()
+        .disable_fullnode_pruning()
+        .build()
+        .await;
 
     let http_client = cluster.rpc_client();
     let address = cluster.get_address_0();
@@ -693,7 +695,9 @@ async fn test_timelocked_unstaking() -> Result<(), anyhow::Error> {
         storage_rebate: 0,
     };
 
+    // disable pruning so that we can query the unstaked object after it is deleted
     let cluster = TestClusterBuilder::new()
+        .disable_fullnode_pruning()
         .with_accounts(
             [AccountConfig {
                 address: Some(address),

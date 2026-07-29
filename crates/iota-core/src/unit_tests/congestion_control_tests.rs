@@ -9,16 +9,17 @@ use iota_macros::{register_fail_point_arg, sim_test};
 use iota_protocol_config::{
     Chain, PerObjectCongestionControlMode, ProtocolConfig, ProtocolVersion,
 };
-use iota_sdk_types::{Address, ExecutionError, ExecutionStatus, ObjectId};
+use iota_sdk_types::{
+    Address, ExecutionError, ExecutionStatus, ObjectId, ObjectReference, SharedObjectReference,
+    TransactionDigest, Version,
+};
 use iota_types::{
-    base_types::{ObjectRef, SequenceNumber},
     crypto::{AccountKeyPair, get_key_pair},
-    digests::TransactionDigest,
     effects::{InputSharedObject, TransactionEffects, TransactionEffectsAPI},
     executable_transaction::VerifiedExecutableTransaction,
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{CallArg, SharedObjectRef, Transaction},
+    transaction::{CallArg, Transaction},
 };
 
 use crate::{
@@ -50,7 +51,7 @@ struct TestSetup {
     protocol_config: ProtocolConfig,
     sender: Address,
     sender_key: AccountKeyPair,
-    package: ObjectRef,
+    package: ObjectReference,
     gas_object_id: ObjectId,
 }
 
@@ -110,7 +111,7 @@ impl TestSetup {
 
     // Creates a shared object in `setup_authority_state` and returns the object
     // reference.
-    async fn create_shared_object(&self) -> ObjectRef {
+    async fn create_shared_object(&self) -> ObjectReference {
         let mut builder = ProgrammableTransactionBuilder::new();
         move_call! {
             builder,
@@ -139,7 +140,7 @@ impl TestSetup {
 
     // Creates a owned object in `setup_authority_state` and returns the object
     // reference.
-    async fn create_owned_object(&self) -> ObjectRef {
+    async fn create_owned_object(&self) -> ObjectReference {
         let mut builder = ProgrammableTransactionBuilder::new();
         move_call! {
             builder,
@@ -207,12 +208,12 @@ impl TestSetup {
 // the congestion control before being executed.
 async fn commit_and_execute_transaction(
     authority_state: &AuthorityState,
-    package: &ObjectRef,
+    package: &ObjectReference,
     sender: &Address,
     sender_key: &AccountKeyPair,
     gas_object_id: &ObjectId,
-    shared_objects: &[(ObjectId, SequenceNumber)],
-    owned_object: &ObjectRef,
+    shared_objects: &[(ObjectId, Version)],
+    owned_object: &ObjectReference,
     gas_units: u64,
 ) -> (Transaction, TransactionEffects) {
     let mut txn_builder = ProgrammableTransactionBuilder::new();
@@ -220,7 +221,7 @@ async fn commit_and_execute_transaction(
     for shared_object in shared_objects {
         args.push(
             txn_builder
-                .obj(CallArg::Shared(SharedObjectRef::new(
+                .obj(CallArg::Shared(SharedObjectReference::new(
                     shared_object.0,
                     shared_object.1,
                     true,
@@ -409,13 +410,11 @@ async fn test_congestion_control_execution_cancellation() {
         vec![
             InputSharedObject::Cancelled(
                 shared_object_1.object_id,
-                SequenceNumber::new_congested_with_suggested_gas_price(suggested_gas_price)
-                    .unwrap()
+                Version::new_congested_with_suggested_gas_price(suggested_gas_price).unwrap()
             ),
             InputSharedObject::Cancelled(
                 shared_object_2.object_id,
-                SequenceNumber::new_congested_with_suggested_gas_price(suggested_gas_price)
-                    .unwrap()
+                Version::new_congested_with_suggested_gas_price(suggested_gas_price).unwrap()
             )
         ]
     );
@@ -627,8 +626,7 @@ async fn test_congestion_control_debt_tracking() {
         effects.input_shared_objects(),
         vec![InputSharedObject::Cancelled(
             shared_object_2.object_id,
-            SequenceNumber::new_congested_with_suggested_gas_price(expected_suggested_gas_price)
-                .unwrap()
+            Version::new_congested_with_suggested_gas_price(expected_suggested_gas_price).unwrap()
         ),]
     );
 
@@ -768,17 +766,13 @@ async fn test_congestion_control_debt_tracking() {
         vec![
             InputSharedObject::Cancelled(
                 shared_object_1.object_id,
-                SequenceNumber::new_congested_with_suggested_gas_price(
-                    expected_suggested_gas_price
-                )
-                .unwrap()
+                Version::new_congested_with_suggested_gas_price(expected_suggested_gas_price)
+                    .unwrap()
             ),
             InputSharedObject::Cancelled(
                 shared_object_2.object_id,
-                SequenceNumber::new_congested_with_suggested_gas_price(
-                    expected_suggested_gas_price
-                )
-                .unwrap()
+                Version::new_congested_with_suggested_gas_price(expected_suggested_gas_price)
+                    .unwrap()
             )
         ]
     );

@@ -11,9 +11,8 @@ use iota_framework::BuiltInFramework;
 use iota_genesis_builder::validator_info::ValidatorInfo;
 use iota_move_build::test_utils::compile_basics_package;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{Address, ObjectId};
+use iota_sdk_types::{Address, ObjectId, TransactionDigest};
 use iota_types::{
-    base_types::TransactionDigest,
     crypto::{
         AccountKeyPair, AuthorityKeyPair, AuthorityPublicKeyBytes, IotaKeyPair, NetworkKeyPair,
         generate_proof_of_possession, get_key_pair,

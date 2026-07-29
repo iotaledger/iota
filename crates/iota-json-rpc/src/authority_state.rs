@@ -19,14 +19,17 @@ use iota_json_rpc_types::{
     Coin as IotaCoin, DevInspectResults, DryRunTransactionBlockResponse, EventFilter, IotaEvent,
     IotaObjectDataFilter, TransactionFilter,
 };
-use iota_sdk_types::{Address, ObjectId, StructTag, TransactionKind, TypeTag};
+use iota_sdk_types::{
+    Address, CheckpointContentsDigest, CheckpointDigest, ObjectId, ObjectReference, StructTag,
+    TransactionDigest, TransactionKind, TypeTag, Version,
+};
 use iota_storage::key_value_store::{
     KVStoreTransactionData, TransactionKeyValueStore, TransactionKeyValueStoreTrait,
 };
 use iota_types::{
-    base_types::{ObjectInfo, ObjectRef, SequenceNumber},
+    base_types::ObjectInfo,
     committee::{Committee, EpochId},
-    digests::{ChainIdentifier, TransactionDigest},
+    digests::ChainIdentifier,
     dynamic_field::DynamicFieldInfo,
     effects::TransactionEffects,
     error::{IotaError, UserInputError},
@@ -34,10 +37,7 @@ use iota_types::{
     governance::StakedIota,
     iota_serde::BigInt,
     iota_system_state::IotaSystemState,
-    messages_checkpoint::{
-        CheckpointContents, CheckpointContentsDigest, CheckpointDigest, CheckpointSequenceNumber,
-        VerifiedCheckpoint,
-    },
+    messages_checkpoint::{CheckpointContents, CheckpointSequenceNumber, VerifiedCheckpoint},
     object::{Object, ObjectRead, PastObjectRead},
     storage::{BackingPackageStore, ObjectStore, WriteKind},
     timelock::timelocked_staked_iota::TimelockedStakedIota,
@@ -68,7 +68,7 @@ pub trait StateRead: Send + Sync {
     fn get_past_object_read(
         &self,
         object_id: &ObjectId,
-        version: SequenceNumber,
+        version: Version,
     ) -> StateReadResult<PastObjectRead>;
 
     async fn get_object(&self, object_id: &ObjectId) -> StateReadResult<Option<Object>>;
@@ -113,7 +113,7 @@ pub trait StateRead: Send + Sync {
         transaction_digest: TransactionDigest,
     ) -> StateReadResult<(
         DryRunTransactionBlockResponse,
-        BTreeMap<ObjectId, (ObjectRef, Object, WriteKind)>,
+        BTreeMap<ObjectId, (ObjectReference, Object, WriteKind)>,
         TransactionEffects,
         Option<ObjectId>,
     )>;
@@ -125,7 +125,7 @@ pub trait StateRead: Send + Sync {
         gas_price: Option<u64>,
         gas_budget: Option<u64>,
         gas_sponsor: Option<Address>,
-        gas_objects: Option<Vec<ObjectRef>>,
+        gas_objects: Option<Vec<ObjectReference>>,
         show_raw_txn_data_and_effects: Option<bool>,
         skip_checks: Option<bool>,
     ) -> StateReadResult<DevInspectResults>;
@@ -262,7 +262,7 @@ impl StateRead for AuthorityState {
     fn get_past_object_read(
         &self,
         object_id: &ObjectId,
-        version: SequenceNumber,
+        version: Version,
     ) -> StateReadResult<PastObjectRead> {
         Ok(self.get_past_object_read(object_id, version)?)
     }
@@ -323,7 +323,7 @@ impl StateRead for AuthorityState {
         transaction_digest: TransactionDigest,
     ) -> StateReadResult<(
         DryRunTransactionBlockResponse,
-        BTreeMap<ObjectId, (ObjectRef, Object, WriteKind)>,
+        BTreeMap<ObjectId, (ObjectReference, Object, WriteKind)>,
         TransactionEffects,
         Option<ObjectId>,
     )> {
@@ -337,7 +337,7 @@ impl StateRead for AuthorityState {
         gas_price: Option<u64>,
         gas_budget: Option<u64>,
         gas_sponsor: Option<Address>,
-        gas_objects: Option<Vec<ObjectRef>>,
+        gas_objects: Option<Vec<ObjectReference>>,
         show_raw_txn_data_and_effects: Option<bool>,
         skip_checks: Option<bool>,
     ) -> StateReadResult<DevInspectResults> {
@@ -552,18 +552,14 @@ impl StateRead for AuthorityState {
 impl<S: ?Sized + StateRead> ObjectProvider for Arc<S> {
     type Error = StateReadError;
 
-    async fn get_object(
-        &self,
-        id: &ObjectId,
-        version: &SequenceNumber,
-    ) -> Result<Object, Self::Error> {
+    async fn get_object(&self, id: &ObjectId, version: &Version) -> Result<Object, Self::Error> {
         Ok(self.get_past_object_read(id, *version)?.into_object()?)
     }
 
     async fn find_object_lt_or_eq_version(
         &self,
         id: &ObjectId,
-        version: &SequenceNumber,
+        version: &Version,
     ) -> Result<Option<Object>, Self::Error> {
         Ok(self
             .get_cache_reader()
@@ -575,11 +571,7 @@ impl<S: ?Sized + StateRead> ObjectProvider for Arc<S> {
 impl<S: ?Sized + StateRead> ObjectProvider for (Arc<S>, Arc<TransactionKeyValueStore>) {
     type Error = StateReadError;
 
-    async fn get_object(
-        &self,
-        id: &ObjectId,
-        version: &SequenceNumber,
-    ) -> Result<Object, Self::Error> {
+    async fn get_object(&self, id: &ObjectId, version: &Version) -> Result<Object, Self::Error> {
         let object_read = self.0.get_past_object_read(id, *version)?;
         match object_read {
             PastObjectRead::ObjectNotExists(_) | PastObjectRead::VersionNotFound(..) => {
@@ -595,7 +587,7 @@ impl<S: ?Sized + StateRead> ObjectProvider for (Arc<S>, Arc<TransactionKeyValueS
     async fn find_object_lt_or_eq_version(
         &self,
         id: &ObjectId,
-        version: &SequenceNumber,
+        version: &Version,
     ) -> Result<Option<Object>, Self::Error> {
         Ok(self
             .0

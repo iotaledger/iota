@@ -16,10 +16,9 @@ use iota_json_rpc_types::{
 };
 use iota_open_rpc::Module;
 use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
-use iota_sdk_types::ObjectId;
+use iota_sdk_types::{ObjectId, TransactionDigest, Version};
 use iota_types::{
-    base_types::SequenceNumber,
-    digests::{ChainIdentifier, TransactionDigest},
+    digests::ChainIdentifier,
     iota_serde::BigInt,
     object::{ObjectRead, PastObjectRead},
 };
@@ -333,7 +332,7 @@ impl ReadApiServer for ReadApi {
     async fn try_get_object_before_version(
         &self,
         object_id: ObjectId,
-        version: SequenceNumber,
+        version: Version,
     ) -> RpcResult<IotaPastObjectResponse> {
         let past_object_read = self
             .inner

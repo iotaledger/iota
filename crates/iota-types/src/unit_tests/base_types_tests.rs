@@ -13,7 +13,7 @@ use fastcrypto::{
 };
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    Owner,
+    Digest, Owner, TransactionDigest,
     crypto::{Intent, IntentMessage, IntentScope},
 };
 use move_binary_format::file_format;
@@ -27,7 +27,6 @@ use crate::{
         bcs_signable_test::{Bar, Foo},
         get_key_pair, get_key_pair_from_bytes,
     },
-    digests::{Digest, TransactionDigest},
     dynamic_field::DynamicFieldInfo,
     gas_coin::GasCoin,
     object::Object,
@@ -96,12 +95,12 @@ fn test_signatures_serde() {
     let serialized = bcs::to_bytes(&s).unwrap();
     println!("{serialized:?}");
     let deserialized: Signature = bcs::from_bytes(&serialized).unwrap();
-    assert_eq!(deserialized.as_ref(), s.as_ref());
+    assert_eq!(deserialized.to_bytes(), s.to_bytes());
 }
 
 #[test]
 fn test_max_sequence_number() {
-    let max = SequenceNumber::MAX_VALID_EXCL;
+    let max = Version::MAX_VALID_EXCL;
     assert_eq!(max * 2 + 1, u64::MAX);
 }
 
@@ -119,13 +118,13 @@ fn test_gas_coin_ser_deser_roundtrip() {
 #[test]
 fn test_lamport_increment_version() {
     let versions = [
-        SequenceNumber::from(1),
-        SequenceNumber::from(3),
-        SequenceNumber::from(257),
-        SequenceNumber::from(42),
+        Version::from(1),
+        Version::from(3),
+        Version::from(257),
+        Version::from(42),
     ];
 
-    let incremented = SequenceNumber::lamport_increment(versions).unwrap();
+    let incremented = Version::lamport_increment(versions).unwrap();
 
     for version in versions {
         assert!(version < incremented, "Expected: {version} < {incremented}");

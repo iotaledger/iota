@@ -15,8 +15,8 @@ use iota_sdk_types::{Digest, TransactionDigest};
 use prost_types::FieldMask;
 
 use crate::utils::{
-    assert_field_presence, comma_separated_field_mask_to_paths, execute_transaction_and_get_digest,
-    setup_grpc_test,
+    assert_field_presence, assert_transfer_derived_changes, comma_separated_field_mask_to_paths,
+    execute_transaction_and_get_digest, normalize_grpc_balance_changes, setup_grpc_test,
 };
 
 /// Helper function to make GetTransactions requests and validate responses..
@@ -199,6 +199,149 @@ async fn get_transactions_readmask_scenarios() {
         let total_transactions: usize = responses.iter().map(|r| r.transaction_results.len()).sum();
         assert_eq!(total_transactions, 1, "{scenario}: expected 1 transaction");
     }
+}
+
+#[sim_test]
+async fn get_transactions_derived_changes() {
+    use iota_test_transaction_builder::make_transfer_iota_transaction;
+    use iota_types::transaction::TransactionDataAPI as _;
+
+    let (test_cluster, client) = setup_grpc_test(Some(1), None).await;
+
+    let mut ledger_client = client.ledger_service_client();
+
+    // Transfer to a distinct recipient so the balance moves between two owners
+    let recipient = iota_sdk_types::Address::random();
+    let transaction =
+        make_transfer_iota_transaction(&test_cluster.wallet, Some(recipient), Some(1000)).await;
+    let sender = transaction.transaction_data().sender();
+    let transaction_digest = *transaction.digest();
+    test_cluster
+        .wallet
+        .execute_transaction_may_fail(transaction)
+        .await
+        .unwrap();
+
+    // Requesting only the derived fields (plus effects for the gas charge)
+    // must not leak the input/output objects they are computed from (asserted
+    // absent by assert_get_transactions_request)
+    let responses = assert_get_transactions_request(
+        &mut ledger_client,
+        vec![transaction_digest],
+        Some(FieldMask::from_paths([
+            "balance_changes",
+            "object_changes",
+            "effects",
+        ])),
+        None,
+        &["balance_changes", "object_changes", "effects"],
+        "derived changes only",
+    )
+    .await;
+
+    let Some(transaction_result::Result::ExecutedTransaction(executed_transaction)) =
+        &responses[0].transaction_results[0].result
+    else {
+        panic!("expected an executed transaction");
+    };
+
+    assert_transfer_derived_changes(
+        executed_transaction,
+        sender,
+        recipient,
+        1000,
+        "get_transactions derived changes",
+    );
+}
+
+#[sim_test]
+async fn get_transactions_derived_changes_failed_transaction() {
+    use iota_sdk_types::Command;
+    use iota_types::{
+        programmable_transaction_builder::ProgrammableTransactionBuilder,
+        transaction::{CallArg, TransactionData, TransactionDataAPI as _},
+    };
+
+    let (test_cluster, client) = setup_grpc_test(Some(1), None).await;
+
+    let mut ledger_client = client.ledger_service_client();
+
+    // Build a transaction that fails at execution: split more coins than the
+    // input coin holds. It is still committed and charged gas.
+    let (sender, mut gas) = test_cluster.wallet.get_one_account().await.unwrap();
+    gas.sort_by_key(|object_ref| object_ref.object_id);
+    let gas_object = gas.last().unwrap();
+    let coin_to_split = gas.first().unwrap();
+
+    let mut builder = ProgrammableTransactionBuilder::new();
+    let coin_arg = builder
+        .obj(CallArg::ImmutableOrOwned(*coin_to_split))
+        .unwrap();
+    let huge_amount = builder.pure(u64::MAX).unwrap();
+    builder.command(Command::new_split_coins(coin_arg, vec![huge_amount]));
+    let transaction_data = TransactionData::new_programmable(
+        sender,
+        vec![*gas_object],
+        builder.finish(),
+        10_000_000,
+        test_cluster.get_reference_gas_price().await,
+    );
+    let transaction = test_cluster.wallet.sign_transaction(&transaction_data);
+    let transaction_digest = *transaction.digest();
+    test_cluster
+        .wallet
+        .execute_transaction_may_fail(transaction)
+        .await
+        .unwrap();
+
+    let responses = assert_get_transactions_request(
+        &mut ledger_client,
+        vec![transaction_digest],
+        Some(FieldMask::from_paths([
+            "balance_changes",
+            "object_changes",
+            "effects",
+        ])),
+        None,
+        &["balance_changes", "object_changes", "effects"],
+        "derived changes for failed transaction",
+    )
+    .await;
+
+    let Some(transaction_result::Result::ExecutedTransaction(executed_transaction)) =
+        &responses[0].transaction_results[0].result
+    else {
+        panic!("expected an executed transaction");
+    };
+
+    // A failed transaction reports exactly the gas charge and nothing else
+    let gas = crate::utils::grpc_net_gas_usage(executed_transaction) as i128;
+    assert!(gas > 0, "failed transaction should be charged gas: {gas}");
+    assert_eq!(
+        normalize_grpc_balance_changes(executed_transaction),
+        vec![(
+            iota_sdk_types::Owner::Address(sender),
+            iota_types::gas_coin::GAS::type_tag(),
+            -gas,
+        )],
+        "failed transaction should produce a single gas-only balance change"
+    );
+
+    // The intended split is rolled back; only sender-owned coin mutations
+    // (gas smashing) remain
+    let object_changes = crate::utils::normalize_grpc_object_changes(executed_transaction);
+    assert!(
+        !object_changes.is_empty(),
+        "gas coin mutation should be reported"
+    );
+    assert!(
+        object_changes.iter().all(|change| matches!(
+            change,
+            crate::utils::NormalizedObjectChange::Mutated { sender: s, owner, .. }
+                if *s == sender && *owner == iota_sdk_types::Owner::Address(sender)
+        )),
+        "failed transaction should only report sender-owned mutations: {object_changes:?}"
+    );
 }
 
 #[sim_test]

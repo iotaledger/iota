@@ -500,14 +500,16 @@ impl KeyToolCommand {
                 };
                 let decoded = match signature {
                     GenericSignature::Signature(s) => {
-                        let pk_bytes = s.public_key_bytes();
-                        let pk = PublicKey::try_from_bytes(s.scheme(), pk_bytes)
-                            .map_err(|e| anyhow!("Invalid public key bytes: {e}"))?;
+                        let pk = PublicKey::try_from_bytes(
+                            s.signature_scheme(),
+                            s.to_public_key().as_ref(),
+                        )
+                        .map_err(|e| anyhow!("Invalid public key bytes: {e}"))?;
                         let address = Address::from(&pk);
                         let public_key_base64 = pk.encode_base64();
                         let signature_hex = format!("0x{}", Hex::encode(s.signature_bytes()));
                         DecodedSigOutput::Signature {
-                            scheme: s.scheme().to_string(),
+                            scheme: s.signature_scheme().to_string(),
                             public_key_base64,
                             address: address.to_string(),
                             signature_hex,
@@ -825,7 +827,7 @@ impl KeyToolCommand {
                 hasher.update(bcs::to_bytes(&intent_msg)?);
                 let digest = hasher.finalize().digest;
 
-                let iota_signature =
+                let signature =
                     sign_secure(keystore, &address, &intent_msg.value, intent_msg.intent)?;
 
                 CommandOutput::Sign(SignData {
@@ -834,7 +836,7 @@ impl KeyToolCommand {
                     intent,
                     raw_intent_msg,
                     digest: Base64::encode(digest),
-                    iota_signature: iota_signature.encode_base64(),
+                    iota_signature: signature.to_base64(),
                 })
             }
             KeyToolCommand::SignRaw { address, data } => {
@@ -846,7 +848,7 @@ impl KeyToolCommand {
                     _ => bail!("Not a keypair"),
                 };
                 let signature = ikp.sign(&bytes);
-                let iota_signature = signature.encode_base64();
+                let iota_signature = signature.to_base64();
                 let public_key = ikp.public().encode_base64();
                 let public_key_hex = Hex::encode_with_format(ikp.public().as_ref());
                 let signature_hex = Hex::encode_with_format(signature.signature_bytes());

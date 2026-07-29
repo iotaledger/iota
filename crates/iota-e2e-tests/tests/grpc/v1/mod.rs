@@ -79,6 +79,8 @@ impl_field_presence_checker!(ExecutedTransaction {
     timestamp,
     input_objects,
     output_objects,
+    balance_changes,
+    object_changes,
 });
 impl_field_presence_checker!(Input { index });
 impl_field_presence_checker!(Result {

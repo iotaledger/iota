@@ -7,7 +7,7 @@ use diesel::{BoolExpressionMethods, ExpressionMethods, QueryDsl, RunQueryDsl};
 use fastcrypto::encoding::Base64;
 use futures::{StreamExt, TryStreamExt, stream::FuturesUnordered};
 use iota_indexer::{
-    config::PruningOptions, errors::IndexerError, read_only_blocking, schema::objects,
+    config::RetentionConfig, errors::IndexerError, read_only_blocking, schema::objects,
     store::indexer_store::IndexerStore, types::IndexerResult,
 };
 use iota_json::{call_arg, call_args, type_args};
@@ -21,10 +21,11 @@ use iota_json_rpc_types::{
     IotaTransactionBlockResponseOptions, ObjectChange, TransactionBlockBytes,
 };
 use iota_move_build::BuildConfig;
-use iota_sdk_types::{Address, Identifier, ObjectId, Owner, StructTag, TransactionKind, TypeTag};
+use iota_sdk_types::{
+    Address, Identifier, ObjectId, ObjectReference, Owner, StructTag, TransactionKind, TypeTag,
+};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::ObjectRef,
     crypto::{AccountKeyPair, IotaKeyPair, get_key_pair},
     gas_coin::NANOS_PER_IOTA,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
@@ -57,8 +58,8 @@ async fn prepare_and_sign_object_transfer_tx(
     sender: Address,
     sender_key_pair: AccountKeyPair,
     receiver: Address,
-    object_to_transfer: ObjectRef,
-    gas: ObjectRef,
+    object_to_transfer: ObjectReference,
+    gas: ObjectReference,
 ) -> (TxBytes, Signatures) {
     let tx_builder = TestTransactionBuilder::new(sender, gas, 1000);
     let tx_data = tx_builder.transfer(object_to_transfer, receiver).build();
@@ -998,10 +999,7 @@ async fn test_optimistic_tables_pruning() -> IndexerResult<()> {
     let (cluster, store, client) = &start_test_cluster_with_read_write_indexer(
         Some("test_optimistic_tables_pruning"),
         None,
-        Some(PruningOptions {
-            epochs_to_keep: Some(1),
-            ..Default::default()
-        }),
+        Some(RetentionConfig::new(1, Default::default())),
     )
     .await;
     indexer_wait_for_checkpoint(store, 1).await;
@@ -1474,6 +1472,32 @@ fn move_view_function_call() {
         assert_eq!(
             view_results.into_return_values(),
             vec![IotaMoveValue::Bool(true)]
+        );
+
+        // Test that a public function without the #[view] attribute is rejected.
+        let fn_name = format!(
+            "{}::wat_counter::get_counter_not_view",
+            object_ref.object_id
+        );
+        let err = client
+            .view_function_call(fn_name, None, vec![call_arg!(review_id).unwrap()])
+            .await
+            .unwrap_err();
+        assert!(
+            err.to_string()
+                .contains("is not declared as a #[view] function"),
+            "{err}"
+        );
+
+        // Test that a nonexistent module is rejected.
+        let fn_name = format!("{}::nonexistent_module::get_counter", object_ref.object_id);
+        let err = client
+            .view_function_call(fn_name, None, vec![])
+            .await
+            .unwrap_err();
+        assert!(
+            err.to_string().contains("Module not found in package"),
+            "{err}"
         );
     });
 }

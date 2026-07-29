@@ -6,17 +6,18 @@ use iota_json_rpc_types::{
     BalanceChange, IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
     IotaTransactionKind, ObjectChange,
 };
-use iota_sdk_types::{Address, ObjectId, Owner, StructTag, TypeTag, move_package::MovePackage};
+use iota_sdk_types::{
+    Address, CheckpointDigest, ObjectDigest, ObjectId, Owner, StructTag, TransactionDigest,
+    TypeTag, Version, move_package::MovePackage,
+};
 use iota_types::{
-    base_types::{ObjectDigest, SequenceNumber},
     crypto::AggregateAuthoritySignature,
-    digests::TransactionDigest,
     dynamic_field::DynamicFieldType,
     effects::TransactionEffects,
     event::{SystemEpochInfoEvent, SystemEpochInfoEventV1, SystemEpochInfoEventV2},
     iota_serde::{IotaStructTag, IotaTypeTag},
     messages_checkpoint::{
-        CheckpointCommitment, CheckpointDigest, CheckpointSequenceNumber, EndOfEpochData,
+        CheckpointCommitment, CheckpointContentsExt, CheckpointSequenceNumber, EndOfEpochData,
     },
     object::Object,
     transaction::SenderSignedData,
@@ -487,7 +488,7 @@ impl TxIndex {
 pub enum IndexedObjectChange {
     Published {
         package_id: ObjectId,
-        version: SequenceNumber,
+        version: Version,
         digest: ObjectDigest,
         modules: Vec<String>,
     },
@@ -497,7 +498,7 @@ pub enum IndexedObjectChange {
         #[serde_as(as = "IotaStructTag")]
         object_type: StructTag,
         object_id: ObjectId,
-        version: SequenceNumber,
+        version: Version,
         digest: ObjectDigest,
     },
     /// Object mutated.
@@ -507,8 +508,8 @@ pub enum IndexedObjectChange {
         #[serde_as(as = "IotaStructTag")]
         object_type: StructTag,
         object_id: ObjectId,
-        version: SequenceNumber,
-        previous_version: SequenceNumber,
+        version: Version,
+        previous_version: Version,
         digest: ObjectDigest,
     },
     /// Delete object
@@ -517,7 +518,7 @@ pub enum IndexedObjectChange {
         #[serde_as(as = "IotaStructTag")]
         object_type: StructTag,
         object_id: ObjectId,
-        version: SequenceNumber,
+        version: Version,
     },
     /// Wrapped object
     Wrapped {
@@ -525,7 +526,7 @@ pub enum IndexedObjectChange {
         #[serde_as(as = "IotaStructTag")]
         object_type: StructTag,
         object_id: ObjectId,
-        version: SequenceNumber,
+        version: Version,
     },
     /// Unwrapped object
     Unwrapped {
@@ -534,7 +535,7 @@ pub enum IndexedObjectChange {
         #[serde_as(as = "IotaStructTag")]
         object_type: StructTag,
         object_id: ObjectId,
-        version: SequenceNumber,
+        version: Version,
         digest: ObjectDigest,
     },
     /// New object creation
@@ -544,7 +545,7 @@ pub enum IndexedObjectChange {
         #[serde_as(as = "IotaStructTag")]
         object_type: StructTag,
         object_id: ObjectId,
-        version: SequenceNumber,
+        version: Version,
         digest: ObjectDigest,
     },
 }

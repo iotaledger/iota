@@ -38,7 +38,8 @@ use iota_sdk::{
     iota_client_config::{IotaClientConfig, IotaEnv},
     wallet_context::WalletContext,
 };
-use iota_sdk_types::{Address, ObjectId};
+use iota_sdk_transaction_builder::TransactionBuilder;
+use iota_sdk_types::{Address, ObjectId, ObjectReference, TransactionDigest};
 use iota_swarm::memory::{Swarm, SwarmBuilder};
 use iota_swarm_config::{
     genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT, GenesisConfig, ValidatorGenesisConfig},
@@ -51,10 +52,9 @@ use iota_swarm_config::{
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::{AuthorityName, ConciseableName, ObjectRef},
+    base_types::{AuthorityName, ConciseableName},
     committee::{Committee, CommitteeTrait, EpochId},
     crypto::{AccountKeyPair, IotaKeyPair, KeypairTraits, get_key_pair},
-    digests::TransactionDigest,
     effects::{TransactionEffects, TransactionEvents},
     error::IotaResult,
     governance::MIN_VALIDATOR_JOINING_STAKE_NANOS,
@@ -138,6 +138,20 @@ impl TestCluster {
             .iota_node
             .with(|node| node.get_config().grpc_api_config.clone());
         format!("http://{}", grpc_config.unwrap_or_default().address)
+    }
+
+    /// Create a gRPC client connected to the fullnode's gRPC API.
+    pub fn grpc_client(&self) -> iota_grpc_client::Client {
+        iota_grpc_client::Client::new(self.grpc_url()).expect("failed to create gRPC client")
+    }
+
+    /// Create a gRPC-driven [`TransactionBuilder`] for `sender`, resolving
+    /// objects and gas through the fullnode's gRPC API.
+    pub fn grpc_transaction_builder(
+        &self,
+        sender: Address,
+    ) -> TransactionBuilder<iota_grpc_client::Client> {
+        TransactionBuilder::new(sender).with_client(self.grpc_client())
     }
 
     pub fn wallet(&mut self) -> &WalletContext {
@@ -270,7 +284,7 @@ impl TestCluster {
             .with(|node| node.state().get_object(object_id))
     }
 
-    pub async fn get_latest_object_ref(&self, object_id: &ObjectId) -> ObjectRef {
+    pub async fn get_latest_object_ref(&self, object_id: &ObjectId) -> ObjectReference {
         self.get_object_from_fullnode_store(object_id)
             .await
             .unwrap()
@@ -280,7 +294,7 @@ impl TestCluster {
     pub async fn get_object_or_tombstone_from_fullnode_store(
         &self,
         object_id: ObjectId,
-    ) -> ObjectRef {
+    ) -> ObjectReference {
         self.fullnode_handle
             .iota_node
             .state()
@@ -566,7 +580,7 @@ impl TestCluster {
     pub async fn test_transaction_builder_with_gas_object(
         &self,
         sender: Address,
-        gas: ObjectRef,
+        gas: ObjectReference,
     ) -> TestTransactionBuilder {
         let rgp = self.get_reference_gas_price().await;
         TestTransactionBuilder::new(sender, gas, rgp)
@@ -711,7 +725,7 @@ impl TestCluster {
         rgp: u64,
         amount: Option<u64>,
         funding_address: Address,
-    ) -> (ObjectRef, TransactionDigest) {
+    ) -> (ObjectReference, TransactionDigest) {
         let Faucet { address, keypair } = &self
             .faucet
             .as_ref()
@@ -766,7 +780,7 @@ impl TestCluster {
         rgp: u64,
         amount: Option<u64>,
         funding_address: Address,
-    ) -> ObjectRef {
+    ) -> ObjectReference {
         let (object_ref, _tx_digest) = self
             .fund_address_and_return_gas_and_tx(rgp, amount, funding_address)
             .await;
@@ -1027,7 +1041,7 @@ impl TestClusterBuilder {
             fullnode_run_with_range: None,
             fullnode_policy_config: None,
             fullnode_fw_config: None,
-            fullnode_enable_grpc_api: false,
+            fullnode_enable_grpc_api: true,
             fullnode_grpc_api_config: None,
             max_submit_position: None,
             submit_delay_step_override_millis: None,
@@ -1065,6 +1079,7 @@ impl TestClusterBuilder {
         self
     }
 
+    /// Enable or disable the fullnode's gRPC API. Enabled by default.
     pub fn with_fullnode_enable_grpc_api(mut self, enable: bool) -> Self {
         self.fullnode_enable_grpc_api = enable;
         self
@@ -1292,7 +1307,17 @@ impl TestClusterBuilder {
         let fullnode_handle =
             FullNodeHandle::new(fullnode.get_node_handle().unwrap(), json_rpc_address).await;
 
-        wallet_conf.add_env(IotaEnv::new("localnet", fullnode_handle.rpc_url.clone()));
+        let mut localnet_env = IotaEnv::new("localnet", fullnode_handle.rpc_url.clone());
+        if self.fullnode_enable_grpc_api {
+            let grpc_address = fullnode
+                .config()
+                .grpc_api_config
+                .clone()
+                .unwrap_or_default()
+                .address;
+            localnet_env = localnet_env.with_grpc(Some(format!("http://{grpc_address}")));
+        }
+        wallet_conf.add_env(localnet_env);
         wallet_conf.set_active_env(Some("localnet".to_string()));
 
         wallet_conf

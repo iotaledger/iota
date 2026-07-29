@@ -32,15 +32,17 @@ use iota_json_rpc_types::{
     TransactionFilterV2,
 };
 use iota_package_resolver::{Package, PackageStore, PackageStoreWithLruCache, Resolver};
-use iota_sdk_types::{Address, ObjectId, StructTag, TypeTag};
+use iota_sdk_types::{
+    Address, CheckpointDigest, ObjectId, StructTag, TransactionDigest, TypeTag, Version,
+};
 use iota_transaction_builder::DataReader;
 use iota_types::{
     balance::Supply,
-    base_types::{SequenceNumber, VersionNumber},
+    base_types::VersionNumber,
     coin::TreasuryCap,
     coin_manager::CoinManager,
     committee::EpochId,
-    digests::{ChainIdentifier, TransactionDigest},
+    digests::ChainIdentifier,
     dynamic_field::{DynamicFieldInfo, DynamicFieldName, visitor as DFV},
     effects::TransactionEvents,
     error::IotaError,
@@ -50,7 +52,7 @@ use iota_types::{
         IotaSystemStateTrait,
         iota_system_state_summary::{IotaSystemStateSummary, IotaValidatorSummary},
     },
-    messages_checkpoint::{CheckpointDigest, CheckpointSequenceNumber},
+    messages_checkpoint::CheckpointSequenceNumber,
     object::{Object, ObjectRead, PastObjectRead, bounded_visitor::BoundedVisitor},
 };
 use itertools::Itertools;
@@ -376,7 +378,7 @@ impl IndexerReader {
     pub(crate) async fn get_past_object_read(
         &self,
         object_id: ObjectId,
-        object_version: SequenceNumber,
+        object_version: Version,
         before_version: bool,
     ) -> IndexerResult<PastObjectRead> {
         let object_version_num = object_version.as_u64() as i64;
@@ -397,7 +399,7 @@ impl IndexerReader {
                 Some(latest) if object_version_num > latest => Ok(PastObjectRead::VersionTooHigh {
                     object_id,
                     asked_version: object_version,
-                    latest_version: SequenceNumber::from(latest as u64),
+                    latest_version: Version::from(latest as u64),
                 }),
                 Some(_) => Ok(PastObjectRead::VersionNotFound(object_id, object_version)),
                 None => Ok(PastObjectRead::ObjectNotExists(object_id)),
@@ -440,7 +442,7 @@ impl IndexerReader {
     pub(crate) async fn get_past_object_read_with_fallback(
         &self,
         object_id: ObjectId,
-        object_version: SequenceNumber,
+        object_version: Version,
         before_version: bool,
     ) -> IndexerResult<PastObjectRead> {
         let past_object_read_result = self
@@ -1086,7 +1088,7 @@ impl IndexerReader {
     /// are finalized.
     pub async fn check_input_objects_in_blocking_task(
         &self,
-        object_keys: Vec<(ObjectId, SequenceNumber)>,
+        object_keys: Vec<(ObjectId, Version)>,
     ) -> Result<InputObjectsStatus, IndexerError> {
         self.spawn_blocking(move |this| this.check_input_objects(object_keys))
             .await
@@ -1094,7 +1096,7 @@ impl IndexerReader {
 
     fn check_input_objects(
         &self,
-        object_keys: Vec<(ObjectId, SequenceNumber)>,
+        object_keys: Vec<(ObjectId, Version)>,
     ) -> Result<InputObjectsStatus, IndexerError> {
         if object_keys.is_empty() {
             return Ok(InputObjectsStatus::Ready);
@@ -3050,7 +3052,7 @@ impl<'a> DBReader<'a> {
     async fn get_object_version(
         &self,
         object_id: ObjectId,
-        object_version: SequenceNumber,
+        object_version: Version,
         before_version: bool,
     ) -> IndexerResult<Option<StoredObjectVersion>> {
         let object_version_num = object_version.as_u64() as i64;

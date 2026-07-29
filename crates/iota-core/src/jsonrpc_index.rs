@@ -19,13 +19,13 @@ use bincode::Options;
 use either::Either;
 use iota_common::try_iterator_ext::TryIteratorExt;
 use iota_json_rpc_types::{IotaObjectDataFilter, TransactionFilter};
-use iota_sdk_types::{Address, ObjectId, Owner, StructTag, TypeTag};
+use iota_sdk_types::{
+    Address, ObjectDigest, ObjectId, ObjectReference, Owner, StructTag, TransactionDigest,
+    TransactionEventsDigest, TypeTag, Version,
+};
 use iota_storage::{mutex_table::MutexTable, sharded_lru::ShardedLruCache};
 use iota_types::{
-    base_types::{
-        ObjectDigest, ObjectInfo, ObjectRef, SequenceNumber, TransactionDigest, TxSequenceNumber,
-    },
-    digests::TransactionEventsDigest,
+    base_types::{ObjectInfo, TxSequenceNumber},
     dynamic_field::{self, DynamicFieldInfo},
     effects::TransactionEvents,
     error::{IotaError, IotaResult, UserInputError},
@@ -86,7 +86,7 @@ pub struct ObjectIndexChanges {
 
 #[derive(Clone, Serialize, Deserialize, Ord, PartialOrd, Eq, PartialEq, Debug)]
 pub struct CoinInfo {
-    pub version: SequenceNumber,
+    pub version: Version,
     pub digest: ObjectDigest,
     pub balance: u64,
     pub previous_transaction: TransactionDigest,
@@ -624,7 +624,7 @@ impl IndexStore {
         &self,
         sender: Address,
         active_inputs: impl Iterator<Item = ObjectId>,
-        mutated_objects: impl Iterator<Item = (ObjectRef, Owner)> + Clone,
+        mutated_objects: impl Iterator<Item = (ObjectReference, Owner)> + Clone,
         move_functions: impl Iterator<Item = (ObjectId, String, String)> + Clone,
         events: &TransactionEvents,
         object_index_changes: ObjectIndexChanges,
@@ -1686,10 +1686,9 @@ impl IndexStore {
 mod tests {
     use std::collections::BTreeMap;
 
-    use iota_sdk_types::{Address, ObjectId, Owner};
+    use iota_sdk_types::{Address, ObjectId, Owner, TransactionDigest};
     use iota_types::{
         base_types::{ObjectInfo, ObjectType},
-        digests::TransactionDigest,
         effects::TransactionEvents,
         gas_coin::GAS,
         object,

@@ -98,7 +98,7 @@ mod dynamic_field;
 mod event;
 mod object;
 pub mod object_runtime;
-mod protocol_config;
+pub mod protocol_config;
 mod random;
 pub mod test_scenario;
 mod test_utils;
@@ -1328,6 +1328,16 @@ pub fn all_natives(silent: bool, protocol_config: &ProtocolConfig) -> NativeFunc
             make_native!(protocol_config::get_attr),
         ),
         (
+            "protocol_config",
+            "set_feature_enabled_for_testing",
+            make_native!(protocol_config::set_feature_enabled_for_testing),
+        ),
+        (
+            "protocol_config",
+            "set_attr_for_testing",
+            make_native!(protocol_config::set_attr_for_testing),
+        ),
+        (
             "vdf",
             "vdf_verify_internal",
             make_native!(vdf::vdf_verify_internal),
@@ -1375,6 +1385,16 @@ pub fn all_natives(silent: bool, protocol_config: &ProtocolConfig) -> NativeFunc
             "protocol_config",
             "get_attr",
             make_native!(protocol_config::get_attr),
+        ),
+        (
+            "protocol_config",
+            "set_feature_enabled_for_testing",
+            make_native!(protocol_config::set_feature_enabled_for_testing),
+        ),
+        (
+            "protocol_config",
+            "set_attr_for_testing",
+            make_native!(protocol_config::set_attr_for_testing),
         ),
     ];
     iota_system_natives

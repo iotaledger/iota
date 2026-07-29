@@ -86,6 +86,7 @@
 /crates/iota-types/ @iotaledger/core-protocol @iotaledger/sc-platform
 /crates/iota-upgrade-compatibility-transactional-tests/ @iotaledger/vm-language
 /crates/iota-verifier-transactional-tests/ @iotaledger/vm-language
+/crates/iota-vm-sdk/ @iotaledger/dev-tools
 /crates/prometheus-closure-metric/ @iotaledger/node
 /crates/prometheus-filtered/ @iotaledger/node
 /crates/simulacrum/ @iotaledger/node @iotaledger/vm-language

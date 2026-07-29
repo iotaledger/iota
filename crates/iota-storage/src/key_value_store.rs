@@ -8,10 +8,9 @@
 use std::{sync::Arc, time::Instant};
 
 use async_trait::async_trait;
-use iota_sdk_types::ObjectId;
+use iota_sdk_types::{CheckpointDigest, ObjectId, TransactionDigest, Version};
 use iota_types::{
-    base_types::{SequenceNumber, VersionNumber},
-    digests::{CheckpointDigest, TransactionDigest},
+    base_types::VersionNumber,
     effects::{TransactionEffects, TransactionEvents},
     error::{IotaError, IotaResult, UserInputError},
     messages_checkpoint::{
@@ -387,11 +386,8 @@ pub trait TransactionKeyValueStoreTrait {
         digest: TransactionDigest,
     ) -> IotaResult<Option<CheckpointSequenceNumber>>;
 
-    async fn get_object(
-        &self,
-        object_id: ObjectId,
-        version: SequenceNumber,
-    ) -> IotaResult<Option<Object>>;
+    async fn get_object(&self, object_id: ObjectId, version: Version)
+    -> IotaResult<Option<Object>>;
 
     async fn multi_get_objects(&self, object_keys: &[ObjectKey])
     -> IotaResult<Vec<Option<Object>>>;
@@ -540,7 +536,7 @@ impl TransactionKeyValueStoreTrait for FallbackTransactionKVStore {
     async fn get_object(
         &self,
         object_id: ObjectId,
-        version: SequenceNumber,
+        version: Version,
     ) -> IotaResult<Option<Object>> {
         let mut res = self.primary.get_object(object_id, version).await?;
         if res.is_none() {

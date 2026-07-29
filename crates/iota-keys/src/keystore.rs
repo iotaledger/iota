@@ -19,8 +19,8 @@ use iota_sdk_types::{
     crypto::{Intent, IntentMessage},
 };
 use iota_types::crypto::{
-    EncodeDecodeBase64, IotaKeyPair, PublicKey, Signature, SignatureScheme, enum_dispatch,
-    get_key_pair_from_rng,
+    EncodeDecodeBase64, IotaKeyPair, IotaSignature, PublicKey, Signature, SignatureScheme,
+    enum_dispatch, get_key_pair_from_rng,
 };
 use rand::{SeedableRng, rngs::StdRng};
 use regex::Regex;

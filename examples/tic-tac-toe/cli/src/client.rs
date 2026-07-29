@@ -18,18 +18,18 @@ use iota_sdk::{
     wallet_context::WalletContext,
 };
 use iota_sdk_types::{
-    Address, Identifier, ObjectId, Owner, ProgrammableTransaction, StructTag, TransactionKind,
+    Address, Identifier, ObjectId, ObjectReference, Owner, ProgrammableTransaction,
+    SharedObjectReference, StructTag, TransactionKind,
     crypto::{Intent, UserSignature},
 };
 use iota_types::{
-    base_types::ObjectRef,
     crypto::PublicKey,
     multisig::{MultiSig, MultiSigPublicKey},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     signature::GenericSignature,
     transaction::{
-        CallArg, InputObjectKind, SharedObjectRef, Transaction, TransactionData,
-        TransactionDataAPI, TransactionKindExt,
+        CallArg, InputObjectKind, Transaction, TransactionData, TransactionDataAPI,
+        TransactionKindExt,
     },
 };
 
@@ -147,13 +147,13 @@ impl Client {
         // (4) Check whether the game has ended or not.
         let mut builder = ProgrammableTransactionBuilder::new();
         let g = if let Owner::Shared(initial_shared_version) = owner {
-            builder.obj(CallArg::Shared(SharedObjectRef::new(
+            builder.obj(CallArg::Shared(SharedObjectReference::new(
                 id,
                 initial_shared_version,
                 false,
             )))?
         } else {
-            builder.obj(CallArg::ImmutableOrOwned(ObjectRef::new(
+            builder.obj(CallArg::ImmutableOrOwned(ObjectReference::new(
                 object_id, version, digest,
             )))?
         };
@@ -212,9 +212,9 @@ impl Client {
     }
 
     /// Look for a `TurnCap` for the given `game` owned by the wallet's active
-    /// address, and return its `ObjectRef`. Fails if no such `TurnCap` can
-    /// be found.
-    pub(crate) async fn turn_cap(&mut self, game: &Game) -> Result<ObjectRef> {
+    /// address, and return its `ObjectReference`. Fails if no such `TurnCap`
+    /// can be found.
+    pub(crate) async fn turn_cap(&mut self, game: &Game) -> Result<ObjectReference> {
         let player = self.wallet.active_address()?;
         let client = self.client().await?;
         let game_id = game.object_ref().object_id;
@@ -267,7 +267,7 @@ impl Client {
                     .context("INTERNAL ERROR: Failed to deserialize TurnCap.")?;
 
                 if turn_cap.game == game_id {
-                    return Ok(ObjectRef::new(object_id, version, digest));
+                    return Ok(ObjectReference::new(object_id, version, digest));
                 }
             }
 
@@ -351,7 +351,7 @@ impl Client {
 
         let mut builder = ProgrammableTransactionBuilder::new();
 
-        let g = builder.obj(CallArg::Shared(SharedObjectRef::new(
+        let g = builder.obj(CallArg::Shared(SharedObjectReference::new(
             game.board.id,
             initial_shared_version,
             true,
@@ -377,7 +377,7 @@ impl Client {
     pub async fn delete_owned_game(
         &mut self,
         game: &game::Owned,
-        game_ref: ObjectRef,
+        game_ref: ObjectReference,
     ) -> Result<()> {
         let player = self.wallet.active_address()?;
 
@@ -428,7 +428,7 @@ impl Client {
 
         let mut builder = ProgrammableTransactionBuilder::new();
 
-        let g = builder.obj(CallArg::Shared(SharedObjectRef::new(
+        let g = builder.obj(CallArg::Shared(SharedObjectReference::new(
             game.board.id,
             initial_shared_version,
             true,
@@ -458,8 +458,8 @@ impl Client {
     pub async fn make_owned_move(
         &mut self,
         game: &game::Owned,
-        game_ref: ObjectRef,
-        cap_ref: ObjectRef,
+        game_ref: ObjectReference,
+        cap_ref: ObjectReference,
         row: u8,
         col: u8,
     ) -> Result<()> {
@@ -513,7 +513,7 @@ impl Client {
                 return None;
             }
 
-            Some(ObjectRef::new(object_id, version, digest))
+            Some(ObjectReference::new(object_id, version, digest))
         }) else {
             bail!("Can't find Mark");
         };
@@ -685,7 +685,7 @@ impl Client {
         owner: Address,
         balance: u64,
         tx: &TransactionKind,
-    ) -> Result<ObjectRef> {
+    ) -> Result<ObjectReference> {
         let exclude = tx
             .input_objects()?
             .into_iter()

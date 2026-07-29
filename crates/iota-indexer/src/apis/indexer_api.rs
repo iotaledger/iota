@@ -18,9 +18,8 @@ use iota_names::{
     registry::NameRecord,
 };
 use iota_open_rpc::Module;
-use iota_sdk_types::{Address, ObjectId, TypeTag};
+use iota_sdk_types::{Address, ObjectId, TransactionDigest, TypeTag};
 use iota_types::{
-    digests::TransactionDigest,
     dynamic_field::{DynamicFieldName, Field},
     event::EventID,
     object::ObjectRead,

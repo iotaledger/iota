@@ -210,7 +210,6 @@ jobs:
   generate-release-notes:
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      PRERELEASE: ${{ contains(github.ref, '-alpha') || contains(github.ref, '-beta') }}
     runs-on: ubuntu-latest
     if: ${{ github.event_name == 'release' }}
     needs: generate-tag
@@ -266,7 +265,6 @@ jobs:
         with:
           tag_name: ${{ needs.generate-tag.outputs.iota_ref }}
           body_path: ${{ env.RELEASE_NOTES_FILE }}
-          prerelease: ${{ env.PRERELEASE }}
 
   update-homebrew-formula:
     name: Update the homebrew-tap formula

@@ -172,6 +172,8 @@ iota-upgrade-compatibility-transactional-tests:
   - "crates/iota-upgrade-compatibility-transactional-tests/**"
 iota-verifier-transactional-tests:
   - "crates/iota-verifier-transactional-tests/**"
+iota-vm-sdk:
+  - "crates/iota-vm-sdk/**"
 prometheus-closure-metric:
   - "crates/prometheus-closure-metric/**"
 simulacrum:

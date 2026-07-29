@@ -72,7 +72,6 @@ use std::{
 
 use anyhow::{Result, anyhow};
 use crossbeam::channel::Sender;
-use sysinfo::{Pid, ProcessesToUpdate, System};
 use im::ordmap::OrdMap;
 use lsp_server::{Message, Request, RequestId, Response};
 use lsp_types::{
@@ -116,6 +115,7 @@ use move_package::{
 };
 use move_symbol_pool::Symbol;
 use sha2::{Digest, Sha256};
+use sysinfo::{Pid, ProcessesToUpdate, System};
 use tempfile::tempdir;
 use url::Url;
 use vfs::{

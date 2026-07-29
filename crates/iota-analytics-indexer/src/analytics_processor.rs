@@ -62,7 +62,7 @@ impl<S: Serialize + ParquetSchema + 'static> Worker for AnalyticsProcessor<S> {
         // get epoch id, checkpoint sequence number and timestamp, those are important
         // indexes when operating on data
         let epoch: u64 = checkpoint_data.checkpoint_summary.epoch();
-        let checkpoint_num: u64 = *checkpoint_data.checkpoint_summary.sequence_number();
+        let checkpoint_num: u64 = checkpoint_data.checkpoint_summary.sequence_number();
         let timestamp: u64 = checkpoint_data.checkpoint_summary.data().timestamp_ms;
         info!("Processing checkpoint {checkpoint_num}, epoch {epoch}, timestamp {timestamp}");
         let mut state = self.state.lock().await;

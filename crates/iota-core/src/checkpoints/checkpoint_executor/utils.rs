@@ -9,10 +9,9 @@ use std::{
 
 use futures::{Stream, future::Either};
 use iota_common::fatal;
-use iota_types::{
-    base_types::{TransactionDigest, TransactionEffectsDigest},
-    message_envelope::Message,
-    messages_checkpoint::{CheckpointSequenceNumber, CheckpointSummary, VerifiedCheckpoint},
+use iota_sdk_types::{TransactionDigest, TransactionEffectsDigest};
+use iota_types::messages_checkpoint::{
+    CheckpointContentsExt, CheckpointSequenceNumber, CheckpointSummary, VerifiedCheckpoint,
 };
 use strum::VariantNames;
 use tokio::sync::watch;
@@ -582,7 +581,7 @@ mod test {
         let output_by_stage = output_by_stage.lock();
         let output_by_order = output_by_order.lock();
         // for each stage, assert that the sequences were done in order
-        for (_, seqs) in output_by_stage.iter() {
+        for seqs in output_by_stage.values() {
             assert_eq!(seqs, &((0..30).collect::<Vec<_>>()));
         }
 

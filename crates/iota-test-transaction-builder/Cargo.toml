@@ -12,9 +12,11 @@ rand.workspace = true
 
 # internal dependencies
 iota-genesis-builder.workspace = true
+iota-grpc-client.workspace = true
 iota-move-build.workspace = true
 iota-sdk.workspace = true
 iota-sdk-crypto = { workspace = true, features = ["ed25519"] }
+iota-sdk-transaction-builder.workspace = true
 iota-sdk-types.workspace = true
 iota-types.workspace = true
 

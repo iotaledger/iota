@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use anemo_tower::callback::{MakeCallbackHandler, ResponseHandler};
 use prometheus_filtered::{
-    HistogramTimer, HistogramVec, IntCounterVec, IntGauge, IntGaugeVec, Registry,
+    HistogramTimer, HistogramVec, IntCounterVec, IntGauge, IntGaugeVec, MetricLevel, Registry,
     register_histogram_vec_with_registry, register_int_counter_vec_with_registry,
     register_int_gauge_vec_with_registry, register_int_gauge_with_registry,
 };
@@ -70,7 +70,8 @@ impl NetworkConnectionMetrics {
             network_peers: register_int_gauge_with_registry!(
                 format!("{node}_network_peers"),
                 "The number of connected peers.",
-                registry
+                registry;
+                MetricLevel::Warn,
             )
             .unwrap(),
             network_peer_disconnects: register_int_counter_vec_with_registry!(
@@ -226,7 +227,8 @@ impl NetworkMetrics {
             format!("{node}_{direction}_requests"),
             "The number of requests made on the network",
             &["route"],
-            registry
+            registry;
+            MetricLevel::Warn,
         )
         .unwrap();
 
@@ -235,7 +237,8 @@ impl NetworkMetrics {
             "Latency of a request by route",
             &["route"],
             LATENCY_SEC_BUCKETS.to_vec(),
-            registry,
+            registry;
+            MetricLevel::Warn,
         )
         .unwrap();
 

@@ -128,6 +128,68 @@ async fn assert_simulate_transaction_request(
 }
 
 #[sim_test]
+async fn simulate_transaction_derived_changes() {
+    let (test_cluster, client) = setup_grpc_test(Some(1), None).await;
+
+    let mut exec_client = client.execution_service_client();
+
+    let (sender, mut gas) = test_cluster.wallet.get_one_account().await.unwrap();
+    gas.sort_by_key(|object_ref| object_ref.object_id);
+    let gas_object = gas.last().unwrap();
+    let coin_to_split = gas.first().unwrap();
+
+    let recipient = Address::random();
+    let mut builder = ProgrammableTransactionBuilder::new();
+    builder
+        .pay(vec![*coin_to_split], vec![recipient], vec![1000])
+        .unwrap();
+    let transaction_data = TransactionData::new_programmable(
+        sender,
+        vec![*gas_object],
+        builder.finish(),
+        10_000_000,
+        1000,
+    );
+    let proto_transaction = ProtoTransaction::default()
+        .with_bcs(BcsData::default().with_data(bcs::to_bytes(&transaction_data).unwrap()));
+
+    // Requesting only the derived fields (plus effects for the gas charge)
+    // must not leak the input/output objects they are computed from
+    let simulated = assert_simulate_transaction_request(
+        &mut exec_client,
+        proto_transaction,
+        Some(FieldMask::from_paths([
+            "executed_transaction.balance_changes",
+            "executed_transaction.object_changes",
+            "executed_transaction.effects",
+        ])),
+        &[
+            "executed_transaction.balance_changes",
+            "executed_transaction.object_changes",
+            "executed_transaction.effects",
+        ],
+        &[],
+        &[],
+        &[],
+        "derived changes only",
+    )
+    .await;
+
+    let executed_transaction = simulated
+        .executed_transaction
+        .as_ref()
+        .expect("executed_transaction should be present");
+
+    crate::utils::assert_transfer_derived_changes(
+        executed_transaction,
+        sender,
+        recipient,
+        1000,
+        "simulate_transactions derived changes",
+    );
+}
+
+#[sim_test]
 async fn simulate_transaction_zero_gas_budget_uses_max() {
     let (test_cluster, client) = setup_grpc_test(Some(1), None).await;
 
