@@ -193,6 +193,9 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             on testnet.
 //             Start publishing package metadata using module metadata as a
 //             dynamic field on testnet.
+//             Enable the redesigned leader schedule (sliding-window reputation
+//             scoring and absolute-score bad-node selection) in Starfish
+//             consensus on devnet.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -3166,6 +3169,16 @@ impl ProtocolConfig {
                         // dynamic field.
                         cfg.feature_flags
                             .package_metadata_with_dynamic_module_metadata = true;
+                    }
+
+                    if chain != Chain::Mainnet && chain != Chain::Testnet {
+                        // Enable the redesigned leader schedule: sliding-window
+                        // reputation scoring and absolute-score bad-node
+                        // selection.
+                        cfg.feature_flags
+                            .consensus_enable_sliding_window_leader_schedule = true;
+                        cfg.feature_flags
+                            .consensus_enable_absolute_score_leader_schedule = true;
                     }
                 }
                 // Use this template when making changes:

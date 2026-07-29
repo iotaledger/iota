@@ -57,6 +57,8 @@ feature_flags:
   validator_metadata_verify_v2: true
   package_metadata_with_dynamic_module_metadata: true
   report_move_authentication_error: true
+  consensus_enable_sliding_window_leader_schedule: true
+  consensus_enable_absolute_score_leader_schedule: true
 max_tx_size_bytes: 131072
 max_input_objects: 2048
 max_size_written_objects: 5000000
