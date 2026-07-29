@@ -3,13 +3,14 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::path::PathBuf;
+
 use crate::{
     errors::PackageResult,
     flavor::Vanilla,
     package::{lockfile::Lockfile, manifest::Manifest},
 };
-use std::path::PathBuf;
-//
+
 #[derive(Debug, Clone, clap::Parser)]
 pub struct Parse {
     /// The path to the project
@@ -44,7 +45,7 @@ impl Parse {
             let lockfile_path = path.join("Move.lock");
             if manifest_path.exists() {
                 println!("Manifest file found at: {:?}", manifest_path);
-                let manifest = Manifest::<Vanilla>::read_from(&manifest_path);
+                let manifest = Manifest::<Vanilla>::read_from_file(&manifest_path);
                 match manifest {
                     Ok(manifest) => {
                         println!("{:?}", manifest);
@@ -56,7 +57,7 @@ impl Parse {
             }
             if lockfile_path.exists() {
                 println!("Lockfile found at: {:?}", lockfile_path);
-                let lockfile = Lockfile::<Vanilla>::read_from(&lockfile_path);
+                let lockfile = Lockfile::<Vanilla>::read_from_dir(&lockfile_path);
                 match lockfile {
                     Ok(lockfile) => {
                         println!("{:?}", lockfile);
@@ -69,7 +70,7 @@ impl Parse {
         }
 
         if let Some(manifest_path) = manifest {
-            let m = Manifest::<Vanilla>::read_from(manifest_path);
+            let m = Manifest::<Vanilla>::read_from_file(manifest_path);
             match m {
                 Ok(manifest) => {
                     println!("{:?}", manifest);
@@ -81,7 +82,7 @@ impl Parse {
         }
 
         if let Some(lockfile_path) = lockfile {
-            let lockfile = Lockfile::<Vanilla>::read_from(lockfile_path);
+            let lockfile = Lockfile::<Vanilla>::read_from_dir(lockfile_path);
             match lockfile {
                 Ok(lockfile) => {
                     println!("{:?}", lockfile);

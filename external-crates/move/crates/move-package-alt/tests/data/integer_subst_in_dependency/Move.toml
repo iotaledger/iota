@@ -3,7 +3,7 @@ name = "name"
 edition = "2024.beta"
 
 [environments]
-mainnet = "35834a8a"
+mainnet = "6364aad5"
 
 [dependencies]
 A = { local = "a", rename-from = { "A" = 1 } }

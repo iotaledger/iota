@@ -6,7 +6,7 @@ license = "Apache-2.0"
 implicit-deps = true
 
 [environments]
-mainnet = "35834a8a"
+mainnet = "6364aad5"
 
 [dependencies]
 Iota = { local = "../../../../../../../../../crates/iota-framework/packages/iota-framework" }
