@@ -35,7 +35,7 @@ pub(crate) struct TransactionBlockFilter {
     /// Limit to transactions that sent an object to the given address.
     pub recv_address: Option<IotaAddress>,
     /// Limit to transactions that affected the given address (the address is
-    /// the sender or a recipient).
+    /// the sender, a recipient, or the owner of the gas payment).
     pub affected_address: Option<IotaAddress>,
     /// Limit to transactions that accepted the given object as an input.
     pub input_object: Option<IotaAddress>,

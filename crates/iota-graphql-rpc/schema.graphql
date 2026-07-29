@@ -123,8 +123,8 @@ enum AddressTransactionBlockRelationship {
 	"""
 	RECV
 	"""
-	Transactions that affected this address (the address is the sender or
-	a recipient).
+	Transactions that affected this address (the address is the sender,
+	a recipient, or the owner of the gas payment).
 	"""
 	AFFECTED
 }
@@ -4563,7 +4563,7 @@ input TransactionBlockFilter {
 	recvAddress: IotaAddress
 	"""
 	Limit to transactions that affected the given address (the address is
-	the sender or a recipient).
+	the sender, a recipient, or the owner of the gas payment).
 	"""
 	affectedAddress: IotaAddress
 	"""

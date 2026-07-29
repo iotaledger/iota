@@ -37,8 +37,8 @@ pub(crate) enum AddressTransactionBlockRelationship {
     Sent,
     /// Transactions that sent objects to this address.
     Recv,
-    /// Transactions that affected this address (the address is the sender or
-    /// a recipient).
+    /// Transactions that affected this address (the address is the sender,
+    /// a recipient, or the owner of the gas payment).
     Affected,
 }
 
