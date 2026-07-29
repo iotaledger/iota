@@ -1112,19 +1112,25 @@ impl DBBatch {
         from: &K,
         to: &K,
     ) -> Result<(), TypedStoreError> {
+        self.schedule_delete_range_raw(db, be_fix_int_ser(from), be_fix_int_ser(to))
+    }
+
+    /// [`Self::schedule_delete_range`] for a range whose bounds are not keys,
+    /// such as a whole key prefix. The bounds are raw bytes ordered like the
+    /// map's keys, i.e. in the `be_fix_int_ser` encoding; `from` is inclusive
+    /// and `to` exclusive.
+    fn schedule_delete_range_raw<K, V>(
+        &mut self,
+        db: &DBMap<K, V>,
+        from: Vec<u8>,
+        to: Vec<u8>,
+    ) -> Result<(), TypedStoreError> {
         if !Arc::ptr_eq(&db.db, &self.database) {
             return Err(TypedStoreError::CrossDBBatch);
         }
 
-        let from_buf = be_fix_int_ser(from);
-        let to_buf = be_fix_int_ser(to);
-
         if let StorageWriteBatch::Rocks(b) = &mut self.batch {
-            b.delete_range_cf(
-                &rocks_cf_from_db(&self.database, db.cf_name())?,
-                from_buf,
-                to_buf,
-            );
+            b.delete_range_cf(&rocks_cf_from_db(&self.database, db.cf_name())?, from, to);
         }
         Ok(())
     }
@@ -1524,6 +1530,31 @@ where
     ) -> Result<(), TypedStoreError> {
         batch.delete_batch(&self.map, keys.into_iter().map(|key| (self.tag, key)))?;
         Ok(())
+    }
+
+    /// Deletes every entry of the map with a single range tombstone over the
+    /// tag's key range, leaving the other tags of the column family untouched.
+    pub fn schedule_delete_all(&self) -> Result<(), TypedStoreError> {
+        let from = be_fix_int_ser(&self.tag);
+        let to = match prefix_iterator_bounds(&self.tag).1 {
+            Some(to) => to,
+            // The maximum tag has no following tag to bound the range
+            // against, so end it just past the last entry. That read is why a
+            // row written in between survives the clear, and why a value that
+            // does not deserialize fails it.
+            None => match self.iter_reversed().next().transpose()? {
+                Some((last_key, _)) => {
+                    let mut to = be_fix_int_ser(&(self.tag, last_key));
+                    to.push(0);
+                    to
+                }
+                None => return Ok(()),
+            },
+        };
+
+        let mut batch = self.batch();
+        batch.schedule_delete_range_raw(&self.map, from, to)?;
+        batch.write()
     }
 
     /// Forward iterator over all of the map's entries.

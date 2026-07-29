@@ -1205,6 +1205,56 @@ async fn tagged_range_iter_stays_within_its_tag() {
     assert_eq!(rows, vec![(0, "zero".to_string())]);
 }
 
+/// Clearing a tagged map removes all of its own entries and none of the
+/// entries the other tags keep in the same column family.
+#[tokio::test]
+async fn tagged_schedule_delete_all_clears_only_its_own_tag() {
+    let tmp_dir = iota_common::tempdir();
+    let db = open_rocksdb(tmp_dir.path(), &["shared"]);
+    let open = |tag: u8| {
+        TaggedDBMap::<u32, String>::reopen(&db, "shared", tag, &ReadWriteOptions::default(), false)
+            .expect("failed to open the map")
+    };
+    // The cleared tag has an immediate neighbour on either side, and the
+    // maximum tag has no following tag to bound its own range against.
+    let below = open(0);
+    let cleared = open(1);
+    let above = open(2);
+    let last = open(u8::MAX);
+
+    let mut batch = cleared.batch();
+    for map in [&below, &cleared, &above, &last] {
+        map.insert_batch(
+            &mut batch,
+            [(0, "zero".to_string()), (u32::MAX, "max".to_string())],
+        )
+        .unwrap();
+    }
+    batch.write().unwrap();
+
+    let entries = |map: &TaggedDBMap<u32, String>| -> Vec<(u32, String)> {
+        map.iter().collect::<Result<_, _>>().unwrap()
+    };
+    let expected = vec![(0, "zero".to_string()), (u32::MAX, "max".to_string())];
+
+    cleared.schedule_delete_all().unwrap();
+    assert!(entries(&cleared).is_empty());
+    assert_eq!(entries(&below), expected);
+    assert_eq!(entries(&above), expected);
+    assert_eq!(entries(&last), expected);
+
+    // The maximum tag takes the bound from its own last key.
+    last.schedule_delete_all().unwrap();
+    assert!(entries(&last).is_empty());
+    assert_eq!(entries(&below), expected);
+    assert_eq!(entries(&above), expected);
+
+    // Clearing an already empty map is a no-op, at the maximum tag too.
+    cleared.schedule_delete_all().unwrap();
+    last.schedule_delete_all().unwrap();
+    assert_eq!(entries(&below), expected);
+}
+
 fn open_map<P: AsRef<Path>, K, V>(path: P, opt_cf: Option<&str>) -> DBMap<K, V> {
     let cf_key = opt_cf.unwrap_or(rocksdb::DEFAULT_COLUMN_FAMILY_NAME);
     DBMap::<K, V>::reopen(
