@@ -16,9 +16,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use bincode::Options;
 use either::Either;
-use iota_common::try_iterator_ext::TryIteratorExt;
 use iota_json_rpc_types::{IotaMoveValue, IotaObjectDataFilter, TransactionFilter};
 use iota_sdk_types::{
     Address, ObjectDigest, ObjectId, ObjectReference, Owner, StructTag, TransactionDigest,
@@ -26,7 +24,7 @@ use iota_sdk_types::{
 };
 use iota_storage::{mutex_table::MutexTable, sharded_lru::ShardedLruCache};
 use iota_types::{
-    base_types::{ObjectInfo, TxSequenceNumber},
+    base_types::{EpochId, ObjectInfo, TxSequenceNumber},
     dynamic_field::{DynamicFieldInfo, DynamicFieldName, visitor as DFV},
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
     error::{IotaError, IotaResult, UserInputError},
@@ -44,20 +42,19 @@ use itertools::Itertools;
 use move_core_types::{
     account_address::AccountAddress, identifier::Identifier, language_storage::ModuleId,
 };
-use parking_lot::{ArcMutexGuard, Mutex};
-use prometheus_filtered::{
-    IntCounter, IntCounterVec, Registry, register_int_counter_vec_with_registry,
-    register_int_counter_with_registry,
-};
+use parking_lot::{ArcMutexGuard, Mutex, RwLock};
+use prometheus_filtered::{IntCounter, Registry, register_int_counter_with_registry};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use tracing::{debug, error, info, trace, warn};
 use typed_store::{
     DBMapUtils, TypedStoreError,
+    database::Database,
     rocks::{
-        DBBatch, DBMap, DBMapTableConfigMap, DBOptions, MetricConf, bulk_ingestion_options,
-        bulk_ingestion_write_options, default_db_options, read_size_from_env, safe_drop_db,
+        DBBatch, DBMap, DBMapTableConfigMap, DBOptions, MetricConf, ReadWriteOptions, TaggedDBMap,
+        bulk_ingestion_options, bulk_ingestion_write_options, default_db_options, list_tables,
+        open_cf_opts, read_size_from_env, safe_drop_db,
     },
-    rocksdb::compaction_filter::Decision,
+    rocksdb,
     traits::Map,
 };
 
@@ -98,13 +95,30 @@ pub fn remove_legacy_jsonrpc_indexes_dir(db_path: &Path) -> std::io::Result<()> 
     Ok(())
 }
 
-/// Bump this when changing the serialization format of an existing table.
-/// A version mismatch triggers a full re-index via
+/// Bump this when changing the serialization format or layout of an existing
+/// table. A version mismatch triggers a full re-index via
 /// `needs_to_do_initialization`.
 const CURRENT_DB_VERSION: u64 = 1;
 const ENV_VAR_COIN_INDEX_BLOCK_CACHE_SIZE_MB: &str = "COIN_INDEX_BLOCK_CACHE_MB";
 const ENV_VAR_DISABLE_INDEX_CACHE: &str = "DISABLE_INDEX_CACHE";
 const ENV_VAR_INVALIDATE_INSTEAD_OF_UPDATE: &str = "INVALIDATE_INSTEAD_OF_UPDATE";
+const ENV_VAR_HISTORY_BLOCK_CACHE_SIZE_MB: &str = "JSONRPC_HISTORY_BLOCK_CACHE_MB";
+const DEFAULT_HISTORY_BLOCK_CACHE_SIZE_MB: usize = 512;
+
+// Do not reuse these tags. Mark them as deprecated if a table is removed.
+const DB_PREFIX_HISTORIC_TRANSACTION_ORDER: u8 = 0;
+const DB_PREFIX_HISTORIC_TRANSACTIONS_SEQ: u8 = 1;
+const DB_PREFIX_HISTORIC_TRANSACTIONS_FROM_ADDR: u8 = 2;
+const DB_PREFIX_HISTORIC_TRANSACTIONS_TO_ADDR: u8 = 3;
+const DB_PREFIX_HISTORIC_TRANSACTIONS_BY_INPUT_OBJECT_ID: u8 = 4;
+const DB_PREFIX_HISTORIC_TRANSACTIONS_BY_MUTATED_OBJECT_ID: u8 = 5;
+const DB_PREFIX_HISTORIC_TRANSACTIONS_BY_MOVE_FUNCTION: u8 = 6;
+const DB_PREFIX_HISTORIC_EVENT_ORDER: u8 = 7;
+const DB_PREFIX_HISTORIC_EVENT_BY_MOVE_MODULE: u8 = 8;
+const DB_PREFIX_HISTORIC_EVENT_BY_MOVE_EVENT: u8 = 9;
+const DB_PREFIX_HISTORIC_EVENT_BY_EVENT_MODULE: u8 = 10;
+const DB_PREFIX_HISTORIC_EVENT_BY_SENDER: u8 = 11;
+const DB_PREFIX_HISTORIC_EVENT_BY_TIME: u8 = 12;
 
 #[derive(Default, Copy, Clone, Debug, Eq, PartialEq)]
 pub struct TotalBalance {
@@ -225,10 +239,10 @@ pub struct IndexStoreCacheUpdates {
     all_balance_changes: Vec<(Address, IotaResult<Arc<AllBalance>>)>,
 }
 
-/// The `IndexStoreTables` struct defines a set of `DBMaps` used to index
-/// various aspects of transaction and object data. Each field corresponds to a
-/// specific index, with keys such as `Address`, `TransactionDigest`, etc.
-/// Each mapping is configured with custom database options.
+/// The live-state and marker tables of the JSON-RPC index — everything that
+/// is bounded by the live object set or is a singleton. The history tables
+/// live in per-epoch column families of the same database ([`HistoryBucket`])
+/// so that pruning drops whole epochs instead of deleting rows.
 #[derive(DBMapUtils)]
 pub struct IndexStoreTables {
     /// A singleton that stores metadata information on the DB.
@@ -256,30 +270,6 @@ pub struct IndexStoreTables {
     /// has been indexed continuously and is complete.
     history_watermark: DBMap<(), CheckpointSequenceNumber>,
 
-    /// Index from iota address to transactions initiated by that address.
-    transactions_from_addr: DBMap<(Address, TxSequenceNumber), TransactionDigest>,
-
-    /// Index from iota address to transactions that were sent to that address.
-    transactions_to_addr: DBMap<(Address, TxSequenceNumber), TransactionDigest>,
-
-    /// Index from object id to transactions that used that object id as input.
-    transactions_by_input_object_id: DBMap<(ObjectId, TxSequenceNumber), TransactionDigest>,
-
-    /// Index from object id to transactions that modified/created that object
-    /// id.
-    transactions_by_mutated_object_id: DBMap<(ObjectId, TxSequenceNumber), TransactionDigest>,
-
-    /// Index from package id, module and function identifier to transactions
-    /// that used that moce function call as input.
-    transactions_by_move_function:
-        DBMap<(ObjectId, String, String, TxSequenceNumber), TransactionDigest>,
-
-    /// Ordering of all indexed transactions.
-    transaction_order: DBMap<TxSequenceNumber, TransactionDigest>,
-
-    /// Index from transaction digest to sequence number.
-    transactions_seq: DBMap<TransactionDigest, TxSequenceNumber>,
-
     /// This is an index of object references to currently existing objects,
     /// indexed by the composite key of the Address of their owner and
     /// the object ID of the object. This composite index allows an
@@ -296,20 +286,242 @@ pub struct IndexStoreTables {
     /// from the object store at query time, so indexing needs no layout
     /// resolution.
     dynamic_field_index: DBMap<DynamicFieldKey, ()>,
+}
 
-    event_order: DBMap<EventId, EventIndex>,
+/// One epoch's history tables, sharing a single per-epoch column family of
+/// the index database, distinguished by a tag byte prefixed to every key.
+/// Transactions are numbered by network order and epochs partition that
+/// order contiguously, so each bucket is a disjoint, epoch-ordered segment
+/// of every history table: chaining per-bucket scans in epoch order
+/// preserves the global iteration order, and pruning an epoch is one
+/// constant-time column-family drop.
+struct HistoryBucket {
+    /// Ordering of all indexed transactions.
+    transaction_order: TaggedDBMap<TxSequenceNumber, TransactionDigest>,
 
-    event_by_move_module: DBMap<(ModuleId, EventId), EventIndex>,
+    /// Index from transaction digest to sequence number.
+    transactions_seq: TaggedDBMap<TransactionDigest, TxSequenceNumber>,
 
-    event_by_move_event: DBMap<(StructTag, EventId), EventIndex>,
+    /// Index from iota address to transactions initiated by that address.
+    transactions_from_addr: TaggedDBMap<(Address, TxSequenceNumber), TransactionDigest>,
 
-    event_by_event_module: DBMap<(ModuleId, EventId), EventIndex>,
+    /// Index from iota address to transactions that were sent to that address.
+    transactions_to_addr: TaggedDBMap<(Address, TxSequenceNumber), TransactionDigest>,
 
-    event_by_sender: DBMap<(Address, EventId), EventIndex>,
+    /// Index from object id to transactions that used that object id as input.
+    transactions_by_input_object_id: TaggedDBMap<(ObjectId, TxSequenceNumber), TransactionDigest>,
 
-    event_by_time: DBMap<(u64, EventId), EventIndex>,
+    /// Index from object id to transactions that modified/created that object
+    /// id.
+    transactions_by_mutated_object_id: TaggedDBMap<(ObjectId, TxSequenceNumber), TransactionDigest>,
 
-    pruner_watermark: DBMap<(), TxSequenceNumber>,
+    /// Index from package id, module and function identifier to transactions
+    /// that used that move function call as input.
+    transactions_by_move_function:
+        TaggedDBMap<(ObjectId, String, String, TxSequenceNumber), TransactionDigest>,
+
+    event_order: TaggedDBMap<EventId, EventIndex>,
+
+    event_by_move_module: TaggedDBMap<(ModuleId, EventId), EventIndex>,
+
+    event_by_move_event: TaggedDBMap<(StructTag, EventId), EventIndex>,
+
+    event_by_event_module: TaggedDBMap<(ModuleId, EventId), EventIndex>,
+
+    event_by_sender: TaggedDBMap<(Address, EventId), EventIndex>,
+
+    event_by_time: TaggedDBMap<(u64, EventId), EventIndex>,
+}
+
+/// Prefix of the per-epoch history column families; a bucket's family is
+/// `{prefix}{epoch}`. On-disk names are the ground truth for which buckets
+/// exist.
+const HISTORY_CF_PREFIX: &str = "hist_e";
+
+fn history_cf_name(epoch: EpochId) -> String {
+    format!("{HISTORY_CF_PREFIX}{epoch}")
+}
+
+/// The epoch of a history column family, `None` for other names.
+fn history_cf_epoch(cf_name: &str) -> Option<EpochId> {
+    cf_name
+        .strip_prefix(HISTORY_CF_PREFIX)
+        .and_then(|epoch| epoch.parse().ok())
+}
+
+impl HistoryBucket {
+    fn reopen(db: &Arc<Database>, epoch: EpochId) -> Result<Self, TypedStoreError> {
+        // The tags are each table's identity within the shared column
+        // family; never change or reuse them for existing data. Per-epoch
+        // column families skip the periodic metrics reporter task: with up
+        // to ~100 retained epochs, one task per column family adds up.
+        fn map<K, V>(
+            db: &Arc<Database>,
+            cf_name: &str,
+            tag: u8,
+        ) -> Result<TaggedDBMap<K, V>, TypedStoreError>
+        where
+            K: Clone + Serialize + DeserializeOwned,
+            V: Serialize + DeserializeOwned,
+        {
+            TaggedDBMap::reopen(db, cf_name, tag, &ReadWriteOptions::default(), true)
+        }
+        let cf = history_cf_name(epoch);
+        Ok(Self {
+            transaction_order: map(db, &cf, DB_PREFIX_HISTORIC_TRANSACTION_ORDER)?,
+            transactions_seq: map(db, &cf, DB_PREFIX_HISTORIC_TRANSACTIONS_SEQ)?,
+            transactions_from_addr: map(db, &cf, DB_PREFIX_HISTORIC_TRANSACTIONS_FROM_ADDR)?,
+            transactions_to_addr: map(db, &cf, DB_PREFIX_HISTORIC_TRANSACTIONS_TO_ADDR)?,
+            transactions_by_input_object_id: map(
+                db,
+                &cf,
+                DB_PREFIX_HISTORIC_TRANSACTIONS_BY_INPUT_OBJECT_ID,
+            )?,
+            transactions_by_mutated_object_id: map(
+                db,
+                &cf,
+                DB_PREFIX_HISTORIC_TRANSACTIONS_BY_MUTATED_OBJECT_ID,
+            )?,
+            transactions_by_move_function: map(
+                db,
+                &cf,
+                DB_PREFIX_HISTORIC_TRANSACTIONS_BY_MOVE_FUNCTION,
+            )?,
+            event_order: map(db, &cf, DB_PREFIX_HISTORIC_EVENT_ORDER)?,
+            event_by_move_module: map(db, &cf, DB_PREFIX_HISTORIC_EVENT_BY_MOVE_MODULE)?,
+            event_by_move_event: map(db, &cf, DB_PREFIX_HISTORIC_EVENT_BY_MOVE_EVENT)?,
+            event_by_event_module: map(db, &cf, DB_PREFIX_HISTORIC_EVENT_BY_EVENT_MODULE)?,
+            event_by_sender: map(db, &cf, DB_PREFIX_HISTORIC_EVENT_BY_SENDER)?,
+            event_by_time: map(db, &cf, DB_PREFIX_HISTORIC_EVENT_BY_TIME)?,
+        })
+    }
+
+    /// Appends one transaction's history-table rows to a checkpoint's batch.
+    fn index_tx(
+        &self,
+        batch: &mut DBBatch,
+        sequence: TxSequenceNumber,
+        timestamp_ms: u64,
+        tx: TransactionIndexData,
+    ) -> IotaResult {
+        let TransactionIndexData {
+            digest,
+            sender,
+            active_inputs,
+            mutated_objects,
+            move_functions,
+            events,
+        } = tx;
+
+        self.transaction_order
+            .insert_batch(batch, std::iter::once((sequence, digest)))?;
+
+        self.transactions_seq
+            .insert_batch(batch, std::iter::once((digest, sequence)))?;
+
+        self.transactions_from_addr
+            .insert_batch(batch, std::iter::once(((sender, sequence), digest)))?;
+
+        self.transactions_by_input_object_id.insert_batch(
+            batch,
+            active_inputs.into_iter().map(|id| ((id, sequence), digest)),
+        )?;
+
+        self.transactions_by_mutated_object_id.insert_batch(
+            batch,
+            mutated_objects
+                .iter()
+                .map(|(obj_ref, _)| ((obj_ref.object_id, sequence), digest)),
+        )?;
+
+        self.transactions_by_move_function.insert_batch(
+            batch,
+            move_functions
+                .into_iter()
+                .map(|(obj_id, module, function)| ((obj_id, module, function, sequence), digest)),
+        )?;
+
+        self.transactions_to_addr.insert_batch(
+            batch,
+            mutated_objects.iter().filter_map(|(_, owner)| {
+                owner
+                    .into_opt_address()
+                    .map(|addr| ((addr, sequence), digest))
+            }),
+        )?;
+
+        // events
+        let event_digest = events.digest();
+        self.event_order.insert_batch(
+            batch,
+            events
+                .iter()
+                .enumerate()
+                .map(|(i, _)| ((sequence, i), (event_digest, digest, timestamp_ms))),
+        )?;
+        self.event_by_move_module.insert_batch(
+            batch,
+            events
+                .iter()
+                .enumerate()
+                .map(|(i, e)| {
+                    (
+                        i,
+                        ModuleId::new(
+                            AccountAddress::new(e.package_id.into_bytes()),
+                            Identifier::new(e.module.as_str()).unwrap(),
+                        ),
+                    )
+                })
+                .map(|(i, m)| ((m, (sequence, i)), (event_digest, digest, timestamp_ms))),
+        )?;
+        self.event_by_sender.insert_batch(
+            batch,
+            events.iter().enumerate().map(|(i, e)| {
+                (
+                    (e.sender, (sequence, i)),
+                    (event_digest, digest, timestamp_ms),
+                )
+            }),
+        )?;
+        self.event_by_move_event.insert_batch(
+            batch,
+            events.iter().enumerate().map(|(i, e)| {
+                (
+                    (e.type_.clone(), (sequence, i)),
+                    (event_digest, digest, timestamp_ms),
+                )
+            }),
+        )?;
+
+        self.event_by_time.insert_batch(
+            batch,
+            events.iter().enumerate().map(|(i, _)| {
+                (
+                    (timestamp_ms, (sequence, i)),
+                    (event_digest, digest, timestamp_ms),
+                )
+            }),
+        )?;
+
+        self.event_by_event_module.insert_batch(
+            batch,
+            events.iter().enumerate().map(|(i, e)| {
+                (
+                    (
+                        ModuleId::new(
+                            AccountAddress::new(e.type_.address().into_bytes()),
+                            Identifier::new(e.type_.module().as_str()).unwrap(),
+                        ),
+                        (sequence, i),
+                    ),
+                    (event_digest, digest, timestamp_ms),
+                )
+            }),
+        )?;
+
+        Ok(())
+    }
 }
 
 impl IndexStoreTables {
@@ -352,7 +564,7 @@ impl IndexStoreTables {
         if !matches!(self.meta.get(&()), Ok(None)) {
             return Ok(());
         }
-        if self.transaction_order.is_empty() && self.owner_index.is_empty() {
+        if self.owner_index.is_empty() {
             self.meta.insert(
                 &(),
                 &MetadataInfo {
@@ -423,114 +635,6 @@ impl IndexStoreTables {
 
         info!("Finished initializing JSON-RPC indexes");
 
-        Ok(())
-    }
-
-    /// Fills the history tables for the checkpoints below
-    /// `history_watermark`, newest first, until it reaches the
-    /// checkpoint-contents pruner. The marker commits atomically with each
-    /// checkpoint's rows, so an interrupted run resumes where it stopped.
-    /// No-op when the marker is absent (the history was indexed continuously
-    /// and is complete).
-    #[tracing::instrument(skip_all)]
-    fn backfill_history(
-        &self,
-        authority_store: &AuthorityStore,
-        checkpoint_store: &CheckpointStore,
-    ) -> Result<(), StorageError> {
-        let Some(watermark) = self.history_watermark.get(&())? else {
-            return Ok(());
-        };
-        let Some(mut next) = watermark.checked_sub(1) else {
-            return Ok(());
-        };
-
-        info!("Backfilling JSON-RPC history tables from checkpoint {next} downwards");
-        let start_time = Instant::now();
-        let mut replayed: u64 = 0;
-        loop {
-            // The pruner advances while the backfill runs; re-check the
-            // bound so the replay stops before data that is about to
-            // disappear.
-            let lowest = checkpoint_store
-                .get_highest_pruned_checkpoint_seq_number()?
-                .map(|c| c.saturating_add(1))
-                .unwrap_or(0);
-            if next < lowest {
-                break;
-            }
-            self.replay_checkpoint_history(authority_store, checkpoint_store, next)?;
-            replayed += 1;
-            let Some(n) = next.checked_sub(1) else {
-                break;
-            };
-            next = n;
-        }
-
-        info!(
-            "Backfilling {replayed} checkpoints of JSON-RPC history took {} seconds",
-            start_time.elapsed().as_secs()
-        );
-        Ok(())
-    }
-
-    /// Replays one checkpoint into the history tables and lowers
-    /// `history_watermark` to it, in one atomic batch. Transactions are
-    /// numbered by their position in the network transaction order, derived
-    /// from the checkpoint's transaction total, so numbering stays canonical
-    /// whatever range is locally available.
-    fn replay_checkpoint_history(
-        &self,
-        authority_store: &AuthorityStore,
-        checkpoint_store: &CheckpointStore,
-        checkpoint_seq: CheckpointSequenceNumber,
-    ) -> Result<(), StorageError> {
-        let summary = checkpoint_store
-            .get_checkpoint_by_sequence_number(checkpoint_seq)?
-            .ok_or_else(|| StorageError::missing(format!("missing checkpoint {checkpoint_seq}")))?;
-        let contents = checkpoint_store
-            .get_checkpoint_contents(&summary.contents_digest)?
-            .ok_or_else(|| {
-                StorageError::missing(format!("missing checkpoint contents {checkpoint_seq}"))
-            })?;
-        let first_sequence_number =
-            summary.network_total_transactions - contents.iter().len() as u64;
-
-        let mut batch = self.transactions_from_addr.batch();
-        for (sequence, digests) in (first_sequence_number..).zip(contents.iter()) {
-            let transaction = authority_store
-                .get_transaction_block(&digests.transaction)?
-                .ok_or_else(|| {
-                    StorageError::missing(format!("missing transaction {}", digests.transaction))
-                })?
-                .into_inner();
-            let effects = authority_store
-                .get_effects(&digests.effects)
-                .map_err(|e| StorageError::custom(e.to_string()))?
-                .ok_or_else(|| {
-                    StorageError::missing(format!("missing effects {}", digests.effects))
-                })?;
-            let events = if effects.events_digest().is_some() {
-                Some(
-                    authority_store
-                        .get_events(&digests.transaction)?
-                        .ok_or_else(|| {
-                            StorageError::missing(format!("missing events {}", digests.transaction))
-                        })?,
-                )
-            } else {
-                None
-            };
-
-            let data = transaction_index_data(&transaction, &effects, events.as_ref())
-                .map_err(|e| StorageError::custom(e.to_string()))?;
-            self.index_tx(&mut batch, sequence, summary.timestamp_ms, data)
-                .map_err(|e| StorageError::custom(e.to_string()))?;
-        }
-        batch.insert_batch(&self.history_watermark, [((), checkpoint_seq)])?;
-        // A plain write, not a bulk-ingestion one: the database is serving
-        // queries, and the marker must land atomically with the rows.
-        batch.write().map_err(StorageError::from)?;
         Ok(())
     }
 
@@ -629,133 +733,6 @@ impl IndexStoreTables {
         Ok(())
     }
 
-    /// Appends one transaction's history-table rows to a checkpoint's batch.
-    fn index_tx(
-        &self,
-        batch: &mut DBBatch,
-        sequence: TxSequenceNumber,
-        timestamp_ms: u64,
-        tx: TransactionIndexData,
-    ) -> IotaResult {
-        let TransactionIndexData {
-            digest,
-            sender,
-            active_inputs,
-            mutated_objects,
-            move_functions,
-            events,
-        } = tx;
-
-        batch.insert_batch(&self.transaction_order, std::iter::once((sequence, digest)))?;
-
-        batch.insert_batch(&self.transactions_seq, std::iter::once((digest, sequence)))?;
-
-        batch.insert_batch(
-            &self.transactions_from_addr,
-            std::iter::once(((sender, sequence), digest)),
-        )?;
-
-        batch.insert_batch(
-            &self.transactions_by_input_object_id,
-            active_inputs.into_iter().map(|id| ((id, sequence), digest)),
-        )?;
-
-        batch.insert_batch(
-            &self.transactions_by_mutated_object_id,
-            mutated_objects
-                .iter()
-                .map(|(obj_ref, _)| ((obj_ref.object_id, sequence), digest)),
-        )?;
-
-        batch.insert_batch(
-            &self.transactions_by_move_function,
-            move_functions
-                .into_iter()
-                .map(|(obj_id, module, function)| ((obj_id, module, function, sequence), digest)),
-        )?;
-
-        batch.insert_batch(
-            &self.transactions_to_addr,
-            mutated_objects.iter().filter_map(|(_, owner)| {
-                owner
-                    .into_opt_address()
-                    .map(|addr| ((addr, sequence), digest))
-            }),
-        )?;
-
-        // events
-        let event_digest = events.digest();
-        batch.insert_batch(
-            &self.event_order,
-            events
-                .iter()
-                .enumerate()
-                .map(|(i, _)| ((sequence, i), (event_digest, digest, timestamp_ms))),
-        )?;
-        batch.insert_batch(
-            &self.event_by_move_module,
-            events
-                .iter()
-                .enumerate()
-                .map(|(i, e)| {
-                    (
-                        i,
-                        ModuleId::new(
-                            AccountAddress::new(e.package_id.into_bytes()),
-                            Identifier::new(e.module.as_str()).unwrap(),
-                        ),
-                    )
-                })
-                .map(|(i, m)| ((m, (sequence, i)), (event_digest, digest, timestamp_ms))),
-        )?;
-        batch.insert_batch(
-            &self.event_by_sender,
-            events.iter().enumerate().map(|(i, e)| {
-                (
-                    (e.sender, (sequence, i)),
-                    (event_digest, digest, timestamp_ms),
-                )
-            }),
-        )?;
-        batch.insert_batch(
-            &self.event_by_move_event,
-            events.iter().enumerate().map(|(i, e)| {
-                (
-                    (e.type_.clone(), (sequence, i)),
-                    (event_digest, digest, timestamp_ms),
-                )
-            }),
-        )?;
-
-        batch.insert_batch(
-            &self.event_by_time,
-            events.iter().enumerate().map(|(i, _)| {
-                (
-                    (timestamp_ms, (sequence, i)),
-                    (event_digest, digest, timestamp_ms),
-                )
-            }),
-        )?;
-
-        batch.insert_batch(
-            &self.event_by_event_module,
-            events.iter().enumerate().map(|(i, e)| {
-                (
-                    (
-                        ModuleId::new(
-                            AccountAddress::new(e.type_.address().into_bytes()),
-                            Identifier::new(e.type_.module().as_str()).unwrap(),
-                        ),
-                        (sequence, i),
-                    ),
-                    (event_digest, digest, timestamp_ms),
-                )
-            }),
-        )?;
-
-        Ok(())
-    }
-
     /// Appends one transaction's owner, dynamic-field, and coin index rows to
     /// a checkpoint's batch.
     fn index_object_changes(
@@ -794,92 +771,28 @@ impl IndexStoreTables {
 pub struct IndexStore {
     next_sequence_number: AtomicU64,
     tables: IndexStoreTables,
+    /// The database holding both the static tables and the per-epoch history
+    /// column families; used to create and drop the latter at runtime.
+    db: Arc<Database>,
+    /// Template options for per-epoch history column families. All clones
+    /// share one block cache through the cloned table factory.
+    history_cf_options: rocksdb::Options,
+    /// The retained history buckets. On-disk column-family names are the
+    /// ground truth; this map mirrors them for reads.
+    history: RwLock<BTreeMap<EpochId, Arc<HistoryBucket>>>,
     caches: IndexStoreCaches,
     metrics: Arc<IndexStoreMetrics>,
     max_type_length: u64,
-    pruner_watermark: Arc<AtomicU64>,
     pending_updates: Mutex<BTreeMap<CheckpointSequenceNumber, PendingCheckpointUpdate>>,
     history_backfill_task: Mutex<Option<tokio::task::JoinHandle<()>>>,
 }
 
-struct JsonRpcCompactionMetrics {
-    key_removed: IntCounterVec,
-    key_kept: IntCounterVec,
-    key_error: IntCounterVec,
-}
-
-impl JsonRpcCompactionMetrics {
-    pub fn new(registry: &Registry) -> Arc<Self> {
-        Arc::new(Self {
-            key_removed: register_int_counter_vec_with_registry!(
-                "json_rpc_compaction_filter_key_removed",
-                "Compaction key removed",
-                &["cf"],
-                registry
-            )
-            .unwrap(),
-            key_kept: register_int_counter_vec_with_registry!(
-                "json_rpc_compaction_filter_key_kept",
-                "Compaction key kept",
-                &["cf"],
-                registry
-            )
-            .unwrap(),
-            key_error: register_int_counter_vec_with_registry!(
-                "json_rpc_compaction_filter_key_error",
-                "Compaction error",
-                &["cf"],
-                registry
-            )
-            .unwrap(),
-        })
-    }
-}
-
-fn compaction_filter_config<T: DeserializeOwned>(
-    name: &str,
-    metrics: Arc<JsonRpcCompactionMetrics>,
-    mut db_options: DBOptions,
-    pruner_watermark: Arc<AtomicU64>,
-    extractor: impl Fn(T) -> TxSequenceNumber + Send + Sync + 'static,
-    by_key: bool,
-) -> DBOptions {
-    let cf = name.to_string();
-    db_options
-        .options
-        .set_compaction_filter(name, move |_, key, value| {
-            let bytes = if by_key { key } else { value };
-            let deserializer = bincode::DefaultOptions::new()
-                .with_big_endian()
-                .with_fixint_encoding();
-            match deserializer.deserialize(bytes) {
-                Ok(key_data) => {
-                    let sequence_number = extractor(key_data);
-                    if sequence_number < pruner_watermark.load(Ordering::Relaxed) {
-                        metrics.key_removed.with_label_values(&[&cf]).inc();
-                        Decision::Remove
-                    } else {
-                        metrics.key_kept.with_label_values(&[&cf]).inc();
-                        Decision::Keep
-                    }
-                }
-                Err(_) => {
-                    metrics.key_error.with_label_values(&[&cf]).inc();
-                    Decision::Keep
-                }
-            }
-        });
-    db_options
-}
-
-fn compaction_filter_config_by_key<T: DeserializeOwned>(
-    name: &str,
-    metrics: Arc<JsonRpcCompactionMetrics>,
-    db_options: DBOptions,
-    pruner_watermark: Arc<AtomicU64>,
-    extractor: impl Fn(T) -> TxSequenceNumber + Send + Sync + 'static,
-) -> DBOptions {
-    compaction_filter_config(name, metrics, db_options, pruner_watermark, extractor, true)
+/// The pieces produced by opening the index database.
+struct OpenedIndexDb {
+    tables: IndexStoreTables,
+    db: Arc<Database>,
+    history_cf_options: rocksdb::Options,
+    history: BTreeMap<EpochId, Arc<HistoryBucket>>,
 }
 
 fn coin_index_table_default_config() -> DBOptions {
@@ -889,6 +802,23 @@ fn coin_index_table_default_config() -> DBOptions {
             read_size_from_env(ENV_VAR_COIN_INDEX_BLOCK_CACHE_SIZE_MB).unwrap_or(5 * 1024),
         )
         .disable_write_throttling()
+}
+
+/// Options for the per-epoch history column families. Each bucket is
+/// write-once (appended during its epoch or the backfill, then only read)
+/// and queried by bounded range scans plus exact-key digest probes, which
+/// the block-based bloom filters answer from RAM. `set_block_options`
+/// creates the single block cache that every clone of these options shares.
+fn history_cf_options(db_options: &DBOptions) -> rocksdb::Options {
+    db_options
+        .clone()
+        .optimize_for_write_throughput_no_deletion()
+        .set_block_options(
+            read_size_from_env(ENV_VAR_HISTORY_BLOCK_CACHE_SIZE_MB)
+                .unwrap_or(DEFAULT_HISTORY_BLOCK_CACHE_SIZE_MB),
+            16 << 10,
+        )
+        .options
 }
 
 /// Extracts one transaction's history-table index inputs.
@@ -919,6 +849,24 @@ fn transaction_index_data(
             .collect(),
         events: events.cloned().unwrap_or_default(),
     })
+}
+
+/// Scan bounds excluding `cursor`: the inclusive lower bound for forward
+/// scans and the inclusive upper bound for reverse scans. `None` when the
+/// cursor leaves nothing to scan.
+fn sequence_bounds_after_cursor(
+    cursor: Option<TxSequenceNumber>,
+    reverse: bool,
+) -> Option<(TxSequenceNumber, TxSequenceNumber)> {
+    let lower = match cursor {
+        Some(cursor) if !reverse => cursor.checked_add(1)?,
+        _ => TxSequenceNumber::MIN,
+    };
+    let upper = match cursor {
+        Some(cursor) if reverse => cursor.checked_sub(1)?,
+        _ => TxSequenceNumber::MAX,
+    };
+    Some((lower, upper))
 }
 
 /// Coin objects touched by the transaction, as inputs for the coin index.
@@ -1296,17 +1244,16 @@ impl IndexStore {
         authority_store: &Arc<AuthorityStore>,
         checkpoint_store: &Arc<CheckpointStore>,
     ) -> Arc<Self> {
-        let pruner_watermark = Arc::new(AtomicU64::new(0));
-        let compaction_metrics = JsonRpcCompactionMetrics::new(registry);
-        let mut tables = Self::open_tables(&path, &pruner_watermark, &compaction_metrics);
+        let mut opened = Self::open_index_db(&path);
 
-        tables
+        opened
+            .tables
             .seed_meta()
             .expect("failed to initialize index tables");
 
-        if tables.needs_to_do_initialization(checkpoint_store) {
+        if opened.tables.needs_to_do_initialization(checkpoint_store) {
             let mut init_tables = {
-                drop(tables);
+                drop(opened);
                 safe_drop_db(path.clone(), Duration::from_secs(30))
                     .await
                     .expect("unable to destroy old JSON-RPC index db");
@@ -1357,11 +1304,12 @@ impl IndexStore {
             }
 
             // Reopen the DB with default options (eg without `unordered_write`s enabled)
-            tables = Self::open_tables(&path, &pruner_watermark, &compaction_metrics);
+            opened = Self::open_index_db(&path);
 
             // Sanity check: verify the database version was persisted correctly, i.e.
             // the WAL-disabled bulk writes were flushed before the reopen.
-            let stored_version = tables
+            let stored_version = opened
+                .tables
                 .meta
                 .get(&())
                 .expect("reopened JSON-RPC index DB should expose readable metadata")
@@ -1376,7 +1324,8 @@ impl IndexStore {
         // A store rebuilt without local history has no rows to derive the next
         // sequence number from; anchor it to the network transaction total at
         // the indexed watermark so numbering stays canonical.
-        let anchor = tables
+        let anchor = opened
+            .tables
             .watermark
             .get(&())
             .expect("failed to initialize index tables")
@@ -1395,13 +1344,7 @@ impl IndexStore {
             })
             .unwrap_or(0);
 
-        let store = Arc::new(Self::finish_open(
-            tables,
-            registry,
-            max_type_length,
-            pruner_watermark,
-            anchor,
-        ));
+        let store = Arc::new(Self::finish_open(opened, registry, max_type_length, anchor));
         store.spawn_history_backfill(authority_store.clone(), checkpoint_store.clone());
         store
     }
@@ -1415,10 +1358,7 @@ impl IndexStore {
     ) {
         let store = self.clone();
         let task = tokio::task::spawn_blocking(move || {
-            if let Err(e) = store
-                .tables
-                .backfill_history(&authority_store, &checkpoint_store)
-            {
+            if let Err(e) = store.backfill_history(&authority_store, &checkpoint_store) {
                 error!("JSON-RPC index history backfill stopped: {e}");
             }
         });
@@ -1433,178 +1373,318 @@ impl IndexStore {
         }
     }
 
+    /// Fills the history tables for the checkpoints below
+    /// `history_watermark`, newest first, until it reaches the
+    /// checkpoint-contents pruner. The marker commits atomically with each
+    /// checkpoint's rows, so an interrupted run resumes where it stopped.
+    /// No-op when the marker is absent (the history was indexed continuously
+    /// and is complete).
+    #[tracing::instrument(skip_all)]
+    fn backfill_history(
+        &self,
+        authority_store: &AuthorityStore,
+        checkpoint_store: &CheckpointStore,
+    ) -> Result<(), StorageError> {
+        let Some(watermark) = self.tables.history_watermark.get(&())? else {
+            return Ok(());
+        };
+        let Some(mut next) = watermark.checked_sub(1) else {
+            return Ok(());
+        };
+
+        info!("Backfilling JSON-RPC history tables from checkpoint {next} downwards");
+        let start_time = Instant::now();
+        let mut replayed: u64 = 0;
+        loop {
+            // The pruner advances while the backfill runs; re-check the
+            // bound so the replay stops before data that is about to
+            // disappear.
+            let lowest = checkpoint_store
+                .get_highest_pruned_checkpoint_seq_number()?
+                .map(|c| c.saturating_add(1))
+                .unwrap_or(0);
+            if next < lowest {
+                break;
+            }
+            self.replay_checkpoint_history(authority_store, checkpoint_store, next)?;
+            replayed += 1;
+            let Some(n) = next.checked_sub(1) else {
+                break;
+            };
+            next = n;
+        }
+
+        info!(
+            "Backfilling {replayed} checkpoints of JSON-RPC history took {} seconds",
+            start_time.elapsed().as_secs()
+        );
+        Ok(())
+    }
+
+    /// Replays one checkpoint into its epoch's history bucket and lowers
+    /// `history_watermark` to it, in one atomic batch. Transactions are
+    /// numbered by their position in the network transaction order, derived
+    /// from the checkpoint's transaction total, so numbering stays canonical
+    /// whatever range is locally available.
+    fn replay_checkpoint_history(
+        &self,
+        authority_store: &AuthorityStore,
+        checkpoint_store: &CheckpointStore,
+        checkpoint_seq: CheckpointSequenceNumber,
+    ) -> Result<(), StorageError> {
+        let summary = checkpoint_store
+            .get_checkpoint_by_sequence_number(checkpoint_seq)?
+            .ok_or_else(|| StorageError::missing(format!("missing checkpoint {checkpoint_seq}")))?;
+        let contents = checkpoint_store
+            .get_checkpoint_contents(&summary.contents_digest)?
+            .ok_or_else(|| {
+                StorageError::missing(format!("missing checkpoint contents {checkpoint_seq}"))
+            })?;
+        let first_sequence_number =
+            summary.network_total_transactions - contents.iter().len() as u64;
+        let bucket = self
+            .ensure_history_bucket(summary.epoch)
+            .map_err(|e| StorageError::custom(e.to_string()))?;
+
+        let mut batch = self.tables.watermark.batch();
+        for (sequence, digests) in (first_sequence_number..).zip(contents.iter()) {
+            let transaction = authority_store
+                .get_transaction_block(&digests.transaction)?
+                .ok_or_else(|| {
+                    StorageError::missing(format!("missing transaction {}", digests.transaction))
+                })?
+                .into_inner();
+            let effects = authority_store
+                .get_effects(&digests.effects)
+                .map_err(|e| StorageError::custom(e.to_string()))?
+                .ok_or_else(|| {
+                    StorageError::missing(format!("missing effects {}", digests.effects))
+                })?;
+            let events = if effects.events_digest().is_some() {
+                Some(
+                    authority_store
+                        .get_events(&digests.transaction)?
+                        .ok_or_else(|| {
+                            StorageError::missing(format!("missing events {}", digests.transaction))
+                        })?,
+                )
+            } else {
+                None
+            };
+
+            let data = transaction_index_data(&transaction, &effects, events.as_ref())
+                .map_err(|e| StorageError::custom(e.to_string()))?;
+            bucket
+                .index_tx(&mut batch, sequence, summary.timestamp_ms, data)
+                .map_err(|e| StorageError::custom(e.to_string()))?;
+        }
+        batch.insert_batch(&self.tables.history_watermark, [((), checkpoint_seq)])?;
+        // A plain write, not a bulk-ingestion one: the database is serving
+        // queries, and the marker must land atomically with the rows.
+        batch.write().map_err(StorageError::from)?;
+        Ok(())
+    }
+
     /// Opens the store without the init logic of [`Self::new`] — for tests.
     pub fn new_without_init(
         path: PathBuf,
         registry: &Registry,
         max_type_length: Option<u64>,
     ) -> Self {
-        let pruner_watermark = Arc::new(AtomicU64::new(0));
-        let compaction_metrics = JsonRpcCompactionMetrics::new(registry);
-        let tables = Self::open_tables(&path, &pruner_watermark, &compaction_metrics);
-        Self::finish_open(tables, registry, max_type_length, pruner_watermark, 0)
+        let opened = Self::open_index_db(&path);
+        Self::finish_open(opened, registry, max_type_length, 0)
     }
 
     fn finish_open(
-        tables: IndexStoreTables,
+        opened: OpenedIndexDb,
         registry: &Registry,
         max_type_length: Option<u64>,
-        pruner_watermark: Arc<AtomicU64>,
         next_sequence_number_floor: TxSequenceNumber,
     ) -> Self {
+        let OpenedIndexDb {
+            tables,
+            db,
+            history_cf_options,
+            history,
+        } = opened;
         let metrics = IndexStoreMetrics::new(registry);
         let caches = IndexStoreCaches {
             per_coin_type_balance: ShardedLruCache::new(1_000_000, 1000),
             all_balances: ShardedLruCache::new(1_000_000, 1000),
             locks: MutexTable::new(128),
         };
-        let next_sequence_number = tables
-            .transaction_order
-            .safe_range_iter_reversed(..)
-            .next()
-            .transpose()
-            .expect("failed to initialize indexes")
-            .map(|(seq, _)| seq + 1)
+        let next_sequence_number = history
+            .last_key_value()
+            .map(|(_, bucket)| {
+                bucket
+                    .transaction_order
+                    .range_iter_reversed(u64::MIN, u64::MAX)
+                    .next()
+                    .transpose()
+                    .expect("failed to initialize indexes")
+                    .map(|(seq, _)| seq + 1)
+                    .unwrap_or(0)
+            })
             .unwrap_or(0)
             .max(next_sequence_number_floor)
             .into();
-        let pruner_watermark_value = tables
-            .pruner_watermark
-            .get(&())
-            .expect("failed to initialize index tables")
-            .unwrap_or(0);
-        pruner_watermark.store(pruner_watermark_value, Ordering::Relaxed);
 
         Self {
             tables,
+            db,
+            history_cf_options,
+            history: RwLock::new(history),
             next_sequence_number,
             caches,
             metrics: Arc::new(metrics),
             max_type_length: max_type_length.unwrap_or(128),
-            pruner_watermark,
             pending_updates: Mutex::new(BTreeMap::new()),
             history_backfill_task: Mutex::new(None),
         }
     }
 
-    fn open_tables(
-        path: &Path,
-        pruner_watermark: &Arc<AtomicU64>,
-        compaction_metrics: &Arc<JsonRpcCompactionMetrics>,
-    ) -> IndexStoreTables {
+    /// Opens the index database, passing every existing per-epoch history
+    /// column family at open with its tuned options: a column family left
+    /// for auto-discovery would silently get default options (and its own
+    /// block cache).
+    fn open_index_db(path: &Path) -> OpenedIndexDb {
         let db_options = default_db_options().disable_write_throttling();
-        let compaction_metrics = compaction_metrics.clone();
-        let pruner_watermark = pruner_watermark.clone();
-        let table_options = DBMapTableConfigMap::new(BTreeMap::from([
-            (
-                "transactions_from_addr".to_string(),
-                compaction_filter_config_by_key(
-                    "transactions_from_addr",
-                    compaction_metrics.clone(),
-                    db_options.clone(),
-                    pruner_watermark.clone(),
-                    |(_, id): (Address, TxSequenceNumber)| id,
-                ),
-            ),
-            (
-                "transactions_to_addr".to_string(),
-                compaction_filter_config_by_key(
-                    "transactions_to_addr",
-                    compaction_metrics.clone(),
-                    db_options.clone(),
-                    pruner_watermark.clone(),
-                    |(_, sequence_number): (Address, TxSequenceNumber)| sequence_number,
-                ),
-            ),
-            (
-                "transactions_by_move_function".to_string(),
-                compaction_filter_config_by_key(
-                    "transactions_by_move_function",
-                    compaction_metrics.clone(),
-                    db_options.clone(),
-                    pruner_watermark.clone(),
-                    |(_, _, _, id): (ObjectId, String, String, TxSequenceNumber)| id,
-                ),
-            ),
-            (
-                "transaction_order".to_string(),
-                compaction_filter_config_by_key(
-                    "transaction_order",
-                    compaction_metrics.clone(),
-                    db_options.clone(),
-                    pruner_watermark.clone(),
-                    |sequence_number: TxSequenceNumber| sequence_number,
-                ),
-            ),
-            (
-                "transactions_seq".to_string(),
-                compaction_filter_config(
-                    "transactions_seq",
-                    compaction_metrics.clone(),
-                    db_options.clone(),
-                    pruner_watermark.clone(),
-                    |sequence_number: TxSequenceNumber| sequence_number,
-                    false,
-                ),
-            ),
-            ("coin_index".to_string(), coin_index_table_default_config()),
-            (
-                "event_order".to_string(),
-                compaction_filter_config_by_key(
-                    "event_order",
-                    compaction_metrics.clone(),
-                    db_options.clone(),
-                    pruner_watermark.clone(),
-                    |event_id: EventId| event_id.0,
-                ),
-            ),
-            (
-                "event_by_move_module".to_string(),
-                compaction_filter_config_by_key(
-                    "event_by_move_module",
-                    compaction_metrics.clone(),
-                    db_options.clone(),
-                    pruner_watermark.clone(),
-                    |(_, event_id): (ModuleId, EventId)| event_id.0,
-                ),
-            ),
-            (
-                "event_by_event_module".to_string(),
-                compaction_filter_config_by_key(
-                    "event_by_event_module",
-                    compaction_metrics.clone(),
-                    db_options.clone(),
-                    pruner_watermark.clone(),
-                    |(_, event_id): (ModuleId, EventId)| event_id.0,
-                ),
-            ),
-            (
-                "event_by_sender".to_string(),
-                compaction_filter_config_by_key(
-                    "event_by_sender",
-                    compaction_metrics.clone(),
-                    db_options.clone(),
-                    pruner_watermark.clone(),
-                    |(_, event_id): (Address, EventId)| event_id.0,
-                ),
-            ),
-            (
-                "event_by_time".to_string(),
-                compaction_filter_config_by_key(
-                    "event_by_time",
-                    compaction_metrics,
-                    db_options.clone(),
-                    pruner_watermark,
-                    |(_, event_id): (u64, EventId)| event_id.0,
-                ),
-            ),
-        ]));
-        IndexStoreTables::open_tables_read_write(
-            path.to_path_buf(),
+        let coin_options = coin_index_table_default_config();
+        let history_cf_options = history_cf_options(&db_options);
+
+        let static_tables = IndexStoreTables::describe_tables();
+        let existing_cfs = list_tables(path.to_path_buf()).unwrap_or_default();
+        let mut epochs = std::collections::BTreeSet::new();
+        let mut opt_cfs: Vec<(String, rocksdb::Options)> = Vec::new();
+        for name in static_tables.keys() {
+            let options = if name == "coin_index" {
+                coin_options.options.clone()
+            } else {
+                db_options.options.clone()
+            };
+            opt_cfs.push((name.clone(), options));
+        }
+        for cf_name in &existing_cfs {
+            if static_tables.contains_key(cf_name) || cf_name == "default" {
+                continue;
+            }
+            if let Some(epoch) = history_cf_epoch(cf_name) {
+                epochs.insert(epoch);
+                opt_cfs.push((cf_name.clone(), history_cf_options.clone()));
+            } else {
+                // A table of another schema version. It must still be opened
+                // for RocksDB to open the database at all; the version
+                // mismatch wipes the whole database afterwards.
+                opt_cfs.push((cf_name.clone(), rocksdb::Options::default()));
+            }
+        }
+        let opt_cfs: Vec<(&str, rocksdb::Options)> = opt_cfs
+            .iter()
+            .map(|(name, options)| (name.as_str(), options.clone()))
+            .collect();
+        let db = open_cf_opts(
+            path,
+            Some(db_options.options.clone()),
             MetricConf::new("index"),
-            Some(db_options.options),
-            Some(table_options),
+            &opt_cfs,
         )
+        .expect("unable to open the JSON-RPC index database");
+
+        fn map<K, V>(db: &Arc<Database>, cf_name: &str, rw: &ReadWriteOptions) -> DBMap<K, V> {
+            DBMap::reopen(db, Some(cf_name), rw, false)
+                .unwrap_or_else(|e| panic!("cannot open the {cf_name} column family: {e}"))
+        }
+        let tables = IndexStoreTables {
+            meta: map(&db, "meta", &db_options.rw_options),
+            watermark: map(&db, "watermark", &db_options.rw_options),
+            history_watermark: map(&db, "history_watermark", &db_options.rw_options),
+            owner_index: map(&db, "owner_index", &db_options.rw_options),
+            coin_index: map(&db, "coin_index", &coin_options.rw_options),
+            dynamic_field_index: map(&db, "dynamic_field_index", &db_options.rw_options),
+        };
+
+        let mut history = BTreeMap::new();
+        for epoch in epochs {
+            let bucket =
+                HistoryBucket::reopen(&db, epoch).expect("unable to open a history column family");
+            history.insert(epoch, Arc::new(bucket));
+        }
+
+        OpenedIndexDb {
+            tables,
+            db,
+            history_cf_options,
+            history,
+        }
+    }
+
+    /// The retained history buckets in scan order: ascending epochs for
+    /// forward scans, descending for reverse scans. Buckets are disjoint,
+    /// epoch-ordered segments of the global sequence order, so chaining
+    /// per-bucket scans in this order preserves it.
+    fn history_buckets(&self, reverse: bool) -> Vec<Arc<HistoryBucket>> {
+        let history = self.history.read();
+        if reverse {
+            history.values().rev().cloned().collect()
+        } else {
+            history.values().cloned().collect()
+        }
+    }
+
+    /// The bucket holding `epoch`'s history, created if absent.
+    fn ensure_history_bucket(&self, epoch: EpochId) -> IotaResult<Arc<HistoryBucket>> {
+        if let Some(bucket) = self.history.read().get(&epoch) {
+            return Ok(bucket.clone());
+        }
+        let mut history = self.history.write();
+        if let Some(bucket) = history.get(&epoch) {
+            return Ok(bucket.clone());
+        }
+        let cf_name = history_cf_name(epoch);
+        // The column family may already exist if a previous run crashed
+        // between `create_cf` and the first batch write.
+        if self.db.cf_handle(&cf_name).is_none() {
+            self.db
+                .create_cf(&cf_name, &self.history_cf_options)
+                .map_err(|e| IotaError::Storage(e.to_string()))?;
+        }
+        let bucket = Arc::new(HistoryBucket::reopen(&self.db, epoch)?);
+        history.insert(epoch, bucket.clone());
+        Ok(bucket)
+    }
+
+    /// Drops the history of epochs past the retention horizon: with
+    /// `epochs_to_retain` = N, the buckets of the newest N epochs are kept
+    /// and every older bucket is dropped wholesale — one constant-time
+    /// column-family drop each, with no per-row deletes and no compaction
+    /// churn. Returns the earliest retained epoch.
+    ///
+    /// A query racing a drop may report an error for the dropped epoch's
+    /// rows; a retry no longer sees the bucket.
+    pub fn prune(&self, epochs_to_retain: u64) -> IotaResult<Option<EpochId>> {
+        let (expired, earliest_retained) = {
+            let mut history = self.history.write();
+            let Some((&newest, _)) = history.last_key_value() else {
+                return Ok(None);
+            };
+            let earliest_retained = newest.saturating_sub(epochs_to_retain.saturating_sub(1));
+            let expired: Vec<EpochId> = history
+                .range(..earliest_retained)
+                .map(|(&e, _)| e)
+                .collect();
+            history.retain(|&epoch, _| epoch >= earliest_retained);
+            (expired, earliest_retained)
+        };
+        for epoch in expired {
+            info!(
+                epoch,
+                "dropping the JSON-RPC index history of an expired epoch"
+            );
+            self.db
+                .drop_cf(&history_cf_name(epoch))
+                .map_err(|e| IotaError::Storage(e.to_string()))?;
+        }
+        Ok(Some(earliest_retained))
     }
 
     pub fn tables(&self) -> &IndexStoreTables {
@@ -1623,15 +1703,18 @@ impl IndexStore {
     pub fn index_checkpoint(&self, checkpoint: &CheckpointData, index_coins: bool) -> IotaResult {
         let checkpoint_seq = checkpoint.checkpoint_summary.sequence_number;
         let timestamp_ms = checkpoint.checkpoint_summary.timestamp_ms;
+        let bucket = self.ensure_history_bucket(checkpoint.checkpoint_summary.epoch)?;
 
         let digests: Vec<_> = checkpoint
             .transactions
             .iter()
             .map(|tx| *tx.effects.transaction_digest())
             .collect();
-        let already_indexed = self.tables.transactions_seq.multi_get(&digests)?;
+        // A replayed checkpoint's transactions were indexed into the same
+        // epoch's bucket, so only that bucket needs to be consulted.
+        let already_indexed = bucket.transactions_seq.multi_get(&digests)?;
 
-        let mut batch = self.tables.transactions_from_addr.batch();
+        let mut batch = self.tables.watermark.batch();
         let mut coin_changes = BTreeMap::new();
         for (tx, indexed_seq) in checkpoint.transactions.iter().zip(already_indexed) {
             if indexed_seq.is_some() {
@@ -1640,8 +1723,7 @@ impl IndexStore {
             let data = transaction_index_data(&tx.transaction, &tx.effects, tx.events.as_ref())?;
             let digest = data.digest;
             let sequence = self.next_sequence_number.fetch_add(1, Ordering::SeqCst);
-            self.tables
-                .index_tx(&mut batch, sequence, timestamp_ms, data)?;
+            bucket.index_tx(&mut batch, sequence, timestamp_ms, data)?;
 
             let object_index_changes = process_object_index(tx);
             let tx_coins = index_coins.then(|| transaction_coins(tx));
@@ -1837,57 +1919,65 @@ impl IndexStore {
                 error: UserInputError::Unsupported(format!("{filter:?}")),
             }),
             None => {
-                if reverse {
-                    let iter = self
-                        .tables
-                        .transaction_order
-                        .safe_range_iter_reversed(..=cursor.unwrap_or(TxSequenceNumber::MAX))
-                        .skip(usize::from(cursor.is_some()))
-                        .map(|result| result.map(|(_, digest)| digest));
-                    if let Some(limit) = limit {
-                        Ok(iter.take(limit).collect::<Result<Vec<_>, _>>()?)
-                    } else {
-                        Ok(iter.collect::<Result<Vec<_>, _>>()?)
+                let Some((lower, upper)) = sequence_bounds_after_cursor(cursor, reverse) else {
+                    return Ok(vec![]);
+                };
+                let mut results = Vec::new();
+                for bucket in self.history_buckets(reverse) {
+                    if limit.is_some_and(|l| results.len() >= l) {
+                        break;
                     }
-                } else {
-                    let iter = self
-                        .tables
-                        .transaction_order
-                        .safe_iter_with_bounds(Some(cursor.unwrap_or(TxSequenceNumber::MIN)), None)
-                        .skip(usize::from(cursor.is_some()))
-                        .map(|result| result.map(|(_, digest)| digest));
-                    if let Some(limit) = limit {
-                        Ok(iter.take(limit).collect::<Result<Vec<_>, _>>()?)
+                    let remaining = limit.map(|l| l - results.len());
+                    let iter = if reverse {
+                        Either::Left(bucket.transaction_order.range_iter_reversed(lower, upper))
                     } else {
-                        Ok(iter.collect::<Result<Vec<_>, _>>()?)
-                    }
+                        Either::Right(bucket.transaction_order.range_iter(lower, upper))
+                    };
+                    let page: Vec<_> = iter
+                        .take(remaining.unwrap_or(usize::MAX))
+                        .map(|result| result.map(|(_, digest)| digest))
+                        .collect::<Result<_, _>>()?;
+                    results.extend(page);
                 }
+                Ok(results)
             }
         }
     }
 
-    fn get_transactions_from_index<KeyT: Clone + Serialize + DeserializeOwned + PartialEq>(
-        index: &DBMap<(KeyT, TxSequenceNumber), TransactionDigest>,
+    fn get_transactions_from_index<KeyT: Clone + Serialize + DeserializeOwned>(
+        &self,
+        select: impl Fn(&HistoryBucket) -> &TaggedDBMap<(KeyT, TxSequenceNumber), TransactionDigest>,
         key: KeyT,
         cursor: Option<TxSequenceNumber>,
         limit: Option<usize>,
         reverse: bool,
     ) -> IotaResult<Vec<TransactionDigest>> {
-        let iter = if reverse {
-            Either::Left(index.safe_range_iter_reversed(
-                ..=(key.clone(), cursor.unwrap_or(TxSequenceNumber::MAX)),
-            ))
-        } else {
-            Either::Right(index.safe_iter_with_bounds(
-                Some((key.clone(), cursor.unwrap_or(TxSequenceNumber::MIN))),
-                None,
-            ))
+        // The cursor is exclusive. Applying it through the scan bounds (rather
+        // than by skipping the first row) makes it compose across buckets:
+        // every bucket gets the same bounds, and only the bucket containing
+        // the cursor's sequence range yields adjacent rows.
+        let Some((lower, upper)) = sequence_bounds_after_cursor(cursor, reverse) else {
+            return Ok(vec![]);
         };
-        iter
-            // skip one more if exclusive cursor is Some
-            .skip(usize::from(cursor.is_some()))
-            .try_take_map_while_and_collect(limit, |((id, _), _)| *id == key, |(_, digest)| digest)
-            .map_err(Into::into)
+        let mut results = Vec::new();
+        for bucket in self.history_buckets(reverse) {
+            if limit.is_some_and(|l| results.len() >= l) {
+                break;
+            }
+            let remaining = limit.map(|l| l - results.len());
+            let index = select(&bucket);
+            let iter = if reverse {
+                Either::Left(index.range_iter_reversed((key.clone(), lower), (key.clone(), upper)))
+            } else {
+                Either::Right(index.range_iter((key.clone(), lower), (key.clone(), upper)))
+            };
+            let page: Vec<_> = iter
+                .take(remaining.unwrap_or(usize::MAX))
+                .map(|result| result.map(|(_, digest)| digest))
+                .collect::<Result<_, _>>()?;
+            results.extend(page);
+        }
+        Ok(results)
     }
 
     pub fn get_transactions_by_input_object(
@@ -1897,8 +1987,8 @@ impl IndexStore {
         limit: Option<usize>,
         reverse: bool,
     ) -> IotaResult<Vec<TransactionDigest>> {
-        Self::get_transactions_from_index(
-            &self.tables.transactions_by_input_object_id,
+        self.get_transactions_from_index(
+            |bucket| &bucket.transactions_by_input_object_id,
             input_object,
             cursor,
             limit,
@@ -1913,8 +2003,8 @@ impl IndexStore {
         limit: Option<usize>,
         reverse: bool,
     ) -> IotaResult<Vec<TransactionDigest>> {
-        Self::get_transactions_from_index(
-            &self.tables.transactions_by_mutated_object_id,
+        self.get_transactions_from_index(
+            |bucket| &bucket.transactions_by_mutated_object_id,
             mutated_object,
             cursor,
             limit,
@@ -1929,8 +2019,8 @@ impl IndexStore {
         limit: Option<usize>,
         reverse: bool,
     ) -> IotaResult<Vec<TransactionDigest>> {
-        Self::get_transactions_from_index(
-            &self.tables.transactions_from_addr,
+        self.get_transactions_from_index(
+            |bucket| &bucket.transactions_from_addr,
             addr,
             cursor,
             limit,
@@ -1965,51 +2055,47 @@ impl IndexStore {
             });
         }
 
-        let cursor_val = cursor.unwrap_or(if reverse {
-            TxSequenceNumber::MAX
-        } else {
-            TxSequenceNumber::MIN
-        });
-
-        let max_string = "z".repeat(self.max_type_length.try_into().unwrap());
-        let module_val = module.clone().unwrap_or(if reverse {
-            max_string.clone()
-        } else {
-            "".to_string()
-        });
-
-        let function_val =
-            function
-                .clone()
-                .unwrap_or(if reverse { max_string } else { "".to_string() });
-
-        let key = (package, module_val, function_val, cursor_val);
-        let iter = if reverse {
-            Either::Left(
-                self.tables
-                    .transactions_by_move_function
-                    .safe_range_iter_reversed(..=key),
-            )
-        } else {
-            Either::Right(
-                self.tables
-                    .transactions_by_move_function
-                    .safe_iter_with_bounds(Some(key), None),
-            )
+        let Some((lower, upper)) = sequence_bounds_after_cursor(cursor, reverse) else {
+            return Ok(vec![]);
         };
-        iter
-            // skip one more if exclusive cursor is Some
-            .skip(usize::from(cursor.is_some()))
-            .try_take_map_while_and_collect(
-                limit,
-                |((id, m, f, _), _)| {
-                    *id == package
-                        && module.as_ref().map(|x| x == m).unwrap_or(true)
-                        && function.as_ref().map(|x| x == f).unwrap_or(true)
-                },
-                |(_, digest)| digest,
-            )
-            .map_err(Into::into)
+
+        // An unset module or function spans its whole range: identifiers are
+        // at most `max_type_length` characters from an alphabet that sorts
+        // at or below `z`.
+        let max_string = "z".repeat(self.max_type_length.try_into().unwrap());
+        let module_lower = module.clone().unwrap_or_default();
+        let module_upper = module.unwrap_or_else(|| max_string.clone());
+        let function_lower = function.clone().unwrap_or_default();
+        let function_upper = function.unwrap_or(max_string);
+        let lower_key = (package, module_lower, function_lower, lower);
+        let upper_key = (package, module_upper, function_upper, upper);
+
+        let mut results = Vec::new();
+        for bucket in self.history_buckets(reverse) {
+            if limit.is_some_and(|l| results.len() >= l) {
+                break;
+            }
+            let remaining = limit.map(|l| l - results.len());
+            let iter = if reverse {
+                Either::Left(
+                    bucket
+                        .transactions_by_move_function
+                        .range_iter_reversed(lower_key.clone(), upper_key.clone()),
+                )
+            } else {
+                Either::Right(
+                    bucket
+                        .transactions_by_move_function
+                        .range_iter(lower_key.clone(), upper_key.clone()),
+                )
+            };
+            let page: Vec<_> = iter
+                .take(remaining.unwrap_or(usize::MAX))
+                .map(|result| result.map(|(_, digest)| digest))
+                .collect::<Result<_, _>>()?;
+            results.extend(page);
+        }
+        Ok(results)
     }
 
     pub fn get_transactions_to_addr(
@@ -2019,8 +2105,8 @@ impl IndexStore {
         limit: Option<usize>,
         reverse: bool,
     ) -> IotaResult<Vec<TransactionDigest>> {
-        Self::get_transactions_from_index(
-            &self.tables.transactions_to_addr,
+        self.get_transactions_from_index(
+            |bucket| &bucket.transactions_to_addr,
             addr,
             cursor,
             limit,
@@ -2032,7 +2118,14 @@ impl IndexStore {
         &self,
         digest: &TransactionDigest,
     ) -> IotaResult<Option<TxSequenceNumber>> {
-        Ok(self.tables.transactions_seq.get(digest)?)
+        // An exact-key probe over the buckets, newest first; a miss in a
+        // sealed bucket is answered by its in-memory bloom filters.
+        for bucket in self.history_buckets(true) {
+            if let Some(seq) = bucket.transactions_seq.get(digest)? {
+                return Ok(Some(seq));
+            }
+        }
+        Ok(None)
     }
 
     pub fn all_events(
@@ -2042,29 +2135,36 @@ impl IndexStore {
         limit: usize,
         descending: bool,
     ) -> IotaResult<Vec<(TransactionEventsDigest, TransactionDigest, usize, u64)>> {
-        Ok(if descending {
-            self.tables
-                .event_order
-                .safe_range_iter_reversed(..=(tx_seq, event_seq))
-                .take(limit)
+        let mut results = Vec::new();
+        for bucket in self.history_buckets(descending) {
+            if results.len() >= limit {
+                break;
+            }
+            let remaining = limit - results.len();
+            let iter = if descending {
+                Either::Left(
+                    bucket
+                        .event_order
+                        .range_iter_reversed((TxSequenceNumber::MIN, 0), (tx_seq, event_seq)),
+                )
+            } else {
+                Either::Right(
+                    bucket
+                        .event_order
+                        .range_iter((tx_seq, event_seq), (TxSequenceNumber::MAX, usize::MAX)),
+                )
+            };
+            let page: Vec<_> = iter
+                .take(remaining)
                 .map(|result| {
                     result.map(|((_, event_seq), (digest, tx_digest, time))| {
                         (digest, tx_digest, event_seq, time)
                     })
                 })
-                .collect::<Result<Vec<_>, _>>()?
-        } else {
-            self.tables
-                .event_order
-                .safe_iter_with_bounds(Some((tx_seq, event_seq)), None)
-                .take(limit)
-                .map(|result| {
-                    result.map(|((_, event_seq), (digest, tx_digest, time))| {
-                        (digest, tx_digest, event_seq, time)
-                    })
-                })
-                .collect::<Result<Vec<_>, _>>()?
-        })
+                .collect::<Result<_, _>>()?;
+            results.extend(page);
+        }
+        Ok(results)
     }
 
     pub fn events_by_transaction(
@@ -2078,48 +2178,81 @@ impl IndexStore {
         let seq = self
             .get_transaction_seq(digest)?
             .ok_or(IotaError::TransactionNotFound { digest: *digest })?;
-        let iter = if descending {
-            Either::Left(
-                self.tables
-                    .event_order
-                    .safe_range_iter_reversed(..=(min(tx_seq, seq), event_seq)),
-            )
-        } else {
-            Either::Right(
-                self.tables
-                    .event_order
-                    .safe_iter_with_bounds(Some((max(tx_seq, seq), event_seq)), None),
-            )
-        };
-        iter.try_take_map_while_and_collect(
-            Some(limit),
-            |((tx, _), _)| tx == &seq,
-            |((_, event_seq), (digest, tx_digest, time))| (digest, tx_digest, event_seq, time),
-        )
-        .map_err(Into::into)
+        let mut results = Vec::new();
+        for bucket in self.history_buckets(descending) {
+            if results.len() >= limit {
+                break;
+            }
+            let remaining = limit - results.len();
+            let iter = if descending {
+                Either::Left(
+                    bucket
+                        .event_order
+                        .range_iter_reversed((seq, 0), (min(tx_seq, seq), event_seq)),
+                )
+            } else {
+                Either::Right(
+                    bucket
+                        .event_order
+                        .range_iter((max(tx_seq, seq), event_seq), (seq, usize::MAX)),
+                )
+            };
+            let page: Vec<_> = iter
+                .take(remaining)
+                .map(|result| {
+                    result.map(|((_, event_seq), (digest, tx_digest, time))| {
+                        (digest, tx_digest, event_seq, time)
+                    })
+                })
+                .collect::<Result<_, _>>()?;
+            results.extend(page);
+        }
+        Ok(results)
     }
 
-    fn get_event_from_index<KeyT: Clone + PartialEq + Serialize + DeserializeOwned>(
-        index: &DBMap<(KeyT, EventId), (TransactionEventsDigest, TransactionDigest, u64)>,
+    fn get_event_from_index<KeyT: Clone + Serialize + DeserializeOwned>(
+        &self,
+        select: impl Fn(
+            &HistoryBucket,
+        ) -> &TaggedDBMap<
+            (KeyT, EventId),
+            (TransactionEventsDigest, TransactionDigest, u64),
+        >,
         key: &KeyT,
         tx_seq: TxSequenceNumber,
         event_seq: usize,
         limit: usize,
         descending: bool,
     ) -> IotaResult<Vec<(TransactionEventsDigest, TransactionDigest, usize, u64)>> {
-        let iter = if descending {
-            Either::Left(index.safe_range_iter_reversed(..=(key.clone(), (tx_seq, event_seq))))
-        } else {
-            Either::Right(
-                index.safe_iter_with_bounds(Some((key.clone(), (tx_seq, event_seq))), None),
-            )
-        };
-        iter.try_take_map_while_and_collect(
-            Some(limit),
-            |((m, _), _)| m == key,
-            |((_, (_, event_seq)), (digest, tx_digest, time))| (digest, tx_digest, event_seq, time),
-        )
-        .map_err(Into::into)
+        let mut results = Vec::new();
+        for bucket in self.history_buckets(descending) {
+            if results.len() >= limit {
+                break;
+            }
+            let remaining = limit - results.len();
+            let index = select(&bucket);
+            let iter = if descending {
+                Either::Left(index.range_iter_reversed(
+                    (key.clone(), (TxSequenceNumber::MIN, 0)),
+                    (key.clone(), (tx_seq, event_seq)),
+                ))
+            } else {
+                Either::Right(index.range_iter(
+                    (key.clone(), (tx_seq, event_seq)),
+                    (key.clone(), (TxSequenceNumber::MAX, usize::MAX)),
+                ))
+            };
+            let page: Vec<_> = iter
+                .take(remaining)
+                .map(|result| {
+                    result.map(|((_, (_, event_seq)), (digest, tx_digest, time))| {
+                        (digest, tx_digest, event_seq, time)
+                    })
+                })
+                .collect::<Result<_, _>>()?;
+            results.extend(page);
+        }
+        Ok(results)
     }
 
     pub fn events_by_module_id(
@@ -2130,8 +2263,8 @@ impl IndexStore {
         limit: usize,
         descending: bool,
     ) -> IotaResult<Vec<(TransactionEventsDigest, TransactionDigest, usize, u64)>> {
-        Self::get_event_from_index(
-            &self.tables.event_by_move_module,
+        self.get_event_from_index(
+            |bucket| &bucket.event_by_move_module,
             module,
             tx_seq,
             event_seq,
@@ -2148,8 +2281,8 @@ impl IndexStore {
         limit: usize,
         descending: bool,
     ) -> IotaResult<Vec<(TransactionEventsDigest, TransactionDigest, usize, u64)>> {
-        Self::get_event_from_index(
-            &self.tables.event_by_move_event,
+        self.get_event_from_index(
+            |bucket| &bucket.event_by_move_event,
             struct_name,
             tx_seq,
             event_seq,
@@ -2166,8 +2299,8 @@ impl IndexStore {
         limit: usize,
         descending: bool,
     ) -> IotaResult<Vec<(TransactionEventsDigest, TransactionDigest, usize, u64)>> {
-        Self::get_event_from_index(
-            &self.tables.event_by_event_module,
+        self.get_event_from_index(
+            |bucket| &bucket.event_by_event_module,
             module_id,
             tx_seq,
             event_seq,
@@ -2184,8 +2317,8 @@ impl IndexStore {
         limit: usize,
         descending: bool,
     ) -> IotaResult<Vec<(TransactionEventsDigest, TransactionDigest, usize, u64)>> {
-        Self::get_event_from_index(
-            &self.tables.event_by_sender,
+        self.get_event_from_index(
+            |bucket| &bucket.event_by_sender,
             sender,
             tx_seq,
             event_seq,
@@ -2203,59 +2336,36 @@ impl IndexStore {
         limit: usize,
         descending: bool,
     ) -> IotaResult<Vec<(TransactionEventsDigest, TransactionDigest, usize, u64)>> {
-        if descending {
-            self.tables
-                .event_by_time
-                .safe_range_iter_reversed(..=(end_time, (tx_seq, event_seq)))
-                .try_take_map_while_and_collect(
-                    Some(limit),
-                    |((m, _), _)| m >= &start_time,
-                    |((_, (_, event_seq)), (digest, tx_digest, time))| {
-                        (digest, tx_digest, event_seq, time)
-                    },
-                )
-                .map_err(Into::into)
-        } else {
-            self.tables
-                .event_by_time
-                .safe_iter_with_bounds(Some((start_time, (tx_seq, event_seq))), None)
-                .try_take_map_while_and_collect(
-                    Some(limit),
-                    |((m, _), _)| m <= &end_time,
-                    |((_, (_, event_seq)), (digest, tx_digest, time))| {
-                        (digest, tx_digest, event_seq, time)
-                    },
-                )
-                .map_err(Into::into)
-        }
-    }
-
-    pub fn prune(&self, cut_time_ms: u64) -> IotaResult<TxSequenceNumber> {
-        match self
-            .tables
-            .event_by_time
-            .safe_range_iter_reversed(..=(cut_time_ms, (TxSequenceNumber::MAX, usize::MAX)))
-            .next()
-            .transpose()?
-        {
-            Some(((_, (watermark, _)), _)) => {
-                if let Some(digest) = self.tables.transaction_order.get(&watermark)? {
-                    info!(
-                        "json rpc index pruning. Watermark is {} with digest {}",
-                        watermark, digest
-                    );
-                }
-                self.pruner_watermark.store(watermark, Ordering::Relaxed);
-                self.tables.pruner_watermark.insert(&(), &watermark)?;
-                Ok(watermark)
+        let mut results = Vec::new();
+        for bucket in self.history_buckets(descending) {
+            if results.len() >= limit {
+                break;
             }
-            None => Ok(0),
+            let remaining = limit - results.len();
+            let iter = if descending {
+                Either::Left(bucket.event_by_time.range_iter_reversed(
+                    (start_time, (TxSequenceNumber::MIN, 0)),
+                    (end_time, (tx_seq, event_seq)),
+                ))
+            } else {
+                Either::Right(bucket.event_by_time.range_iter(
+                    (start_time, (tx_seq, event_seq)),
+                    (end_time, (TxSequenceNumber::MAX, usize::MAX)),
+                ))
+            };
+            let page: Vec<_> = iter
+                .take(remaining)
+                .map(|result| {
+                    result.map(|((_, (_, event_seq)), (digest, tx_digest, time))| {
+                        (digest, tx_digest, event_seq, time)
+                    })
+                })
+                .collect::<Result<_, _>>()?;
+            results.extend(page);
         }
+        Ok(results)
     }
 
-    /// Ids of the `Field` objects of the dynamic fields under `object`, in
-    /// id order. Field metadata is resolved from the object store by the
-    /// caller; the index stores only the keys.
     pub fn get_dynamic_field_ids_iterator(
         &self,
         object: ObjectId,
@@ -2384,10 +2494,7 @@ impl IndexStore {
 
     pub fn checkpoint_db(&self, path: &Path) -> IotaResult {
         // We are checkpointing the whole db
-        self.tables
-            .transactions_from_addr
-            .checkpoint_db(path)
-            .map_err(Into::into)
+        self.tables.meta.checkpoint_db(path).map_err(Into::into)
     }
 
     /// This method first gets the balance from `per_coin_type_balance` cache.
@@ -2790,16 +2897,16 @@ mod tests {
             &Registry::default(),
             Some(128),
         );
-        let digest = iota_sdk_types::TransactionDigest::random();
+        let owner = iota_types::base_types::dbg_addr(1);
+        let object =
+            iota_types::object::Object::with_id_owner_for_testing(ObjectId::random(), owner);
         index_store
             .tables
-            .transaction_order
-            .insert(&0, &digest)
-            .unwrap();
-        index_store
-            .tables
-            .transactions_seq
-            .insert(&digest, &0)
+            .owner_index
+            .insert(
+                &(owner, object.id()),
+                &iota_types::base_types::ObjectInfo::from_object(&object),
+            )
             .unwrap();
 
         index_store.tables.seed_meta().unwrap();
@@ -2865,7 +2972,6 @@ mod tests {
             .insert(&(), &1)
             .unwrap();
         index_store
-            .tables
             .backfill_history(&authority_state.database_for_testing(), checkpoint_store)
             .unwrap();
         assert_eq!(
@@ -2938,7 +3044,7 @@ mod tests {
 
         // Plant a sentinel row: if it survives the open below, the store was
         // adopted rather than wiped and rebuilt into equal-looking data.
-        let sentinel = TransactionDigest::random();
+        let sentinel = (ObjectId::random(), ObjectId::random());
         {
             let built =
                 IndexStore::new_without_init(index_dir.clone(), &Registry::default(), Some(128));
@@ -2948,8 +3054,8 @@ mod tests {
             );
             built
                 .tables
-                .transactions_seq
-                .insert(&sentinel, &42)
+                .dynamic_field_index
+                .insert(&sentinel, &())
                 .unwrap();
             let weak_db = std::sync::Arc::downgrade(&built.tables.meta.db);
             drop(built);
@@ -2979,9 +3085,10 @@ mod tests {
         .await;
         index_store.wait_for_history_backfill_for_testing().await;
 
-        assert_eq!(
-            index_store.get_transaction_seq(&sentinel).unwrap(),
-            Some(42),
+        assert!(
+            index_store
+                .dynamic_field_exists(sentinel.0, sentinel.1)
+                .unwrap(),
             "the restored database must be opened in place, not rebuilt"
         );
 
@@ -3054,11 +3161,11 @@ mod tests {
         );
 
         // Poison the store and mark it as written by another schema version.
-        let poison_digest = iota_sdk_types::TransactionDigest::random();
+        let poison_field = (ObjectId::random(), ObjectId::random());
         index_store
             .tables
-            .transactions_seq
-            .insert(&poison_digest, &999)
+            .dynamic_field_index
+            .insert(&poison_field, &())
             .unwrap();
         index_store
             .tables
@@ -3088,9 +3195,10 @@ mod tests {
         .await;
         index_store.wait_for_history_backfill_for_testing().await;
 
-        assert_eq!(
-            index_store.get_transaction_seq(&poison_digest).unwrap(),
-            None,
+        assert!(
+            !index_store
+                .dynamic_field_exists(poison_field.0, poison_field.1)
+                .unwrap(),
             "stale rows must not survive the rebuild"
         );
         assert_eq!(
@@ -3260,6 +3368,156 @@ mod tests {
         Ok(())
     }
 
+    /// Checkpoints of different epochs land in separate history buckets:
+    /// queries and cursors chain across them in order, reopening rediscovers
+    /// the buckets from the column-family names, and pruning drops whole
+    /// epochs wholesale.
+    #[tokio::test]
+    async fn test_history_epoch_buckets_chain_and_prune() -> anyhow::Result<()> {
+        let tmp_dir = iota_common::tempdir();
+        let index_store = IndexStore::new_without_init(
+            tmp_dir.path().to_path_buf(),
+            &Registry::default(),
+            Some(128),
+        );
+
+        // One transaction in epoch 0, one in epoch 1.
+        let mut builder = TestCheckpointDataBuilder::new(0)
+            .with_epoch(0)
+            .start_transaction(0)
+            .create_coin_object(0, 1, 100, GAS::type_tag())
+            .finish_transaction();
+        let checkpoint_epoch_0 = builder.build_checkpoint();
+        let tx_0 = *checkpoint_epoch_0.transactions[0]
+            .effects
+            .transaction_digest();
+        index_store.index_checkpoint(&checkpoint_epoch_0, true)?;
+        index_store.commit_update_for_checkpoint(0)?;
+
+        let mut builder = builder
+            .with_epoch(1)
+            .start_transaction(1)
+            .create_coin_object(1, 1, 100, GAS::type_tag())
+            .finish_transaction();
+        let checkpoint_epoch_1 = builder.build_checkpoint();
+        let tx_1 = *checkpoint_epoch_1.transactions[0]
+            .effects
+            .transaction_digest();
+        index_store.index_checkpoint(&checkpoint_epoch_1, true)?;
+        index_store.commit_update_for_checkpoint(1)?;
+
+        // Forward and reverse iteration chain across the buckets in order.
+        assert_eq!(
+            index_store.get_transactions(None, None, None, false)?,
+            vec![tx_0, tx_1]
+        );
+        assert_eq!(
+            index_store.get_transactions(None, None, None, true)?,
+            vec![tx_1, tx_0]
+        );
+        // An exclusive cursor crosses the bucket boundary.
+        assert_eq!(
+            index_store.get_transactions(None, Some(tx_1), None, true)?,
+            vec![tx_0]
+        );
+        assert_eq!(
+            index_store.get_transactions(None, Some(tx_0), None, false)?,
+            vec![tx_1]
+        );
+
+        // Reopening rediscovers the buckets from the column-family names.
+        let weak_db = std::sync::Arc::downgrade(&index_store.tables.meta.db);
+        drop(index_store);
+        while weak_db.strong_count() != 0 {
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+        let index_store = IndexStore::new_without_init(
+            tmp_dir.path().to_path_buf(),
+            &Registry::default(),
+            Some(128),
+        );
+        assert_eq!(
+            index_store.get_transactions(None, None, None, false)?,
+            vec![tx_0, tx_1]
+        );
+
+        // Pruning to one retained epoch drops epoch 0's bucket wholesale,
+        // and pruning again is a no-op.
+        assert_eq!(index_store.prune(1)?, Some(1));
+        assert_eq!(index_store.get_transaction_seq(&tx_0)?, None);
+        assert_eq!(
+            index_store.get_transactions(None, None, None, false)?,
+            vec![tx_1]
+        );
+        assert_eq!(index_store.prune(1)?, Some(1));
+
+        // The dropped bucket stays gone after another reopen.
+        let weak_db = std::sync::Arc::downgrade(&index_store.tables.meta.db);
+        drop(index_store);
+        while weak_db.strong_count() != 0 {
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+        let index_store = IndexStore::new_without_init(
+            tmp_dir.path().to_path_buf(),
+            &Registry::default(),
+            Some(128),
+        );
+        assert_eq!(
+            index_store.get_transactions(None, None, None, false)?,
+            vec![tx_1]
+        );
+
+        Ok(())
+    }
+
+    /// Tables of one bucket share a column family, separated only by their
+    /// tag byte: a full-range scan of one table must not yield a neighboring
+    /// table's rows, whose bytes do not deserialize under its types.
+    #[tokio::test]
+    async fn test_history_tables_do_not_bleed_across_tags() {
+        use iota_sdk_types::TransactionDigest;
+
+        let tmp_dir = iota_common::tempdir();
+        let index_store = IndexStore::new_without_init(
+            tmp_dir.path().to_path_buf(),
+            &Registry::default(),
+            Some(128),
+        );
+        let bucket = index_store.ensure_history_bucket(0).unwrap();
+
+        let digest = TransactionDigest::random();
+        let mut batch = index_store.tables.meta.batch();
+        // Adjacent tags: `transaction_order` and `transactions_seq`.
+        bucket
+            .transaction_order
+            .insert_batch(&mut batch, [(7u64, digest)])
+            .unwrap();
+        bucket
+            .transactions_seq
+            .insert_batch(&mut batch, [(digest, 7u64)])
+            .unwrap();
+        batch.write().unwrap();
+
+        let rows: Vec<_> = bucket
+            .transaction_order
+            .range_iter(u64::MIN, u64::MAX)
+            .collect::<Result<_, _>>()
+            .unwrap();
+        assert_eq!(rows, vec![(7, digest)]);
+        let rows: Vec<_> = bucket
+            .transaction_order
+            .range_iter_reversed(u64::MIN, u64::MAX)
+            .collect::<Result<_, _>>()
+            .unwrap();
+        assert_eq!(rows, vec![(7, digest)]);
+        let rows: Vec<_> = bucket
+            .transactions_seq
+            .range_iter_reversed(TransactionDigest::ZERO, [0xff; 32].into())
+            .collect::<Result<_, _>>()
+            .unwrap();
+        assert_eq!(rows, vec![(digest, 7)]);
+    }
+
     #[tokio::test]
     async fn test_get_transaction_by_move_function() {
         let tmp_dir = iota_common::tempdir();
@@ -3268,47 +3526,53 @@ mod tests {
             &Registry::default(),
             Some(128),
         );
-        let db = &index_store.tables.transactions_by_move_function;
-        db.insert(
-            &(
-                ObjectId::new([1; 32]),
-                "mod".to_string(),
-                "f".to_string(),
-                0,
-            ),
-            &[0; 32].into(),
-        )
-        .unwrap();
-        db.insert(
-            &(
-                ObjectId::new([1; 32]),
-                "mod".to_string(),
-                "Z".repeat(128),
-                0,
-            ),
-            &[1; 32].into(),
-        )
-        .unwrap();
-        db.insert(
-            &(
-                ObjectId::new([1; 32]),
-                "mod".to_string(),
-                "f".repeat(128),
-                0,
-            ),
-            &[2; 32].into(),
-        )
-        .unwrap();
-        db.insert(
-            &(
-                ObjectId::new([1; 32]),
-                "mod".to_string(),
-                "z".repeat(128),
-                0,
-            ),
-            &[3; 32].into(),
-        )
-        .unwrap();
+        let bucket = index_store.ensure_history_bucket(0).unwrap();
+        let mut batch = index_store.tables.meta.batch();
+        bucket
+            .transactions_by_move_function
+            .insert_batch(
+                &mut batch,
+                [
+                    (
+                        (
+                            ObjectId::new([1; 32]),
+                            "mod".to_string(),
+                            "f".to_string(),
+                            0,
+                        ),
+                        [0; 32].into(),
+                    ),
+                    (
+                        (
+                            ObjectId::new([1; 32]),
+                            "mod".to_string(),
+                            "Z".repeat(128),
+                            0,
+                        ),
+                        [1; 32].into(),
+                    ),
+                    (
+                        (
+                            ObjectId::new([1; 32]),
+                            "mod".to_string(),
+                            "f".repeat(128),
+                            0,
+                        ),
+                        [2; 32].into(),
+                    ),
+                    (
+                        (
+                            ObjectId::new([1; 32]),
+                            "mod".to_string(),
+                            "z".repeat(128),
+                            0,
+                        ),
+                        [3; 32].into(),
+                    ),
+                ],
+            )
+            .unwrap();
+        batch.write().unwrap();
 
         let mut v = index_store
             .get_transactions_by_move_function(
