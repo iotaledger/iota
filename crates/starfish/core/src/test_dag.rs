@@ -9,12 +9,14 @@ use rand::{Rng, SeedableRng, rngs::StdRng};
 use starfish_config::AuthorityIndex;
 
 use crate::{
+    authority_set::AuthoritySet,
     block_header::{
-        BlockRef, BlockTimestampMs, Round, TestBlockHeader, VerifiedBlockHeader,
-        genesis_block_headers,
+        BlockRef, BlockTimestampMs, GENESIS_ROUND, Round, StrongVote, TestBlockHeader,
+        TestBlockHeaderVersion, VerifiedBlockHeader, genesis_block_headers,
     },
     context::Context,
     dag_state::{DagState, DataSource},
+    leader_schedule::{LeaderSchedule, LeaderSwapTable},
     test_dag_builder::DagBuilder,
 };
 
@@ -47,6 +49,7 @@ pub(crate) fn build_dag(
 
     let num_authorities = context.committee.size();
     let starting_round = ancestors.first().unwrap().round + 1;
+    let leader_schedule = LeaderSchedule::new(context.clone(), LeaderSwapTable::default());
     for round in starting_round..=stop {
         let (references, blocks): (Vec<_>, Vec<_>) = context
             .committee
@@ -59,8 +62,15 @@ pub(crate) fn build_dag(
                     + author_idx as BlockTimestampMs;
                 let block = VerifiedBlockHeader::new_for_test(
                     TestBlockHeader::new(round, author_idx)
+                        .set_version(TestBlockHeaderVersion::from_context(&context))
                         .set_timestamp_ms(ts)
                         .set_ancestors(ancestors.clone())
+                        .set_strong_vote(strong_blame_for_leader(
+                            &context,
+                            &leader_schedule,
+                            round,
+                            &ancestors,
+                        ))
                         .build(),
                 );
 
@@ -78,17 +88,26 @@ pub(crate) fn build_dag(
 
 // TODO: Add layer_round as input parameter so ancestors can be from any round.
 pub(crate) fn build_dag_layer(
+    context: &Arc<Context>,
     // A list of (authority, parents) pairs. For each authority, we add a block
     // linking to the specified parents.
     connections: Vec<(AuthorityIndex, Vec<BlockRef>)>,
     dag_state: Arc<RwLock<DagState>>,
 ) -> Vec<BlockRef> {
+    let leader_schedule = LeaderSchedule::new(context.clone(), LeaderSwapTable::default());
     let mut references = Vec::new();
     for (authority, ancestors) in connections {
         let round = ancestors.first().unwrap().round + 1;
         let author = authority.value() as u8;
         let block = VerifiedBlockHeader::new_for_test(
             TestBlockHeader::new(round, author)
+                .set_version(TestBlockHeaderVersion::from_context(context))
+                .set_strong_vote(strong_blame_for_leader(
+                    context,
+                    &leader_schedule,
+                    round,
+                    &ancestors,
+                ))
                 .set_ancestors(ancestors)
                 .build(),
         );
@@ -98,6 +117,37 @@ pub(crate) fn build_dag_layer(
             .accept_block_header(block, DataSource::Test);
     }
     references
+}
+
+/// The strong vote for a block at `round` linking `ancestors`. Blocks built
+/// here acknowledge no transactions, so the vote on the leader at `round - 1`
+/// is always a blame. `None` when the block does not link the leader, since an
+/// author that has not seen the leader block cannot vote on it, and `None`
+/// while `consensus_starfish_speed` is off, where headers are V1.
+fn strong_blame_for_leader(
+    context: &Context,
+    leader_schedule: &LeaderSchedule,
+    round: Round,
+    ancestors: &[BlockRef],
+) -> Option<StrongVote> {
+    if !context.protocol_config.consensus_starfish_speed() {
+        return None;
+    }
+    let leader_round = round - 1;
+    let leader_authority = leader_schedule.elect_leader(leader_round, 0);
+    if leader_round != GENESIS_ROUND
+        && !ancestors
+            .iter()
+            .any(|r| r.round == leader_round && r.author == leader_authority)
+    {
+        return None;
+    }
+    let mut missing = AuthoritySet::new();
+    missing.insert(leader_authority);
+    Some(StrongVote {
+        leader_authority,
+        missing,
+    })
 }
 
 pub(crate) fn create_random_dag(

@@ -216,7 +216,7 @@ async fn direct_skip_no_leader() {
         .filter(|&authority| authority.0 != leader_pipeline_1_wave_0)
         .map(|authority| (authority.0, genesis.clone()))
         .collect::<Vec<_>>();
-    let references = build_dag_layer(connections, dag_state.clone());
+    let references = build_dag_layer(&context, connections, dag_state.clone());
 
     let decision_round_pipeline_1_wave_0 = committer.committers[1].certifying_round(0);
     build_dag(
@@ -272,7 +272,7 @@ async fn direct_skip_enough_blame() {
         .map(|authority| (authority.0, references_without_leader_1.clone()))
         .collect();
     let references_without_votes_for_leader_1 =
-        build_dag_layer(connections_without_leader_1, dag_state.clone());
+        build_dag_layer(&context, connections_without_leader_1, dag_state.clone());
 
     // one vote for that leader
     let connections_with_leader_1 = context
@@ -282,7 +282,7 @@ async fn direct_skip_enough_blame() {
         .map(|authority| (authority.0, references_round_1.clone()))
         .collect();
     let references_with_votes_for_leader_1 =
-        build_dag_layer(connections_with_leader_1, dag_state.clone());
+        build_dag_layer(&context, connections_with_leader_1, dag_state.clone());
 
     let references: Vec<_> = references_without_votes_for_leader_1
         .into_iter()
@@ -352,7 +352,7 @@ async fn indirect_commit() {
         .map(|authority| (authority.0, references_round_1.clone()))
         .collect();
     let references_with_votes_for_leader_1 =
-        build_dag_layer(connections_with_leader_1, dag_state.clone());
+        build_dag_layer(&context, connections_with_leader_1, dag_state.clone());
 
     let connections_without_leader_1 = context
         .committee
@@ -361,7 +361,7 @@ async fn indirect_commit() {
         .map(|authority| (authority.0, references_without_leader_1.clone()))
         .collect();
     let references_without_votes_for_leader_1 =
-        build_dag_layer(connections_without_leader_1, dag_state.clone());
+        build_dag_layer(&context, connections_without_leader_1, dag_state.clone());
 
     // Only f+1 validators certify that leader.
     let mut references_round_3 = Vec::new();
@@ -373,6 +373,7 @@ async fn indirect_commit() {
         .map(|authority| (authority.0, references_with_votes_for_leader_1.clone()))
         .collect::<Vec<_>>();
     references_round_3.extend(build_dag_layer(
+        &context,
         connections_with_votes_for_leader_1,
         dag_state.clone(),
     ));
@@ -389,6 +390,7 @@ async fn indirect_commit() {
         .map(|authority| (authority.0, references.clone()))
         .collect::<Vec<_>>();
     references_round_3.extend(build_dag_layer(
+        &context,
         connections_without_votes_for_leader_1,
         dag_state.clone(),
     ));
@@ -460,6 +462,7 @@ async fn indirect_skip() {
         .map(|authority| (authority.0, references_round_4.clone()))
         .collect::<Vec<_>>();
     references_round_5.extend(build_dag_layer(
+        &context,
         connections_with_leader_4,
         dag_state.clone(),
     ));
@@ -471,6 +474,7 @@ async fn indirect_skip() {
         .map(|authority| (authority.0, references_without_leader_4.clone()))
         .collect();
     references_round_5.extend(build_dag_layer(
+        &context,
         connections_without_leader_4,
         dag_state.clone(),
     ));
@@ -555,7 +559,7 @@ async fn undecided() {
         .into_iter()
         .chain(non_leader_connections)
         .collect::<Vec<_>>();
-    let references_voting_round_1 = build_dag_layer(connections, dag_state.clone());
+    let references_voting_round_1 = build_dag_layer(&context, connections, dag_state.clone());
 
     // Add enough blocks to reach the first decision round
     let decision_round_1 = committer.committers[1].certifying_round(0);

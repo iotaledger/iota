@@ -247,7 +247,7 @@ async fn direct_skip_no_leader_votes() {
     let first_leader = AuthorityIndex::new_for_test(1);
     let first_round = 1 as Round;
 
-    let dag_builder = parse_dag(dag_str).expect("Invalid dag");
+    let dag_builder = parse_dag(dag_str, false).expect("Invalid dag");
     let dag_state = Arc::new(RwLock::new(DagState::new(
         dag_builder.context.clone(),
         Arc::new(MemStore::new()),
@@ -363,7 +363,7 @@ async fn indirect_commit() {
         Round 8 : { * },
      }";
 
-    let dag_builder = parse_dag(dag_str).expect("Invalid dag");
+    let dag_builder = parse_dag(dag_str, false).expect("Invalid dag");
     let dag_state = Arc::new(RwLock::new(DagState::new(
         dag_builder.context.clone(),
         Arc::new(MemStore::new()),
@@ -441,7 +441,7 @@ async fn indirect_skip() {
         Round 9 : { * },
      }";
 
-    let dag_builder = parse_dag(dag_str).expect("Invalid dag");
+    let dag_builder = parse_dag(dag_str, false).expect("Invalid dag");
     let dag_state = Arc::new(RwLock::new(DagState::new(
         dag_builder.context.clone(),
         Arc::new(MemStore::new()),
@@ -523,7 +523,7 @@ async fn undecided() {
         },
      }";
 
-    let dag_builder = parse_dag(dag_str).expect("Invalid dag");
+    let dag_builder = parse_dag(dag_str, false).expect("Invalid dag");
     let dag_state = Arc::new(RwLock::new(DagState::new(
         dag_builder.context.clone(),
         Arc::new(MemStore::new()),
