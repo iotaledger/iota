@@ -382,6 +382,9 @@ impl<R> SwarmBuilder<R> {
 
     /// Set overrides applied to every node config this builder produces, in
     /// the given order, after all other configuration.
+    ///
+    /// Fullnodes spawned after [`SwarmBuilder::build`] from the fullnode config
+    /// builder the [`Swarm`] keeps do not get these overrides.
     pub fn with_node_config_overrides(
         mut self,
         node_config_overrides: Vec<NodeConfigOverride>,

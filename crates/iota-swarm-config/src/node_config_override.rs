@@ -47,6 +47,9 @@ impl fmt::Display for OverrideScope {
 /// dot-separated list of the kebab-case field names used in the node config
 /// YAML, and `value` is parsed as YAML, e.g.
 /// `fullnode:authority-store-pruning-config.num-epochs-to-retain=5`.
+///
+/// List elements cannot be addressed by index; a list can only be replaced as
+/// a whole, by passing the new list as the YAML value.
 #[derive(Clone, Debug)]
 pub struct NodeConfigOverride {
     pub scope: OverrideScope,
@@ -63,6 +66,17 @@ impl NodeConfigOverride {
         matches!(self.scope, OverrideScope::All | OverrideScope::Fullnode)
     }
 
+    /// Whether the override sets the given config field, or something that
+    /// contains it.
+    fn targets(&self, field_path: &[&str]) -> bool {
+        !self.path.is_empty()
+            && self
+                .path
+                .iter()
+                .zip(field_path)
+                .all(|(segment, field)| segment == field)
+    }
+
     /// Set `path` to `value` in `config`.
     ///
     /// The config is serialized to YAML, patched, and deserialized back, so
@@ -70,14 +84,17 @@ impl NodeConfigOverride {
     pub fn apply_to(&self, config: &mut NodeConfig) -> anyhow::Result<()> {
         let mut root = serde_yaml::to_value(&*config).context("failed to serialize node config")?;
         let mut cursor = &mut root;
-        for segment in &self.path {
+        for (i, segment) in self.path.iter().enumerate() {
             // An absent optional sub-config serializes as null; create the
             // mapping so a nested field of it can still be set.
             if cursor.is_null() {
                 *cursor = Value::Mapping(Mapping::new());
             }
             let mapping = cursor.as_mapping_mut().ok_or_else(|| {
-                anyhow!("`{segment}` in `{self}` does not refer to a config section")
+                anyhow!(
+                    "`{}` in `{self}` does not refer to a config section",
+                    self.path[..i].join(".")
+                )
             })?;
             let key = Value::from(segment.as_str());
             if !mapping.contains_key(&key) {
@@ -90,8 +107,30 @@ impl NodeConfigOverride {
         // `supported_protocol_versions` is #[serde(skip)] on NodeConfig and
         // would be lost in the round trip; preserve it.
         let supported_protocol_versions = config.supported_protocol_versions;
+        // These fields are omitted when `None` but deserialize to a non-`None`
+        // default, so the round trip would set them behind the user's back.
+        // `apply_leaves_untouched_fields_unchanged` guards the list.
+        let policy_config = config.policy_config.clone();
+        let grpc_api_config = config.grpc_api_config.clone();
+        let periodic_compaction_threshold_days = config
+            .authority_store_pruning_config
+            .periodic_compaction_threshold_days;
         *config = serde_yaml::from_value(root).with_context(|| format!("invalid `{self}`"))?;
         config.supported_protocol_versions = supported_protocol_versions;
+        if !self.targets(&["policy-config"]) {
+            config.policy_config = policy_config;
+        }
+        if !self.targets(&["grpc-api-config"]) {
+            config.grpc_api_config = grpc_api_config;
+        }
+        if !self.targets(&[
+            "authority-store-pruning-config",
+            "periodic-compaction-threshold-days",
+        ]) {
+            config
+                .authority_store_pruning_config
+                .periodic_compaction_threshold_days = periodic_compaction_threshold_days;
+        }
 
         // Serde ignores unknown fields, so verify the path survived the round
         // trip to catch typos. Null is exempt: a cleared Option is not
@@ -149,14 +188,12 @@ impl FromStr for NodeConfigOverride {
 
 impl fmt::Display for NodeConfigOverride {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let value = serde_yaml::to_string(&self.value).unwrap_or_default();
-        write!(
-            f,
-            "{}:{}={}",
-            self.scope,
-            self.path.join("."),
-            value.trim_end()
-        )
+        // Kept to a single line so it reads well inside an error message.
+        let value = serde_yaml::to_string(&self.value).map_or_else(
+            |_| format!("{:?}", self.value),
+            |value| value.trim_end().replace('\n', " "),
+        );
+        write!(f, "{}:{}={value}", self.scope, self.path.join("."))
     }
 }
 
@@ -248,6 +285,30 @@ mod tests {
     }
 
     #[test]
+    fn apply_leaves_untouched_fields_unchanged() {
+        // The lazily loaded key pair caches are not config state and start out
+        // empty on a freshly deserialized config, so fill them in first.
+        fn debug_with_keys_loaded(config: &NodeConfig) -> String {
+            config.authority_key_pair();
+            config.protocol_key_pair();
+            config.network_key_pair();
+            config.iota_address();
+            format!("{config:?}")
+        }
+
+        let mut config = test_config();
+        let before = debug_with_keys_loaded(&config);
+        let enable_index_processing = config.enable_index_processing;
+
+        let config_override: NodeConfigOverride = "enable-index-processing=false".parse().unwrap();
+        config_override.apply_to(&mut config).unwrap();
+        // Undo the single intended change; nothing else may have moved.
+        config.enable_index_processing = enable_index_processing;
+
+        assert_eq!(debug_with_keys_loaded(&config), before);
+    }
+
+    #[test]
     fn apply_null_clears_optional_field() {
         use iota_config::node::MetricsConfig;
 
@@ -282,6 +343,20 @@ mod tests {
                 .parse()
                 .unwrap();
         assert!(config_override.apply_to(&mut config).is_err());
+    }
+
+    #[test]
+    fn apply_rejects_nesting_under_a_scalar() {
+        let mut config = test_config();
+        let config_override: NodeConfigOverride = "enable-index-processing.foo=1".parse().unwrap();
+        let err = config_override
+            .apply_to(&mut config)
+            .unwrap_err()
+            .to_string();
+        assert!(
+            err.starts_with("`enable-index-processing` in "),
+            "error blames the wrong segment: {err}"
+        );
     }
 
     #[test]

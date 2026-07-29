@@ -41,7 +41,7 @@ use iota_swarm_config::{
     network_config::{NetworkConfig, NetworkConfigLight},
     network_config_builder::ConfigBuilder,
     node_config_builder::FullnodeConfigBuilder,
-    node_config_override::NodeConfigOverride,
+    node_config_override::{NodeConfigOverride, OverrideScope},
 };
 use rand::rngs::OsRng;
 use tempfile::tempdir;
@@ -71,6 +71,11 @@ const VALIDATOR_CONFIG_NOTE: &str = "\
 # `iota-localnet start` does not read this file; it loads validator configs
 # from network.yaml. Change values at start time with
 # `iota-localnet start --node-config-override [scope:]<path>=<value>`.
+";
+
+const SSFN_CONFIG_NOTE: &str = "\
+# `iota-localnet start` does not read this file; it does not run state sync
+# fullnodes. The file is a complete config for running a standalone `iota-node`.
 ";
 
 #[cfg(feature = "indexer")]
@@ -265,6 +270,13 @@ pub enum LocalnetCommand {
         /// all other configuration. Example:
         /// `--node-config-override
         /// fullnode:authority-store-pruning-config.num-epochs-to-retain=5`
+        ///
+        /// List elements cannot be addressed by index; a list can only be
+        /// replaced as a whole.
+        ///
+        /// Warning: values that have to stay per-node or consistent with
+        /// genesis (e.g. `db-path`, a validator's `network-address`) break the
+        /// network when overridden for every node.
         #[arg(long, value_name = "[SCOPE:]PATH=VALUE")]
         node_config_override: Vec<NodeConfigOverride>,
         /// Set the number of validators in the network.
@@ -414,7 +426,7 @@ async fn start(
     #[cfg(feature = "indexer")] mut data_ingestion_dir: Option<PathBuf>,
     no_full_node: bool,
     disable_fullnode_pruning: bool,
-    node_config_overrides: Vec<NodeConfigOverride>,
+    mut node_config_overrides: Vec<NodeConfigOverride>,
     committee_size: Option<usize>,
 ) -> Result<(), anyhow::Error> {
     if force_regenesis {
@@ -466,7 +478,6 @@ async fn start(
 
     // Deprecated --with-grpc becomes node config overrides; prepended so
     // explicit --node-config-override values win.
-    let mut node_config_overrides = node_config_overrides;
     if let Some(input) = with_grpc {
         eprintln!(
             "{}",
@@ -487,18 +498,29 @@ async fn start(
         );
     }
 
+    // Reject bad overrides here: the swarm builder panics instead of erroring,
+    // and it runs on a blocking task where that is even less legible.
+    {
+        let mut config = FullnodeConfigBuilder::new()
+            .with_config_directory(config_path.clone())
+            .build_from_parts(&mut OsRng, &[], Genesis::new_empty());
+        for config_override in &node_config_overrides {
+            config_override.apply_to(&mut config)?;
+        }
+    }
+
     let mut swarm_builder = Swarm::builder();
 
     if disable_fullnode_pruning {
         swarm_builder = swarm_builder.with_disable_fullnode_pruning();
     }
-    swarm_builder = swarm_builder.with_node_config_overrides(node_config_overrides);
 
     // If this is set, then no data will be persisted between runs, and a new
     // genesis will be generated each run.
     if force_regenesis {
         let committee_size = NonZeroUsize::new(committee_size.unwrap_or(DEFAULT_COMMITTEE_SIZE))
             .ok_or_else(|| anyhow!("Committee size must be at least 1."))?;
+        check_validator_override_scopes(&node_config_overrides, committee_size.get())?;
 
         swarm_builder = swarm_builder.committee_size(committee_size);
         let genesis_config = GenesisConfig::custom_genesis(1, 100);
@@ -557,6 +579,7 @@ async fn start(
                 "Cannot open IOTA network config file at {network_config_path:?}"
             ))
         })?;
+        check_validator_override_scopes(&node_config_overrides, validator_configs.len())?;
         let first_validator_config = validator_configs.first().ok_or(anyhow!(
             "IOTA network config file must contain at least one validator config"
         ))?;
@@ -581,6 +604,7 @@ async fn start(
                 "Loading IOTA-Names options from fullnode config file at {fullnode_config_path:?}"
             );
 
+            // Keep this field list in sync with FULLNODE_CONFIG_NOTE.
             let NodeConfig {
                 iota_names_config,
                 enable_grpc_api,
@@ -632,6 +656,8 @@ async fn start(
             .dir(config_path.clone())
             .with_network_config(network_config);
     }
+
+    swarm_builder = swarm_builder.with_node_config_overrides(node_config_overrides);
 
     // the indexer and GraphQL services communicate with the fullnode via gRPC, we
     // must enable it by default.
@@ -1097,7 +1123,8 @@ async fn genesis(
                 .with_genesis(genesis.clone())
                 .build_from_parts(&mut OsRng, network_config.validator_configs(), genesis);
             ssfn_nodes.push(ssfn_config.clone());
-            ssfn_config.save(path)?;
+            ssfn_config.save(&path)?;
+            prepend_note(&path, SSFN_CONFIG_NOTE)?;
         }
 
         let ssfn_seed_peers: Vec<SeedPeer> = ssfn_nodes
@@ -1176,6 +1203,24 @@ async fn genesis(
     client_config.save(&client_path)?;
     info!("Client config file is stored in {:?}.", client_path);
 
+    Ok(())
+}
+
+/// Fail if a `validator-<N>` scoped override names a validator the network
+/// does not have.
+fn check_validator_override_scopes(
+    node_config_overrides: &[NodeConfigOverride],
+    num_validators: usize,
+) -> Result<(), anyhow::Error> {
+    for config_override in node_config_overrides {
+        if let OverrideScope::Validator(index) = config_override.scope {
+            ensure!(
+                index < num_validators,
+                "`{config_override}` targets validator {index}, but the network has only \
+                {num_validators} validators"
+            );
+        }
+    }
     Ok(())
 }
 
