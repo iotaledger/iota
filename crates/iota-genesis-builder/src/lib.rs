@@ -66,6 +66,7 @@ pub const GENESIS_BUILDER_PARAMETERS_FILE: &str = "parameters";
 const GENESIS_BUILDER_TOKEN_DISTRIBUTION_SCHEDULE_FILE: &str = "token-distribution-schedule";
 const GENESIS_BUILDER_SIGNATURE_DIR: &str = "signatures";
 const GENESIS_BUILDER_UNSIGNED_GENESIS_FILE: &str = "unsigned-genesis";
+const GENESIS_BUILDER_MIGRATION_LOGIC_REMOVAL_PROTOCOL_VERSION: u64 = 32;
 
 pub struct Builder {
     parameters: GenesisCeremonyParameters,
@@ -1140,6 +1141,13 @@ pub fn generate_genesis_system_object(
         .map(|a| builder.input(a))
         .collect::<anyhow::Result<_, _>>()?;
         arguments.append(&mut call_arg_arguments);
+        if genesis_chain_parameters.protocol_version
+            < GENESIS_BUILDER_MIGRATION_LOGIC_REMOVAL_PROTOCOL_VERSION
+        {
+            // For older protocol versions, e.g., for running some specific tests, we need
+            // to pass the timelock genesis label as an argument, but as a None value.
+            arguments.push(builder.input(CallArg::pure(&None::<String>))?);
+        }
         arguments.push(system_admin_cap);
         builder.programmable_move_call(
             ObjectId::SYSTEM,
