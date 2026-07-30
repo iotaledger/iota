@@ -13,7 +13,6 @@ use std::{
 use anyhow::{Result, anyhow, bail};
 use async_trait::async_trait;
 use dashmap::{DashMap, DashSet};
-use fastcrypto::encoding::{Base64, Encoding};
 use futures::future::join_all;
 use iota_json_rpc_types::{
     IotaExecutionStatus, IotaObjectDataOptions, IotaTransactionBlockDataAPI,
@@ -21,6 +20,7 @@ use iota_json_rpc_types::{
     IotaTransactionBlockResponseOptions,
 };
 use iota_sdk::{IotaClient, IotaClientBuilder};
+use iota_sdk_crypto::ToFromBech32;
 use iota_sdk_types::{Address, ObjectId, ObjectReference, TransactionDigest};
 use iota_types::{
     crypto::{AccountKeyPair, IotaSignature, Signature, SimpleKeypair, get_key_pair},
@@ -44,17 +44,6 @@ use crate::{
 pub(crate) const DEFAULT_GAS_BUDGET: u64 = 500_000_000;
 pub(crate) const DEFAULT_LARGE_GAS_BUDGET: u64 = 50_000_000_000;
 pub(crate) const MAX_NUM_NEW_OBJECTS_IN_SINGLE_TRANSACTION: usize = 120;
-
-/// Base64 of the `flag || privkey` bytes.
-pub fn encode_base64_keypair(keypair: &SimpleKeypair) -> String {
-    Base64::encode(keypair.to_bytes())
-}
-
-/// Decode a keypair from base64 `flag || privkey` bytes.
-pub fn decode_base64_keypair(value: &str) -> Result<SimpleKeypair, anyhow::Error> {
-    let bytes = Base64::decode(value).map_err(|e| anyhow!("{e}"))?;
-    SimpleKeypair::from_bytes(&bytes).map_err(|e| anyhow!("{e}"))
-}
 
 #[derive(Clone)]
 pub struct RpcCommandProcessor {
@@ -576,7 +565,7 @@ async fn prepare_new_signer_and_coins(
         DEFAULT_GAS_BUDGET,
     );
 
-    let primary_keypair = decode_base64_keypair(&signer_info.encoded_keypair)
+    let primary_keypair = SimpleKeypair::from_bech32(&signer_info.encoded_keypair)
         .expect("decoding keypair should not fail");
     let sender = primary_keypair.public_key().derive_address();
     let (coin, balance) = get_coin_with_max_balance(client, sender).await;
@@ -665,7 +654,12 @@ async fn prepare_new_signer_and_coins(
     }
     assert_eq!(results.len(), num_coins);
     debug!("Split off {} coins for gas payment {results:?}", num_coins);
-    (results, encode_base64_keypair(&burner_keypair))
+    (
+        results,
+        burner_keypair
+            .to_bech32()
+            .expect("encoding keypair should not fail"),
+    )
 }
 
 /// Calculate the number of transactions needed to split the given number of

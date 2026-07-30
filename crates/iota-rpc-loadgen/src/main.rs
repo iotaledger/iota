@@ -14,6 +14,7 @@ use std::{
 use anyhow::Result;
 use clap::Parser;
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore, Keystore};
+use iota_sdk_crypto::ToFromBech32;
 use iota_types::crypto::SimpleKeypair;
 use payload::AddressQueryType;
 use tracing::info;
@@ -139,7 +140,11 @@ fn get_keypair() -> Result<SignerInfo> {
     let active_address = keystore.addresses().pop().unwrap();
     let keypair: &SimpleKeypair = keystore.get_key(&active_address)?.as_keypair()?;
     println!("using address {active_address} for signing");
-    Ok(SignerInfo::new(payload::encode_base64_keypair(keypair)))
+    Ok(SignerInfo::new(
+        keypair
+            .to_bech32()
+            .expect("encoding keypair should not fail"),
+    ))
 }
 
 fn get_iota_config_directory() -> PathBuf {

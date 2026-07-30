@@ -4,8 +4,10 @@
 
 use async_trait::async_trait;
 use futures::future::join_all;
+use iota_sdk_crypto::ToFromBech32;
 use iota_sdk_types::Address;
 use iota_types::{
+    crypto::SimpleKeypair,
     quorum_driver_types::ExecuteTransactionRequestType,
     transaction::{TransactionData, TransactionDataAPI},
 };
@@ -34,8 +36,8 @@ impl<'a> ProcessPayload<'a, &'a PayIota> for RpcCommandProcessor {
         let gas_budget = gas_budget.unwrap_or(DEFAULT_GAS_BUDGET);
         let gas_payments = gas_payment.unwrap();
 
-        let keypair = crate::payload::decode_base64_keypair(&encoded_keypair)
-            .expect("Decoding keypair should not fail");
+        let keypair =
+            SimpleKeypair::from_bech32(&encoded_keypair).expect("Decoding keypair should not fail");
 
         debug!(
             "Transfer IOTA {} time to {recipient} with {amount} NANOS with {gas_payments:?}",
