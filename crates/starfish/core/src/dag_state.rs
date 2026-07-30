@@ -720,11 +720,6 @@ impl DagState {
             );
         }
         self.update_block_header_metadata(&block_header, source);
-        // An empty payload is fully determined by the header's commitment, so
-        // accepting such a header makes the block's transactions available.
-        if block_header.transactions_commitment() == self.empty_transactions_commitment {
-            self.add_transactions(VerifiedTransactions::new_empty(&block_header), source);
-        }
         debug!(
             "block header {} pushed to write to store batch by {}",
             block_header, self.context.own_index
@@ -2152,6 +2147,10 @@ impl DagState {
         let Some(header) = self.recent_block_headers.get(block_ref) else {
             return false;
         };
+        // An empty payload is fully determined by the header's commitment.
+        if header.transactions_commitment() == self.empty_transactions_commitment {
+            return true;
+        }
         let transaction_ref = GenericTransactionRef::from(TransactionRef {
             round: block_ref.round,
             author: block_ref.author,
@@ -4084,7 +4083,8 @@ mod test {
         dag_state.accept_block_header(empty_header, DataSource::Test);
         assert!(dag_state.are_transactions_available(&empty_ref));
 
-        // The synthesized empty payload is persisted and recovered.
+        // The empty block stays available after a restart, from the recovered
+        // header alone.
         dag_state.flush();
         let dag_state = DagState::new(context, store);
         assert!(dag_state.are_transactions_available(&empty_ref));
