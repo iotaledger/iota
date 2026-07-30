@@ -111,9 +111,6 @@ EOF
 EOF
         done
 
-        cat >> "$GENESIS_TEMPLATE" <<EOF
-migration_sources: []
-EOF
         echo "Genesis template generated: $GENESIS_TEMPLATE"
     fi
 }

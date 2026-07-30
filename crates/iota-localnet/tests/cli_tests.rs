@@ -34,9 +34,6 @@ async fn test_genesis() -> Result<(), anyhow::Error> {
         with_faucet: false,
         committee_size: DEFAULT_NUMBER_OF_AUTHORITIES,
         num_additional_gas_accounts: None,
-        local_migration_snapshots: vec![],
-        remote_migration_snapshots: vec![],
-        delegator: None,
         chain_start_timestamp_ms: None,
         admin_interface_address: None,
     }
@@ -79,9 +76,6 @@ async fn test_genesis() -> Result<(), anyhow::Error> {
         with_faucet: false,
         committee_size: DEFAULT_NUMBER_OF_AUTHORITIES,
         num_additional_gas_accounts: None,
-        local_migration_snapshots: vec![],
-        remote_migration_snapshots: vec![],
-        delegator: None,
         chain_start_timestamp_ms: None,
         admin_interface_address: None,
     }
@@ -115,9 +109,6 @@ async fn test_start() -> Result<(), anyhow::Error> {
             epoch_duration_ms: None,
             #[cfg(feature = "indexer")]
             indexer_feature_args: Box::new(IndexerFeatureArgs::for_testing()),
-            local_migration_snapshots: vec![],
-            remote_migration_snapshots: vec![],
-            delegator: None,
         }
         .execute(),
     )

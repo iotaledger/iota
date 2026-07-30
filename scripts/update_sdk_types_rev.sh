@@ -71,7 +71,6 @@ echo "New rev: $NEW_REV"
 echo "Updating Cargo.toml files..."
 
 update_file Cargo.toml
-update_file crates/iota-genesis-builder/Cargo.toml
 update_file crates/iota-rust-sdk/Cargo.toml
 update_file examples/tic-tac-toe/cli/Cargo.toml
 update_file docs/examples/rust/Cargo.toml
