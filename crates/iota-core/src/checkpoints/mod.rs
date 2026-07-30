@@ -1144,7 +1144,7 @@ impl CheckpointBuilder {
                     return;
                 }
                 Err(CheckpointBuilderError::Retry(inner)) => {
-                    let msg = format!("{:?}", inner);
+                    let msg = format!("{inner:?}");
                     debug_fatal!("Error while making checkpoint, will retry in 1s: {}", msg);
                     tokio::time::sleep(Duration::from_secs(1)).await;
                     self.metrics.checkpoint_errors.inc();
