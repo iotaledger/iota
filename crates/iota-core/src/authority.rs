@@ -227,6 +227,7 @@ pub mod auth_unit_test_utils;
 
 pub mod authority_test_utils;
 
+pub(crate) mod account_rules;
 pub mod authority_per_epoch_store;
 pub mod authority_per_epoch_store_pruner;
 
@@ -313,6 +314,7 @@ pub struct AuthorityMetrics {
     pub consensus_handler_congested_transactions: IntCounter,
     pub consensus_handler_cancelled_transactions: IntCounter,
     pub consensus_handler_validation_dropped_transactions: IntCounter,
+    pub consensus_handler_account_rules_dropped_transactions: IntCounter,
     pub consensus_handler_max_object_costs: IntGaugeVec,
     pub consensus_committed_subdags: IntCounterVec,
     pub consensus_committed_messages: IntGaugeVec,
@@ -727,6 +729,11 @@ impl AuthorityMetrics {
             consensus_handler_validation_dropped_transactions: register_int_counter_with_registry!(
                 "consensus_handler_validation_dropped_transactions",
                 "Number of UserTransactionV1 transactions dropped by post-consensus validation",
+                registry,
+            ).unwrap(),
+            consensus_handler_account_rules_dropped_transactions: register_int_counter_with_registry!(
+                "consensus_handler_account_rules_dropped_transactions",
+                "Number of transactions dropped by the account rules at version assignment",
                 registry,
             ).unwrap(),
             consensus_handler_max_object_costs: register_int_gauge_vec_with_registry!(

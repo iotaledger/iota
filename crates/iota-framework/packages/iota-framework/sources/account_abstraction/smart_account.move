@@ -12,9 +12,9 @@
 ///   `AuthenticatorFunctionRefV1`.
 /// - `builtin_auth_builder_v1`: allocates a new object ID; selects the built-in
 ///   authenticator matching the provided `PublicKey`'s signature scheme.
-/// - `claim_builder_v1`: for addresses that already exist on-chain.
-///   `ClaimRegistry` records each address once to prevent double-claiming and
-///   ensures the new account object's ID matches the sender's address.
+/// - `claim_builder_v1`: for addresses that already exist on-chain. The new
+///   account object's ID matches the sender's address; double-claiming is
+///   prevented by the sequencer before execution.
 ///
 /// After optionally adding fields with `with_field`, finalize with
 /// `build_v1` (mutable) or `build_immutable_v1` (immutable).
@@ -34,7 +34,7 @@ module iota::smart_account;
 use iota::account;
 use iota::authenticator_function::AuthenticatorFunctionRefV1;
 use iota::builtin_authenticator_functions;
-use iota::claim_registry::ClaimRegistry;
+use iota::claim_registry;
 use iota::dynamic_field;
 use iota::public_key::PublicKey;
 
@@ -112,20 +112,16 @@ public fun builtin_auth_builder_v1(
 /// Creates a `SmartAccountBuilder` for an existing on-chain address backed by the
 /// built-in authenticator for `public_key`'s signature scheme.
 ///
-/// `registry` records the sender's address to prevent double-claiming and
-/// ensures the new account object's ID matches the sender's address.
+/// The new account object's ID matches the sender's address. Double-claiming
+/// is prevented by the sequencer, which rejects a claim for an address that
+/// is already explicit before it reaches execution.
 ///
 /// Emits a `builtin_authenticator_functions::PublicKeyAttached` event on success.
 ///
 /// Aborts if `public_key` does not correspond to the sender's address.
-/// Aborts if the address has already been claimed.
 /// Aborts if `public_key`'s signature scheme is not supported.
-public fun claim_builder_v1(
-    registry: &mut ClaimRegistry,
-    public_key: PublicKey,
-    ctx: &mut TxContext,
-): SmartAccountBuilder {
-    let mut account = SmartAccount { id: registry.claim(public_key, ctx) };
+public fun claim_builder_v1(public_key: PublicKey, ctx: &mut TxContext): SmartAccountBuilder {
+    let mut account = SmartAccount { id: claim_registry::claim(public_key, ctx) };
     builtin_authenticator_functions::attach_public_key(&mut account.id, public_key);
 
     SmartAccountBuilder {

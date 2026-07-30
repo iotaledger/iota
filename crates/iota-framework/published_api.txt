@@ -2452,9 +2452,6 @@ create
 claim
 	public(package) fun
 	0x2::claim_registry
-is_claimed
-	public fun
-	0x2::claim_registry
 Clock
 	public struct
 	0x2::clock

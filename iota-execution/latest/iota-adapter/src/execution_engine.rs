@@ -2008,20 +2008,6 @@ mod checked {
     ) -> Result<ProgrammableTransaction, ExecutionError> {
         let mut builder = ProgrammableTransactionBuilder::new();
 
-        // ClaimRegistry shared object input.
-        let registry_arg = builder
-            .obj(CallArg::Shared(SharedObjectRef::new(
-                ObjectId::CLAIM_REGISTRY,
-                claim.claim_registry_initial_shared_version.into(),
-                true,
-            )))
-            .map_err(|e| {
-                ExecutionError::new(
-                    ExecutionErrorKind::VmInvariantViolation,
-                    Some(e.to_string().into()),
-                )
-            })?;
-
         // Construct the Move PublicKey via framework calls because the Move struct
         // layout differs from the Rust BCS enum layout. We call:
         //   let scheme = iota::signature_scheme::<scheme_fn>();
@@ -2063,13 +2049,13 @@ mod checked {
             vec![scheme_arg, raw_bytes_arg],
         );
 
-        // claim_builder_v1(registry, public_key, ctx) → SmartAccountBuilder
+        // claim_builder_v1(public_key, ctx) → SmartAccountBuilder
         let mut current = builder.programmable_move_call(
             ObjectId::FRAMEWORK,
             Identifier::SMART_ACCOUNT_MODULE,
             Identifier::from_static("claim_builder_v1"),
             vec![],
-            vec![registry_arg, public_key_arg],
+            vec![public_key_arg],
         );
 
         // with_field<N, V>(builder, name, value) → SmartAccountBuilder (chained)

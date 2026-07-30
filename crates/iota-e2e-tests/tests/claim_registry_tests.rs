@@ -516,6 +516,135 @@ async fn test_claim_account_rejected_when_registry_disabled() {
 }
 
 // ---------------------------------------------------------------------------
+// Sequencer account-rules tests (msim only)
+// ---------------------------------------------------------------------------
+
+/// Verify the account rules applied by the sequencer at version assignment:
+/// once a `ClaimAccount` for an address is scheduled, a plain-signed
+/// transaction for that address is rejected, and a second claim for the same
+/// address is rejected — both deterministically, before execution.
+#[cfg(msim)]
+#[sim_test]
+async fn test_account_rules_reject_plain_signature_and_duplicate_claim() {
+    use iota_json_rpc_types::IotaTransactionBlockEffectsAPI;
+    use iota_keys::keystore::AccountKeystore;
+    use iota_sdk_types::{
+        Address, ClaimAccountTransaction, SmartAccountBuildKind, SmartAccountClaim, TransactionKind,
+    };
+    use iota_types::{
+        crypto::IotaKeyPair,
+        transaction::{TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, TransactionData},
+    };
+
+    telemetry_subscribers::init_for_testing();
+
+    let test_cluster = TestClusterBuilder::new()
+        .with_epoch_duration_ms(20000)
+        .build()
+        .await;
+
+    let owner: Address = test_cluster
+        .wallet
+        .config()
+        .keystore()
+        .addresses()
+        .into_iter()
+        .next()
+        .expect("wallet must have at least one account");
+    let keypair: IotaKeyPair = test_cluster
+        .wallet
+        .config()
+        .keystore()
+        .get_key(&owner)
+        .expect("keypair must exist for owner")
+        .as_keypair()
+        .expect("stored key must be a keypair")
+        .clone();
+
+    let claim = SmartAccountClaim {
+        public_key: sdk_ed25519_public_key(&keypair),
+        // Leftover of an earlier draft of the transaction kind; ignored.
+        claim_registry_initial_shared_version: 0,
+        fields: vec![],
+        build_kind: SmartAccountBuildKind::Mutable,
+    };
+    let claim_kind =
+        TransactionKind::new_claim_account(ClaimAccountTransaction::new_smart_account(claim));
+    let rgp = test_cluster.get_reference_gas_price().await;
+
+    // Rejected transactions keep their owned-object locks for the rest of the
+    // epoch, so each transaction below pays with a coin no earlier rejected
+    // transaction has locked.
+    let mut gas_coins = test_cluster
+        .wallet
+        .get_gas_objects_owned_by_address(owner, None)
+        .await
+        .expect("gas lookup must succeed")
+        .into_iter();
+    let claim_gas = gas_coins.next().expect("owner must have a gas coin");
+    let duplicate_claim_gas = gas_coins.next().expect("owner must have a second gas coin");
+
+    // The claim itself succeeds and makes the address explicit.
+    let claim_tx_data = TransactionData::new(
+        claim_kind.clone(),
+        owner,
+        claim_gas,
+        rgp * TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE,
+        rgp,
+    );
+    let response = test_cluster
+        .sign_and_execute_transaction(&claim_tx_data)
+        .await;
+    let effects = response.effects.expect("response must include effects");
+    assert!(
+        effects.status().is_ok(),
+        "ClaimAccount transaction must succeed; got {:?}",
+        effects.status(),
+    );
+
+    // A plain-signed transaction from the claimed address is rejected: the
+    // explicit account must authenticate with a MoveAuthenticator. It pays
+    // with the claim's gas coin at its post-claim version.
+    let transfer_gas = effects.gas_object().reference.to_object_ref();
+    let transfer_tx_data =
+        iota_test_transaction_builder::TestTransactionBuilder::new(owner, transfer_gas, rgp)
+            .transfer_iota(Some(1), owner)
+            .build();
+    let transfer_tx = test_cluster.sign_transaction(&transfer_tx_data);
+    let error = test_cluster
+        .wallet
+        .execute_transaction_may_fail(transfer_tx)
+        .await
+        .expect_err("plain-signed transaction for an explicit account must be rejected")
+        .to_string();
+    assert!(
+        error.contains("must authenticate with a MoveAuthenticator"),
+        "unexpected rejection: {error}",
+    );
+
+    // A second claim for the same address is rejected by the duplicate-claim
+    // guard before it can reach execution.
+    let duplicate_tx_data = TransactionData::new(
+        claim_kind,
+        owner,
+        duplicate_claim_gas,
+        rgp * TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE,
+        rgp,
+    );
+    let duplicate_tx = test_cluster.sign_transaction(&duplicate_tx_data);
+    let error = test_cluster
+        .wallet
+        .execute_transaction_may_fail(duplicate_tx)
+        .await
+        .expect_err("a second claim for an explicit account must be rejected")
+        .to_string();
+    assert!(
+        error.contains("already explicit"),
+        "unexpected rejection: {error}",
+    );
+}
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 

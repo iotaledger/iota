@@ -7,7 +7,7 @@ module iota::claim_registry_tests;
 use iota::claim_registry::{Self, ClaimRegistry};
 use iota::public_key;
 use iota::signature_scheme;
-use iota::test_scenario::{Self, Scenario};
+use iota::test_scenario;
 
 // Pre-computed Ed25519 public key from fastcrypto test vectors.
 // Layout: [0x00 (Ed25519 flag)] || [32-byte key]
@@ -63,14 +63,15 @@ const MULTISIG_MIXED_ADDR: address =
 // Helpers
 // ============================================================
 
-fun setup(): Scenario {
-    let mut scenario = test_scenario::begin(@0x0);
+fun claim_and_check(sender: address, prefixed_pk: vector<u8>) {
+    let mut scenario = test_scenario::begin(sender);
     {
         let ctx = test_scenario::ctx(&mut scenario);
-        claim_registry::create_for_testing(ctx);
+        let uid = claim_registry::claim(public_key::from_prefixed_bytes(prefixed_pk), ctx);
+        assert!(uid.to_address() == sender);
+        uid.delete();
     };
-    scenario.next_tx(@0x0);
-    scenario
+    test_scenario::end(scenario);
 }
 
 // ============================================================
@@ -79,7 +80,11 @@ fun setup(): Scenario {
 
 #[test]
 fun test_registry_created() {
-    let mut scenario = setup();
+    let mut scenario = test_scenario::begin(@0x0);
+    {
+        let ctx = test_scenario::ctx(&mut scenario);
+        claim_registry::create_for_testing(ctx);
+    };
     scenario.next_tx(@0x0);
     let registry = scenario.take_shared<ClaimRegistry>();
     test_scenario::return_shared(registry);
@@ -92,260 +97,73 @@ fun test_registry_created() {
 
 #[test]
 fun test_claim_ed25519_happy_path() {
-    let mut scenario = setup();
-    let sender = ED25519_ADDR;
-
-    scenario.next_tx(sender);
-    {
-        let mut registry = scenario.take_shared<ClaimRegistry>();
-        let ctx = test_scenario::ctx(&mut scenario);
-        let uid = claim_registry::claim(
-            &mut registry,
-            public_key::from_prefixed_bytes(ED25519_PK),
-            ctx,
-        );
-        assert!(claim_registry::is_claimed(&registry, sender));
-        uid.delete();
-        test_scenario::return_shared(registry);
-    };
-
-    test_scenario::end(scenario);
+    claim_and_check(ED25519_ADDR, ED25519_PK);
 }
 
 #[test]
 fun test_claim_secp256k1_happy_path() {
-    let mut scenario = setup();
-    let sender = SECP256K1_ADDR;
-
-    scenario.next_tx(sender);
-    {
-        let mut registry = scenario.take_shared<ClaimRegistry>();
-        let ctx = test_scenario::ctx(&mut scenario);
-        let uid = claim_registry::claim(
-            &mut registry,
-            public_key::from_prefixed_bytes(SECP256K1_PK),
-            ctx,
-        );
-        assert!(claim_registry::is_claimed(&registry, sender));
-        uid.delete();
-        test_scenario::return_shared(registry);
-    };
-
-    test_scenario::end(scenario);
+    claim_and_check(SECP256K1_ADDR, SECP256K1_PK);
 }
 
 #[test]
 fun test_claim_secp256r1_happy_path() {
-    let mut scenario = setup();
-    let sender = SECP256R1_ADDR;
-
-    scenario.next_tx(sender);
-    {
-        let mut registry = scenario.take_shared<ClaimRegistry>();
-        let ctx = test_scenario::ctx(&mut scenario);
-        let uid = claim_registry::claim(
-            &mut registry,
-            public_key::from_prefixed_bytes(SECP256R1_PK),
-            ctx,
-        );
-        assert!(claim_registry::is_claimed(&registry, sender));
-        uid.delete();
-        test_scenario::return_shared(registry);
-    };
-
-    test_scenario::end(scenario);
+    claim_and_check(SECP256R1_ADDR, SECP256R1_PK);
 }
 
 #[test]
 fun test_claim_multisig_happy_path() {
-    let mut scenario = setup();
-    let sender = MULTISIG_ADDR;
-
-    scenario.next_tx(sender);
-    {
-        let mut registry = scenario.take_shared<ClaimRegistry>();
-        let ctx = test_scenario::ctx(&mut scenario);
-        let uid = claim_registry::claim(
-            &mut registry,
-            public_key::from_prefixed_bytes(MULTISIG_PK),
-            ctx,
-        );
-        assert!(claim_registry::is_claimed(&registry, sender));
-        uid.delete();
-        test_scenario::return_shared(registry);
-    };
-
-    test_scenario::end(scenario);
+    claim_and_check(MULTISIG_ADDR, MULTISIG_PK);
 }
 
 #[test]
 fun test_claim_multisig_mixed_happy_path() {
-    let mut scenario = setup();
-    let sender = MULTISIG_MIXED_ADDR;
-
-    scenario.next_tx(sender);
-    {
-        let mut registry = scenario.take_shared<ClaimRegistry>();
-        let ctx = test_scenario::ctx(&mut scenario);
-        let uid = claim_registry::claim(
-            &mut registry,
-            public_key::from_prefixed_bytes(MULTISIG_MIXED_PK),
-            ctx,
-        );
-        assert!(claim_registry::is_claimed(&registry, sender));
-        uid.delete();
-        test_scenario::return_shared(registry);
-    };
-
-    test_scenario::end(scenario);
+    claim_and_check(MULTISIG_MIXED_ADDR, MULTISIG_MIXED_PK);
 }
 
 #[test]
 fun test_claim_passkey_happy_path() {
-    let mut scenario = setup();
-    let sender = PASSKEY_ADDR;
-
-    scenario.next_tx(sender);
-    {
-        let mut registry = scenario.take_shared<ClaimRegistry>();
-        let ctx = test_scenario::ctx(&mut scenario);
-        let uid = claim_registry::claim(
-            &mut registry,
-            public_key::from_prefixed_bytes(PASSKEY_PK),
-            ctx,
-        );
-        assert!(claim_registry::is_claimed(&registry, sender));
-        uid.delete();
-        test_scenario::return_shared(registry);
-    };
-
-    test_scenario::end(scenario);
+    claim_and_check(PASSKEY_ADDR, PASSKEY_PK);
 }
 
 // ============================================================
 // Error paths
 // ============================================================
+//
+// Double-claiming no longer aborts here: the sequencer rejects a claim for an
+// address that is already explicit before it reaches execution.
 
 #[test]
 #[expected_failure(abort_code = claim_registry::EAddressMismatch)]
 fun test_claim_address_mismatch() {
-    let mut scenario = setup();
-    scenario.next_tx(@0xdead);
-    {
-        let mut registry = scenario.take_shared<ClaimRegistry>();
-        let ctx = test_scenario::ctx(&mut scenario);
-        claim_registry::claim(
-            &mut registry,
-            public_key::from_prefixed_bytes(ED25519_PK),
-            ctx,
-        ).delete();
-        test_scenario::return_shared(registry);
-    };
-    test_scenario::end(scenario);
-}
-
-#[test]
-#[expected_failure(abort_code = claim_registry::EAlreadyClaimed)]
-fun test_claim_double_claim() {
-    let mut scenario = setup();
-    let sender = ED25519_ADDR;
-
-    scenario.next_tx(sender);
-    {
-        let mut registry = scenario.take_shared<ClaimRegistry>();
-        let ctx = test_scenario::ctx(&mut scenario);
-        claim_registry::claim(
-            &mut registry,
-            public_key::from_prefixed_bytes(ED25519_PK),
-            ctx,
-        ).delete();
-        test_scenario::return_shared(registry);
-    };
-
-    scenario.next_tx(sender);
-    {
-        let mut registry = scenario.take_shared<ClaimRegistry>();
-        let ctx = test_scenario::ctx(&mut scenario);
-        claim_registry::claim(
-            &mut registry,
-            public_key::from_prefixed_bytes(ED25519_PK),
-            ctx,
-        ).delete();
-        test_scenario::return_shared(registry);
-    };
-
-    test_scenario::end(scenario);
+    claim_and_check(@0xdead, ED25519_PK);
 }
 
 #[test]
 #[expected_failure(abort_code = signature_scheme::EUnknownScheme)]
 fun test_claim_invalid_scheme() {
-    let mut scenario = setup();
-    scenario.next_tx(@0xdead);
-    {
-        let mut registry = scenario.take_shared<ClaimRegistry>();
-        let ctx = test_scenario::ctx(&mut scenario);
-        // Flag 0xff is not recognized — scheme_from_flag aborts inside from_prefixed_bytes.
-        claim_registry::claim(
-            &mut registry,
-            public_key::from_prefixed_bytes(
-                x"ffcc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88",
-            ),
-            ctx,
-        ).delete();
-        test_scenario::return_shared(registry);
-    };
-    test_scenario::end(scenario);
+    // Flag 0xff is not recognized — scheme_from_flag aborts inside from_prefixed_bytes.
+    claim_and_check(
+        @0xdead,
+        x"ffcc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88",
+    );
 }
 
 #[test]
 #[expected_failure(abort_code = signature_scheme::EUnknownScheme)]
 fun test_claim_move_authenticator_is_invalid() {
-    let mut scenario = setup();
-    scenario.next_tx(@0xcafe);
-    {
-        let mut registry = scenario.take_shared<ClaimRegistry>();
-        let ctx = test_scenario::ctx(&mut scenario);
-        // Flag 0x07 (MoveAuthenticator) has no standard address derivation rule.
-        claim_registry::claim(
-            &mut registry,
-            public_key::from_prefixed_bytes(
-                x"0702337cca2171fdbfcfd657fa59881f46269f1e590b5ffab6023686c7ad2ecc2c1c",
-            ),
-            ctx,
-        ).delete();
-        test_scenario::return_shared(registry);
-    };
-    test_scenario::end(scenario);
+    // Flag 0x07 (MoveAuthenticator) has no standard address derivation rule.
+    claim_and_check(
+        @0xcafe,
+        x"0702337cca2171fdbfcfd657fa59881f46269f1e590b5ffab6023686c7ad2ecc2c1c",
+    );
 }
 
 #[test]
 #[expected_failure(abort_code = public_key::EInvalidPublicKeyBytes)]
 fun test_claim_ed25519_wrong_key_length() {
-    let mut scenario = setup();
-    scenario.next_tx(@0xdead);
-    {
-        let mut registry = scenario.take_shared<ClaimRegistry>();
-        let ctx = test_scenario::ctx(&mut scenario);
-        // 31 raw bytes instead of 32 — create aborts inside from_prefixed_bytes.
-        claim_registry::claim(
-            &mut registry,
-            public_key::from_prefixed_bytes(
-                x"00cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd",
-            ),
-            ctx,
-        ).delete();
-        test_scenario::return_shared(registry);
-    };
-    test_scenario::end(scenario);
-}
-
-#[test]
-fun test_is_not_claimed_initially() {
-    let mut scenario = setup();
-    scenario.next_tx(@0x0);
-    let registry = scenario.take_shared<ClaimRegistry>();
-    assert!(!claim_registry::is_claimed(&registry, @0xcafe));
-    test_scenario::return_shared(registry);
-    test_scenario::end(scenario);
+    // 31 raw bytes instead of 32 — create aborts inside from_prefixed_bytes.
+    claim_and_check(
+        @0xdead,
+        x"00cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd",
+    );
 }
