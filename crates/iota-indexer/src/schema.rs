@@ -92,6 +92,7 @@ diesel::table! {
         id -> Bytea,
         version -> Int2,
         bcs -> Bytea,
+        bcs_kind -> Int2,
     }
 }
 

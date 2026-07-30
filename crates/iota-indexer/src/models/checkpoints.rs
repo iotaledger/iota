@@ -8,6 +8,7 @@ use iota_sdk_types::{
     CheckpointContentsDigest, CheckpointDigest, CheckpointSummary, TransactionDigest,
     gas::GasCostSummary,
 };
+use iota_types::storage::EpochInfoV1Entry;
 
 use crate::{
     errors::IndexerError,
@@ -52,6 +53,17 @@ impl StoredCheckpoint {
     pub fn computation_cost_burned(&self) -> u64 {
         self.computation_cost_burned
             .unwrap_or(self.computation_cost) as u64
+    }
+}
+
+impl From<&EpochInfoV1Entry> for StoredCheckpoint {
+    fn from(epoch_info: &EpochInfoV1Entry) -> Self {
+        let indexed_checkpoint = IndexedCheckpoint::from_iota_checkpoint(
+            &epoch_info.last_checkpoint_summary,
+            &epoch_info.last_checkpoint_contents,
+            0, // can't evaluate but is not used in the follow-up conversion
+        );
+        Self::from(&indexed_checkpoint)
     }
 }
 
