@@ -10,15 +10,13 @@ use std::{
 use async_trait::async_trait;
 use iota_json_rpc_types::BalanceChange;
 use iota_sdk_types::{
-    ExecutionStatus, ObjectDigest, ObjectId, ObjectReference, Owner, TransactionEffects, TypeTag,
-    Version,
+    ExecutionStatus, ObjectDigest, ObjectId, Owner, TransactionEffects, TypeTag, Version,
 };
 use iota_types::{
     coin::Coin,
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
     gas_coin::GAS,
     object::Object,
-    storage::WriteKind,
     transaction::InputObjectKind,
 };
 use tokio::sync::RwLock;
@@ -211,27 +209,14 @@ impl<P> ObjectProviderCache<P> {
         }
     }
 
-    pub fn new_with_cache(
-        provider: P,
-        written_objects: BTreeMap<ObjectId, (ObjectReference, Object, WriteKind)>,
-    ) -> Self {
+    pub fn new_with_cache(provider: P, written_objects: &BTreeMap<ObjectId, Object>) -> Self {
         let mut object_cache = BTreeMap::new();
         let mut last_version_cache = BTreeMap::new();
 
-        for (object_id, (object_ref, object, _)) in written_objects {
-            let key = (object_id, object_ref.version);
+        for (object_id, object) in written_objects {
+            let key = (*object_id, object.version());
             object_cache.insert(key, object.clone());
-
-            match last_version_cache.get_mut(&key) {
-                Some(existing_seq_number) => {
-                    if object_ref.version > *existing_seq_number {
-                        *existing_seq_number = object_ref.version
-                    }
-                }
-                None => {
-                    last_version_cache.insert(key, object_ref.version);
-                }
-            }
+            last_version_cache.insert(key, object.version());
         }
 
         Self {

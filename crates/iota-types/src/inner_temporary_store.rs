@@ -95,15 +95,19 @@ impl InnerTemporaryStore {
     }
 }
 
+/// Resolves modules out of a set of objects written by an execution, falling
+/// back to `fallback` for modules the execution did not write.
 pub struct TemporaryModuleResolver<'a, R> {
-    temp_store: &'a InnerTemporaryStore,
+    written: &'a WrittenObjects,
+    binary_config: BinaryConfig,
     fallback: R,
 }
 
 impl<'a, R> TemporaryModuleResolver<'a, R> {
-    pub fn new(temp_store: &'a InnerTemporaryStore, fallback: R) -> Self {
+    pub fn new(written: &'a WrittenObjects, binary_config: BinaryConfig, fallback: R) -> Self {
         Self {
-            temp_store,
+            written,
+            binary_config,
             fallback,
         }
     }
@@ -117,15 +121,12 @@ where
     type Item = Arc<CompiledModule>;
 
     fn get_module_by_id(&self, id: &ModuleId) -> anyhow::Result<Option<Self::Item>, Self::Error> {
-        let obj = self
-            .temp_store
-            .written
-            .get(&ObjectId::new(id.address().into_bytes()));
+        let obj = self.written.get(&ObjectId::new(id.address().into_bytes()));
         if let Some(o) = obj {
             if let Some(p) = o.data.as_opt_package() {
                 return Ok(Some(Arc::new(p.deserialize_module(
                     &identifier_core_to_sdk(id.name()),
-                    &self.temp_store.binary_config,
+                    &self.binary_config,
                 )?)));
             }
         }

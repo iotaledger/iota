@@ -15,9 +15,10 @@ use iota_json_rpc_api::{JsonRpcMetrics, WriteApiOpenRpc, WriteApiServer};
 use iota_json_rpc_types::{
     DevInspectArgs, DevInspectResults, DryRunTransactionBlockResponse,
     ExecuteTransactionRequestType as ExecuteTransactionRequestTypeSchema, IotaExecutionStatus,
-    IotaMoveViewCallResults, IotaTransactionBlock, IotaTransactionBlockEffects,
-    IotaTransactionBlockEffectsAPI, IotaTransactionBlockEvents, IotaTransactionBlockResponse,
-    IotaTransactionBlockResponseOptions, IotaTypeTag, MoveFunctionName,
+    IotaMoveViewCallResults, IotaTransactionBlock, IotaTransactionBlockData,
+    IotaTransactionBlockEffects, IotaTransactionBlockEffectsAPI, IotaTransactionBlockEvents,
+    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, IotaTypeTag,
+    MoveFunctionName,
 };
 use iota_metrics::spawn_monitored_task;
 use iota_open_rpc::Module;
@@ -25,18 +26,23 @@ use iota_package_resolver::{
     Package, PackageStore, Resolver, error::Error as PackageResolverError,
 };
 use iota_sdk_types::{
-    Address, ObjectId, TransactionDigest, TransactionKind, UserSignature,
-    crypto::{Intent, IntentAppId, IntentMessage, IntentScope, IntentVersion},
+    Address, GasPayment, ObjectId, ObjectReference, TransactionDigest, TransactionExpiration,
+    TransactionKind, TransactionV1, UserSignature,
 };
 use iota_transaction_builder::TransactionBuilder;
 use iota_types::{
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
+    execution_config_utils::to_binary_config,
+    gas_coin::mock_simulation_gas_coin,
+    in_memory_storage::InMemoryStorage,
+    inner_temporary_store::{PackageStoreWithFallback, TemporaryModuleResolver},
     iota_serde::BigInt,
     quorum_driver_types::{
         ExecuteTransactionRequestType, ExecuteTransactionRequestV1, ExecuteTransactionResponseV1,
     },
     storage::PostExecutionPackageResolver,
     transaction::{InputObjectKind, TransactionData, TransactionDataAPI, TransactionEnvelope},
+    transaction_executor::VmChecks,
 };
 use jsonrpsee::{RpcModule, core::RpcResult};
 use tracing::{Instrument, instrument};
@@ -317,72 +323,201 @@ impl TransactionExecutionApi {
     pub fn prepare_dry_run_transaction_block(
         &self,
         tx_bytes: Base64,
-    ) -> Result<(TransactionData, TransactionDigest, Vec<InputObjectKind>), IotaRpcInputError> {
+    ) -> Result<(TransactionData, Vec<InputObjectKind>), IotaRpcInputError> {
         let tx_data: TransactionData = self.convert_bytes(tx_bytes)?;
         let input_objs = tx_data.input_objects()?;
-        let intent_msg = IntentMessage::new(
-            Intent {
-                version: IntentVersion::V0,
-                scope: IntentScope::TransactionData,
-                app_id: IntentAppId::Iota,
-            },
-            tx_data,
-        );
-        let txn_digest = TransactionDigest::new(intent_msg.value.digest().into_inner());
-        Ok((intent_msg.value, txn_digest, input_objs))
+        Ok((tx_data, input_objs))
     }
 
     async fn dry_run_transaction_block(
         &self,
         tx_bytes: Base64,
     ) -> Result<DryRunTransactionBlockResponse, Error> {
-        let (txn_data, txn_digest, input_objs) =
-            self.prepare_dry_run_transaction_block(tx_bytes)?;
+        let (mut txn_data, input_objs) = self.prepare_dry_run_transaction_block(tx_bytes)?;
         let sender = txn_data.sender();
 
-        // Use spawn_blocking since dry_exec_transaction is a long-running synchronous
-        // operation
+        // Use spawn_blocking since simulating a transaction is a long-running
+        // synchronous operation
         let state = self.state.clone();
-        let (resp, written_objects, transaction_effects, mock_gas) =
+        let simulation = {
+            let txn_data = txn_data.clone();
             tokio::task::spawn_blocking(move || {
-                state.dry_exec_transaction(txn_data.clone(), txn_digest)
+                state.simulate_transaction(txn_data, VmChecks::Enabled)
             })
             .await
-            .map_err(Error::from)??;
+            .map_err(Error::from)??
+        };
 
-        let object_cache = ObjectProviderCache::new_with_cache(self.state.clone(), written_objects);
+        // A transaction submitted without a gas payment is simulated against a mock gas
+        // coin, which the reported transaction input has to account for.
+        if simulation.mock_gas_id.is_some() {
+            let mock_gas = mock_simulation_gas_coin(txn_data.gas_data().owner);
+            txn_data.gas_data_mut().objects = vec![mock_gas.object_ref()];
+        }
+
+        let tx_digest = *simulation.effects.transaction_digest();
+        // Resolve types against the objects the simulation wrote before falling back to
+        // the store, so that packages published by the transaction itself are visible.
+        let (input, events) = {
+            let epoch_store = self.state.load_epoch_store_one_call_per_task();
+            let written =
+                InMemoryStorage::new(simulation.output_objects.values().cloned().collect());
+            let mut layout_resolver = epoch_store.executor().type_layout_resolver(Box::new(
+                PackageStoreWithFallback::new(&written, self.state.get_backing_package_store()),
+            ));
+            let module_cache = TemporaryModuleResolver::new(
+                &simulation.output_objects,
+                to_binary_config(epoch_store.protocol_config()),
+                epoch_store.module_cache().clone(),
+            );
+
+            let input = IotaTransactionBlockData::try_from_with_module_cache(
+                txn_data,
+                &module_cache,
+                tx_digest,
+            )
+            .map_err(|e| {
+                Error::Unexpected(format!(
+                    "Failed to convert transaction to IotaTransactionBlockData: {e}",
+                ))
+            })?;
+            let events = IotaTransactionBlockEvents::try_from(
+                simulation.events.clone().unwrap_or_default(),
+                tx_digest,
+                None,
+                layout_resolver.as_mut(),
+            )?;
+
+            (input, events)
+        };
+
+        let execution_error_source = simulation
+            .execution_result
+            .as_ref()
+            .err()
+            .and_then(|e| e.source().as_ref().map(|e| e.to_string()));
+
+        let object_cache =
+            ObjectProviderCache::new_with_cache(self.state.clone(), &simulation.output_objects);
         let balance_changes = get_balance_changes_from_effect(
             &object_cache,
-            &transaction_effects,
+            &simulation.effects,
             input_objs,
-            mock_gas,
+            simulation.mock_gas_id,
         )
         .await?;
         let object_changes = get_object_changes(
             &object_cache,
             sender,
-            transaction_effects.modified_at_versions(),
-            transaction_effects.all_changed_objects(),
-            transaction_effects.all_removed_objects(),
+            simulation.effects.modified_at_versions(),
+            simulation.effects.all_changed_objects(),
+            simulation.effects.all_removed_objects(),
         )
         .await?;
 
         let resolver = Resolver::new(self.clone());
         let effects = IotaTransactionBlockEffects::from_native_with_clever_error(
-            transaction_effects,
+            simulation.effects,
             &resolver,
         )
         .await;
 
         Ok(DryRunTransactionBlockResponse {
             effects,
-            events: resp.events,
+            events,
             object_changes,
             balance_changes,
-            input: resp.input,
-            suggested_gas_price: resp.suggested_gas_price,
-            execution_error_source: resp.execution_error_source,
+            input,
+            suggested_gas_price: simulation.suggested_gas_price,
+            execution_error_source,
         })
+    }
+
+    /// Simulate `transaction_kind` with the Move VM checks around entry
+    /// functions and argument values relaxed, reporting the return values of
+    /// every command.
+    ///
+    /// Any part of the gas payment the caller leaves out is filled in with the
+    /// reference gas price, the protocol maximum gas budget, and `sender` as
+    /// the gas owner.
+    #[allow(clippy::too_many_arguments)]
+    async fn dev_inspect_transaction(
+        &self,
+        sender: Address,
+        transaction_kind: TransactionKind,
+        gas_price: Option<u64>,
+        gas_budget: Option<u64>,
+        gas_sponsor: Option<Address>,
+        gas_objects: Option<Vec<ObjectReference>>,
+        show_raw_txn_data_and_effects: Option<bool>,
+        skip_checks: Option<bool>,
+    ) -> Result<DevInspectResults, Error> {
+        let show_raw_txn_data_and_effects = show_raw_txn_data_and_effects.unwrap_or(false);
+        let skip_checks = skip_checks.unwrap_or(true);
+
+        let transaction = {
+            let epoch_store = self.state.load_epoch_store_one_call_per_task();
+            TransactionData::V1(TransactionV1 {
+                kind: transaction_kind,
+                sender,
+                gas_payment: GasPayment {
+                    // Payment might be empty here, but that is fine: a mock gas coin is
+                    // minted for it during the simulation.
+                    objects: gas_objects.unwrap_or_default(),
+                    owner: gas_sponsor.unwrap_or(sender),
+                    price: gas_price.unwrap_or_else(|| epoch_store.reference_gas_price()),
+                    budget: gas_budget
+                        .unwrap_or_else(|| epoch_store.protocol_config().max_tx_gas()),
+                },
+                expiration: TransactionExpiration::None,
+            })
+        };
+
+        let raw_txn_data = if show_raw_txn_data_and_effects {
+            bcs::to_bytes(&transaction).map_err(|_| {
+                Error::Unexpected("Failed to serialize transaction during dev inspect".to_string())
+            })?
+        } else {
+            vec![]
+        };
+
+        let checks = if skip_checks {
+            VmChecks::Disabled
+        } else {
+            VmChecks::Enabled
+        };
+        let simulation = self.state.simulate_transaction(transaction, checks)?;
+
+        let raw_effects = if show_raw_txn_data_and_effects {
+            bcs::to_bytes(&simulation.effects).map_err(|_| {
+                Error::Unexpected(
+                    "Failed to serialize transaction effects during dev inspect".to_string(),
+                )
+            })?
+        } else {
+            vec![]
+        };
+
+        // Resolve types against the objects the simulation wrote before falling back to
+        // the store, so that packages published by the transaction itself are visible.
+        let epoch_store = self.state.load_epoch_store_one_call_per_task();
+        let written = InMemoryStorage::new(simulation.output_objects.values().cloned().collect());
+        let mut layout_resolver =
+            epoch_store
+                .executor()
+                .type_layout_resolver(Box::new(PackageStoreWithFallback::new(
+                    &written,
+                    self.state.get_backing_package_store(),
+                )));
+
+        Ok(DevInspectResults::new(
+            simulation.effects,
+            simulation.events.unwrap_or_default(),
+            simulation.execution_result,
+            raw_txn_data,
+            raw_effects,
+            layout_resolver.as_mut(),
+        )?)
     }
 }
 
@@ -426,9 +561,8 @@ impl WriteApiServer for TransactionExecutionApi {
             )
             .await
             .map_err(Error::from)?;
-        let tx_bytes = Base64::from_bytes(&bcs::to_bytes(&tx_kind).map_err(Error::from)?);
         let dev_inspect_results = self
-            .dev_inspect_transaction_block(sender, tx_bytes, None, None, None)
+            .dev_inspect_transaction(sender, tx_kind, None, None, None, None, None, None)
             .await?;
         Ok(
             IotaMoveViewCallResults::from_dev_inspect_results(self.clone(), dev_inspect_results)
@@ -455,19 +589,17 @@ impl WriteApiServer for TransactionExecutionApi {
                 skip_checks,
             } = additional_args.unwrap_or_default();
             let tx_kind: TransactionKind = self.convert_bytes(tx_bytes)?;
-            self.state
-                .dev_inspect_transaction_block(
-                    sender_address,
-                    tx_kind,
-                    gas_price.map(|i| *i),
-                    gas_budget,
-                    gas_sponsor,
-                    gas_objects,
-                    show_raw_txn_data_and_effects,
-                    skip_checks,
-                )
-                .await
-                .map_err(Error::from)
+            self.dev_inspect_transaction(
+                sender_address,
+                tx_kind,
+                gas_price.map(|i| *i),
+                gas_budget,
+                gas_sponsor,
+                gas_objects,
+                show_raw_txn_data_and_effects,
+                skip_checks,
+            )
+            .await
         }
         .trace()
         .await

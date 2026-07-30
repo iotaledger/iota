@@ -37,6 +37,7 @@ use iota_types::{
         CertifiedTransaction, DEFAULT_VALIDATOR_GAS_PRICE, SenderSignedTransactionAPI,
         TransactionDataAPI, TransactionEnvelope, VerifiedCertificate, VerifiedTransaction,
     },
+    transaction_executor::VmChecks,
 };
 
 use crate::{command::Component, mock_storage::InMemoryObjectStore};
@@ -148,12 +149,12 @@ impl SingleValidator {
     pub async fn execute_dry_run(&self, transaction: TransactionEnvelope) -> TransactionEffects {
         let effects = self
             .get_validator()
-            .dry_exec_transaction_for_benchmark(
+            .simulate_transaction_for_benchmark(
                 transaction.data().transaction().clone(),
-                *transaction.digest(),
+                VmChecks::Enabled,
             )
             .unwrap()
-            .2;
+            .effects;
         assert!(effects.status().is_success());
         effects
     }

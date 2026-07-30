@@ -2,10 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{
-    collections::{BTreeMap, HashMap},
-    sync::Arc,
-};
+use std::{collections::HashMap, sync::Arc};
 
 use arc_swap::Guard;
 use async_trait::async_trait;
@@ -16,13 +13,11 @@ use iota_core::{
     subscription_handler::SubscriptionHandler,
 };
 use iota_json_rpc_types::{
-    Coin as IotaCoin, DevInspectResults, DryRunTransactionBlockResponse, EventFilter, IotaEvent,
-    IotaObjectDataFilter, TransactionFilter,
+    Coin as IotaCoin, EventFilter, IotaEvent, IotaObjectDataFilter, TransactionFilter,
 };
 use iota_sdk_types::{
-    Address, CheckpointContentsDigest, CheckpointDigest, ObjectId, ObjectReference, StructTag,
-    TransactionDigest, TransactionEffects, TransactionKind, TypeTag, Version,
-    checkpoint::CheckpointContents,
+    Address, CheckpointContentsDigest, CheckpointDigest, ObjectId, StructTag, TransactionDigest,
+    TransactionEffects, TypeTag, Version, checkpoint::CheckpointContents,
 };
 use iota_storage::key_value_store::{
     KVStoreTransactionData, TransactionKeyValueStore, TransactionKeyValueStoreTrait,
@@ -39,9 +34,10 @@ use iota_types::{
     iota_system_state::IotaSystemState,
     messages_checkpoint::{CheckpointSequenceNumber, VerifiedCheckpoint},
     object::{Object, ObjectRead, PastObjectRead},
-    storage::{BackingPackageStore, ObjectStore, WriteKind},
+    storage::{BackingPackageStore, ObjectStore},
     timelock::timelocked_staked_iota::TimelockedStakedIota,
     transaction::{TransactionData, TransactionEnvelope},
+    transaction_executor::{SimulateTransactionResult, VmChecks},
 };
 #[cfg(test)]
 use mockall::automock;
@@ -106,29 +102,11 @@ pub trait StateRead: Send + Sync {
     ) -> StateReadResult<Vec<IotaEvent>>;
 
     // transaction_execution_api
-    #[allow(clippy::type_complexity)]
-    fn dry_exec_transaction(
+    fn simulate_transaction(
         &self,
         transaction: TransactionData,
-        transaction_digest: TransactionDigest,
-    ) -> StateReadResult<(
-        DryRunTransactionBlockResponse,
-        BTreeMap<ObjectId, (ObjectReference, Object, WriteKind)>,
-        TransactionEffects,
-        Option<ObjectId>,
-    )>;
-
-    async fn dev_inspect_transaction_block(
-        &self,
-        sender: Address,
-        transaction_kind: TransactionKind,
-        gas_price: Option<u64>,
-        gas_budget: Option<u64>,
-        gas_sponsor: Option<Address>,
-        gas_objects: Option<Vec<ObjectReference>>,
-        show_raw_txn_data_and_effects: Option<bool>,
-        skip_checks: Option<bool>,
-    ) -> StateReadResult<DevInspectResults>;
+        checks: VmChecks,
+    ) -> StateReadResult<SimulateTransactionResult>;
 
     // indexer_api
     fn get_subscription_handler(&self) -> Arc<SubscriptionHandler>;
@@ -317,42 +295,12 @@ impl StateRead for AuthorityState {
             .await?)
     }
 
-    fn dry_exec_transaction(
+    fn simulate_transaction(
         &self,
         transaction: TransactionData,
-        transaction_digest: TransactionDigest,
-    ) -> StateReadResult<(
-        DryRunTransactionBlockResponse,
-        BTreeMap<ObjectId, (ObjectReference, Object, WriteKind)>,
-        TransactionEffects,
-        Option<ObjectId>,
-    )> {
-        Ok(self.dry_exec_transaction(transaction, transaction_digest)?)
-    }
-
-    async fn dev_inspect_transaction_block(
-        &self,
-        sender: Address,
-        transaction_kind: TransactionKind,
-        gas_price: Option<u64>,
-        gas_budget: Option<u64>,
-        gas_sponsor: Option<Address>,
-        gas_objects: Option<Vec<ObjectReference>>,
-        show_raw_txn_data_and_effects: Option<bool>,
-        skip_checks: Option<bool>,
-    ) -> StateReadResult<DevInspectResults> {
-        Ok(self
-            .dev_inspect_transaction_block(
-                sender,
-                transaction_kind,
-                gas_price,
-                gas_budget,
-                gas_sponsor,
-                gas_objects,
-                show_raw_txn_data_and_effects,
-                skip_checks,
-            )
-            .await?)
+        checks: VmChecks,
+    ) -> StateReadResult<SimulateTransactionResult> {
+        Ok(self.simulate_transaction(transaction, checks)?)
     }
 
     fn get_subscription_handler(&self) -> Arc<SubscriptionHandler> {
