@@ -63,7 +63,7 @@ after pulling so the cadvisor container starts and Prometheus loads the job.
   Example: `sudo stress-attestation-sequencer/bootstrap.sh -b -n 4`.
 - `start.sh`: bring the network up, verify every validator applied the
   overrides, then start Prometheus and Grafana. Defaults: attestation and
-  white-flag flow on, `TotalComputationUnits` mode, `faucet`, 4 validators.
+  P-COOL flow on, `TotalComputationUnits` mode, `faucet`, 4 validators.
   Tune via environment variables (`MODE`, `ATTEST`, `PCOOL`,
   `MAX_ACCUMULATED_TXN_COST`, `MAX_CONGESTION_OVERSHOOT`,
   `MAX_DEFERRAL_ROUNDS`) and `run.sh` arguments (e.g., `-n 10 faucet`).
@@ -120,25 +120,35 @@ dashboards reduce over the running validators only.
 > commit under test and produces the `iotaledger/stress` docker image. The
 > workload and knob references below live in that repo.
 
-- The `iota-benchmark` stress tool has two submission paths, and only one
-  exercises attestation:
+- The `iota-benchmark` stress tool has two submission paths, and **both**
+  exercise attestation. The transaction kind is set by the protocol flags, not
+  by the path:
+  - Through a fullnode (`--use-fullnode-for-execution true`): the fullnode's
+    `TransactionOrchestrator` routes via `TransactionDriver`, submitting on the
+    attesting `submit_tx` path.
   - Direct to validators (`--local`, or remote with
-    `--use-fullnode-for-execution false`): the old certificate-based
-    `QuorumDriver` path. It submits certificate-based transactions
-    (`ConsensusTransactionKind::CertifiedTransaction`), not `UserTransactionV1`,
-    and never enters the certificate-less white-flag and attestation flow.
-  - Through a fullnode (`--use-fullnode-for-execution true`) with
-    `enable_white_flag_flow` on: the fullnode routes via `TransactionDriver`,
-    which submits on the attesting `submit_tx` path. That produces
-    certificate-less `UserTransactionV2` (attested) when
-    `enable_validator_attestation` is on, or `UserTransactionV1` (unattested)
-    when off.
-  So to test `TotalComputationUnits` on attested transactions, run the stress
-  tool against the fullnode with attestation enabled (`start.sh` sets the
-  flags). The kind is set by the submission path (direct vs fullnode) and by
-  the `enable_white_flag_flow` and `enable_validator_attestation` flags, not
-  by the congestion mode; an unattested run (`UserTransactionV1`, or the
-  certificate path) uses the fallback (`gas_budget / gas_price`).
+    `--use-fullnode-for-execution false`): `LocalValidatorAggregatorProxy`
+    detects the network's effective `enable_pcool_flow` over RPC
+    (`detect_pcool_flow`) and picks the driver to match the fullnode —
+    `TransactionDriver` when the flag is on, the legacy certificate-based
+    `QuorumDriver` (`ConsensusTransactionKind::CertifiedTransaction`) only when
+    it is off. Since `start.sh` defaults `PCOOL=true`, this path uses
+    `TransactionDriver` in practice.
+  With `enable_pcool_flow` on, either path produces certificate-less
+  `UserTransactionV2` (attested) when `enable_validator_attestation` is on, or
+  `UserTransactionV1` (unattested) when it is off. Both kinds reach
+  post-consensus validation; an unattested run uses the fallback attested cost
+  (`gas_budget / gas_price`), as does the certificate path.
+
+  The remaining difference between the paths is metric coverage, not the
+  transaction kind: on the fullnode path the client-side `TransactionDriver`
+  metrics are emitted by the fullnode, which is a Prometheus target, so
+  settlement and submit latency are scraped. The direct path runs the driver
+  inside the stress container, which is not a target, so those client-side
+  series are absent while all validator-side metrics still scrape.
+
+  So to test `TotalComputationUnits` on attested transactions, run with
+  attestation enabled (`start.sh` sets the flags) on either path.
 - Available workloads in the `iota-benchmark` stress:
   - `--shared-counter`: increments a shared `Counter` object
     (`call_counter_increment`), so it is a shared-object transaction subject
@@ -387,7 +397,7 @@ They are needed for the testing only, not to be merged to upstream branches.
 
 ### W1 - shared-counter contention (baseline)
 
-- Network parameters: attestation on, white-flag flow on; one run per
+- Network parameters: attestation on, P-COOL flow on; one run per
   congestion control mode (`TotalTxCount` and `TotalComputationUnits`);
   per-object cost limit set per mode to the same effective per-object capacity,
   not the same numeric value (10 means 10 transactions under `TotalTxCount`
@@ -405,7 +415,7 @@ They are needed for the testing only, not to be merged to upstream branches.
 
 ### W2 - inflated budget
 
-- Network parameters: attestation on, white-flag flow on; compare
+- Network parameters: attestation on, P-COOL flow on; compare
   `TotalGasBudget` vs `TotalComputationUnits` (the two budget-aware modes);
   per-object cost limit set per mode to the same effective capacity
   (`NANOS`-scale for `TotalGasBudget`, gas-units for `TotalComputationUnits` -
@@ -421,7 +431,7 @@ They are needed for the testing only, not to be merged to upstream branches.
 
 ### W3 - early-abort robustness (not a cost-differentiation test)
 
-- Network parameters: attestation on, white-flag flow on; `TotalComputationUnits`
+- Network parameters: attestation on, P-COOL flow on; `TotalComputationUnits`
   mode.
 - Stress parameters: a new cheap shared-object Move call that aborts early in
   execution; drive it at a high rate on a hot object. Needs the early-abort call
@@ -441,7 +451,7 @@ They are needed for the testing only, not to be merged to upstream branches.
 
 ### W4 - slow owned-object transactions (attestation overhead, V1 vs V2)
 
-- Network parameters: white-flag flow on; two runs at the same mode
+- Network parameters: P-COOL flow on; two runs at the same mode
   (`TotalComputationUnits`): (i) attestation off (all V1, fallback
   `gas_budget / gas_price`) and attestation on (all V2, attested computation
   cost). The two kinds never coexist in a run.
@@ -457,7 +467,7 @@ They are needed for the testing only, not to be merged to upstream branches.
 
 ### W5 - slow shared-object transactions
 
-- Network parameters: attestation on, white-flag flow on; one run per mode
+- Network parameters: attestation on, P-COOL flow on; one run per mode
   (especially `TotalComputationUnits` vs `TotalTxCount` / `TotalGasBudget`);
   per-object cost limit set per mode to the same effective capacity, not the
   same numeric value (see P0b); watch the overshoot limit.
@@ -484,7 +494,7 @@ They are needed for the testing only, not to be merged to upstream branches.
 
 ### W6 - under-reporting attestor
 
-- Network parameters: attestation on, white-flag flow on; `TotalComputationUnits`
+- Network parameters: attestation on, P-COOL flow on; `TotalComputationUnits`
   mode; per-object cost limit at a normal value (the reference the overshoot is
   measured against); one validator skewed to under-report (a value between the
   minimum computation floor and the real computation cost). Done with the
@@ -508,7 +518,7 @@ They are needed for the testing only, not to be merged to upstream branches.
 
 ### W7 - over-reporting attestor
 
-- Network parameters: attestation on, white-flag flow on; `TotalComputationUnits`
+- Network parameters: attestation on, P-COOL flow on; `TotalComputationUnits`
   mode; one validator skewed to over-report (above the real cost, up to and
   beyond `gas_budget / gas_price`); `max_deferral_rounds_for_congestion_control`
   at the default 10 (one run per low / default / high only to confirm it bounds
