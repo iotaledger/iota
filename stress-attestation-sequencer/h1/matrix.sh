@@ -29,7 +29,8 @@
 #    Check #6 — once per validator, serially inside the consensus handler — and
 #    V2 skips the call entirely, so AUTH_CYCLES sweeps a cost only V1 pays.
 #
-#      5 cycles {1, 10, 25, 50, 70}  (ed25519 verifications per tx)
+#      5 cycles {1, 5, 10, 20, 50}  (ed25519 verifications per tx; geometric,
+#                                    matching family A's spacing)
 #    × 3 paths  {f1, v1, v4 as above}
 #    × 3 qps    {200, 1000, 2000}                                    = 45 configs.
 #
@@ -41,12 +42,15 @@
 #    ~9 KB per transaction.
 #
 #    All cells are NON-FAILING: AUTH_SHOULD_FAIL=false (and `ed25519heavy` does
-#    not assert the verification result anyway), and the cycle counts stay under
-#    the budget ceiling. One verification costs ~2800-3300 gas, so at the privnet's
-#    max_auth_gas=250000 about 89 fit; 70 is ~80% of that, leaving headroom.
-#    Raising AUTH_CYCLES past the ceiling aborts every tx with OUT_OF_GAS, which
-#    measures admission pressure instead of the check cost — if max_auth_gas is
-#    overridden, rescale these counts with it.
+#    not assert the verification result anyway), and the cycle counts stay well
+#    under the budget ceiling. One verification costs ~2800-3300 gas, so at the
+#    privnet's max_auth_gas=250000 roughly 89 fit; the top rung of 50 is ~56% of
+#    that. That margin is deliberate — the per-cycle figure is extrapolated from a
+#    measured `superheavy` sweep, not measured for `ed25519heavy`, so a rung close
+#    to the ceiling risks aborting outright if the real cost is higher. Raising
+#    AUTH_CYCLES past the ceiling aborts every tx with OUT_OF_GAS, which measures
+#    admission pressure instead of the check cost — if max_auth_gas is overridden,
+#    rescale these counts with it.
 #
 #    AUTH_CYCLES=1 is the light baseline rung. The other kinds are unusable here:
 #    helloworld / ed25519 / maxargs125 have constant Move loops that cannot be
@@ -64,9 +68,10 @@
 #    consensus handling. It is a read-only input (mutable: false), which is why
 #    congestion control still stays out of the comparison.
 #
-#    Labels are auth<cycles> (auth1, auth10, auth25, auth50, auth70). FILTER is a
-#    plain substring match, so "auth1" also selects auth10 — add the trailing
-#    hyphen ("auth1-") to pick exactly one level.
+#    Labels are auth<cycles> (auth1, auth5, auth10, auth20, auth50). FILTER is a
+#    plain substring match, so "auth1" also selects auth10 and "auth5" also
+#    selects auth50 — add the trailing hyphen ("auth1-", "auth5-") to pick exactly
+#    one level.
 #
 # 90 configs total. Use the substring FILTER to run one family at a time
 # (`./matrix.sh auth`, `./matrix.sh slow`) — the full grid at ITERS=5 is days of
@@ -90,8 +95,9 @@
 #   ITERS=5 ./matrix.sh             # run all 90 configs (both families)
 #   ITERS=5 ./matrix.sh auth        # only the 45 moveauth configs
 #   ITERS=5 ./matrix.sh slow        # only the 45 slow configs
-#   ITERS=3 ./matrix.sh auth70-     # one cycle count, all paths/qps (9 configs)
+#   ITERS=3 ./matrix.sh auth50-     # one cycle count, all paths/qps (9 configs)
 #   ITERS=3 ./matrix.sh auth1-      # trailing hyphen: auth1 only, not auth10
+#   ITERS=3 ./matrix.sh auth5-      # trailing hyphen: auth5 only, not auth50
 #   ITERS=3 ./matrix.sh slow100     # only labels containing "slow100" (substring filter)
 #
 # A config that fails (or is interrupted) does NOT abort the matrix — it's logged
@@ -200,6 +206,16 @@ configs=(
   "auth1-owned-v1-qps2000-n4   | WORKLOAD=moveauth AUTHENTICATOR=ed25519heavy AUTH_CYCLES=1 AUTH_OBJ_TYPE=owned-object AUTH_SHOULD_FAIL=false TARGET_QPS=2000 N=4 DIRECT=true NUM_TARGET_VALIDATORS=1"
   "auth1-owned-v4-qps2000-n4   | WORKLOAD=moveauth AUTHENTICATOR=ed25519heavy AUTH_CYCLES=1 AUTH_OBJ_TYPE=owned-object AUTH_SHOULD_FAIL=false TARGET_QPS=2000 N=4 DIRECT=true NUM_TARGET_VALIDATORS=4"
   #
+  "auth5-owned-f1-qps200-n4    | WORKLOAD=moveauth AUTHENTICATOR=ed25519heavy AUTH_CYCLES=5 AUTH_OBJ_TYPE=owned-object AUTH_SHOULD_FAIL=false TARGET_QPS=200 N=4 DIRECT=false"
+  "auth5-owned-v1-qps200-n4    | WORKLOAD=moveauth AUTHENTICATOR=ed25519heavy AUTH_CYCLES=5 AUTH_OBJ_TYPE=owned-object AUTH_SHOULD_FAIL=false TARGET_QPS=200 N=4 DIRECT=true NUM_TARGET_VALIDATORS=1"
+  "auth5-owned-v4-qps200-n4    | WORKLOAD=moveauth AUTHENTICATOR=ed25519heavy AUTH_CYCLES=5 AUTH_OBJ_TYPE=owned-object AUTH_SHOULD_FAIL=false TARGET_QPS=200 N=4 DIRECT=true NUM_TARGET_VALIDATORS=4"
+  "auth5-owned-f1-qps1000-n4   | WORKLOAD=moveauth AUTHENTICATOR=ed25519heavy AUTH_CYCLES=5 AUTH_OBJ_TYPE=owned-object AUTH_SHOULD_FAIL=false TARGET_QPS=1000 N=4 DIRECT=false"
+  "auth5-owned-v1-qps1000-n4   | WORKLOAD=moveauth AUTHENTICATOR=ed25519heavy AUTH_CYCLES=5 AUTH_OBJ_TYPE=owned-object AUTH_SHOULD_FAIL=false TARGET_QPS=1000 N=4 DIRECT=true NUM_TARGET_VALIDATORS=1"
+  "auth5-owned-v4-qps1000-n4   | WORKLOAD=moveauth AUTHENTICATOR=ed25519heavy AUTH_CYCLES=5 AUTH_OBJ_TYPE=owned-object AUTH_SHOULD_FAIL=false TARGET_QPS=1000 N=4 DIRECT=true NUM_TARGET_VALIDATORS=4"
+  "auth5-owned-f1-qps2000-n4   | WORKLOAD=moveauth AUTHENTICATOR=ed25519heavy AUTH_CYCLES=5 AUTH_OBJ_TYPE=owned-object AUTH_SHOULD_FAIL=false TARGET_QPS=2000 N=4 DIRECT=false"
+  "auth5-owned-v1-qps2000-n4   | WORKLOAD=moveauth AUTHENTICATOR=ed25519heavy AUTH_CYCLES=5 AUTH_OBJ_TYPE=owned-object AUTH_SHOULD_FAIL=false TARGET_QPS=2000 N=4 DIRECT=true NUM_TARGET_VALIDATORS=1"
+  "auth5-owned-v4-qps2000-n4   | WORKLOAD=moveauth AUTHENTICATOR=ed25519heavy AUTH_CYCLES=5 AUTH_OBJ_TYPE=owned-object AUTH_SHOULD_FAIL=false TARGET_QPS=2000 N=4 DIRECT=true NUM_TARGET_VALIDATORS=4"
+  #
   "auth10-owned-f1-qps200-n4   | WORKLOAD=moveauth AUTHENTICATOR=ed25519heavy AUTH_CYCLES=10 AUTH_OBJ_TYPE=owned-object AUTH_SHOULD_FAIL=false TARGET_QPS=200 N=4 DIRECT=false"
   "auth10-owned-v1-qps200-n4   | WORKLOAD=moveauth AUTHENTICATOR=ed25519heavy AUTH_CYCLES=10 AUTH_OBJ_TYPE=owned-object AUTH_SHOULD_FAIL=false TARGET_QPS=200 N=4 DIRECT=true NUM_TARGET_VALIDATORS=1"
   "auth10-owned-v4-qps200-n4   | WORKLOAD=moveauth AUTHENTICATOR=ed25519heavy AUTH_CYCLES=10 AUTH_OBJ_TYPE=owned-object AUTH_SHOULD_FAIL=false TARGET_QPS=200 N=4 DIRECT=true NUM_TARGET_VALIDATORS=4"
@@ -210,15 +226,15 @@ configs=(
   "auth10-owned-v1-qps2000-n4  | WORKLOAD=moveauth AUTHENTICATOR=ed25519heavy AUTH_CYCLES=10 AUTH_OBJ_TYPE=owned-object AUTH_SHOULD_FAIL=false TARGET_QPS=2000 N=4 DIRECT=true NUM_TARGET_VALIDATORS=1"
   "auth10-owned-v4-qps2000-n4  | WORKLOAD=moveauth AUTHENTICATOR=ed25519heavy AUTH_CYCLES=10 AUTH_OBJ_TYPE=owned-object AUTH_SHOULD_FAIL=false TARGET_QPS=2000 N=4 DIRECT=true NUM_TARGET_VALIDATORS=4"
   #
-  "auth25-owned-f1-qps200-n4   | WORKLOAD=moveauth AUTHENTICATOR=ed25519heavy AUTH_CYCLES=25 AUTH_OBJ_TYPE=owned-object AUTH_SHOULD_FAIL=false TARGET_QPS=200 N=4 DIRECT=false"
-  "auth25-owned-v1-qps200-n4   | WORKLOAD=moveauth AUTHENTICATOR=ed25519heavy AUTH_CYCLES=25 AUTH_OBJ_TYPE=owned-object AUTH_SHOULD_FAIL=false TARGET_QPS=200 N=4 DIRECT=true NUM_TARGET_VALIDATORS=1"
-  "auth25-owned-v4-qps200-n4   | WORKLOAD=moveauth AUTHENTICATOR=ed25519heavy AUTH_CYCLES=25 AUTH_OBJ_TYPE=owned-object AUTH_SHOULD_FAIL=false TARGET_QPS=200 N=4 DIRECT=true NUM_TARGET_VALIDATORS=4"
-  "auth25-owned-f1-qps1000-n4  | WORKLOAD=moveauth AUTHENTICATOR=ed25519heavy AUTH_CYCLES=25 AUTH_OBJ_TYPE=owned-object AUTH_SHOULD_FAIL=false TARGET_QPS=1000 N=4 DIRECT=false"
-  "auth25-owned-v1-qps1000-n4  | WORKLOAD=moveauth AUTHENTICATOR=ed25519heavy AUTH_CYCLES=25 AUTH_OBJ_TYPE=owned-object AUTH_SHOULD_FAIL=false TARGET_QPS=1000 N=4 DIRECT=true NUM_TARGET_VALIDATORS=1"
-  "auth25-owned-v4-qps1000-n4  | WORKLOAD=moveauth AUTHENTICATOR=ed25519heavy AUTH_CYCLES=25 AUTH_OBJ_TYPE=owned-object AUTH_SHOULD_FAIL=false TARGET_QPS=1000 N=4 DIRECT=true NUM_TARGET_VALIDATORS=4"
-  "auth25-owned-f1-qps2000-n4  | WORKLOAD=moveauth AUTHENTICATOR=ed25519heavy AUTH_CYCLES=25 AUTH_OBJ_TYPE=owned-object AUTH_SHOULD_FAIL=false TARGET_QPS=2000 N=4 DIRECT=false"
-  "auth25-owned-v1-qps2000-n4  | WORKLOAD=moveauth AUTHENTICATOR=ed25519heavy AUTH_CYCLES=25 AUTH_OBJ_TYPE=owned-object AUTH_SHOULD_FAIL=false TARGET_QPS=2000 N=4 DIRECT=true NUM_TARGET_VALIDATORS=1"
-  "auth25-owned-v4-qps2000-n4  | WORKLOAD=moveauth AUTHENTICATOR=ed25519heavy AUTH_CYCLES=25 AUTH_OBJ_TYPE=owned-object AUTH_SHOULD_FAIL=false TARGET_QPS=2000 N=4 DIRECT=true NUM_TARGET_VALIDATORS=4"
+  "auth20-owned-f1-qps200-n4   | WORKLOAD=moveauth AUTHENTICATOR=ed25519heavy AUTH_CYCLES=20 AUTH_OBJ_TYPE=owned-object AUTH_SHOULD_FAIL=false TARGET_QPS=200 N=4 DIRECT=false"
+  "auth20-owned-v1-qps200-n4   | WORKLOAD=moveauth AUTHENTICATOR=ed25519heavy AUTH_CYCLES=20 AUTH_OBJ_TYPE=owned-object AUTH_SHOULD_FAIL=false TARGET_QPS=200 N=4 DIRECT=true NUM_TARGET_VALIDATORS=1"
+  "auth20-owned-v4-qps200-n4   | WORKLOAD=moveauth AUTHENTICATOR=ed25519heavy AUTH_CYCLES=20 AUTH_OBJ_TYPE=owned-object AUTH_SHOULD_FAIL=false TARGET_QPS=200 N=4 DIRECT=true NUM_TARGET_VALIDATORS=4"
+  "auth20-owned-f1-qps1000-n4  | WORKLOAD=moveauth AUTHENTICATOR=ed25519heavy AUTH_CYCLES=20 AUTH_OBJ_TYPE=owned-object AUTH_SHOULD_FAIL=false TARGET_QPS=1000 N=4 DIRECT=false"
+  "auth20-owned-v1-qps1000-n4  | WORKLOAD=moveauth AUTHENTICATOR=ed25519heavy AUTH_CYCLES=20 AUTH_OBJ_TYPE=owned-object AUTH_SHOULD_FAIL=false TARGET_QPS=1000 N=4 DIRECT=true NUM_TARGET_VALIDATORS=1"
+  "auth20-owned-v4-qps1000-n4  | WORKLOAD=moveauth AUTHENTICATOR=ed25519heavy AUTH_CYCLES=20 AUTH_OBJ_TYPE=owned-object AUTH_SHOULD_FAIL=false TARGET_QPS=1000 N=4 DIRECT=true NUM_TARGET_VALIDATORS=4"
+  "auth20-owned-f1-qps2000-n4  | WORKLOAD=moveauth AUTHENTICATOR=ed25519heavy AUTH_CYCLES=20 AUTH_OBJ_TYPE=owned-object AUTH_SHOULD_FAIL=false TARGET_QPS=2000 N=4 DIRECT=false"
+  "auth20-owned-v1-qps2000-n4  | WORKLOAD=moveauth AUTHENTICATOR=ed25519heavy AUTH_CYCLES=20 AUTH_OBJ_TYPE=owned-object AUTH_SHOULD_FAIL=false TARGET_QPS=2000 N=4 DIRECT=true NUM_TARGET_VALIDATORS=1"
+  "auth20-owned-v4-qps2000-n4  | WORKLOAD=moveauth AUTHENTICATOR=ed25519heavy AUTH_CYCLES=20 AUTH_OBJ_TYPE=owned-object AUTH_SHOULD_FAIL=false TARGET_QPS=2000 N=4 DIRECT=true NUM_TARGET_VALIDATORS=4"
   #
   "auth50-owned-f1-qps200-n4   | WORKLOAD=moveauth AUTHENTICATOR=ed25519heavy AUTH_CYCLES=50 AUTH_OBJ_TYPE=owned-object AUTH_SHOULD_FAIL=false TARGET_QPS=200 N=4 DIRECT=false"
   "auth50-owned-v1-qps200-n4   | WORKLOAD=moveauth AUTHENTICATOR=ed25519heavy AUTH_CYCLES=50 AUTH_OBJ_TYPE=owned-object AUTH_SHOULD_FAIL=false TARGET_QPS=200 N=4 DIRECT=true NUM_TARGET_VALIDATORS=1"
@@ -229,16 +245,6 @@ configs=(
   "auth50-owned-f1-qps2000-n4  | WORKLOAD=moveauth AUTHENTICATOR=ed25519heavy AUTH_CYCLES=50 AUTH_OBJ_TYPE=owned-object AUTH_SHOULD_FAIL=false TARGET_QPS=2000 N=4 DIRECT=false"
   "auth50-owned-v1-qps2000-n4  | WORKLOAD=moveauth AUTHENTICATOR=ed25519heavy AUTH_CYCLES=50 AUTH_OBJ_TYPE=owned-object AUTH_SHOULD_FAIL=false TARGET_QPS=2000 N=4 DIRECT=true NUM_TARGET_VALIDATORS=1"
   "auth50-owned-v4-qps2000-n4  | WORKLOAD=moveauth AUTHENTICATOR=ed25519heavy AUTH_CYCLES=50 AUTH_OBJ_TYPE=owned-object AUTH_SHOULD_FAIL=false TARGET_QPS=2000 N=4 DIRECT=true NUM_TARGET_VALIDATORS=4"
-  #
-  "auth70-owned-f1-qps200-n4   | WORKLOAD=moveauth AUTHENTICATOR=ed25519heavy AUTH_CYCLES=70 AUTH_OBJ_TYPE=owned-object AUTH_SHOULD_FAIL=false TARGET_QPS=200 N=4 DIRECT=false"
-  "auth70-owned-v1-qps200-n4   | WORKLOAD=moveauth AUTHENTICATOR=ed25519heavy AUTH_CYCLES=70 AUTH_OBJ_TYPE=owned-object AUTH_SHOULD_FAIL=false TARGET_QPS=200 N=4 DIRECT=true NUM_TARGET_VALIDATORS=1"
-  "auth70-owned-v4-qps200-n4   | WORKLOAD=moveauth AUTHENTICATOR=ed25519heavy AUTH_CYCLES=70 AUTH_OBJ_TYPE=owned-object AUTH_SHOULD_FAIL=false TARGET_QPS=200 N=4 DIRECT=true NUM_TARGET_VALIDATORS=4"
-  "auth70-owned-f1-qps1000-n4  | WORKLOAD=moveauth AUTHENTICATOR=ed25519heavy AUTH_CYCLES=70 AUTH_OBJ_TYPE=owned-object AUTH_SHOULD_FAIL=false TARGET_QPS=1000 N=4 DIRECT=false"
-  "auth70-owned-v1-qps1000-n4  | WORKLOAD=moveauth AUTHENTICATOR=ed25519heavy AUTH_CYCLES=70 AUTH_OBJ_TYPE=owned-object AUTH_SHOULD_FAIL=false TARGET_QPS=1000 N=4 DIRECT=true NUM_TARGET_VALIDATORS=1"
-  "auth70-owned-v4-qps1000-n4  | WORKLOAD=moveauth AUTHENTICATOR=ed25519heavy AUTH_CYCLES=70 AUTH_OBJ_TYPE=owned-object AUTH_SHOULD_FAIL=false TARGET_QPS=1000 N=4 DIRECT=true NUM_TARGET_VALIDATORS=4"
-  "auth70-owned-f1-qps2000-n4  | WORKLOAD=moveauth AUTHENTICATOR=ed25519heavy AUTH_CYCLES=70 AUTH_OBJ_TYPE=owned-object AUTH_SHOULD_FAIL=false TARGET_QPS=2000 N=4 DIRECT=false"
-  "auth70-owned-v1-qps2000-n4  | WORKLOAD=moveauth AUTHENTICATOR=ed25519heavy AUTH_CYCLES=70 AUTH_OBJ_TYPE=owned-object AUTH_SHOULD_FAIL=false TARGET_QPS=2000 N=4 DIRECT=true NUM_TARGET_VALIDATORS=1"
-  "auth70-owned-v4-qps2000-n4  | WORKLOAD=moveauth AUTHENTICATOR=ed25519heavy AUTH_CYCLES=70 AUTH_OBJ_TYPE=owned-object AUTH_SHOULD_FAIL=false TARGET_QPS=2000 N=4 DIRECT=true NUM_TARGET_VALIDATORS=4"
 )
 
 # Cache sudo up front (run.sh uses sudo per iteration) and keep it alive for the
