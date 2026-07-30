@@ -1,13 +1,15 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! Per-peer responsiveness tracking and ranking for transaction-synchronizer
-//! peer selection.
+//! Per-peer responsiveness tracking and ranking for synchronizer peer
+//! selection.
 //!
-//! The transactions synchronizer picks peers to fetch missing transactions
+//! The transactions synchronizer and the commit syncer pick peers to fetch
 //! from. On a node with slow or asymmetric inbound links a uniform choice
 //! regularly draws slow-but-not-failing peers, adding avoidable latency to
-//! payload retrieval.
+//! payload and commit retrieval. Each fetch source in
+//! [`DataSource::RESPONSIVENESS_SOURCES`] is tracked separately, so a peer that
+//! serves one kind of fetch well is not credited for another.
 //!
 //! [`PeerResponsiveness`] tracks a per-peer smoothed "effective latency" fed by
 //! those existing latency/outcome signals, and exposes
@@ -41,10 +43,13 @@ use starfish_config::{AuthorityIndex, Committee};
 use crate::{dag_state::DataSource, metrics::Metrics};
 
 impl DataSource {
-    /// Fetch sources ranked by peer responsiveness. Only the transactions
-    /// synchronizer selects peers this way; other sources are not ranked.
-    pub(crate) const RESPONSIVENESS_SOURCES: [DataSource; 1] =
-        [DataSource::TransactionSynchronizer];
+    /// Fetch sources ranked by peer responsiveness. Sources not listed here are
+    /// not ranked, and every [`PeerResponsiveness`] call for them is a no-op.
+    pub(crate) const RESPONSIVENESS_SOURCES: [DataSource; 3] = [
+        DataSource::TransactionSynchronizer,
+        DataSource::CommitSyncer,
+        DataSource::FastCommitSyncer,
+    ];
 }
 
 /// Probability that a `prioritize` call ignores ranking and returns a uniform
