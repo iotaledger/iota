@@ -34,6 +34,12 @@
 //! dropped transaction never reaches the version-assignment walk, so no
 //! version-chain decision can disagree with the pass order.
 //!
+//! The whole design is enabled only under the P-COOL flow, where every user
+//! transaction is sequenced before it can execute: dropping a transaction
+//! that may already have executed would be unsound, so in the certificate
+//! flow the rules are inert and `ClaimAccount` transactions are not accepted
+//! at all.
+//!
 //! Removed transactions are dropped deterministically and surfaced to clients
 //! through the dropped-transaction status cache. Once owned-object-only
 //! transactions can execute in cancelled mode, these drops should become
@@ -117,6 +123,15 @@ impl AccountRulesState {
         cache_reader: &dyn ObjectCacheRead,
         data: &SenderSignedData,
     ) -> IotaResult<Option<IotaError>> {
+        // The rules drop transactions that would otherwise execute; that is
+        // sound only when every user transaction is sequenced before it can
+        // execute, i.e. under the P-COOL flow. The certificate flow is left
+        // untouched: there an owned-object transaction can execute as soon as
+        // it is certified, which is why `ClaimAccount` transactions are not
+        // accepted outside the P-COOL flow in the first place.
+        if !epoch_store.protocol_config().enable_pcool_flow() {
+            return Ok(None);
+        }
         if !epoch_store.protocol_config().enable_claim_registry() {
             return Ok(None);
         }
@@ -276,6 +291,15 @@ mod tests {
     use super::*;
     use crate::authority::{AuthorityState, test_authority_builder::TestAuthorityBuilder};
 
+    /// The plain-signature and propagation rules only drop transactions
+    /// under the P-COOL flow; tests exercising them enable it.
+    fn enable_pcool_flow() -> impl Drop {
+        iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.set_enable_pcool_flow_for_testing(true);
+            config
+        })
+    }
+
     fn make_data(tx_data: TransactionData, signatures: Vec<GenericSignature>) -> SenderSignedData {
         SenderSignedData::new(tx_data, signatures)
     }
@@ -352,6 +376,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_plain_signed_after_claim_in_same_commit_is_dropped() {
+        let _protocol_guard = enable_pcool_flow();
         let authority = TestAuthorityBuilder::new().build().await;
         let mut state = AccountRulesState::new();
         let (account, claim) = claim_data();
@@ -368,6 +393,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_plain_signed_before_claim_in_same_commit_proceeds() {
+        let _protocol_guard = enable_pcool_flow();
         let authority = TestAuthorityBuilder::new().build().await;
         let mut state = AccountRulesState::new();
         let (account, claim) = claim_data();
@@ -383,6 +409,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_duplicate_claim_in_same_commit_is_dropped() {
+        let _protocol_guard = enable_pcool_flow();
         let authority = TestAuthorityBuilder::new().build().await;
         let mut state = AccountRulesState::new();
         let (account, first_claim) = claim_data();
@@ -405,6 +432,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_cancelled_claim_releases_address_and_propagates() {
+        let _protocol_guard = enable_pcool_flow();
         let authority = TestAuthorityBuilder::new().build().await;
         let mut state = AccountRulesState::new();
         let (account, claim) = claim_data();
@@ -429,6 +457,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_claim_entry_from_earlier_commit_drops_plain_and_claim() {
+        let _protocol_guard = enable_pcool_flow();
         let authority = TestAuthorityBuilder::new().build().await;
         let state = AccountRulesState::new();
         let (account, claim) = claim_data();
@@ -453,6 +482,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_settled_account_object_in_store_drops_plain() {
+        let _protocol_guard = enable_pcool_flow();
         let (sender, _): (Address, AccountKeyPair) = get_key_pair();
         let account_object = Object::with_id_owner_for_testing(sender.into(), Address::ZERO);
         let authority = TestAuthorityBuilder::new()

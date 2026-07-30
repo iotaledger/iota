@@ -120,6 +120,14 @@ async fn test_claim_account_mutable_succeeds() {
 
     telemetry_subscribers::init_for_testing();
 
+    // The account design (and with it the ClaimAccount kind) is only enabled
+    // under the P-COOL flow.
+    let _protocol_guard =
+        iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.set_enable_pcool_flow_for_testing(true);
+            config
+        });
+
     let test_cluster = TestClusterBuilder::new()
         .with_epoch_duration_ms(20000)
         .build()
@@ -209,6 +217,14 @@ async fn test_claim_account_immutable_succeeds() {
 
     telemetry_subscribers::init_for_testing();
 
+    // The account design (and with it the ClaimAccount kind) is only enabled
+    // under the P-COOL flow.
+    let _protocol_guard =
+        iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.set_enable_pcool_flow_for_testing(true);
+            config
+        });
+
     let test_cluster = TestClusterBuilder::new()
         .with_epoch_duration_ms(20000)
         .build()
@@ -292,6 +308,14 @@ async fn test_claim_account_with_dynamic_field() {
     };
 
     telemetry_subscribers::init_for_testing();
+
+    // The account design (and with it the ClaimAccount kind) is only enabled
+    // under the P-COOL flow.
+    let _protocol_guard =
+        iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.set_enable_pcool_flow_for_testing(true);
+            config
+        });
 
     let test_cluster = TestClusterBuilder::new()
         .with_epoch_duration_ms(20000)
@@ -533,10 +557,20 @@ async fn test_account_rules_reject_plain_signature_and_duplicate_claim() {
     };
     use iota_types::{
         crypto::IotaKeyPair,
-        transaction::{TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, TransactionData},
+        transaction::{
+            TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, TransactionData, TransactionDataAPI,
+        },
     };
 
     telemetry_subscribers::init_for_testing();
+
+    // The account design (and with it the ClaimAccount kind) is only enabled
+    // under the P-COOL flow.
+    let _protocol_guard =
+        iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.set_enable_pcool_flow_for_testing(true);
+            config
+        });
 
     let test_cluster = TestClusterBuilder::new()
         .with_epoch_duration_ms(20000)
@@ -605,7 +639,7 @@ async fn test_account_rules_reject_plain_signature_and_duplicate_claim() {
     // A plain-signed transaction from the claimed address is rejected: the
     // explicit account must authenticate with a MoveAuthenticator. It pays
     // with the claim's gas coin at its post-claim version.
-    let transfer_gas = effects.gas_object().reference.to_object_ref();
+    let transfer_gas = effects.gas_object().reference;
     let transfer_tx_data =
         iota_test_transaction_builder::TestTransactionBuilder::new(owner, transfer_gas, rgp)
             .transfer_iota(Some(1), owner)

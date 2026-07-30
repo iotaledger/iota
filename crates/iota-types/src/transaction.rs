@@ -935,6 +935,19 @@ impl TransactionKindExt for TransactionKind {
                         "claim account transactions require the claim registry feature".to_string()
                     )
                 );
+                // The account rules (the duplicate-claim guard that prevents a
+                // second object with the same id from being minted, and the
+                // claim staging) run in the sequencer and are only sound when
+                // every user transaction is sequenced before it can execute —
+                // i.e. under the P-COOL flow. In the certificate flow an
+                // owned-object transaction executes as soon as it is
+                // certified, so claims are not accepted there.
+                fp_ensure!(
+                    config.enable_pcool_flow(),
+                    UserInputError::Unsupported(
+                        "claim account transactions require the P-COOL flow".to_string()
+                    )
+                );
             }
             _ => unimplemented!(
                 "a new TransactionKind enum variant was added and needs to be handled"
