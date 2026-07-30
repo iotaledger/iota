@@ -1593,19 +1593,7 @@ impl TestBlockHeader {
         context: &Arc<Context>,
         encoder: &mut Box<dyn ShardEncoder + Send + Sync>,
     ) -> Self {
-        let txs = vec![];
-        let serialized_transactions = Transaction::serialize(&txs)
-            .expect("We should expect correct serialization of the transactions");
-        Self::with_commitment(
-            round,
-            author,
-            TransactionsCommitment::compute_transactions_commitment(
-                &serialized_transactions,
-                context,
-                encoder,
-            )
-            .unwrap(),
-        )
+        Self::with_transactions(round, author, vec![], context, encoder)
     }
 
     #[cfg(test)]
@@ -1616,12 +1604,27 @@ impl TestBlockHeader {
         context: &Arc<Context>,
         encoder: &mut Box<dyn ShardEncoder + Send + Sync>,
     ) -> Self {
-        let txs = vec![vec![tx; 16]]
-            .into_iter()
-            .map(Transaction::new)
-            .collect::<Vec<Transaction>>();
+        Self::with_transactions(
+            round,
+            author,
+            vec![Transaction::new(vec![tx; 16])],
+            context,
+            encoder,
+        )
+    }
+
+    /// Commits to `txs` the way a proposer does, so the commitment can be
+    /// checked against the transactions.
+    #[cfg(test)]
+    fn with_transactions(
+        round: Round,
+        author: u8,
+        txs: Vec<Transaction>,
+        context: &Arc<Context>,
+        encoder: &mut Box<dyn ShardEncoder + Send + Sync>,
+    ) -> Self {
         let serialized_transactions = Transaction::serialize(&txs)
-            .expect("We should expect correct serialization of the transactions for sharding");
+            .expect("We should expect correct serialization of the transactions");
         Self::with_commitment(
             round,
             author,
@@ -1706,21 +1709,23 @@ impl TestBlockHeader {
     }
 
     pub fn build(self) -> BlockHeader {
-        assert!(
-            self.version == TestBlockHeaderVersion::V2 || self.strong_vote.is_none(),
-            "a V1 header cannot carry a strong vote"
-        );
         match self.version {
-            TestBlockHeaderVersion::V1 => BlockHeader::V1(BlockHeaderV1::new(
-                self.epoch,
-                self.round,
-                self.author,
-                self.timestamp_ms,
-                self.ancestors,
-                self.acknowledgments,
-                self.commit_votes,
-                self.transactions_commitment,
-            )),
+            TestBlockHeaderVersion::V1 => {
+                assert!(
+                    self.strong_vote.is_none(),
+                    "a V1 header cannot carry a strong vote"
+                );
+                BlockHeader::V1(BlockHeaderV1::new(
+                    self.epoch,
+                    self.round,
+                    self.author,
+                    self.timestamp_ms,
+                    self.ancestors,
+                    self.acknowledgments,
+                    self.commit_votes,
+                    self.transactions_commitment,
+                ))
+            }
             TestBlockHeaderVersion::V2 => BlockHeader::V2(BlockHeaderV2::new(
                 self.epoch,
                 self.round,

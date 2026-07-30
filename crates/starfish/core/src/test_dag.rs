@@ -50,7 +50,11 @@ pub(crate) fn build_dag(
     let num_authorities = context.committee.size();
     let starting_round = ancestors.first().unwrap().round + 1;
     let leader_schedule = LeaderSchedule::new(context.clone(), LeaderSwapTable::default());
+    let version = TestBlockHeaderVersion::from_context(&context);
     for round in starting_round..=stop {
+        // Every block of the round links the same ancestors, so they all carry
+        // the same vote.
+        let strong_vote = strong_vote_for_leader(&context, &leader_schedule, round, &ancestors);
         let (references, blocks): (Vec<_>, Vec<_>) = context
             .committee
             .authorities()
@@ -62,15 +66,10 @@ pub(crate) fn build_dag(
                     + author_idx as BlockTimestampMs;
                 let block = VerifiedBlockHeader::new_for_test(
                     TestBlockHeader::new(round, author_idx)
-                        .set_version(TestBlockHeaderVersion::from_context(&context))
+                        .set_version(version)
                         .set_timestamp_ms(ts)
                         .set_ancestors(ancestors.clone())
-                        .set_strong_vote(strong_blame_for_leader(
-                            &context,
-                            &leader_schedule,
-                            round,
-                            &ancestors,
-                        ))
+                        .set_strong_vote(strong_vote)
                         .build(),
                 );
 
@@ -95,14 +94,15 @@ pub(crate) fn build_dag_layer(
     dag_state: Arc<RwLock<DagState>>,
 ) -> Vec<BlockRef> {
     let leader_schedule = LeaderSchedule::new(context.clone(), LeaderSwapTable::default());
+    let version = TestBlockHeaderVersion::from_context(context);
     let mut references = Vec::new();
     for (authority, ancestors) in connections {
         let round = ancestors.first().unwrap().round + 1;
         let author = authority.value() as u8;
         let block = VerifiedBlockHeader::new_for_test(
             TestBlockHeader::new(round, author)
-                .set_version(TestBlockHeaderVersion::from_context(context))
-                .set_strong_vote(strong_blame_for_leader(
+                .set_version(version)
+                .set_strong_vote(strong_vote_for_leader(
                     context,
                     &leader_schedule,
                     round,
@@ -119,12 +119,12 @@ pub(crate) fn build_dag_layer(
     references
 }
 
-/// The strong vote for a block at `round` linking `ancestors`. Blocks built
-/// here acknowledge no transactions, so the vote on the leader at `round - 1`
-/// is always a blame. `None` when the block does not link the leader, since an
-/// author that has not seen the leader block cannot vote on it, and `None`
-/// while `consensus_starfish_speed` is off, where headers are V1.
-fn strong_blame_for_leader(
+/// The strong vote for a block at `round` linking `ancestors`. Blocks built here
+/// acknowledge nothing, so the vote on the leader at `round - 1` is a blame,
+/// except on the genesis leader, which carries no transactions to be missing.
+/// `None` when the block does not link the leader, or while
+/// `consensus_starfish_speed` is off.
+fn strong_vote_for_leader(
     context: &Context,
     leader_schedule: &LeaderSchedule,
     round: Round,
@@ -135,15 +135,16 @@ fn strong_blame_for_leader(
     }
     let leader_round = round - 1;
     let leader_authority = leader_schedule.elect_leader(leader_round, 0);
-    if leader_round != GENESIS_ROUND
-        && !ancestors
+    let mut missing = AuthoritySet::new();
+    if leader_round != GENESIS_ROUND {
+        if !ancestors
             .iter()
             .any(|r| r.round == leader_round && r.author == leader_authority)
-    {
-        return None;
+        {
+            return None;
+        }
+        missing.insert(leader_authority);
     }
-    let mut missing = AuthoritySet::new();
-    missing.insert(leader_authority);
     Some(StrongVote {
         leader_authority,
         missing,
