@@ -24,7 +24,9 @@
 # Tunables (env): RUN_DURATION, TARGET_QPS, NUM_WORKERS, NUM_CLIENT_THREADS,
 #                 NUM_TRANSFER_ACCOUNTS, IN_FLIGHT_RATIO, PRIMARY_GAS_OWNER,
 #                 RUNNER_IMAGE, DOCKER_NETWORK, FULLNODE_RPC,
-#                 USE_FULLNODE_FOR_EXECUTION.
+#                 USE_FULLNODE_FOR_EXECUTION, WORKLOAD, NUM_SHARED_COUNTERS,
+#                 SLOW_N, SLOW_SIZE, SLOW_SHARED, AUTHENTICATOR, AUTH_OBJ_TYPE,
+#                 AUTH_SHOULD_FAIL, AUTH_SPLIT_AMOUNT, AUTH_CYCLES.
 
 set -euo pipefail
 
@@ -53,16 +55,27 @@ USE_FULLNODE_FOR_EXECUTION="${USE_FULLNODE_FOR_EXECUTION:-false}"
 NUM_TARGET_VALIDATORS="${NUM_TARGET_VALIDATORS:-}"
 # Seconds to wait between warmup/setup and spamming (stress --pre-spam-delay-secs).
 PRE_SPAM_DELAY_SECS="${PRE_SPAM_DELAY_SECS:-0}"
-# Workload: owned (transfer) | shared (shared-counter) | slow (slow::slow).
-# NOTE: shared/slow publish a Move package at runtime (compiled from sources that
-# depend on the iota-framework). The network-benchmark stress image bakes those
-# in (move_packages + workloads/data + the framework checkout), so they work in
-# this image — rebuild it (docker/stress/build.sh) after changing those.
+# Workload: owned (transfer) | shared (shared-counter) | slow (slow::slow) |
+# moveauth (account abstraction, every tx signed with a `MoveAuthenticator`).
+# NOTE: shared/slow/moveauth publish a Move package at runtime (compiled from
+# sources that depend on the iota-framework). The network-benchmark stress image
+# bakes those in (move_packages + workloads/data + the framework checkout), so
+# they work in this image — rebuild it (docker/stress/build.sh) after changing
+# those.
 WORKLOAD="${WORKLOAD:-owned}"
 NUM_SHARED_COUNTERS="${NUM_SHARED_COUNTERS:-}" # WORKLOAD=shared: fewer => more congestion
 SLOW_N="${SLOW_N:-}"                           # WORKLOAD=slow: slow::slow(n,size) vector count
 SLOW_SIZE="${SLOW_SIZE:-}"                     # WORKLOAD=slow: each vector size in bytes
 SLOW_SHARED="${SLOW_SHARED:-}"                 # WORKLOAD=slow: false => owned-only (no shared object / congestion)
+AUTHENTICATOR="${AUTHENTICATOR:-ed25519}"      # WORKLOAD=moveauth: which on-chain authenticate function (sets its Move VM cost)
+AUTH_OBJ_TYPE="${AUTH_OBJ_TYPE:-owned-object}" # WORKLOAD=moveauth: owned-object | shared-object (the tx body)
+AUTH_SHOULD_FAIL="${AUTH_SHOULD_FAIL:-false}"  # WORKLOAD=moveauth: true => corrupt the signature so authentication aborts
+AUTH_SPLIT_AMOUNT="${AUTH_SPLIT_AMOUNT:-}"     # WORKLOAD=moveauth: coin split amount per tx (empty => benchmark default)
+AUTH_CYCLES="${AUTH_CYCLES:-}"                 # WORKLOAD=moveauth: ed25519 verifications per tx, for kinds taking a cycle count (empty => benchmark default)
+# `moveauth` uses a DIFFERENT subcommand, not a weight on `bench`; both spell the
+# generic flags (--target-qps / --in-flight-ratio / --num-workers) identically,
+# so only the verb varies.
+BENCH_SUBCMD=bench
 case "$WORKLOAD" in
 owned) WORKLOAD_ARGS=(--transfer-object 100 --shared-counter 0) ;;
 shared)
@@ -75,8 +88,20 @@ slow)
   [[ -n "$SLOW_SIZE" ]] && WORKLOAD_ARGS+=(--slow-size "$SLOW_SIZE")
   [[ -n "$SLOW_SHARED" ]] && WORKLOAD_ARGS+=(--slow-shared "$SLOW_SHARED")
   ;;
+moveauth)
+  BENCH_SUBCMD=abstract-account-bench
+  WORKLOAD_ARGS=(
+    --authenticator "$AUTHENTICATOR"
+    --tx-payload-obj-type "$AUTH_OBJ_TYPE"
+  )
+  # `should_fail` is a scalar `bool` => clap ArgAction::SetTrue, a flag taking NO
+  # value; pass it bare for true and omit it for false.
+  [[ "$AUTH_SHOULD_FAIL" == true ]] && WORKLOAD_ARGS+=(--should-fail)
+  [[ -n "$AUTH_SPLIT_AMOUNT" ]] && WORKLOAD_ARGS+=(--split-amount "$AUTH_SPLIT_AMOUNT")
+  [[ -n "$AUTH_CYCLES" ]] && WORKLOAD_ARGS+=(--auth-cycles "$AUTH_CYCLES")
+  ;;
 *)
-  echo "ERROR: unknown WORKLOAD='$WORKLOAD' (owned | shared | slow)" >&2
+  echo "ERROR: unknown WORKLOAD='$WORKLOAD' (owned | shared | slow | moveauth)" >&2
   exit 1
   ;;
 esac
@@ -142,7 +167,7 @@ exec docker run --rm \
   --num-transfer-accounts "$NUM_TRANSFER_ACCOUNTS" \
   --run-duration "$RUN_DURATION" \
   --pre-spam-delay-secs "$PRE_SPAM_DELAY_SECS" \
-  bench --target-qps "$TARGET_QPS" \
+  "$BENCH_SUBCMD" --target-qps "$TARGET_QPS" \
   --in-flight-ratio "$IN_FLIGHT_RATIO" \
   --num-workers "$NUM_WORKERS" \
   "${WORKLOAD_ARGS[@]}"

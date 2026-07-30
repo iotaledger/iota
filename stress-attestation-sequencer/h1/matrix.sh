@@ -3,31 +3,95 @@
 # matrix.sh — run the H1 attestation-overhead matrix (V1 vs V2), ITERS iterations
 # each, as labeled experiments under results/<LABEL>/.
 #
-# Workload is slow-owned only: pure owned-object compute (no shared object, so no
-# congestion/cancellation to confound the V1-vs-V2 delta). Each tx calls
-# slow::slow(n, size) with n == size, sweeping per-tx compute — which is exactly
-# what the V2 pre-consensus attestation dry-run cost scales with.
+# Two workload families. Neither takes a MUTABLE shared object, so per-object
+# congestion control never accumulates cost and no deferral or cancellation
+# confounds the V1-vs-V2 delta (the congestion tracker filters on `obj.mutable`).
+# They sweep OPPOSITE sides of attestation:
 #
-#   5 compute {0, 50, 100, 200, 500}  (slow::slow(n,n); 0 = no-op floor, ~gas_rounding_step)
-# × 3 paths   {f1 fullnode (DIRECT=false), v1 pinned (1 target validator),
-#              v24 spread (direct to all 24 validators)}
-# × 3 qps     {200, 1000, 2000}                                      = 45 configs.
+# A. slow (45 configs) — what attestation COSTS. Owned-object inputs only
+#    (SLOW_SHARED=false), so these txs have no shared inputs at all.
+#    Each tx calls slow::slow(n, size) with n == size. A `slow` tx carries no
+#    MoveAuthenticator, so post-consensus Check #6 skips the Move VM on BOTH arms
+#    (the `!move_authenticators.is_empty()` guard in authority.rs) and the cost
+#    lands in execution, which both arms pay on every validator. Raising SLOW_N
+#    therefore grows a cost V1 and V2 share, plus the pre-consensus dry-run that
+#    only V2 adds.
+#
+#      5 compute {0, 50, 100, 200, 500}  (0 = no-op floor, ~gas_rounding_step)
+#    × 3 paths   {f1 fullnode (DIRECT=false), v1 pinned (1 target validator),
+#                 v4 spread (direct to all 4 validators)}
+#    × 3 qps     {200, 1000, 2000}                                   = 45 configs.
+#
+# B. moveauth (45 configs) — what attestation SAVES.
+#    Every tx is signed with a `MoveAuthenticator` (account abstraction) over an
+#    owned-object coin split/transfer body, using the `ed25519heavy` authenticate
+#    function. V1 executes that function in the Move VM during post-consensus
+#    Check #6 — once per validator, serially inside the consensus handler — and
+#    V2 skips the call entirely, so AUTH_CYCLES sweeps a cost only V1 pays.
+#
+#      5 cycles {1, 10, 25, 50, 70}  (ed25519 verifications per tx)
+#    × 3 paths  {f1, v1, v4 as above}
+#    × 3 qps    {200, 1000, 2000}                                    = 45 configs.
+#
+#    `ed25519heavy` takes no object inputs, so its whole cost is Move VM work in
+#    the authenticate call — nothing is added to the post-consensus baseline that
+#    both arms pay. That is why it is used here rather than `superheavy`, whose
+#    122 BenchObject inputs are loaded by BOTH arms (V2 loads them too, via
+#    check_coin_deny_list_for_attested_tx) and would dilute the delta while adding
+#    ~9 KB per transaction.
+#
+#    All cells are NON-FAILING: AUTH_SHOULD_FAIL=false (and `ed25519heavy` does
+#    not assert the verification result anyway), and the cycle counts stay under
+#    the budget ceiling. One verification costs ~2800-3300 gas, so at the privnet's
+#    max_auth_gas=250000 about 89 fit; 70 is ~80% of that, leaving headroom.
+#    Raising AUTH_CYCLES past the ceiling aborts every tx with OUT_OF_GAS, which
+#    measures admission pressure instead of the check cost — if max_auth_gas is
+#    overridden, rescale these counts with it.
+#
+#    AUTH_CYCLES=1 is the light baseline rung. The other kinds are unusable here:
+#    helloworld / ed25519 / maxargs125 have constant Move loops that cannot be
+#    dialled, and both superheavy kinds abort by construction (100M verifications
+#    / u256::MAX). Only kinds whose Move function takes the count as a call
+#    argument respond to AUTH_CYCLES — see AuthenticatorKind::takes_cycle_count in
+#    the network-benchmark repo.
+#
+#    NOTE: `-owned-` in these labels describes the transaction BODY
+#    (AUTH_OBJ_TYPE=owned-object, a coin split/transfer). Unlike family A these
+#    txs are NOT free of shared inputs: the authenticator names the shared
+#    `AbstractAccount` object, and SenderSignedData::shared_input_objects folds
+#    authenticator shared objects into the tx's shared-object set, so
+#    contains_shared_object() is true and they take the shared-object path through
+#    consensus handling. It is a read-only input (mutable: false), which is why
+#    congestion control still stays out of the comparison.
+#
+#    Labels are auth<cycles> (auth1, auth10, auth25, auth50, auth70). FILTER is a
+#    plain substring match, so "auth1" also selects auth10 — add the trailing
+#    hyphen ("auth1-") to pick exactly one level.
+#
+# 90 configs total. Use the substring FILTER to run one family at a time
+# (`./matrix.sh auth`, `./matrix.sh slow`) — the full grid at ITERS=5 is days of
+# wall time.
 #
 # Labels carry the network size as an -n<N> suffix and pass N to run.sh; the
-# current grid runs on a 24-validator network (-n24 / N=24). The same grid can
-# be run on another size (e.g. -n4 / N=4) under distinct labels without
-# colliding with these results.
+# current grid runs on a 4-validator network (-n4 / N=4). The same grid can be
+# run on another size (e.g. -n24 / N=24) under distinct labels without colliding
+# with these results.
 #
 # Round-robin: each round runs 1 iteration (V1+V2) of every config; ITERS rounds
 # total, so each config ends with ITERS iters — interleaved, not config-major. So
-# an interrupted run leaves every config with ~equal iters. That's 45 * ITERS full
-# experiments — HOURS of wall time at ITERS=5. Per-config console output goes to
+# an interrupted run leaves every config with ~equal iters. That's 90 * ITERS full
+# experiments — DAYS of wall time at ITERS=5 for the whole grid, so filter to one
+# family unless you mean it. Per-config console output goes to
 # logs/<LABEL>.log (truncated on round 1, appended thereafter); redirecting it also
 # makes run.sh non-interactive (no monitoring prompt) and strips ANSI colors, so
 # the matrix runs unattended.
 #
 # Usage:
-#   ITERS=5 ./matrix.sh             # run all 45 configs
+#   ITERS=5 ./matrix.sh             # run all 90 configs (both families)
+#   ITERS=5 ./matrix.sh auth        # only the 45 moveauth configs
+#   ITERS=5 ./matrix.sh slow        # only the 45 slow configs
+#   ITERS=3 ./matrix.sh auth70-     # one cycle count, all paths/qps (9 configs)
+#   ITERS=3 ./matrix.sh auth1-      # trailing hyphen: auth1 only, not auth10
 #   ITERS=3 ./matrix.sh slow100     # only labels containing "slow100" (substring filter)
 #
 # A config that fails (or is interrupted) does NOT abort the matrix — it's logged
@@ -63,55 +127,118 @@ fi
 
 # "LABEL | env assignments passed to run.sh"
 configs=(
-  "slow0-owned-f1-qps200-n24     | WORKLOAD=slow SLOW_N=0 SLOW_SIZE=0 SLOW_SHARED=false TARGET_QPS=200  N=24 DIRECT=false"
-  "slow0-owned-v1-qps200-n24     | WORKLOAD=slow SLOW_N=0 SLOW_SIZE=0 SLOW_SHARED=false TARGET_QPS=200  N=24 DIRECT=true NUM_TARGET_VALIDATORS=1"
-  "slow0-owned-v24-qps200-n24    | WORKLOAD=slow SLOW_N=0 SLOW_SIZE=0 SLOW_SHARED=false TARGET_QPS=200  N=24 DIRECT=true NUM_TARGET_VALIDATORS=24"
-  "slow0-owned-f1-qps1000-n24    | WORKLOAD=slow SLOW_N=0 SLOW_SIZE=0 SLOW_SHARED=false TARGET_QPS=1000 N=24 DIRECT=false"
-  "slow0-owned-v1-qps1000-n24    | WORKLOAD=slow SLOW_N=0 SLOW_SIZE=0 SLOW_SHARED=false TARGET_QPS=1000 N=24 DIRECT=true NUM_TARGET_VALIDATORS=1"
-  "slow0-owned-v24-qps1000-n24   | WORKLOAD=slow SLOW_N=0 SLOW_SIZE=0 SLOW_SHARED=false TARGET_QPS=1000 N=24 DIRECT=true NUM_TARGET_VALIDATORS=24"
-  "slow0-owned-f1-qps2000-n24    | WORKLOAD=slow SLOW_N=0 SLOW_SIZE=0 SLOW_SHARED=false TARGET_QPS=2000 N=24 DIRECT=false"
-  "slow0-owned-v1-qps2000-n24    | WORKLOAD=slow SLOW_N=0 SLOW_SIZE=0 SLOW_SHARED=false TARGET_QPS=2000 N=24 DIRECT=true NUM_TARGET_VALIDATORS=1"
-  "slow0-owned-v24-qps2000-n24   | WORKLOAD=slow SLOW_N=0 SLOW_SIZE=0 SLOW_SHARED=false TARGET_QPS=2000 N=24 DIRECT=true NUM_TARGET_VALIDATORS=24"
+  "slow0-owned-f1-qps200-n4    | WORKLOAD=slow SLOW_N=0 SLOW_SIZE=0 SLOW_SHARED=false TARGET_QPS=200  N=4 DIRECT=false"
+  "slow0-owned-v1-qps200-n4    | WORKLOAD=slow SLOW_N=0 SLOW_SIZE=0 SLOW_SHARED=false TARGET_QPS=200  N=4 DIRECT=true NUM_TARGET_VALIDATORS=1"
+  "slow0-owned-v4-qps200-n4    | WORKLOAD=slow SLOW_N=0 SLOW_SIZE=0 SLOW_SHARED=false TARGET_QPS=200  N=4 DIRECT=true NUM_TARGET_VALIDATORS=4"
+  "slow0-owned-f1-qps1000-n4   | WORKLOAD=slow SLOW_N=0 SLOW_SIZE=0 SLOW_SHARED=false TARGET_QPS=1000 N=4 DIRECT=false"
+  "slow0-owned-v1-qps1000-n4   | WORKLOAD=slow SLOW_N=0 SLOW_SIZE=0 SLOW_SHARED=false TARGET_QPS=1000 N=4 DIRECT=true NUM_TARGET_VALIDATORS=1"
+  "slow0-owned-v4-qps1000-n4   | WORKLOAD=slow SLOW_N=0 SLOW_SIZE=0 SLOW_SHARED=false TARGET_QPS=1000 N=4 DIRECT=true NUM_TARGET_VALIDATORS=4"
+  "slow0-owned-f1-qps2000-n4   | WORKLOAD=slow SLOW_N=0 SLOW_SIZE=0 SLOW_SHARED=false TARGET_QPS=2000 N=4 DIRECT=false"
+  "slow0-owned-v1-qps2000-n4   | WORKLOAD=slow SLOW_N=0 SLOW_SIZE=0 SLOW_SHARED=false TARGET_QPS=2000 N=4 DIRECT=true NUM_TARGET_VALIDATORS=1"
+  "slow0-owned-v4-qps2000-n4   | WORKLOAD=slow SLOW_N=0 SLOW_SIZE=0 SLOW_SHARED=false TARGET_QPS=2000 N=4 DIRECT=true NUM_TARGET_VALIDATORS=4"
   #
-  "slow50-owned-f1-qps200-n24    | WORKLOAD=slow SLOW_N=50 SLOW_SIZE=50 SLOW_SHARED=false TARGET_QPS=200  N=24 DIRECT=false"
-  "slow50-owned-v1-qps200-n24    | WORKLOAD=slow SLOW_N=50 SLOW_SIZE=50 SLOW_SHARED=false TARGET_QPS=200  N=24 DIRECT=true NUM_TARGET_VALIDATORS=1"
-  "slow50-owned-v24-qps200-n24   | WORKLOAD=slow SLOW_N=50 SLOW_SIZE=50 SLOW_SHARED=false TARGET_QPS=200  N=24 DIRECT=true NUM_TARGET_VALIDATORS=24"
-  "slow50-owned-f1-qps1000-n24   | WORKLOAD=slow SLOW_N=50 SLOW_SIZE=50 SLOW_SHARED=false TARGET_QPS=1000 N=24 DIRECT=false"
-  "slow50-owned-v1-qps1000-n24   | WORKLOAD=slow SLOW_N=50 SLOW_SIZE=50 SLOW_SHARED=false TARGET_QPS=1000 N=24 DIRECT=true NUM_TARGET_VALIDATORS=1"
-  "slow50-owned-v24-qps1000-n24  | WORKLOAD=slow SLOW_N=50 SLOW_SIZE=50 SLOW_SHARED=false TARGET_QPS=1000 N=24 DIRECT=true NUM_TARGET_VALIDATORS=24"
-  "slow50-owned-f1-qps2000-n24   | WORKLOAD=slow SLOW_N=50 SLOW_SIZE=50 SLOW_SHARED=false TARGET_QPS=2000 N=24 DIRECT=false"
-  "slow50-owned-v1-qps2000-n24   | WORKLOAD=slow SLOW_N=50 SLOW_SIZE=50 SLOW_SHARED=false TARGET_QPS=2000 N=24 DIRECT=true NUM_TARGET_VALIDATORS=1"
-  "slow50-owned-v24-qps2000-n24  | WORKLOAD=slow SLOW_N=50 SLOW_SIZE=50 SLOW_SHARED=false TARGET_QPS=2000 N=24 DIRECT=true NUM_TARGET_VALIDATORS=24"
+  "slow50-owned-f1-qps200-n4   | WORKLOAD=slow SLOW_N=50 SLOW_SIZE=50 SLOW_SHARED=false TARGET_QPS=200  N=4 DIRECT=false"
+  "slow50-owned-v1-qps200-n4   | WORKLOAD=slow SLOW_N=50 SLOW_SIZE=50 SLOW_SHARED=false TARGET_QPS=200  N=4 DIRECT=true NUM_TARGET_VALIDATORS=1"
+  "slow50-owned-v4-qps200-n4   | WORKLOAD=slow SLOW_N=50 SLOW_SIZE=50 SLOW_SHARED=false TARGET_QPS=200  N=4 DIRECT=true NUM_TARGET_VALIDATORS=4"
+  "slow50-owned-f1-qps1000-n4  | WORKLOAD=slow SLOW_N=50 SLOW_SIZE=50 SLOW_SHARED=false TARGET_QPS=1000 N=4 DIRECT=false"
+  "slow50-owned-v1-qps1000-n4  | WORKLOAD=slow SLOW_N=50 SLOW_SIZE=50 SLOW_SHARED=false TARGET_QPS=1000 N=4 DIRECT=true NUM_TARGET_VALIDATORS=1"
+  "slow50-owned-v4-qps1000-n4  | WORKLOAD=slow SLOW_N=50 SLOW_SIZE=50 SLOW_SHARED=false TARGET_QPS=1000 N=4 DIRECT=true NUM_TARGET_VALIDATORS=4"
+  "slow50-owned-f1-qps2000-n4  | WORKLOAD=slow SLOW_N=50 SLOW_SIZE=50 SLOW_SHARED=false TARGET_QPS=2000 N=4 DIRECT=false"
+  "slow50-owned-v1-qps2000-n4  | WORKLOAD=slow SLOW_N=50 SLOW_SIZE=50 SLOW_SHARED=false TARGET_QPS=2000 N=4 DIRECT=true NUM_TARGET_VALIDATORS=1"
+  "slow50-owned-v4-qps2000-n4  | WORKLOAD=slow SLOW_N=50 SLOW_SIZE=50 SLOW_SHARED=false TARGET_QPS=2000 N=4 DIRECT=true NUM_TARGET_VALIDATORS=4"
   #
-  "slow100-owned-f1-qps200-n24   | WORKLOAD=slow SLOW_N=100 SLOW_SIZE=100 SLOW_SHARED=false TARGET_QPS=200  N=24 DIRECT=false"
-  "slow100-owned-v1-qps200-n24   | WORKLOAD=slow SLOW_N=100 SLOW_SIZE=100 SLOW_SHARED=false TARGET_QPS=200  N=24 DIRECT=true NUM_TARGET_VALIDATORS=1"
-  "slow100-owned-v24-qps200-n24  | WORKLOAD=slow SLOW_N=100 SLOW_SIZE=100 SLOW_SHARED=false TARGET_QPS=200  N=24 DIRECT=true NUM_TARGET_VALIDATORS=24"
-  "slow100-owned-f1-qps1000-n24  | WORKLOAD=slow SLOW_N=100 SLOW_SIZE=100 SLOW_SHARED=false TARGET_QPS=1000 N=24 DIRECT=false"
-  "slow100-owned-v1-qps1000-n24  | WORKLOAD=slow SLOW_N=100 SLOW_SIZE=100 SLOW_SHARED=false TARGET_QPS=1000 N=24 DIRECT=true NUM_TARGET_VALIDATORS=1"
-  "slow100-owned-v24-qps1000-n24 | WORKLOAD=slow SLOW_N=100 SLOW_SIZE=100 SLOW_SHARED=false TARGET_QPS=1000 N=24 DIRECT=true NUM_TARGET_VALIDATORS=24"
-  "slow100-owned-f1-qps2000-n24  | WORKLOAD=slow SLOW_N=100 SLOW_SIZE=100 SLOW_SHARED=false TARGET_QPS=2000 N=24 DIRECT=false"
-  "slow100-owned-v1-qps2000-n24  | WORKLOAD=slow SLOW_N=100 SLOW_SIZE=100 SLOW_SHARED=false TARGET_QPS=2000 N=24 DIRECT=true NUM_TARGET_VALIDATORS=1"
-  "slow100-owned-v24-qps2000-n24 | WORKLOAD=slow SLOW_N=100 SLOW_SIZE=100 SLOW_SHARED=false TARGET_QPS=2000 N=24 DIRECT=true NUM_TARGET_VALIDATORS=24"
+  "slow100-owned-f1-qps200-n4  | WORKLOAD=slow SLOW_N=100 SLOW_SIZE=100 SLOW_SHARED=false TARGET_QPS=200  N=4 DIRECT=false"
+  "slow100-owned-v1-qps200-n4  | WORKLOAD=slow SLOW_N=100 SLOW_SIZE=100 SLOW_SHARED=false TARGET_QPS=200  N=4 DIRECT=true NUM_TARGET_VALIDATORS=1"
+  "slow100-owned-v4-qps200-n4  | WORKLOAD=slow SLOW_N=100 SLOW_SIZE=100 SLOW_SHARED=false TARGET_QPS=200  N=4 DIRECT=true NUM_TARGET_VALIDATORS=4"
+  "slow100-owned-f1-qps1000-n4 | WORKLOAD=slow SLOW_N=100 SLOW_SIZE=100 SLOW_SHARED=false TARGET_QPS=1000 N=4 DIRECT=false"
+  "slow100-owned-v1-qps1000-n4 | WORKLOAD=slow SLOW_N=100 SLOW_SIZE=100 SLOW_SHARED=false TARGET_QPS=1000 N=4 DIRECT=true NUM_TARGET_VALIDATORS=1"
+  "slow100-owned-v4-qps1000-n4 | WORKLOAD=slow SLOW_N=100 SLOW_SIZE=100 SLOW_SHARED=false TARGET_QPS=1000 N=4 DIRECT=true NUM_TARGET_VALIDATORS=4"
+  "slow100-owned-f1-qps2000-n4 | WORKLOAD=slow SLOW_N=100 SLOW_SIZE=100 SLOW_SHARED=false TARGET_QPS=2000 N=4 DIRECT=false"
+  "slow100-owned-v1-qps2000-n4 | WORKLOAD=slow SLOW_N=100 SLOW_SIZE=100 SLOW_SHARED=false TARGET_QPS=2000 N=4 DIRECT=true NUM_TARGET_VALIDATORS=1"
+  "slow100-owned-v4-qps2000-n4 | WORKLOAD=slow SLOW_N=100 SLOW_SIZE=100 SLOW_SHARED=false TARGET_QPS=2000 N=4 DIRECT=true NUM_TARGET_VALIDATORS=4"
   #
-  "slow200-owned-f1-qps200-n24   | WORKLOAD=slow SLOW_N=200 SLOW_SIZE=200 SLOW_SHARED=false TARGET_QPS=200  N=24 DIRECT=false"
-  "slow200-owned-v1-qps200-n24   | WORKLOAD=slow SLOW_N=200 SLOW_SIZE=200 SLOW_SHARED=false TARGET_QPS=200  N=24 DIRECT=true NUM_TARGET_VALIDATORS=1"
-  "slow200-owned-v24-qps200-n24  | WORKLOAD=slow SLOW_N=200 SLOW_SIZE=200 SLOW_SHARED=false TARGET_QPS=200  N=24 DIRECT=true NUM_TARGET_VALIDATORS=24"
-  "slow200-owned-f1-qps1000-n24  | WORKLOAD=slow SLOW_N=200 SLOW_SIZE=200 SLOW_SHARED=false TARGET_QPS=1000 N=24 DIRECT=false"
-  "slow200-owned-v1-qps1000-n24  | WORKLOAD=slow SLOW_N=200 SLOW_SIZE=200 SLOW_SHARED=false TARGET_QPS=1000 N=24 DIRECT=true NUM_TARGET_VALIDATORS=1"
-  "slow200-owned-v24-qps1000-n24 | WORKLOAD=slow SLOW_N=200 SLOW_SIZE=200 SLOW_SHARED=false TARGET_QPS=1000 N=24 DIRECT=true NUM_TARGET_VALIDATORS=24"
-  "slow200-owned-f1-qps2000-n24  | WORKLOAD=slow SLOW_N=200 SLOW_SIZE=200 SLOW_SHARED=false TARGET_QPS=2000 N=24 DIRECT=false"
-  "slow200-owned-v1-qps2000-n24  | WORKLOAD=slow SLOW_N=200 SLOW_SIZE=200 SLOW_SHARED=false TARGET_QPS=2000 N=24 DIRECT=true NUM_TARGET_VALIDATORS=1"
-  "slow200-owned-v24-qps2000-n24 | WORKLOAD=slow SLOW_N=200 SLOW_SIZE=200 SLOW_SHARED=false TARGET_QPS=2000 N=24 DIRECT=true NUM_TARGET_VALIDATORS=24"
+  "slow200-owned-f1-qps200-n4  | WORKLOAD=slow SLOW_N=200 SLOW_SIZE=200 SLOW_SHARED=false TARGET_QPS=200  N=4 DIRECT=false"
+  "slow200-owned-v1-qps200-n4  | WORKLOAD=slow SLOW_N=200 SLOW_SIZE=200 SLOW_SHARED=false TARGET_QPS=200  N=4 DIRECT=true NUM_TARGET_VALIDATORS=1"
+  "slow200-owned-v4-qps200-n4  | WORKLOAD=slow SLOW_N=200 SLOW_SIZE=200 SLOW_SHARED=false TARGET_QPS=200  N=4 DIRECT=true NUM_TARGET_VALIDATORS=4"
+  "slow200-owned-f1-qps1000-n4 | WORKLOAD=slow SLOW_N=200 SLOW_SIZE=200 SLOW_SHARED=false TARGET_QPS=1000 N=4 DIRECT=false"
+  "slow200-owned-v1-qps1000-n4 | WORKLOAD=slow SLOW_N=200 SLOW_SIZE=200 SLOW_SHARED=false TARGET_QPS=1000 N=4 DIRECT=true NUM_TARGET_VALIDATORS=1"
+  "slow200-owned-v4-qps1000-n4 | WORKLOAD=slow SLOW_N=200 SLOW_SIZE=200 SLOW_SHARED=false TARGET_QPS=1000 N=4 DIRECT=true NUM_TARGET_VALIDATORS=4"
+  "slow200-owned-f1-qps2000-n4 | WORKLOAD=slow SLOW_N=200 SLOW_SIZE=200 SLOW_SHARED=false TARGET_QPS=2000 N=4 DIRECT=false"
+  "slow200-owned-v1-qps2000-n4 | WORKLOAD=slow SLOW_N=200 SLOW_SIZE=200 SLOW_SHARED=false TARGET_QPS=2000 N=4 DIRECT=true NUM_TARGET_VALIDATORS=1"
+  "slow200-owned-v4-qps2000-n4 | WORKLOAD=slow SLOW_N=200 SLOW_SIZE=200 SLOW_SHARED=false TARGET_QPS=2000 N=4 DIRECT=true NUM_TARGET_VALIDATORS=4"
   #
-  "slow500-owned-f1-qps200-n24   | WORKLOAD=slow SLOW_N=500 SLOW_SIZE=500 SLOW_SHARED=false TARGET_QPS=200  N=24 DIRECT=false"
-  "slow500-owned-v1-qps200-n24   | WORKLOAD=slow SLOW_N=500 SLOW_SIZE=500 SLOW_SHARED=false TARGET_QPS=200  N=24 DIRECT=true NUM_TARGET_VALIDATORS=1"
-  "slow500-owned-v24-qps200-n24  | WORKLOAD=slow SLOW_N=500 SLOW_SIZE=500 SLOW_SHARED=false TARGET_QPS=200  N=24 DIRECT=true NUM_TARGET_VALIDATORS=24"
-  "slow500-owned-f1-qps1000-n24  | WORKLOAD=slow SLOW_N=500 SLOW_SIZE=500 SLOW_SHARED=false TARGET_QPS=1000 N=24 DIRECT=false"
-  "slow500-owned-v1-qps1000-n24  | WORKLOAD=slow SLOW_N=500 SLOW_SIZE=500 SLOW_SHARED=false TARGET_QPS=1000 N=24 DIRECT=true NUM_TARGET_VALIDATORS=1"
-  "slow500-owned-v24-qps1000-n24 | WORKLOAD=slow SLOW_N=500 SLOW_SIZE=500 SLOW_SHARED=false TARGET_QPS=1000 N=24 DIRECT=true NUM_TARGET_VALIDATORS=24"
-  "slow500-owned-f1-qps2000-n24  | WORKLOAD=slow SLOW_N=500 SLOW_SIZE=500 SLOW_SHARED=false TARGET_QPS=2000 N=24 DIRECT=false"
-  "slow500-owned-v1-qps2000-n24  | WORKLOAD=slow SLOW_N=500 SLOW_SIZE=500 SLOW_SHARED=false TARGET_QPS=2000 N=24 DIRECT=true NUM_TARGET_VALIDATORS=1"
-  "slow500-owned-v24-qps2000-n24 | WORKLOAD=slow SLOW_N=500 SLOW_SIZE=500 SLOW_SHARED=false TARGET_QPS=2000 N=24 DIRECT=true NUM_TARGET_VALIDATORS=24"
+  "slow500-owned-f1-qps200-n4  | WORKLOAD=slow SLOW_N=500 SLOW_SIZE=500 SLOW_SHARED=false TARGET_QPS=200  N=4 DIRECT=false"
+  "slow500-owned-v1-qps200-n4  | WORKLOAD=slow SLOW_N=500 SLOW_SIZE=500 SLOW_SHARED=false TARGET_QPS=200  N=4 DIRECT=true NUM_TARGET_VALIDATORS=1"
+  "slow500-owned-v4-qps200-n4  | WORKLOAD=slow SLOW_N=500 SLOW_SIZE=500 SLOW_SHARED=false TARGET_QPS=200  N=4 DIRECT=true NUM_TARGET_VALIDATORS=4"
+  "slow500-owned-f1-qps1000-n4 | WORKLOAD=slow SLOW_N=500 SLOW_SIZE=500 SLOW_SHARED=false TARGET_QPS=1000 N=4 DIRECT=false"
+  "slow500-owned-v1-qps1000-n4 | WORKLOAD=slow SLOW_N=500 SLOW_SIZE=500 SLOW_SHARED=false TARGET_QPS=1000 N=4 DIRECT=true NUM_TARGET_VALIDATORS=1"
+  "slow500-owned-v4-qps1000-n4 | WORKLOAD=slow SLOW_N=500 SLOW_SIZE=500 SLOW_SHARED=false TARGET_QPS=1000 N=4 DIRECT=true NUM_TARGET_VALIDATORS=4"
+  "slow500-owned-f1-qps2000-n4 | WORKLOAD=slow SLOW_N=500 SLOW_SIZE=500 SLOW_SHARED=false TARGET_QPS=2000 N=4 DIRECT=false"
+  "slow500-owned-v1-qps2000-n4 | WORKLOAD=slow SLOW_N=500 SLOW_SIZE=500 SLOW_SHARED=false TARGET_QPS=2000 N=4 DIRECT=true NUM_TARGET_VALIDATORS=1"
+  "slow500-owned-v4-qps2000-n4 | WORKLOAD=slow SLOW_N=500 SLOW_SIZE=500 SLOW_SHARED=false TARGET_QPS=2000 N=4 DIRECT=true NUM_TARGET_VALIDATORS=4"
+
+  #         non-failing. Sweeps the Move VM cost that only the V1 arm pays
+  #         post-consensus. Ordered cheapest -> costliest authenticate function.
+  #
+  #
+  #
+  #
+  # Object-loading control (empty Move body, 122 authenticator input objects), not
+  # a point on the compute ladder — see the header.
+
+  # ---- B. moveauth: ed25519heavy authenticator, owned-object body,
+  #         non-failing. AUTH_CYCLES ed25519 verifications per tx is the cost
+  #         dial for the Move VM work only the V1 arm pays post-consensus.
+  #
+  "auth1-owned-f1-qps200-n4    | WORKLOAD=moveauth AUTHENTICATOR=ed25519heavy AUTH_CYCLES=1 AUTH_OBJ_TYPE=owned-object AUTH_SHOULD_FAIL=false TARGET_QPS=200 N=4 DIRECT=false"
+  "auth1-owned-v1-qps200-n4    | WORKLOAD=moveauth AUTHENTICATOR=ed25519heavy AUTH_CYCLES=1 AUTH_OBJ_TYPE=owned-object AUTH_SHOULD_FAIL=false TARGET_QPS=200 N=4 DIRECT=true NUM_TARGET_VALIDATORS=1"
+  "auth1-owned-v4-qps200-n4    | WORKLOAD=moveauth AUTHENTICATOR=ed25519heavy AUTH_CYCLES=1 AUTH_OBJ_TYPE=owned-object AUTH_SHOULD_FAIL=false TARGET_QPS=200 N=4 DIRECT=true NUM_TARGET_VALIDATORS=4"
+  "auth1-owned-f1-qps1000-n4   | WORKLOAD=moveauth AUTHENTICATOR=ed25519heavy AUTH_CYCLES=1 AUTH_OBJ_TYPE=owned-object AUTH_SHOULD_FAIL=false TARGET_QPS=1000 N=4 DIRECT=false"
+  "auth1-owned-v1-qps1000-n4   | WORKLOAD=moveauth AUTHENTICATOR=ed25519heavy AUTH_CYCLES=1 AUTH_OBJ_TYPE=owned-object AUTH_SHOULD_FAIL=false TARGET_QPS=1000 N=4 DIRECT=true NUM_TARGET_VALIDATORS=1"
+  "auth1-owned-v4-qps1000-n4   | WORKLOAD=moveauth AUTHENTICATOR=ed25519heavy AUTH_CYCLES=1 AUTH_OBJ_TYPE=owned-object AUTH_SHOULD_FAIL=false TARGET_QPS=1000 N=4 DIRECT=true NUM_TARGET_VALIDATORS=4"
+  "auth1-owned-f1-qps2000-n4   | WORKLOAD=moveauth AUTHENTICATOR=ed25519heavy AUTH_CYCLES=1 AUTH_OBJ_TYPE=owned-object AUTH_SHOULD_FAIL=false TARGET_QPS=2000 N=4 DIRECT=false"
+  "auth1-owned-v1-qps2000-n4   | WORKLOAD=moveauth AUTHENTICATOR=ed25519heavy AUTH_CYCLES=1 AUTH_OBJ_TYPE=owned-object AUTH_SHOULD_FAIL=false TARGET_QPS=2000 N=4 DIRECT=true NUM_TARGET_VALIDATORS=1"
+  "auth1-owned-v4-qps2000-n4   | WORKLOAD=moveauth AUTHENTICATOR=ed25519heavy AUTH_CYCLES=1 AUTH_OBJ_TYPE=owned-object AUTH_SHOULD_FAIL=false TARGET_QPS=2000 N=4 DIRECT=true NUM_TARGET_VALIDATORS=4"
+  #
+  "auth10-owned-f1-qps200-n4   | WORKLOAD=moveauth AUTHENTICATOR=ed25519heavy AUTH_CYCLES=10 AUTH_OBJ_TYPE=owned-object AUTH_SHOULD_FAIL=false TARGET_QPS=200 N=4 DIRECT=false"
+  "auth10-owned-v1-qps200-n4   | WORKLOAD=moveauth AUTHENTICATOR=ed25519heavy AUTH_CYCLES=10 AUTH_OBJ_TYPE=owned-object AUTH_SHOULD_FAIL=false TARGET_QPS=200 N=4 DIRECT=true NUM_TARGET_VALIDATORS=1"
+  "auth10-owned-v4-qps200-n4   | WORKLOAD=moveauth AUTHENTICATOR=ed25519heavy AUTH_CYCLES=10 AUTH_OBJ_TYPE=owned-object AUTH_SHOULD_FAIL=false TARGET_QPS=200 N=4 DIRECT=true NUM_TARGET_VALIDATORS=4"
+  "auth10-owned-f1-qps1000-n4  | WORKLOAD=moveauth AUTHENTICATOR=ed25519heavy AUTH_CYCLES=10 AUTH_OBJ_TYPE=owned-object AUTH_SHOULD_FAIL=false TARGET_QPS=1000 N=4 DIRECT=false"
+  "auth10-owned-v1-qps1000-n4  | WORKLOAD=moveauth AUTHENTICATOR=ed25519heavy AUTH_CYCLES=10 AUTH_OBJ_TYPE=owned-object AUTH_SHOULD_FAIL=false TARGET_QPS=1000 N=4 DIRECT=true NUM_TARGET_VALIDATORS=1"
+  "auth10-owned-v4-qps1000-n4  | WORKLOAD=moveauth AUTHENTICATOR=ed25519heavy AUTH_CYCLES=10 AUTH_OBJ_TYPE=owned-object AUTH_SHOULD_FAIL=false TARGET_QPS=1000 N=4 DIRECT=true NUM_TARGET_VALIDATORS=4"
+  "auth10-owned-f1-qps2000-n4  | WORKLOAD=moveauth AUTHENTICATOR=ed25519heavy AUTH_CYCLES=10 AUTH_OBJ_TYPE=owned-object AUTH_SHOULD_FAIL=false TARGET_QPS=2000 N=4 DIRECT=false"
+  "auth10-owned-v1-qps2000-n4  | WORKLOAD=moveauth AUTHENTICATOR=ed25519heavy AUTH_CYCLES=10 AUTH_OBJ_TYPE=owned-object AUTH_SHOULD_FAIL=false TARGET_QPS=2000 N=4 DIRECT=true NUM_TARGET_VALIDATORS=1"
+  "auth10-owned-v4-qps2000-n4  | WORKLOAD=moveauth AUTHENTICATOR=ed25519heavy AUTH_CYCLES=10 AUTH_OBJ_TYPE=owned-object AUTH_SHOULD_FAIL=false TARGET_QPS=2000 N=4 DIRECT=true NUM_TARGET_VALIDATORS=4"
+  #
+  "auth25-owned-f1-qps200-n4   | WORKLOAD=moveauth AUTHENTICATOR=ed25519heavy AUTH_CYCLES=25 AUTH_OBJ_TYPE=owned-object AUTH_SHOULD_FAIL=false TARGET_QPS=200 N=4 DIRECT=false"
+  "auth25-owned-v1-qps200-n4   | WORKLOAD=moveauth AUTHENTICATOR=ed25519heavy AUTH_CYCLES=25 AUTH_OBJ_TYPE=owned-object AUTH_SHOULD_FAIL=false TARGET_QPS=200 N=4 DIRECT=true NUM_TARGET_VALIDATORS=1"
+  "auth25-owned-v4-qps200-n4   | WORKLOAD=moveauth AUTHENTICATOR=ed25519heavy AUTH_CYCLES=25 AUTH_OBJ_TYPE=owned-object AUTH_SHOULD_FAIL=false TARGET_QPS=200 N=4 DIRECT=true NUM_TARGET_VALIDATORS=4"
+  "auth25-owned-f1-qps1000-n4  | WORKLOAD=moveauth AUTHENTICATOR=ed25519heavy AUTH_CYCLES=25 AUTH_OBJ_TYPE=owned-object AUTH_SHOULD_FAIL=false TARGET_QPS=1000 N=4 DIRECT=false"
+  "auth25-owned-v1-qps1000-n4  | WORKLOAD=moveauth AUTHENTICATOR=ed25519heavy AUTH_CYCLES=25 AUTH_OBJ_TYPE=owned-object AUTH_SHOULD_FAIL=false TARGET_QPS=1000 N=4 DIRECT=true NUM_TARGET_VALIDATORS=1"
+  "auth25-owned-v4-qps1000-n4  | WORKLOAD=moveauth AUTHENTICATOR=ed25519heavy AUTH_CYCLES=25 AUTH_OBJ_TYPE=owned-object AUTH_SHOULD_FAIL=false TARGET_QPS=1000 N=4 DIRECT=true NUM_TARGET_VALIDATORS=4"
+  "auth25-owned-f1-qps2000-n4  | WORKLOAD=moveauth AUTHENTICATOR=ed25519heavy AUTH_CYCLES=25 AUTH_OBJ_TYPE=owned-object AUTH_SHOULD_FAIL=false TARGET_QPS=2000 N=4 DIRECT=false"
+  "auth25-owned-v1-qps2000-n4  | WORKLOAD=moveauth AUTHENTICATOR=ed25519heavy AUTH_CYCLES=25 AUTH_OBJ_TYPE=owned-object AUTH_SHOULD_FAIL=false TARGET_QPS=2000 N=4 DIRECT=true NUM_TARGET_VALIDATORS=1"
+  "auth25-owned-v4-qps2000-n4  | WORKLOAD=moveauth AUTHENTICATOR=ed25519heavy AUTH_CYCLES=25 AUTH_OBJ_TYPE=owned-object AUTH_SHOULD_FAIL=false TARGET_QPS=2000 N=4 DIRECT=true NUM_TARGET_VALIDATORS=4"
+  #
+  "auth50-owned-f1-qps200-n4   | WORKLOAD=moveauth AUTHENTICATOR=ed25519heavy AUTH_CYCLES=50 AUTH_OBJ_TYPE=owned-object AUTH_SHOULD_FAIL=false TARGET_QPS=200 N=4 DIRECT=false"
+  "auth50-owned-v1-qps200-n4   | WORKLOAD=moveauth AUTHENTICATOR=ed25519heavy AUTH_CYCLES=50 AUTH_OBJ_TYPE=owned-object AUTH_SHOULD_FAIL=false TARGET_QPS=200 N=4 DIRECT=true NUM_TARGET_VALIDATORS=1"
+  "auth50-owned-v4-qps200-n4   | WORKLOAD=moveauth AUTHENTICATOR=ed25519heavy AUTH_CYCLES=50 AUTH_OBJ_TYPE=owned-object AUTH_SHOULD_FAIL=false TARGET_QPS=200 N=4 DIRECT=true NUM_TARGET_VALIDATORS=4"
+  "auth50-owned-f1-qps1000-n4  | WORKLOAD=moveauth AUTHENTICATOR=ed25519heavy AUTH_CYCLES=50 AUTH_OBJ_TYPE=owned-object AUTH_SHOULD_FAIL=false TARGET_QPS=1000 N=4 DIRECT=false"
+  "auth50-owned-v1-qps1000-n4  | WORKLOAD=moveauth AUTHENTICATOR=ed25519heavy AUTH_CYCLES=50 AUTH_OBJ_TYPE=owned-object AUTH_SHOULD_FAIL=false TARGET_QPS=1000 N=4 DIRECT=true NUM_TARGET_VALIDATORS=1"
+  "auth50-owned-v4-qps1000-n4  | WORKLOAD=moveauth AUTHENTICATOR=ed25519heavy AUTH_CYCLES=50 AUTH_OBJ_TYPE=owned-object AUTH_SHOULD_FAIL=false TARGET_QPS=1000 N=4 DIRECT=true NUM_TARGET_VALIDATORS=4"
+  "auth50-owned-f1-qps2000-n4  | WORKLOAD=moveauth AUTHENTICATOR=ed25519heavy AUTH_CYCLES=50 AUTH_OBJ_TYPE=owned-object AUTH_SHOULD_FAIL=false TARGET_QPS=2000 N=4 DIRECT=false"
+  "auth50-owned-v1-qps2000-n4  | WORKLOAD=moveauth AUTHENTICATOR=ed25519heavy AUTH_CYCLES=50 AUTH_OBJ_TYPE=owned-object AUTH_SHOULD_FAIL=false TARGET_QPS=2000 N=4 DIRECT=true NUM_TARGET_VALIDATORS=1"
+  "auth50-owned-v4-qps2000-n4  | WORKLOAD=moveauth AUTHENTICATOR=ed25519heavy AUTH_CYCLES=50 AUTH_OBJ_TYPE=owned-object AUTH_SHOULD_FAIL=false TARGET_QPS=2000 N=4 DIRECT=true NUM_TARGET_VALIDATORS=4"
+  #
+  "auth70-owned-f1-qps200-n4   | WORKLOAD=moveauth AUTHENTICATOR=ed25519heavy AUTH_CYCLES=70 AUTH_OBJ_TYPE=owned-object AUTH_SHOULD_FAIL=false TARGET_QPS=200 N=4 DIRECT=false"
+  "auth70-owned-v1-qps200-n4   | WORKLOAD=moveauth AUTHENTICATOR=ed25519heavy AUTH_CYCLES=70 AUTH_OBJ_TYPE=owned-object AUTH_SHOULD_FAIL=false TARGET_QPS=200 N=4 DIRECT=true NUM_TARGET_VALIDATORS=1"
+  "auth70-owned-v4-qps200-n4   | WORKLOAD=moveauth AUTHENTICATOR=ed25519heavy AUTH_CYCLES=70 AUTH_OBJ_TYPE=owned-object AUTH_SHOULD_FAIL=false TARGET_QPS=200 N=4 DIRECT=true NUM_TARGET_VALIDATORS=4"
+  "auth70-owned-f1-qps1000-n4  | WORKLOAD=moveauth AUTHENTICATOR=ed25519heavy AUTH_CYCLES=70 AUTH_OBJ_TYPE=owned-object AUTH_SHOULD_FAIL=false TARGET_QPS=1000 N=4 DIRECT=false"
+  "auth70-owned-v1-qps1000-n4  | WORKLOAD=moveauth AUTHENTICATOR=ed25519heavy AUTH_CYCLES=70 AUTH_OBJ_TYPE=owned-object AUTH_SHOULD_FAIL=false TARGET_QPS=1000 N=4 DIRECT=true NUM_TARGET_VALIDATORS=1"
+  "auth70-owned-v4-qps1000-n4  | WORKLOAD=moveauth AUTHENTICATOR=ed25519heavy AUTH_CYCLES=70 AUTH_OBJ_TYPE=owned-object AUTH_SHOULD_FAIL=false TARGET_QPS=1000 N=4 DIRECT=true NUM_TARGET_VALIDATORS=4"
+  "auth70-owned-f1-qps2000-n4  | WORKLOAD=moveauth AUTHENTICATOR=ed25519heavy AUTH_CYCLES=70 AUTH_OBJ_TYPE=owned-object AUTH_SHOULD_FAIL=false TARGET_QPS=2000 N=4 DIRECT=false"
+  "auth70-owned-v1-qps2000-n4  | WORKLOAD=moveauth AUTHENTICATOR=ed25519heavy AUTH_CYCLES=70 AUTH_OBJ_TYPE=owned-object AUTH_SHOULD_FAIL=false TARGET_QPS=2000 N=4 DIRECT=true NUM_TARGET_VALIDATORS=1"
+  "auth70-owned-v4-qps2000-n4  | WORKLOAD=moveauth AUTHENTICATOR=ed25519heavy AUTH_CYCLES=70 AUTH_OBJ_TYPE=owned-object AUTH_SHOULD_FAIL=false TARGET_QPS=2000 N=4 DIRECT=true NUM_TARGET_VALIDATORS=4"
 )
 
 # Cache sudo up front (run.sh uses sudo per iteration) and keep it alive for the

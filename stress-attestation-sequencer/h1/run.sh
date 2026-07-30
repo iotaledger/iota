@@ -29,8 +29,11 @@
 # Required env: LABEL (experiment name -> results/<LABEL>/).
 # Tunables (env): ITERS (default 1), N, RUN_DURATION, TARGET_QPS, NUM_WORKERS,
 #                 NUM_CLIENT_THREADS, NUM_TRANSFER_ACCOUNTS, IN_FLIGHT_RATIO,
-#                 DIRECT, NUM_TARGET_VALIDATORS, WORKLOAD (owned|shared|slow),
-#                 NUM_SHARED_COUNTERS, SLOW_N, SLOW_SIZE, MAX_DEFERRAL_ROUNDS,
+#                 DIRECT, NUM_TARGET_VALIDATORS,
+#                 WORKLOAD (owned|shared|slow|moveauth),
+#                 NUM_SHARED_COUNTERS, SLOW_N, SLOW_SIZE, SLOW_SHARED,
+#                 AUTHENTICATOR, AUTH_OBJ_TYPE, AUTH_SHOULD_FAIL,
+#                 AUTH_SPLIT_AMOUNT, AUTH_CYCLES, MAX_DEFERRAL_ROUNDS,
 #                 MAX_ACCUMULATED_TXN_COST, MAX_CONGESTION_OVERSHOOT,
 #                 SLEEP_BETWEEN_RUNS_S, PRE_SPAM_WAIT_S, PRE_STOP_WAIT_S, PROM,
 #                 TS_STEP, EPOCH_DURATION_MS, ANALYZE.
@@ -96,11 +99,27 @@ NUM_TRANSFER_ACCOUNTS="${NUM_TRANSFER_ACCOUNTS:-4}" # pure multiplier on setup-p
 IN_FLIGHT_RATIO="${IN_FLIGHT_RATIO:-2}"             # max in-flight = IN_FLIGHT_RATIO * TARGET_QPS
 DIRECT="${DIRECT:-false}"                           # true => submit direct-to-validator (in-docker); false => via fullnode
 NUM_TARGET_VALIDATORS="${NUM_TARGET_VALIDATORS:-}"  # DIRECT only: pin submission/attestation to first N validators (empty => all)
-WORKLOAD="${WORKLOAD:-owned}"                       # owned (transfer) | shared (shared-counter) | slow (slow::bimodal)
+WORKLOAD="${WORKLOAD:-owned}"                       # owned (transfer) | shared (shared-counter) | slow (slow::bimodal) | moveauth (MoveAuthenticator)
 NUM_SHARED_COUNTERS="${NUM_SHARED_COUNTERS:-}"      # WORKLOAD=shared: fewer => more congestion (empty => benchmark default ~qps/2)
 SLOW_N="${SLOW_N:-}"                                # WORKLOAD=slow: slow::slow(n,size) — n vectors (empty => default 100)
 SLOW_SIZE="${SLOW_SIZE:-}"                          # WORKLOAD=slow: each vector size in bytes (empty => default 100)
 SLOW_SHARED="${SLOW_SHARED:-}"                      # WORKLOAD=slow: true (default) attaches a shared object (congestion); false => owned-only pure compute
+# WORKLOAD=moveauth knobs. The account-abstraction workload signs each tx with a
+# `MoveAuthenticator` instead of a keypair, so the V1 arm runs the authenticator
+# in the Move VM during post-consensus Check #6 (once per validator, serially in
+# the consensus handler) while the V2 arm skips it entirely — that asymmetry is
+# what this workload measures. AUTHENTICATOR selects the on-chain authenticate
+# function, i.e. how much Move VM work that check costs.
+AUTHENTICATOR="${AUTHENTICATOR:-ed25519}"      # helloworld | ed25519 | ed25519heavy | maxargs125 | superheavy | superheavynonatives
+AUTH_OBJ_TYPE="${AUTH_OBJ_TYPE:-owned-object}" # owned-object | shared-object (the tx BODY; the authenticator itself is always read-only)
+AUTH_SHOULD_FAIL="${AUTH_SHOULD_FAIL:-false}"  # true => corrupt the signature so authentication aborts (ed25519 kinds only)
+AUTH_SPLIT_AMOUNT="${AUTH_SPLIT_AMOUNT:-}"     # coin split amount per tx (empty => benchmark default 1000)
+# ed25519 verifications per transaction, for the authenticator kinds that take a
+# cycle count as a call argument; ignored by the kinds whose Move loop is a
+# constant. One verification is ~2800-3300 gas, so at max_auth_gas=250000 (the
+# privnet value) about 89 fit and anything above that aborts the whole
+# transaction with OUT_OF_GAS. Empty => benchmark default (1).
+AUTH_CYCLES="${AUTH_CYCLES:-}"
 # Congestion-control protocol overrides (empty => protocol default). Applied by
 # start.sh to the network for BOTH runs; recorded in each run's config below.
 MAX_DEFERRAL_ROUNDS="${MAX_DEFERRAL_ROUNDS:-}"           # rounds a tx may stay deferred before it is CANCELLED (default 10)
@@ -114,8 +133,8 @@ SLEEP_BETWEEN_RUNS_S="${SLEEP_BETWEEN_RUNS_S:-5}" # idle gap (s) to separate A/B
 PRE_SPAM_WAIT_S="${PRE_SPAM_WAIT_S:-0}"           # let the network settle this long after it's up, before the spam
 PRE_STOP_WAIT_S="${PRE_STOP_WAIT_S:-2}"           # keep Run A's network up this long after scraping, before stopping
 PROM="${PROM:-http://localhost:9090}"
-TS_STEP="${TS_STEP:-1}" # query_range step (s) for the per-run raw timeseries dump
-ITERS="${ITERS:-1}"     # how many times to run the whole experiment; each adds one iter-NNN to results/<LABEL>/
+TS_STEP="${TS_STEP:-1}"    # query_range step (s) for the per-run raw timeseries dump
+ITERS="${ITERS:-1}"        # how many times to run the whole experiment; each adds one iter-NNN to results/<LABEL>/
 ANALYZE="${ANALYZE:-true}" # false => skip the post-run aggregate.py/plot.py (matrix.sh sweeps once at campaign end)
 PRIMARY_GAS_OWNER="0xf479d29837d22943aba6afc401f518a36521b990874eca784886185bd26bf681"
 # iota-benchmark moved to the sibling repo `network-benchmark` (one level up
@@ -144,8 +163,22 @@ EXP_DIR="$SCRIPT_DIR/results/$LABEL"
 # RESULTS_DIR used by the rest of the iteration.
 allocate_iter() {
   local iter
+  # The moveauth fields are emitted ONLY for WORKLOAD=moveauth. exp_dir.py
+  # compares the whole config dict, so adding keys unconditionally would change
+  # the config of every label recorded before they existed and the gate would
+  # reject any further iteration for them.
+  local cfg_auth=()
+  if [[ "$WORKLOAD" == moveauth ]]; then
+    cfg_auth=(
+      "CFG_authenticator=$AUTHENTICATOR"
+      "CFG_auth_obj_type=$AUTH_OBJ_TYPE"
+      "CFG_auth_should_fail=$AUTH_SHOULD_FAIL"
+      "CFG_auth_split_amount=${AUTH_SPLIT_AMOUNT:-default}"
+      "CFG_auth_cycles=${AUTH_CYCLES:-default}"
+    )
+  fi
   iter="$(
-    CFG_workload="$WORKLOAD" CFG_direct="$DIRECT" CFG_target_qps="$TARGET_QPS" \
+    env CFG_workload="$WORKLOAD" CFG_direct="$DIRECT" CFG_target_qps="$TARGET_QPS" \
       CFG_num_target_validators="${NUM_TARGET_VALIDATORS:-all}" CFG_n="$N" \
       CFG_in_flight_ratio="$IN_FLIGHT_RATIO" CFG_num_workers="$NUM_WORKERS" \
       CFG_num_client_threads="$NUM_CLIENT_THREADS" CFG_num_transfer_accounts="$NUM_TRANSFER_ACCOUNTS" \
@@ -154,15 +187,20 @@ allocate_iter() {
       CFG_max_deferral_rounds="${MAX_DEFERRAL_ROUNDS:-default}" \
       CFG_max_accumulated_txn_cost="${MAX_ACCUMULATED_TXN_COST:-default}" \
       CFG_max_congestion_overshoot="${MAX_CONGESTION_OVERSHOOT:-default}" \
+      "${cfg_auth[@]}" \
       python3 "$SCRIPT_DIR/exp_dir.py" "$EXP_DIR"
   )" || exit 1
   RESULTS_DIR="$EXP_DIR/$iter"
   mkdir -p "$RESULTS_DIR"
 }
 
-# Map WORKLOAD to the stress workload-weight flags. `shared`/`slow` are
+# Map WORKLOAD to the stress subcommand + its workload flags. `shared`/`slow` are
 # shared-object workloads whose attestation dry-run is more expensive than a
-# plain transfer — the point of varying this.
+# plain transfer — the point of varying this. `moveauth` is a DIFFERENT
+# subcommand (`abstract-account-bench`), not a weight on `bench`; the three
+# generic flags (--target-qps / --in-flight-ratio / --num-workers) are spelled
+# the same on both, so only the verb varies.
+BENCH_SUBCMD=bench
 case "$WORKLOAD" in
 owned) WORKLOAD_ARGS=(--transfer-object 100 --shared-counter 0) ;;
 shared)
@@ -179,17 +217,46 @@ slow)
   [[ -n "$SLOW_SIZE" ]] && WORKLOAD_ARGS+=(--slow-size "$SLOW_SIZE")
   [[ -n "$SLOW_SHARED" ]] && WORKLOAD_ARGS+=(--slow-shared "$SLOW_SHARED")
   ;;
+moveauth)
+  # Every tx is signed with a `MoveAuthenticator`, so the V1 arm executes the
+  # authenticate function in the Move VM once per validator inside
+  # post-consensus Check #6; the V2 arm skips that call. AUTHENTICATOR sets how
+  # expensive that skipped call is. `--duration` is deliberately left at its
+  # default (unbounded) so the top-level --run-duration bounds the run, as it
+  # does for `bench`.
+  BENCH_SUBCMD=abstract-account-bench
+  WORKLOAD_ARGS=(
+    --authenticator "$AUTHENTICATOR"
+    --tx-payload-obj-type "$AUTH_OBJ_TYPE"
+  )
+  # `should_fail` is a scalar `bool`, which clap derives as ArgAction::SetTrue —
+  # a flag taking NO value, so `--should-fail false` is rejected. Pass it bare
+  # for true and omit it for false. (Contrast --slow-shared, whose field is
+  # Vec<bool> => Append, which does take a value.)
+  [[ "$AUTH_SHOULD_FAIL" == true ]] && WORKLOAD_ARGS+=(--should-fail)
+  [[ -n "$AUTH_SPLIT_AMOUNT" ]] && WORKLOAD_ARGS+=(--split-amount "$AUTH_SPLIT_AMOUNT")
+  [[ -n "$AUTH_CYCLES" ]] && WORKLOAD_ARGS+=(--auth-cycles "$AUTH_CYCLES")
+  # Both superheavy kinds have a constant Move loop bound (100M verifications /
+  # u256::MAX) that no budget can absorb, so they always abort with OUT_OF_GAS
+  # regardless of --should-fail or AUTH_CYCLES. Fine for admission-pressure runs;
+  # useless for measuring a check that only a completing authenticator pays.
+  if [[ "$AUTHENTICATOR" == superheavy* && "$AUTH_SHOULD_FAIL" != true ]]; then
+    echo "${YELLOW}NOTE: AUTHENTICATOR=$AUTHENTICATOR exhausts max_auth_gas by construction, so" >&2
+    echo "      every tx aborts in authentication even with AUTH_SHOULD_FAIL=false.${RESET}" >&2
+  fi
+  ;;
 *)
-  echo "${RED}ERROR: unknown WORKLOAD='$WORKLOAD' (expected: owned | shared | slow)${RESET}" >&2
+  echo "${RED}ERROR: unknown WORKLOAD='$WORKLOAD' (expected: owned | shared | slow | moveauth)${RESET}" >&2
   exit 1
   ;;
 esac
 
-# `shared`/`slow` publish a Move package at runtime (basics / slow), compiled
-# from sources that depend on the iota-framework. On the host (fullnode path)
-# those sources are the network-benchmark repo. In DIRECT mode they must be baked
-# into the stress image (network-benchmark docker/stress/Dockerfile) — so rebuild
-# that image after changing those, or the in-docker publish will fail.
+# `shared`/`slow`/`moveauth` publish a Move package at runtime (basics / slow /
+# abstract_account_for_benchmarks), compiled from sources that depend on the
+# iota-framework. On the host (fullnode path) those sources are the
+# network-benchmark repo. In DIRECT mode they must be baked into the stress image
+# (network-benchmark docker/stress/Dockerfile) — so rebuild that image after
+# changing those, or the in-docker publish will fail.
 if [[ "$WORKLOAD" != owned && "$DIRECT" == true ]]; then
   echo "${YELLOW}NOTE: WORKLOAD=$WORKLOAD publishes a Move package in-container; this needs the" >&2
   echo "      stress image rebuilt with the Move sources baked in (network-benchmark docker/stress).${RESET}" >&2
@@ -328,6 +395,11 @@ run_stress() {
       IN_FLIGHT_RATIO="$IN_FLIGHT_RATIO" PRIMARY_GAS_OWNER="$PRIMARY_GAS_OWNER" \
       USE_FULLNODE_FOR_EXECUTION=false NUM_TARGET_VALIDATORS="$NUM_TARGET_VALIDATORS" \
       WORKLOAD="$WORKLOAD" \
+      NUM_SHARED_COUNTERS="$NUM_SHARED_COUNTERS" \
+      SLOW_N="$SLOW_N" SLOW_SIZE="$SLOW_SIZE" SLOW_SHARED="$SLOW_SHARED" \
+      AUTHENTICATOR="$AUTHENTICATOR" AUTH_OBJ_TYPE="$AUTH_OBJ_TYPE" \
+      AUTH_SHOULD_FAIL="$AUTH_SHOULD_FAIL" AUTH_SPLIT_AMOUNT="$AUTH_SPLIT_AMOUNT" \
+      AUTH_CYCLES="$AUTH_CYCLES" \
       "$TOOLS_DIR/run-stress-docker.sh" 2>"$stress_log"
   else
     echo "${BLUE}Running stress via ${STRESS_BIN} executable...${RESET}"
@@ -342,7 +414,7 @@ run_stress() {
       --num-client-threads "$NUM_CLIENT_THREADS" \
       --num-transfer-accounts "$NUM_TRANSFER_ACCOUNTS" \
       --run-duration "$RUN_DURATION" \
-      bench --target-qps "$TARGET_QPS" \
+      "$BENCH_SUBCMD" --target-qps "$TARGET_QPS" \
       --in-flight-ratio "$IN_FLIGHT_RATIO" \
       --num-workers "$NUM_WORKERS" \
       "${WORKLOAD_ARGS[@]}") 2>"$stress_log"
