@@ -26,15 +26,14 @@ use iota_package_resolver::{
     Package, PackageStore, Resolver, error::Error as PackageResolverError,
 };
 use iota_sdk_types::{
-    Address, GasPayment, ObjectId, ObjectReference, TransactionDigest, TransactionExpiration,
-    TransactionKind, TransactionV1, UserSignature,
+    Address, GasPayment, ObjectId, TransactionDigest, TransactionExpiration, TransactionKind,
+    TransactionV1, UserSignature,
 };
 use iota_transaction_builder::TransactionBuilder;
 use iota_types::{
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
     execution_config_utils::to_binary_config,
     gas_coin::mock_simulation_gas_coin,
-    in_memory_storage::InMemoryStorage,
     inner_temporary_store::{PackageStoreWithFallback, TemporaryModuleResolver},
     iota_serde::BigInt,
     quorum_driver_types::{
@@ -336,13 +335,18 @@ impl TransactionExecutionApi {
         let (mut txn_data, input_objs) = self.prepare_dry_run_transaction_block(tx_bytes)?;
         let sender = txn_data.sender();
 
+        // Hold on to one epoch store for the whole operation, so that the simulation
+        // and the type resolution below observe the same epoch.
+        let epoch_store = Arc::clone(&self.state.load_epoch_store_one_call_per_task());
+
         // Use spawn_blocking since simulating a transaction is a long-running
         // synchronous operation
-        let state = self.state.clone();
         let simulation = {
+            let state = self.state.clone();
+            let epoch_store = epoch_store.clone();
             let txn_data = txn_data.clone();
             tokio::task::spawn_blocking(move || {
-                state.simulate_transaction(txn_data, VmChecks::Enabled)
+                state.simulate_transaction_in_epoch(&epoch_store, txn_data, VmChecks::Enabled)
             })
             .await
             .map_err(Error::from)??
@@ -359,11 +363,11 @@ impl TransactionExecutionApi {
         // Resolve types against the objects the simulation wrote before falling back to
         // the store, so that packages published by the transaction itself are visible.
         let (input, events) = {
-            let epoch_store = self.state.load_epoch_store_one_call_per_task();
-            let written =
-                InMemoryStorage::new(simulation.output_objects.values().cloned().collect());
             let mut layout_resolver = epoch_store.executor().type_layout_resolver(Box::new(
-                PackageStoreWithFallback::new(&written, self.state.get_backing_package_store()),
+                PackageStoreWithFallback::new(
+                    &simulation.output_objects,
+                    self.state.get_backing_package_store(),
+                ),
             ));
             let module_cache = TemporaryModuleResolver::new(
                 &simulation.output_objects,
@@ -440,38 +444,58 @@ impl TransactionExecutionApi {
     /// Any part of the gas payment the caller leaves out is filled in with the
     /// reference gas price, the protocol maximum gas budget, and `sender` as
     /// the gas owner.
-    #[allow(clippy::too_many_arguments)]
     async fn dev_inspect_transaction(
         &self,
         sender: Address,
         transaction_kind: TransactionKind,
         gas_price: Option<u64>,
-        gas_budget: Option<u64>,
-        gas_sponsor: Option<Address>,
-        gas_objects: Option<Vec<ObjectReference>>,
-        show_raw_txn_data_and_effects: Option<bool>,
-        skip_checks: Option<bool>,
+        args: DevInspectArgs,
     ) -> Result<DevInspectResults, Error> {
+        // Use spawn_blocking since simulating a transaction is a long-running
+        // synchronous operation
+        let this = self.clone();
+        tokio::task::spawn_blocking(move || {
+            this.dev_inspect_transaction_impl(sender, transaction_kind, gas_price, args)
+        })
+        .await
+        .map_err(Error::from)?
+    }
+
+    fn dev_inspect_transaction_impl(
+        &self,
+        sender: Address,
+        transaction_kind: TransactionKind,
+        gas_price: Option<u64>,
+        args: DevInspectArgs,
+    ) -> Result<DevInspectResults, Error> {
+        let DevInspectArgs {
+            gas_sponsor,
+            gas_budget,
+            gas_objects,
+            show_raw_txn_data_and_effects,
+            skip_checks,
+        } = args;
         let show_raw_txn_data_and_effects = show_raw_txn_data_and_effects.unwrap_or(false);
         let skip_checks = skip_checks.unwrap_or(true);
 
-        let transaction = {
-            let epoch_store = self.state.load_epoch_store_one_call_per_task();
-            TransactionData::V1(TransactionV1 {
-                kind: transaction_kind,
-                sender,
-                gas_payment: GasPayment {
-                    // Payment might be empty here, but that is fine: a mock gas coin is
-                    // minted for it during the simulation.
-                    objects: gas_objects.unwrap_or_default(),
-                    owner: gas_sponsor.unwrap_or(sender),
-                    price: gas_price.unwrap_or_else(|| epoch_store.reference_gas_price()),
-                    budget: gas_budget
-                        .unwrap_or_else(|| epoch_store.protocol_config().max_tx_gas()),
-                },
-                expiration: TransactionExpiration::None,
-            })
-        };
+        // Hold on to one epoch store for the whole operation, so that the gas
+        // parameters, the simulation and the type resolution below observe the same
+        // epoch.
+        let epoch_store = self.state.load_epoch_store_one_call_per_task();
+
+        let transaction = TransactionData::V1(TransactionV1 {
+            kind: transaction_kind,
+            sender,
+            gas_payment: GasPayment {
+                // Payment might be empty here, but that is fine: a mock gas coin is
+                // minted for it during the simulation.
+                objects: gas_objects.unwrap_or_default(),
+                owner: gas_sponsor.unwrap_or(sender),
+                price: gas_price.unwrap_or_else(|| epoch_store.reference_gas_price()),
+                budget: gas_budget.unwrap_or_else(|| epoch_store.protocol_config().max_tx_gas()),
+            },
+            expiration: TransactionExpiration::None,
+        });
 
         let raw_txn_data = if show_raw_txn_data_and_effects {
             bcs::to_bytes(&transaction).map_err(|_| {
@@ -486,7 +510,9 @@ impl TransactionExecutionApi {
         } else {
             VmChecks::Enabled
         };
-        let simulation = self.state.simulate_transaction(transaction, checks)?;
+        let simulation =
+            self.state
+                .simulate_transaction_in_epoch(&epoch_store, transaction, checks)?;
 
         let raw_effects = if show_raw_txn_data_and_effects {
             bcs::to_bytes(&simulation.effects).map_err(|_| {
@@ -500,13 +526,11 @@ impl TransactionExecutionApi {
 
         // Resolve types against the objects the simulation wrote before falling back to
         // the store, so that packages published by the transaction itself are visible.
-        let epoch_store = self.state.load_epoch_store_one_call_per_task();
-        let written = InMemoryStorage::new(simulation.output_objects.values().cloned().collect());
         let mut layout_resolver =
             epoch_store
                 .executor()
                 .type_layout_resolver(Box::new(PackageStoreWithFallback::new(
-                    &written,
+                    &simulation.output_objects,
                     self.state.get_backing_package_store(),
                 )));
 
@@ -562,7 +586,7 @@ impl WriteApiServer for TransactionExecutionApi {
             .await
             .map_err(Error::from)?;
         let dev_inspect_results = self
-            .dev_inspect_transaction(sender, tx_kind, None, None, None, None, None, None)
+            .dev_inspect_transaction(sender, tx_kind, None, DevInspectArgs::default())
             .await?;
         Ok(
             IotaMoveViewCallResults::from_dev_inspect_results(self.clone(), dev_inspect_results)
@@ -581,23 +605,12 @@ impl WriteApiServer for TransactionExecutionApi {
         additional_args: Option<DevInspectArgs>,
     ) -> RpcResult<DevInspectResults> {
         async move {
-            let DevInspectArgs {
-                gas_sponsor,
-                gas_budget,
-                gas_objects,
-                show_raw_txn_data_and_effects,
-                skip_checks,
-            } = additional_args.unwrap_or_default();
             let tx_kind: TransactionKind = self.convert_bytes(tx_bytes)?;
             self.dev_inspect_transaction(
                 sender_address,
                 tx_kind,
                 gas_price.map(|i| *i),
-                gas_budget,
-                gas_sponsor,
-                gas_objects,
-                show_raw_txn_data_and_effects,
-                skip_checks,
+                additional_args.unwrap_or_default(),
             )
             .await
         }

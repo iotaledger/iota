@@ -144,6 +144,18 @@ impl BackingPackageStore for InnerTemporaryStore {
     }
 }
 
+/// Resolves packages out of a map of objects, so that callers holding only an
+/// execution's inputs or outputs — rather than the whole
+/// [`InnerTemporaryStore`] — can use them as a package store.
+///
+/// [`WrittenObjects`] and [`ObjectMap`] are the same type, so this one impl
+/// serves both.
+impl BackingPackageStore for WrittenObjects {
+    fn get_package_object(&self, package_id: &ObjectId) -> IotaResult<Option<PackageObject>> {
+        Ok(self.get(package_id).cloned().map(PackageObject::new))
+    }
+}
+
 pub struct PackageStoreWithFallback<P, F> {
     primary: P,
     fallback: F,

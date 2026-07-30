@@ -809,6 +809,44 @@ async fn test_dev_inspect_gas_coin_argument() {
     assert!(return_values.is_empty());
 }
 
+/// A gas budget supplied by the caller is metered against, rather than being
+/// replaced by `max_tx_gas`.
+#[tokio::test]
+async fn test_dev_inspect_uses_supplied_gas_budget() {
+    let (validator, fullnode, _object_basics) =
+        init_state_with_ids_and_object_basics_with_fullnode(vec![]).await;
+    let epoch_store = validator.epoch_store_for_testing();
+    let max_tx_gas = epoch_store.protocol_config().max_tx_gas();
+    let gas_budget = max_tx_gas / 2;
+    assert_ne!(gas_budget, max_tx_gas);
+
+    let sender = Address::random();
+    let recipient = Address::random();
+    let amount = 500;
+    let pt = {
+        let mut builder = ProgrammableTransactionBuilder::new();
+        builder.pay_iota(vec![recipient], vec![amount]).unwrap();
+        builder.finish()
+    };
+    let kind = TransactionKind::new_programmable(pt);
+    let results = dev_inspect_with_budget(&fullnode, sender, kind, None, Some(gas_budget))
+        .unwrap()
+        .execution_result
+        .unwrap();
+
+    // The gas coin is debited by the supplied budget, not by `max_tx_gas`.
+    assert_eq!(results.len(), 2);
+    let (mutable_reference_outputs, _) = &results[0];
+    assert_eq!(mutable_reference_outputs.len(), 1);
+    let (arg, arg_value, arg_type) = &mutable_reference_outputs[0];
+    assert_eq!(arg, &Argument::Gas);
+    check_coin_value(
+        arg_value,
+        arg_type,
+        SIMULATION_GAS_COIN_VALUE - gas_budget - amount,
+    );
+}
+
 #[tokio::test]
 async fn test_dev_inspect_gas_price() {
     let (_, fullnode, _object_basics) =
@@ -4415,6 +4453,18 @@ pub fn dev_inspect(
     kind: TransactionKind,
     gas_price: Option<u64>,
 ) -> IotaResult<SimulateTransactionResult> {
+    dev_inspect_with_budget(authority, sender, kind, gas_price, None)
+}
+
+/// Same as [`dev_inspect`], but with control over the gas budget the RPC layer
+/// would otherwise default to `max_tx_gas`.
+pub fn dev_inspect_with_budget(
+    authority: &AuthorityState,
+    sender: Address,
+    kind: TransactionKind,
+    gas_price: Option<u64>,
+    gas_budget: Option<u64>,
+) -> IotaResult<SimulateTransactionResult> {
     let epoch_store = authority.epoch_store_for_testing();
     let transaction = TransactionData::V1(TransactionV1 {
         kind,
@@ -4423,11 +4473,11 @@ pub fn dev_inspect(
             objects: vec![],
             owner: sender,
             price: gas_price.unwrap_or_else(|| epoch_store.reference_gas_price()),
-            budget: epoch_store.protocol_config().max_tx_gas(),
+            budget: gas_budget.unwrap_or_else(|| epoch_store.protocol_config().max_tx_gas()),
         },
         expiration: TransactionExpiration::None,
     });
-    authority.simulate_transaction(transaction, VmChecks::Disabled)
+    authority.simulate_transaction_in_epoch(&epoch_store, transaction, VmChecks::Disabled)
 }
 
 /// Resolve a simulation's events for display the way the RPC layer does: over

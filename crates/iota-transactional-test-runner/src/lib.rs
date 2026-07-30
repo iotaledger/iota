@@ -430,7 +430,7 @@ impl TransactionalAdapter for Simulacrum<StdRng, PersistedStore> {
     }
 
     async fn reference_gas_price(&self) -> IotaResult<u64> {
-        Ok(self.reference_gas_price())
+        Ok(Simulacrum::reference_gas_price(self))
     }
 
     async fn query_tx_events_asc(

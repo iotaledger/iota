@@ -2114,20 +2114,42 @@ impl AuthorityState {
     /// If the transaction carries no gas payment, a mock gas coin is minted for
     /// it and its ID is reported back in
     /// [`SimulateTransactionResult::mock_gas_id`].
-    #[instrument("simulate_tx", level = "trace", skip_all)]
     pub fn simulate_transaction(
         &self,
         transaction: TransactionData,
         checks: VmChecks,
     ) -> IotaResult<SimulateTransactionResult> {
         let epoch_store = self.load_epoch_store_one_call_per_task();
-        if !self.is_fullnode(&epoch_store) {
+        self.simulate_transaction_in_epoch(&epoch_store, transaction, checks)
+    }
+
+    /// Same as [`AuthorityState::simulate_transaction`], for callers that
+    /// already hold an epoch store.
+    ///
+    /// Callers that derive gas parameters from an epoch, or resolve types
+    /// against its executor once the simulation returns, should pass that same
+    /// epoch store here so the whole operation observes one epoch.
+    ///
+    /// Nothing here checks that `epoch_store` is the current one — pinning a
+    /// superseded epoch is the point, and is what
+    /// [`AuthorityState::simulate_transaction`] does for the span of its own
+    /// call. Keeping one across an unbounded period is the caller's problem:
+    /// the simulation would run against that epoch's protocol config,
+    /// executor, and reference gas price.
+    #[instrument("simulate_tx", level = "trace", skip_all)]
+    pub fn simulate_transaction_in_epoch(
+        &self,
+        epoch_store: &AuthorityPerEpochStore,
+        transaction: TransactionData,
+        checks: VmChecks,
+    ) -> IotaResult<SimulateTransactionResult> {
+        if !self.is_fullnode(epoch_store) {
             return Err(IotaError::UnsupportedFeature {
                 error: "simulate is only supported on fullnodes".to_string(),
             });
         }
 
-        self.simulate_transaction_inner(&epoch_store, transaction, checks)
+        self.simulate_transaction_inner(epoch_store, transaction, checks)
     }
 
     /// Same as [`AuthorityState::simulate_transaction`], but runs on a

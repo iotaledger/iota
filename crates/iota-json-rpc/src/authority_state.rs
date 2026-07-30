@@ -102,8 +102,9 @@ pub trait StateRead: Send + Sync {
     ) -> StateReadResult<Vec<IotaEvent>>;
 
     // transaction_execution_api
-    fn simulate_transaction(
+    fn simulate_transaction_in_epoch(
         &self,
+        epoch_store: &AuthorityPerEpochStore,
         transaction: TransactionData,
         checks: VmChecks,
     ) -> StateReadResult<SimulateTransactionResult>;
@@ -295,12 +296,13 @@ impl StateRead for AuthorityState {
             .await?)
     }
 
-    fn simulate_transaction(
+    fn simulate_transaction_in_epoch(
         &self,
+        epoch_store: &AuthorityPerEpochStore,
         transaction: TransactionData,
         checks: VmChecks,
     ) -> StateReadResult<SimulateTransactionResult> {
-        Ok(self.simulate_transaction(transaction, checks)?)
+        Ok(self.simulate_transaction_in_epoch(epoch_store, transaction, checks)?)
     }
 
     fn get_subscription_handler(&self) -> Arc<SubscriptionHandler> {
