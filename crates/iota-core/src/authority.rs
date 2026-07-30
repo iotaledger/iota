@@ -3683,8 +3683,9 @@ impl AuthorityState {
         )?;
         self.get_reconfig_api()
             .try_set_epoch_start_configuration(&epoch_start_configuration)?;
-        // When state snapshots are published, a RocksDB checkpoint taken at
-        // epoch end serves as the snapshot creation input.
+        // When state snapshots are published, a RocksDB checkpoint of the
+        // perpetual store taken at epoch end serves as the snapshot creation
+        // input.
         if self
             .config
             .state_snapshot_write_config
@@ -3696,7 +3697,7 @@ impl AuthorityState {
                 .config
                 .db_checkpoint_path()
                 .join(format!("epoch_{current_epoch}"));
-            self.checkpoint_all_dbs(&epoch_checkpoint_path, cur_epoch_store)?;
+            self.checkpoint_perpetual_db(&epoch_checkpoint_path, cur_epoch_store)?;
         }
 
         let new_epoch = new_committee.epoch;
@@ -3836,8 +3837,11 @@ impl AuthorityState {
         self.epoch_store_for_testing().epoch()
     }
 
+    /// Takes a RocksDB checkpoint of the perpetual store under
+    /// `<checkpoint_path>/store/perpetual`, the layout the state snapshot
+    /// uploader reads.
     #[instrument(level = "error", skip_all)]
-    pub fn checkpoint_all_dbs(
+    pub fn checkpoint_perpetual_db(
         &self,
         checkpoint_path: &Path,
         cur_epoch_store: &AuthorityPerEpochStore,
@@ -3861,16 +3865,8 @@ impl AuthorityState {
         fs::create_dir_all(&checkpoint_path_tmp).map_err(|e| IotaError::FileIO(e.to_string()))?;
         fs::create_dir(&store_checkpoint_path_tmp).map_err(|e| IotaError::FileIO(e.to_string()))?;
 
-        // NOTE: Do not change the order of invoking these checkpoint calls
-        // We want to snapshot checkpoint db first to not race with state sync
-        self.checkpoint_store
-            .checkpoint_db(&checkpoint_path_tmp.join("checkpoints"))?;
-
         self.get_reconfig_api()
             .try_checkpoint_db(&store_checkpoint_path_tmp.join("perpetual"))?;
-
-        self.committee_store
-            .checkpoint_db(&checkpoint_path_tmp.join("epochs"))?;
 
         fs::rename(checkpoint_path_tmp, checkpoint_path)
             .map_err(|e| IotaError::FileIO(e.to_string()))?;

@@ -940,14 +940,6 @@ impl CheckpointStore {
         })
     }
 
-    pub fn checkpoint_db(&self, path: &Path) -> IotaResult {
-        // This checkpoints the entire db and not one column family
-        self.tables
-            .checkpoint_content
-            .checkpoint_db(path)
-            .map_err(Into::into)
-    }
-
     pub fn delete_highest_executed_checkpoint_test_only(&self) -> Result<(), TypedStoreError> {
         let mut wb = self.tables.watermarks.batch();
         wb.delete_batch(
