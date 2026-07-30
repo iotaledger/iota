@@ -273,10 +273,22 @@ fn populate_missing_cfs(
             .ok()
             .unwrap_or_default();
 
+    let default_db_options = default_db_options();
+    let mut names_default = false;
     for cf_name in existing_cfs {
+        names_default |= cf_name == rocksdb::DEFAULT_COLUMN_FAMILY_NAME;
         if !input_cf_index.contains(&cf_name[..]) {
-            cfs.push((cf_name, rocksdb::Options::default()));
+            cfs.push((cf_name, default_db_options.options.clone()));
         }
+    }
+    // A database that does not exist yet has nothing to list, so the column
+    // family rocksdb always opens has to be named here: its wrapper otherwise
+    // adds it with the rocksdb defaults of its own.
+    if !names_default && !input_cf_index.contains(rocksdb::DEFAULT_COLUMN_FAMILY_NAME) {
+        cfs.push((
+            rocksdb::DEFAULT_COLUMN_FAMILY_NAME.to_owned(),
+            default_db_options.options,
+        ));
     }
     cfs.extend(
         input_cfs

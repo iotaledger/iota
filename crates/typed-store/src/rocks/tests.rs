@@ -1195,6 +1195,102 @@ async fn test_tagged_dbmaps_share_a_column_family() {
     assert_eq!(words.get(&"one".to_string()).unwrap(), Some(1));
 }
 
+/// Reads `key` from the `[CFOptions "cf_name"]` section of the database's
+/// current OPTIONS file.
+fn cf_option(path: &Path, cf_name: &str, key: &str) -> String {
+    let current = std::fs::read_dir(path)
+        .expect("Failed to read the database directory")
+        .filter_map(|entry| {
+            let name = entry.expect("Failed to read a directory entry").file_name();
+            name.to_str()?.starts_with("OPTIONS-").then_some(name)
+        })
+        .max()
+        .expect("The database has no OPTIONS file");
+    let options = std::fs::read_to_string(path.join(current)).expect("Failed to read the options");
+
+    options
+        .split(&format!("[CFOptions \"{cf_name}\"]"))
+        .nth(1)
+        .expect("The options name no such column family")
+        .lines()
+        .map(str::trim)
+        .take_while(|line| !line.starts_with('['))
+        .find_map(|line| line.strip_prefix(&format!("{key}=")))
+        .unwrap_or_else(|| panic!("The column family has no {key} option"))
+        .to_owned()
+}
+
+/// A column family created at runtime keeps its options when the database is
+/// reopened without declaring it, instead of falling back to the rocksdb
+/// defaults.
+#[tokio::test]
+async fn a_rediscovered_column_family_keeps_its_options() {
+    let tmp_dir = iota_common::tempdir();
+    let path = tmp_dir.path();
+    let declared = |cf: &'static str| {
+        open_cf_opts(
+            path,
+            None,
+            MetricConf::default(),
+            &[(cf, default_db_options().options)],
+        )
+        .expect("Failed to open rocksdb")
+    };
+    {
+        let db = declared("static_cf");
+        db.create_cf("dynamic_cf", &default_db_options().options)
+            .expect("Failed to create column family");
+    }
+
+    // Reopened without naming the runtime column family, so it is rediscovered.
+    let _db = declared("static_cf");
+    assert_eq!(
+        cf_option(path, "dynamic_cf", "bottommost_compression"),
+        cf_option(path, "static_cf", "bottommost_compression"),
+    );
+}
+
+/// The default column family is opened with the crate's options from the start,
+/// rather than with the rocksdb defaults its wrapper would otherwise give it.
+#[tokio::test]
+async fn the_default_column_family_keeps_the_crate_s_options() {
+    let tmp_dir = iota_common::tempdir();
+    let path = tmp_dir.path();
+    let declared = || {
+        open_cf_opts(
+            path,
+            None,
+            MetricConf::default(),
+            &[("static_cf", default_db_options().options)],
+        )
+        .expect("Failed to open rocksdb")
+    };
+
+    // The database is new, so nothing is there to rediscover.
+    let db = declared();
+    let expected = cf_option(path, "static_cf", "bottommost_compression");
+    assert_eq!(
+        cf_option(
+            path,
+            rocksdb::DEFAULT_COLUMN_FAMILY_NAME,
+            "bottommost_compression"
+        ),
+        expected,
+    );
+
+    // And the options do not change when it is rediscovered on the next open.
+    drop(db);
+    let _db = declared();
+    assert_eq!(
+        cf_option(
+            path,
+            rocksdb::DEFAULT_COLUMN_FAMILY_NAME,
+            "bottommost_compression"
+        ),
+        expected,
+    );
+}
+
 /// Opening a map on a column family the database does not have is refused,
 /// rather than yielding a map whose every operation panics.
 #[tokio::test]

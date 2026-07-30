@@ -232,6 +232,10 @@ impl Database {
 
     /// Creates a new column family at runtime. Fails if a column family with
     /// this name already exists.
+    ///
+    /// `options` hold until the database is next opened, after which a
+    /// column family the caller does not declare is opened with the
+    /// crate's options instead. Declare it to keep them.
     pub fn create_cf(&self, name: &str, options: &rocksdb::Options) -> Result<(), TypedStoreError> {
         match &self.storage {
             Storage::Rocks(db) => nondeterministic!(db.underlying.create_cf(name, options))
