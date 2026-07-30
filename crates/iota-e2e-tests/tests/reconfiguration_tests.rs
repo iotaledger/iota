@@ -44,7 +44,7 @@ use rand::{
     SeedableRng,
     rngs::{OsRng, StdRng},
 };
-use test_cluster::{TestCluster, TestClusterBuilder};
+use test_cluster::{TestCluster, TestClusterBuilder, override_pcool_flow};
 use tokio::time::sleep;
 
 #[sim_test]
@@ -143,6 +143,7 @@ async fn test_transaction_expiration() {
 // code path may not always be tested.
 #[sim_test]
 async fn reconfig_with_revert_end_to_end_test() {
+    let _pcool_guard = override_pcool_flow(false);
     let test_cluster = TestClusterBuilder::new().build().await;
     let authorities = test_cluster.swarm.validator_node_handles();
     let rgp = test_cluster.get_reference_gas_price().await;
@@ -327,6 +328,7 @@ async fn do_test_passive_reconfig(chain: Option<Chain>) {
 // Test that transaction locks from previously epochs could be overridden.
 #[sim_test]
 async fn test_expired_locks() {
+    let _pcool_guard = override_pcool_flow(false);
     let test_cluster = TestClusterBuilder::new()
         .with_epoch_duration_ms(10000)
         .build()
@@ -497,6 +499,7 @@ async fn test_reconfig_with_failing_validator() {
 
 #[sim_test]
 async fn test_validator_resign_effects() {
+    let _pcool_guard = override_pcool_flow(false);
     // This test checks that validators are able to re-sign transaction effects that
     // were finalized in previous epochs. This allows authority aggregator to
     // form a new effects certificate in the new epoch.
