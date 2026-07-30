@@ -821,7 +821,7 @@ pub async fn download_formal_snapshot(
     // and rejects a wrong-network or tampered snapshot before anything large is
     // downloaded.
     let (snapshot_chain_id, epoch_info) =
-        StateSnapshotReaderV1::read_epoch_info_only(epoch, &snapshot_store_config).await?;
+        StateSnapshotReaderV1::read_epoch_info(epoch, &snapshot_store_config).await?;
     let verified_epoch_info = iota_snapshot::verify_epoch_info_chain(
         epoch_info,
         genesis_committee.clone(),

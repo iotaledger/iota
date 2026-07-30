@@ -66,8 +66,6 @@ pub struct StateSnapshotReaderV1 {
     local_object_store: Arc<dyn ObjectStorePutExt>,
     ref_files: BTreeMap<u32, BTreeMap<u32, FileMetadata>>,
     object_files: BTreeMap<u32, BTreeMap<u32, FileMetadata>>,
-    epoch_info_metadata: FileMetadata,
-    epoch_info_path: Path,
     /// Chain identifier recorded in the snapshot's `ManifestV2`.
     chain_id: ChainIdentifier,
     multi_progress_bar: MultiProgress,
@@ -149,8 +147,7 @@ impl StateSnapshotReaderV1 {
                 FileType::EpochInfo => epoch_info_files.push(file_metadata.clone()),
             }
         }
-        let epoch_info_metadata = Self::single_epoch_info_metadata(epoch_info_files)?;
-        let epoch_info_path = epoch_info_metadata.file_path(&epoch_dir_path);
+        Self::single_epoch_info_metadata(epoch_info_files)?;
         // Collects the path of all reference files
         let files: Vec<Path> = ref_files
             .values()
@@ -214,8 +211,6 @@ impl StateSnapshotReaderV1 {
             local_object_store,
             ref_files,
             object_files,
-            epoch_info_metadata,
-            epoch_info_path,
             chain_id,
             multi_progress_bar,
             concurrency: download_concurrency,
@@ -230,16 +225,6 @@ impl StateSnapshotReaderV1 {
     ) -> Result<()> {
         self.read_to_db(perpetual_db, abort_registration, sender)
             .await
-    }
-
-    /// Reads, verifies, and decodes the snapshot's `EPOCH_INFO` file from the
-    /// remote store. Independent of the live-object restore in [`Self::read`].
-    pub async fn read_epoch_info(&self) -> anyhow::Result<EpochInfo> {
-        let bytes = self
-            .remote_object_store
-            .get_bytes(&self.epoch_info_path)
-            .await?;
-        Self::decode_epoch_info(bytes, &self.epoch_info_metadata)
     }
 
     /// Chain identifier recorded in this snapshot's manifest.
@@ -275,7 +260,7 @@ impl StateSnapshotReaderV1 {
 
     /// Downloads and decodes only the MANIFEST and `EPOCH_INFO` file for
     /// `epoch`, never the large reference/object files.
-    pub async fn read_epoch_info_only(
+    pub async fn read_epoch_info(
         epoch: u64,
         remote_store_config: &ObjectStoreConfig,
     ) -> anyhow::Result<(ChainIdentifier, EpochInfo)> {

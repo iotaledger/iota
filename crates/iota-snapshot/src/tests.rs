@@ -387,8 +387,7 @@ async fn snapshot_round_trip(
 
     // Snapshot is at epoch 0, so EPOCH_INFO has exactly one entry, which must
     // round-trip into an `EpochInfoV2`.
-    let epoch_info = snapshot_reader
-        .read_epoch_info()
+    let (_, epoch_info) = StateSnapshotReaderV1::read_epoch_info(0, &remote_store_config)
         .await
         .expect("read_epoch_info");
     assert_eq!(
@@ -439,11 +438,10 @@ async fn epoch_info_round_trip(
         .write_internal(snapshot_epoch, perpetual_db, root_accumulator)
         .await?;
 
-    // 2. LOAD via `read_epoch_info_only` (the formal-snapshot restore's
-    //    EPOCH_INFO-first step): downloads only MANIFEST + EPOCH_INFO, verifies
-    //    sha3 + magic.
+    // 2. LOAD via `read_epoch_info` (the formal-snapshot restore's EPOCH_INFO-first
+    //    step): downloads only MANIFEST + EPOCH_INFO, verifies sha3 + magic.
     let (chain_id, epoch_info) =
-        StateSnapshotReaderV1::read_epoch_info_only(snapshot_epoch, &remote_store_config).await?;
+        StateSnapshotReaderV1::read_epoch_info(snapshot_epoch, &remote_store_config).await?;
     assert_eq!(
         chain_id,
         ChainIdentifier::default(),

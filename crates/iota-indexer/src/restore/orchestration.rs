@@ -42,12 +42,8 @@ pub async fn start(
     num_parallel_downloads: NonZeroUsize,
     pg_indexer_store: PgIndexerStore,
 ) -> IndexerResult<()> {
-    let (mut reader, epoch) =
+    let (mut reader, epoch, epoch_info) =
         setup_reader(network, epoch, staging_path, num_parallel_downloads).await?;
-    let epoch_info = reader
-        .read_epoch_info()
-        .await
-        .map_err(|e| IndexerError::Restore(format!("failed to read epoch info: {e}")))?;
     let snapshot_chain_id = reader.chain_id();
     let genesis = Genesis::load(genesis_path)?;
 

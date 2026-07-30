@@ -6,7 +6,7 @@ use std::{cmp::Reverse, num::NonZeroUsize, path::Path, sync::Arc, time::Duration
 use clap::ValueEnum;
 use indicatif::MultiProgress;
 use iota_config::object_storage_config::{ObjectStoreConfig, ObjectStoreType};
-use iota_snapshot::reader::StateSnapshotReaderV1;
+use iota_snapshot::{EpochInfo, reader::StateSnapshotReaderV1};
 use iota_storage::object_store::{
     ObjectStoreGetExt,
     http::HttpDownloaderBuilder,
@@ -38,23 +38,25 @@ pub enum Network {
 /// 2. Resolves the target epoch: the given one, or the latest epoch available
 ///    in the bucket.
 /// 3. Verifies that the snapshot upload for that epoch has completed.
-/// 4. Instantiates the reader, which downloads the snapshot's MANIFEST and
+/// 4. Reads the snapshot's `EPOCH_INFO`, one small file, before anything large
+///    is downloaded.
+/// 5. Instantiates the reader, which downloads the snapshot's MANIFEST and
 ///    reference files into the staging directory.
 ///
-/// Returns the reader and the resolved epoch.
+/// Returns the reader, the resolved epoch, and the snapshot's epoch info.
 ///
 /// # Errors
 ///
 /// Returns an error if:
 ///
 /// - The snapshot for the resolved epoch is incomplete.
-/// - Downloading the MANIFEST or reference files fails.
+/// - Downloading the MANIFEST, `EPOCH_INFO` or reference files fails.
 pub(crate) async fn setup_reader(
     network: Network,
     epoch: Option<u64>,
     staging_path: &Path,
     num_parallel_downloads: NonZeroUsize,
-) -> IndexerResult<(StateSnapshotReaderV1, u64)> {
+) -> IndexerResult<(StateSnapshotReaderV1, u64, EpochInfo)> {
     let remote_store = FormalSnapshotStore::new(network)?;
     let local_store_config = local_store_config(staging_path);
 
@@ -63,6 +65,12 @@ pub(crate) async fn setup_reader(
         None => remote_store.latest_available_epoch().await?,
     };
     remote_store.verify_completed_snapshot(epoch).await?;
+
+    // The chain id is read again from the same MANIFEST by the reader below,
+    // which the caller uses.
+    let (_, epoch_info) = StateSnapshotReaderV1::read_epoch_info(epoch, &remote_store.config)
+        .await
+        .map_err(|e| IndexerError::Restore(format!("failed to read epoch info: {e}")))?;
 
     info!(
         network = network.as_ref(),
@@ -85,7 +93,7 @@ pub(crate) async fn setup_reader(
         staging_path = %staging_path.display(),
         "formal snapshot reader ready; MANIFEST and reference files downloaded"
     );
-    Ok((reader, epoch))
+    Ok((reader, epoch, epoch_info))
 }
 
 /// Read client for a network's public formal snapshot store.
