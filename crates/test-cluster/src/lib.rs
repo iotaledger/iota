@@ -23,7 +23,6 @@ use iota_config::{
 use iota_core::{
     authority_aggregator::AuthorityAggregator, authority_client::NetworkAuthorityClient,
 };
-use iota_genesis_builder::SnapshotSource;
 use iota_json_rpc_api::{IndexerApiClient, TransactionBuilderClient, WriteApiClient};
 use iota_json_rpc_types::{
     IotaExecutionStatus, IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseQuery,
@@ -1229,18 +1228,8 @@ impl TestClusterBuilder {
         self
     }
 
-    pub fn with_migration_data(mut self, migration_sources: Vec<SnapshotSource>) -> Self {
-        self.get_or_init_genesis_config().migration_sources = migration_sources;
-        self
-    }
-
     pub fn with_additional_accounts(mut self, accounts: Vec<AccountConfig>) -> Self {
         self.get_or_init_genesis_config().accounts.extend(accounts);
-        self
-    }
-
-    pub fn with_delegator(mut self, delegator: Address) -> Self {
-        self.get_or_init_genesis_config().delegator = Some(delegator);
         self
     }
 
