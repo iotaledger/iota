@@ -48,7 +48,4 @@ INCLUDING DEPENDENCY Stardust
 INCLUDING DEPENDENCY Iota
 INCLUDING DEPENDENCY MoveStdlib
 BUILDING example
-Package size: 312 bytes
-Protocol maximum package size: 102400 bytes
-Status: publishable
 === Disassemble ===

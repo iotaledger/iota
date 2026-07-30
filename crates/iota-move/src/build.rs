@@ -6,7 +6,7 @@ use std::{fs, path::Path};
 
 use clap::Parser;
 use colored::Colorize;
-use iota_move_build::{BuildConfig, ProtocolBuildConfig, implicit_deps};
+use iota_move_build::{BuildConfig, CompiledPackage, ProtocolBuildConfig, implicit_deps};
 use iota_package_management::system_package_versions::latest_system_packages;
 use iota_protocol_config::ProtocolConfig;
 use move_cli::base;
@@ -96,6 +96,12 @@ pub struct Build {
     /// serialization/deserialization of transaction arguments and events.
     #[arg(long, global = true)]
     pub generate_struct_layouts: bool,
+    /// Print the package name, its direct dependencies, and the on-chain size
+    /// (against the protocol maximum). Without this flag the size is still
+    /// checked, but only a warning (near the limit) or an unpublishable notice
+    /// (over the limit) is shown.
+    #[arg(long, global = true)]
+    pub package_info: bool,
     /// The chain ID, if resolved. Required when the dump_bytecode_as_base64 is
     /// true, for automated address management, where package addresses are
     /// resolved for the respective chain in the Move.lock file.
@@ -120,6 +126,7 @@ impl Build {
             build_config,
             self.generate_struct_layouts,
             self.with_unpublished_dependencies,
+            self.package_info,
             self.chain_id.clone(),
             self.protocol_build_config_args.clone(),
         )
@@ -130,6 +137,7 @@ impl Build {
         mut config: MoveBuildConfig,
         generate_struct_layouts: bool,
         with_unpublished_deps: bool,
+        package_info: bool,
         chain_id: Option<String>,
         protocol_build_config_args: ProtocolBuildConfigArgs,
     ) -> anyhow::Result<()> {
@@ -144,16 +152,21 @@ impl Build {
         }
         .build(rerooted_path)?;
 
-        // The package size is protocol-independent, so always report it. The
-        // limit is protocol-gated: use the network-resolved value when a target
-        // network is known, otherwise fall back to the compiled-in default
-        // (identical across all protocol versions today).
+        // The package size is protocol-independent, so it is always computed.
+        // The limit is protocol-gated: use the network-resolved value when a
+        // target network is known, otherwise fall back to the compiled-in
+        // default (identical across all protocol versions today).
         let dep_count = pkg.linkage_dependency_count();
         let size = pkg.published_size(with_unpublished_deps, dep_count);
         let max_size = protocol_build_config
             .max_move_package_size
             .unwrap_or_else(|| ProtocolConfig::get_for_min_version().max_move_package_size());
-        Self::print_size_report(size, max_size);
+        // The near-limit / over-limit consequence is always surfaced. With
+        // `--package-info` we additionally print the full details.
+        Self::warn_on_size(size, max_size);
+        if package_info {
+            Self::print_package_info(&pkg, with_unpublished_deps, size, max_size)?;
+        }
 
         if generate_struct_layouts {
             let layout_str = serde_yaml::to_string(&pkg.generate_struct_layouts()).unwrap();
@@ -175,19 +188,61 @@ impl Build {
         Ok(())
     }
 
-    /// Print the on-chain package size, the protocol size limit, and whether
-    /// the package is publishable.
-    fn print_size_report(size: u64, max_size: u64) {
-        eprintln!("Package size: {size} bytes");
-        eprintln!("Protocol maximum package size: {max_size} bytes");
-        if size <= max_size {
-            eprintln!("Status: {}", "publishable".green());
-        } else {
+    /// Warn only when the package is close to or over the protocol size limit.
+    /// Under 80% of the limit nothing is printed; the exact size is shown only
+    /// with `--package-info`.
+    fn warn_on_size(size: u64, max_size: u64) {
+        if size > max_size {
             eprintln!(
-                "Status: {} (exceeds maximum by {} bytes)",
-                "not publishable".red(),
-                size - max_size,
+                "{}",
+                "The package exceeds the maximum package size and is not publishable."
+                    .red()
+                    .bold(),
+            );
+        } else if size * 5 >= max_size * 4 {
+            eprintln!(
+                "{}",
+                format!(
+                    "Warning: package size is above 80% of the protocol maximum package size ({max_size} bytes)."
+                )
+                .yellow(),
             );
         }
+    }
+
+    /// Print the package name, its direct dependencies, the on-chain size, the
+    /// protocol size limit, and whether the package is publishable.
+    fn print_package_info(
+        pkg: &CompiledPackage,
+        with_unpublished_deps: bool,
+        size: u64,
+        max_size: u64,
+    ) -> anyhow::Result<()> {
+        let mut dependencies: Vec<String> = pkg
+            .find_immediate_deps_pkgs_to_keep(with_unpublished_deps)?
+            .into_keys()
+            .map(|name| name.to_string())
+            .collect();
+        dependencies.sort();
+        let dependencies = if dependencies.is_empty() {
+            "(none)".to_string()
+        } else {
+            dependencies.join(", ")
+        };
+
+        eprintln!(
+            "Package: {}",
+            pkg.package.compiled_package_info.package_name
+        );
+        eprintln!("Dependencies: {dependencies}");
+        eprintln!("Package size: {size} bytes");
+        eprintln!("Protocol maximum package size: {max_size} bytes");
+        let status = if size <= max_size {
+            "publishable".green()
+        } else {
+            "not publishable".red()
+        };
+        eprintln!("Status: {status}");
+        Ok(())
     }
 }
