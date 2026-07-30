@@ -10,12 +10,9 @@ use clap::Parser;
 use fastcrypto::encoding::{Encoding, Hex};
 use iota_config::{
     IOTA_GENESIS_FILENAME,
-    genesis::{Delegations, TokenDistributionScheduleBuilder, UnsignedGenesis},
+    genesis::{TokenDistributionScheduleBuilder, UnsignedGenesis},
 };
-use iota_genesis_builder::{
-    Builder, GENESIS_BUILDER_PARAMETERS_FILE, SnapshotSource, SnapshotUrl,
-    genesis_build_effects::GenesisBuildEffects,
-};
+use iota_genesis_builder::{Builder, GENESIS_BUILDER_PARAMETERS_FILE};
 use iota_keys::keypair_file::{
     read_authority_keypair_from_file, read_keypair_from_file, read_network_keypair_from_file,
 };
@@ -105,23 +102,8 @@ pub enum CeremonyCommand {
     },
     /// List the current validators in the Genesis builder.
     ListValidators,
-    /// Initialize the validator delegations.
-    InitDelegations {
-        #[arg(long, help = "Path to the delegations file.", name = "delegations.csv")]
-        delegations_path: PathBuf,
-    },
     /// Build the Genesis checkpoint.
-    BuildUnsignedCheckpoint {
-        #[arg(
-            long,
-            help = "Define paths to local migration snapshots.",
-            name = "path",
-            num_args(0..)
-        )]
-        local_migration_snapshots: Vec<PathBuf>,
-        #[arg(long, name = "iota|<full-url>", help = "Remote migration snapshots.", num_args(0..))]
-        remote_migration_snapshots: Vec<SnapshotUrl>,
-    },
+    BuildUnsignedCheckpoint,
     /// Examine the details of the built Genesis checkpoint.
     ExamineGenesisCheckpoint,
     /// Verify and sign the built Genesis checkpoint.
@@ -163,7 +145,7 @@ pub async fn run(cmd: Ceremony) -> Result<()> {
         }
 
         CeremonyCommand::ValidateState => {
-            let builder = Builder::load(&dir).await?;
+            let builder = Builder::load(&dir)?;
             builder.validate()?;
             println!(
                 "Successfully validated ceremony builder at {}",
@@ -174,7 +156,7 @@ pub async fn run(cmd: Ceremony) -> Result<()> {
         CeremonyCommand::InitTokenDistributionSchedule {
             token_allocations_path,
         } => {
-            let mut builder = Builder::load(&dir).await?;
+            let mut builder = Builder::load(&dir)?;
             let mut schedule_builder = TokenDistributionScheduleBuilder::new();
 
             let token_allocations_csv = File::open(token_allocations_path)?;
@@ -200,7 +182,7 @@ pub async fn run(cmd: Ceremony) -> Result<()> {
             image_url,
             project_url,
         } => {
-            let mut builder = Builder::load(&dir).await?;
+            let mut builder = Builder::load(&dir)?;
             let authority_keypair: AuthorityKeyPair =
                 read_authority_keypair_from_file(authority_key_file)?;
             let account_keypair: IotaKeyPair = read_keypair_from_file(account_key_file)?;
@@ -234,7 +216,7 @@ pub async fn run(cmd: Ceremony) -> Result<()> {
         }
 
         CeremonyCommand::ListValidators => {
-            let builder = Builder::load(&dir).await?;
+            let builder = Builder::load(&dir)?;
 
             let mut validators = builder
                 .validators()
@@ -267,44 +249,20 @@ pub async fn run(cmd: Ceremony) -> Result<()> {
             }
         }
 
-        CeremonyCommand::InitDelegations { delegations_path } => {
-            let mut builder = Builder::load(&dir).await?;
-            let file = File::open(delegations_path)?;
-            let delegations = Delegations::from_csv(file)?;
-            builder = builder.with_delegations(delegations);
+        CeremonyCommand::BuildUnsignedCheckpoint => {
+            let mut builder = Builder::load(&dir)?;
+
+            let UnsignedGenesis { checkpoint, .. } = builder.get_or_build_unsigned_genesis();
+            println!(
+                "Successfully built unsigned checkpoint: {}",
+                checkpoint.digest()
+            );
+
             builder.save(dir)?;
         }
 
-        CeremonyCommand::BuildUnsignedCheckpoint {
-            local_migration_snapshots,
-            remote_migration_snapshots,
-        } => {
-            let local_snapshots = local_migration_snapshots
-                .into_iter()
-                .map(SnapshotSource::Local);
-            let remote_snapshots = remote_migration_snapshots
-                .into_iter()
-                .map(SnapshotSource::S3);
-
-            let mut builder = Builder::load(&dir).await?;
-            for source in local_snapshots.chain(remote_snapshots) {
-                builder = builder.add_migration_source(source);
-            }
-
-            tokio::task::spawn_blocking(move || {
-                let UnsignedGenesis { checkpoint, .. } = builder.get_or_build_unsigned_genesis();
-                println!(
-                    "Successfully built unsigned checkpoint: {}",
-                    checkpoint.digest()
-                );
-
-                builder.save(dir)
-            })
-            .await??;
-        }
-
         CeremonyCommand::ExamineGenesisCheckpoint => {
-            let builder = Builder::load(&dir).await?;
+            let builder = Builder::load(&dir)?;
 
             let Some(unsigned_genesis) = builder.unsigned_genesis_checkpoint() else {
                 bail!(
@@ -312,13 +270,13 @@ pub async fn run(cmd: Ceremony) -> Result<()> {
                 );
             };
 
-            examine_genesis_checkpoint(unsigned_genesis, builder.tx_migration_objects());
+            examine_genesis_checkpoint(unsigned_genesis);
         }
 
         CeremonyCommand::VerifyAndSign { key_file } => {
             let keypair: AuthorityKeyPair = read_authority_keypair_from_file(key_file)?;
 
-            let mut builder = Builder::load(&dir).await?;
+            let mut builder = Builder::load(&dir)?;
 
             check_protocol_version(&builder, protocol_version)?;
 
@@ -340,11 +298,11 @@ pub async fn run(cmd: Ceremony) -> Result<()> {
         }
 
         CeremonyCommand::Finalize => {
-            let builder = Builder::load(&dir).await?;
+            let builder = Builder::load(&dir)?;
 
             check_protocol_version(&builder, protocol_version)?;
 
-            let GenesisBuildEffects { genesis, .. } = builder.build();
+            let genesis = builder.build();
             genesis.save(dir.join(IOTA_GENESIS_FILENAME))?;
 
             println!("Successfully built {IOTA_GENESIS_FILENAME}");
@@ -487,10 +445,7 @@ mod test {
         let command = Ceremony {
             path: Some(dir.path().into()),
             protocol_version: MAX_PROTOCOL_VERSION,
-            command: CeremonyCommand::BuildUnsignedCheckpoint {
-                local_migration_snapshots: vec![],
-                remote_migration_snapshots: vec![],
-            },
+            command: CeremonyCommand::BuildUnsignedCheckpoint,
         };
         command.run().await?;
 

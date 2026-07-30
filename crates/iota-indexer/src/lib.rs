@@ -38,6 +38,7 @@ pub mod optimistic_indexing;
 pub mod processors;
 pub mod pruning;
 pub mod read;
+pub mod restore;
 pub mod schema;
 pub mod store;
 pub mod system_package_task;

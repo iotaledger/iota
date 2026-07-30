@@ -9,10 +9,8 @@ use iota::iota::{Self, IotaTreasuryCap};
 use iota::system_admin_cap::IotaSystemAdminCap;
 use iota_system::iota_system;
 use iota_system::iota_system_state_inner;
-use iota_system::timelocked_staking;
 use iota_system::validator::{Self, ValidatorV1};
 use iota_system::validator_set;
-use std::string::String;
 
 public struct GenesisValidatorMetadata has copy, drop {
     name: vector<u8>,
@@ -70,6 +68,8 @@ const EDuplicateValidator: u64 = 1;
 const EWrongPreMintedSupply: u64 = 2;
 /// The validator address is not in the validator set.
 const ENotAValidator: u64 = 3;
+/// The allocation requests a timelocked stake, which is not supported.
+const ETimelockedStakingNotSupported: u64 = 4;
 
 #[allow(unused_function)]
 /// This function will be explicitly called once at genesis.
@@ -81,7 +81,6 @@ fun create(
     genesis_chain_parameters: GenesisChainParameters,
     genesis_validators: vector<GenesisValidatorMetadata>,
     token_distribution_schedule: TokenDistributionSchedule,
-    timelock_genesis_label: Option<String>,
     iota_system_admin_cap: IotaSystemAdminCap,
     ctx: &mut TxContext,
 ) {
@@ -153,7 +152,6 @@ fun create(
         &mut iota_treasury_cap,
         allocations,
         &mut validators,
-        timelock_genesis_label,
         ctx,
     );
 
@@ -182,7 +180,6 @@ fun allocate_tokens(
     iota_treasury_cap: &mut IotaTreasuryCap,
     mut allocations: vector<TokenAllocation>,
     validators: &mut vector<ValidatorV1>,
-    timelock_genesis_label: Option<String>,
     ctx: &mut TxContext,
 ) { while (!allocations.is_empty()) {
         let TokenAllocation {
@@ -192,6 +189,8 @@ fun allocate_tokens(
             staked_with_timelock_expiration,
         } = allocations.pop_back();
 
+        assert!(staked_with_timelock_expiration.is_none(), ETimelockedStakingNotSupported);
+
         let allocation_balance = iota_treasury_cap.mint_balance(amount_nanos, ctx);
 
         if (staked_with_validator.is_some()) {
@@ -200,23 +199,11 @@ fun allocate_tokens(
                 .find_index!(|v| v.iota_address() == validator_address)
                 .destroy_or!(abort ENotAValidator);
             let validator = &mut validators[validator_idx];
-            if (staked_with_timelock_expiration.is_some()) {
-                let timelock_expiration = staked_with_timelock_expiration.destroy_some();
-                timelocked_staking::request_add_stake_at_genesis(
-                    validator,
-                    allocation_balance,
-                    recipient_address,
-                    timelock_expiration,
-                    timelock_genesis_label,
-                    ctx,
-                );
-            } else {
-                validator.request_add_stake_at_genesis(
-                    allocation_balance,
-                    recipient_address,
-                    ctx,
-                );
-            }
+            validator.request_add_stake_at_genesis(
+                allocation_balance,
+                recipient_address,
+                ctx,
+            );
         } else {
             iota::transfer(
                 allocation_balance.into_coin(ctx),

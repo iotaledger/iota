@@ -573,6 +573,11 @@ async fn test_v2_submit_tx_invalid_signature() {
 async fn test_v2_submit_tx_feature_flag_disabled() {
     telemetry_subscribers::init_for_testing();
 
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(false);
+        config
+    });
+
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
     let object_id = ObjectId::random();
     let gas_id = ObjectId::random();
