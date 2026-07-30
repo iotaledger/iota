@@ -78,7 +78,7 @@ pub(crate) fn rocks_cf<'a>(
     rocks_db
         .underlying
         .cf_handle(cf_name)
-        .expect("Map-keying column family should have been checked at DB creation")
+        .expect("the column family was deleted unexpectedly")
 }
 
 // Check if the database is corrupted, and if so, panic.

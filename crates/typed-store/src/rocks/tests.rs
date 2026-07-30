@@ -1195,6 +1195,68 @@ async fn test_tagged_dbmaps_share_a_column_family() {
     assert_eq!(words.get(&"one".to_string()).unwrap(), Some(1));
 }
 
+/// Opening a map on a column family the database does not have is refused,
+/// rather than yielding a map whose every operation panics.
+#[tokio::test]
+async fn opening_a_map_on_a_missing_column_family_fails() {
+    let tmp_dir = iota_common::tempdir();
+    let db = open_rocksdb(tmp_dir.path(), &["static_cf"]);
+
+    assert!(matches!(
+        DBMap::<u32, String>::reopen(&db, Some("absent"), &ReadWriteOptions::default(), false),
+        Err(TypedStoreError::UnregisteredColumn(cf)) if cf == "absent"
+    ));
+}
+
+/// Dropping the default column family is refused before rocksdb is asked,
+/// because its wrapper would lose the handle on the way to being refused.
+#[tokio::test]
+async fn the_default_column_family_cannot_be_dropped() {
+    let tmp_dir = iota_common::tempdir();
+    let db = open_rocksdb(tmp_dir.path(), &["static_cf"]);
+    let map = DBMap::<u32, String>::reopen(&db, None, &ReadWriteOptions::default(), false)
+        .expect("Failed to open map on the default column family");
+
+    assert!(db.drop_cf(rocksdb::DEFAULT_COLUMN_FAMILY_NAME).is_err());
+
+    // The column family is still there, and still usable.
+    assert!(db.cf_handle(rocksdb::DEFAULT_COLUMN_FAMILY_NAME).is_some());
+    map.insert(&1, &"one".to_string())
+        .expect("Failed to insert");
+    assert_eq!(map.get(&1).unwrap(), Some("one".to_string()));
+}
+
+/// A column family can be dropped and created again on one database handle,
+/// and comes back empty.
+#[tokio::test]
+async fn a_dropped_column_family_can_be_created_again() {
+    let tmp_dir = iota_common::tempdir();
+    let db = open_rocksdb(tmp_dir.path(), &["static_cf"]);
+    let options = rocksdb::Options::default();
+    db.create_cf("cycled", &options)
+        .expect("Failed to create column family");
+    {
+        let map =
+            DBMap::<u32, String>::reopen(&db, Some("cycled"), &ReadWriteOptions::default(), false)
+                .expect("Failed to open map");
+        map.insert(&1, &"one".to_string())
+            .expect("Failed to insert");
+    }
+
+    db.drop_cf("cycled").expect("Failed to drop column family");
+    assert!(
+        DBMap::<u32, String>::reopen(&db, Some("cycled"), &ReadWriteOptions::default(), false)
+            .is_err()
+    );
+
+    db.create_cf("cycled", &options)
+        .expect("Failed to create column family again");
+    let map =
+        DBMap::<u32, String>::reopen(&db, Some("cycled"), &ReadWriteOptions::default(), false)
+            .expect("Failed to open map on the recreated column family");
+    assert_eq!(map.get(&1).unwrap(), None);
+}
+
 /// `flush_all` covers the `default` column family, which rocksdb opens for
 /// every database and which no caller declares.
 #[tokio::test]

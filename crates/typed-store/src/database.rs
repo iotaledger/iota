@@ -70,7 +70,7 @@ impl ColumnFamily {
             ColumnFamily::Rocks(name) => rocks_db
                 .underlying
                 .cf_handle(name)
-                .expect("Map-keying column family should have been checked at DB creation"),
+                .expect("the column family was deleted unexpectedly"),
             _ => unreachable!("invariant is checked by the caller"),
         }
     }
@@ -232,9 +232,10 @@ impl Database {
 
     /// Creates a new column family at runtime. Fails if a column family with
     /// this name already exists.
-    pub fn create_cf(&self, name: &str, options: &rocksdb::Options) -> Result<(), rocksdb::Error> {
+    pub fn create_cf(&self, name: &str, options: &rocksdb::Options) -> Result<(), TypedStoreError> {
         match &self.storage {
-            Storage::Rocks(db) => db.underlying.create_cf(name, options),
+            Storage::Rocks(db) => nondeterministic!(db.underlying.create_cf(name, options))
+                .map_err(typed_store_err_from_rocks_err),
             Storage::InMemory(db) => {
                 db.create_cf(name);
                 Ok(())
@@ -242,9 +243,19 @@ impl Database {
         }
     }
 
-    pub fn drop_cf(&self, name: &str) -> Result<(), rocksdb::Error> {
+    /// Maps on the column family have to be dropped first: a map resolves
+    /// it on every operation and panics once it is gone.
+    pub fn drop_cf(&self, name: &str) -> Result<(), TypedStoreError> {
+        if name == rocksdb::DEFAULT_COLUMN_FAMILY_NAME {
+            // rocksdb refuses this, but not before its wrapper has taken the
+            // handle out of its own map, losing it for the rest of the process.
+            return Err(TypedStoreError::RocksDB(format!(
+                "the {name} column family cannot be dropped"
+            )));
+        }
         match &self.storage {
-            Storage::Rocks(db) => db.underlying.drop_cf(name),
+            Storage::Rocks(db) => nondeterministic!(db.underlying.drop_cf(name))
+                .map_err(typed_store_err_from_rocks_err),
             Storage::InMemory(db) => {
                 db.drop_cf(name);
                 Ok(())
@@ -483,7 +494,7 @@ fn rocks_cf_from_db<'a>(
         Storage::Rocks(rocksdb) => Ok(rocksdb
             .underlying
             .cf_handle(cf_name)
-            .expect("Map-keying column family should have been checked at DB creation")),
+            .expect("the column family was deleted unexpectedly")),
         _ => Err(TypedStoreError::RocksDB(
             "using invalid batch type for the database".to_string(),
         )),
@@ -576,6 +587,9 @@ impl<K, V> DBMap<K, V> {
         let cf_key = opt_cf
             .unwrap_or(rocksdb::DEFAULT_COLUMN_FAMILY_NAME)
             .to_owned();
+        if db.cf_handle(&cf_key).is_none() {
+            return Err(TypedStoreError::UnregisteredColumn(cf_key));
+        }
 
         let column_family = match &db.storage {
             Storage::Rocks(_) => ColumnFamily::Rocks(cf_key),
