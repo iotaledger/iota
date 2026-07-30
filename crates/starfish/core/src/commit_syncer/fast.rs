@@ -1005,7 +1005,7 @@ mod tests {
             transactions_synchronizer::TransactionsSynchronizer,
         };
 
-        fn make_inner(
+        pub(crate) fn make_inner(
             context: Arc<Context>,
             network_client: Arc<FakeNetworkClient>,
         ) -> Arc<Inner<FakeNetworkClient>> {
@@ -1132,6 +1132,7 @@ mod tests {
                     vote_headers,
                     response_transactions,
                 )),
+                ..Default::default()
             });
             let inner = make_inner(context.clone(), network_client);
 
@@ -1160,6 +1161,88 @@ mod tests {
                     .with_label_values(&[CommitSyncType::Fast.as_str()])
                     .get(),
                 1
+            );
+        }
+    }
+
+    /// Covers the commit-vote ordering in the shared `fetch_loop`, driven
+    /// through the fast syncer because that is the flavour `FakeNetworkClient`
+    /// serves.
+    mod peer_selection_by_commit_votes {
+        use std::{sync::Arc, time::Duration};
+
+        use starfish_config::AuthorityIndex;
+
+        use super::fetch_once::make_inner;
+        use crate::{
+            block_header::{TestBlockHeader, VerifiedBlockHeader},
+            commit::{CommitDigest, CommitRef},
+            commit_syncer::{fast::FastCommitSyncer, fetch_loop, tests::FakeNetworkClient},
+            context::Context,
+        };
+
+        /// Drives one pass of `fetch_loop` over a committee where no peer can
+        /// serve, and reports the order peers were asked in.
+        async fn asked_peers(enabled: bool, voters: &[u8]) -> Vec<AuthorityIndex> {
+            let (mut context, _) = Context::new_for_test(4);
+            context
+                .protocol_config
+                .set_consensus_fast_commit_sync_for_testing(true);
+            context
+                .parameters
+                .enable_commit_sync_peer_selection_by_commit_votes = enabled;
+            let context = Arc::new(context);
+
+            // No canned response, so every fetch fails and the loop keeps
+            // trying peers, exposing the full selection order.
+            let network_client = Arc::new(FakeNetworkClient::default());
+            let inner = make_inner(context, network_client.clone());
+            for voter in voters {
+                inner
+                    .commit_vote_monitor
+                    .observe_block(&VerifiedBlockHeader::new_for_test(
+                        TestBlockHeader::new(3, *voter)
+                            .set_commit_votes(vec![CommitRef::new(2, CommitDigest::MIN)])
+                            .build(),
+                    ));
+            }
+
+            let _ = tokio::time::timeout(
+                Duration::from_secs(1),
+                fetch_loop(inner, (1..=2).into(), 2, FastCommitSyncer::fetch_once),
+            )
+            .await;
+
+            let asked = network_client.requested_peers.lock().clone();
+            asked.into_iter().take(3).collect()
+        }
+
+        /// A peer that voted for the end of the range leads, and the peers
+        /// without a vote still follow rather than being dropped.
+        #[tokio::test(start_paused = true)]
+        async fn voters_are_asked_first() {
+            let asked = asked_peers(true, &[3]).await;
+            assert_eq!(
+                asked,
+                vec![
+                    AuthorityIndex::new_for_test(3),
+                    AuthorityIndex::new_for_test(1),
+                    AuthorityIndex::new_for_test(2),
+                ]
+            );
+        }
+
+        /// With the flag off the votes are ignored, restoring the plain order.
+        #[tokio::test(start_paused = true)]
+        async fn disabled_ignores_commit_votes() {
+            let asked = asked_peers(false, &[3]).await;
+            assert_eq!(
+                asked,
+                vec![
+                    AuthorityIndex::new_for_test(1),
+                    AuthorityIndex::new_for_test(2),
+                    AuthorityIndex::new_for_test(3),
+                ]
             );
         }
     }
@@ -1519,6 +1602,11 @@ mod tests {
                 commit_sync_gap_threshold: COMMIT_GAP_THRESHOLD,
                 fast_commit_sync_batch_size: 20,
                 enable_fast_commit_syncer: true,
+                // The assertion below depends on B asking A first, so keep the
+                // peer order plain. Ordering peers by their commit votes is
+                // covered separately and is orthogonal to serving voting
+                // headers.
+                enable_commit_sync_peer_selection_by_commit_votes: false,
                 sync_last_known_own_block_timeout: Duration::from_millis(2_000),
                 ..Default::default()
             };
@@ -1596,6 +1684,7 @@ mod tests {
             fast_commit_sync_batch_size: 20,
             sync_last_known_own_block_timeout: Duration::from_millis(2_000),
             enable_fast_commit_syncer: true,
+            enable_commit_sync_peer_selection_by_commit_votes: false,
             ..Default::default()
         };
         let (authority, receiver, monitor) = make_authority_with_params(
@@ -1657,6 +1746,7 @@ mod tests {
             fast_commit_sync_batch_size: 20,
             sync_last_known_own_block_timeout: Duration::from_millis(2_000),
             enable_fast_commit_syncer: true,
+            enable_commit_sync_peer_selection_by_commit_votes: false,
             ..Default::default()
         };
         let (authority, receiver, monitor) = make_authority_with_params(
