@@ -1409,11 +1409,6 @@ impl VerifiedTransactions {
         !self.transactions.is_empty()
     }
 
-    /// Transactions object holding the empty payload for `header`.
-    pub(crate) fn new_empty(header: &VerifiedBlockHeader) -> Self {
-        Self::new_empty_from_ref(header.transaction_ref(), Some(header.digest()))
-    }
-
     /// Transactions object holding the empty payload for `transaction_ref`.
     pub(crate) fn new_empty_from_ref(
         transaction_ref: TransactionRef,
@@ -1522,7 +1517,10 @@ pub(crate) fn genesis_blocks(context: &Context) -> Vec<VerifiedBlock> {
             let verified_block_header = VerifiedBlockHeader::new_verified(signed_block, serialized);
             VerifiedBlock {
                 verified_block_header: verified_block_header.clone(),
-                verified_transactions: VerifiedTransactions::new_empty(&verified_block_header),
+                verified_transactions: VerifiedTransactions::new_empty_from_ref(
+                    verified_block_header.transaction_ref(),
+                    Some(verified_block_header.digest()),
+                ),
             }
         })
         .collect::<Vec<VerifiedBlock>>()
