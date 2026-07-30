@@ -65,6 +65,10 @@ where
     /// inclusivity (e.g. `lo..hi` excludes `hi`, `lo..=hi` includes it).
     fn safe_range_iter(&'a self, range: impl RangeBounds<K>) -> DbIterator<'a, (K, V)>;
 
+    /// Reverse counterpart of [`Self::safe_range_iter`]: yields exactly the
+    /// keys of `safe_range_iter(range)` in descending order.
+    fn safe_range_iter_reversed(&'a self, range: impl RangeBounds<K>) -> DbIterator<'a, (K, V)>;
+
     /// Returns a vector of values corresponding to the keys provided,
     /// non-atomically.
     fn multi_get<J>(&self, keys: impl IntoIterator<Item = J>) -> Result<Vec<Option<V>>, Self::Error>

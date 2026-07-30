@@ -603,19 +603,60 @@ async fn test_safe_range_iter_exclusive_lower_bound_at_max_with_inclusive_upper(
 
 #[tokio::test]
 async fn test_safe_range_iter_reversed_matches_forward() {
-    use std::ops::Bound::{self, Excluded, Included, Unbounded};
-
     let tmp_dir = iota_common::tempdir();
     let db: DBMap<u32, String> = open_map(tmp_dir.path(), None);
-    // [1, 100) so that bounds like 20 / 50 land on existing keys, exercising the
-    // exclusive-upper "skip the boundary key" path of the reverse seek.
-    for i in 1..100u32 {
-        db.insert(&i, &i.to_string()).unwrap();
-    }
+    fill_for_range_symmetry(&db);
+    assert_reversed_matches_forward(&db);
+}
 
-    let check = |range: (Bound<u32>, Bound<u32>)| {
-        let forward: Vec<_> = db.safe_range_iter(range).map(|r| r.unwrap()).collect();
-        let mut reversed: Vec<_> = db
+/// A tagged map owes the same symmetry, and owes it with the neighbouring tags
+/// populated across the whole key space: its bounds are computed by a different
+/// function from the plain map's, and it is the reverse scan that carries its
+/// upper bound in the seek rather than in the read options.
+#[tokio::test]
+async fn tagged_reversed_scan_matches_forward() {
+    let tmp_dir = iota_common::tempdir();
+    let db = open_rocksdb(tmp_dir.path(), &["shared"]);
+    let open = |tag: u8| {
+        TaggedDBMap::<u32, String>::reopen(&db, "shared", tag, &ReadWriteOptions::default(), false)
+            .expect("failed to open the map")
+    };
+    let below = open(0);
+    let map = open(1);
+    let above = open(2);
+
+    for neighbour in [&below, &above] {
+        neighbour
+            .multi_insert([(0, "noise".to_string()), (u32::MAX, "noise".to_string())])
+            .unwrap();
+    }
+    fill_for_range_symmetry(&map);
+
+    assert_reversed_matches_forward(&map);
+}
+
+type RangeOfKeys = (std::ops::Bound<u32>, std::ops::Bound<u32>);
+
+/// Fills a map with `[1, 100)`, so that bounds like 20 and 50 land on existing
+/// keys and exercise the "skip the boundary key" path of the reverse seek.
+fn fill_for_range_symmetry<'a, M: Map<'a, u32, String>>(map: &M)
+where
+    M::Error: std::fmt::Debug,
+{
+    for i in 1..100u32 {
+        map.insert(&i, &i.to_string()).unwrap();
+    }
+}
+
+/// A reverse scan yields exactly what the forward one does, reversed, for every
+/// shape a range can take. Written for any map, so that a tagged map is held to
+/// what a plain one does even though it computes its bounds elsewhere.
+fn assert_reversed_matches_forward<'a, M: Map<'a, u32, String>>(map: &'a M) {
+    use std::ops::Bound::{Excluded, Included, Unbounded};
+
+    let check = |range: RangeOfKeys| {
+        let forward: Vec<_> = map.safe_range_iter(range).map(|r| r.unwrap()).collect();
+        let mut reversed: Vec<_> = map
             .safe_range_iter_reversed(range)
             .map(|r| r.unwrap())
             .collect();
@@ -636,6 +677,8 @@ async fn test_safe_range_iter_reversed_matches_forward() {
     check((Unbounded, Unbounded)); // full table
     check((Included(40), Excluded(40))); // empty
     check((Included(50), Included(50))); // single element
+    check((Included(0), Included(u32::MAX))); // the whole key space
+    check((Excluded(0), Excluded(u32::MAX)));
 }
 
 #[tokio::test]

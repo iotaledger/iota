@@ -836,21 +836,6 @@ impl<K, V> DBMap<K, V> {
         }
     }
 
-    /// Reverse counterpart of [`Map::safe_range_iter`]: yields exactly the keys
-    /// of `safe_range_iter(range)` in descending order.
-    ///
-    /// Both directions derive their bounds from the same
-    /// `iterator_bounds_with_range`, so they are guaranteed to cover the
-    /// identical set of keys regardless of the bound inclusivity.
-    pub fn safe_range_iter_reversed(&self, range: impl RangeBounds<K>) -> DbIterator<'_, (K, V)>
-    where
-        K: Serialize + DeserializeOwned,
-        V: DeserializeOwned,
-    {
-        let (lower_bound, upper_bound) = iterator_bounds_with_range(range);
-        self.iter_reversed_raw(lower_bound, upper_bound)
-    }
-
     /// Forward iterator over every entry whose key begins with `prefix`.
     ///
     /// `prefix` is serialized with `be_fix_int_ser` and must form a prefix of
@@ -1447,6 +1432,14 @@ where
         self.iter_forward_raw(lower_bound, upper_bound)
     }
 
+    /// Both directions derive their bounds from the same
+    /// `iterator_bounds_with_range`, so they are guaranteed to cover the
+    /// identical set of keys regardless of the bound inclusivity.
+    fn safe_range_iter_reversed(&'a self, range: impl RangeBounds<K>) -> DbIterator<'a, (K, V)> {
+        let (lower_bound, upper_bound) = iterator_bounds_with_range(range);
+        self.iter_reversed_raw(lower_bound, upper_bound)
+    }
+
     /// Returns a vector of values corresponding to the keys provided.
     #[instrument(level = "trace", skip_all, err)]
     fn multi_get<J>(
@@ -1586,21 +1579,6 @@ impl<K, V> TaggedDBMap<K, V> {
     pub fn batch(&self) -> DBBatch {
         self.map.batch()
     }
-
-    /// Reverse counterpart of [`Map::safe_range_iter`]: yields exactly the keys
-    /// of `safe_range_iter(range)` in descending order.
-    pub fn safe_range_iter_reversed(&self, range: impl RangeBounds<K>) -> DbIterator<'_, (K, V)>
-    where
-        K: Serialize + DeserializeOwned,
-        V: DeserializeOwned,
-    {
-        let (lower_bound, upper_bound) = prefix_iterator_bounds_with_range(&self.tag, range);
-        Box::new(
-            self.map
-                .iter_reversed_raw(lower_bound, upper_bound)
-                .map(Self::strip_tag),
-        )
-    }
 }
 
 impl<'a, K, V> Map<'a, K, V> for TaggedDBMap<K, V>
@@ -1727,6 +1705,15 @@ where
         Box::new(
             self.map
                 .iter_forward_raw(lower_bound, upper_bound)
+                .map(Self::strip_tag),
+        )
+    }
+
+    fn safe_range_iter_reversed(&'a self, range: impl RangeBounds<K>) -> DbIterator<'a, (K, V)> {
+        let (lower_bound, upper_bound) = prefix_iterator_bounds_with_range(&self.tag, range);
+        Box::new(
+            self.map
+                .iter_reversed_raw(lower_bound, upper_bound)
                 .map(Self::strip_tag),
         )
     }
