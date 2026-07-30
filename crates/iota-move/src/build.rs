@@ -189,24 +189,15 @@ impl Build {
     }
 
     /// Warn only when the package is close to or over the protocol size limit.
-    /// Under 80% of the limit nothing is printed; the exact size is shown only
-    /// with `--package-info`.
+    /// Under 80% of the limit nothing is printed.
     fn warn_on_size(size: u64, max_size: u64) {
+        let Some(message) = size_warning(size, max_size) else {
+            return;
+        };
         if size > max_size {
-            eprintln!(
-                "{}",
-                "The package exceeds the maximum package size and is not publishable."
-                    .red()
-                    .bold(),
-            );
-        } else if size * 5 >= max_size * 4 {
-            eprintln!(
-                "{}",
-                format!(
-                    "Warning: package size is above 80% of the protocol maximum package size ({max_size} bytes)."
-                )
-                .yellow(),
-            );
+            eprintln!("{}", message.red().bold());
+        } else {
+            eprintln!("{}", message.yellow());
         }
     }
 
@@ -244,5 +235,62 @@ impl Build {
         };
         eprintln!("Status: {status}");
         Ok(())
+    }
+}
+
+/// The size report line to print, or `None` when the package is below 80% of
+/// the protocol maximum. The near-limit band starts at 80% of the maximum
+/// (`size * 5 >= max_size * 4`); above the maximum the package is not
+/// publishable.
+fn size_warning(size: u64, max_size: u64) -> Option<String> {
+    if size > max_size {
+        Some(format!(
+            "The package size {size} bytes exceeds the protocol maximum package size ({max_size} bytes) and is not publishable."
+        ))
+    } else if size * 5 >= max_size * 4 {
+        Some(format!(
+            "Warning: package size {size} bytes is above 80% of the protocol maximum package size ({max_size} bytes)."
+        ))
+    } else {
+        None
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const MAX: u64 = 102_400;
+
+    #[test]
+    fn silent_below_80_percent() {
+        assert_eq!(size_warning(0, MAX), None);
+        // Just under 80% (81_920).
+        assert_eq!(size_warning(81_919, MAX), None);
+    }
+
+    #[test]
+    fn warns_between_80_percent_and_maximum() {
+        // Exactly 80%, mid-band, and exactly at the maximum are all warnings
+        // (still publishable) and include the size and the maximum.
+        for size in [81_920, 90_000, MAX] {
+            let message = size_warning(size, MAX).expect("expected a warning");
+            assert!(message.contains("above 80%"), "{message}");
+            assert!(
+                message.contains(&size.to_string()) && message.contains("102400"),
+                "{message}"
+            );
+        }
+    }
+
+    #[test]
+    fn reports_not_publishable_above_maximum() {
+        let message = size_warning(150_000, MAX).expect("expected a message");
+        assert!(
+            message.contains("150000")
+                && message.contains("102400")
+                && message.contains("not publishable"),
+            "{message}"
+        );
     }
 }
