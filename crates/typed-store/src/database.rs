@@ -236,6 +236,7 @@ impl Database {
     /// `options` hold until the database is next opened, after which a
     /// column family the caller does not declare is opened with the
     /// crate's options instead. Declare it to keep them.
+    #[instrument(level = "debug", skip(self, options), err)]
     pub fn create_cf(&self, name: &str, options: &rocksdb::Options) -> Result<(), TypedStoreError> {
         match &self.storage {
             Storage::Rocks(db) => nondeterministic!(db.underlying.create_cf(name, options))
@@ -249,6 +250,7 @@ impl Database {
 
     /// Maps on the column family have to be dropped first: a map resolves
     /// it on every operation and panics once it is gone.
+    #[instrument(level = "debug", skip(self), err)]
     pub fn drop_cf(&self, name: &str) -> Result<(), TypedStoreError> {
         if name == rocksdb::DEFAULT_COLUMN_FAMILY_NAME {
             // rocksdb refuses this, but not before its wrapper has taken the
@@ -937,7 +939,7 @@ impl<K, V> DBMap<K, V> {
 /// use tempfile::tempdir;
 /// use typed_store::{Map, metrics::DBMetrics, rocks::*};
 ///
-/// #[tokio::main]
+/// #[tokio::main(flavor = "current_thread")]
 /// async fn main() -> Result<(), Error> {
 ///     let rocks = open_cf_opts(
 ///         tempfile::tempdir().unwrap(),
@@ -1529,16 +1531,48 @@ where
 ///
 /// Tags of existing maps must never change or be reused, or old rows would
 /// be read under the wrong types.
+///
+/// Metrics are labelled by column family, so all the maps of one column
+/// family report together, with no way to tell the tags apart.
+///
+/// # Examples
+///
+/// ```
+/// use tempfile::tempdir;
+/// use typed_store::{Map, rocks::*};
+///
+/// let db = open_cf_opts(
+///     tempdir().unwrap(),
+///     None,
+///     MetricConf::default(),
+///     &[("shared", rocksdb::Options::default())],
+/// )
+/// .unwrap();
+///
+/// let numbers: TaggedDBMap<u32, String> =
+///     TaggedDBMap::reopen(&db, "shared", 0, &ReadWriteOptions::default(), true).unwrap();
+/// let words: TaggedDBMap<String, u64> =
+///     TaggedDBMap::reopen(&db, "shared", 1, &ReadWriteOptions::default(), true).unwrap();
+///
+/// let mut batch = numbers.batch();
+/// batch
+///     .insert_batch_tagged(&numbers, [(1, "one".to_string())])
+///     .unwrap()
+///     .insert_batch_tagged(&words, [("one".to_string(), 1)])
+///     .unwrap();
+/// batch.write().unwrap();
+///
+/// assert_eq!(numbers.get(&1).unwrap(), Some("one".to_string()));
+/// assert_eq!(words.get(&"one".to_string()).unwrap(), Some(1));
+/// // Each map sees only its own row.
+/// assert_eq!(numbers.safe_iter().count(), 1);
+/// ```
 pub struct TaggedDBMap<K, V> {
     tag: u8,
     map: DBMap<(u8, K), V>,
 }
 
-impl<K, V> TaggedDBMap<K, V>
-where
-    K: Clone + Serialize + DeserializeOwned,
-    V: Serialize + DeserializeOwned,
-{
+impl<K, V> TaggedDBMap<K, V> {
     /// Drops the tag prefixed to a key of the underlying map, turning its row
     /// into a row of this map.
     fn strip_tag(row: Result<((u8, K), V), TypedStoreError>) -> Result<(K, V), TypedStoreError> {
@@ -1567,7 +1601,11 @@ where
 
     /// Reverse counterpart of [`Map::safe_range_iter`]: yields exactly the keys
     /// of `safe_range_iter(range)` in descending order.
-    pub fn safe_range_iter_reversed(&self, range: impl RangeBounds<K>) -> DbIterator<'_, (K, V)> {
+    pub fn safe_range_iter_reversed(&self, range: impl RangeBounds<K>) -> DbIterator<'_, (K, V)>
+    where
+        K: Serialize + DeserializeOwned,
+        V: DeserializeOwned,
+    {
         let (lower_bound, upper_bound) = prefix_iterator_bounds_with_range(&self.tag, range);
         Box::new(
             self.map

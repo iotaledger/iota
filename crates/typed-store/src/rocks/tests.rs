@@ -1037,7 +1037,7 @@ async fn open_as_secondary_test() {
 }
 
 #[tokio::test]
-async fn test_create_cf_at_runtime() {
+async fn a_column_family_can_be_created_at_runtime() {
     let tmp_dir = iota_common::tempdir();
     let path = tmp_dir.path();
     {
@@ -1106,7 +1106,7 @@ async fn test_create_cf_at_runtime() {
 /// rows surfacing in each other: gets, full scans in both directions,
 /// bounded ranges, and deletes all stay within their map's tag.
 #[tokio::test]
-async fn test_tagged_dbmaps_share_a_column_family() {
+async fn tagged_dbmaps_share_a_column_family() {
     let tmp_dir = iota_common::tempdir();
     let db = open_rocksdb(tmp_dir.path(), &["shared"]);
     let numbers: TaggedDBMap<u32, String> =
@@ -1123,6 +1123,18 @@ async fn test_tagged_dbmaps_share_a_column_family() {
         .insert_batch_tagged(&words, [("one".to_string(), 1), ("two".to_string(), 2)])
         .unwrap();
     batch.write().unwrap();
+
+    // The rows are in the named column family, under the tagged keys, and not
+    // in the default one the maps would fall back to if the name were ignored.
+    let shared = DBMap::<(u8, u32), String>::reopen(
+        &db,
+        Some("shared"),
+        &ReadWriteOptions::default(),
+        false,
+    )
+    .expect("failed to open the shared column family");
+    assert_eq!(shared.get(&(0, 1)).unwrap(), Some("one".to_string()));
+    assert_eq!(shared.safe_iter().count(), 4);
 
     // Point lookups stay within the tag.
     assert_eq!(numbers.get(&1).unwrap(), Some("one".to_string()));
