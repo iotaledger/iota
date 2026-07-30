@@ -33,7 +33,7 @@ use iota_types::{
     },
     transaction::{TransactionDataAPI, TransactionEnvelope},
 };
-use test_cluster::TestClusterBuilder;
+use test_cluster::{TestClusterBuilder, override_pcool_flow};
 use tokio::time::timeout;
 use tracing::info;
 
@@ -43,6 +43,7 @@ fn make_socket_addr() -> std::net::SocketAddr {
 
 #[sim_test]
 async fn test_blocking_execution() -> Result<(), anyhow::Error> {
+    let _pcool_guard = override_pcool_flow(false);
     let mut test_cluster = TestClusterBuilder::new().build().await;
     let context = &mut test_cluster.wallet;
     let handle = &test_cluster.fullnode_handle.iota_node;
@@ -108,6 +109,7 @@ async fn test_blocking_execution() -> Result<(), anyhow::Error> {
 
 #[sim_test]
 async fn test_fullnode_wal_log() -> Result<(), anyhow::Error> {
+    let _pcool_guard = override_pcool_flow(false);
     #[cfg(msim)]
     {
         use iota_core::authority::{CheckpointTimeoutConfig, init_checkpoint_timeout_config};
@@ -192,6 +194,7 @@ async fn test_fullnode_wal_log() -> Result<(), anyhow::Error> {
 
 #[sim_test]
 async fn test_transaction_orchestrator_reconfig() {
+    let _pcool_guard = override_pcool_flow(false);
     telemetry_subscribers::init_for_testing();
     let test_cluster = TestClusterBuilder::new().build().await;
     let epoch = test_cluster.fullnode_handle.iota_node.with(|node| {
@@ -314,7 +317,7 @@ async fn test_tx_across_epoch_boundaries() {
 #[sim_test]
 async fn test_wait_for_local_execution_across_epoch_boundary() {
     telemetry_subscribers::init_for_testing();
-    let _env_guard = enable_pcool_env();
+    let _env_guard = override_pcool_flow(true);
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
         config.set_enable_pcool_flow_for_testing(true);
         config
@@ -406,6 +409,7 @@ async fn execute_with_orchestrator(
 /// through the validators again — on every entry point.
 #[sim_test]
 async fn test_cached_response_for_executed_transaction() -> Result<(), anyhow::Error> {
+    let _pcool_guard = override_pcool_flow(false);
     let mut test_cluster = TestClusterBuilder::new().build().await;
     let context = &mut test_cluster.wallet;
     let handle = &test_cluster.fullnode_handle.iota_node;
@@ -557,41 +561,9 @@ async fn execute_transaction_v1() -> Result<(), anyhow::Error> {
 /// being returned to the caller — otherwise the safety guard at the end of
 /// `execute_transaction_block` would reject the response as
 /// `QuorumDriverInternal`.
-/// Drop-guard that clears the P-COOL env vars on scope exit, so a test
-/// that enables the flow does not contaminate sibling tests sharing the same
-/// process (e.g. when run via `cargo nextest` with `--test-threads`).
-#[must_use = "drop the guard at the end of the test to restore env vars"]
-struct PcoolEnvGuard;
-
-impl Drop for PcoolEnvGuard {
-    fn drop(&mut self) {
-        // SAFETY: paired with `enable_pcool_env`; both calls run on the
-        // test thread before/after the cluster is alive.
-        unsafe {
-            std::env::remove_var("IOTA_PROTOCOL_CONFIG_OVERRIDE_ENABLE");
-            std::env::remove_var("IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_PCOOL_FLOW");
-        }
-    }
-}
-
-fn enable_pcool_env() -> PcoolEnvGuard {
-    // SAFETY: set before spawning the test cluster; env vars are the only
-    // reliable way to flip the P-COOL protocol flag inside validator
-    // tasks spawned by the cluster (thread-local `apply_overrides_for_testing`
-    // does not propagate to spawned tasks outside msim).
-    unsafe {
-        std::env::set_var("IOTA_PROTOCOL_CONFIG_OVERRIDE_ENABLE", "1");
-        std::env::set_var(
-            "IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_PCOOL_FLOW",
-            "true",
-        );
-    }
-    PcoolEnvGuard
-}
-
 #[sim_test]
 async fn test_skip_effect_cert_reconciles_to_checkpointed() -> Result<(), anyhow::Error> {
-    let _env_guard = enable_pcool_env();
+    let _env_guard = override_pcool_flow(true);
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
         config.set_enable_pcool_flow_for_testing(true);
         config
@@ -656,7 +628,7 @@ async fn test_skip_effect_cert_reconciles_to_checkpointed() -> Result<(), anyhow
 /// `Checkpointed`).
 #[sim_test]
 async fn test_cached_response_for_executed_transaction_under_pcool() -> Result<(), anyhow::Error> {
-    let _env_guard = enable_pcool_env();
+    let _env_guard = override_pcool_flow(true);
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
         config.set_enable_pcool_flow_for_testing(true);
         config
@@ -716,7 +688,7 @@ async fn test_cached_response_for_executed_transaction_under_pcool() -> Result<(
 /// or input/output objects must not receive them.
 #[sim_test]
 async fn test_skip_effect_cert_respects_request_flags() -> Result<(), anyhow::Error> {
-    let _env_guard = enable_pcool_env();
+    let _env_guard = override_pcool_flow(true);
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
         config.set_enable_pcool_flow_for_testing(true);
         config
@@ -778,7 +750,7 @@ async fn test_skip_effect_cert_respects_request_flags() -> Result<(), anyhow::Er
 /// in-flight submissions in memory only.
 #[sim_test]
 async fn test_pcool_deduplicates_concurrent_submissions() -> Result<(), anyhow::Error> {
-    let _env_guard = enable_pcool_env();
+    let _env_guard = override_pcool_flow(true);
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
         config.set_enable_pcool_flow_for_testing(true);
         config
@@ -853,7 +825,7 @@ async fn test_pcool_deduplicates_concurrent_submissions() -> Result<(), anyhow::
 /// a checkpoint inclusion that can never happen and timing out.
 #[sim_test]
 async fn test_pcool_duplicate_submission_inherits_failure() -> Result<(), anyhow::Error> {
-    let _env_guard = enable_pcool_env();
+    let _env_guard = override_pcool_flow(true);
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
         config.set_enable_pcool_flow_for_testing(true);
         config
@@ -923,7 +895,7 @@ async fn test_pcool_duplicate_submission_inherits_failure() -> Result<(), anyhow
 #[sim_test]
 async fn test_pcool_duplicate_requiring_certification_returns_certified_effects()
 -> Result<(), anyhow::Error> {
-    let _env_guard = enable_pcool_env();
+    let _env_guard = override_pcool_flow(true);
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
         config.set_enable_pcool_flow_for_testing(true);
         config
@@ -939,7 +911,7 @@ async fn test_pcool_duplicate_requiring_certification_returns_certified_effects(
         .pop()
         .expect("gas objects should produce at least one tx");
 
-    let request = |txn: Transaction| ExecuteTransactionRequestV1 {
+    let request = |txn: TransactionEnvelope| ExecuteTransactionRequestV1 {
         transaction: txn,
         include_events: false,
         include_input_objects: false,
@@ -990,7 +962,7 @@ async fn test_pcool_duplicate_requiring_certification_returns_certified_effects(
 /// page on-call for a routine availability dip.
 #[sim_test]
 async fn test_skip_effect_cert_timeout_without_quorum() -> Result<(), anyhow::Error> {
-    let _env_guard = enable_pcool_env();
+    let _env_guard = override_pcool_flow(true);
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
         config.set_enable_pcool_flow_for_testing(true);
         config
@@ -1066,7 +1038,7 @@ async fn test_skip_effect_cert_timeout_without_quorum() -> Result<(), anyhow::Er
 /// reconfiguration, since test infra polls its committee epoch.
 #[sim_test]
 async fn test_authority_aggregator_accessor_under_pcool() {
-    let _env_guard = enable_pcool_env();
+    let _env_guard = override_pcool_flow(true);
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
         config.set_enable_pcool_flow_for_testing(true);
         config
@@ -1227,7 +1199,7 @@ async fn test_orchestrator_rejects_expired_transaction() {
 /// the surviving submission instead of driving its own.
 #[sim_test]
 async fn test_submission_survives_caller_abort() -> Result<(), anyhow::Error> {
-    let _env_guard = enable_pcool_env();
+    let _env_guard = override_pcool_flow(true);
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
         config.set_enable_pcool_flow_for_testing(true);
         config

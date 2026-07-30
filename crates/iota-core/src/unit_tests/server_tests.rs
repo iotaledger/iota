@@ -397,7 +397,7 @@ async fn collect_v2_stream(
 async fn setup_v2_transfer_tx() -> (
     OverrideGuard,
     Arc<ValidatorService>,
-    Transaction,
+    TransactionEnvelope,
     TransactionDigest,
 ) {
     telemetry_subscribers::init_for_testing();
@@ -574,6 +574,11 @@ async fn test_v2_submit_tx_invalid_signature() {
 #[tokio::test(flavor = "current_thread", start_paused = true)]
 async fn test_v2_submit_tx_feature_flag_disabled() {
     telemetry_subscribers::init_for_testing();
+
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(false);
+        config
+    });
 
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
     let object_id = ObjectId::random();

@@ -30,7 +30,7 @@ use passkey_types::{
         PublicKeyCredentialUserEntity, UserVerificationRequirement,
     },
 };
-use test_cluster::{TestCluster, TestClusterBuilder};
+use test_cluster::{TestCluster, TestClusterBuilder, override_pcool_flow};
 use url::Url;
 
 struct MyUserValidationMethod {}
@@ -227,6 +227,7 @@ fn make_good_passkey_tx(response: PasskeyResponse<TransactionData>) -> Transacti
 
 #[sim_test]
 async fn test_passkey_feature_deny() {
+    let _pcool_guard = override_pcool_flow(false);
     use iota_protocol_config::ProtocolConfig;
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
         config.set_passkey_auth_for_testing(false);
@@ -246,6 +247,7 @@ async fn test_passkey_feature_deny() {
 
 #[sim_test]
 async fn test_passkey_authenticator_verifies() {
+    let _pcool_guard = override_pcool_flow(false);
     let test_cluster = TestClusterBuilder::new().build().await;
     let response = create_credential_and_sign_test_tx(&test_cluster, None, false, false).await;
     let tx = make_good_passkey_tx(response);
@@ -255,6 +257,7 @@ async fn test_passkey_authenticator_verifies() {
 
 #[sim_test]
 async fn test_passkey_fails_mismatched_challenge() {
+    let _pcool_guard = override_pcool_flow(false);
     let test_cluster = TestClusterBuilder::new().build().await;
 
     // Tweak intent in challenge that is sent to passkey.
@@ -300,6 +303,7 @@ async fn test_passkey_fails_mismatched_challenge() {
 
 #[sim_test]
 async fn test_passkey_fails_to_verify_sig() {
+    let _pcool_guard = override_pcool_flow(false);
     let test_cluster = TestClusterBuilder::new().build().await;
     let response = create_credential_and_sign_test_tx(&test_cluster, None, false, false).await;
     let mut modified_sig = response.user_sig_bytes.clone();
@@ -354,6 +358,7 @@ async fn test_passkey_fails_to_verify_sig() {
 
 #[sim_test]
 async fn test_passkey_fails_wrong_author() {
+    let _pcool_guard = override_pcool_flow(false);
     let test_cluster = TestClusterBuilder::new().build().await;
     // Modify sender that receives gas and construct test txn.
     let response =
