@@ -6,7 +6,7 @@ the `TotalComputationUnits` and `TotalTxCount` congestion modes (see
 has to let the same amount of work through. Converting one limit into the other
 needs the attested computation units per transaction for the workload:
 
-```
+```text
 limit_CU = limit_tx_count × (attested computation units per transaction)
 ```
 
@@ -38,7 +38,7 @@ of the machine it ran on (for example, `ryzen-9-9950x3d` or `epyc-9454p`),
 so sweeps from different machines do not collide and the analysis scripts can
 tell them apart:
 
-```
+```text
 start_epoch, slow_n, slow_size, product, shared, qps, duration, n_samples,
 attested_cu, actual_cu, exec_mean_ms, exec_std_ms, exec_sem_ms
 ```

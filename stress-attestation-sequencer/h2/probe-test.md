@@ -1,22 +1,19 @@
 # H2 calibration — probe results
 
-The probe (`probe.sh`, swept by `probe_sweep.sh`) characterizes one
-`slow::slow(n, size)` point at low rate: the per-transaction computation units
-(**attested** — metered during the attestation dry-run, the value
-`TotalComputationUnits` schedules on — plus **actual**, metered at
-post-consensus execution) and the internal Move-VM execution time. The
-workload is the owned-object slow variant (W4 in `../stress-plan.md`), so for
-this workload, both attested and actual computation units should match, since
-no state can change between the dry-run and execution. What these numbers are
-*for* — sizing the `TotalComputationUnits` congestion limit for the H2 mode
-comparison — is worked out in *Sizing the `TotalComputationUnits` limit* below;
-`README.md` has the run plan.
+The probe (`probe.sh`, swept by `probe_sweep.sh`) measures one
+`slow::slow(n, size)` point at a low rate. For each point, it records the
+per-transaction computation units — **attested**, metered during the attestation
+dry-run and the value `TotalComputationUnits` uses for scheduling, and **actual**,
+metered at post-consensus execution — plus the Move VM execution time. The
+workload is the owned-object form of `slow` (W4 in `../stress-plan.md`), so
+attested and actual computation units should be equal, because no state can change
+between the dry-run and execution. *Sizing the `TotalComputationUnits` limit*
+below covers what the numbers are used for; `README.md` has the run plan.
 
-The sweep grid is a geometric ladder of the product `n × size` (`size` fixed at
-100, varying `n`, product 100 → 2M) plus a split-invariance check (product
-40000 at three `n / size` splits). Each point ran 20 s at 5 QPS (100
-transactions in total), the same on both machines. The same 21-point sweep ran
-on two machines:
+The sweep steps the product `n × size` geometrically (`size` fixed at 100, varying
+`n`, product 100 → 2M), then adds three points that hold the product at 40000
+while changing how it divides between `n` and `size`. Each point ran 20 s at
+5 QPS, so 100 transactions. The same 21 points ran on two machines:
 
 | machine | CPU | arch | boost | cores |
 | --- | --- | --- | --- | --- |
@@ -34,17 +31,17 @@ attested `submit_tx` path). Every measured value comes from validator-side
 Prometheus histograms, pooled over the 4 validators and differenced over the
 point's measurement window:
 
-- **Computation units** — `attested_computation_units` /
-  `actual_computation_units`, `Δ_sum / Δ_count`. Only attested user
-  transactions touch these histograms; the workload is deterministic (100
-  identical transactions), so the mean is the exact per-transaction value.
-- **Internal execution time** —
-  `authority_state_internal_execution_latency_user`, pure post-consensus
-  execution, **user transactions only**. This histogram was added for the
-  probe: the pre-existing all-transactions histogram pools the network's
-  constant stream of system transactions (commit prologues etc.), which
-  outnumber a low-rate workload ~30:1 and drag the mean toward their
-  sub-millisecond cost.
+- **Computation units** — `attested_computation_units` and
+  `actual_computation_units`, as `Δ_sum / Δ_count`. Only attested user
+  transactions reach these histograms, and the workload is deterministic (100
+  identical owned-object transactions), so the mean is the exact
+  per-transaction value.
+- **Execution time** — `authority_state_internal_execution_latency_user`:
+  post-consensus execution, user transactions only. This histogram was added for
+  the probe, because the existing all-transactions one also counts the network's
+  steady stream of system transactions (commit prologues and similar). Those
+  outnumber a low-rate workload roughly 30 to 1 and, being sub-millisecond, pull
+  the mean down.
 
 The measurement window is anchored at the exact instant spamming starts — the
 client prints that timestamp when its warmup ends — so the delta excludes
@@ -111,34 +108,35 @@ workload transactions executed on each of the 4 validators.
 | 20000 | 100 | 2,000,000 | 5,000,000 | 154.293 | 1.035 | 400 |
 
 > [!NOTE]
-> At the ceiling (product ≥ 850k), every transaction exhausts its gas budget
-> and aborts out-of-gas; the abort still costs the full execution time, which
-> is what the plateau rows measure.
+> At the ceiling (product ≥ 850k), every transaction exhausts its gas budget and
+> aborts out of gas. The abort still costs the full execution time, which is what
+> those rows measure.
 
 ---
 
 ## Findings
 
-**1. CUs sit at the floor, rise superlinearly, then hit a hard ceiling.** For
-product ≤ 5,000, every point bills at 1,000 — one `gas_rounding_step` — so
-light workloads are indistinguishable on computation cost. From product 10,000
-upward, CUs rise steeply (4,000 → 16,000 → … → 2,895,000 at product 500,000) —
-**up to cubic** between products 20k and 40k (×2 product → ×8 CU), flattening
-toward linear higher up. At the top, they hit a ceiling: product 700k →
-4,097,000, then 850k through 2M all pin at exactly 5,000,000 — a five-point
-plateau. That 5,000,000 is the transaction's gas budget in computation units
-(the 5-IOTA budget ÷ the 1,000 gas price): once the workload would meter more
-than the budget covers, the transaction aborts out-of-gas and is charged its
-full budget, so every over-budget point reports the identical figure. (It
-coincides with the 5M `max_gas_computation_bucket`, but the binding limit here
-is the gas budget.) The wide, well-separated CU range below the ceiling is what
-gives the mode comparison distinct gas buckets to calibrate against.
+**1. Computation units sit at a floor, then rise steeply, then stop at a
+ceiling.** For product ≤ 5,000 every point is charged 1,000 — one
+`gas_rounding_step` — so light workloads cannot be told apart by computation cost.
+From product 10,000 upward, the charge rises fast (4,000 → 16,000 → … → 2,895,000
+at product 500,000). The steepest stretch is between products 20k and 40k, where
+doubling the product multiplies the charge by 8; growth flattens toward linear
+above that. At the top, it stops: product 700k gives 4,097,000, and 850k through
+2M all give exactly 5,000,000. That 5,000,000 is the transaction's gas budget
+expressed in computation units (the 5-IOTA budget divided by the 1,000 gas price).
+Once the work would cost more than the budget covers, the transaction aborts out
+of gas and is charged the whole budget, so every point past that reports the same
+figure. It happens to match the 5M `max_gas_computation_bucket`, but the gas
+budget is what binds here. The wide range below the ceiling is what gives the mode
+comparison distinct gas buckets to calibrate against.
 
-**2. The product is the cost axis; the `n / size` split barely matters.** At
-product 40,000, the three splits (100×400, 200×200, 400×100) give CUs within
-2.4 % (127,000 / 128,000 / 130,000) and execution times within ≈4 % on both
-machines. So `n × size` sets the cost; more vectors at equal product cost
-marginally more. This validates the product as the workload's single cost axis.
+**2. The product drives the cost; how it divides between `n` and `size` barely
+matters.** At product 40,000 the three divisions (100×400, 200×200, 400×100) give
+computation units within 2.4 % of each other (127,000 / 128,000 / 130,000) and
+execution times within about 4 % on both machines. So `n × size` sets the cost,
+with more vectors at the same product costing marginally more. The product alone
+is therefore enough to describe the workload's cost.
 
 ![CUs and execution time vs product](results/summary_plots/cu_exec_vs_product.png)
 
@@ -180,20 +178,21 @@ Move-VM cost, so it tracks per-core performance:
 The WS runs 1.8–4.8× faster per transaction, and the ratio is U-shaped rather
 than flat:
 
-- **Fixed-overhead floor** (product ≤ 2,000): ratio ≈ 0.30–0.42 (WS ≈2.4–3.3×
-  faster). Execution here is mostly per-transaction overhead (≈0.23 ms WS vs
-  ≈0.55 ms EPYC).
-- **Compute-bound middle** (product 10k–100k): ratio dips to ≈ 0.21–0.25 (WS
-  ≈4–4.8× faster). Raw Move-VM compute dominates and the WS's higher clock,
-  newer core, and 3D V-Cache win big — well beyond the ≈1.5× clock ratio alone.
-- **Large tail** (product ≥ 500k, CU ≥ 2.9M): ratio climbs back to ≈ 0.46–0.55
-  (WS ≈1.8–2.2× faster). Consistent with the working set outgrowing cache and
-  the tail becoming memory-bandwidth bound, where the EPYC's many-channel
-  server memory competes better and offsets the WS's clock edge. (The U-shape
-  is solid; the mechanism is inference.)
+- **Small products** (≤ 2,000): ratio ≈ 0.30–0.42 (WS ≈2.4–3.3× faster).
+  Execution here is mostly per-transaction overhead (≈0.23 ms WS vs ≈0.55 ms
+  EPYC).
+- **Middle of the range** (product 10k–100k): ratio dips to ≈ 0.21–0.25 (WS
+  ≈4–4.8× faster). Raw Move VM compute dominates, and the WS's higher clock,
+  newer core, and 3D V-Cache gain the most here — well beyond the ≈1.5× clock
+  ratio alone.
+- **Large products** (≥ 500k, CU ≥ 2.9M): ratio climbs back to ≈ 0.46–0.55 (WS
+  ≈1.8–2.2× faster). Consistent with the working set outgrowing cache and the
+  tail becoming memory-bandwidth bound, where the EPYC's many-channel server
+  memory competes better and offsets the WS's clock edge. (The U-shape is solid;
+  the explanation is a guess.)
 
-At the ceiling, both machines are flat and clean: WS ≈150–156 ms, EPYC
-≈283–288 ms across all five plateau points.
+At the ceiling, both machines are flat: WS ≈150–156 ms, EPYC ≈283–288 ms across
+all five plateau points.
 
 ![Execution time vs CUs](results/summary_plots/exec_vs_cu.png)
 
@@ -202,12 +201,11 @@ cluster at CU = 1,000 is the gas-rounding floor: execution time still rises
 with the real work (the product) while the billed CU stays pinned at the floor.
 The points piled at CU = 5M are the ceiling plateau.*
 
-The takeaway for cross-machine reading: computation units transfer exactly, but
-per-transaction execution time does not. The EPYC's strength is core count
-(48c) for parallel throughput, not per-transaction speed — so it lags the
-high-clock desktop on anything gated on single-transaction execution,
-by ≈1.8× at the ceiling and up to ≈4.8× in the compute-bound middle of the
-range.
+So when reading results across machines: computation units transfer exactly, but
+per-transaction execution time does not. The EPYC's strength is core count (48c)
+for parallel throughput, not per-transaction speed — so it lags the high-clock
+desktop on anything that depends on a single transaction's execution, by ≈1.8× at
+the ceiling and up to ≈4.8× in the compute-bound middle of the range.
 
 ---
 
@@ -217,12 +215,12 @@ This is what the calibration is for. Production runs per-object congestion
 control in `TotalTxCount` mode with a base limit of 10 and an overshoot of 100
 per object per commit (`max_accumulated_txn_cost_per_object_in_mysticeti_commit`
 = 10, `max_congestion_limit_overshoot_per_commit` = 100). That mode counts every
-transaction as 1, blind to cost: a per-object commit admits the same 10 (+100
-burst) transactions whether each costs 1,000 CU or 5,000,000 CU — a 5,000×
-spread in real work behind an identical count.
+transaction as 1, ignoring cost: a per-object commit admits the same 10 (+100
+burst) transactions whether each costs 1,000 CU or 5,000,000 CU — the same count
+covering a 5,000× difference in real work.
 
-`TotalComputationUnits` removes that blindness by limiting on attested cost
-instead of count. The question H2 answers is which CU limit to give it. Mapping
+`TotalComputationUnits` limits on attested cost instead of count. The question H2
+answers is which CU limit to give it. Mapping
 today's count limits onto the CU scale means multiplying by the per-transaction
 cost — but the calibration shows that cost spans 1,000 → 5,000,000 CU, so the
 equivalent limit spans the same 5,000×:
@@ -242,7 +240,7 @@ equivalent limit spans the same 5,000×:
 | 4,097,000 | 40,970,000 | 409,700,000 |
 | 5,000,000 | 50,000,000 | 500,000,000 |
 
-The two ends of that range are the bounds, and both are bad:
+Both ends of that range are unusable:
 
 - **Lower bound** — size the limit for all-light traffic (1,000 CU): base
   10,000, overshoot 100,000 CU. But 10,000 CU is smaller than a single heavy
