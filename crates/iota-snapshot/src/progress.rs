@@ -97,7 +97,7 @@ fn size_lookup_backoff() -> backoff::ExponentialBackoff {
 /// file counts go to the message), file-count based otherwise.
 ///
 /// `phase` is rendered verbatim at the start of the bar line, e.g.
-/// "Downloading .ref files".
+/// "Downloading files".
 pub struct DownloadProgressBar {
     bar: ProgressBar,
     num_files: u64,

@@ -69,6 +69,10 @@ pub struct StateSnapshotReaderV1 {
     /// Chain identifier recorded in the snapshot's `ManifestV2`.
     chain_id: ChainIdentifier,
     multi_progress_bar: MultiProgress,
+    /// Single download bar spanning both phases: the reference files
+    /// downloaded during construction and the object files downloaded during
+    /// [`Self::read`]. Its totals cover both file sets combined.
+    download_progress: Arc<DownloadProgressBar>,
     concurrency: NonZeroUsize,
 }
 
@@ -177,19 +181,34 @@ impl StateSnapshotReaderV1 {
             files
         };
 
-        let ref_total_bytes = fetch_total_bytes(
+        // The bar covers both download phases combined: the reference files
+        // downloaded here and the object files downloaded later in `read`.
+        let object_file_paths: Vec<Path> = object_files
+            .values()
+            .flat_map(|entry| {
+                entry
+                    .values()
+                    .map(|file_metadata| file_metadata.file_path(&epoch_dir_path))
+            })
+            .collect();
+        let num_files = (files_to_download.len() + object_file_paths.len()) as u64;
+        let total_bytes = fetch_total_bytes(
             &remote_object_store,
-            files_to_download.clone(),
+            files_to_download
+                .iter()
+                .cloned()
+                .chain(object_file_paths)
+                .collect(),
             download_concurrency.get(),
             &multi_progress_bar,
         )
         .await;
-        let progress = DownloadProgressBar::new(
+        let download_progress = Arc::new(DownloadProgressBar::new(
             &multi_progress_bar,
-            "Downloading .ref files",
-            files_to_download.len() as u64,
-            ref_total_bytes,
-        );
+            "Downloading files",
+            num_files,
+            total_bytes,
+        ));
         // Downloads all reference files from remote store to local store in parallel
         // and updates the progress bar accordingly
         copy_files_with_progress(
@@ -198,12 +217,9 @@ impl StateSnapshotReaderV1 {
             &remote_object_store,
             &local_object_store,
             download_concurrency.get(),
-            &progress,
+            &download_progress,
         )
         .await?;
-        progress
-            .bar()
-            .finish_with_message("Missing ref files download complete");
         Ok(StateSnapshotReaderV1 {
             epoch,
             local_staging_dir_root,
@@ -213,6 +229,7 @@ impl StateSnapshotReaderV1 {
             object_files,
             chain_id,
             multi_progress_bar,
+            download_progress,
             concurrency: download_concurrency,
         })
     }
@@ -546,23 +563,9 @@ impl StateSnapshotReaderV1 {
                     .collect::<Vec<_>>()
             })
             .collect();
-        let obj_total_bytes = fetch_total_bytes(
-            &remote_object_store,
-            input_files
-                .iter()
-                .map(|(_, (_, file_metadata))| file_metadata.file_path(&epoch_dir))
-                .collect(),
-            concurrency.get(),
-            &self.multi_progress_bar,
-        )
-        .await;
-        // Creates a progress bar for object files
-        let obj_progress = Arc::new(DownloadProgressBar::new(
-            &self.multi_progress_bar,
-            "Downloading .obj files",
-            input_files.len() as u64,
-            obj_total_bytes,
-        ));
+        // Continues the shared download bar created in `new`, whose totals
+        // already include these object files.
+        let obj_progress = self.download_progress.clone();
         let obj_progress_clone = obj_progress.clone();
 
         let ret = Abortable::new(
@@ -644,9 +647,7 @@ impl StateSnapshotReaderV1 {
             abort_registration,
         )
         .await?;
-        obj_progress
-            .bar()
-            .finish_with_message("Objects download complete");
+        obj_progress.bar().finish_with_message("Download complete");
         ret
     }
 
