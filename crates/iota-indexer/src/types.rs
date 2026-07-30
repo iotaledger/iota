@@ -95,7 +95,7 @@ impl IndexedCheckpoint {
             timestamp_ms: checkpoint.timestamp_ms,
             validator_signature: auth_sig.clone(),
             checkpoint_commitments: checkpoint.checkpoint_commitments.clone(),
-            content_digest: checkpoint.content_digest,
+            content_digest: checkpoint.contents_digest,
             version_specific_data: checkpoint.version_specific_data.clone(),
             min_tx_sequence_number,
             max_tx_sequence_number,

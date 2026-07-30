@@ -187,6 +187,10 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 // Version 32: Move validator count limits (min/max validator count) and
 //             stake thresholds (joining stake, low/very low stake
 //             thresholds, grace period) into the protocol config.
+//             Enable the optimistic commit rule (StarfishSpeed) in Starfish
+//             consensus on testnet.
+//             Amortize the minimum checkpoint interval over a sliding window
+//             on testnet.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -3103,6 +3107,15 @@ impl ProtocolConfig {
                     cfg.validator_low_stake_threshold = Some(1_500_000_000_000_000);
                     cfg.validator_very_low_stake_threshold = Some(1_000_000_000_000_000);
                     cfg.validator_low_stake_grace_period = Some(7);
+
+                    if chain != Chain::Mainnet {
+                        // Enable the optimistic commit rule (StarfishSpeed) in
+                        // Starfish consensus.
+                        cfg.feature_flags.consensus_starfish_speed = true;
+                        // Amortize the minimum checkpoint interval over a sliding
+                        // window so the checkpoint rate holds at the ceiling.
+                        cfg.checkpoint_rate_window_size = Some(20);
+                    }
                 }
                 // Use this template when making changes:
                 //

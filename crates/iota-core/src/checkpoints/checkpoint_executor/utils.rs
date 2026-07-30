@@ -198,7 +198,7 @@ pub(super) fn assert_checkpoint_not_forked(
 
     let verified_checkpoint_summary = verified_checkpoint.data();
 
-    if locally_built_checkpoint.content_digest == verified_checkpoint_summary.content_digest {
+    if locally_built_checkpoint.contents_digest == verified_checkpoint_summary.contents_digest {
         // fork is in the checkpoint header
         fatal!(
             "Checkpoint fork detected in header! Locally built checkpoint: {:?}, verified checkpoint: {:?}",
@@ -207,12 +207,12 @@ pub(super) fn assert_checkpoint_not_forked(
         );
     } else {
         let local_contents = checkpoint_store
-            .get_checkpoint_contents(&locally_built_checkpoint.content_digest)
+            .get_checkpoint_contents(&locally_built_checkpoint.contents_digest)
             .expect("db error")
             .expect("contents must exist if checkpoint was built locally!");
 
         let verified_contents = checkpoint_store
-            .get_checkpoint_contents(&verified_checkpoint_summary.content_digest)
+            .get_checkpoint_contents(&verified_checkpoint_summary.contents_digest)
             .expect("db error")
             .expect("contents must exist if checkpoint has been synced!");
 

@@ -3262,7 +3262,7 @@ impl AuthorityState {
         let contents = match &summary {
             Some(s) => self
                 .checkpoint_store
-                .get_checkpoint_contents(&s.content_digest())?,
+                .get_checkpoint_contents(&s.contents_digest())?,
             None => None,
         };
         Ok(CheckpointResponse {
@@ -3959,35 +3959,122 @@ impl AuthorityState {
     /// `(checkpoint_sequence_number, checkpoint_timestamp_ms)`.
     /// On timeout, returns partial results for any transactions that were
     /// already checkpointed.
+    ///
+    /// The wait survives epoch boundaries: a transaction in flight at a
+    /// boundary may only be checkpointed in the next epoch, and still resolves
+    /// here under the original deadline.
     pub async fn wait_for_checkpoint_inclusion(
         &self,
         digests: &[TransactionDigest],
         timeout: Duration,
     ) -> IotaResult<BTreeMap<TransactionDigest, (CheckpointSequenceNumber, u64)>> {
-        let epoch_store = self.load_epoch_store_one_call_per_task();
-
-        // Local cache so multiple transactions in the same checkpoint only
-        // trigger a single checkpoint summary lookup.
+        let deadline = tokio::time::Instant::now() + timeout;
         let mut checkpoint_timestamp_cache = HashMap::<CheckpointSequenceNumber, u64>::new();
+        let mut results = BTreeMap::new();
+        let mut remaining = digests.to_vec();
+        let mut epoch_store = self.load_epoch_store_one_call_per_task().clone();
 
-        let results = epoch_store
-            .wait_for_transactions_in_checkpoint_with_timeout(digests, timeout, |seq| {
-                *checkpoint_timestamp_cache.entry(seq).or_insert_with(|| {
-                    self.get_checkpoint_by_sequence_number(seq)
-                        .ok()
-                        .flatten()
-                        .map(|c| c.timestamp_ms)
-                        .unwrap_or(0)
-                })
-            })
-            .await?;
+        loop {
+            let wait = epoch_store.wait_for_transactions_in_checkpoint_with_timeout(
+                &remaining,
+                deadline.saturating_duration_since(tokio::time::Instant::now()),
+                |seq| self.checkpoint_timestamp_ms_cached(seq, &mut checkpoint_timestamp_cache),
+            );
+            tokio::select! {
+                wait_results = wait => {
+                    for (digest, seq_and_ts) in remaining.iter().zip(wait_results?) {
+                        if let Some(seq_and_ts) = seq_and_ts {
+                            results.insert(*digest, seq_and_ts);
+                        }
+                    }
+                    return Ok(results);
+                }
+                _ = epoch_store.wait_epoch_terminated() => {}
+            }
 
-        Ok(digests
-            .iter()
-            .copied()
-            .zip(results)
-            .filter_map(|(digest, opt)| opt.map(|seq_and_ts| (digest, seq_and_ts)))
-            .collect())
+            // The epoch ended mid-wait, and this epoch store's notifications
+            // can no longer fire: whatever is still uncheckpointed here is
+            // checkpointed in the next epoch, on the next store. Cancelling
+            // the wait may also have dropped notifications it had already
+            // received, but the table write precedes each notification, so
+            // re-reading the table recovers them.
+            let found = match epoch_store.multi_get_transaction_checkpoint(&remaining) {
+                Ok(found) => found,
+                // The table handles were already released. They are released
+                // long after the epoch's checkpoints are executed, so nothing
+                // waited on here can still be checkpointed in the old epoch;
+                // move on to the next store.
+                Err(IotaError::EpochEnded(_)) => vec![None; remaining.len()],
+                Err(err) => return Err(err),
+            };
+            let mut still_uncheckpointed = Vec::new();
+            for (digest, found_seq) in remaining.iter().zip(found) {
+                match found_seq {
+                    Some(seq) => {
+                        let ts = self
+                            .checkpoint_timestamp_ms_cached(seq, &mut checkpoint_timestamp_cache);
+                        results.insert(*digest, (seq, ts));
+                    }
+                    None => still_uncheckpointed.push(*digest),
+                }
+            }
+            remaining = still_uncheckpointed;
+            if remaining.is_empty() {
+                return Ok(results);
+            }
+
+            match self
+                .wait_for_next_epoch_store(epoch_store.epoch(), deadline)
+                .await
+            {
+                Some(next) => epoch_store = next,
+                None => return Ok(results),
+            }
+        }
+    }
+
+    /// Wait for the epoch store to be swapped to an epoch later than
+    /// `prev_epoch`, returning `None` if `deadline` passes first.
+    async fn wait_for_next_epoch_store(
+        &self,
+        prev_epoch: EpochId,
+        deadline: tokio::time::Instant,
+    ) -> Option<Arc<AuthorityPerEpochStore>> {
+        // There is no notification for the epoch-store swap, and termination
+        // and swap can come in either order (`reconfigure` terminates the old
+        // epoch first, `reconfigure_for_testing` swaps first), so the swap is
+        // polled at this interval.
+        const EPOCH_STORE_SWAP_POLL_INTERVAL: Duration = Duration::from_millis(100);
+
+        loop {
+            // Deliberately re-loaded on each poll; the one-call-per-task rule
+            // guards against *unaware* mixing of epoch stores within a task.
+            let current = self.load_epoch_store_one_call_per_task().clone();
+            if current.epoch() > prev_epoch {
+                return Some(current);
+            }
+            if tokio::time::Instant::now() >= deadline {
+                return None;
+            }
+            tokio::time::sleep(EPOCH_STORE_SWAP_POLL_INTERVAL).await;
+        }
+    }
+
+    /// Resolve a checkpoint's timestamp, memoizing lookups in `cache` so
+    /// multiple transactions in the same checkpoint trigger a single
+    /// checkpoint summary lookup.
+    fn checkpoint_timestamp_ms_cached(
+        &self,
+        seq: CheckpointSequenceNumber,
+        cache: &mut HashMap<CheckpointSequenceNumber, u64>,
+    ) -> u64 {
+        *cache.entry(seq).or_insert_with(|| {
+            self.get_checkpoint_by_sequence_number(seq)
+                .ok()
+                .flatten()
+                .map(|c| c.timestamp_ms)
+                .unwrap_or(0)
+        })
     }
 
     #[instrument(level = "trace", skip_all)]
@@ -4465,7 +4552,7 @@ impl AuthorityState {
         let summary = self
             .get_verified_checkpoint_by_sequence_number(0)?
             .into_message();
-        let content = self.get_checkpoint_contents(summary.content_digest)?;
+        let content = self.get_checkpoint_contents(summary.contents_digest)?;
         let genesis_transaction = content.enumerate_transactions(&summary).next();
         Ok(genesis_transaction
             .ok_or(IotaError::UserInput {
@@ -4529,8 +4616,8 @@ impl AuthorityState {
             .get_checkpoint_by_sequence_number(sequence_number)?;
         match verified_checkpoint {
             Some(verified_checkpoint) => {
-                let content_digest = verified_checkpoint.into_inner().content_digest;
-                self.get_checkpoint_contents(content_digest)
+                let contents_digest = verified_checkpoint.into_inner().contents_digest;
+                self.get_checkpoint_contents(contents_digest)
             }
             None => Err(IotaError::UserInput {
                 error: UserInputError::VerifiedCheckpointNotFound(sequence_number),
@@ -6153,7 +6240,7 @@ impl TransactionKeyValueStoreTrait for AuthorityState {
                 .get_checkpoint_by_sequence_number(*seq)?
                 .and_then(|summary| {
                     store
-                        .get_checkpoint_contents(&summary.content_digest)
+                        .get_checkpoint_contents(&summary.contents_digest)
                         .expect("db read cannot fail")
                 });
             contents.push(checkpoint);

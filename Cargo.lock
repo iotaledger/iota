@@ -5643,7 +5643,7 @@ dependencies = [
 [[package]]
 name = "iota-bigtable"
 version = "0.1.2"
-source = "git+https://github.com/iotaledger/iota-bigtable.git?tag=v0.1.2#3c9c781e3db51206519992c0ed8ac94ce889095e"
+source = "git+https://github.com/iotaledger/iota-bigtable.git?tag=v0.1.2#e9292275b892cf0e81b5a4c0110b0a2a5b9c91be"
 dependencies = [
  "backoff",
  "gcp_auth",
@@ -5656,6 +5656,7 @@ dependencies = [
  "tonic 0.14.2",
  "tonic-prost",
  "tonic-prost-build",
+ "tracing",
 ]
 
 [[package]]
@@ -7429,6 +7430,8 @@ dependencies = [
  "thiserror 1.0.64",
  "tokio",
  "tokio-util 0.7.18 (registry+https://github.com/rust-lang/crates.io-index)",
+ "tower 0.4.13",
+ "tower-http 0.5.2",
  "tracing",
  "tracing-subscriber",
 ]
@@ -7514,7 +7517,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-crypto"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=b77fcd5ac5fedb3dfbc77ba7d183140e43512339#b77fcd5ac5fedb3dfbc77ba7d183140e43512339"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=475b0de92e4b9e3115367382e1bba56630b785b9#475b0de92e4b9e3115367382e1bba56630b785b9"
 dependencies = [
  "bech32 0.11.1",
  "bip32",
@@ -7539,7 +7542,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-graphql-client"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=b77fcd5ac5fedb3dfbc77ba7d183140e43512339#b77fcd5ac5fedb3dfbc77ba7d183140e43512339"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=475b0de92e4b9e3115367382e1bba56630b785b9#475b0de92e4b9e3115367382e1bba56630b785b9"
 dependencies = [
  "base64ct",
  "bcs",
@@ -7568,7 +7571,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-graphql-client-build"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=b77fcd5ac5fedb3dfbc77ba7d183140e43512339#b77fcd5ac5fedb3dfbc77ba7d183140e43512339"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=475b0de92e4b9e3115367382e1bba56630b785b9#475b0de92e4b9e3115367382e1bba56630b785b9"
 dependencies = [
  "cynic-codegen",
 ]
@@ -7576,7 +7579,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-grpc-client"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=b77fcd5ac5fedb3dfbc77ba7d183140e43512339#b77fcd5ac5fedb3dfbc77ba7d183140e43512339"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=475b0de92e4b9e3115367382e1bba56630b785b9#475b0de92e4b9e3115367382e1bba56630b785b9"
 dependencies = [
  "async-stream",
  "base64 0.22.1",
@@ -7595,7 +7598,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-grpc-types"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=b77fcd5ac5fedb3dfbc77ba7d183140e43512339#b77fcd5ac5fedb3dfbc77ba7d183140e43512339"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=475b0de92e4b9e3115367382e1bba56630b785b9#475b0de92e4b9e3115367382e1bba56630b785b9"
 dependencies = [
  "bcs",
  "iota-sdk-types",
@@ -7611,7 +7614,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-transaction-builder"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=b77fcd5ac5fedb3dfbc77ba7d183140e43512339#b77fcd5ac5fedb3dfbc77ba7d183140e43512339"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=475b0de92e4b9e3115367382e1bba56630b785b9#475b0de92e4b9e3115367382e1bba56630b785b9"
 dependencies = [
  "base64ct",
  "bcs",
@@ -7630,7 +7633,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-types"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=b77fcd5ac5fedb3dfbc77ba7d183140e43512339#b77fcd5ac5fedb3dfbc77ba7d183140e43512339"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=475b0de92e4b9e3115367382e1bba56630b785b9#475b0de92e4b9e3115367382e1bba56630b785b9"
 dependencies = [
  "base64ct",
  "bcs",
@@ -13433,6 +13436,7 @@ dependencies = [
  "eyre",
  "fastcrypto",
  "futures",
+ "hdrhistogram",
  "http 1.4.0",
  "iota-common",
  "iota-http",
@@ -14613,6 +14617,7 @@ dependencies = [
  "tower-layer",
  "tower-service",
  "tracing",
+ "uuid",
 ]
 
 [[package]]

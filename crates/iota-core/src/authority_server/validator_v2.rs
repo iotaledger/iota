@@ -253,6 +253,18 @@ impl ValidatorService {
             return (build_executed(effects), Weight::one());
         }
 
+        // Suppress duplicate resubmissions of a transaction that is still in
+        // flight on this validator (its soft locks are held). Checked before
+        // signature verification so resubmission storms are short-circuited
+        // cheaply; the soft-lock acquisition below remains the authoritative,
+        // atomic gate for duplicates racing past this probe.
+        if soft_locks.check_in_flight(&tx_digest) {
+            metrics.num_rejected_tx_recently_resubmitted.inc();
+            let error = IotaError::RecentlyResubmitted { digest: tx_digest };
+            let weight = normalize(&error);
+            return (TxStatusUpdate::Rejected { error }, weight);
+        }
+
         // Verify user signature.
         let tx_verif_guard = metrics.tx_verification_latency.start_timer();
         let verified_tx = match epoch_store.verify_transaction(transaction) {
@@ -341,12 +353,16 @@ impl ValidatorService {
         }
 
         // Soft-lock owned objects to prevent conflicting transactions.
-        // Same-digest resubmission passes through (idempotent).
+        // Same-digest resubmission while in flight → rejected (duplicate).
         // Different-digest conflict on same objects → rejected.
         // Placed after the reconfig check so we never acquire locks that would
         // need releasing on the epoch-halt path.
         if let Err(error) = soft_locks.try_acquire(tx_digest, &owned_objects) {
-            metrics.num_rejected_tx_soft_lock_conflict.inc();
+            if matches!(error, IotaError::RecentlyResubmitted { .. }) {
+                metrics.num_rejected_tx_recently_resubmitted.inc();
+            } else {
+                metrics.num_rejected_tx_soft_lock_conflict.inc();
+            }
             let weight = normalize(&error);
             return (TxStatusUpdate::Rejected { error }, weight);
         }

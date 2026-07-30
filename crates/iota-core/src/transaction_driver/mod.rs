@@ -20,6 +20,7 @@ use effects_certifier::*;
 pub use error::{AggregatedRequestErrors, TransactionDriverError};
 use iota_common::{backoff::ExponentialBackoff, debug_fatal};
 use iota_metrics::{monitored_future, spawn_logged_monitored_task};
+use iota_sdk_types::TransactionDigest;
 use iota_types::{
     committee::EpochId, messages_grpc::TxStatusUpdate, transaction::TransactionEnvelope,
 };
@@ -268,6 +269,49 @@ where
             }
             None => retry_loop.await,
         }
+    }
+
+    /// Run only the effects-certification step for a transaction that is
+    /// already submitted to consensus (e.g. by a concurrent submission of the
+    /// same digest): collect the 2f+1 effects-acknowledgment quorum and
+    /// return the certified finalized effects, without submitting the
+    /// transaction again. Unlike `drive_transaction` there is no
+    /// resubmission retry loop, but the certifier retries the full-effects
+    /// fetch across validators, so in the worst case the call is bounded
+    /// only by committee size times the per-request timeout — callers
+    /// needing a tighter bound must wrap the call in their own timeout.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the current committee is empty.
+    #[instrument(level = "error", skip_all, err(level = "debug"), fields(tx_digest = ?tx_digest))]
+    pub async fn certify_transaction(
+        &self,
+        tx_digest: TransactionDigest,
+        options: SubmitTransactionOptions,
+    ) -> Result<QuorumTransactionResponse, TransactionDriverError> {
+        let auth_agg = self.authority_aggregator.load();
+
+        // `get_certified_finalized_effects` reads the initial target only
+        // when full effects are pre-supplied; on this path it selects the
+        // fetch targets internally, so any committee member serves as the
+        // placeholder.
+        let target = *auth_agg
+            .committee
+            .names()
+            .next()
+            .expect("committee has at least one member");
+
+        self.certifier
+            .get_certified_finalized_effects(
+                &auth_agg,
+                &self.client_monitor,
+                Some(tx_digest),
+                target,
+                TxStatusUpdate::Submitted,
+                &options,
+            )
+            .await
     }
 
     #[instrument(level = "error", skip_all, err(level = "debug"))]

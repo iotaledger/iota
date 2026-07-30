@@ -756,6 +756,11 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             .metrics
             .node_metrics
             .latency_to_process_stream
+            .observe(latency_to_process_stream.as_secs_f64());
+        self.context
+            .metrics
+            .node_metrics
+            .latency_to_process_stream_by_peer
             .with_label_values(&[peer_hostname.as_str()])
             .observe(latency_to_process_stream.as_secs_f64());
 

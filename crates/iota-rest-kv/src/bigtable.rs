@@ -30,7 +30,7 @@ use iota_sdk_types::TransactionDigest;
 use iota_storage::http_key_value_store::{ItemType, Key};
 use iota_types::{effects::TransactionEvents, sdk_types::Address, storage::ObjectKey};
 use serde::{Deserialize, Serialize};
-use tracing::error;
+use tracing::{debug, error, info, instrument};
 
 use crate::errors::{ApiError, RangeKeyBoundError};
 
@@ -70,6 +70,11 @@ impl KvStoreClient {
     /// Internally it instantiates a BigTableDB client.
     pub async fn new(config: KvStoreConfig) -> Result<Self> {
         let bigtable_client = if let Some(emulator_host) = config.emulator_host {
+            info!(
+                instance_id = %config.instance_id,
+                %emulator_host,
+                "connecting to BigTable emulator"
+            );
             BigTableClient::new_local(
                 &emulator_host,
                 "iota-rest-kv",
@@ -77,6 +82,11 @@ impl KvStoreClient {
                 config.column_family,
             )?
         } else {
+            info!(
+                instance_id = %config.instance_id,
+                timeout_secs = config.timeout_secs,
+                "connecting to remote BigTable"
+            );
             BigTableClient::new_remote(
                 config.instance_id,
                 true,
@@ -283,6 +293,11 @@ impl KvStoreClient {
     /// - `Some(value)` at index `i` means `key[i]` exists and has data
     /// - `None` at index `i` means `key[i]` was not found or has no matching
     ///   data
+    #[instrument(
+        level = "debug",
+        skip_all,
+        fields(table = table_name, column_qualifier = column_qualifier, num_keys = keys.len())
+    )]
     async fn fetch_from_bigtable(
         &self,
         table_name: &str,
@@ -300,6 +315,7 @@ impl KvStoreClient {
             .filter_map(|(index, key)| key.as_ref().map(|k| (k.clone(), index)))
             .collect::<HashMap<Vec<u8>, usize>>();
 
+        let start = Instant::now();
         for row in client
             .multi_get(
                 table_name,
@@ -319,6 +335,14 @@ impl KvStoreClient {
                 }
             }
         }
+
+        let found = results.iter().filter(|value| value.is_some()).count();
+        debug!(
+            found,
+            missing = results.len() - found,
+            elapsed_ms = start.elapsed().as_millis() as u64,
+            "fetched rows from BigTable"
+        );
 
         Ok(results)
     }
@@ -351,6 +375,7 @@ impl KvStoreClient {
     ///
     /// Returns `None` if no version below the requested one exists for that
     /// object (or if the object is not stored at all).
+    #[instrument(level = "debug", skip_all)]
     pub async fn object_before_version(
         &self,
         range: ObjectRangeKeyBound,
@@ -361,6 +386,7 @@ impl KvStoreClient {
 
         let mut client = self.bigtable_client.clone();
 
+        let start = Instant::now();
         let reversed = true;
         let rows_limit = 1;
         let rows = client
@@ -393,6 +419,12 @@ impl KvStoreClient {
                 error!("unexpected column {cell_name:?} in {OBJECTS_TABLE} table");
             }
         }
+
+        debug!(
+            found = value.is_some(),
+            elapsed_ms = start.elapsed().as_millis() as u64,
+            "range scanned object before version"
+        );
         Ok(value)
     }
 
@@ -404,11 +436,13 @@ impl KvStoreClient {
     /// from BigTableDB. Returns a vector of the same length and order as
     /// the input keys. Each entry is `Some(bytes)` if the key was found, or
     /// `None` if not found.
+    #[instrument(level = "debug", skip_all)]
     pub async fn objects_before_version(
         &self,
         req: ObjectsBeforeVersionRequest,
     ) -> Result<Vec<Option<Bytes>>, anyhow::Error> {
         let req = req.into_inner();
+        debug!(num_keys = req.len(), "fetching objects before version");
 
         // `multiget_max_items` bounds the size of an incoming request, but it is
         // an operator-configurable value. Concurrency is capped independently via
@@ -435,6 +469,7 @@ impl KvStoreClient {
     ///
     /// When `None`, the scan starts from the beginning of the requested
     /// `oldest_first` order.
+    #[instrument(level = "debug", skip(self))]
     pub async fn transactions_by_address(
         &self,
         address: Address,
@@ -449,9 +484,17 @@ impl KvStoreClient {
             false => TransactionsOrder::NewestFirst,
         };
 
-        client
+        let start = Instant::now();
+        let transactions = client
             .get_transaction_digests_by_address(address, cursor, limit, order)
-            .await
+            .await?;
+
+        debug!(
+            found = transactions.len(),
+            elapsed_ms = start.elapsed().as_millis() as u64,
+            "fetched transaction digests by address"
+        );
+        Ok(transactions)
     }
 }
 
