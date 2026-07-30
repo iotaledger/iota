@@ -427,10 +427,16 @@ async fn test_delete_range() {
     assert!(db.contains_key(&100).expect("Failed to query legal key"));
 }
 
+// `schedule_delete_all` is only compiled under the simulator, so its tests are
+// too. They use `msim::sim_test` directly rather than `iota_macros::sim_test`,
+// which expands to a path in `iota-simulator` — a crate typed-store cannot
+// depend on without a dependency cycle. A plain `#[tokio::test]` would not do:
+// under the simulator it expands to a test marked `#[ignore]`.
+#[cfg(msim)]
 mod delete_all {
     use super::*;
 
-    #[tokio::test]
+    #[msim::sim_test]
     async fn deletes_every_entry() {
         let tmp_dir = iota_common::tempdir();
         let db: DBMap<i32, String> = open_map(tmp_dir.path(), None);
@@ -456,7 +462,7 @@ mod delete_all {
         );
     }
 
-    #[tokio::test]
+    #[msim::sim_test]
     async fn deletes_a_single_entry() {
         let tmp_dir = iota_common::tempdir();
         let db: DBMap<i32, String> = open_map(tmp_dir.path(), None);
@@ -468,7 +474,7 @@ mod delete_all {
         assert!(db.is_empty());
     }
 
-    #[tokio::test]
+    #[msim::sim_test]
     async fn deletes_an_all_ones_last_key() {
         let tmp_dir = iota_common::tempdir();
         let db: DBMap<u64, String> = open_map(tmp_dir.path(), None);
@@ -484,7 +490,7 @@ mod delete_all {
         assert!(db.is_empty());
     }
 
-    #[tokio::test]
+    #[msim::sim_test]
     async fn deletes_an_empty_key() {
         let tmp_dir = iota_common::tempdir();
         // A unit key serializes to no bytes at all, so the last key is the
@@ -499,7 +505,7 @@ mod delete_all {
         assert!(db.is_empty());
     }
 
-    #[tokio::test]
+    #[msim::sim_test]
     async fn deletes_signed_keys() {
         let tmp_dir = iota_common::tempdir();
         let db: DBMap<i32, String> = open_map(tmp_dir.path(), None);
@@ -515,7 +521,7 @@ mod delete_all {
         assert!(db.is_empty());
     }
 
-    #[tokio::test]
+    #[msim::sim_test]
     async fn deletes_variable_length_keys() {
         let tmp_dir = iota_common::tempdir();
         let db: DBMap<String, String> = open_map(tmp_dir.path(), None);
@@ -530,7 +536,7 @@ mod delete_all {
         assert!(db.is_empty());
     }
 
-    #[tokio::test]
+    #[msim::sim_test]
     async fn deletes_entries_already_on_disk() {
         let tmp_dir = iota_common::tempdir();
         let db: DBMap<i32, String> = open_map(tmp_dir.path(), None);
@@ -547,7 +553,7 @@ mod delete_all {
         assert!(db.is_empty());
     }
 
-    #[tokio::test]
+    #[msim::sim_test]
     async fn succeeds_on_an_empty_map() {
         let tmp_dir = iota_common::tempdir();
         let db: DBMap<i32, String> = open_map(tmp_dir.path(), None);
@@ -557,7 +563,7 @@ mod delete_all {
         assert!(db.is_empty());
     }
 
-    #[tokio::test]
+    #[msim::sim_test]
     async fn leaves_other_column_families_intact() {
         let tmp_dir = iota_common::tempdir();
         let rocks = open_rocksdb(tmp_dir.path(), &["First_CF", "Second_CF"]);
