@@ -130,7 +130,10 @@ impl StateSnapshotUploader {
     }
 
     /// Uploads state snapshots to remote store if they are missing.
-    async fn upload_state_snapshot_to_object_store(&self, missing_epochs: Vec<u64>) -> Result<()> {
+    pub(crate) async fn upload_state_snapshot_to_object_store(
+        &self,
+        missing_epochs: Vec<u64>,
+    ) -> Result<()> {
         let last_missing_epoch = missing_epochs.last().cloned().unwrap_or(0);
         // Chain identifier = genesis checkpoint digest; tags each manifest.
         let chain_id = ChainIdentifier::from(
@@ -205,10 +208,10 @@ impl StateSnapshotUploader {
                 let bytes = Bytes::from_static(b"success");
                 let success_marker = db_path.child(SUCCESS_MARKER);
                 put(&self.snapshot_store, &success_marker, bytes.clone()).await?;
-                self.remove_db_checkpoint(db_path)?;
+                self.remove_db_checkpoint(db_path);
                 info!("State snapshot completed for epoch: {epoch}");
             } else {
-                self.remove_db_checkpoint(db_path)?;
+                self.remove_db_checkpoint(db_path);
                 info!("State snapshot skipped for epoch: {epoch}");
             }
         }
@@ -256,10 +259,13 @@ impl StateSnapshotUploader {
     }
 
     /// Deletes a local db checkpoint directory once the state snapshot for its
-    /// epoch is no longer needed.
-    fn remove_db_checkpoint(&self, db_path: &object_store::path::Path) -> Result<()> {
-        let local_db_path = path_to_filesystem(self.db_checkpoint_path.clone(), db_path)?;
-        fs::remove_dir_all(&local_db_path)?;
-        Ok(())
+    /// epoch is no longer needed. A failure is only logged: a directory that
+    /// cannot be deleted must not block snapshot uploads for later epochs.
+    fn remove_db_checkpoint(&self, db_path: &object_store::path::Path) {
+        let result = path_to_filesystem(self.db_checkpoint_path.clone(), db_path)
+            .and_then(|local_db_path| fs::remove_dir_all(&local_db_path).map_err(Into::into));
+        if let Err(err) = result {
+            error!("Failed to remove local db checkpoint dir {db_path}: {err:?}");
+        }
     }
 }
