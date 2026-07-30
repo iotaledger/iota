@@ -12,7 +12,7 @@ use percent_encoding::{NON_ALPHANUMERIC, percent_encode, utf8_percent_encode};
 use reqwest::{Client, ClientBuilder};
 
 use crate::object_store::{
-    ObjectStoreGetExt,
+    ObjectStoreGetExt, collect_get_result_with_progress,
     http::{DEFAULT_USER_AGENT, exists, get, size},
 };
 
@@ -86,6 +86,15 @@ impl ObjectStoreGetExt for GoogleCloudStorage {
         let result = self.client.get(location).await?;
         let bytes = result.bytes().await?;
         Ok(bytes)
+    }
+
+    async fn get_bytes_with_progress(
+        &self,
+        location: &Path,
+        on_bytes: &(dyn Fn(u64) + Send + Sync),
+    ) -> Result<Bytes> {
+        let result = self.client.get(location).await?;
+        collect_get_result_with_progress(result, location, on_bytes).await
     }
 
     async fn exists(&self, location: &Path) -> Result<bool> {

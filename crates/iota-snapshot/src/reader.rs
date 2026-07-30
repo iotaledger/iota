@@ -192,17 +192,24 @@ impl StateSnapshotReaderV1 {
             })
             .collect();
         let num_files = (files_to_download.len() + object_file_paths.len()) as u64;
-        let total_bytes = fetch_total_bytes(
-            &remote_object_store,
-            files_to_download
-                .iter()
-                .cloned()
-                .chain(object_file_paths)
-                .collect(),
-            download_concurrency.get(),
-            &multi_progress_bar,
-        )
-        .await;
+        // The size sweep only feeds the progress display; skip its HEAD
+        // requests entirely when the bars can't be seen (e.g. non-TTY
+        // output).
+        let total_bytes = if multi_progress_bar.is_hidden() {
+            None
+        } else {
+            fetch_total_bytes(
+                &remote_object_store,
+                files_to_download
+                    .iter()
+                    .cloned()
+                    .chain(object_file_paths)
+                    .collect(),
+                download_concurrency.get(),
+                &multi_progress_bar,
+            )
+            .await
+        };
         let download_progress = Arc::new(DownloadProgressBar::new(
             &multi_progress_bar,
             "Downloading files",
@@ -567,6 +574,7 @@ impl StateSnapshotReaderV1 {
         // already include these object files.
         let obj_progress = self.download_progress.clone();
         let obj_progress_clone = obj_progress.clone();
+        let obj_progress_download = obj_progress.clone();
 
         let ret = Abortable::new(
             async move {
@@ -578,6 +586,7 @@ impl StateSnapshotReaderV1 {
                         let file_path = file_metadata.file_path(&epoch_dir);
                         let remote_object_store = remote_object_store.clone();
                         let sha3_digests_cloned = sha3_digests.clone();
+                        let obj_progress = obj_progress_download.clone();
                         async move {
                             // Downloads object file with retries
                             let max_timeout = Duration::from_secs(60);
@@ -586,11 +595,20 @@ impl StateSnapshotReaderV1 {
                             timeout = std::cmp::min(max_timeout, timeout);
                             let mut attempts = 0usize;
                             let bytes = loop {
-                                match remote_object_store.get_bytes(&file_path).await {
+                                let attempt_bytes = AtomicU64::new(0);
+                                match remote_object_store
+                                    .get_bytes_with_progress(&file_path, &|n| {
+                                        attempt_bytes.fetch_add(n, Ordering::Relaxed);
+                                        obj_progress.add_bytes(n);
+                                    })
+                                    .await
+                                {
                                     Ok(bytes) => {
                                         break bytes;
                                     }
                                     Err(err) => {
+                                        obj_progress
+                                            .remove_bytes(attempt_bytes.load(Ordering::Relaxed));
                                         error!(
                                             "Obj {} .get failed (attempt {}): {}",
                                             file_metadata.file_path(&epoch_dir),
@@ -634,11 +652,10 @@ impl StateSnapshotReaderV1 {
                     .try_for_each(|(bytes, file_metadata, sha3_digest)| {
                         let obj_progress = &obj_progress_clone;
                         async move {
-                            let bytes_len = bytes.len() as u64;
                             database
                                 .insert_partition(file_metadata, bytes, &sha3_digest)
                                 .await?;
-                            obj_progress.file_done(bytes_len);
+                            obj_progress.file_done();
                             Ok(())
                         }
                     })

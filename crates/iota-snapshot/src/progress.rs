@@ -19,14 +19,12 @@ use std::{
 
 use anyhow::Result;
 use backoff::future::retry;
+use bytes::Bytes;
 use futures::{StreamExt, TryStreamExt};
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
-use iota_storage::object_store::{
-    ObjectStoreGetExt, ObjectStorePutExt,
-    util::{get, put},
-};
+use iota_storage::object_store::{ObjectStoreGetExt, ObjectStorePutExt, util::put};
 use object_store::path::Path;
-use tracing::warn;
+use tracing::{error, warn};
 
 /// Fetch the combined size in bytes of every path in `paths` from the remote
 /// store with bounded concurrency, rendering a progress bar on `m` while the
@@ -136,11 +134,26 @@ impl DownloadProgressBar {
         }
     }
 
-    /// Record one fully downloaded file of `bytes_len` bytes.
-    pub fn file_done(&self, bytes_len: u64) {
+    /// Record `n` freshly received bytes of an in-flight download.
+    pub fn add_bytes(&self, n: u64) {
         if self.byte_denominated {
-            let files_done = self.files_done.fetch_add(1, Ordering::Relaxed) + 1;
-            self.bar.inc(bytes_len);
+            self.bar.inc(n);
+        }
+    }
+
+    /// Roll back bytes recorded by a failed download attempt, so the retry
+    /// doesn't count them twice.
+    pub fn remove_bytes(&self, n: u64) {
+        if self.byte_denominated {
+            self.bar.set_position(self.bar.position().saturating_sub(n));
+        }
+    }
+
+    /// Record one fully downloaded file, whose bytes were already recorded
+    /// with [`Self::add_bytes`] as they arrived.
+    pub fn file_done(&self) {
+        let files_done = self.files_done.fetch_add(1, Ordering::Relaxed) + 1;
+        if self.byte_denominated {
             self.bar
                 .set_message(format!("{files_done}/{} files", self.num_files));
         } else {
@@ -154,8 +167,34 @@ impl DownloadProgressBar {
     }
 }
 
-/// Copy `src[i]` to `dest[i]` for all `i` in parallel, recording each
-/// completed file on `progress` and failing on the first copy that fails.
+/// Download `src` from `store` with retries, recording received chunks on
+/// `progress` as they arrive. A failed attempt's bytes are rolled back so the
+/// retry doesn't count them twice.
+pub async fn get_with_progress<S: ObjectStoreGetExt>(
+    store: &S,
+    src: &Path,
+    progress: &DownloadProgressBar,
+) -> Result<Bytes> {
+    retry(backoff::ExponentialBackoff::default(), || async {
+        let attempt_bytes = AtomicU64::new(0);
+        store
+            .get_bytes_with_progress(src, &|n| {
+                attempt_bytes.fetch_add(n, Ordering::Relaxed);
+                progress.add_bytes(n);
+            })
+            .await
+            .map_err(|e| {
+                progress.remove_bytes(attempt_bytes.load(Ordering::Relaxed));
+                error!("Failed to read file {src} from object store with error: {e:?}");
+                backoff::Error::transient(e)
+            })
+    })
+    .await
+}
+
+/// Copy `src[i]` to `dest[i]` for all `i` in parallel, recording downloaded
+/// chunks and each completed file on `progress` and failing on the first copy
+/// that fails.
 pub async fn copy_files_with_progress<S: ObjectStoreGetExt, D: ObjectStorePutExt>(
     src: &[Path],
     dest: &[Path],
@@ -166,15 +205,14 @@ pub async fn copy_files_with_progress<S: ObjectStoreGetExt, D: ObjectStorePutExt
 ) -> Result<()> {
     futures::stream::iter(src.iter().zip(dest.iter()))
         .map(|(path_in, path_out)| async move {
-            let bytes = get(src_store, path_in).await?;
-            let bytes_len = bytes.len() as u64;
+            let bytes = get_with_progress(src_store, path_in, progress).await?;
             put(dest_store, path_out, bytes).await?;
-            Ok::<_, anyhow::Error>(bytes_len)
+            Ok::<_, anyhow::Error>(())
         })
         .boxed()
         .buffer_unordered(concurrency)
-        .try_for_each(|bytes_len| {
-            progress.file_done(bytes_len);
+        .try_for_each(|()| {
+            progress.file_done();
             futures::future::ready(Ok(()))
         })
         .await
@@ -182,15 +220,22 @@ pub async fn copy_files_with_progress<S: ObjectStoreGetExt, D: ObjectStorePutExt
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
+    use std::sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    };
 
+    use anyhow::Result;
+    use async_trait::async_trait;
     use bytes::Bytes;
     use indicatif::{MultiProgress, ProgressDrawTarget};
     use iota_config::object_storage_config::{ObjectStoreConfig, ObjectStoreType};
     use iota_storage::object_store::{ObjectStoreGetExt, ObjectStorePutExt};
     use object_store::{ObjectStore, memory::InMemory, path::Path};
 
-    use super::{DownloadProgressBar, copy_files_with_progress, fetch_total_bytes};
+    use super::{
+        DownloadProgressBar, copy_files_with_progress, fetch_total_bytes, get_with_progress,
+    };
 
     fn hidden_multi_progress() -> MultiProgress {
         MultiProgress::with_draw_target(ProgressDrawTarget::hidden())
@@ -238,6 +283,64 @@ mod tests {
         copy_files_with_progress(&paths, &paths, &src_store, &dest_store, 2, &progress).await?;
         assert_eq!(progress.bar().length(), Some(2));
         assert_eq!(progress.bar().position(), 2);
+        Ok(())
+    }
+
+    /// Store whose first download attempt emits a partial chunk and then
+    /// fails; every later attempt succeeds.
+    struct FlakyStore {
+        payload: Bytes,
+        failed_once: AtomicBool,
+    }
+
+    impl std::fmt::Display for FlakyStore {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            write!(f, "flaky")
+        }
+    }
+
+    #[async_trait]
+    impl ObjectStoreGetExt for FlakyStore {
+        async fn get_bytes(&self, src: &Path) -> Result<Bytes> {
+            self.get_bytes_with_progress(src, &|_| {}).await
+        }
+
+        async fn get_bytes_with_progress(
+            &self,
+            _src: &Path,
+            on_bytes: &(dyn Fn(u64) + Send + Sync),
+        ) -> Result<Bytes> {
+            if !self.failed_once.swap(true, Ordering::Relaxed) {
+                on_bytes(3);
+                anyhow::bail!("transient failure after a partial chunk");
+            }
+            on_bytes(self.payload.len() as u64);
+            Ok(self.payload.clone())
+        }
+
+        async fn exists(&self, _src: &Path) -> Result<bool> {
+            Ok(true)
+        }
+
+        async fn object_size(&self, _src: &Path) -> Result<u64> {
+            Ok(self.payload.len() as u64)
+        }
+    }
+
+    /// A failed attempt's partially counted bytes are rolled back, so the
+    /// retry's bytes aren't counted on top of them.
+    #[tokio::test]
+    async fn test_get_with_progress_rolls_back_failed_attempt() -> Result<()> {
+        let store = FlakyStore {
+            payload: Bytes::from_static(b"12345"),
+            failed_once: AtomicBool::new(false),
+        };
+        let progress =
+            DownloadProgressBar::new(&hidden_multi_progress(), "Downloading", 1, Some(5));
+
+        let bytes = get_with_progress(&store, &Path::from("a"), &progress).await?;
+        assert_eq!(bytes.to_vec(), b"12345");
+        assert_eq!(progress.bar().position(), 5);
         Ok(())
     }
 

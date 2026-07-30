@@ -7635,6 +7635,7 @@ name = "iota-snapshot"
 version = "1.30.0-alpha"
 dependencies = [
  "anyhow",
+ "async-trait",
  "backoff",
  "bcs",
  "byteorder",

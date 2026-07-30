@@ -17,11 +17,45 @@ pub trait ObjectStoreGetExt: std::fmt::Display + Send + Sync + 'static {
     /// Return the bytes at given path in object store
     async fn get_bytes(&self, src: &Path) -> Result<Bytes>;
 
+    /// Like [`Self::get_bytes`], additionally invoking `on_bytes` with the
+    /// size of each received chunk while the download is in flight, so
+    /// callers can render live progress. The default implementation reports
+    /// the full size in one call once the download completes; stores that
+    /// stream their responses override it to report per chunk.
+    async fn get_bytes_with_progress(
+        &self,
+        src: &Path,
+        on_bytes: &(dyn Fn(u64) + Send + Sync),
+    ) -> Result<Bytes> {
+        let bytes = self.get_bytes(src).await?;
+        on_bytes(bytes.len() as u64);
+        Ok(bytes)
+    }
+
     /// Return whether an object exists at the given path.
     async fn exists(&self, src: &Path) -> Result<bool>;
 
     /// Return the size in bytes of the object at the given path.
     async fn object_size(&self, src: &Path) -> Result<u64>;
+}
+
+/// Collect a GET result's payload into contiguous bytes, invoking `on_bytes`
+/// with each chunk's size as it is received.
+pub(crate) async fn collect_get_result_with_progress(
+    result: object_store::GetResult,
+    src: &Path,
+    on_bytes: &(dyn Fn(u64) + Send + Sync),
+) -> Result<Bytes> {
+    use futures::StreamExt;
+    let mut stream = result.into_stream();
+    let mut buf = Vec::new();
+    while let Some(chunk) = stream.next().await {
+        let chunk = chunk
+            .map_err(|e| anyhow!("Failed to stream GET result for file {src} with error: {e:?}"))?;
+        on_bytes(chunk.len() as u64);
+        buf.extend_from_slice(&chunk);
+    }
+    Ok(buf.into())
 }
 
 macro_rules! as_ref_get_ext_impl {
@@ -30,6 +64,14 @@ macro_rules! as_ref_get_ext_impl {
         impl ObjectStoreGetExt for $type {
             async fn get_bytes(&self, src: &Path) -> Result<Bytes> {
                 self.as_ref().get_bytes(src).await
+            }
+
+            async fn get_bytes_with_progress(
+                &self,
+                src: &Path,
+                on_bytes: &(dyn Fn(u64) + Send + Sync),
+            ) -> Result<Bytes> {
+                self.as_ref().get_bytes_with_progress(src, on_bytes).await
             }
 
             async fn exists(&self, src: &Path) -> Result<bool> {
@@ -60,6 +102,18 @@ macro_rules! as_ref_get_impl {
                         anyhow!(
                             "Failed to collect GET result for file {src} into bytes with error: {e:?}")
                     })
+            }
+
+            async fn get_bytes_with_progress(
+                &self,
+                src: &Path,
+                on_bytes: &(dyn Fn(u64) + Send + Sync),
+            ) -> Result<Bytes> {
+                let result = self
+                    .get(src)
+                    .await
+                    .map_err(|e| anyhow!("Failed to get file {src} with error: {e:?}"))?;
+                collect_get_result_with_progress(result, src, on_bytes).await
             }
 
             async fn exists(&self, src: &Path) -> Result<bool> {
