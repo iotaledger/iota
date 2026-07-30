@@ -1310,6 +1310,7 @@
                 "consensus_block_restrictions": true,
                 "consensus_commit_transactions_only_for_traversed_headers": true,
                 "consensus_distributed_vote_scoring_strategy": true,
+                "consensus_enable_absolute_score_leader_schedule": false,
                 "consensus_enable_sliding_window_leader_schedule": false,
                 "consensus_fast_commit_sync": true,
                 "consensus_linearize_subdag_v2": true,
