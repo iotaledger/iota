@@ -294,8 +294,8 @@ fn default_iota_key_pair() -> SimpleKeypair {
     SimpleKeypair::from(get_key_pair_from_rng::<AccountKeyPair, _>(&mut rand::rngs::OsRng).1)
 }
 
-// Base64 of the `flag || privkey` bytes, the format the removed node keypair
-// enum used for serde.
+// Serde adapter storing the keypair as base64 `flag || privkey`, the on-disk
+// format of this config field.
 mod base64_formatted_keypair {
     use fastcrypto::encoding::{Base64, Encoding};
     use iota_types::crypto::SimpleKeypair;
