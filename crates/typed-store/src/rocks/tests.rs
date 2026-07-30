@@ -1207,6 +1207,71 @@ async fn tagged_dbmaps_share_a_column_family() {
     assert_eq!(words.get(&"one".to_string()).unwrap(), Some(1));
 }
 
+/// Ranges are bounded by the serialized keys, so for a key type whose encoding
+/// does not order the way `Ord` does they cover something else. Pinned here
+/// because it surprises callers; a plain `DBMap` behaves the same way.
+#[tokio::test]
+async fn tagged_ranges_follow_the_key_encoding_rather_than_ord() {
+    let tmp_dir = iota_common::tempdir();
+    let db = open_rocksdb(tmp_dir.path(), &["shared"]);
+    let words: TaggedDBMap<String, u32> =
+        TaggedDBMap::reopen(&db, "shared", 0, &ReadWriteOptions::default(), false)
+            .expect("failed to open the words map");
+    let signed: TaggedDBMap<i32, u32> =
+        TaggedDBMap::reopen(&db, "shared", 1, &ReadWriteOptions::default(), false)
+            .expect("failed to open the signed map");
+
+    // A string is serialized with its length first, so the order is by length.
+    words
+        .multi_insert([
+            ("b".to_string(), 0),
+            ("aa".to_string(), 0),
+            ("aaa".to_string(), 0),
+        ])
+        .unwrap();
+    let keys: Vec<_> = words
+        .safe_iter()
+        .map(|row| row.unwrap().0)
+        .collect::<Vec<_>>();
+    assert_eq!(
+        keys,
+        ["b", "aa", "aaa"],
+        "Ord would order these differently"
+    );
+    assert!(
+        words
+            .safe_range_iter("aa".to_string().."b".to_string())
+            .next()
+            .is_none(),
+        "the upper bound serializes below the lower one"
+    );
+
+    // A negative integer is two's complement, so it sorts above the positives.
+    signed.multi_insert([(0, 0), (1, 0), (-1, 0)]).unwrap();
+    let keys: Vec<_> = signed.safe_iter().map(|row| row.unwrap().0).collect();
+    assert_eq!(keys, [0, 1, -1], "Ord would order these differently");
+    assert!(signed.safe_range_iter(-1..=1).next().is_none());
+}
+
+/// A tag belongs to its column family, so the same one is free in another.
+#[tokio::test]
+async fn a_tag_is_free_in_another_column_family() {
+    let tmp_dir = iota_common::tempdir();
+    let db = open_rocksdb(tmp_dir.path(), &["shared", "other"]);
+
+    let numbers =
+        TaggedDBMap::<u32, String>::reopen(&db, "shared", 0, &ReadWriteOptions::default(), false)
+            .expect("failed to open the numbers map");
+    let words =
+        TaggedDBMap::<String, u64>::reopen(&db, "other", 0, &ReadWriteOptions::default(), false)
+            .expect("failed to open the words map");
+
+    numbers.insert(&1, &"one".to_string()).unwrap();
+    words.insert(&"one".to_string(), &1).unwrap();
+    assert_eq!(numbers.get(&1).unwrap(), Some("one".to_string()));
+    assert_eq!(words.get(&"one".to_string()).unwrap(), Some(1));
+}
+
 /// Reads `key` from the `[CFOptions "cf_name"]` section of the database's
 /// current OPTIONS file.
 fn cf_option(path: &Path, cf_name: &str, key: &str) -> String {

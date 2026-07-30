@@ -61,19 +61,6 @@ impl ColumnFamily {
             ColumnFamily::InMemory(name) => name,
         }
     }
-
-    pub(crate) fn rocks_cf<'a>(
-        &self,
-        rocks_db: &'a RocksDB,
-    ) -> Arc<rocksdb::BoundColumnFamily<'a>> {
-        match &self {
-            ColumnFamily::Rocks(name) => rocks_db
-                .underlying
-                .cf_handle(name)
-                .expect("the column family was deleted unexpectedly"),
-            _ => unreachable!("invariant is checked by the caller"),
-        }
-    }
 }
 
 pub(crate) enum Storage {
@@ -174,7 +161,7 @@ impl Database {
         match (&self.storage, cf) {
             (Storage::Rocks(db), ColumnFamily::Rocks(_)) => Ok(db
                 .underlying
-                .get_pinned_cf_opt(&cf.rocks_cf(db), key, readopts)
+                .get_pinned_cf_opt(&rocks_cf(db, cf.name()), key, readopts)
                 .map_err(typed_store_err_from_rocks_err)?
                 .map(GetResult::Rocks)),
             (Storage::InMemory(db), ColumnFamily::InMemory(cf_name)) => {
@@ -201,7 +188,7 @@ impl Database {
             (Storage::Rocks(db), ColumnFamily::Rocks(_)) => {
                 let keys_vec: Vec<K> = keys.into_iter().collect();
                 let res = db.underlying.batched_multi_get_cf_opt(
-                    &cf.rocks_cf(db),
+                    &rocks_cf(db, cf.name()),
                     keys_vec.iter(),
                     // sorted_input
                     false,
@@ -278,7 +265,7 @@ impl Database {
         let ret = match (&self.storage, cf) {
             (Storage::Rocks(db), ColumnFamily::Rocks(_)) => db
                 .underlying
-                .delete_cf(&cf.rocks_cf(db), key)
+                .delete_cf(&rocks_cf(db, cf.name()), key)
                 .map_err(typed_store_err_from_rocks_err),
             (Storage::InMemory(db), ColumnFamily::InMemory(cf_name)) => {
                 db.delete(cf_name, key.as_ref());
@@ -310,7 +297,7 @@ impl Database {
         let ret = match (&self.storage, cf) {
             (Storage::Rocks(db), ColumnFamily::Rocks(_)) => db
                 .underlying
-                .put_cf(&cf.rocks_cf(db), key, value)
+                .put_cf(&rocks_cf(db, cf.name()), key, value)
                 .map_err(typed_store_err_from_rocks_err),
             (Storage::InMemory(db), ColumnFamily::InMemory(cf_name)) => {
                 db.put(cf_name, key, value);
@@ -521,8 +508,6 @@ pub struct DBMap<K, V> {
     iter_sample_interval: SamplingInterval,
     _metrics_task_cancel_handle: Arc<oneshot::Sender<()>>,
 }
-
-unsafe impl<K: Send, V: Send> Send for DBMap<K, V> {}
 
 impl<K, V> DBMap<K, V> {
     pub(crate) fn new(
@@ -1541,31 +1526,34 @@ where
 /// use tempfile::tempdir;
 /// use typed_store::{Map, rocks::*};
 ///
-/// let db = open_cf_opts(
-///     tempdir().unwrap(),
-///     None,
-///     MetricConf::default(),
-///     &[("shared", rocksdb::Options::default())],
-/// )
-/// .unwrap();
-///
-/// let numbers: TaggedDBMap<u32, String> =
-///     TaggedDBMap::reopen(&db, "shared", 0, &ReadWriteOptions::default(), true).unwrap();
-/// let words: TaggedDBMap<String, u64> =
-///     TaggedDBMap::reopen(&db, "shared", 1, &ReadWriteOptions::default(), true).unwrap();
-///
-/// let mut batch = numbers.batch();
-/// batch
-///     .insert_batch_tagged(&numbers, [(1, "one".to_string())])
-///     .unwrap()
-///     .insert_batch_tagged(&words, [("one".to_string(), 1)])
+/// #[tokio::main(flavor = "current_thread")]
+/// async fn main() {
+///     let db = open_cf_opts(
+///         tempdir().unwrap(),
+///         None,
+///         MetricConf::default(),
+///         &[("shared", rocksdb::Options::default())],
+///     )
 ///     .unwrap();
-/// batch.write().unwrap();
 ///
-/// assert_eq!(numbers.get(&1).unwrap(), Some("one".to_string()));
-/// assert_eq!(words.get(&"one".to_string()).unwrap(), Some(1));
-/// // Each map sees only its own row.
-/// assert_eq!(numbers.safe_iter().count(), 1);
+///     let numbers: TaggedDBMap<u32, String> =
+///         TaggedDBMap::reopen(&db, "shared", 0, &ReadWriteOptions::default(), false).unwrap();
+///     let words: TaggedDBMap<String, u64> =
+///         TaggedDBMap::reopen(&db, "shared", 1, &ReadWriteOptions::default(), false).unwrap();
+///
+///     let mut batch = numbers.batch();
+///     batch
+///         .insert_batch_tagged(&numbers, [(1, "one".to_string())])
+///         .unwrap()
+///         .insert_batch_tagged(&words, [("one".to_string(), 1)])
+///         .unwrap();
+///     batch.write().unwrap();
+///
+///     assert_eq!(numbers.get(&1).unwrap(), Some("one".to_string()));
+///     assert_eq!(words.get(&"one".to_string()).unwrap(), Some(1));
+///     // Each map sees only its own row.
+///     assert_eq!(numbers.safe_iter().count(), 1);
+/// }
 /// ```
 pub struct TaggedDBMap<K, V> {
     tag: u8,
