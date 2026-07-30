@@ -37,10 +37,10 @@ use iota_sdk_crypto::simple::SimpleKeypair;
 use iota_sdk_types::Address;
 use iota_swarm::memory::Swarm;
 use iota_swarm_config::{
-    genesis_config::GenesisConfig,
+    genesis_config::{GenesisConfig, ValidatorGenesisConfigBuilder},
     network_config::{NetworkConfig, NetworkConfigLight},
     network_config_builder::ConfigBuilder,
-    node_config_builder::FullnodeConfigBuilder,
+    node_config_builder::{FullnodeConfigBuilder, ValidatorConfigBuilder},
     node_config_override::{NodeConfigOverride, OverrideScope},
 };
 use rand::rngs::OsRng;
@@ -220,6 +220,8 @@ pub enum LocalnetCommand {
         /// fullnode:enable-grpc-api=true` and optionally
         /// `--node-config-override
         /// fullnode:grpc-api-config.address=<HOST:PORT>` instead.
+        /// Removal is tracked in
+        /// <https://github.com/iotaledger/iota/issues/12490>.
         ///
         /// Start the gRPC API server with default host and port: 0.0.0.0:50051.
         /// This flag accepts also a port, a host, or both (e.g.,
@@ -440,6 +442,15 @@ async fn start(
         ensure!(!no_full_node, "Cannot enable gRPC without a fullnode.");
     }
 
+    if no_full_node {
+        ensure!(
+            node_config_overrides
+                .iter()
+                .all(|config_override| config_override.scope != OverrideScope::Fullnode),
+            "Cannot use fullnode-scoped node config overrides without a fullnode."
+        );
+    }
+
     #[cfg(feature = "indexer")]
     let IndexerFeatureArgs {
         mut with_indexer,
@@ -500,14 +511,7 @@ async fn start(
 
     // Reject bad overrides here: the swarm builder panics instead of erroring,
     // and it runs on a blocking task where that is even less legible.
-    {
-        let mut config = FullnodeConfigBuilder::new()
-            .with_config_directory(config_path.clone())
-            .build_from_parts(&mut OsRng, &[], Genesis::new_empty());
-        for config_override in &node_config_overrides {
-            config_override.apply_to(&mut config)?;
-        }
-    }
+    validate_node_config_overrides(&node_config_overrides, &config_path)?;
 
     let mut swarm_builder = Swarm::builder();
 
@@ -1224,6 +1228,32 @@ fn check_validator_override_scopes(
     Ok(())
 }
 
+/// Check that each override applies cleanly to a throwaway config of every
+/// node shape its scope covers.
+fn validate_node_config_overrides(
+    node_config_overrides: &[NodeConfigOverride],
+    config_directory: &Path,
+) -> Result<(), anyhow::Error> {
+    let mut fullnode_config = FullnodeConfigBuilder::new()
+        .with_config_directory(config_directory.to_path_buf())
+        .build_from_parts(&mut OsRng, &[], Genesis::new_empty());
+    let mut validator_config = ValidatorConfigBuilder::new()
+        .with_config_directory(config_directory.to_path_buf())
+        .build_without_genesis(ValidatorGenesisConfigBuilder::new().build(&mut OsRng));
+    for config_override in node_config_overrides {
+        if config_override.applies_to_fullnode() {
+            config_override.apply_to(&mut fullnode_config)?;
+        }
+        if matches!(
+            config_override.scope,
+            OverrideScope::All | OverrideScope::Validator(_)
+        ) {
+            config_override.apply_to(&mut validator_config)?;
+        }
+    }
+    Ok(())
+}
+
 /// Prepend a comment header to a saved YAML config file.
 fn prepend_note(path: &Path, note: &str) -> Result<(), anyhow::Error> {
     let config = fs::read_to_string(path)?;
@@ -1250,5 +1280,28 @@ pub fn parse_host_port(
         format!("{default_host}:{input}").parse::<SocketAddr>()
     } else {
         format!("{default_host}:{default_port_if_missing}").parse::<SocketAddr>()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn validator_scoped_override_of_validator_only_section_passes() {
+        let dir = tempdir().unwrap();
+        let config_override = "validator-0:consensus-config.db-retention-epochs=2"
+            .parse()
+            .unwrap();
+        validate_node_config_overrides(&[config_override], dir.path()).unwrap();
+    }
+
+    #[test]
+    fn fullnode_scoped_override_of_validator_only_section_fails() {
+        let dir = tempdir().unwrap();
+        let config_override = "fullnode:consensus-config.db-retention-epochs=2"
+            .parse()
+            .unwrap();
+        assert!(validate_node_config_overrides(&[config_override], dir.path()).is_err());
     }
 }
