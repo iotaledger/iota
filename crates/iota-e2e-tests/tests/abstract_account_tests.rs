@@ -507,8 +507,10 @@ async fn test_abstract_account_post_consensus_deletion_failure() -> Result<(), a
     telemetry_subscribers::init_for_testing();
     let client_ip = SocketAddr::new([127, 0, 0, 1].into(), 0);
 
-    // Build a test environment and create an abstract account
-    let mut test_env = TestEnvironment::new().await;
+    // Build a test environment and create an abstract account. Step 2 below
+    // reads the response of the transaction that deletes the abstract account,
+    // so the fullnode has to keep the deleted object's previous version.
+    let mut test_env = TestEnvironment::new_with_unpruned_fullnode().await;
     test_env
         .setup_abstract_account(AA_AUTHENTICATE_FN_NAME_ED25519)
         .await?;
@@ -2051,8 +2053,25 @@ struct TestEnvironment {
 
 impl TestEnvironment {
     async fn new() -> Self {
-        let test_cluster = TestClusterBuilder::new().build().await;
+        Self::with_cluster(TestClusterBuilder::new().build().await)
+    }
 
+    /// Builds the environment on a cluster whose fullnode keeps every object
+    /// version.
+    ///
+    /// Reading a transaction response that carries balance or object changes
+    /// resolves the transaction's input objects at their previous version, and
+    /// the fullnode prunes those versions once their checkpoint is executed.
+    async fn new_with_unpruned_fullnode() -> Self {
+        Self::with_cluster(
+            TestClusterBuilder::new()
+                .disable_fullnode_pruning()
+                .build()
+                .await,
+        )
+    }
+
+    fn with_cluster(test_cluster: TestCluster) -> Self {
         Self {
             test_cluster,
             owner: None,
@@ -2847,7 +2866,7 @@ impl TestEnvironment {
 
         // The transaction must be successful
         assert!(confirmed_local_execution.unwrap());
-        assert!(errors.is_empty());
+        assert!(errors.is_empty(), "unexpected errors: {errors:?}");
         Ok(())
     }
 
