@@ -1731,6 +1731,14 @@ impl Core {
     fn last_proposed_block_header(&self) -> VerifiedBlockHeader {
         self.dag_state.read().get_last_proposed_block_header()
     }
+
+    #[cfg(test)]
+    fn last_proposed_block(&self) -> VerifiedBlock {
+        self.dag_state
+            .read()
+            .get_last_own_non_genesis_block()
+            .expect("a block should have been proposed")
+    }
 }
 
 /// Senders of signals from Core, for outputs and events (ex new block
@@ -2481,6 +2489,10 @@ mod test {
         sleep(context.parameters.min_block_delay).await;
         // add blocks to trigger proposal.
         _ = core.add_blocks(vec![block_3], DataSource::Test);
+        // Round 1 blames the genesis leader, whose transactions are never recorded
+        // as available, so no strong-vote quorum stands behind round 2 and
+        // production proposes it on the leader timeout.
+        core.new_block(2, ReasonToCreateBlock::SoftTimeout).unwrap();
 
         assert_eq!(core.last_proposed_round(), 2);
 
@@ -2716,14 +2728,7 @@ mod test {
 
                 assert_eq!(core_fixture.core.last_proposed_round(), round);
 
-                this_round_blocks.push(
-                    core_fixture
-                        .core
-                        .dag_state
-                        .read()
-                        .get_last_own_non_genesis_block()
-                        .expect("a block should have been proposed"),
-                );
+                this_round_blocks.push(core_fixture.core.last_proposed_block());
             }
 
             last_round_blocks = this_round_blocks;
@@ -3196,11 +3201,10 @@ mod test {
             .set_consensus_commit_transactions_only_for_traversed_headers_for_testing(
                 commit_only_for_traversed_headers,
             );
-        // The DAG is built up front, so every strong vote is pinned using the
-        // builder's leader schedule. The core swaps out the authority whose
-        // blocks this DAG never links and elects a different leader for its
-        // rounds, leaving those votes counting for no one and the last leader of
-        // the DAG pending, so this runs with StarfishSpeed off.
+        // Runs with StarfishSpeed off: the DAG is built up front against the
+        // builder's leader schedule, while the core swaps out the authority whose
+        // blocks this DAG never links, so its votes count for no leader the core
+        // elects and the last leader of the DAG never leaves the pending state.
         context
             .protocol_config
             .set_consensus_starfish_speed_for_testing(false);
@@ -3554,6 +3558,7 @@ mod test {
 
         // Now iterate over a few rounds and ensure the corresponding signals are
         // created while network advances
+        let mut rounds_needing_timeout = BTreeSet::new();
         let mut last_round_blocks = Vec::new();
         for round in 1..=33 {
             let mut this_round_blocks = Vec::new();
@@ -3567,15 +3572,20 @@ mod test {
                     .core
                     .add_blocks(last_round_blocks.clone(), DataSource::Test)
                     .unwrap();
-                // Stand in for the leader timeout. On the round after the schedule
-                // rotates, the strong votes of the previous round are pinned to the
-                // leader elected by the previous schedule, so no quorum exists for
-                // the leader this core now elects and the proposal waits for the
-                // soft timeout. Does nothing once the round is already proposed.
-                core_fixture
-                    .core
-                    .new_block(round, ReasonToCreateBlock::SoftTimeout)
-                    .unwrap();
+                // Stand in for the leader timeout where the ordinary path did not
+                // propose. Two kinds of round need it: round 2, which has no
+                // strong-vote quorum behind it because a round 1 block votes on
+                // the genesis leader, whose transactions are never recorded as
+                // available; and the round after the schedule rotates, where the
+                // strong votes of the previous round are pinned to the leader the
+                // previous schedule elected rather than the one now elected.
+                if core_fixture.core.last_proposed_round() < round {
+                    rounds_needing_timeout.insert(round);
+                    core_fixture
+                        .core
+                        .new_block(round, ReasonToCreateBlock::SoftTimeout)
+                        .unwrap();
+                }
                 // A "new round" signal should be received given that all the blocks of previous
                 // round have been processed
                 let new_round = receive(
@@ -3595,16 +3605,13 @@ mod test {
                 assert_eq!(verified_block.round(), round);
                 assert_eq!(verified_block.author(), core_fixture.core.context.own_index);
 
-                // append the new block to this round blocks
-                this_round_blocks.push(verified_block.clone());
-                let block_header = core_fixture.core.last_proposed_block_header();
                 // ensure that produced block is referring to the blocks of last_round
                 assert_eq!(
-                    block_header.ancestors().len(),
+                    verified_block.ancestors().len(),
                     core_fixture.core.context.committee.size()
                 );
-                for ancestor in block_header.ancestors() {
-                    if block_header.round() > 1 {
+                for ancestor in verified_block.ancestors() {
+                    if verified_block.round() > 1 {
                         // don't bother with round 1 block which just contains the genesis blocks.
                         assert!(
                             last_round_blocks
@@ -3614,9 +3621,21 @@ mod test {
                         );
                     }
                 }
+
+                this_round_blocks.push(verified_block);
             }
             last_round_blocks = this_round_blocks;
         }
+        // The ordinary path proposes every round but the second and round 23, where
+        // the rotation moves the leader the round 22 votes were pinned to.
+        assert_eq!(
+            rounds_needing_timeout,
+            if starfish_speed {
+                BTreeSet::from([2, 23])
+            } else {
+                BTreeSet::new()
+            }
+        );
         for core_fixture in cores {
             // Check commits have been persisted to store
             let last_commit = core_fixture
@@ -3696,6 +3715,7 @@ mod test {
 
         // Now iterate over a few rounds and ensure the corresponding signals are
         // created while network advances
+        let mut rounds_needing_timeout = BTreeSet::new();
         let mut last_round_blocks = Vec::new();
         for round in 1..=10 {
             let mut this_round_blocks = Vec::new();
@@ -3711,6 +3731,17 @@ mod test {
                     .core
                     .add_blocks(last_round_blocks.clone(), DataSource::Test)
                     .unwrap();
+                // Stand in for the leader timeout where the ordinary path did not
+                // propose. Round 1 votes on the genesis leader, whose transactions
+                // are never recorded as available, so no strong-vote quorum stands
+                // behind round 2.
+                if core_fixture.core.last_proposed_round() < round {
+                    rounds_needing_timeout.insert(round);
+                    core_fixture
+                        .core
+                        .new_block(round, ReasonToCreateBlock::SoftTimeout)
+                        .unwrap();
+                }
 
                 // A "new round" signal should be received given that all the blocks of previous
                 // round have been processed
@@ -3732,18 +3763,13 @@ mod test {
                 assert_eq!(verified_block.round(), round);
                 assert_eq!(verified_block.author(), core_fixture.core.context.own_index);
 
-                // append the new block to this round blocks
-                this_round_blocks.push(verified_block.clone());
-
-                let block_header = core_fixture.core.last_proposed_block_header();
-
                 // ensure that produced block is referring to the blocks of last_round
                 assert_eq!(
-                    block_header.ancestors().len(),
+                    verified_block.ancestors().len(),
                     core_fixture.core.context.committee.size()
                 );
-                for ancestor in block_header.ancestors() {
-                    if block_header.round() > 1 {
+                for ancestor in verified_block.ancestors() {
+                    if verified_block.round() > 1 {
                         // don't bother with round 1 block which just contains the genesis blocks.
                         assert!(
                             last_round_blocks
@@ -3753,10 +3779,22 @@ mod test {
                         );
                     }
                 }
+
+                this_round_blocks.push(verified_block);
             }
 
             last_round_blocks = this_round_blocks;
         }
+        // The ordinary path proposes every round but the second, which has no
+        // strong-vote quorum behind it.
+        assert_eq!(
+            rounds_needing_timeout,
+            if starfish_speed {
+                BTreeSet::from([2])
+            } else {
+                BTreeSet::new()
+            }
+        );
 
         for core_fixture in cores {
             // Check commits have been persisted to store
@@ -3815,14 +3853,7 @@ mod test {
                     .new_block(round, ReasonToCreateBlock::MaxLeaderTimeout)
                     .unwrap();
                 // The round 1 block was already proposed while the core recovered.
-                let block = new_block.unwrap_or_else(|| {
-                    core_fixture
-                        .core
-                        .dag_state
-                        .read()
-                        .get_last_own_non_genesis_block()
-                        .expect("a block should have been proposed")
-                });
+                let block = new_block.unwrap_or_else(|| core_fixture.core.last_proposed_block());
                 assert_eq!(block.round(), round);
 
                 // append the new block to this round blocks

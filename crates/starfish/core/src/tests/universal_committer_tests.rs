@@ -352,9 +352,8 @@ async fn indirect_commit(#[values(false, true)] starfish_speed: bool) {
     // only One needs to wait until the leader of Round 6 is directly decided
     // to indirectly decide the leader of round 3
     // - Fully connected blocks to decide the leader of wave 2.
-    // The blocks with restricted ancestors keep acknowledging every block of the
-    // previous round, so that the missing links alone shape the decisions and
-    // every leader still gets a strong-vote quorum.
+    // Blocks with restricted ancestors keep their acknowledgments, so the missing
+    // links alone shape the decisions.
     let dag_str = "DAG {
         Round 0 : { 4 },
         Round 1 : { * },
@@ -428,9 +427,8 @@ async fn indirect_skip(#[values(false, true)] starfish_speed: bool) {
     // But it is skipped indirectly since the leader of round 7 is directly
     // committed and is not linked with the leader of round 4 through a
     // certificate
-    // The blocks with restricted ancestors keep acknowledging every block of the
-    // previous round, so that the missing links alone shape the decisions and
-    // every leader still gets a strong-vote quorum.
+    // Blocks with restricted ancestors keep their acknowledgments, so the missing
+    // links alone shape the decisions.
     let dag_str = "DAG {
         Round 0 : { 4 },
         Round 1 : { * },
