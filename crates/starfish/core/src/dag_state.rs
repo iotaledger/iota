@@ -1107,6 +1107,10 @@ impl DagState {
                 transactions[index] = Some(transaction.clone());
                 continue;
             }
+            if let Some(empty) = self.empty_transactions_for_ref(transactions_ref) {
+                transactions[index] = Some(empty);
+                continue;
+            }
             missing.push((index, transactions_ref));
         }
 
@@ -1158,6 +1162,10 @@ impl DagState {
             .get(transactions_ref)
             {
                 transactions[index] = Some(transaction.serialized().clone());
+                continue;
+            }
+            if let Some(empty) = self.empty_transactions_for_ref(transactions_ref) {
+                transactions[index] = Some(empty.serialized().clone());
                 continue;
             }
             missing.push((index, transactions_ref));
@@ -1956,6 +1964,10 @@ impl DagState {
         for (index, tx_ref) in transaction_refs.into_iter().enumerate() {
             if tx_ref.round() == GENESIS_ROUND {
                 exist[index] = self.get_genesis_block(tx_ref).is_some();
+                continue;
+            }
+            if self.empty_transactions_for_ref(&tx_ref).is_some() {
+                exist[index] = true;
                 continue;
             }
             if self.recent_transactions_by_authority[tx_ref.author()].contains_key(&tx_ref) {
@@ -2864,6 +2876,26 @@ impl DagState {
                     .base
             })
             .collect()
+    }
+
+    /// Returns the empty transactions object for `tx_ref` when its commitment
+    /// is the commitment over an empty transaction list, `None` otherwise. For
+    /// a `BlockRef`-form reference the commitment comes from the cached
+    /// header, when present.
+    fn empty_transactions_for_ref(
+        &self,
+        tx_ref: &GenericTransactionRef,
+    ) -> Option<VerifiedTransactions> {
+        match tx_ref {
+            GenericTransactionRef::TransactionRef(tx_ref) => (tx_ref.transactions_commitment
+                == self.empty_transactions_commitment)
+                .then(|| VerifiedTransactions::new_empty_from_ref(*tx_ref, None)),
+            GenericTransactionRef::BlockRef(block_ref) => {
+                let header = self.recent_block_headers.get(block_ref)?;
+                (header.transactions_commitment() == self.empty_transactions_commitment)
+                    .then(|| VerifiedTransactions::new_empty(header))
+            }
+        }
     }
 }
 #[cfg(test)]
@@ -4088,6 +4120,55 @@ mod test {
         dag_state.flush();
         let dag_state = DagState::new(context, store);
         assert!(dag_state.are_transactions_available(&empty_ref));
+    }
+
+    #[tokio::test]
+    async fn test_empty_transactions_readable_without_payload() {
+        let (context, _) = Context::new_for_test(4);
+        let context = Arc::new(context);
+        let store = Arc::new(MemStore::new());
+        let mut dag_state = DagState::new(context.clone(), store);
+
+        let mut encoder = create_encoder(&context);
+        let empty_header = VerifiedBlockHeader::new_for_test(
+            TestBlockHeader::new_with_commitment(5, 2, &context, &mut encoder).build(),
+        );
+        dag_state.accept_block_header(empty_header.clone(), DataSource::Test);
+
+        // An empty-commitment ref counts as present and reads back as the
+        // empty payload, in both ref forms, although no payload was stored.
+        let tx_ref = GenericTransactionRef::from(empty_header.transaction_ref());
+        let block_ref = GenericTransactionRef::BlockRef(empty_header.reference());
+        assert_eq!(
+            dag_state.contains_transactions(vec![tx_ref, block_ref]),
+            vec![true, true]
+        );
+        let read = dag_state.try_get_verified_transactions(&[tx_ref]).unwrap();
+        let transactions = read[0].as_ref().unwrap();
+        assert!(!transactions.has_transactions());
+        assert_eq!(
+            transactions.transaction_ref(),
+            empty_header.transaction_ref()
+        );
+        assert_eq!(
+            dag_state.get_serialized_transactions(&[tx_ref])[0].as_ref(),
+            Some(transactions.serialized())
+        );
+
+        // A non-empty commitment without a stored payload stays missing.
+        let other = VerifiedBlockHeader::new_for_test(TestBlockHeader::new(6, 1).build());
+        let other_ref = GenericTransactionRef::from(other.transaction_ref());
+        dag_state.accept_block_header(other, DataSource::Test);
+        assert_eq!(
+            dag_state.contains_transactions(vec![other_ref]),
+            vec![false]
+        );
+        assert!(
+            dag_state
+                .try_get_verified_transactions(&[other_ref])
+                .unwrap()[0]
+                .is_none()
+        );
     }
 
     #[tokio::test]

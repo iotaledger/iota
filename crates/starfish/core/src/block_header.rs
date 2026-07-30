@@ -1411,14 +1411,17 @@ impl VerifiedTransactions {
 
     /// Transactions object holding the empty payload for `header`.
     pub(crate) fn new_empty(header: &VerifiedBlockHeader) -> Self {
+        Self::new_empty_from_ref(header.transaction_ref(), Some(header.digest()))
+    }
+
+    /// Transactions object holding the empty payload for `transaction_ref`.
+    pub(crate) fn new_empty_from_ref(
+        transaction_ref: TransactionRef,
+        block_digest: Option<BlockHeaderDigest>,
+    ) -> Self {
         let serialized = Transaction::serialize(&[])
             .expect("Serializing an empty transaction list should not fail");
-        Self::new(
-            vec![],
-            header.transaction_ref(),
-            Some(header.digest()),
-            serialized,
-        )
+        Self::new(vec![], transaction_ref, block_digest, serialized)
     }
 }
 
