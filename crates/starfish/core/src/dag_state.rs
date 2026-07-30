@@ -325,6 +325,9 @@ pub(crate) struct DagState {
     /// leader rounds, keyed by leader round.
     starfish_speed_leader_hints: BTreeMap<Round, StarfishSpeedLeaderRoundHints>,
 
+    /// Commitment over an empty transaction list for this committee.
+    empty_transactions_commitment: TransactionsCommitment,
+
     /// Broadcast sender for DAG visualizer events.
     #[cfg(feature = "dag-visualizer")]
     dag_visualizer_sender: Option<tokio::sync::broadcast::Sender<DagVisualizerEvent>>,
@@ -420,6 +423,9 @@ impl DagState {
             unscored_committed_subdags.len()
         );
 
+        let empty_transactions_commitment =
+            TransactionsCommitment::compute_empty_transactions_commitment(&context);
+
         let mut state = Self {
             context,
             genesis,
@@ -451,6 +457,7 @@ impl DagState {
             evicted_rounds: vec![0; num_authorities],
             cordial_knowledge_senders: None,
             starfish_speed_leader_hints: BTreeMap::new(),
+            empty_transactions_commitment,
             #[cfg(feature = "dag-visualizer")]
             dag_visualizer_sender: None,
         };
@@ -713,6 +720,11 @@ impl DagState {
             );
         }
         self.update_block_header_metadata(&block_header, source);
+        // An empty payload is fully determined by the header's commitment, so
+        // accepting such a header makes the block's transactions available.
+        if block_header.transactions_commitment() == self.empty_transactions_commitment {
+            self.add_transactions(VerifiedTransactions::new_empty(&block_header), source);
+        }
         debug!(
             "block header {} pushed to write to store batch by {}",
             block_header, self.context.own_index
@@ -2133,6 +2145,10 @@ impl DagState {
 
     /// Check if a block's transactions are locally available.
     pub(crate) fn are_transactions_available(&self, block_ref: &BlockRef) -> bool {
+        // Genesis blocks carry no transactions.
+        if self.genesis.contains_key(block_ref) {
+            return true;
+        }
         let Some(header) = self.recent_block_headers.get(block_ref) else {
             return false;
         };
@@ -4024,7 +4040,7 @@ mod test {
         let (context, _) = Context::new_for_test(4);
         let context = Arc::new(context);
         let store = Arc::new(MemStore::new());
-        let mut dag_state = DagState::new(context, store);
+        let mut dag_state = DagState::new(context.clone(), store.clone());
 
         let block = VerifiedBlock::new_for_test(TestBlockHeader::new(5, 1).build());
         let block_ref = block.reference();
@@ -4045,6 +4061,33 @@ mod test {
         let other_ref = other.reference();
         dag_state.add_transactions(other.verified_transactions, DataSource::Test);
         assert!(!dag_state.are_transactions_available(&other_ref));
+
+        // Genesis blocks carry no transactions.
+        let genesis_ref = dag_state.genesis_blocks()[0].reference();
+        assert!(dag_state.are_transactions_available(&genesis_ref));
+
+        // A fabricated round-0 ref that is not a genesis block.
+        let fake_genesis_ref = BlockRef::new(
+            GENESIS_ROUND,
+            AuthorityIndex::new_for_test(0),
+            BlockHeaderDigest::MIN,
+        );
+        assert!(!dag_state.are_transactions_available(&fake_genesis_ref));
+
+        // A header whose commitment matches the empty transaction list is
+        // available without its payload.
+        let mut encoder = create_encoder(&context);
+        let empty_header = VerifiedBlockHeader::new_for_test(
+            TestBlockHeader::new_with_commitment(7, 3, &context, &mut encoder).build(),
+        );
+        let empty_ref = empty_header.reference();
+        dag_state.accept_block_header(empty_header, DataSource::Test);
+        assert!(dag_state.are_transactions_available(&empty_ref));
+
+        // The synthesized empty payload is persisted and recovered.
+        dag_state.flush();
+        let dag_state = DagState::new(context, store);
+        assert!(dag_state.are_transactions_available(&empty_ref));
     }
 
     #[tokio::test]

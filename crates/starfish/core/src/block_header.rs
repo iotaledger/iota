@@ -26,7 +26,7 @@ use crate::{
     authority_set::AuthoritySet,
     commit::CommitVote,
     context::Context,
-    encoder::ShardEncoder,
+    encoder::{ShardEncoder, create_encoder},
     error::{ConsensusError, ConsensusResult},
     transaction_ref::{GenericTransactionRef, TransactionRef},
 };
@@ -939,6 +939,18 @@ impl TransactionsCommitment {
             tree_size,
         )
     }
+
+    /// Commitment over an empty transaction list. The value depends on the
+    /// committee size through the erasure-coding shard counts.
+    pub(crate) fn compute_empty_transactions_commitment(
+        context: &Arc<Context>,
+    ) -> TransactionsCommitment {
+        let mut encoder = create_encoder(context);
+        let serialized = Transaction::serialize(&[])
+            .expect("Serializing an empty transaction list should not fail");
+        Self::compute_transactions_commitment(&serialized, context, &mut encoder)
+            .expect("Computing the empty transactions commitment should not fail")
+    }
 }
 
 impl Hash for TransactionsCommitment {
@@ -1396,6 +1408,18 @@ impl VerifiedTransactions {
     pub fn has_transactions(&self) -> bool {
         !self.transactions.is_empty()
     }
+
+    /// Transactions object holding the empty payload for `header`.
+    pub(crate) fn new_empty(header: &VerifiedBlockHeader) -> Self {
+        let serialized = Transaction::serialize(&[])
+            .expect("Serializing an empty transaction list should not fail");
+        Self::new(
+            vec![],
+            header.transaction_ref(),
+            Some(header.digest()),
+            serialized,
+        )
+    }
 }
 
 /// VerifiedBlock is a pair of verified block header and transactions. It is
@@ -1495,12 +1519,7 @@ pub(crate) fn genesis_blocks(context: &Context) -> Vec<VerifiedBlock> {
             let verified_block_header = VerifiedBlockHeader::new_verified(signed_block, serialized);
             VerifiedBlock {
                 verified_block_header: verified_block_header.clone(),
-                verified_transactions: VerifiedTransactions::new(
-                    vec![],
-                    verified_block_header.transaction_ref(),
-                    Some(verified_block_header.digest()),
-                    Bytes::from(bcs::to_bytes::<Vec<Transaction>>(&vec![]).unwrap()),
-                ),
+                verified_transactions: VerifiedTransactions::new_empty(&verified_block_header),
             }
         })
         .collect::<Vec<VerifiedBlock>>()
