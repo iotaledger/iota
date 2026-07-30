@@ -329,13 +329,13 @@ pub async fn find_missing_epochs_dirs(
         let get_result = store.get(&success_marker).await;
         match get_result {
             Err(Error::NotFound { .. }) => {
-                error!("No success marker found in db checkpoint for epoch: {epoch_num}");
+                error!("No success marker found in remote store for epoch: {epoch_num}");
                 missing_epochs.push(*epoch_num);
             }
             Err(_) => {
                 // Probably a transient error
                 warn!(
-                    "Failed while trying to read success marker in db checkpoint for epoch: {epoch_num}"
+                    "Failed while trying to read success marker in remote store for epoch: {epoch_num}"
                 );
             }
             Ok(_) => {

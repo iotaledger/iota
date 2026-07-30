@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{fs, num::NonZeroUsize, path::PathBuf, sync::Arc, time::Duration};
+use std::{num::NonZeroUsize, path::PathBuf, sync::Arc, time::Duration};
 
 use anyhow::{Context, Result};
 use bytes::Bytes;
@@ -208,10 +208,10 @@ impl StateSnapshotUploader {
                 let bytes = Bytes::from_static(b"success");
                 let success_marker = db_path.child(SUCCESS_MARKER);
                 put(&self.snapshot_store, &success_marker, bytes.clone()).await?;
-                self.remove_db_checkpoint(db_path);
+                self.remove_db_checkpoint(db_path).await;
                 info!("State snapshot completed for epoch: {epoch}");
             } else {
-                self.remove_db_checkpoint(db_path);
+                self.remove_db_checkpoint(db_path).await;
                 info!("State snapshot skipped for epoch: {epoch}");
             }
         }
@@ -261,9 +261,13 @@ impl StateSnapshotUploader {
     /// Deletes a local db checkpoint directory once the state snapshot for its
     /// epoch is no longer needed. A failure is only logged: a directory that
     /// cannot be deleted must not block snapshot uploads for later epochs.
-    fn remove_db_checkpoint(&self, db_path: &object_store::path::Path) {
-        let result = path_to_filesystem(self.db_checkpoint_path.clone(), db_path)
-            .and_then(|local_db_path| fs::remove_dir_all(&local_db_path).map_err(Into::into));
+    async fn remove_db_checkpoint(&self, db_path: &object_store::path::Path) {
+        let result = match path_to_filesystem(self.db_checkpoint_path.clone(), db_path) {
+            Ok(local_db_path) => tokio::fs::remove_dir_all(&local_db_path)
+                .await
+                .map_err(anyhow::Error::from),
+            Err(err) => Err(err),
+        };
         if let Err(err) = result {
             error!("Failed to remove local db checkpoint dir {db_path}: {err:?}");
         }

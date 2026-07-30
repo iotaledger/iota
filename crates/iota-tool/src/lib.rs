@@ -48,7 +48,7 @@ use iota_sdk_types::{
 };
 use iota_snapshot::{
     VerifiedEpochInfo, reader::StateSnapshotReaderV1, restore::RestoreWithGrpcIndexes,
-    setup_db_state,
+    setup_db_state, uploader::SUCCESS_MARKER,
 };
 use iota_storage::object_store::{ObjectStoreGetExt, http::HttpDownloaderBuilder, util::get_path};
 use iota_types::{
@@ -763,7 +763,7 @@ pub async fn check_completed_snapshot(
     snapshot_store_config: &ObjectStoreConfig,
     epoch: EpochId,
 ) -> Result<(), anyhow::Error> {
-    let success_marker = format!("epoch_{epoch}/_SUCCESS");
+    let success_marker = format!("epoch_{epoch}/{SUCCESS_MARKER}");
     let remote_object_store = if snapshot_store_config.no_sign_request {
         snapshot_store_config.make_http()?
     } else {

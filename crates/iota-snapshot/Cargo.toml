@@ -20,7 +20,7 @@ integer-encoding.workspace = true
 num_enum.workspace = true
 object_store.workspace = true
 serde.workspace = true
-tokio = { workspace = true, features = ["rt", "macros", "sync", "time"] }
+tokio = { workspace = true, features = ["fs", "macros", "rt", "sync", "time"] }
 tokio-stream.workspace = true
 tracing.workspace = true
 

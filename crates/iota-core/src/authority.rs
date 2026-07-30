@@ -515,7 +515,7 @@ impl AuthorityMetrics {
                 .unwrap(),
             db_checkpoint_latency: register_histogram_with_registry!(
                 "db_checkpoint_latency",
-                "Latency of checkpointing dbs",
+                "Latency of checkpointing the perpetual store at epoch end",
                 LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             ).unwrap(),
@@ -3841,7 +3841,7 @@ impl AuthorityState {
     /// `<checkpoint_path>/store/perpetual`, the layout the state snapshot
     /// uploader reads.
     #[instrument(level = "error", skip_all)]
-    pub fn checkpoint_perpetual_db(
+    fn checkpoint_perpetual_db(
         &self,
         checkpoint_path: &Path,
         cur_epoch_store: &AuthorityPerEpochStore,
