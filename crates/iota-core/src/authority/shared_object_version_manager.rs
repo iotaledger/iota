@@ -19,7 +19,7 @@ use tracing::trace;
 
 use crate::{
     authority::{
-        AuthorityPerEpochStore, account_rules::claimed_account_address,
+        AuthorityPerEpochStore, account_rules::account_address_being_claimed,
         authority_per_epoch_store::CancelConsensusTransactionReason,
     },
     execution_cache::ObjectCacheRead,
@@ -54,8 +54,8 @@ impl SharedObjVerManager {
         let mut assigned_versions = Vec::new();
         let mut claimed_accounts = HashMap::new();
         for transaction in transactions {
-            let claim_address = claimed_account_address(transaction.data());
-            if !transaction.contains_shared_object() && claim_address.is_none() {
+            let address_being_claimed = account_address_being_claimed(transaction.data());
+            if !transaction.contains_shared_object() && address_being_claimed.is_none() {
                 continue;
             }
             let (tx_assigned_versions, lamport_version) = Self::assign_versions_for_transaction(
@@ -78,7 +78,7 @@ impl SharedObjVerManager {
             // insert: the entry may not exist, or may hold a garbage value
             // seeded by an adversarial declared input. A cancelled claim
             // stages nothing — the address stays implicit and claimable.
-            if let Some(address) = claim_address {
+            if let Some(address) = address_being_claimed {
                 if !cancelled_txns.contains_key(transaction.digest()) {
                     shared_input_next_versions.insert(address, lamport_version);
                     let previous =

@@ -61,24 +61,24 @@ use crate::{authority::AuthorityPerEpochStore, execution_cache::ObjectCacheRead}
 /// Returns the address a `ClaimAccount` transaction claims — its sender, which
 /// is also the id of the account object the claim creates. `None` for every
 /// other transaction kind.
-pub(crate) fn claimed_account_address(data: &SenderSignedData) -> Option<ObjectId> {
+pub(crate) fn account_address_being_claimed(data: &SenderSignedData) -> Option<ObjectId> {
     match data.transaction_data().kind() {
         TransactionKind::ClaimAccount(_) => Some(data.transaction_data().sender().into()),
         _ => None,
     }
 }
 
-/// Returns the addresses this transaction authorizes with a plain signature:
-/// the sender and the gas owner, minus any address authenticated by a
-/// `MoveAuthenticator`.
-fn plain_signed_addresses(data: &SenderSignedData) -> Vec<Address> {
+/// Returns the account addresses this transaction authorizes without a
+/// `MoveAuthenticator` — the sender and the gas owner, minus any address a
+/// `MoveAuthenticator` covers. These are the plain-signed sides.
+fn non_move_authenticated_account_addresses(data: &SenderSignedData) -> Vec<Address> {
     let transaction_data = data.transaction_data();
     let mut addresses = vec![transaction_data.sender()];
     let gas_owner = transaction_data.gas_owner();
     if gas_owner != transaction_data.sender() {
         addresses.push(gas_owner);
     }
-    let authenticated: HashSet<Address> = authenticated_account_addresses(data)
+    let authenticated: HashSet<Address> = move_authenticated_account_addresses(data)
         .map(Address::from)
         .collect();
     addresses.retain(|address| !authenticated.contains(address));
@@ -87,7 +87,9 @@ fn plain_signed_addresses(data: &SenderSignedData) -> Vec<Address> {
 
 /// Returns the ids of the accounts this transaction authenticates through
 /// `MoveAuthenticator` signatures.
-fn authenticated_account_addresses(data: &SenderSignedData) -> impl Iterator<Item = ObjectId> + '_ {
+fn move_authenticated_account_addresses(
+    data: &SenderSignedData,
+) -> impl Iterator<Item = ObjectId> + '_ {
     data.move_authenticators()
         .into_iter()
         .filter_map(|authenticator| authenticator.address().ok().map(ObjectId::from))
@@ -139,8 +141,8 @@ impl AccountRulesState {
             return Ok(None);
         }
 
-        let claim_address = claimed_account_address(data);
-        if let Some(address) = claim_address {
+        let address_being_claimed = account_address_being_claimed(data);
+        if let Some(address) = address_being_claimed {
             // The duplicate-claim guard: it prevents a second object with the
             // same id from ever being minted. The first scheduled claim wins.
             if self.resolve_explicit(epoch_store, cache_reader, &address)? {
@@ -150,11 +152,11 @@ impl AccountRulesState {
             }
         }
 
-        for address in plain_signed_addresses(data) {
+        for address in non_move_authenticated_account_addresses(data) {
             let account_id = ObjectId::from(address);
             // The claim's own sender is decided by the duplicate-claim guard
             // above, not by the plain-signature rule.
-            if claim_address == Some(account_id) {
+            if address_being_claimed == Some(account_id) {
                 continue;
             }
             if self.resolve_explicit(epoch_store, cache_reader, &account_id)? {
@@ -164,7 +166,7 @@ impl AccountRulesState {
             }
         }
 
-        for account_id in authenticated_account_addresses(data) {
+        for account_id in move_authenticated_account_addresses(data) {
             if self.cancelled_claims.contains(&account_id)
                 && !self.resolve_explicit(epoch_store, cache_reader, &account_id)?
             {
@@ -184,7 +186,7 @@ impl AccountRulesState {
     /// Records the claim of a transaction the sequencer scheduled. No-op for
     /// transactions that are not claims.
     pub(crate) fn record_scheduled(&mut self, data: &SenderSignedData) {
-        if let Some(address) = claimed_account_address(data) {
+        if let Some(address) = account_address_being_claimed(data) {
             self.commit_claims.insert(address);
         }
     }
@@ -192,7 +194,7 @@ impl AccountRulesState {
     /// Records the claim of a transaction the sequencer cancelled. No-op for
     /// transactions that are not claims.
     pub(crate) fn record_cancelled(&mut self, data: &SenderSignedData) {
-        if let Some(address) = claimed_account_address(data) {
+        if let Some(address) = account_address_being_claimed(data) {
             self.cancelled_claims.insert(address);
         }
     }
