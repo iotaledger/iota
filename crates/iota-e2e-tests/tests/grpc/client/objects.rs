@@ -124,10 +124,7 @@ async fn get_objects_scenarios() {
         .expect("The call itself should succeed")
         .into_inner();
     assert_eq!(results.len(), 1, "Expected one result per requested ref");
-    assert!(
-        results.pop().expect("Length asserted above").is_err(),
-        "Fetching object with invalid version should return an error"
-    );
+    assert_server_not_found(results.pop().expect("Length asserted above"));
 
     // Test: a missing object fails only its own slot, leaving the objects the
     // node could serve intact
