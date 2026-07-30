@@ -2879,9 +2879,7 @@ impl DagState {
     }
 
     /// Returns the empty transactions object for `tx_ref` when its commitment
-    /// is the commitment over an empty transaction list, `None` otherwise. For
-    /// a `BlockRef`-form reference the commitment comes from the cached
-    /// header, when present.
+    /// is the commitment over an empty transaction list, `None` otherwise.
     fn empty_transactions_for_ref(
         &self,
         tx_ref: &GenericTransactionRef,
@@ -2890,11 +2888,10 @@ impl DagState {
             GenericTransactionRef::TransactionRef(tx_ref) => (tx_ref.transactions_commitment
                 == self.empty_transactions_commitment)
                 .then(|| VerifiedTransactions::new_empty_from_ref(*tx_ref, None)),
-            GenericTransactionRef::BlockRef(block_ref) => {
-                let header = self.recent_block_headers.get(block_ref)?;
-                (header.transactions_commitment() == self.empty_transactions_commitment)
-                    .then(|| VerifiedTransactions::new_empty(header))
-            }
+            // The legacy BlockRef form carries no commitment; commits that
+            // use it derive refs from acknowledgments, which never include
+            // empty blocks.
+            GenericTransactionRef::BlockRef(_) => None,
         }
     }
 }
@@ -4136,12 +4133,13 @@ mod test {
         dag_state.accept_block_header(empty_header.clone(), DataSource::Test);
 
         // An empty-commitment ref counts as present and reads back as the
-        // empty payload, in both ref forms, although no payload was stored.
+        // empty payload, although no payload was stored. The legacy BlockRef
+        // form carries no commitment and is not recognized.
         let tx_ref = GenericTransactionRef::from(empty_header.transaction_ref());
         let block_ref = GenericTransactionRef::BlockRef(empty_header.reference());
         assert_eq!(
             dag_state.contains_transactions(vec![tx_ref, block_ref]),
-            vec![true, true]
+            vec![true, false]
         );
         let read = dag_state.try_get_verified_transactions(&[tx_ref]).unwrap();
         let transactions = read[0].as_ref().unwrap();
