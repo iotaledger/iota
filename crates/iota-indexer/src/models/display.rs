@@ -3,10 +3,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use diesel::prelude::*;
-use iota_sdk_types::{Address, Event, Identifier, StructTag, TypeTag};
+use iota_sdk_types::{Address, Event, Identifier, ObjectId, StructTag, TypeTag};
 use iota_types::{
     collection_types::VecMap,
     display::{DisplayObject, DisplayVersionUpdatedEvent},
+    id::ID,
     object::Object,
 };
 
@@ -109,9 +110,87 @@ impl StoredDisplay {
     }
 }
 
+/// Extracts the canonical name of `T` from the type of a
+/// `0x2::display::DisplayCreated<T>` event, without touching the event
+/// contents.
+///
+/// Returns `None` if the provided event is of a different type.
+pub fn displayed_type_from_created_event(event: &Event) -> Option<String> {
+    if !event.type_.is_display_created() {
+        return None;
+    }
+    let [TypeTag::Struct(displayed_type)] = event.type_.type_params() else {
+        return None;
+    };
+    Some(displayed_type.to_canonical_string(/* with_prefix */ true))
+}
+
+/// Extracts the `ObjectId` of the created `Display<T>` object from the
+/// contents of a `0x2::display::DisplayCreated<T>` event.
+///
+/// Returns `None` if the provided event is of a different type.
+pub fn display_id_from_created_event(event: &Event) -> Option<ObjectId> {
+    if !event.type_.is_display_created() {
+        return None;
+    }
+    let created_event: ID = bcs::from_bytes(&event.contents).ok()?;
+    Some(created_event.bytes)
+}
+
 /// Returns whether `struct_tag` is of `0x2::display::Display` type.
 fn is_display(struct_tag: &StructTag) -> bool {
     struct_tag.address() == Address::FRAMEWORK
         && struct_tag.module() == &Identifier::DISPLAY_MODULE
         && struct_tag.name() == &DISPLAY_STRUCT_NAME
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn display_event(type_: StructTag, contents: Vec<u8>) -> Event {
+        Event {
+            package_id: ObjectId::random(),
+            module: Identifier::DISPLAY_MODULE,
+            sender: Address::random(),
+            type_,
+            contents,
+        }
+    }
+
+    /// The type `T` a `Display<T>` refers to.
+    fn displayed_type() -> StructTag {
+        StructTag::new(
+            Address::random(),
+            Identifier::from_static("test"),
+            Identifier::from_static("Test"),
+            vec![],
+        )
+    }
+
+    #[test]
+    fn display_created_event_helpers_extract_type_and_id() {
+        let displayed_type = displayed_type();
+        let display_id = ObjectId::random();
+        let event = display_event(
+            StructTag::new_display_created(displayed_type.clone()),
+            bcs::to_bytes(&ID::new(display_id)).unwrap(),
+        );
+
+        assert_eq!(
+            displayed_type_from_created_event(&event),
+            Some(displayed_type.to_canonical_string(true))
+        );
+        assert_eq!(display_id_from_created_event(&event), Some(display_id));
+    }
+
+    #[test]
+    fn display_created_event_helpers_ignore_other_events() {
+        let event = display_event(
+            StructTag::new_display_version_updated(displayed_type()),
+            vec![],
+        );
+        assert_eq!(displayed_type_from_created_event(&event), None);
+        assert_eq!(display_id_from_created_event(&event), None);
+    }
 }
