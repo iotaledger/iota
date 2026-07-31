@@ -107,7 +107,7 @@ To restore from a RocksDB snapshot, follow these steps:
 
 1. Empty the snapshot directory specified by the `db-path` in your `fullnode.yaml`.
 2. Set the `AWS_SNAPSHOT_ENDPOINT` environment variable to the target snapshot URL. If not set, the default values are endpoints provided by the IOTA Foundation with public access:
-3. **Download the snapshot** for your target epoch to your local disk. Snapshots are stored per epoch in S3 buckets. For example, if you're restoring the latest epoch:
+3. **Download the snapshot** for your target epoch to your local disk. Snapshots are stored per epoch in S3 buckets. The Docker commands mount `$PWD/data/db`, the database directory used by the [Docker setup](../full-node/docker.mdx), so run them from that setup's directory or adjust the mount to your own `db-path`. For example, if you're restoring the latest epoch:
 
    <Tabs groupId="rocksdb-snapshot-command" queryString>
       <TabItem label="Mainnet (Binary)" value="mainnet-binary">
@@ -194,7 +194,7 @@ See [Install IOTA](../../developer/getting-started/install-iota.mdx#install-from
 The following steps can be used to restore a node from a Formal snapshot:
 
 1. If it's running, stop the node.
-2. Pick your setup, network, and a snapshot epoch. Copy the resulting command and run it:
+2. Pick your setup, network, and a snapshot epoch. Copy the resulting command and run it. The Docker command mounts `$PWD/data/db` and `$PWD/data/config/genesis.blob`, the layout used by the [Docker setup](../full-node/docker.mdx), so run it from that setup's directory or adjust the mounts to your own paths:
 
    <FormalSnapshotPicker />
 
