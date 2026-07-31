@@ -196,6 +196,9 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             Enable the redesigned leader schedule (sliding-window reputation
 //             scoring and absolute-score bad-node selection) in Starfish
 //             consensus on devnet.
+//             Enable Move-based sponsor account authentication on mainnet.
+//             Only sponsor Move authentication is performed pre-consensus on
+//             mainnet.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -3166,6 +3169,12 @@ impl ProtocolConfig {
                     cfg.validator_low_stake_threshold = Some(1_500_000_000_000_000);
                     cfg.validator_very_low_stake_threshold = Some(1_000_000_000_000_000);
                     cfg.validator_low_stake_grace_period = Some(7);
+
+                    // Enable Move-based sponsor account authentication in mainnet.
+                    cfg.feature_flags.enable_move_authentication_for_sponsor = true;
+                    // Only sponsor Move authentication is performed pre-consensus in mainnet.
+                    cfg.feature_flags
+                        .pre_consensus_sponsor_only_move_authentication = true;
 
                     if chain != Chain::Mainnet {
                         // Enable the optimistic commit rule (StarfishSpeed) in
