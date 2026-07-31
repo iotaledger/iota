@@ -12,7 +12,7 @@ use fastcrypto::{
 use iota_sdk_crypto::{ToFromBech32, ToFromBytes as _, secp256k1::Secp256k1PrivateKey};
 use iota_sdk_types::SignatureScheme;
 use iota_types::crypto::{
-    AuthorityKeyPair, NetworkKeyPair, SimpleKeypair, simple_keypair_to_network_keypair,
+    AuthorityKeyPair, NetworkKeyPair, SimpleKeypair, simple_to_network_keypair,
 };
 
 /// Write Bech32 encoded `flag || privkey` to file.
@@ -56,7 +56,7 @@ pub fn read_network_keypair_from_file<P: AsRef<std::path::Path>>(
     path: P,
 ) -> anyhow::Result<NetworkKeyPair> {
     let kp = read_keypair_from_file(path)?;
-    simple_keypair_to_network_keypair(&kp)
+    simple_to_network_keypair(&kp)
 }
 
 /// Read a SimpleKeypair from a file. The content could be any of the

@@ -339,7 +339,7 @@ mod test {
     use iota_macros::nondeterministic;
     use iota_types::crypto::{
         AccountKeyPair, AuthorityKeyPair, SimpleKeypair, get_key_pair_from_rng,
-        network_keypair_to_simple_keypair,
+        network_to_simple_keypair,
     };
 
     use super::*;
@@ -379,14 +379,14 @@ mod test {
 
                 let protocol_key_file = dir.path().join(format!("{}.key", info.name));
                 write_keypair_to_file(
-                    &network_keypair_to_simple_keypair(&protocol_keypair),
+                    &network_to_simple_keypair(&protocol_keypair),
                     &protocol_key_file,
                 )
                 .unwrap();
 
                 let network_key_file = dir.path().join(format!("{}-1.key", info.name));
                 write_keypair_to_file(
-                    &network_keypair_to_simple_keypair(&network_keypair),
+                    &network_to_simple_keypair(&network_keypair),
                     &network_key_file,
                 )
                 .unwrap();

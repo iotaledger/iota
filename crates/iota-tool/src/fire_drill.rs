@@ -34,7 +34,7 @@ use iota_types::{
     committee::EpochId,
     crypto::{
         SimpleKeypair, generate_proof_of_possession, get_authority_key_pair, get_key_pair,
-        network_keypair_to_simple_keypair,
+        network_to_simple_keypair,
     },
     multiaddr::{Multiaddr, Protocol},
     transaction::{
@@ -155,13 +155,13 @@ async fn update_next_epoch_metadata(
     let new_network_key_pair: Ed25519KeyPair = get_key_pair().1;
     let new_network_key_pair_copy = new_network_key_pair.copy();
     new_config.network_key_pair =
-        KeyPairWithPath::new(network_keypair_to_simple_keypair(&new_network_key_pair));
+        KeyPairWithPath::new(network_to_simple_keypair(&new_network_key_pair));
 
     // protocol key
     let new_protocol_key_pair: Ed25519KeyPair = get_key_pair().1;
     let new_protocol_key_pair_copy = new_protocol_key_pair.copy();
     new_config.protocol_key_pair =
-        KeyPairWithPath::new(network_keypair_to_simple_keypair(&new_protocol_key_pair));
+        KeyPairWithPath::new(network_to_simple_keypair(&new_protocol_key_pair));
 
     // needs to be active_validators instead of committee_members here, so that
     // every validator can update their own metadata

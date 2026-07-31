@@ -150,7 +150,7 @@ pub use iota_sdk_crypto::simple::SimpleKeypair;
 /// The validator network stacks keep using the fastcrypto ed25519 keypair
 /// type; this conversion lets those keys be stored in configs as
 /// [`SimpleKeypair`].
-pub fn network_keypair_to_simple_keypair(kp: &NetworkKeyPair) -> SimpleKeypair {
+pub fn network_to_simple_keypair(kp: &NetworkKeyPair) -> SimpleKeypair {
     use iota_sdk_crypto::ToFromBytes as _;
 
     SimpleKeypair::from(
@@ -160,7 +160,7 @@ pub fn network_keypair_to_simple_keypair(kp: &NetworkKeyPair) -> SimpleKeypair {
 
 /// Convert a stored [`SimpleKeypair`] back into the fastcrypto ed25519 keypair
 /// consumed by the validator network stacks. Fails if the key is not ed25519.
-pub fn simple_keypair_to_network_keypair(kp: &SimpleKeypair) -> Result<NetworkKeyPair, Error> {
+pub fn simple_to_network_keypair(kp: &SimpleKeypair) -> Result<NetworkKeyPair, Error> {
     if kp.scheme() != SignatureScheme::Ed25519 {
         return Err(anyhow!(
             "invalid scheme for network keypair: {}",

@@ -20,7 +20,7 @@ use iota_types::{
     committee::EpochId,
     crypto::{
         AccountKeyPair, AuthorityKeyPair, AuthorityPublicKeyBytes, KeypairTraits, NetworkKeyPair,
-        SimpleKeypair, get_key_pair_from_rng, simple_keypair_to_network_keypair,
+        SimpleKeypair, get_key_pair_from_rng, simple_to_network_keypair,
     },
     messages_checkpoint::CheckpointSequenceNumber,
     multiaddr::Multiaddr,
@@ -1493,7 +1493,7 @@ impl KeyPairWithPath {
         self.ed25519_keypair
             .get_or_init(|| {
                 Arc::new(
-                    simple_keypair_to_network_keypair(self.keypair())
+                    simple_to_network_keypair(self.keypair())
                         .expect("only Ed25519 network keys are allowed"),
                 )
             })
@@ -1581,7 +1581,7 @@ mod tests {
     use fastcrypto::traits::KeyPair;
     use iota_keys::keypair_file::{write_authority_keypair_to_file, write_keypair_to_file};
     use iota_types::crypto::{
-        AuthorityKeyPair, NetworkKeyPair, get_key_pair_from_rng, network_keypair_to_simple_keypair,
+        AuthorityKeyPair, NetworkKeyPair, get_key_pair_from_rng, network_to_simple_keypair,
     };
     use rand::{SeedableRng, rngs::StdRng};
 
@@ -1627,12 +1627,12 @@ mod tests {
         write_authority_keypair_to_file(&authority_key_pair, PathBuf::from("authority.key"))
             .unwrap();
         write_keypair_to_file(
-            &network_keypair_to_simple_keypair(&protocol_key_pair),
+            &network_to_simple_keypair(&protocol_key_pair),
             PathBuf::from("protocol.key"),
         )
         .unwrap();
         write_keypair_to_file(
-            &network_keypair_to_simple_keypair(&network_key_pair),
+            &network_to_simple_keypair(&network_key_pair),
             PathBuf::from("network.key"),
         )
         .unwrap();
