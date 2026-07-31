@@ -117,6 +117,10 @@ metrics["validator_service_num_rejected_tx_during_overload"] = (
 )
 metrics["transaction_overload_sources"] = "sum by (host) (transaction_overload_sources)"
 metrics["transaction_overload_sources_by_source"] = "transaction_overload_sources"
+# committed subdags = consensus commits, counted per leader. Summed per host, its
+# rate is the commit rate — what a per-object per-commit limit is spent against, and
+# what turns a limit in units per commit into units per second.
+metrics["consensus_committed_subdags"] = "sum by (host) (consensus_committed_subdags)"
 # consensus in-flight transactions (num_inflight): the value graduated / max_pending
 # shedding compares against max_pending_transactions. sequencing_certificate_inflight
 # is an IntGaugeVec by tx_type; sum by host = num_inflight per validator. It's a GAUGE
