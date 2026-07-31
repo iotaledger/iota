@@ -1363,8 +1363,8 @@ impl IotaClientCommands {
                 gas_data,
                 processing,
             } => {
-                // The transaction builder would otherwise silently replace the
-                // object with the gas coin in the transfer command.
+                // The node rejects an object that is also a gas coin, so fail
+                // here with something clearer than its error.
                 ensure!(
                     !payment.gas.contains(&object_id),
                     "Object to transfer is also used for gas payment, use different gas objects!"
@@ -1372,10 +1372,10 @@ impl IotaClientCommands {
                 let signer = context.get_object_owner(&object_id).await?;
                 let to = get_identity_address(Some(to), context).await?;
                 let client = context.get_grpc_client().await?;
-                let mut builder = TransactionBuilder::new(signer);
-                builder.transfer_objects(to, grpc_input_refs(&client, &[object_id]).await?);
-                builder.gas(grpc_input_refs(&client, &payment.gas).await?);
-                let (tx_kind, gas_payment) = tx_kind_and_gas_payment(builder)?;
+                let mut builder = TransactionBuilder::new(signer).with_client(&client);
+                builder.transfer_objects(to, [object_id]);
+                let tx_kind = builder.finish_kind().await?;
+                let gas_payment = grpc_input_refs(&client, &payment.gas).await?;
 
                 dry_run_or_execute_or_serialize(
                     signer,
@@ -1417,9 +1417,9 @@ impl IotaClientCommands {
                     .await?;
                 let signer = context.get_object_owner(&input_coins[0]).await?;
                 let client = context.get_grpc_client().await?;
-                let mut builder = TransactionBuilder::new(signer);
+                let mut builder = TransactionBuilder::new(signer).with_client(&client);
                 builder.pay(
-                    grpc_input_refs(&client, &input_coins).await?,
+                    input_coins.clone(),
                     recipients.into_iter().zip(amounts),
                 );
 
@@ -1428,8 +1428,8 @@ impl IotaClientCommands {
                     "Gas coin is in input coins of `pay` command, use `pay-iota` instead!"
                 );
 
-                builder.gas(grpc_input_refs(&client, &payment.gas).await?);
-                let (tx_kind, gas_payment) = tx_kind_and_gas_payment(builder)?;
+                let tx_kind = builder.finish_kind().await?;
+                let gas_payment = grpc_input_refs(&client, &payment.gas).await?;
 
                 dry_run_or_execute_or_serialize(
                     signer,
@@ -1472,9 +1472,9 @@ impl IotaClientCommands {
                 let signer =
                     get_identity_address(processing.sender.map(Into::into), context).await?;
                 let client = context.get_grpc_client().await?;
-                let mut builder = TransactionBuilder::new(signer);
+                let mut builder = TransactionBuilder::new(signer).with_client(&client);
                 builder.pay_iota(recipients.into_iter().zip(amounts.iter().copied()));
-                let (tx_kind, _) = tx_kind_and_gas_payment(builder)?;
+                let tx_kind = builder.finish_kind().await?;
 
                 let input_coins = if let Some(coins) = input_coins {
                     coins
@@ -1529,10 +1529,10 @@ impl IotaClientCommands {
                 let recipient = get_identity_address(Some(recipient), context).await?;
                 let signer = context.get_object_owner(&input_coins[0]).await?;
                 let client = context.get_grpc_client().await?;
-                let mut builder = TransactionBuilder::new(signer);
+                let mut builder = TransactionBuilder::new(signer).with_client(&client);
                 builder.transfer_objects(recipient, [unresolved::Argument::Gas]);
-                builder.gas(grpc_input_refs(&client, &input_coins).await?);
-                let (tx_kind, gas_payment) = tx_kind_and_gas_payment(builder)?;
+                let tx_kind = builder.finish_kind().await?;
+                let gas_payment = grpc_input_refs(&client, &input_coins).await?;
 
                 dry_run_or_execute_or_serialize(
                     signer,
@@ -3349,22 +3349,6 @@ async fn grpc_input_refs(
         .iter()
         .map(|object| object.object_reference())
         .collect::<Result<_, _>>()?)
-}
-
-/// Finish a transaction builder and split the result into the transaction
-/// kind and the gas payment expected by [`dry_run_or_execute_or_serialize`].
-///
-/// The builder must only contain already resolved inputs (object references,
-/// pure values, or command results). The gas budget and price are determined
-/// in [`dry_run_or_execute_or_serialize`], so whatever is set on the builder
-/// is discarded.
-fn tx_kind_and_gas_payment(
-    mut builder: TransactionBuilder,
-) -> Result<(TransactionKind, Vec<ObjectReference>), anyhow::Error> {
-    // finish() refuses to build a transaction without a gas price.
-    builder.gas_price(0);
-    let tx = builder.finish()?.into_v1();
-    Ok((tx.kind, tx.gas_payment.objects))
 }
 
 /// Dry run, execute, or serialize a transaction.
