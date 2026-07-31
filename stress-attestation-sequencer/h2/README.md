@@ -96,25 +96,45 @@ A's:
 ```bash
 # one point, one rate, 3 iterations
 LABEL=cu4k-qps500-n4 ITERS=3 WORKLOAD=slow SLOW_N=100 SLOW_SIZE=100 \
-  CU_PER_TX=4000 LIMIT_A=10 OVERSHOOT_A=100 TARGET_QPS=500 ./run.sh
+  CU_PER_TX=4000 LIMIT_A=10 TARGET_QPS=500 ./run.sh
 
-# limits set directly, for the bimodal workload: its transactions do not all
-# cost the same, so there is no single number to compute them from
-LABEL=bimodal-lim20k-qps500-n4 WORKLOAD=slow LIMIT_B=20000 \
-  OVERSHOOT_B=200000 TARGET_QPS=500 RUN_DURATION=120s ./run.sh
+# Run B's limits set directly instead of computed, for a workload with no
+# single per-transaction cost
+LABEL=mixed-lim20k-qps500-n4 WORKLOAD=slow LIMIT_B=20000 \
+  OVERSHOOT_B=0 TARGET_QPS=500 ./run.sh
 
-# the whole grid, 5 iterations each, one group at a time
-ITERS=5 ./matrix.sh cu       # one fixed cost per run
-ITERS=5 ./matrix.sh bimodal  # heavy and light transactions alternating
-ITERS=5 ./matrix.sh counter  # shared-counter baseline (W1)
+# the whole grid, 5 iterations each, or one cost point at a time
+ITERS=5 ./matrix.sh
+ITERS=5 ./matrix.sh cu4k-
 ```
 
-`LIMIT_A` and `OVERSHOOT_A` are the transaction count per object per commit
-that Run B's limits are computed from. `run.sh` defaults them to the
-production 10 and 100, but 10 transactions per object per commit may well be
-below what four validators can execute, in which case the limit and not the
-mode is what caps throughput. `matrix.sh` therefore spells the pair out in
-every cell, and runs the two lightest points at 100 and 1000 as well.
+Every config in the grid runs one fixed cost, so all the transactions in a run
+are identical and both modes admit the same work once the limits match. That
+makes the grid the control: it shows whether `TotalComputationUnits` keeps up
+with `TotalTxCount` at each gas bucket. A run whose transactions differ in cost
+— where the two modes would admit different amounts of work — comes later; see
+Next steps.
+
+The burst above the base limit is off by default (`OVERSHOOT_A=0`, and Run B's
+follows from it), so each run is described by one number: `LIMIT_A`, the
+transaction count per object per commit that Run B's limit is computed from.
+With the burst off nothing exceeds the base limit and no debt is carried into
+later commits, so the two runs differ only in that one number — with a burst,
+the debt would be carried in transactions on one side and in computation units
+on the other. Once a base limit is settled, re-run it with
+`OVERSHOOT_A=$((10 * LIMIT_A))` to see what the burst adds.
+
+`run.sh` defaults `LIMIT_A` to production's 10, but 10 transactions per object
+per commit may well be below what four validators can execute, in which case
+the limit and not the mode is what caps throughput. `matrix.sh` therefore
+spells it out in every cell and runs the two lightest points at 100 as well.
+
+One constraint comes with the burst off: the base limit still has to fit a
+single transaction, or that transaction is deferred every commit and cancelled
+after `MAX_DEFERRAL_ROUNDS`. `LIMIT_A >= 1` covers `TotalTxCount`, and
+`LIMIT_A × CU_PER_TX` leaves `LIMIT_A` transactions of headroom under
+`TotalComputationUnits`, so this only bites if the real attested cost is far
+above `CU_PER_TX` — which is the other reason to measure it first.
 
 Both scripts submit through the fullnode (`DIRECT=false`, as in H1): one
 mutable shared object caps throughput low enough that these rates stay under
@@ -124,13 +144,19 @@ to the validators, and its throughput and latency then come only from the
 report it prints (`run-*-stress-report.log`), which every run saves either
 way.
 
-The workloads are the two shared-object ones the plan uses: `slow` (W5) and
-`shared` (W1, `--shared-counter`). `slow` publishes one `slow::Obj` shared
+The grid uses `slow` (W5) throughout. It publishes one `slow::Obj` shared
 object and every transaction takes it as a mutable input, so all of them
 contend on the same object; the workload has no setting for more objects.
 Transactions on one mutable shared object also execute one after another, so
 `matrix.sh` picks the rates per cost point rather than using the same rates
 everywhere.
+
+The plan's W1 (`shared`, `--shared-counter`) is not in the grid. With
+`NUM_SHARED_COUNTERS=1` every transaction increments the same counter at a cost
+that also lands on the 1,000-unit floor, which is what the `cu1k` cells already
+run — same one hot object, same uniform cost. `run.sh` still takes
+`WORKLOAD=shared`, so it is available as an independent workload to cross-check
+against if the `slow` numbers look surprising.
 
 Results follow the H1 layout: `results/<LABEL>/iter-NNN/`, one config per
 label, enforced by the same config gate (`../exp_dir.py`):
@@ -180,9 +206,7 @@ The grid in `matrix.sh` is set up but has not been run yet. Still to do:
   `SLOW_N=<n> SLOW_SIZE=100 SLOW_SHARED=true ./probe.sh`
   for each of the five points and correct `CU_PER_TX` in `matrix.sh` if the
   numbers differ. A wrong value gives the two runs different capacity, and then
-  the comparison no longer measures the mode. The same applies to the
-  shared-counter group, whose `CU_PER_TX=1000` is an assumption (a counter
-  increment landing on the rounding floor), not a measurement.
+  the comparison no longer measures the mode.
 - **Decide what to collect and write the aggregation.** Every run saves the full
   metric set, but nothing reads it yet: H2 needs its own `aggregate.py` and
   `plot.py`, adapted from `../h1/` for two modes instead of attestation off/on.
@@ -193,9 +217,13 @@ The grid in `matrix.sh` is set up but has not been run yet. Still to do:
   `consensus_handler_cancelled_transactions`,
   `consensus_handler_transaction_deferral_rounds`,
   `consensus_handler_scheduled_transactions_per_object_per_commit`).
-- **Spread the transaction costs further apart.** `slow::bimodal` alternates
-  between 4,000 and 1,000 computation units, a factor of 4, and its two levels
-  are fixed in the Move code. Telling the modes apart clearly needs a wider
-  spread: either configurable levels in `slow::bimodal`, or two `slow` weights
-  with different `n` running at the same time (benchmark groups run one after
-  another, so they cannot serve this today).
+- **Add a run whose transactions do not all cost the same.** The grid is all
+  fixed-cost, which is the control; the modes can only pull apart when the cost
+  varies, since that is when a count limit and a cost limit admit different
+  amounts of work. The only mixed-cost workload available today is
+  `slow::bimodal`, which alternates every 10s between 4,000 and 1,000
+  computation units — a factor of 4, with both levels fixed in the Move code,
+  and still uniform within any one commit. A useful version needs either
+  configurable levels in `slow::bimodal` or two `slow` weights with different
+  `n` running at the same time (benchmark groups run one after another, so they
+  cannot serve this today).
