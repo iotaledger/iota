@@ -21,7 +21,7 @@ across validators, and derives:
     (bucket-resolution), sem = std / sqrt(N).
 
 Pure stdlib (urllib/json) — runs on system python3, no venv. Mirrors the
-query/reset-trim approach of ../h1/dump_timeseries.py.
+query/reset-trim approach of ../dump_timeseries.py.
 
 Usage:  probe_scrape.py <start_epoch> <end_epoch> <step_s> <csv_out>
 Env:    PROM (Prometheus base URL, default http://localhost:9090)
@@ -77,7 +77,7 @@ def query_range(q):
 def trim_after_last_reset(values):
     """Drop samples up to and including the last counter reset in the window, so
     last-first over the kept samples is this process's in-window increase (as
-    PromQL increase() would compute). See ../h1/dump_timeseries.py."""
+    PromQL increase() would compute). See ../dump_timeseries.py."""
     last = 0
     for i in range(1, len(values)):
         if float(values[i][1]) < float(values[i - 1][1]):
