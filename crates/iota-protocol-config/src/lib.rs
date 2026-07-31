@@ -1916,7 +1916,16 @@ impl ProtocolConfig {
     }
 
     pub fn leader_schedule_window_size(&self) -> u32 {
-        self.consensus_leader_schedule_window_size.unwrap_or(600)
+        if cfg!(msim) {
+            // Keep the scoring window commensurate with the msim-scaled
+            // commit sync parameters.
+            min(
+                20,
+                self.consensus_leader_schedule_window_size.unwrap_or(600),
+            )
+        } else {
+            self.consensus_leader_schedule_window_size.unwrap_or(600)
+        }
     }
 
     pub fn consensus_enable_sliding_window_leader_schedule(&self) -> bool {
