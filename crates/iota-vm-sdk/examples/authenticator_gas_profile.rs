@@ -13,6 +13,10 @@
 //!
 //! Writes `authenticator_gas_profile.speedscope.json`; view it at
 //! <https://www.speedscope.app>.
+//! Also captures an instruction-level execution trace:
+//! the run's events are printed from `ExecutionTrace::events`, and the
+//! whole trace is written to `authenticator_gas_profile.json.zst` for the Move
+//! trace debugger.
 
 use std::path::PathBuf;
 
@@ -32,6 +36,7 @@ use serde_json::Value;
 
 fn main() -> Result<()> {
     let out_path = PathBuf::from("authenticator_gas_profile.speedscope.json");
+    let trace_path = PathBuf::from("authenticator_gas_profile.json.zst");
 
     let signed = example_signed_transaction()?;
     let sender = signed.transaction().sender();
@@ -62,8 +67,11 @@ fn main() -> Result<()> {
     // carries one profile for the authenticator function and one for the PTB
     // body.
     let mut vm = LocalVm::new(ctx, store)?;
-    let opts = ExecuteOptions::dry_run()
-        .with_debug(DebugConfig::default().with_profiling(ProfileSink::Path(out_path)));
+    let opts = ExecuteOptions::dry_run().with_debug(
+        DebugConfig::default()
+            .with_profiling(ProfileSink::Path(out_path))
+            .with_tracing(),
+    );
     let result = vm.execute_signed(signed, opts)?;
 
     // Inspect the execution status, signature status, and the gas ledger.
@@ -71,7 +79,9 @@ fn main() -> Result<()> {
     println!("Signature status: {:?}", result.signature_status);
     println!("Gas cost summary: {:?}", result.gas_summary);
 
-    match result.debug.and_then(|d| d.profile) {
+    let debug = result.debug.unwrap_or_default();
+
+    match debug.profile {
         Some(ProfileOutput::Path(p)) => {
             println!(
                 "Gas flamegraph (Speedscope JSON) written to: {}",
@@ -80,6 +90,19 @@ fn main() -> Result<()> {
             println!("View it at https://www.speedscope.app or render it to an image.");
         }
         _ => println!("No gas profile was produced (the run metered no computation)."),
+    }
+
+    match debug.trace {
+        Some(trace) => {
+            println!(
+                "Instruction-level execution trace captured (format version {}, {} events).",
+                trace.version,
+                trace.events.len()
+            );
+            std::fs::write(&trace_path, trace.trace_bytes())?;
+            println!("Full trace written to: {}", trace_path.display());
+        }
+        _ => println!("No instruction-level execution trace was captured."),
     }
 
     Ok(())

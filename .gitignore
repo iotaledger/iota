@@ -112,3 +112,4 @@ apps/explorer/public/*.wasm
 
 # iota-vm-sdk authenticator_gas_profile example output
 authenticator_gas_profile.speedscope.json
+authenticator_gas_profile.json.zst

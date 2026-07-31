@@ -7,6 +7,8 @@
 
 use std::path::PathBuf;
 
+use move_trace_format::format::{TraceEvent, TraceVersion};
+
 /// Configuration for a single debug-enabled run.
 ///
 /// The [`Default`] disables all capture.
@@ -81,6 +83,56 @@ pub enum ProfileOutput {
     Json(Vec<u8>),
 }
 
+/// An instruction-level execution trace: the events the Move VM emitted, in
+/// order, plus the same trace in the format the Move trace debugger reads.
+#[derive(Clone)]
+pub struct ExecutionTrace {
+    /// Version of the trace format the events were captured with.
+    pub version: TraceVersion,
+    /// Events in the order the VM emitted them.
+    pub events: Vec<TraceEvent>,
+    bytes: Vec<u8>,
+}
+
+impl ExecutionTrace {
+    pub(crate) fn new(version: TraceVersion, events: Vec<TraceEvent>, bytes: Vec<u8>) -> Self {
+        Self {
+            version,
+            events,
+            bytes,
+        }
+    }
+
+    /// The trace as the VM encoded it: a version header line followed by one
+    /// JSON-encoded event per line, zstd-compressed. Write it to a file with
+    /// the `json.zst` extension to open the run in the Move trace debugger.
+    ///
+    /// (On wasm32 the Move trace format is not compressed, so these are plain
+    /// line-delimited JSON bytes.)
+    pub fn trace_bytes(&self) -> &[u8] {
+        &self.bytes
+    }
+
+    /// Take the encoded trace, as described on
+    /// [`trace_bytes`](Self::trace_bytes).
+    pub fn into_trace_bytes(self) -> Vec<u8> {
+        self.bytes
+    }
+}
+
+// Summarised rather than derived: a trace of a real transaction runs to
+// hundreds of thousands of events, so printing them all buries whatever else
+// the caller was inspecting. Reach for `events` to see them.
+impl std::fmt::Debug for ExecutionTrace {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ExecutionTrace")
+            .field("version", &self.version)
+            .field("event_count", &self.events.len())
+            .field("trace_bytes_len", &self.bytes.len())
+            .finish()
+    }
+}
+
 /// Artifacts captured from a run, present when any [`DebugConfig`] toggle was
 /// enabled.
 #[derive(Debug, Default)]
@@ -88,9 +140,7 @@ pub enum ProfileOutput {
 pub struct DebugArtifacts {
     /// Gas profile output, if [`DebugConfig::profile`] was set.
     pub profile: Option<ProfileOutput>,
-    /// Instruction-level execution trace as zstd-compressed, line-delimited
-    /// JSON (the on-disk `.json.zst` trace format). `None` unless the run went
-    /// through the `MoveAuthenticator` path (see
-    /// [`DebugConfig::with_tracing`]).
-    pub trace: Option<Vec<u8>>,
+    /// Instruction-level execution trace. `None` unless the run went through
+    /// the `MoveAuthenticator` path (see [`DebugConfig::with_tracing`]).
+    pub trace: Option<ExecutionTrace>,
 }

@@ -364,9 +364,14 @@ fn move_authenticator_run_captures_trace_and_profile() {
     let debug = result
         .debug
         .expect("debug artifacts present when capture was requested");
+    let trace = debug.trace.expect("authenticator run must capture a trace");
     assert!(
-        debug.trace.is_some(),
-        "authenticator run must capture a trace"
+        !trace.events.is_empty(),
+        "a captured trace must hold the events the VM emitted"
+    );
+    assert!(
+        !trace.trace_bytes().is_empty(),
+        "a captured trace must also carry the encoded trace"
     );
     assert!(
         matches!(debug.profile, Some(ProfileOutput::Json(ref bytes)) if !bytes.is_empty()),

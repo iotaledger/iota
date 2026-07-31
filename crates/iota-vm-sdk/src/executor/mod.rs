@@ -20,11 +20,13 @@
 //! - [`env`] — the per-run execution environment and engine/profile wiring.
 //! - [`local_vm`] — the [`LocalVm`] executor and its public API.
 //! - [`prepare`] — shared transaction preparation, execution, and event decode.
+//! - [`trace`] — in-memory collection of the VM's trace events.
 //! - [`types`] — the public input/output types.
 
 mod env;
 mod local_vm;
 mod prepare;
+mod trace;
 mod types;
 
 pub use local_vm::LocalVm;
