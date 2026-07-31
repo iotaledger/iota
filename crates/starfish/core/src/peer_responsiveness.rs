@@ -8,8 +8,11 @@
 //! from. On a node with slow or asymmetric inbound links a uniform choice
 //! regularly draws slow-but-not-failing peers, adding avoidable latency to
 //! payload and commit retrieval. Each fetch source in
-//! [`DataSource::RESPONSIVENESS_SOURCES`] is tracked separately, so a peer that
-//! serves one kind of fetch well is not credited for another.
+//! [`DataSource::RESPONSIVENESS_SOURCES`] is tracked separately, so a peer's
+//! record on one kind of fetch does not decide its rank on another. Until a
+//! source has a sample of its own for a peer, it places that peer by what the
+//! nearest source in [`DataSource::responsiveness_fallbacks`] that has measured
+//! it saw.
 //!
 //! [`PeerResponsiveness`] tracks a per-peer smoothed "effective latency" fed by
 //! those existing latency/outcome signals, and exposes
@@ -50,6 +53,42 @@ impl DataSource {
         DataSource::CommitSyncer,
         DataSource::FastCommitSyncer,
     ];
+
+    /// Sources whose measurements order the peers this source has no sample
+    /// for yet, tried in this order until one of them has measured the peer.
+    ///
+    /// The other commit syncer comes first: it fetches the same commits and
+    /// headers over the same links, so what it measured is already on this
+    /// source's scale, and at the handoff between the two flavors it has just
+    /// measured the very peers this one is about to choose between. The
+    /// transactions synchronizer comes last because it fetches continuously and
+    /// so has a reading even when both commit-sync tracks are empty - the state
+    /// of a node that is only starting to recover - but it measures much
+    /// lighter fetches, making it the coarser of the two.
+    fn responsiveness_fallbacks(self) -> &'static [DataSource] {
+        match self {
+            DataSource::CommitSyncer => &[
+                DataSource::FastCommitSyncer,
+                DataSource::TransactionSynchronizer,
+            ],
+            DataSource::FastCommitSyncer => &[
+                DataSource::CommitSyncer,
+                DataSource::TransactionSynchronizer,
+            ],
+            _ => &[],
+        }
+    }
+
+    /// Latency assumed for a peer that neither this source nor any of its
+    /// fallbacks has measured, on the scale of this source's own fetches so
+    /// that an untried peer is not placed ahead of the peers it has measured.
+    fn neutral_latency_ms(self) -> f64 {
+        match self {
+            DataSource::CommitSyncer => COMMIT_SYNC_NEUTRAL_LATENCY_MS,
+            DataSource::FastCommitSyncer => FAST_COMMIT_SYNC_NEUTRAL_LATENCY_MS,
+            _ => TRANSACTIONS_SYNC_NEUTRAL_LATENCY_MS,
+        }
+    }
 }
 
 /// Probability that a `prioritize` call ignores ranking and returns a uniform
@@ -72,10 +111,24 @@ const SELECTION_WINDOW: usize = 5;
 /// sample produce an unbounded weight.
 const MIN_LATENCY_MS: f64 = 1.0;
 
-/// Effective latency (ms) assigned to a peer with no samples yet. Sits between
-/// proven-fast and proven-slow so untried peers are explored ahead of
-/// known-slow peers but do not outrank peers with a proven-fast track record.
-const NEUTRAL_LATENCY_MS: f64 = 250.0;
+/// Effective latency (ms) assigned to a peer nothing is known about yet: no
+/// sample for the source being ranked, and none for any of its fallbacks
+/// either. Each source has its own, on the scale its fetches measure, so that
+/// an untried peer is placed among the peers that source has measured rather
+/// than ahead of or behind all of them.
+///
+/// This one is the transactions synchronizer's, whose fetches are small and
+/// frequent.
+const TRANSACTIONS_SYNC_NEUTRAL_LATENCY_MS: f64 = 250.0;
+
+/// Neutral prior for regular commit sync, which fetches the commits, their
+/// headers and their transactions in requests of their own. Taken from what
+/// these fetches measure on testnet and mainnet.
+const COMMIT_SYNC_NEUTRAL_LATENCY_MS: f64 = 4_000.0;
+
+/// Neutral prior for fast commit sync, which serves a range in one request
+/// and so measures quicker than regular sync on the same networks.
+const FAST_COMMIT_SYNC_NEUTRAL_LATENCY_MS: f64 = 2_000.0;
 
 /// EWMA weight for a successful sample. Small, so the score is "slow to
 /// trust".
@@ -138,8 +191,8 @@ impl PeerResponsiveness {
     }
 
     /// Records a failed or timed-out fetch from `peer` for `source`, demoting
-    /// it to at least the operation's timeout. Floored at the neutral prior so
-    /// a failure never ranks better than an untried peer. Until its next
+    /// it to at least the operation's timeout, and never below the neutral
+    /// prior so a failure is never recorded as a fast sample. Until its next
     /// success the peer is also ordered behind every non-failed candidate
     /// (see [`Self::prioritize`]).
     pub(crate) fn record_failure_with_timeout(
@@ -148,7 +201,7 @@ impl PeerResponsiveness {
         peer: AuthorityIndex,
         timeout: Duration,
     ) {
-        let sample = (timeout.as_secs_f64() * 1_000.0).max(NEUTRAL_LATENCY_MS);
+        let sample = (timeout.as_secs_f64() * 1_000.0).max(source.neutral_latency_ms());
         self.update_failure(source, peer, sample);
     }
 
@@ -207,6 +260,17 @@ impl PeerResponsiveness {
     /// until its next success. A fraction of calls (see
     /// [`EXPLORE_PROBABILITY`]) ignore ranking and return a uniform shuffle.
     /// `rng` is consumed fresh on every call.
+    ///
+    /// A candidate with no sample for `source` is placed by its latency from
+    /// the nearest source in [`DataSource::responsiveness_fallbacks`] that has
+    /// measured it, and by [`DataSource::neutral_latency_ms`] only when none of
+    /// them has. A fallback that measures lighter fetches than `source` can put
+    /// an untried peer ahead of one this source has already measured; that is
+    /// the intended trade, since it is the reachable-and-quick signal available
+    /// before this source has any sample of its own. Only the latency is taken
+    /// from a fallback, never the failure state, so a peer that failed on
+    /// another source ranks as healthy here - carrying the timeout-scale
+    /// latency that failure left behind.
     pub(crate) fn prioritize<R: Rng>(
         &self,
         source: DataSource,
@@ -225,28 +289,51 @@ impl PeerResponsiveness {
             return;
         }
 
-        // Snapshot each candidate's effective latency and failure state under
-        // the lock, then release it before ordering (parking_lot::Mutex must not
-        // be held across the work). Untried peers use the neutral prior; every
-        // sample is floored so it stays strictly positive.
-        let stats: Vec<(f64, bool)> = {
+        // Snapshot each candidate's own sample, the first fallback sample that
+        // exists for it and its failure state under the lock, then release it
+        // before ordering (parking_lot::Mutex must not be held across the work).
+        let samples: Vec<(Option<f64>, Option<f64>, bool)> = {
             let tracks = self.inner.lock();
             let Some(track) = tracks.per_kind.get(&source) else {
                 return;
             };
+            let fallback_tracks: Vec<_> = source
+                .responsiveness_fallbacks()
+                .iter()
+                .filter_map(|fallback| tracks.per_kind.get(fallback))
+                .collect();
             candidates
                 .iter()
                 .map(|peer| {
                     let stat = track.get(peer.value());
-                    let latency = stat
-                        .and_then(|stat| stat.effective_latency_ms)
-                        .unwrap_or(NEUTRAL_LATENCY_MS)
-                        .max(MIN_LATENCY_MS);
-                    let last_fetch_failed = stat.is_some_and(|stat| stat.last_fetch_failed);
-                    (latency, last_fetch_failed)
+                    let fallback_latency = fallback_tracks.iter().find_map(|track| {
+                        track
+                            .get(peer.value())
+                            .and_then(|stat| stat.effective_latency_ms)
+                    });
+                    (
+                        stat.and_then(|stat| stat.effective_latency_ms),
+                        fallback_latency,
+                        stat.is_some_and(|stat| stat.last_fetch_failed),
+                    )
                 })
                 .collect()
         };
+
+        // A peer with no sample for this source is placed by what the closest
+        // fallback that has measured it saw, and only by the neutral prior when
+        // none of them has. Every sample is floored so it stays strictly
+        // positive.
+        let neutral = source.neutral_latency_ms();
+        let stats: Vec<(f64, bool)> = samples
+            .iter()
+            .map(|(own, fallback, last_fetch_failed)| {
+                (
+                    own.or(*fallback).unwrap_or(neutral).max(MIN_LATENCY_MS),
+                    *last_fetch_failed,
+                )
+            })
+            .collect();
 
         // Healthy peers are sorted by latency (ties broken by a random key so
         // an all-equal set, e.g. cold start, is ordered uniformly). The window
@@ -592,6 +679,109 @@ mod tests {
         }
     }
 
+    /// A commit-sync track with no samples yet still orders peers, using what
+    /// the transactions synchronizer has measured about the same peers.
+    #[test]
+    fn commit_sync_cold_start_follows_transaction_synchronizer_order() {
+        let pr = responsiveness(5);
+        for (peer, latency) in [(1, 400), (2, 300), (3, 200), (4, 100)] {
+            pr.record_success(DataSource::TransactionSynchronizer, idx(peer), ms(latency));
+        }
+
+        let candidates = vec![idx(1), idx(2), idx(3), idx(4)];
+        let counts = lead_counts(&pr, DataSource::CommitSyncer, &candidates, 10_000, 7);
+
+        // Without the fallback all four would tie on the neutral prior and lead
+        // equally often. Instead they lead in transactions-synchronizer order.
+        let lead = |peer| *counts.get(&idx(peer)).unwrap_or(&0);
+        assert!(
+            lead(4) > lead(3) && lead(3) > lead(2) && lead(2) > lead(1),
+            "lead counts should follow the fallback order, got {counts:?}"
+        );
+        // The fallback latencies are close together, so the weights are too:
+        // the fastest peer leads more than the uniform 25% but not always.
+        let fastest = lead(4) as f64 / 10_000.0;
+        assert!(
+            (0.30..0.55).contains(&fastest),
+            "fastest peer elsewhere should lead more than uniformly, got {fastest}"
+        );
+    }
+
+    /// The fallbacks are consulted in order, so a peer the other commit syncer
+    /// measured is placed by that measurement even when the transactions
+    /// synchronizer has a much quicker one for it.
+    #[test]
+    fn commit_sync_reads_the_other_commit_syncer_before_transactions() {
+        for (source, other) in [
+            (DataSource::CommitSyncer, DataSource::FastCommitSyncer),
+            (DataSource::FastCommitSyncer, DataSource::CommitSyncer),
+        ] {
+            let pr = responsiveness(4);
+            // Peer 1 is slow on the other commit syncer but quick on
+            // transaction fetches; peer 2 is only known to the latter.
+            pr.record_success(other, idx(1), ms(5_000));
+            pr.record_success(DataSource::TransactionSynchronizer, idx(1), ms(10));
+            pr.record_success(DataSource::TransactionSynchronizer, idx(2), ms(10));
+
+            let counts = lead_counts(&pr, source, &[idx(1), idx(2)], 10_000, 5);
+
+            // Reading the transactions synchronizer first would place both
+            // peers at 10ms and split the lead evenly between them.
+            let leads = *counts.get(&idx(2)).unwrap_or(&0) as f64 / 10_000.0;
+            assert!(
+                leads > 0.9,
+                "{source:?} should rank by what {other:?} measured, got {counts:?}"
+            );
+        }
+    }
+
+    /// Fallback latencies that are all the same say nothing about which peer is
+    /// quicker, so the order must stay uniform rather than following the peers'
+    /// place in the candidate list.
+    #[test]
+    fn equal_fallback_latencies_keep_a_uniform_order() {
+        let pr = responsiveness(5);
+        for peer in [1, 2, 3, 4] {
+            pr.record_success(DataSource::TransactionSynchronizer, idx(peer), ms(7));
+        }
+
+        let candidates = vec![idx(1), idx(2), idx(3), idx(4)];
+        let counts = lead_counts(&pr, DataSource::CommitSyncer, &candidates, 10_000, 7);
+
+        for peer in [1u8, 2, 3, 4] {
+            let fraction = *counts.get(&idx(peer)).unwrap_or(&0) as f64 / 10_000.0;
+            assert!(
+                (fraction - 0.25).abs() < 0.05,
+                "peer {peer} fraction {fraction}"
+            );
+        }
+    }
+
+    /// A peer with no sample for this source is placed by its fallback latency,
+    /// and only by the neutral prior when the fallback has not measured it
+    /// either. The fallback covers lighter fetches, so an untried peer it saw
+    /// as quick can lead a peer this source measured as slow.
+    #[test]
+    fn untried_peers_are_placed_by_their_fallback_latency() {
+        let pr = responsiveness(6);
+        // Peer 1 has a commit-sync sample of its own, peers 2 and 3 only a
+        // transactions-synchronizer one, and peer 4 none at all.
+        pr.record_success(DataSource::CommitSyncer, idx(1), ms(100));
+        pr.record_success(DataSource::TransactionSynchronizer, idx(2), ms(20));
+        pr.record_success(DataSource::TransactionSynchronizer, idx(3), ms(200));
+
+        let candidates = vec![idx(1), idx(2), idx(3), idx(4)];
+        let counts = lead_counts(&pr, DataSource::CommitSyncer, &candidates, 10_000, 11);
+
+        // Placed at 20ms, 100ms, 200ms and the commit-sync prior of 4000ms, so
+        // the peer neither source has seen trails all three.
+        let lead = |peer| *counts.get(&idx(peer)).unwrap_or(&0);
+        assert!(
+            lead(2) > lead(1) && lead(1) > lead(3) && lead(3) > lead(4),
+            "peers should lead in placed-latency order, got {counts:?}"
+        );
+    }
+
     #[test]
     fn transactions_prefer_low_latency_peers_over_a_large_slow_tail() {
         let pr = responsiveness(50);
@@ -778,7 +968,10 @@ mod tests {
             .effective_latency_ms(DataSource::TransactionSynchronizer, idx(1))
             .unwrap();
         assert!(recovered < penalized);
-        assert!(recovered < NEUTRAL_LATENCY_MS, "recovered to {recovered}");
+        assert!(
+            recovered < TRANSACTIONS_SYNC_NEUTRAL_LATENCY_MS,
+            "recovered to {recovered}"
+        );
     }
 
     #[test]

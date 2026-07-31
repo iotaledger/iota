@@ -1350,9 +1350,12 @@ mod tests {
             dag_state::DataSource,
         };
 
-        /// `fetch_loop`'s test-build base timeout times the fast syncer's
-        /// multiplier, i.e. the constant a failed attempt is charged.
-        const FAILURE_PENALTY_MS: f64 = 1_000.0;
+        /// What a failed attempt records. `fetch_loop` charges its base timeout
+        /// times the fast syncer's multiplier, which in a test build is 1s and
+        /// so is lifted to the fast-sync neutral prior; in production the
+        /// charge is 20s and stands on its own. Either way it must not climb
+        /// with the fetch timeout as rounds escalate.
+        const FAILURE_PENALTY_MS: f64 = 2_000.0;
 
         fn fast_sync_context(committee_size: usize) -> Arc<Context> {
             let (mut context, _) = Context::new_for_test(committee_size);
