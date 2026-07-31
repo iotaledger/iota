@@ -11,7 +11,9 @@ use fastcrypto::{
 };
 use iota_sdk_crypto::{ToFromBech32, ToFromBytes as _, secp256k1::Secp256k1PrivateKey};
 use iota_sdk_types::SignatureScheme;
-use iota_types::crypto::{AuthorityKeyPair, NetworkKeyPair, SimpleKeypair, ToFromBytes};
+use iota_types::crypto::{
+    AuthorityKeyPair, NetworkKeyPair, SimpleKeypair, simple_keypair_to_network_keypair,
+};
 
 /// Write Bech32 encoded `flag || privkey` to file.
 pub fn write_keypair_to_file<P: AsRef<std::path::Path>>(
@@ -54,11 +56,7 @@ pub fn read_network_keypair_from_file<P: AsRef<std::path::Path>>(
     path: P,
 ) -> anyhow::Result<NetworkKeyPair> {
     let kp = read_keypair_from_file(path)?;
-    if kp.scheme() == SignatureScheme::Ed25519 {
-        NetworkKeyPair::from_bytes(&kp.to_bytes()[1..]).map_err(|e| anyhow!(e))
-    } else {
-        Err(anyhow!("Invalid scheme for network keypair"))
-    }
+    simple_keypair_to_network_keypair(&kp)
 }
 
 /// Read a SimpleKeypair from a file. The content could be any of the

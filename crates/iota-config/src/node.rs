@@ -11,16 +11,16 @@ use std::{
 };
 
 use anyhow::Result;
-use fastcrypto::{ed25519::Ed25519KeyPair, traits::ToFromBytes};
+use fastcrypto::ed25519::Ed25519KeyPair;
 use iota_keys::keypair_file::{read_authority_keypair_from_file, read_keypair_from_file};
 use iota_metrics::MetricGroups;
 use iota_names::config::IotaNamesConfig;
-use iota_sdk_types::{Address, SignatureScheme};
+use iota_sdk_types::Address;
 use iota_types::{
     committee::EpochId,
     crypto::{
         AccountKeyPair, AuthorityKeyPair, AuthorityPublicKeyBytes, KeypairTraits, NetworkKeyPair,
-        SimpleKeypair, get_key_pair_from_rng,
+        SimpleKeypair, get_key_pair_from_rng, simple_keypair_to_network_keypair,
     },
     messages_checkpoint::CheckpointSequenceNumber,
     multiaddr::Multiaddr,
@@ -1492,15 +1492,9 @@ impl KeyPairWithPath {
     pub fn ed25519_keypair(&self) -> &Ed25519KeyPair {
         self.ed25519_keypair
             .get_or_init(|| {
-                let kp = self.keypair();
-                assert_eq!(
-                    kp.scheme(),
-                    SignatureScheme::Ed25519,
-                    "only Ed25519 network keys are allowed"
-                );
                 Arc::new(
-                    Ed25519KeyPair::from_bytes(&kp.to_bytes()[1..])
-                        .expect("valid ed25519 private key bytes"),
+                    simple_keypair_to_network_keypair(self.keypair())
+                        .expect("only Ed25519 network keys are allowed"),
                 )
             })
             .as_ref()

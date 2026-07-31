@@ -158,6 +158,18 @@ pub fn network_keypair_to_simple_keypair(kp: &NetworkKeyPair) -> SimpleKeypair {
     )
 }
 
+/// Convert a stored [`SimpleKeypair`] back into the fastcrypto ed25519 keypair
+/// consumed by the validator network stacks. Fails if the key is not ed25519.
+pub fn simple_keypair_to_network_keypair(kp: &SimpleKeypair) -> Result<NetworkKeyPair, Error> {
+    if kp.scheme() != SignatureScheme::Ed25519 {
+        return Err(anyhow!(
+            "invalid scheme for network keypair: {}",
+            kp.scheme()
+        ));
+    }
+    NetworkKeyPair::from_bytes(&kp.to_bytes()[1..]).map_err(|e| anyhow!(e))
+}
+
 impl From<&SimpleKeypair> for PublicKey {
     fn from(kp: &SimpleKeypair) -> Self {
         match kp.public_key() {
