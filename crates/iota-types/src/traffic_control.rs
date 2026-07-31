@@ -4,17 +4,9 @@
 
 use std::path::PathBuf;
 
+use rand::distributions::Distribution;
 use serde::{Deserialize, Serialize, de::Deserializer};
 use serde_with::serde_as;
-
-// These values set to loosely attempt to limit
-// memory usage for a single sketch to ~20MB
-// For reference, see
-// https://github.com/jedisct1/rust-count-min-sketch/blob/master/src/lib.rs
-pub const DEFAULT_SKETCH_CAPACITY: usize = 50_000;
-pub const DEFAULT_SKETCH_PROBABILITY: f64 = 0.999;
-pub const DEFAULT_SKETCH_TOLERANCE: f64 = 0.2;
-use rand::distributions::Distribution;
 
 const TRAFFIC_SINK_TIMEOUT_SEC: u64 = 300;
 
@@ -179,20 +171,18 @@ fn default_drain_timeout() -> u64 {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct FreqThresholdConfig {
+    /// Sustained tallies per second allowed from a single direct client. Zero
+    /// blocks every client.
     #[serde(default = "default_client_threshold")]
     pub client_threshold: u64,
+    /// Sustained tallies per second allowed from a single proxied client.
     #[serde(default = "default_proxied_client_threshold")]
     pub proxied_client_threshold: u64,
+    /// Burst allowance, expressed in seconds of the sustained rate: a client
+    /// may send up to `threshold * window_size_secs` tallies back to back
+    /// before being blocked.
     #[serde(default = "default_window_size_secs")]
     pub window_size_secs: u64,
-    #[serde(default = "default_update_interval_secs")]
-    pub update_interval_secs: u64,
-    #[serde(default = "default_sketch_capacity")]
-    pub sketch_capacity: usize,
-    #[serde(default = "default_sketch_probability")]
-    pub sketch_probability: f64,
-    #[serde(default = "default_sketch_tolerance")]
-    pub sketch_tolerance: f64,
 }
 
 impl Default for FreqThresholdConfig {
@@ -201,21 +191,14 @@ impl Default for FreqThresholdConfig {
             client_threshold: default_client_threshold(),
             proxied_client_threshold: default_proxied_client_threshold(),
             window_size_secs: default_window_size_secs(),
-            update_interval_secs: default_update_interval_secs(),
-            sketch_capacity: default_sketch_capacity(),
-            sketch_probability: default_sketch_probability(),
-            sketch_tolerance: default_sketch_tolerance(),
         }
     }
 }
 
 fn default_client_threshold() -> u64 {
-    // by default only block client with unreasonably
-    // high qps, as a client could be a single fullnode proxying
-    // the majority of traffic from many behaving clients in normal
-    // operations. If used as a spam policy, all requests would
-    // count against this threshold within the window time. In
-    // practice this should always be set
+    // By default only block clients with an unreasonably high sustained rate,
+    // as a client could be a single fullnode proxying the traffic of many
+    // behaving clients. In practice this should always be set.
     1_000_000
 }
 
@@ -227,22 +210,6 @@ fn default_window_size_secs() -> u64 {
     30
 }
 
-fn default_update_interval_secs() -> u64 {
-    5
-}
-
-fn default_sketch_capacity() -> usize {
-    DEFAULT_SKETCH_CAPACITY
-}
-
-fn default_sketch_probability() -> f64 {
-    DEFAULT_SKETCH_PROBABILITY
-}
-
-fn default_sketch_tolerance() -> f64 {
-    DEFAULT_SKETCH_TOLERANCE
-}
-
 // Serializable representation of policy types, used in config
 // in order to easily change in tests or to killswitch
 #[derive(Clone, Serialize, Deserialize, Debug, Default)]
@@ -251,9 +218,8 @@ pub enum PolicyType {
     #[default]
     NoOp,
 
-    /// Blocks connection_ip after reaching a tally frequency (tallies per
-    /// second) of `threshold`, as calculated over an average window of
-    /// `window_size_secs` with granularity of `update_interval_secs`
+    /// Rate limits each client IP to `threshold` tallies per second, tolerating
+    /// a burst of `threshold * window_size_secs` tallies.
     #[serde(rename = "freq-threshold", alias = "FreqThreshold")]
     FreqThreshold(FreqThresholdConfig),
 
@@ -282,8 +248,6 @@ pub struct PolicyConfig {
     pub spam_policy_type: PolicyType,
     #[serde(default)]
     pub error_policy_type: PolicyType,
-    #[serde(default = "default_channel_capacity")]
-    pub channel_capacity: usize,
     #[serde(
         default = "default_spam_sample_rate",
         deserialize_with = "validate_sample_rate"
@@ -311,7 +275,6 @@ impl Default for PolicyConfig {
             proxy_blocklist_ttl_sec: 0,
             spam_policy_type: PolicyType::NoOp,
             error_policy_type: PolicyType::NoOp,
-            channel_capacity: 100,
             spam_sample_rate: default_spam_sample_rate(),
             dry_run: default_dry_run(),
             allow_list: None,
@@ -326,16 +289,13 @@ impl PolicyConfig {
             spam_policy_type: PolicyType::FreqThreshold(FreqThresholdConfig {
                 client_threshold: 1000,
                 window_size_secs: 5,
-                update_interval_secs: 1,
                 ..FreqThresholdConfig::default()
             }),
             error_policy_type: PolicyType::FreqThreshold(FreqThresholdConfig {
                 client_threshold: 50,
                 window_size_secs: 5,
-                update_interval_secs: 1,
                 ..FreqThresholdConfig::default()
             }),
-            channel_capacity: 6000,
             spam_sample_rate: Weight::new(1.0).unwrap(),
             dry_run: true,
             ..Self::default()
@@ -350,10 +310,6 @@ pub fn default_client_id_source() -> ClientIdSource {
 pub fn default_connection_blocklist_ttl_sec() -> u64 {
     60
 }
-pub fn default_channel_capacity() -> usize {
-    100
-}
-
 pub fn default_dry_run() -> bool {
     true
 }

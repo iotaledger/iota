@@ -9,8 +9,8 @@ description = "Rate limiting and IP blocking for the IOTA node RPC endpoints"
 
 [dependencies]
 # external dependencies
+arc-swap.workspace = true
 axum.workspace = true
-count-min-sketch = "0.1.7"
 dashmap.workspace = true
 futures.workspace = true
 governor.workspace = true

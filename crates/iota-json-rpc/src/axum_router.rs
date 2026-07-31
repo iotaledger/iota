@@ -5,7 +5,6 @@
 use std::{
     net::{IpAddr, SocketAddr},
     sync::Arc,
-    time::SystemTime,
 };
 
 use axum::{
@@ -204,9 +203,7 @@ async fn process_raw_request<L: Logger>(
     if let Ok(request) = serde_json::from_str::<Request>(raw_request) {
         // check if either IP is blocked, in which case return early
         if let Some(traffic_controller) = &service.traffic_controller {
-            if let Err(blocked_response) =
-                handle_traffic_req(traffic_controller.clone(), &client).await
-            {
+            if let Err(blocked_response) = handle_traffic_req(traffic_controller.clone(), &client) {
                 return blocked_response;
             }
         }
@@ -229,11 +226,11 @@ async fn process_raw_request<L: Logger>(
     }
 }
 
-async fn handle_traffic_req(
+fn handle_traffic_req(
     traffic_controller: Arc<TrafficController>,
     client: &Option<IpAddr>,
 ) -> Result<(), MethodResponse> {
-    if !traffic_controller.check(client, &None).await {
+    if !traffic_controller.check(client, &None) {
         // Entity in blocklist
         let err_obj =
             ErrorObject::borrowed(ErrorCode::ServerIsBusy.code(), TOO_MANY_REQUESTS_MSG, None);
@@ -265,7 +262,6 @@ fn handle_traffic_resp(
         // suitable rpc provider (or run their own). Later we may want
         // to provide a weight distribution based on the method being called.
         spam_weight: Weight::one(),
-        timestamp: SystemTime::now(),
     });
 }
 

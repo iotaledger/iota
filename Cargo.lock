@@ -2718,16 +2718,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "count-min-sketch"
-version = "0.1.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ca319fe30d7b68949da20d78b612215708af87157d49665a4545dadcc20fecc7"
-dependencies = [
- "rand 0.8.6",
- "siphasher 0.3.11",
-]
-
-[[package]]
 name = "counter"
 version = "0.5.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5861,7 +5851,6 @@ dependencies = [
  "iota-transaction-checks",
  "iota-types",
  "itertools 0.13.0",
- "libc",
  "lru 0.12.4",
  "mockall",
  "moka",
@@ -8097,8 +8086,8 @@ dependencies = [
 name = "iota-traffic-controller"
 version = "1.31.0-alpha"
 dependencies = [
+ "arc-swap",
  "axum 0.8.8",
- "count-min-sketch",
  "dashmap",
  "futures",
  "governor",

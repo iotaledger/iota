@@ -79,7 +79,7 @@ async fn server_with_policy(
     policy_config: PolicyConfig,
     executor: Option<Arc<dyn TransactionExecutor>>,
 ) -> GrpcServerHandle {
-    let traffic_controller = Arc::new(TrafficController::init_for_test(policy_config, None).await);
+    let traffic_controller = Arc::new(TrafficController::init_for_test(policy_config, None));
     let (handle, _reader) = start_test_server_with_traffic_controller(
         Arc::new(MockGrpcStateReader::default()),
         traffic_controller,
@@ -332,18 +332,15 @@ async fn stream_errors_feed_the_error_policy() {
         objects: HashMap::from([(object_id, object)]),
         ..Default::default()
     });
-    let traffic_controller = Arc::new(
-        TrafficController::init_for_test(
-            PolicyConfig {
-                connection_blocklist_ttl_sec: 120,
-                error_policy_type: PolicyType::TestNConnIP(ERROR_BLOCK_ATTEMPTS - 1),
-                dry_run: false,
-                ..Default::default()
-            },
-            None,
-        )
-        .await,
-    );
+    let traffic_controller = Arc::new(TrafficController::init_for_test(
+        PolicyConfig {
+            connection_blocklist_ttl_sec: 120,
+            error_policy_type: PolicyType::TestNConnIP(ERROR_BLOCK_ATTEMPTS - 1),
+            dry_run: false,
+            ..Default::default()
+        },
+        None,
+    ));
     let (handle, _reader) =
         start_test_server_with_traffic_controller(state_reader, traffic_controller, None).await;
     let client = LedgerServiceClient::new(connect(&handle).await);
@@ -411,8 +408,7 @@ async fn empty_read_batches_accrue_spam() {
 }
 
 /// A read batch larger than the configured maximum is rejected. Bounding the
-/// count also bounds the per-item traffic-control tally so a large batch cannot
-/// flood the tally channel.
+/// count also bounds the number of traffic tallies one batch can charge.
 #[tokio::test]
 async fn oversized_read_batch_is_rejected() {
     let max_batch: u32 = 5;

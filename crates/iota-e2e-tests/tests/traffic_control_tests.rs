@@ -272,23 +272,13 @@ async fn test_validator_traffic_control_error_blocked() -> Result<(), anyhow::Er
     ));
 
     // it should take no more than 4 requests to be added to the blocklist
-    for i in 0..n {
-        // Give the background tally task time to apply the blocklist before
-        // the last request, which is expected to be rejected.
-        if i == n - 1 {
-            tokio::time::sleep(Duration::from_millis(500)).await;
-        }
+    for _ in 0..n {
         let response = auth_client.handle_transaction(tx.clone(), None).await;
         if let Err(err) = response {
             if err.to_string().contains("Too many requests") {
                 return Ok(());
             }
         }
-        // Yield to the async executor so that the background `run_tally_loop` task
-        // can process the pending tally and update the blocklist before the next
-        // request. Without this, the single-threaded tokio test runtime may never
-        // schedule the tally loop between iterations, causing the test to be flaky.
-        tokio::task::yield_now().await;
     }
     panic!("Expected error policy to trigger within {n} requests");
 }
@@ -418,12 +408,7 @@ async fn test_fullnode_traffic_control_spam_blocked() -> Result<(), anyhow::Erro
     assert!(confirmed_local_execution.unwrap());
 
     // it should take no more than 4 requests to be added to the blocklist
-    for i in 0..txn_count {
-        // Give the background tally task time to apply the blocklist before
-        // the last request, which is expected to be rejected.
-        if i == txn_count - 1 {
-            tokio::time::sleep(Duration::from_millis(500)).await;
-        }
+    for _ in 0..txn_count {
         let response: Result<IotaTransactionBlockResponse, _> = jsonrpc_client
             .request("iota_getTransactionBlock", rpc_params![*tx_digest])
             .await;
@@ -438,11 +423,6 @@ async fn test_fullnode_traffic_control_spam_blocked() -> Result<(), anyhow::Erro
             );
             return Ok(());
         }
-        // Yield to the async executor so that the background `run_tally_loop` task
-        // can process the pending tally and update the blocklist before the next
-        // request. Without this, the single-threaded tokio test runtime may never
-        // schedule the tally loop between iterations, causing the test to be flaky.
-        tokio::task::yield_now().await;
     }
     panic!("Expected spam policy to trigger within {txn_count} requests");
 }
@@ -472,12 +452,7 @@ async fn test_fullnode_traffic_control_error_blocked() -> Result<(), anyhow::Err
     );
 
     // it should take no more than 4 requests to be added to the blocklist
-    for i in 0..txn_count {
-        // Give the background tally task time to apply the blocklist before
-        // the last request, which is expected to be rejected.
-        if i == txn_count - 1 {
-            tokio::time::sleep(Duration::from_millis(500)).await;
-        }
+    for _ in 0..txn_count {
         let txn = txns.swap_remove(0);
         let tx_digest = txn.digest();
         let (tx_bytes, _signatures) = txn.to_tx_bytes_and_signatures();
@@ -505,11 +480,6 @@ async fn test_fullnode_traffic_control_error_blocked() -> Result<(), anyhow::Err
             assert_eq!(&digest, tx_digest);
             assert!(confirmed_local_execution.unwrap());
         }
-        // Yield to the async executor so that the background `run_tally_loop` task
-        // can process the pending tally and update the blocklist before the next
-        // request. Without this, the single-threaded tokio test runtime may never
-        // schedule the tally loop between iterations, causing the test to be flaky.
-        tokio::task::yield_now().await;
     }
     panic!("Expected spam policy to trigger within {txn_count} requests");
 }
@@ -616,11 +586,6 @@ async fn test_validator_traffic_control_error_delegated() -> Result<(), anyhow::
             !err.to_string().contains("Too many requests"),
             "Expected the firewall to hold the block, not the node: {err}"
         );
-        // Yield to the async executor so that the background `run_tally_loop` task
-        // can process the pending tally and update the blocklist before the next
-        // request. Without this, the single-threaded tokio test runtime may never
-        // schedule the tally loop between iterations, causing the test to be flaky.
-        tokio::task::yield_now().await;
     }
     // The delegation request to the firewall server is asynchronous.
     let mut fw_blocklist = Vec::new();
@@ -710,11 +675,6 @@ async fn test_fullnode_traffic_control_spam_delegated() -> Result<(), anyhow::Er
             .request("iota_getTransactionBlock", rpc_params![*tx_digest])
             .await;
         assert!(response.is_ok(), "Expected request to succeed");
-        // Yield to the async executor so that the background `run_tally_loop` task
-        // can process the pending tally and update the blocklist before the next
-        // request. Without this, the single-threaded tokio test runtime may never
-        // schedule the tally loop between iterations, causing the test to be flaky.
-        tokio::task::yield_now().await;
     }
     // Allow time for the async HTTP delegation to the firewall server to complete.
     tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
@@ -752,8 +712,7 @@ async fn test_traffic_control_dead_mans_switch() -> Result<(), anyhow::Error> {
         drain_timeout_secs: 6,
     };
 
-    let tc = TrafficController::init_for_test(policy_config.clone(), Some(firewall_config.clone()))
-        .await;
+    let tc = TrafficController::init_for_test(policy_config.clone(), Some(firewall_config.clone()));
     assert!(
         !drain_path.exists(),
         "Expected drain file to not exist after startup unless previously set",
@@ -773,7 +732,7 @@ async fn test_traffic_control_dead_mans_switch() -> Result<(), anyhow::Error> {
     // if we drop traffic controller and re-instantiate, drain file should remain
     // set
     drop(tc);
-    let _tc = TrafficController::init_for_test(policy_config, Some(firewall_config)).await;
+    let _tc = TrafficController::init_for_test(policy_config, Some(firewall_config));
     for _ in 0..3 {
         assert!(
             drain_path.exists(),
@@ -797,26 +756,21 @@ async fn test_traffic_control_manual_set_dead_mans_switch() -> Result<(), anyhow
     Ok(())
 }
 
+/// A client staying below its sustained rate is never blocked, however long it
+/// keeps going.
 #[sim_test]
-async fn test_traffic_sketch_no_blocks() {
+async fn test_traffic_sim_no_blocks() {
     telemetry_subscribers::init_for_testing();
-    let sketch_config = FreqThresholdConfig {
-        client_threshold: 5_050,
-        proxied_client_threshold: 5_050,
-        window_size_secs: 4,
-        update_interval_secs: 1,
-        ..Default::default()
-    };
     let policy = PolicyConfig {
         connection_blocklist_ttl_sec: 1,
         proxy_blocklist_ttl_sec: 1,
-        spam_policy_type: PolicyType::FreqThreshold(sketch_config),
+        spam_policy_type: PolicyType::FreqThreshold(FreqThresholdConfig {
+            client_threshold: 5_050,
+            proxied_client_threshold: 5_050,
+            window_size_secs: 4,
+        }),
         error_policy_type: PolicyType::NoOp,
         spam_sample_rate: Weight::one(),
-        // keeping channel capacity small results in less errors in test metrics,
-        // in case of congestion (due to running on slower hardware) requests are dropped
-        // and do not influence the rate and do not make the spam rate inconsistent
-        channel_capacity: 10,
         dry_run: false,
         ..Default::default()
     };
@@ -841,23 +795,22 @@ async fn test_traffic_sketch_no_blocks() {
     assert!(metrics.total_time_blocked < Duration::from_secs(10));
 }
 
+/// A client running at twice its sustained rate exhausts the burst, is blocked
+/// for the blocklist TTL, and is blocked again once the replenished burst runs
+/// out, so it settles into a cycle.
 #[sim_test]
-async fn test_traffic_sketch_with_slow_blocks() {
+async fn test_traffic_sim_with_blocks() {
     telemetry_subscribers::init_for_testing();
-    let sketch_config = FreqThresholdConfig {
-        client_threshold: 9_900,
-        proxied_client_threshold: 9_900,
-        window_size_secs: 4,
-        update_interval_secs: 1,
-        ..Default::default()
-    };
     let policy = PolicyConfig {
         connection_blocklist_ttl_sec: 1,
         proxy_blocklist_ttl_sec: 1,
-        spam_policy_type: PolicyType::FreqThreshold(sketch_config),
+        spam_policy_type: PolicyType::FreqThreshold(FreqThresholdConfig {
+            client_threshold: 5_000,
+            proxied_client_threshold: 5_000,
+            window_size_secs: 1,
+        }),
         error_policy_type: PolicyType::NoOp,
         spam_sample_rate: Weight::one(),
-        channel_capacity: 10,
         dry_run: false,
         ..Default::default()
     };
@@ -873,36 +826,32 @@ async fn test_traffic_sketch_with_slow_blocks() {
     let expected_requests = 10_000 * 10 * 20;
     assert!(metrics.num_requests > expected_requests - 1_000);
     assert!(metrics.num_requests < expected_requests + 200);
-    // Due to averaging, we will take 4 seconds to start blocking, then
-    // will be in blocklist for 1 second (roughly). The cycle is 4s unblocked
-    // + 1s blocked = 5s, giving ~20% of requests blocked.
-    assert!(metrics.num_blocked as f64 > (expected_requests as f64 / 5.0) * 0.90);
-    // 10 clients, blocked at least every 5 seconds, over 20 seconds
+    // At 10_000/s against a 5_000/s quota, the 5_000 cell burst drains in ~1s,
+    // and fully replenishes over the 1s the client spends blocked. The cycle is
+    // ~1s unblocked + ~1s blocked, giving roughly half of all requests blocked.
+    assert!(metrics.num_blocked > expected_requests / 3);
+    assert!(metrics.num_blocked < (expected_requests * 2) / 3);
+    // 10 clients, blocked roughly every 2 seconds over 20 seconds
     assert!(metrics.num_blocklist_adds >= 40);
-    assert!(metrics.abs_time_to_first_block.unwrap() < Duration::from_secs(5));
-    assert!(metrics.total_time_blocked > Duration::from_millis(3500));
+    assert!(metrics.abs_time_to_first_block.unwrap() < Duration::from_secs(3));
+    assert!(metrics.total_time_blocked > Duration::from_secs(5));
 }
 
+/// Sampling only half the tallies halves the rate charged against the quota, so
+/// a threshold set to half the client's rate produces the same cycle.
 #[sim_test]
-async fn test_traffic_sketch_with_sampled_spam() {
+async fn test_traffic_sim_with_sampled_spam() {
     telemetry_subscribers::init_for_testing();
-    let sketch_config = FreqThresholdConfig {
-        client_threshold: 450,
-        proxied_client_threshold: 450,
-        window_size_secs: 4,
-        update_interval_secs: 1,
-        ..Default::default()
-    };
     let policy = PolicyConfig {
         connection_blocklist_ttl_sec: 1,
         proxy_blocklist_ttl_sec: 1,
-        spam_policy_type: PolicyType::FreqThreshold(sketch_config),
+        spam_policy_type: PolicyType::FreqThreshold(FreqThresholdConfig {
+            client_threshold: 250,
+            proxied_client_threshold: 250,
+            window_size_secs: 1,
+        }),
         spam_sample_rate: Weight::new(0.5).unwrap(),
         dry_run: false,
-        // keeping channel capacity small results in less errors in test metrics,
-        // in case of congestion (due to running on slower hardware) requests are dropped
-        // and do not influence the rate and do not make the spam rate inconsistent
-        channel_capacity: 10,
         ..Default::default()
     };
     let metrics = TrafficSim::run(
@@ -917,16 +866,14 @@ async fn test_traffic_sketch_with_sampled_spam() {
     let expected_requests = 1000 * 20;
     assert!(metrics.num_requests > expected_requests - 100);
     assert!(metrics.num_requests < expected_requests + 20);
-    // number of blocked requests should be nearly the same
-    // as before, as we have half the single client TPS,
-    // but the threshold is also halved. However, divide by
-    // 5 instead of 4 as a buffer due in case we're unlucky with
-    // the sampling
-    assert!(metrics.num_blocked > (expected_requests / 5) - 100);
+    // 1000 requests/s sampled at 0.5 charges ~500/s against a 250/s quota, the
+    // same 2x overage as the unsampled case, so the client spends roughly half
+    // its time blocked.
+    assert!(metrics.num_blocked > expected_requests / 3);
 }
 
 #[sim_test]
-async fn test_traffic_sketch_allowlist_mode() {
+async fn test_traffic_sim_allowlist_mode() {
     telemetry_subscribers::init_for_testing();
     let policy_config = PolicyConfig {
         connection_blocklist_ttl_sec: 1,

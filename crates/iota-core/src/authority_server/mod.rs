@@ -14,7 +14,6 @@ mod test_server;
 use std::{
     net::{IpAddr, SocketAddr},
     sync::Arc,
-    time::SystemTime,
 };
 
 use iota_network::tonic;
@@ -163,9 +162,9 @@ impl ValidatorService {
         }
     }
 
-    async fn check_traffic(&self, client: Option<IpAddr>) -> Result<(), tonic::Status> {
+    fn check_traffic(&self, client: Option<IpAddr>) -> Result<(), tonic::Status> {
         if let Some(traffic_controller) = &self.traffic_controller {
-            if !traffic_controller.check(&client, &None).await {
+            if !traffic_controller.check(&client, &None) {
                 // Entity in blocklist
                 Err(tonic::Status::from_error(IotaError::TooManyRequests.into()))
             } else {
@@ -225,7 +224,7 @@ impl ValidatorService {
         ProtoReq::Error: std::fmt::Display,
     {
         let (domain_req, ip) = self.extract_client_ip_and_request(request)?;
-        self.check_traffic(ip).await?;
+        self.check_traffic(ip)?;
         Ok((domain_req, ip))
     }
 
@@ -360,7 +359,6 @@ fn record_tally(
             (error_weight, error_type)
         }),
         spam_weight,
-        timestamp: SystemTime::now(),
     });
 }
 
@@ -377,7 +375,7 @@ macro_rules! handle_with_decoration {
         let client = $self.get_client_ip_addr(&$request, $self.client_id_source.as_ref().unwrap());
 
         // check if either IP is blocked, in which case return early
-        $self.check_traffic(client.clone()).await?;
+        $self.check_traffic(client.clone())?;
 
         // handle traffic tallying
         let wrapped_response = $self.$func_name($request).await;
