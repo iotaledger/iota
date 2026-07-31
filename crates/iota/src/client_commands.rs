@@ -1417,10 +1417,7 @@ impl IotaClientCommands {
                 let signer = context.get_object_owner(&input_coins[0]).await?;
                 let client = context.get_grpc_client().await?;
                 let mut builder = TransactionBuilder::new(signer).with_client(&client);
-                builder.pay(
-                    input_coins.clone(),
-                    recipients.into_iter().zip(amounts),
-                );
+                builder.pay(input_coins.clone(), recipients.into_iter().zip(amounts));
 
                 ensure!(
                     !payment.gas.iter().any(|gas| input_coins.contains(gas)),
