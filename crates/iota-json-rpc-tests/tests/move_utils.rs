@@ -79,6 +79,7 @@ async fn get_normalized_move_modules_by_package() -> Result<(), anyhow::Error> {
             "table_vec",
             "timelock",
             "token",
+            "transaction_deny_rules",
             "transfer",
             "transfer_policy",
             "tx_context",

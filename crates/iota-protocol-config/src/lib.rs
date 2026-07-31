@@ -207,6 +207,9 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 // Version 34: Bump the scorer version to 2 on devnet: misbehavior reports
 //             carry a dedicated counter for invalid bundle parts, previously
 //             folded into the unprovable block-fault counter.
+//             Add the `iota::transaction_deny_rules` framework module and its
+//             reserved object ID 0xDE9 (dormant until deny-rule governance
+//             activates).
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
