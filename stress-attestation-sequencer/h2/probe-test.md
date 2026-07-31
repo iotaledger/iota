@@ -108,28 +108,59 @@ workload transactions executed on each of the 4 validators.
 | 20000 | 100 | 2,000,000 | 5,000,000 | 154.293 | 1.035 | 400 |
 
 > [!NOTE]
-> At the ceiling (product ≥ 850k), every transaction exhausts its gas budget and
-> aborts out of gas. The abort still costs the full execution time, which is what
-> those rows measure.
+> At the ceiling (product ≥ 850k), the transactions fail with insufficient gas
+> before finishing, so those rows measure the execution time the budget paid
+> for, not the time the whole product would take. See *Where the 5,000,000 limit
+> comes from* below.
 
 ---
 
 ## Findings
 
 **1. Computation units sit at a floor, then rise steeply, then stop at a
-ceiling.** For product ≤ 5,000 every point is charged 1,000 — one
-`gas_rounding_step` — so light workloads cannot be told apart by computation cost.
-From product 10,000 upward, the charge rises fast (4,000 → 16,000 → … → 2,895,000
-at product 500,000). The steepest stretch is between products 20k and 40k, where
-doubling the product multiplies the charge by 8; growth flattens toward linear
-above that. At the top, it stops: product 700k gives 4,097,000, and 850k through
-2M all give exactly 5,000,000. That 5,000,000 is the transaction's gas budget
-expressed in computation units (the 5-IOTA budget divided by the 1,000 gas price).
-Once the work would cost more than the budget covers, the transaction aborts out
-of gas and is charged the whole budget, so every point past that reports the same
-figure. It happens to match the 5M `max_gas_computation_bucket`, but the gas
-budget is what binds here. The wide range below the ceiling is what gives the mode
-comparison distinct gas buckets to calibrate against.
+ceiling.** For product ≤ 5,000, every point is charged 1,000 — one
+`gas_rounding_step` — so light workloads cannot be distinguished by computation
+cost. From product 10,000 upward, the charge rises fast (4,000 → 16,000 → … →
+2,895,000 at product 500,000). The steepest stretch is between products 20k and
+40k, where doubling the product multiplies the charge by 8; growth flattens
+toward linear above that. At the top, it stops: product 700k gives 4,097,000,
+and 850k through 2M all give exactly 5,000,000 (`max_gas_computation_bucket`).
+The wide range below the ceiling is what gives the mode comparison distinct
+gas buckets to calibrate against. The execution times agree: 154 ms (WS) and
+288 ms (EPYC) at every plateau point, where the whole product would take about
+400 ms and 670 ms by the linear trend from products 200k-700k, so the VM
+stopped before finishing the work.
+
+<details>
+<summary>Where the 5,000,000 limit comes from</summary>
+
+That 5,000,000 is the transaction's gas budget expressed in computation units.
+The client does not set that budget from the workload:
+`SlowTestPayload::create_transaction` never calls `with_gas_budget`, so
+`TestTransactionBuilder` uses the gas price times
+`TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE`, a constant of 5,000,000
+(`iota-types/src/transaction.rs`). At the reference gas price of 1,000, that
+is 5,000,000,000 `NANOS`, or 5 IOTA, and `slow(1, 100)` gets the same budget
+as `slow(20000, 100)`. Since the budget is the gas price times a fixed number
+of units, the limit in computation units is 5,000,000 at any gas price. Once
+the work costs more than that, the transaction fails and is charged the whole
+budget, so every point past that reports the same figure.
+
+The 5,000,000 is also the value of `max_gas_computation_bucket`, and the two
+limits are connected: the gas meter is created with
+`min(gas_budget, max_gas_computation_bucket × gas_price)` (`computation_budget`
+in `gas_model/gas_v1.rs`). So no transaction on this network is metered above
+5,000,000 computation units, whatever budget it declares, and a larger budget
+changes only what a failed transaction is charged.
+
+**At the ceiling, the transactions fail** with
+`ExecutionErrorKind::InsufficientGas`. `bucketize_computation` rounds the
+metered units up to `gas_rounding_step`, and if the rounded cost has reached the
+budget it charges the whole budget and returns that error. A charge of exactly
+5,000,000 units therefore means the transaction failed; one that finishes is
+always charged less.
+
+</details>
 
 **2. The product drives the cost; how it divides between `n` and `size` barely
 matters.** At product 40,000 the three divisions (100×400, 200×200, 400×100) give

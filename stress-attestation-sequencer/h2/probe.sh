@@ -129,7 +129,7 @@ BENCH_REPO="${BENCH_REPO:-$REPO_ROOT/../network-benchmark}"
 STRESS_BIN="${STRESS_BIN_PATH:-$BENCH_REPO/target/release/stress}"
 
 # Machine-specific CSV so a WS and an EPYC sweep don't collide and the analysis
-# scripts can tell them apart: calibration-<cpu-slug>.csv, slug from the CPU model
+# scripts can distinguish them: calibration-<cpu-slug>.csv, slug from the CPU model
 # (e.g. ryzen-9-9950x3d, epyc-9454p). Override with MACHINE=<slug> if needed.
 cpu_slug() {
   local m
