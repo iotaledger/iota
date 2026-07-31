@@ -3342,8 +3342,12 @@ async fn grpc_input_refs(
         .await?
         .into_inner();
     Ok(objects
-        .iter()
-        .map(|object| object.object_reference())
+        .into_iter()
+        .map(|result| match result {
+            Ok(obj) => obj.object_reference().map_err(|e| anyhow::anyhow!(e)),
+            Err(e) if e.is_not_found() => Err(anyhow::anyhow!("Object not found: {e}")),
+            Err(e) => Err(anyhow::anyhow!(e)),
+        })
         .collect::<Result<_, _>>()?)
 }
 
