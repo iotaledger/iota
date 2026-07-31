@@ -199,6 +199,7 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             Enable Move-based sponsor account authentication on mainnet.
 //             Only sponsor Move authentication is performed pre-consensus on
 //             mainnet.
+//             Enable the P-COOL flow on devnet.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -3197,6 +3198,10 @@ impl ProtocolConfig {
                             .consensus_enable_sliding_window_leader_schedule = true;
                         cfg.feature_flags
                             .consensus_enable_absolute_score_leader_schedule = true;
+                        // Enable the P-COOL flow: transactions skip
+                        // pre-consensus certification and owned-object locking,
+                        // and conflicts are resolved after consensus.
+                        cfg.feature_flags.enable_pcool_flow = true;
                     }
                 }
                 // Use this template when making changes:

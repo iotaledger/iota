@@ -1328,7 +1328,7 @@
                 "enable_group_ops_native_function_msm": true,
                 "enable_move_authentication": true,
                 "enable_move_authentication_for_sponsor": true,
-                "enable_pcool_flow": false,
+                "enable_pcool_flow": true,
                 "enable_poseidon": true,
                 "enable_vdf": true,
                 "hardened_otw_check": true,
