@@ -373,7 +373,7 @@ pub(crate) fn subqueries(
         subqueries.push(("tx_senders", select_sender(sender, tx_bounds)));
     }
     if let Some(txs) = &filter.transaction_ids {
-        subqueries.push(("tx_digests", select_ids(txs, tx_bounds)));
+        subqueries.push(("tx_global_order", select_ids(txs, tx_bounds)));
     }
 
     if let Some(affected) = &filter.affected_address {
@@ -575,7 +575,17 @@ fn select_wrapped_or_deleted(
 }
 
 fn select_ids(ids: &Vec<Digest>, bound: TxBounds) -> RawQuery {
-    let query = select_tx(None, bound, "tx_digests");
+    // `chk_tx_sequence_number` is aliased so the subquery can be joined with
+    // the other index-table subqueries on `tx_sequence_number`. The filters
+    // must reference the column name, as `WHERE` cannot use a `SELECT` alias.
+    let query = filter!(
+        query!("SELECT chk_tx_sequence_number AS tx_sequence_number FROM tx_global_order"),
+        format!(
+            "{} <= chk_tx_sequence_number AND chk_tx_sequence_number < {}",
+            bound.scan_lo(),
+            bound.scan_hi()
+        )
+    );
     if ids.is_empty() {
         filter!(query, "1=0")
     } else {

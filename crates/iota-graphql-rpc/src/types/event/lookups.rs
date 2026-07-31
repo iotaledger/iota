@@ -149,7 +149,7 @@ pub(crate) fn add_bounds(
         query = filter!(
             query,
             format!(
-                "tx_sequence_number = (SELECT tx_sequence_number FROM tx_digests WHERE tx_digest = {})",
+                "tx_sequence_number = (SELECT chk_tx_sequence_number FROM tx_global_order WHERE tx_digest = {})",
                 bytea_literal(digest.as_slice()),
             )
         );
