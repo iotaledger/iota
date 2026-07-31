@@ -33,7 +33,8 @@ use crate::{
 // Helpers
 // ---------------------------------------------------------------------------
 
-/// Wraps a `Transaction` in a `UserTransactionV1` consensus transaction.
+/// Wraps a `TransactionEnvelope` in a `UserTransactionV1` consensus
+/// transaction.
 fn make_user_tx_v1(
     tx: iota_types::transaction::TransactionEnvelope,
 ) -> VerifiedSequencedConsensusTransaction {

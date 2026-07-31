@@ -4979,7 +4979,7 @@ impl AuthorityState {
         Some((input_coin_objects, written_coin_objects))
     }
 
-    /// Get the TransactionEnvelope that currently locks the given object, if
+    /// Get the transaction envelope that currently locks the given object, if
     /// any. Since object locks are only valid for one epoch, we also need
     /// the epoch_id in the query. Returns UserInputError::ObjectNotFound if
     /// no lock records for the given object can be found.

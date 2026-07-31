@@ -177,9 +177,9 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
         }
     }
 
-    /// Attempts to execute the provided Transaction.
+    /// Attempts to execute the provided transaction.
     ///
-    /// The provided Transaction undergoes the same types of checks that a
+    /// The provided transaction undergoes the same types of checks that a
     /// Validator does prior to signing and executing in the production
     /// system. Some of these checks are as follows:
     /// - User signature is valid

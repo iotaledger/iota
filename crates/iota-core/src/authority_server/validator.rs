@@ -51,7 +51,7 @@ impl ValidatorService {
         self.handle_certificate_v1(request).await
     }
 
-    /// Handles a `Transaction` request for benchmarking.
+    /// Handles a `TransactionEnvelope` request for benchmarking.
     pub async fn handle_transaction_for_benchmarking(
         &self,
         transaction: TransactionEnvelope,
@@ -830,7 +830,7 @@ impl ValidatorService {
 
 #[async_trait]
 impl Validator for ValidatorService {
-    /// Handles a `Transaction` request.
+    /// Handles a `TransactionEnvelope` request.
     async fn transaction(
         &self,
         request: tonic::Request<TransactionEnvelope>,

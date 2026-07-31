@@ -995,10 +995,9 @@ pub(crate) fn process_package(
 ) -> anyhow::Result<TransactionEvents> {
     let dependency_objects = store.get_objects(&dependencies);
     // When publishing genesis packages, since the std framework packages all have
-    // non-zero addresses, [`Transaction::input_objects_in_compiled_modules`] will
-    // consider them as dependencies even though they are not. Hence
-    // input_objects contain objects that don't exist on-chain because they are
-    // yet to be published.
+    // non-zero addresses, they will be considered as dependencies even though they
+    // are not. Hence input_objects contain objects that don't exist on-chain
+    // because they are yet to be published.
     #[cfg(debug_assertions)]
     {
         use std::collections::HashSet;

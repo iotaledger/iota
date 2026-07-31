@@ -315,8 +315,8 @@ async fn build_shared_object_transaction(
 
 // ── ValidatorV2 submit_tx (streaming) tests ──────────────────────────────────
 
-/// Helper: convert a `Vec<Transaction>` into the proto `SubmitTxRequest` and
-/// wrap it in a tonic request.
+/// Helper: convert a `Vec<TransactionEnvelope>` into the proto
+/// `SubmitTxRequest` and wrap it in a tonic request.
 fn make_v2_submit_request(
     transactions: Vec<TransactionEnvelope>,
 ) -> tonic::Request<SubmitTxRequest> {

@@ -147,7 +147,7 @@ impl CheckpointData {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CheckpointTransaction {
-    /// The input Transaction
+    /// The input transaction
     pub transaction: TransactionEnvelope,
     /// The effects produced by executing this transaction
     pub effects: TransactionEffects,

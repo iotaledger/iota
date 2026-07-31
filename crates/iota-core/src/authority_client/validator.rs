@@ -25,7 +25,7 @@ use crate::authority_client::{NetworkAuthorityClient, insert_metadata};
 
 #[async_trait]
 pub trait ValidatorAPI {
-    /// Handles a `Transaction`.
+    /// Handles a `TransactionEnvelope`.
     async fn handle_transaction(
         &self,
         transaction: TransactionEnvelope,
@@ -80,7 +80,7 @@ pub trait ValidatorAPI {
 
 #[async_trait]
 impl ValidatorAPI for NetworkAuthorityClient {
-    /// Handles a `Transaction` .
+    /// Handles a `TransactionEnvelope` .
     async fn handle_transaction(
         &self,
         transaction: TransactionEnvelope,

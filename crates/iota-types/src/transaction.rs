@@ -952,8 +952,9 @@ impl TransactionKindExt for TransactionKind {
 /// - **Constructors**: building new transactions (transfers, Move calls,
 ///   programmable txs, etc.)
 ///
-/// Note: The `iota-rust-sdk` crate (`iota-sdk-types`) defines its own
-/// [`iota_sdk_types::Transaction`] type with additional client-facing methods.
+/// Note: The `iota-rust-sdk` crate (`iota-sdk-types`) defines additional
+/// client-facing methods on this type (its `Transaction`, re-exported
+/// here as [`TransactionData`]).
 pub trait TransactionDataAPI {
     /// Returns the address of the transaction sender.
     fn sender(&self) -> Address;
