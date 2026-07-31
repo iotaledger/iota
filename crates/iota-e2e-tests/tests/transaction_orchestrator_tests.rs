@@ -759,6 +759,144 @@ async fn test_pcool_deduplicates_concurrent_submissions() -> Result<(), anyhow::
     Ok(())
 }
 
+/// A duplicate submission must inherit the outcome of the in-flight
+/// submission it waited on. With a transaction validators deterministically
+/// reject (its gas object version was already consumed), the duplicate must
+/// fail with the same error as the driving submission instead of waiting for
+/// a checkpoint inclusion that can never happen and timing out.
+#[sim_test]
+async fn test_pcool_duplicate_submission_inherits_failure() -> Result<(), anyhow::Error> {
+    let _env_guard = enable_pcool_env();
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(true);
+        config
+    });
+
+    let test_cluster = TestClusterBuilder::new().build().await;
+    let context = &test_cluster.wallet;
+    let handle = &test_cluster.fullnode_handle.iota_node;
+    let orchestrator = handle.with(|n| n.transaction_orchestrator().as_ref().unwrap().clone());
+
+    // Consume a gas object, then build a second transaction spending the
+    // same (now stale) gas object version: validators reject it as invalid,
+    // deterministically failing the driving submission.
+    let (sender, gas_object) = context.get_one_gas_object().await.unwrap().unwrap();
+    let gas_price = context.get_reference_gas_price().await.unwrap();
+    let spend = context.sign_transaction(
+        &TestTransactionBuilder::new(sender, gas_object, gas_price)
+            .transfer_iota(Some(1), sender)
+            .build(),
+    );
+    orchestrator
+        .execute_transaction_block(
+            ExecuteTransactionRequestV1::new(spend),
+            ExecuteTransactionRequestType::WaitForLocalExecution,
+            Some(make_socket_addr()),
+        )
+        .await
+        .expect("spending the gas object must succeed");
+
+    let stale = context.sign_transaction(
+        &TestTransactionBuilder::new(sender, gas_object, gas_price)
+            .transfer_iota(Some(2), sender)
+            .build(),
+    );
+
+    let (first, second) = tokio::join!(
+        orchestrator.execute_transaction_block(
+            ExecuteTransactionRequestV1::new(stale.clone()),
+            ExecuteTransactionRequestType::WaitForLocalExecution,
+            Some(make_socket_addr()),
+        ),
+        orchestrator.execute_transaction_block(
+            ExecuteTransactionRequestV1::new(stale.clone()),
+            ExecuteTransactionRequestType::WaitForLocalExecution,
+            Some(make_socket_addr()),
+        ),
+    );
+
+    let first_err = first.expect_err("transaction spending a stale gas object must fail");
+    let second_err = second.expect_err("transaction spending a stale gas object must fail");
+    assert!(
+        matches!(first_err, QuorumDriverError::InvalidTransaction(_)),
+        "expected the submission to be rejected as invalid, got {first_err:?}"
+    );
+    assert_eq!(
+        first_err, second_err,
+        "the duplicate submission must inherit the in-flight submission's error"
+    );
+
+    Ok(())
+}
+
+/// A duplicate that requires certified effects (v1 without checkpoint
+/// waiting) joining an in-flight skip-cert submission must not inherit the
+/// uncertified single-validator effects: it certifies the effects itself and
+/// returns certified finality.
+#[sim_test]
+async fn test_pcool_duplicate_requiring_certification_returns_certified_effects()
+-> Result<(), anyhow::Error> {
+    let _env_guard = enable_pcool_env();
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(true);
+        config
+    });
+
+    let mut test_cluster = TestClusterBuilder::new().build().await;
+    let context = &mut test_cluster.wallet;
+    let handle = &test_cluster.fullnode_handle.iota_node;
+    let orchestrator = handle.with(|n| n.transaction_orchestrator().as_ref().unwrap().clone());
+
+    let txn = batch_make_transfer_transactions(context, 1)
+        .await
+        .pop()
+        .expect("gas objects should produce at least one tx");
+
+    let request = |txn: Transaction| ExecuteTransactionRequestV1 {
+        transaction: txn,
+        include_events: false,
+        include_input_objects: false,
+        include_output_objects: false,
+        include_auxiliary_data: false,
+    };
+
+    // `WaitForLocalExecution` drives a skip-cert submission; the head start
+    // lets the v1 call below join it as a duplicate instead of driving its
+    // own submission.
+    let (driving, duplicate) = tokio::join!(
+        orchestrator.execute_transaction_block(
+            request(txn.clone()),
+            ExecuteTransactionRequestType::WaitForLocalExecution,
+            Some(make_socket_addr()),
+        ),
+        async {
+            tokio::time::sleep(Duration::from_millis(100)).await;
+            orchestrator
+                .execute_transaction_v1(request(txn.clone()), false, Some(make_socket_addr()))
+                .await
+        },
+    );
+
+    let (driving_response, _) = driving?;
+    let duplicate_response = duplicate?;
+
+    assert!(
+        !matches!(
+            duplicate_response.effects.finality_info,
+            EffectsFinalityInfo::UncertifiedSingleValidator(_)
+        ),
+        "a certification-requiring duplicate must never see uncertified effects, got {:?}",
+        duplicate_response.effects.finality_info
+    );
+    assert_eq!(
+        driving_response.effects.effects.transaction_digest(),
+        duplicate_response.effects.effects.transaction_digest(),
+        "the duplicate must resolve to the same finalized effects"
+    );
+
+    Ok(())
+}
+
 /// Without consensus quorum, the skip-cert path can never observe checkpoint
 /// inclusion. The orchestrator must surface this as `TimeoutBeforeFinality`
 /// (a retriable transient), not `QuorumDriverInternal` — the latter would
@@ -978,4 +1116,139 @@ async fn test_orchestrator_rejects_expired_transaction() {
         ),
         "expected InvalidTransaction(TransactionExpired), got {err:?}"
     );
+}
+
+/// Under the P-COOL flow, `WaitForLocalExecution` races the
+/// TransactionDriver submission against local checkpoint inclusion inside
+/// `submit_with_checkpoint_race`. That race — including the
+/// `drive_transaction` call it wraps — runs in a task detached from the
+/// caller, so a client that disconnects mid-call must not stop the
+/// transaction from being driven to finality.
+///
+/// Quorum is broken before submission so the caller can be aborted while the
+/// transaction is provably still stuck (no quorum can possibly have been
+/// reached yet); quorum is then restored and finality is confirmed
+/// independently of the aborted caller.
+///
+/// Checkpoint inclusion alone cannot isolate the detached task: the
+/// submission typically reaches a live validator's consensus adapter before
+/// the abort, and the validator carries it to finality once quorum is
+/// restored even if the fullnode-side task died. The in-flight map is the
+/// fullnode-side signal — a cancelled submission drops its guard and removes
+/// the entry — so the test asserts the digest stays in flight across the
+/// abort and that a duplicate submitted while quorum is still broken joins
+/// the surviving submission instead of driving its own.
+#[sim_test]
+async fn test_submission_survives_caller_abort() -> Result<(), anyhow::Error> {
+    let _env_guard = enable_pcool_env();
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(true);
+        config
+    });
+
+    let mut test_cluster = TestClusterBuilder::new().build().await;
+    let context = &mut test_cluster.wallet;
+    let handle = &test_cluster.fullnode_handle.iota_node;
+    let orchestrator = handle.with(|n| n.transaction_orchestrator().as_ref().unwrap().clone());
+
+    let txn = batch_make_transfer_transactions(context, 1)
+        .await
+        .pop()
+        .expect("gas objects should produce at least one tx");
+    let digest = *txn.digest();
+
+    // Break quorum so the submission cannot possibly finish yet, then submit
+    // and abort the caller while it is provably still stuck.
+    let validator_addresses = test_cluster.get_validator_pubkeys();
+    assert_eq!(validator_addresses.len(), 4);
+    test_cluster.stop_node(&validator_addresses[0]);
+    test_cluster.stop_node(&validator_addresses[1]);
+
+    let caller_task = tokio::spawn({
+        let orchestrator = orchestrator.clone();
+        let txn = txn.clone();
+        async move {
+            orchestrator
+                .execute_transaction_block(
+                    ExecuteTransactionRequestV1::new(txn),
+                    ExecuteTransactionRequestType::WaitForLocalExecution,
+                    Some(make_socket_addr()),
+                )
+                .await
+        }
+    });
+    tokio::time::sleep(Duration::from_secs(1)).await;
+    caller_task.abort();
+    assert!(
+        caller_task
+            .await
+            .expect_err("caller task should not have finished before quorum was restored")
+            .is_cancelled(),
+        "caller task should have been aborted, not have panicked"
+    );
+    assert_eq!(
+        orchestrator.in_flight_duplicates_for_testing(&digest),
+        Some(0),
+        "the submission must still be in flight after the caller abort"
+    );
+
+    // A duplicate submitted while quorum is still broken must join the
+    // surviving submission instead of driving a second committee-wide one.
+    let duplicate_task = tokio::spawn({
+        let orchestrator = orchestrator.clone();
+        let txn = txn.clone();
+        async move {
+            orchestrator
+                .execute_transaction_block(
+                    ExecuteTransactionRequestV1::new(txn),
+                    ExecuteTransactionRequestType::WaitForLocalExecution,
+                    Some(make_socket_addr()),
+                )
+                .await
+        }
+    });
+    tokio::time::sleep(Duration::from_secs(1)).await;
+    assert_eq!(
+        orchestrator.in_flight_duplicates_for_testing(&digest),
+        Some(1),
+        "the duplicate must await the in-flight submission's outcome"
+    );
+
+    // Restore quorum. The detached task inside the orchestrator — never
+    // aborted — should still be retrying submission on its own and drive the
+    // transaction to finality.
+    tokio::join!(
+        test_cluster.start_node(&validator_addresses[0]),
+        test_cluster.start_node(&validator_addresses[1]),
+    );
+
+    let (duplicate_response, _) = duplicate_task
+        .await
+        .expect("duplicate task should not panic")?;
+    assert!(
+        matches!(
+            duplicate_response.effects.finality_info,
+            EffectsFinalityInfo::Checkpointed(_, _)
+        ),
+        "the duplicate should resolve to Checkpointed via the surviving submission, got {:?}",
+        duplicate_response.effects.finality_info
+    );
+    assert_eq!(
+        duplicate_response.effects.effects.transaction_digest(),
+        &digest,
+        "the duplicate must return the aborted caller's transaction"
+    );
+
+    let inclusion = handle
+        .state()
+        .wait_for_checkpoint_inclusion(&[digest], Duration::from_secs(30))
+        .await
+        .expect("wait_for_checkpoint_inclusion should not error");
+    assert!(
+        inclusion.contains_key(&digest),
+        "transaction should reach finality via the detached task even though \
+         the caller was aborted"
+    );
+
+    Ok(())
 }

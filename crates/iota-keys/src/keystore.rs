@@ -14,13 +14,16 @@ use std::{
 use anyhow::{Context, anyhow, bail, ensure};
 use bip32::DerivationPath;
 use bip39::{Language, Mnemonic, Seed};
+use iota_sdk_crypto::{
+    ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey, secp256r1::Secp256r1PrivateKey,
+};
 use iota_sdk_types::{
-    Address,
+    Address, SignatureScheme,
     crypto::{Intent, IntentMessage},
 };
 use iota_types::crypto::{
-    EncodeDecodeBase64, IotaKeyPair, IotaSignature, PublicKey, Signature, SignatureScheme,
-    enum_dispatch, get_key_pair_from_rng,
+    EncodeDecodeBase64, IotaKeyPair, IotaSignature, PublicKey, Signature, enum_dispatch,
+    get_key_pair_from_rng,
 };
 use rand::{SeedableRng, rngs::StdRng};
 use regex::Regex;
@@ -201,7 +204,6 @@ pub struct Alias {
     pub alias: String,
 }
 
-#[expect(clippy::large_enum_variant)]
 #[serde_as]
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(
@@ -226,6 +228,24 @@ pub enum StoredKey {
 impl From<IotaKeyPair> for StoredKey {
     fn from(keypair: IotaKeyPair) -> Self {
         StoredKey::KeyPair(keypair)
+    }
+}
+
+impl From<Ed25519PrivateKey> for StoredKey {
+    fn from(key: Ed25519PrivateKey) -> Self {
+        StoredKey::KeyPair(key.into())
+    }
+}
+
+impl From<Secp256k1PrivateKey> for StoredKey {
+    fn from(key: Secp256k1PrivateKey) -> Self {
+        StoredKey::KeyPair(key.into())
+    }
+}
+
+impl From<Secp256r1PrivateKey> for StoredKey {
+    fn from(key: Secp256r1PrivateKey) -> Self {
+        StoredKey::KeyPair(key.into())
     }
 }
 

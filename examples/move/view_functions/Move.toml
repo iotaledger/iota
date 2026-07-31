@@ -1,9 +1,10 @@
 [package]
-name = "view_function_example"
+name = "view_functions"
+version = "0.0.1"
 edition = "2024"
 
 [dependencies]
 Iota = { local = "../../../crates/iota-framework/packages/iota-framework" }
 
 [addresses]
-view_function_example = "0x0"
+view_functions = "0x0"

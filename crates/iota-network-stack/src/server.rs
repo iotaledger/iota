@@ -4,6 +4,7 @@
 
 use std::{
     convert::Infallible,
+    num::NonZeroUsize,
     task::{Context, Poll},
 };
 
@@ -20,6 +21,7 @@ use tower_http::{
 };
 
 use crate::{
+    concurrency::ServiceConcurrencyLimit,
     config::Config,
     metrics::{
         DefaultMetricsCallbackProvider, GRPC_ENDPOINT_PATH_HEADER, MetricsCallbackProvider,
@@ -64,6 +66,33 @@ impl<M: MetricsCallbackProvider> ServerBuilder<M> {
         S::Future: Send + 'static,
     {
         self.router = self.router.add_service(svc);
+        self
+    }
+
+    /// Add a new service to this Server with its own concurrency limit,
+    /// enforced independently of every other service on this server.
+    ///
+    /// With `load_shed` enabled, requests over the limit are rejected
+    /// immediately with gRPC `RESOURCE_EXHAUSTED`; otherwise they wait for a
+    /// slot to free up.
+    pub fn add_service_with_concurrency_limit<S>(
+        mut self,
+        svc: S,
+        limit: NonZeroUsize,
+        load_shed: bool,
+    ) -> Self
+    where
+        S: Service<Request<Body>, Response = Response<Body>, Error = Infallible>
+            + NamedService
+            + Clone
+            + Send
+            + Sync
+            + 'static,
+        S::Future: Send + 'static,
+    {
+        self.router = self
+            .router
+            .add_service(ServiceConcurrencyLimit::new(svc, limit, load_shed));
         self
     }
 

@@ -4,12 +4,9 @@
 use iota_ledger::{Ledger, SignedTransaction};
 use iota_sdk::{
     IotaClient,
-    types::{
-        crypto::{PublicKey, SignatureScheme},
-        transaction::TransactionData,
-    },
+    types::{crypto::PublicKey, transaction::TransactionData},
 };
-use iota_sdk_types::{Address, Intent};
+use iota_sdk_types::{Address, Intent, SignatureScheme};
 use tracing::warn;
 
 mod errors;

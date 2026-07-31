@@ -24,12 +24,12 @@ use iota_sdk_types::{
     ConsensusCommitDigest, Digest, EffectsAuxDataDigest, Identifier as NativeIdentifier,
     MisbehaviorReportDigest, MoveAuthenticatorDigest, ObjectDigest, ObjectId as NativeObjectId,
     SenderSignedDataDigest, StructTag as NativeStructTag, TransactionDigest,
-    TransactionEffectsDigest, TransactionEventsDigest, TypeTag as NativeTypeTag, Version,
+    TransactionEffectsDigest, TransactionEventsDigest, TypeTag as NativeTypeTag,
+    UserSignature as NativeUserSignature, Version,
 };
 use iota_types::{
     iota_serde::{to_iota_struct_tag_string, to_iota_type_tag_string},
     parse_iota_struct_tag, parse_iota_type_tag,
-    signature::UserSignature as NativeUserSignature,
 };
 use schemars::{
     JsonSchema,

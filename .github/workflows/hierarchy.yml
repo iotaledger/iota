@@ -132,7 +132,6 @@ jobs:
       - dprint-format
       - license-check
       - typos
-      - rust
     if: (!cancelled() && !failure() && github.event_name != 'pull_request' && needs.diff.outputs.isRust == 'true')
     uses: ./.github/workflows/_split_cluster.yml
 
@@ -141,7 +140,6 @@ jobs:
   split-cluster-sync-check:
     needs:
       - diff
-      - rust
     if: (!cancelled() && !failure() && github.event_name != 'pull_request' && needs.diff.outputs.isStarfishSynchronization == 'true')
     uses: ./.github/workflows/_split_cluster_sync_check.yml
 

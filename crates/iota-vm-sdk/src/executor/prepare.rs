@@ -12,7 +12,9 @@
 use std::collections::HashSet;
 
 use iota_config::transaction_deny_config::TransactionDenyConfig;
-use iota_sdk_types::{Address, Digest, Event, ObjectId, ObjectReference};
+use iota_sdk_types::{
+    Address, Digest, Event, MoveAuthenticator, ObjectId, ObjectReference, UserSignature,
+};
 use iota_types::{
     account_abstraction::authenticator_function::{
         AuthenticatorFunctionRefForExecution,
@@ -26,9 +28,8 @@ use iota_types::{
     gas_coin::mock_simulation_gas_coin,
     inner_temporary_store::InnerTemporaryStore,
     layout_resolver::LayoutResolver,
-    move_authenticator::{MoveAuthenticator, MoveAuthenticatorExt},
+    move_authenticator::MoveAuthenticatorExt,
     object::bounded_visitor::BoundedVisitor,
-    signature::UserSignature,
     storage::BackingStore,
     transaction::{
         CheckedInputObjects, InputObjectKind, InputObjects, ObjectReadResult,

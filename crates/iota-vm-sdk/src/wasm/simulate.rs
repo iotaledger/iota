@@ -6,11 +6,10 @@
 
 use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
 use iota_protocol_config::{Chain, ProtocolVersion};
-use iota_sdk_types::{ObjectReference, Owner as SdkOwner};
+use iota_sdk_types::{ObjectReference, Owner as SdkOwner, UserSignature};
 use iota_types::{
     effects::TransactionEffectsAPI,
     object::Object,
-    signature::UserSignature,
     transaction::{SenderSignedData, TransactionData},
 };
 use wasm_bindgen::prelude::*;

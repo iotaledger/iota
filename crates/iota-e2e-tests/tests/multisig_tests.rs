@@ -9,7 +9,7 @@ use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_crypto::{secp256r1::Secp256r1PrivateKey, simple::SimpleKeypair};
 use iota_sdk_types::{
-    Address,
+    Address, UserSignature,
     crypto::{
         Intent, IntentMessage, PasskeyAuthenticator, PasskeyPublicKey, PublicKey,
         Secp256r1PublicKey, Secp256r1Signature, SimpleSignature,
@@ -19,7 +19,6 @@ use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     error::{IotaError, IotaResult},
     multisig::{MultiSig, MultiSigPublicKey, MultisigMember},
-    signature::UserSignature,
     transaction::Transaction,
     utils::{make_upgraded_multisig_tx, multisig_keys},
 };
@@ -252,13 +251,13 @@ async fn test_multisig_e2e() {
 
     let (kp1, kp2, kp3) = multisig_keys();
     let pk0 = kp1.public_key(); // ed25519
-    let pk1 = kp2.public_key(); // secp256k1
+    let pk1: PublicKey = kp2.public_key().into(); // secp256k1
     let pk2 = kp3.public_key(); // secp256r1
 
     let multisig_pk = MultiSigPublicKey::new_unchecked(
         vec![
             MultisigMember::new(pk0, 1),
-            MultisigMember::new(pk1, 1),
+            MultisigMember::new(pk1.clone(), 1),
             MultisigMember::new(pk2, 1),
         ],
         2,
@@ -300,7 +299,7 @@ async fn test_multisig_e2e() {
     assert!(
         res.unwrap_err()
             .to_string()
-            .contains("Invalid sig for pk=AQIOF81ZOeRrGWZBlozXWZELold+J/pz/eOHbbm+xbzrKw==")
+            .contains(format!("Invalid sig for pk={}", pk1.to_base64()).as_str())
     );
 
     // 4. sign with key 0 only is below threshold, fails to execute.

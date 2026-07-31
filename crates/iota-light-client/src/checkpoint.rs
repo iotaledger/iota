@@ -2,27 +2,19 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use core::sync::atomic::AtomicU64;
 use std::{
-    collections::HashSet,
     fs,
     io::{Read, Write},
-    num::NonZeroUsize,
-    sync::Arc,
 };
 
 use anyhow::{Context, Result, bail};
-use iota_archival::reader::{ArchiveReader, ArchiveReaderMetrics};
-use iota_config::{genesis::Genesis, node::ArchiveReaderConfig};
+use iota_config::genesis::Genesis;
+use iota_data_ingestion_core::history::epoch_boundaries::EpochBoundaries;
 use iota_json_rpc_types::CheckpointId;
 use iota_sdk::IotaClientBuilder;
-use iota_sdk_types::{CheckpointContentsDigest, CheckpointDigest, TransactionDigest};
 use iota_types::{
-    committee::{Committee, CommitteeChainVerifier},
-    messages_checkpoint::{CertifiedCheckpointSummary, VerifiedCheckpoint},
-    storage::{ObjectStore, ReadStore, WriteStore},
+    committee::CommitteeChainVerifier, messages_checkpoint::CertifiedCheckpointSummary,
 };
-use prometheus_filtered::Registry;
 use serde::{Deserialize, Serialize};
 use tracing::{info, warn};
 
@@ -87,35 +79,25 @@ pub fn write_checkpoint_summary(
     Ok(())
 }
 
-/// Downloads the list of end of epoch checkpoints from the archive store or the
-/// GraphQL endpoint
+/// Downloads the list of end-of-epoch checkpoints, using GraphQL first and
+/// falling back to the checkpoint archive for any epochs GraphQL cannot serve.
 pub async fn sync_checkpoint_list_to_latest(config: &Config) -> anyhow::Result<CheckpointList> {
-    let checkpoints_from_archive = if config.archive_store_config.is_some() {
-        match sync_checkpoint_list_to_latest_from_archive(config).await {
-            Ok(list) => list,
-            Err(e) => {
-                warn!("Failed to sync checkpoint list from archive: {e}");
-                CheckpointList::default()
-            }
-        }
-    } else {
-        CheckpointList::default()
-    };
+    let mut checkpoint_list = read_checkpoint_list(config).unwrap_or_default();
+    let target_epoch = latest_epoch_from_rpc(config).await?;
 
-    let checkpoints_from_graphql = if config.graphql_url.is_some() {
-        match sync_checkpoint_list_to_latest_from_graphql(config).await {
-            Ok(list) => list,
-            Err(e) => {
-                warn!("Failed to sync checkpoints from full node: {e}");
-                CheckpointList::default()
-            }
+    if config.graphql_url.is_some() {
+        if let Err(e) = extend_from_graphql(config, &mut checkpoint_list, target_epoch).await {
+            warn!("GraphQL checkpoint list sync stopped early, falling back to archive: {e}");
         }
-    } else {
-        CheckpointList::default()
-    };
+    }
 
-    let checkpoint_list =
-        merge_checkpoint_lists(&checkpoints_from_archive, &checkpoints_from_graphql);
+    if (checkpoint_list.len() as u64) < target_epoch && config.checkpoint_store_config.is_some() {
+        if let Err(e) =
+            extend_from_checkpoint_archive(config, &mut checkpoint_list, target_epoch).await
+        {
+            warn!("Checkpoint archive fallback failed: {e}");
+        }
+    }
 
     if checkpoint_list.is_empty() {
         bail!("Unable to sync from configured sources");
@@ -127,125 +109,77 @@ pub async fn sync_checkpoint_list_to_latest(config: &Config) -> anyhow::Result<C
     Ok(checkpoint_list)
 }
 
-/// Merges two checkpoint lists, removing duplicates and ensuring the result is
-/// sorted
-fn merge_checkpoint_lists(list1: &CheckpointList, list2: &CheckpointList) -> CheckpointList {
-    let unique_checkpoints: HashSet<u64> = list1
-        .checkpoints
-        .iter()
-        .chain(list2.checkpoints.iter())
-        .copied()
-        .collect();
-
-    // Convert to sorted vector
-    let mut sorted_checkpoints: Vec<_> = unique_checkpoints.into_iter().collect();
-    sorted_checkpoints.sort();
-
-    CheckpointList {
-        checkpoints: sorted_checkpoints,
-    }
-}
-
-/// Syncs the list of end-of-epoch checkpoints from GraphQL.
+/// Syncs the list of end-of-epoch checkpoints from GraphQL only.
 pub async fn sync_checkpoint_list_to_latest_from_graphql(
     config: &Config,
 ) -> anyhow::Result<CheckpointList> {
-    info!("Syncing checkpoint list from GraphQL.");
+    let mut checkpoint_list = read_checkpoint_list(config).unwrap_or_default();
+    let target_epoch = latest_epoch_from_rpc(config).await?;
+    extend_from_graphql(config, &mut checkpoint_list, target_epoch).await?;
+    Ok(checkpoint_list)
+}
 
-    // Get the local checkpoint list, or create an empty one if it doesn't exist
-    let mut checkpoints_list = match read_checkpoint_list(config) {
-        Ok(list) => list,
-        Err(_) => {
-            info!("No existing checkpoint file found. Creating a new checkpoint list.");
-            CheckpointList::default()
-        }
-    };
-
-    // Get the last synced epoch, or fetch the first
-    let last_epoch = if !checkpoints_list.is_empty() {
-        checkpoints_list.len() as u64 - 1
-    } else {
-        let first_epoch = 0u64;
-        let first_seq = query_last_checkpoint_of_epoch(config, first_epoch).await?;
-        checkpoints_list.checkpoints.push(first_seq);
-        info!("Synced epoch: {first_epoch}, checkpoint: {first_seq}",);
-        first_epoch
-    };
-
-    // Download the last synced checkpoint from the node
+/// Returns the epoch of the latest checkpoint known to the RPC node. Every
+/// epoch below this one has a recorded end-of-epoch checkpoint.
+async fn latest_epoch_from_rpc(config: &Config) -> anyhow::Result<u64> {
     let client = IotaClientBuilder::default()
         .build(config.rpc_url.as_str())
         .await?;
     let read_api = client.read_api();
-
-    // Download the latest available checkpoint from the node
     let latest_seq = read_api.get_latest_checkpoint_sequence_number().await?;
     let latest_checkpoint = read_api
         .get_checkpoint(CheckpointId::SequenceNumber(latest_seq))
         .await?;
-
-    // Sequentially record all the missing end of epoch checkpoints numbers
-    for target_epoch in (last_epoch + 1)..latest_checkpoint.epoch {
-        let target_seq = query_last_checkpoint_of_epoch(config, target_epoch).await?;
-        checkpoints_list.checkpoints.push(target_seq);
-        info!("Synced epoch: {target_epoch}, checkpoint: {target_seq}");
-    }
-
-    Ok(checkpoints_list)
+    Ok(latest_checkpoint.epoch)
 }
 
-/// Syncs the list of end-of-epoch checkpoints from an archive store.
-pub async fn sync_checkpoint_list_to_latest_from_archive(
+/// Appends end-of-epoch checkpoints from GraphQL for every epoch from the
+/// current list length up to (but excluding) `target_epoch`. Returns an error
+/// at the first epoch GraphQL cannot serve, keeping the epochs synced before
+/// it.
+async fn extend_from_graphql(
     config: &Config,
-) -> anyhow::Result<CheckpointList> {
-    info!("Syncing checkpoint list from archive store.");
-
-    let Some(archive_store_config) = &config.archive_store_config else {
-        bail!("Archive store config is not provided");
-    };
-
-    let config = ArchiveReaderConfig {
-        remote_store_config: archive_store_config.clone(),
-        download_concurrency: NonZeroUsize::new(5).unwrap(),
-        use_for_pruning_watermark: false,
-    };
-
-    let metrics = ArchiveReaderMetrics::new(&Registry::default());
-    let archive_reader = ArchiveReader::new(config, &metrics)?;
-    archive_reader.sync_manifest_once().await?;
-
-    let manifest = archive_reader.get_manifest().await?;
-    let checkpoints = manifest.get_all_end_of_epoch_checkpoint_seq_numbers()?;
-
-    Ok(CheckpointList { checkpoints })
-}
-
-pub async fn download_summaries_from_archive_store(
-    config: &Config,
-    checkpoints: Vec<u64>,
+    checkpoint_list: &mut CheckpointList,
+    target_epoch: u64,
 ) -> anyhow::Result<()> {
-    info!("Downloading missing checkpoints from archive store.");
-
-    let Some(archive_store_config) = &config.archive_store_config else {
-        bail!("missing archive store config");
-    };
-
-    let archive_reader_config = ArchiveReaderConfig {
-        remote_store_config: archive_store_config.clone(),
-        download_concurrency: NonZeroUsize::new(5).unwrap(),
-        use_for_pruning_watermark: false,
-    };
-
-    let store = CheckpointSummaryFileStore::new(config.clone());
-    let counter = Arc::new(AtomicU64::new(0));
-    let metrics = ArchiveReaderMetrics::new(&Registry::default());
-    let archive_reader = ArchiveReader::new(archive_reader_config, &metrics)?;
-    archive_reader.sync_manifest_once().await?;
-    archive_reader
-        .read_summaries_for_list_no_verify(store, checkpoints, counter)
-        .await?;
-
+    info!("Syncing checkpoint list from GraphQL.");
+    for epoch in (checkpoint_list.len() as u64)..target_epoch {
+        let seq = query_last_checkpoint_of_epoch(config, epoch).await?;
+        checkpoint_list.checkpoints.push(seq);
+        info!("Synced epoch: {epoch}, checkpoint: {seq}");
+    }
     Ok(())
+}
+
+/// Fills the tail of `checkpoint_list` from the checkpoint archive's recorded
+/// epoch boundaries, up to (but excluding) `target_epoch`.
+async fn extend_from_checkpoint_archive(
+    config: &Config,
+    checkpoint_list: &mut CheckpointList,
+    target_epoch: u64,
+) -> anyhow::Result<()> {
+    info!("Filling checkpoint list from checkpoint archive.");
+    let checkpoint_store = CheckpointStore::new(config)?;
+    let boundaries = checkpoint_store.end_of_epoch_checkpoints().await?;
+    fill_list_from_boundaries(checkpoint_list, &boundaries, target_epoch);
+    Ok(())
+}
+
+/// Appends end-of-epoch checkpoints from `boundaries` for every epoch from the
+/// current list length up to (but excluding) `target_epoch`, stopping at the
+/// first epoch the archive does not have.
+fn fill_list_from_boundaries(
+    checkpoint_list: &mut CheckpointList,
+    boundaries: &EpochBoundaries,
+    target_epoch: u64,
+) {
+    for epoch in (checkpoint_list.len() as u64)..target_epoch {
+        let Some(seq) = boundaries.get(epoch) else {
+            break;
+        };
+        checkpoint_list.checkpoints.push(seq);
+        info!("Filled epoch: {epoch}, checkpoint: {seq} from checkpoint archive");
+    }
 }
 
 pub async fn download_summaries_from_checkpoint_store(
@@ -292,14 +226,12 @@ pub async fn sync_and_verify_checkpoints(config: &Config) -> anyhow::Result<()> 
     }
 
     if !missing.is_empty() {
-        if config.archive_store_config.is_some() {
-            download_summaries_from_archive_store(config, missing).await?;
-        } else if config.checkpoint_store_config.is_some() {
+        if config.checkpoint_store_config.is_some() {
             download_summaries_from_checkpoint_store(config, missing).await?;
         } else {
             anyhow::bail!(
                 "No download source configured for missing checkpoint summaries. \
-                 Configure one of: archive_store_config or checkpoint_store_config."
+                 Configure `checkpoint_store_config`."
             );
         }
     }
@@ -335,191 +267,16 @@ pub async fn sync_and_verify_checkpoints(config: &Config) -> anyhow::Result<()> 
     Ok(())
 }
 
-#[derive(Clone, Debug)]
-struct CheckpointSummaryFileStore {
-    config: Config,
-}
-
-impl CheckpointSummaryFileStore {
-    fn new(config: Config) -> Self {
-        Self { config }
-    }
-}
-
-impl WriteStore for CheckpointSummaryFileStore {
-    fn try_insert_checkpoint(
-        &self,
-        checkpoint: &VerifiedCheckpoint,
-    ) -> iota_types::storage::error::Result<()> {
-        let path = self
-            .config
-            .checkpoint_summary_file_path(checkpoint.sequence_number());
-        info!("Downloading checkpoint summary to '{}'", path.display());
-        bcs::serialize_into(
-            &mut fs::File::create(&path).expect("error writing file"),
-            &checkpoint.clone().into_inner(),
-        )
-        .expect("error serializing summary checkpoint to bcs");
-        Ok(())
-    }
-
-    fn try_update_highest_synced_checkpoint(
-        &self,
-        _: &iota_types::messages_checkpoint::VerifiedCheckpoint,
-    ) -> iota_types::storage::error::Result<()> {
-        unimplemented!()
-    }
-
-    fn try_update_highest_verified_checkpoint(
-        &self,
-        _: &iota_types::messages_checkpoint::VerifiedCheckpoint,
-    ) -> iota_types::storage::error::Result<()> {
-        unimplemented!()
-    }
-
-    fn try_insert_checkpoint_contents(
-        &self,
-        _: &iota_types::messages_checkpoint::VerifiedCheckpoint,
-        _: iota_types::messages_checkpoint::VerifiedCheckpointContents,
-    ) -> iota_types::storage::error::Result<()> {
-        unimplemented!()
-    }
-
-    fn try_insert_committee(&self, _: Committee) -> iota_types::storage::error::Result<()> {
-        unimplemented!()
-    }
-}
-
-impl ReadStore for CheckpointSummaryFileStore {
-    fn try_get_committee(
-        &self,
-        _: iota_types::committee::EpochId,
-    ) -> iota_types::storage::error::Result<Option<Arc<Committee>>> {
-        unimplemented!()
-    }
-
-    fn try_get_latest_checkpoint(&self) -> iota_types::storage::error::Result<VerifiedCheckpoint> {
-        unimplemented!()
-    }
-
-    fn try_get_highest_verified_checkpoint(
-        &self,
-    ) -> iota_types::storage::error::Result<VerifiedCheckpoint> {
-        unimplemented!()
-    }
-
-    fn try_get_highest_synced_checkpoint(
-        &self,
-    ) -> iota_types::storage::error::Result<VerifiedCheckpoint> {
-        unimplemented!()
-    }
-
-    fn try_get_lowest_available_checkpoint(
-        &self,
-    ) -> iota_types::storage::error::Result<iota_types::messages_checkpoint::CheckpointSequenceNumber>
-    {
-        unimplemented!()
-    }
-
-    fn try_get_checkpoint_by_digest(
-        &self,
-        _: &CheckpointDigest,
-    ) -> iota_types::storage::error::Result<Option<VerifiedCheckpoint>> {
-        unimplemented!()
-    }
-
-    fn try_get_checkpoint_by_sequence_number(
-        &self,
-        _: iota_types::messages_checkpoint::CheckpointSequenceNumber,
-    ) -> iota_types::storage::error::Result<Option<VerifiedCheckpoint>> {
-        unimplemented!()
-    }
-
-    fn try_get_checkpoint_contents_by_digest(
-        &self,
-        _: &CheckpointContentsDigest,
-    ) -> iota_types::storage::error::Result<
-        Option<iota_types::messages_checkpoint::CheckpointContents>,
-    > {
-        unimplemented!()
-    }
-
-    fn try_get_checkpoint_contents_by_sequence_number(
-        &self,
-        _: iota_types::messages_checkpoint::CheckpointSequenceNumber,
-    ) -> iota_types::storage::error::Result<
-        Option<iota_types::messages_checkpoint::CheckpointContents>,
-    > {
-        unimplemented!()
-    }
-
-    fn try_get_transaction(
-        &self,
-        _: &TransactionDigest,
-    ) -> iota_types::storage::error::Result<Option<Arc<iota_types::transaction::VerifiedTransaction>>>
-    {
-        unimplemented!()
-    }
-
-    fn try_get_transaction_effects(
-        &self,
-        _: &TransactionDigest,
-    ) -> iota_types::storage::error::Result<Option<iota_types::effects::TransactionEffects>> {
-        unimplemented!()
-    }
-
-    fn try_get_events(
-        &self,
-        _: &TransactionDigest,
-    ) -> iota_types::storage::error::Result<Option<iota_types::effects::TransactionEvents>> {
-        unimplemented!()
-    }
-
-    fn try_get_full_checkpoint_contents_by_sequence_number(
-        &self,
-        _: iota_types::messages_checkpoint::CheckpointSequenceNumber,
-    ) -> iota_types::storage::error::Result<
-        Option<iota_types::messages_checkpoint::FullCheckpointContents>,
-    > {
-        unimplemented!()
-    }
-
-    fn try_get_full_checkpoint_contents(
-        &self,
-        _: &CheckpointContentsDigest,
-    ) -> iota_types::storage::error::Result<
-        Option<iota_types::messages_checkpoint::FullCheckpointContents>,
-    > {
-        unimplemented!()
-    }
-}
-
-impl ObjectStore for CheckpointSummaryFileStore {
-    fn try_get_object(
-        &self,
-        _: &iota_sdk_types::ObjectId,
-    ) -> iota_types::storage::error::Result<Option<iota_types::object::Object>> {
-        unimplemented!()
-    }
-
-    fn try_get_object_by_key(
-        &self,
-        _: &iota_sdk_types::ObjectId,
-        _: iota_types::base_types::VersionNumber,
-    ) -> iota_types::storage::error::Result<Option<iota_types::object::Object>> {
-        unimplemented!()
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use iota_sdk_types::gas::GasCostSummary;
+    use iota_sdk_types::{
+        checkpoint::{CheckpointContents, CheckpointSummary},
+        gas::GasCostSummary,
+    };
     use iota_types::{
         crypto::AuthorityQuorumSignInfo,
         message_envelope::Envelope,
-        messages_checkpoint::{
-            CheckpointContents, CheckpointContentsExt, CheckpointSummary, CheckpointSummaryExt,
-        },
+        messages_checkpoint::{CheckpointContentsExt, CheckpointSummaryExt},
         supported_protocol_versions::ProtocolConfig,
     };
     use roaring::RoaringBitmap;
@@ -536,7 +293,6 @@ mod tests {
             sync_before_check: false,
             genesis_blob_download_url: None,
             checkpoint_store_config: None,
-            archive_store_config: None,
         };
         (config, temp_dir)
     }
@@ -584,5 +340,35 @@ mod tests {
             test_summary.sequence_number(),
             read_summary.sequence_number()
         );
+    }
+
+    #[test]
+    fn fill_list_from_boundaries_appends_missing_tail() {
+        let boundaries = EpochBoundaries::from_iter([(0, 10), (1, 20), (2, 30)]);
+        // The list already covers epoch 0; fill epochs 1 and 2 up to target 3.
+        let mut list = CheckpointList {
+            checkpoints: vec![10],
+        };
+        fill_list_from_boundaries(&mut list, &boundaries, 3);
+        assert_eq!(list.checkpoints, vec![10, 20, 30]);
+    }
+
+    #[test]
+    fn fill_list_from_boundaries_stops_where_archive_ends() {
+        // The archive only reaches epoch 1, but the target is epoch 4.
+        let boundaries = EpochBoundaries::from_iter([(0, 10), (1, 20)]);
+        let mut list = CheckpointList::default();
+        fill_list_from_boundaries(&mut list, &boundaries, 4);
+        assert_eq!(list.checkpoints, vec![10, 20]);
+    }
+
+    #[test]
+    fn fill_list_from_boundaries_is_noop_when_already_complete() {
+        let boundaries = EpochBoundaries::from_iter([(0, 10), (1, 20)]);
+        let mut list = CheckpointList {
+            checkpoints: vec![10, 20],
+        };
+        fill_list_from_boundaries(&mut list, &boundaries, 2);
+        assert_eq!(list.checkpoints, vec![10, 20]);
     }
 }

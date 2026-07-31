@@ -26,7 +26,7 @@ use iota_open_rpc::Module;
 use iota_package_resolver::{PackageStore, Resolver};
 use iota_sdk_types::{
     Address, GasPayment, ObjectId, TransactionDigest, TransactionExpiration, TransactionKind,
-    Version,
+    UserSignature, Version,
 };
 use iota_transaction_builder::TransactionBuilder;
 use iota_types::{
@@ -34,7 +34,6 @@ use iota_types::{
     error::ExecutionError,
     iota_serde::BigInt,
     object::{Object, PastObjectRead},
-    signature::UserSignature,
     transaction::{SenderSignedData, TransactionData, TransactionDataAPI, TransactionDataV1},
 };
 use jsonrpsee::{RpcModule, core::RpcResult};

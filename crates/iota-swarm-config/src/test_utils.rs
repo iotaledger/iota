@@ -7,6 +7,7 @@ use std::{collections::HashMap, sync::Arc};
 use iota_config::genesis::Genesis;
 use iota_sdk_types::{
     CheckpointDigest,
+    checkpoint::{CheckpointSummary, EndOfEpochData},
     crypto::{Intent, IntentMessage, IntentScope},
 };
 use iota_types::{
@@ -17,9 +18,9 @@ use iota_types::{
         KeypairTraits,
     },
     messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointSequenceNumber, CheckpointSummary,
-        CheckpointTimestamp, CheckpointVersionSpecificData, EndOfEpochData, FullCheckpointContents,
-        VerifiedCheckpoint, VerifiedCheckpointContents,
+        CertifiedCheckpointSummary, CheckpointSequenceNumber, CheckpointTimestamp,
+        CheckpointVersionSpecificData, FullCheckpointContents, VerifiedCheckpoint,
+        VerifiedCheckpointContents,
     },
 };
 
@@ -115,7 +116,7 @@ impl CommitteeFixture {
             );
         }
 
-        let content_digest = contents
+        let contents_digest = contents
             .clone()
             .into_inner()
             .into_checkpoint_contents()
@@ -125,7 +126,7 @@ impl CommitteeFixture {
             epoch: 0,
             sequence_number: 0,
             network_total_transactions: contents.num_of_transactions() as u64,
-            content_digest,
+            contents_digest,
             previous_digest: None,
             epoch_rolling_gas_cost_summary: Default::default(),
             end_of_epoch_data: None,
@@ -205,7 +206,7 @@ impl CommitteeFixture {
                     sequence_number: prev.0.sequence_number + 1,
                     network_total_transactions: prev.0.network_total_transactions
                         + contents.num_of_transactions() as u64,
-                    content_digest: contents_digest,
+                    contents_digest,
                     previous_digest: Some(*prev.0.digest()),
                     epoch_rolling_gas_cost_summary: Default::default(),
                     end_of_epoch_data: None,
@@ -252,7 +253,7 @@ impl CommitteeFixture {
         let mut prev = previous_checkpoint.unwrap_or_else(|| self.create_root_checkpoint().0);
         let mut checkpoints = Vec::with_capacity(timestamps_ms.len());
         for &timestamp_ms in timestamps_ms {
-            let content_digest = empty_contents()
+            let contents_digest = empty_contents()
                 .into_inner()
                 .into_checkpoint_contents()
                 .digest();
@@ -260,7 +261,7 @@ impl CommitteeFixture {
                 epoch: self.epoch,
                 sequence_number: prev.sequence_number + 1,
                 network_total_transactions: prev.network_total_transactions,
-                content_digest,
+                contents_digest,
                 previous_digest: Some(*prev.digest()),
                 epoch_rolling_gas_cost_summary: Default::default(),
                 end_of_epoch_data: None,
@@ -291,7 +292,7 @@ impl CommitteeFixture {
             epoch: self.epoch,
             sequence_number: previous_checkpoint.sequence_number + 1,
             network_total_transactions: 0,
-            content_digest: empty_contents()
+            contents_digest: empty_contents()
                 .into_inner()
                 .into_checkpoint_contents()
                 .digest(),

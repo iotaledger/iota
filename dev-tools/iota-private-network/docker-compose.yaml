@@ -9,6 +9,10 @@ x-common-validator: &common-validator
     # TODO: Remove these overrides once P-COOL flow is enabled by default in the protocol config on develop.
     - IOTA_PROTOCOL_CONFIG_OVERRIDE_ENABLE=${IOTA_PROTOCOL_CONFIG_OVERRIDE_ENABLE:-0}
     - IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_PCOOL_FLOW=${IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_PCOOL_FLOW:-false}
+    # Expose all metrics in a private network for full observability. `trace`
+    # is the most permissive threshold, and being set here it also overrides
+    # any stricter directive coming from the node config.
+    - METRICS_FILTER=${METRICS_FILTER:-trace}
   command: &common-command [
     "/usr/local/bin/iota-node",
     "--config-path",
@@ -42,6 +46,10 @@ services:
       - ./configs/validators/validator-1-8080.yaml:/opt/iota/config/validator.yaml:ro
       - ./configs/genesis/genesis.blob:/opt/iota/config/genesis.blob:ro
       - ./data/validator-1:/opt/iota/db:rw
+    # Temporary: exposes the validator gRPC port to the host so a direct
+    # (non-fullnode) benchmark client can reach it for the soft-lock probe.
+    ports:
+      - "127.0.0.1:18080:8080/tcp"
 
   validator-2:
     <<: *common-validator
@@ -272,9 +280,11 @@ services:
       - ./configs/genesis/genesis.blob:/opt/iota/config/genesis.blob:ro
     expose:
       - "9000"
+      - "50051"
     ports:
       - "127.0.0.1:9000:9000/tcp"
       - "127.0.0.1:9184:9184/tcp"
+      - "127.0.0.1:50051:50051/tcp"
 
   fullnode-2:
     <<: *common-fullnode

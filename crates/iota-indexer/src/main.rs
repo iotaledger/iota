@@ -75,14 +75,6 @@ async fn main() -> Result<(), IndexerError> {
                 }
             }
 
-            if pruning_options.optimistic_pruner_batch_size.is_some() {
-                warn!(
-                    "the --optimistic-pruner-batch-size argument is deprecated and no longer used. \
-                     This argument will be removed in v1.29.0. \
-                     Optimistic transactions are now pruned by the unified pruner."
-                );
-            }
-
             if snapshot_config.is_set() {
                 warn!(
                     "the --objects-snapshot-min-checkpoint-lag / --objects-snapshot-sleep-duration arguments \

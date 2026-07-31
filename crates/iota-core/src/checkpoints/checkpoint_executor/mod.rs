@@ -29,6 +29,7 @@ use iota_config::node::{CheckpointExecutorConfig, RunWithRange};
 use iota_macros::fail_point;
 use iota_sdk_types::{
     RandomnessRound, TransactionDigest, TransactionEffectsDigest, TransactionKind,
+    checkpoint::CheckpointContents,
 };
 use iota_types::{
     base_types::ExecutionData,
@@ -37,7 +38,7 @@ use iota_types::{
     full_checkpoint_content::CheckpointData,
     global_state_hash::GlobalStateHash,
     messages_checkpoint::{
-        CheckpointContents, CheckpointContentsExt, CheckpointSequenceNumber, CheckpointSummaryExt,
+        CheckpointContentsExt, CheckpointSequenceNumber, CheckpointSummaryExt,
         FullCheckpointContents, VerifiedCheckpoint,
     },
     transaction::{
@@ -529,7 +530,7 @@ impl CheckpointExecutor {
 
         let checkpoint_contents = self
             .checkpoint_store
-            .get_checkpoint_contents(&checkpoint.content_digest)
+            .get_checkpoint_contents(&checkpoint.contents_digest)
             .expect("db error")
             .expect("checkpoint contents not found");
 
@@ -724,7 +725,7 @@ impl CheckpointExecutor {
 
         let checkpoint_contents = self
             .checkpoint_store
-            .get_checkpoint_contents(&checkpoint.content_digest)
+            .get_checkpoint_contents(&checkpoint.contents_digest)
             .expect("db error")
             .expect("checkpoint contents not found");
 
@@ -828,7 +829,7 @@ impl CheckpointExecutor {
                 );
                 self.checkpoint_store.cache_full_checkpoint_contents(
                     seq,
-                    checkpoint.content_digest,
+                    checkpoint.contents_digest,
                     full_contents,
                 );
             }

@@ -105,7 +105,7 @@ pub enum SignatureStatus {
     /// [`LocalVm::execute`](super::LocalVm::execute)).
     NotChecked,
     /// Signatures verified successfully. For a
-    /// [`MoveAuthenticator`](iota_types::move_authenticator::MoveAuthenticator)
+    /// [`MoveAuthenticator`](iota_sdk_types::MoveAuthenticator)
     /// this means the authenticator function did not abort during execution.
     Verified,
     /// Signature verification failed.

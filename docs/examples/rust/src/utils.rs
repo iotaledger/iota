@@ -20,13 +20,14 @@ use iota_sdk::{
         IotaTransactionBlockResponseOptions, ObjectChange,
     },
     types::{
-        crypto::SignatureScheme,
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         quorum_driver_types::ExecuteTransactionRequestType,
         transaction::{Transaction, TransactionData},
     },
 };
-use iota_sdk_types::{Address, ObjectId, ObjectReference, ProgrammableTransaction, crypto::Intent};
+use iota_sdk_types::{
+    Address, ObjectId, ObjectReference, ProgrammableTransaction, SignatureScheme, crypto::Intent,
+};
 use iota_types::{move_package, transaction::TransactionDataAPI};
 use reqwest::Client;
 use serde::Deserialize;

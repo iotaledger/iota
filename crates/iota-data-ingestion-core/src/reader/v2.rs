@@ -10,10 +10,7 @@ use std::{
 
 use backoff::backoff::Backoff;
 use futures::{StreamExt, TryStreamExt};
-use iota_config::{
-    node::ArchiveReaderConfig,
-    object_storage_config::{ObjectStoreConfig, ObjectStoreType},
-};
+use iota_config::object_storage_config::{ObjectStoreConfig, ObjectStoreType};
 use iota_grpc_client::Client as GrpcClient;
 use iota_metrics::spawn_monitored_task;
 use iota_types::{
@@ -36,7 +33,7 @@ use crate::{
     IngestionError, IngestionResult, MAX_CHECKPOINTS_IN_PROGRESS,
     config::CheckpointReaderConfigExt,
     create_remote_store_client,
-    history::reader::HistoricalReader,
+    history::reader::{HistoricalReader, HistoricalReaderConfig},
     reader::{
         ReaderOptions,
         common::DataLimiter,
@@ -115,18 +112,27 @@ impl RemoteStore {
                 historical_url,
                 live_url,
             } => {
-                let config = ArchiveReaderConfig {
-                    download_concurrency: NonZeroUsize::new(batch_size)
-                        .expect("batch size must be greater than zero"),
-                    remote_store_config: ObjectStoreConfig {
+                let remote_store_config = if let Some(dir) = historical_url.strip_prefix("file://")
+                {
+                    ObjectStoreConfig {
+                        object_store: Some(ObjectStoreType::File),
+                        directory: Some(PathBuf::from(dir)),
+                        ..Default::default()
+                    }
+                } else {
+                    ObjectStoreConfig {
                         object_store: Some(ObjectStoreType::S3),
                         object_store_connection_limit: 20,
                         aws_endpoint: Some(historical_url),
                         aws_virtual_hosted_style_request: true,
                         no_sign_request: true,
                         ..Default::default()
-                    },
-                    use_for_pruning_watermark: false,
+                    }
+                };
+                let config = HistoricalReaderConfig {
+                    download_concurrency: NonZeroUsize::new(batch_size)
+                        .expect("batch size must be greater than zero"),
+                    remote_store_config,
                 };
                 let historical = HistoricalReader::new(config)
                     .inspect_err(|e| error!("unable to instantiate historical reader: {e}"))?;

@@ -24,7 +24,6 @@ use fastcrypto::{
     encoding::{Base58, Encoding},
     hash::MultisetHash,
 };
-use iota_archival::reader::ArchiveReaderBalancer;
 use iota_common::{debug_fatal, fatal};
 use iota_config::{
     NodeConfig,
@@ -45,10 +44,11 @@ use iota_metrics::{
     TX_TYPE_SHARED_OBJ_TX, TX_TYPE_SINGLE_WRITER_TX, monitored_scope, spawn_monitored_task,
 };
 use iota_sdk_types::{
-    Address, CheckpointContentsDigest, CheckpointDigest, Digest, EndOfEpochTransactionKind, Event,
-    ExecutionStatus, GasPayment, MoveStruct, ObjectDigest, ObjectId, ObjectReference, Owner,
-    RandomnessRound, StructTag, SystemPackage, TransactionDigest, TransactionEffectsDigest,
-    TransactionExpiration, TransactionKind, TypeTag, Version,
+    Address, CheckpointContentsDigest, CheckpointDigest, Digest, EndOfEpochTransactionKind,
+    ExecutionStatus, GasPayment, MoveAuthenticator, MoveStruct, ObjectDigest, ObjectId,
+    ObjectReference, Owner, RandomnessRound, StructTag, SystemPackage, TransactionDigest,
+    TransactionEffectsDigest, TransactionExpiration, TransactionKind, TypeTag, Version,
+    checkpoint::{CheckpointCommitment, CheckpointContents, CheckpointSummary},
     crypto::{Intent, IntentAppId, IntentMessage, IntentScope, IntentVersion},
     gas::GasCostSummary,
 };
@@ -71,6 +71,7 @@ use iota_types::{
     committee::{Committee, EpochId, ProtocolVersion},
     crypto::{AuthorityPublicKey, AuthoritySignInfo, AuthoritySignature, Signer},
     deny_list_v1::check_coin_deny_list_v1,
+    deny_rule_governance::DenyRuleConfig,
     digests::ChainIdentifier,
     dynamic_field::{DynamicFieldInfo, DynamicFieldName, visitor as DFV},
     effects::{
@@ -96,10 +97,9 @@ use iota_types::{
     layout_resolver::{LayoutResolver, into_struct_layout},
     message_envelope::Message,
     messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointCommitment, CheckpointContents,
-        CheckpointContentsExt, CheckpointRequest, CheckpointResponse, CheckpointSequenceNumber,
-        CheckpointSummary, CheckpointSummaryResponse, CheckpointTimestamp, ECMHLiveObjectSetDigest,
-        VerifiedCheckpoint,
+        CertifiedCheckpointSummary, CheckpointContentsExt, CheckpointRequest, CheckpointResponse,
+        CheckpointSequenceNumber, CheckpointSummaryResponse, CheckpointTimestamp,
+        ECMHLiveObjectSetDigest, VerifiedCheckpoint,
     },
     messages_consensus::AuthorityCapabilitiesV1,
     messages_grpc::{
@@ -108,7 +108,7 @@ use iota_types::{
         TransactionStatus,
     },
     metrics::{BytecodeVerifierMetrics, LimitsMetrics},
-    move_authenticator::{MoveAuthenticator, MoveAuthenticatorExt},
+    move_authenticator::MoveAuthenticatorExt,
     object::{
         MoveStructExt, OBJECT_START_VERSION, Object, ObjectRead, PastObjectRead,
         bounded_visitor::BoundedVisitor,
@@ -229,7 +229,6 @@ pub mod authority_test_utils;
 pub mod authority_per_epoch_store;
 pub mod authority_per_epoch_store_pruner;
 
-mod authority_store_migrations;
 pub mod authority_store_pruner;
 pub mod authority_store_tables;
 pub mod authority_store_types;
@@ -958,6 +957,12 @@ impl AuthorityState {
     /// MoveAuthenticator checks. Returns the owned object refs for optional
     /// version validation. Does NOT acquire locks or sign the transaction.
     ///
+    /// `deny_config` is the deny rule source to enforce, chosen per caller:
+    /// the local config alone, the local config combined with the governance
+    /// rules (admission), or the governance-derived active set alone
+    /// (post-consensus) — the latter two when `deny_rule_governance` is
+    /// enabled.
+    ///
     /// `epoch_gated_coin_deny_list` selects how the coin deny list is read:
     /// `false` reads the latest value, so denials apply immediately - for
     /// validator-local admission (signing); `true` reads the value settled
@@ -985,6 +990,7 @@ impl AuthorityState {
         &self,
         transaction: &VerifiedTransaction,
         epoch_store: &Arc<AuthorityPerEpochStore>,
+        deny_config: &dyn DenyRuleConfig,
         epoch_gated_coin_deny_list: bool,
     ) -> IotaResult<Vec<ObjectReference>> {
         let protocol_config = epoch_store.protocol_config();
@@ -1002,7 +1008,7 @@ impl AuthorityState {
             transaction.signatures(),
             &transaction.input_objects()?,
             &tx.receiving_objects(),
-            &self.config.transaction_deny_config,
+            deny_config,
             self.get_backing_package_store().as_ref(),
         )?;
 
@@ -1173,6 +1179,7 @@ impl AuthorityState {
             .handle_transaction_validation_checks(
                 &transaction,
                 epoch_store,
+                &self.config.transaction_deny_config,
                 // Latest-value coin deny-list read: admission is validator-local,
                 // and denials should take effect immediately. Unlike the P-COOL
                 // submission path, no post-consensus re-check follows - this is
@@ -3255,7 +3262,7 @@ impl AuthorityState {
         let contents = match &summary {
             Some(s) => self
                 .checkpoint_store
-                .get_checkpoint_contents(&s.content_digest())?,
+                .get_checkpoint_contents(&s.contents_digest())?,
             None => None,
         };
         Ok(CheckpointResponse {
@@ -3287,7 +3294,6 @@ impl AuthorityState {
     }
 
     #[expect(clippy::disallowed_methods)] // allow unbounded_channel()
-    #[expect(clippy::too_many_arguments)]
     pub async fn new(
         name: AuthorityName,
         secret: StableSyncAuthoritySigner,
@@ -3303,7 +3309,6 @@ impl AuthorityState {
         genesis_objects: &[Object],
         db_checkpoint_config: &DBCheckpointConfig,
         config: NodeConfig,
-        archive_readers: ArchiveReaderBalancer,
         validator_tx_finalizer: Option<Arc<ValidatorTxFinalizer<NetworkAuthorityClient>>>,
         chain_identifier: ChainIdentifier,
         pruner_db: Option<Arc<AuthorityPrunerTables>>,
@@ -3342,7 +3347,6 @@ impl AuthorityState {
             epoch_store.committee().authority_exists(&name),
             epoch_store.epoch_start_state().epoch_duration_ms(),
             prometheus_registry,
-            archive_readers,
             pruner_db,
             checkpoint_progress_tracker.clone(),
         );
@@ -3398,8 +3402,6 @@ impl AuthorityState {
             rx_ready_transactions,
             rx_execution_shutdown,
         ));
-        spawn_monitored_task!(authority_store_migrations::migrate_events(store));
-
         // TODO: This doesn't belong to the constructor of AuthorityState.
         state
             .create_owner_index_if_empty(genesis_objects, &epoch_store)
@@ -3468,8 +3470,6 @@ impl AuthorityState {
         config: NodeConfig,
         metrics: Arc<AuthorityStorePruningMetrics>,
     ) -> anyhow::Result<()> {
-        let archive_readers =
-            ArchiveReaderBalancer::new(config.archive_reader_config(), &Registry::default())?;
         AuthorityStorePruner::prune_checkpoints_for_eligible_epochs(
             &self.database_for_testing().perpetual_tables,
             &self.checkpoint_store,
@@ -3477,7 +3477,6 @@ impl AuthorityState {
             None,
             config.authority_store_pruning_config,
             metrics,
-            archive_readers,
             EPOCH_DURATION_MS_FOR_TESTING,
             self.checkpoint_progress_tracker.as_ref(),
         )
@@ -4466,7 +4465,7 @@ impl AuthorityState {
         let summary = self
             .get_verified_checkpoint_by_sequence_number(0)?
             .into_message();
-        let content = self.get_checkpoint_contents(summary.content_digest)?;
+        let content = self.get_checkpoint_contents(summary.contents_digest)?;
         let genesis_transaction = content.enumerate_transactions(&summary).next();
         Ok(genesis_transaction
             .ok_or(IotaError::UserInput {
@@ -4530,8 +4529,8 @@ impl AuthorityState {
             .get_checkpoint_by_sequence_number(sequence_number)?;
         match verified_checkpoint {
             Some(verified_checkpoint) => {
-                let content_digest = verified_checkpoint.into_inner().content_digest;
-                self.get_checkpoint_contents(content_digest)
+                let contents_digest = verified_checkpoint.into_inner().contents_digest;
+                self.get_checkpoint_contents(contents_digest)
             }
             None => Err(IotaError::UserInput {
                 error: UserInputError::VerifiedCheckpointNotFound(sequence_number),
@@ -6154,7 +6153,7 @@ impl TransactionKeyValueStoreTrait for AuthorityState {
                 .get_checkpoint_by_sequence_number(*seq)?
                 .and_then(|summary| {
                     store
-                        .get_checkpoint_contents(&summary.content_digest)
+                        .get_checkpoint_contents(&summary.contents_digest)
                         .expect("db read cannot fail")
                 });
             contents.push(checkpoint);

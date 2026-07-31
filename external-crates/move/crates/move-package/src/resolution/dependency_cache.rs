@@ -5,6 +5,7 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
     ffi::OsStr,
+    fs::File,
     io::Write,
     path::{Path, PathBuf},
     process::{Command, Stdio},
@@ -83,40 +84,15 @@ impl DependencyCache {
 
                 ensure_git_available(progress_output)?;
 
-                let git_path = repository_path.as_path();
-
-                if !git_path.exists() {
-                    writeln!(
-                        progress_output,
-                        "{} {}",
-                        "FETCHING GIT DEPENDENCY".bold().green(),
-                        git_url,
-                    )?;
-                    clone_dependency(
-                        git_path,
-                        git_url.as_str(),
-                        git_rev.as_str(),
-                        subdir,
-                        dep_name,
-                        progress_output,
-                    )?;
-                } else {
-                    // The repository is already cached. Make sure this subdir is checked
-                    // out (a no-op for full clones and for subdirs already present) before
-                    // optionally refreshing the repository. The refresh is per-repository,
-                    // so only the first subdir we touch this run performs it.
-                    ensure_subdir_present(git_path, subdir);
-
-                    if first_touch && !self.skip_fetch_latest_git_deps {
-                        update_dependency(
-                            git_path,
-                            git_url.as_str(),
-                            git_rev.as_str(),
-                            dep_name,
-                            progress_output,
-                        )?;
-                    }
-                }
+                fetch_git_dependency(
+                    repository_path.as_path(),
+                    git_url.as_str(),
+                    git_rev.as_str(),
+                    subdir,
+                    first_touch && !self.skip_fetch_latest_git_deps,
+                    dep_name,
+                    progress_output,
+                )?;
 
                 self.fetched_deps
                     .entry(repository_path)
@@ -141,6 +117,89 @@ fn ensure_git_available<Progress: Write>(progress_output: &mut Progress) -> Resu
         return Err(anyhow::anyhow!("Git is not installed or not in the PATH."));
     }
     Ok(())
+}
+
+/// Clones or refreshes the cached repository at `git_path` and makes sure
+/// `subdir` is checked out. When `refresh` is set, branch-pinned revisions are
+/// refetched and reset to the latest upstream state.
+///
+/// The cached repository is shared by every build using the same cache
+/// directory, so all work happens under an exclusive per-repository lock:
+/// without it, parallel builds delete each other's half-finished clones and
+/// contend on git's own lock files.
+fn fetch_git_dependency<Progress: Write>(
+    git_path: &Path,
+    git_url: &str,
+    git_rev: &str,
+    subdir: &Path,
+    refresh: bool,
+    dep_name: PackageName,
+    progress_output: &mut Progress,
+) -> Result<()> {
+    let _lock = lock_repository(git_path)?;
+
+    if !git_path.exists() {
+        writeln!(
+            progress_output,
+            "{} {}",
+            "FETCHING GIT DEPENDENCY".bold().green(),
+            git_url,
+        )?;
+        clone_dependency(
+            git_path,
+            git_url,
+            git_rev,
+            subdir,
+            dep_name,
+            progress_output,
+        )?;
+    } else {
+        // The repository is already cached. Make sure this subdir is checked
+        // out (a no-op for full clones and for subdirs already present) before
+        // optionally refreshing the repository. The refresh is per-repository,
+        // so only the first subdir we touch this run performs it.
+        ensure_subdir_present(git_path, subdir)?;
+
+        if refresh {
+            update_dependency(git_path, git_url, git_rev, dep_name, progress_output)?;
+        }
+    }
+
+    Ok(())
+}
+
+/// Takes an exclusive lock serializing work on the cached repository at
+/// `git_path` across processes, blocking until any concurrent fetch of the
+/// same repository releases it. The lock is released when the returned file is
+/// dropped.
+///
+/// The lock file lives next to the repository rather than inside it, so that
+/// it survives the repository being deleted and recreated by the full-clone
+/// fallback. It is never removed: unlinking would let a later fetch lock a
+/// fresh file while an earlier one still holds the old inode.
+///
+/// Waiting is deliberately silent: anything written to the build's progress
+/// output under contention would appear nondeterministically, and build output
+/// is compared verbatim by snapshot tests.
+fn lock_repository(git_path: &Path) -> Result<File> {
+    let Some(file_name) = git_path.file_name() else {
+        return Err(anyhow::anyhow!(
+            "Invalid repository cache path '{}'",
+            git_path.display()
+        ));
+    };
+    let mut lock_name = file_name.to_os_string();
+    lock_name.push(".lock");
+    let lock_path = git_path.with_file_name(lock_name);
+
+    // On the very first fetch the cache directory itself may not exist yet.
+    if let Some(parent) = lock_path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+
+    let lock_file = File::create(&lock_path)?;
+    lock_file.lock()?;
+    Ok(lock_file)
 }
 
 /// Clones a git dependency into `git_path` and checks out `git_rev`.
@@ -257,22 +316,55 @@ fn full_clone<Progress: Write>(
 
 /// Ensures `subdir` is checked out in an already-cached repository.
 ///
-/// Only repositories we cloned sparsely are touched: a `sparse-checkout add` is
-/// idempotent for subdirs already present, and pulls in new ones. Full clones
-/// from older tool versions already contain every subdir, so they are left
-/// alone, and root packages (empty `subdir`) need no narrowing.
-fn ensure_subdir_present(git_path: &Path, subdir: &Path) {
-    if subdir.as_os_str().is_empty() || !is_sparse_repo(git_path) {
-        return;
+/// Only repositories we cloned sparsely are touched: subdirs already in the
+/// sparse-checkout set are detected with a read-only listing (so the common
+/// refetch does not write to the repository at all), and missing ones are
+/// added. Full clones from older tool versions already contain every subdir,
+/// so they are left alone, and root packages (empty `subdir`) need no
+/// narrowing.
+fn ensure_subdir_present(git_path: &Path, subdir: &Path) -> Result<()> {
+    if subdir.as_os_str().is_empty()
+        || !is_sparse_repo(git_path)
+        || sparse_checkout_contains(git_path, subdir)
+    {
+        return Ok(());
     }
 
-    git_status(&[
+    if !git_status(&[
         OsStr::new("-C"),
         git_path.as_os_str(),
         OsStr::new("sparse-checkout"),
         OsStr::new("add"),
         subdir.as_os_str(),
-    ]);
+    ]) {
+        return Err(anyhow::anyhow!(
+            "Failed to check out '{}' in the cached Git repository '{}'",
+            subdir.display(),
+            git_path.display()
+        ));
+    }
+
+    Ok(())
+}
+
+/// Whether `subdir` is already part of the repository's sparse-checkout set.
+fn sparse_checkout_contains(git_path: &Path, subdir: &Path) -> bool {
+    Command::new("git")
+        .args([
+            OsStr::new("-C"),
+            git_path.as_os_str(),
+            OsStr::new("sparse-checkout"),
+            OsStr::new("list"),
+        ])
+        .stdin(Stdio::null())
+        .output()
+        .map(|out| {
+            out.status.success()
+                && String::from_utf8_lossy(&out.stdout)
+                    .lines()
+                    .any(|line| Path::new(line.trim()) == subdir)
+        })
+        .unwrap_or(false)
 }
 
 /// Whether `git_path` is a sparse-checkout repository (i.e. one we created with
@@ -466,6 +558,7 @@ mod tests {
         run_git(root, &["config", "user.email", "test@example.com"]);
         run_git(root, &["config", "user.name", "test"]);
         run_git(root, &["config", "commit.gpgsign", "false"]);
+        run_git(root, &["config", "tag.gpgsign", "false"]);
         // Let this repo serve partial (`--filter`) clones and fetches of arbitrary
         // object ids over `file://`. Without these a blobless clone is silently
         // downgraded to a full one, so the tests could not observe blob deferral.
@@ -575,7 +668,7 @@ mod tests {
             Path::new("a")
         ));
 
-        ensure_subdir_present(&dest, Path::new("b"));
+        ensure_subdir_present(&dest, Path::new("b")).unwrap();
 
         assert!(has_pkg(&dest, "b"), "sibling subdir is added");
         assert!(has_pkg(&dest, "a"), "original subdir remains");
@@ -625,6 +718,111 @@ mod tests {
         );
     }
 
+    /// Calls [`fetch_git_dependency`] with the arguments the tests share.
+    fn fetch(dest: &Path, url: &str, rev: &str, subdir: &str) -> Result<()> {
+        fetch_git_dependency(
+            dest,
+            url,
+            rev,
+            Path::new(subdir),
+            false,
+            PackageName::from("pkg"),
+            &mut std::io::sink(),
+        )
+    }
+
+    #[test]
+    fn concurrent_fetches_of_the_same_repository_leave_a_usable_cache() {
+        // Regression test for parallel builds (e.g. tests in CI) racing on the
+        // shared dependency cache: concurrent clones deleted each other's
+        // half-finished repositories and concurrent `sparse-checkout` calls
+        // fought over git's lock file.
+        let (repo, sha) = make_repo(&["a", "b"]);
+        let url = repo_url(&repo);
+        let cache_dir = tempfile::tempdir().unwrap();
+
+        // The race does not trigger on every attempt; each round races eight
+        // fetches against a fresh destination to make a single missed
+        // serialization overwhelmingly likely to surface.
+        for round in 0..10 {
+            let dest = cache_dir.path().join(format!("clone{round}"));
+            let barrier = std::sync::Arc::new(std::sync::Barrier::new(8));
+            let handles: Vec<_> = (0..8)
+                .map(|i| {
+                    let url = url.clone();
+                    let dest = dest.clone();
+                    let barrier = barrier.clone();
+                    let subdir = if i % 2 == 0 { "a" } else { "b" };
+                    std::thread::spawn(move || {
+                        barrier.wait();
+                        fetch(&dest, &url, "v1", subdir)
+                    })
+                })
+                .collect();
+            for handle in handles {
+                handle.join().unwrap().unwrap();
+            }
+
+            assert!(has_pkg(&dest, "a"), "subdir 'a' is checked out");
+            assert!(has_pkg(&dest, "b"), "subdir 'b' is checked out");
+            let head = Command::new("git")
+                .arg("-C")
+                .arg(&dest)
+                .args(["rev-parse", "HEAD"])
+                .output()
+                .unwrap();
+            assert_eq!(
+                String::from_utf8_lossy(&head.stdout).trim(),
+                sha,
+                "the cached repository is at the requested revision",
+            );
+        }
+    }
+
+    #[test]
+    fn refetching_a_present_subdir_does_not_write_to_the_repository() {
+        // A subdir that is already checked out must be detected with read-only
+        // git commands: writing (`sparse-checkout add`) takes git's lock file,
+        // which fails loudly when parallel builds fetch the same dependency.
+        let (repo, _) = make_repo(&["a", "b"]);
+        let url = repo_url(&repo);
+        let dest_dir = tempfile::tempdir().unwrap();
+        let dest = dest_dir.path().join("clone");
+        fetch(&dest, &url, "v1", "a").unwrap();
+
+        let sparse_file = dest.join(".git").join("info").join("sparse-checkout");
+        let before = fs::metadata(&sparse_file).unwrap().modified().unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(50));
+
+        fetch(&dest, &url, "v1", "a").unwrap();
+
+        let after = fs::metadata(&sparse_file).unwrap().modified().unwrap();
+        assert_eq!(
+            before, after,
+            "refetching an already checked-out subdir must not rewrite the sparse-checkout file",
+        );
+    }
+
+    #[test]
+    fn failing_to_materialize_a_subdir_is_an_error() {
+        // The blobs of a newly requested subdir are fetched from the origin;
+        // if that fails the package sources are missing and the build cannot
+        // proceed, so the fetch must report an error rather than continue.
+        let (repo, _) = make_repo(&["a", "b"]);
+        let url = repo_url(&repo);
+        let dest_dir = tempfile::tempdir().unwrap();
+        let dest = dest_dir.path().join("clone");
+        fetch(&dest, &url, "v1", "a").unwrap();
+
+        // Take the origin away, so the blobs of "b" cannot be fetched.
+        repo.close().unwrap();
+
+        assert!(
+            fetch(&dest, &url, "v1", "b").is_err(),
+            "fetching a subdir whose sources cannot be materialized must fail",
+        );
+    }
+
     #[test]
     fn ensure_subdir_present_leaves_full_clone_untouched() {
         // Backward compatibility: a full clone created by an older tool version must
@@ -641,7 +839,7 @@ mod tests {
         )
         .unwrap();
 
-        ensure_subdir_present(&dest, Path::new("a"));
+        ensure_subdir_present(&dest, Path::new("a")).unwrap();
 
         assert!(!is_sparse_repo(&dest), "still a full clone");
         assert!(
