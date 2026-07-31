@@ -483,21 +483,21 @@ impl TransactionExecutionApi {
         let show_raw_txn_data_and_effects = show_raw_txn_data_and_effects.unwrap_or(false);
         let skip_checks = skip_checks.unwrap_or(true);
 
-        // Hold on to one epoch store for the whole operation, so that the gas
-        // parameters, the simulation and the type resolution below observe the same
-        // epoch.
+        // Hold on to one epoch store for the whole operation, so that the simulation
+        // and the type resolution below observe the same epoch.
         let epoch_store = self.state.load_epoch_store_one_call_per_task();
 
         let transaction = TransactionData::V1(TransactionV1 {
             kind: transaction_kind,
             sender,
             gas_payment: GasPayment {
-                // Payment might be empty here, but that is fine: a mock gas coin is
-                // minted for it during the simulation.
+                // Any of these the caller leaves out is filled in by the simulation: an
+                // empty payment gets a mock gas coin, and a zero price or budget gets
+                // this epoch's defaults.
                 objects: gas_objects.unwrap_or_default(),
                 owner: gas_sponsor.unwrap_or(sender),
-                price: gas_price.unwrap_or_else(|| epoch_store.reference_gas_price()),
-                budget: gas_budget.unwrap_or_else(|| epoch_store.protocol_config().max_tx_gas()),
+                price: gas_price.unwrap_or_default(),
+                budget: gas_budget.unwrap_or_default(),
             },
             expiration: TransactionExpiration::None,
         });

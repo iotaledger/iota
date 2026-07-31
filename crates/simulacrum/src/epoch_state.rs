@@ -212,6 +212,26 @@ impl EpochState {
             None
         };
 
+        // In a simulation with "checks disabled", a zero gas price or
+        // budget means "use this epoch's defaults" rather than being metered as
+        // an actual zero: a zero price is below the reference gas price, and a
+        // zero budget cannot cover any computation, so either would fail the
+        // simulation over gas the caller never meant to set.
+        //
+        // A simulation with "checks enabled" has to reject the same way a validator
+        // would.
+        if checks.disabled() {
+            let reference_gas_price = self.epoch_start_state.reference_gas_price();
+            let max_tx_gas = self.protocol_config.max_tx_gas();
+            let gas_data = transaction.gas_data_mut();
+            if gas_data.price == 0 {
+                gas_data.price = reference_gas_price;
+            }
+            if gas_data.budget == 0 {
+                gas_data.budget = max_tx_gas;
+            }
+        }
+
         // `MoveAuthenticator`s are not supported in Simulacrum, so we set the
         // `authenticator_gas_budget` to 0.
         let authenticator_gas_budget = 0;

@@ -452,17 +452,6 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
         self.inner.read().unwrap().epoch_state.reference_gas_price()
     }
 
-    /// Return the largest gas budget a transaction may declare in the current
-    /// epoch.
-    pub fn max_tx_gas(&self) -> u64 {
-        self.inner
-            .read()
-            .unwrap()
-            .epoch_state
-            .protocol_config()
-            .max_tx_gas()
-    }
-
     /// Request that `amount` Nanos be sent to `address` from a faucet account.
     ///
     /// ```

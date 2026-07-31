@@ -8,8 +8,8 @@ use iota_json_rpc_api::{
     IndexerApiClient, ReadApiClient, TransactionBuilderClient, WriteApiClient,
 };
 use iota_json_rpc_types::{
-    IotaExecutionStatus, IotaMoveValue, IotaObjectDataOptions, IotaObjectResponseQuery,
-    IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
+    DevInspectArgs, IotaExecutionStatus, IotaMoveValue, IotaObjectDataOptions,
+    IotaObjectResponseQuery, IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
     IotaTransactionBlockResponseOptions, ObjectChange, TransactionBlockBytes,
 };
 use iota_macros::sim_test;
@@ -98,6 +98,77 @@ async fn test_dev_inspect_transaction_block() -> Result<(), anyhow::Error> {
     assert_eq!(
         actual_object_info.data.unwrap().owner.unwrap(),
         Owner::Address(address)
+    );
+
+    Ok(())
+}
+
+/// A dev inspect fills a zero gas price and a zero gas budget in from the
+/// epoch, rather than metering against those zeroes and failing with
+/// `GasPriceUnderRGP` or `InsufficientGas`.
+#[sim_test]
+async fn test_dev_inspect_transaction_block_zero_gas_price_and_budget() -> Result<(), anyhow::Error>
+{
+    let cluster = TestClusterBuilder::new().build().await;
+    let http_client = cluster.rpc_client();
+    let address = cluster.get_address_0();
+    let other_address = cluster.get_address_1();
+
+    let objects = http_client
+        .get_owned_objects(
+            address,
+            Some(IotaObjectResponseQuery::new_with_options(
+                IotaObjectDataOptions::new().with_owner(),
+            )),
+            None,
+            None,
+        )
+        .await?
+        .data;
+    let obj = objects.first().unwrap().object().unwrap().object_ref();
+
+    let pt = {
+        let mut builder = ProgrammableTransactionBuilder::new();
+        builder.transfer_object(other_address, obj).unwrap();
+        builder.finish()
+    };
+    let tx_bytes = Base64::from_bytes(&bcs::to_bytes(&TransactionKind::new_programmable(pt))?);
+    let reference_gas_price = cluster.get_reference_gas_price().await;
+
+    // A zero budget on its own, with a gas price the epoch would accept as-is.
+    let devinspect_response = http_client
+        .dev_inspect_transaction_block(
+            address,
+            tx_bytes.clone(),
+            Some(reference_gas_price.into()),
+            None,
+            Some(DevInspectArgs {
+                gas_budget: Some(0),
+                ..Default::default()
+            }),
+        )
+        .await?;
+    assert_eq!(
+        *devinspect_response.effects.status(),
+        IotaExecutionStatus::Success
+    );
+
+    // A zero price and a zero budget together.
+    let devinspect_response = http_client
+        .dev_inspect_transaction_block(
+            address,
+            tx_bytes,
+            Some(0.into()),
+            None,
+            Some(DevInspectArgs {
+                gas_budget: Some(0),
+                ..Default::default()
+            }),
+        )
+        .await?;
+    assert_eq!(
+        *devinspect_response.effects.status(),
+        IotaExecutionStatus::Success
     );
 
     Ok(())

@@ -18,7 +18,6 @@ use iota_grpc_types::{
         },
     },
 };
-use iota_protocol_config::ProtocolConfig;
 use iota_types::{
     effects::TransactionEffectsAPI,
     transaction::TransactionDataAPI,
@@ -196,15 +195,12 @@ async fn simulate_single_transaction(
         VmChecks::Enabled
     };
 
-    // If the transaction has a zero gas budget and VM checks are disabled, we'll
-    // set the gas budget in the result to the actual cost from the simulation.
-    // This allows clients to estimate the gas cost by simulating with a zero
-    // budget.
-    let set_gas_budget = vm_checks.disabled() && transaction_data.gas_data().budget == 0;
+    // A zero gas budget with VM checks disabled means "estimate the cost for me":
+    // the simulation meters against the maximum gas budget, and the transaction in
+    // the response reports the cost it actually incurred.
+    let report_gas_used_as_budget = vm_checks.disabled() && transaction_data.gas_data().budget == 0;
 
-    let system_state = if read_mask.contains(SimulatedTransaction::SUGGESTED_GAS_PRICE_FIELD.name)
-        || set_gas_budget
-    {
+    let system_state = if read_mask.contains(SimulatedTransaction::SUGGESTED_GAS_PRICE_FIELD.name) {
         Some(reader.get_system_state_summary().map_err(|e| {
             RpcError::new(
                 tonic::Code::Internal,
@@ -214,26 +210,6 @@ async fn simulate_single_transaction(
     } else {
         None
     };
-
-    if set_gas_budget {
-        let protocol_config = ProtocolConfig::get_for_version_if_supported(
-            system_state
-                .as_ref()
-                .expect("system state should be available")
-                .protocol_version(),
-            reader.get_chain_identifier()?.chain(),
-        )
-        .ok_or_else(|| {
-            RpcError::new(
-                tonic::Code::Internal,
-                "failed to get protocol config for gas budget validation".to_string(),
-            )
-        })?;
-
-        // A zero budget signals "use maximum" — run the dry run with
-        // max_tx_gas so the actual cost shows up in the gas status.
-        transaction_data.gas_data_mut().budget = protocol_config.max_tx_gas();
-    }
 
     // Simulate the transaction
     let InternalSimulateResult {
@@ -259,7 +235,7 @@ async fn simulate_single_transaction(
     // Only include transaction if requested
     if let Some(tx_mask) = read_mask.subtree(SimulatedTransaction::EXECUTED_TRANSACTION_FIELD.name)
     {
-        if set_gas_budget {
+        if report_gas_used_as_budget {
             transaction_data.gas_data_mut().budget = effects.gas_cost_summary().gas_used();
         }
 

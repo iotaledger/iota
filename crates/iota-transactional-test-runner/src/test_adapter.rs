@@ -1931,15 +1931,16 @@ impl IotaTestAdapter {
         transaction_kind: TransactionKind,
         gas_price: Option<u64>,
     ) -> anyhow::Result<TxnSummary> {
-        let (reference_gas_price, max_tx_gas) = self.executor.gas_price_and_max_budget().await?;
         let transaction = TransactionData::V1(TransactionV1 {
             kind: transaction_kind,
             sender,
             gas_payment: GasPayment {
+                // The simulation fills all of this in: an empty payment gets a mock gas
+                // coin, and a zero price or budget gets the epoch's defaults.
                 objects: vec![],
                 owner: sender,
-                price: gas_price.unwrap_or(reference_gas_price),
-                budget: max_tx_gas,
+                price: gas_price.unwrap_or_default(),
+                budget: 0,
             },
             expiration: TransactionExpiration::None,
         });
