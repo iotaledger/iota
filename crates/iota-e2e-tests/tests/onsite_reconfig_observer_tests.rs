@@ -9,11 +9,12 @@ use iota_core::{
 };
 use iota_macros::sim_test;
 use prometheus_filtered::Registry;
-use test_cluster::TestClusterBuilder;
+use test_cluster::{TestClusterBuilder, override_pcool_flow};
 use tracing::info;
 
 #[sim_test]
 async fn test_onsite_reconfig_observer_basic() {
+    let _pcool_guard = override_pcool_flow(false);
     telemetry_subscribers::init_for_testing();
     let test_cluster = TestClusterBuilder::new()
         .with_epoch_duration_ms(10000)

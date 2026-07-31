@@ -968,14 +968,41 @@ macro_rules! register_counter {
     }};
 }
 
-/// register_counter_vec_with_registry!(name, help, labels, registry)
+/// register_counter_with_registry!(name, help, registry)
 #[macro_export]
-macro_rules! register_counter_vec_with_registry {
-    ($name:expr, $help:expr, $labels:expr, $registry:expr $(,)?) => {{
+macro_rules! register_counter_with_registry {
+    ($name:expr, $help:expr, $registry:expr $(,)?) => {
+        $crate::register_counter_with_registry!(
+            $name, $help, $registry; $crate::MetricLevel::Debug
+        )
+    };
+    ($name:expr, $help:expr, $registry:expr ; $level:expr $(,)?) => {{
         let _n = $name;
         let name: &str = &*_n;
         let module: &str = module_path!();
-        ($registry).record(name, module, $crate::MetricLevel::Debug);
+        ($registry).record(name, module, $level);
+        $crate::prometheus::register_counter_with_registry!(
+            name,
+            $help,
+            ($registry).inner()
+        )
+        .map($crate::core::GenericCounter::new_some)
+    }};
+}
+
+/// register_counter_vec_with_registry!(name, help, labels, registry)
+#[macro_export]
+macro_rules! register_counter_vec_with_registry {
+    ($name:expr, $help:expr, $labels:expr, $registry:expr $(,)?) => {
+        $crate::register_counter_vec_with_registry!(
+            $name, $help, $labels, $registry; $crate::MetricLevel::Debug
+        )
+    };
+    ($name:expr, $help:expr, $labels:expr, $registry:expr ; $level:expr $(,)?) => {{
+        let _n = $name;
+        let name: &str = &*_n;
+        let module: &str = module_path!();
+        ($registry).record(name, module, $level);
         $crate::prometheus::register_counter_vec_with_registry!(
             name,
             $help,

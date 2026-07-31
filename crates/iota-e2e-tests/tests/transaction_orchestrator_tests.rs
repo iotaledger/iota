@@ -33,7 +33,7 @@ use iota_types::{
     },
     transaction::{Transaction, TransactionDataAPI},
 };
-use test_cluster::TestClusterBuilder;
+use test_cluster::{TestClusterBuilder, override_pcool_flow};
 use tokio::time::timeout;
 use tracing::info;
 
@@ -43,6 +43,7 @@ fn make_socket_addr() -> std::net::SocketAddr {
 
 #[sim_test]
 async fn test_blocking_execution() -> Result<(), anyhow::Error> {
+    let _pcool_guard = override_pcool_flow(false);
     let mut test_cluster = TestClusterBuilder::new().build().await;
     let context = &mut test_cluster.wallet;
     let handle = &test_cluster.fullnode_handle.iota_node;
@@ -108,6 +109,7 @@ async fn test_blocking_execution() -> Result<(), anyhow::Error> {
 
 #[sim_test]
 async fn test_fullnode_wal_log() -> Result<(), anyhow::Error> {
+    let _pcool_guard = override_pcool_flow(false);
     #[cfg(msim)]
     {
         use iota_core::authority::{CheckpointTimeoutConfig, init_checkpoint_timeout_config};
@@ -192,6 +194,7 @@ async fn test_fullnode_wal_log() -> Result<(), anyhow::Error> {
 
 #[sim_test]
 async fn test_transaction_orchestrator_reconfig() {
+    let _pcool_guard = override_pcool_flow(false);
     telemetry_subscribers::init_for_testing();
     let test_cluster = TestClusterBuilder::new().build().await;
     let epoch = test_cluster.fullnode_handle.iota_node.with(|node| {
@@ -304,6 +307,93 @@ async fn test_tx_across_epoch_boundaries() {
     info!("test completed in {:?}", start.elapsed());
 }
 
+/// A `WaitForLocalExecution` request in flight at an epoch boundary must
+/// resolve shortly after the transaction is checkpointed in the next epoch,
+/// not burn the full 30s finality timeout: its checkpoint-inclusion wait
+/// registers on the old epoch's store, while the transaction is checkpointed
+/// on the next epoch's store (here because submission is rejected until the
+/// epoch changes; in the certificate mode also when an executed-but-not-
+/// checkpointed transaction is reverted at the boundary and resubmitted).
+#[sim_test]
+async fn test_wait_for_local_execution_across_epoch_boundary() {
+    telemetry_subscribers::init_for_testing();
+    let _env_guard = override_pcool_flow(true);
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(true);
+        config
+    });
+
+    let (result_tx, mut result_rx) = tokio::sync::mpsc::channel(1);
+    let test_cluster = TestClusterBuilder::new().build().await;
+    let tx = make_transfer_iota_transaction(&test_cluster.wallet, None, None).await;
+    let authorities = test_cluster.swarm.validator_node_handles();
+
+    // Stop every validator from accepting user transactions before
+    // submitting. Admission is the only way a user transaction enters
+    // consensus, so the transaction deterministically cannot be sequenced in
+    // epoch 0 — the driver keeps retrying the rejected submissions
+    // (`ValidatorHaltedAtEpochEnd` is retriable) until epoch 1 opens. The
+    // validators stay up and keep running consensus; the epoch changes once
+    // the 2f+1 `EndOfPublish` quorum is collected.
+    info!("Asking all validators to change epoch");
+    for handle in authorities.iter() {
+        handle
+            .with_async(|node| async { node.close_epoch_for_testing().await.unwrap() })
+            .await;
+    }
+
+    let to = test_cluster
+        .fullnode_handle
+        .iota_node
+        .with(|node| node.transaction_orchestrator().unwrap());
+    let tx_digest = *tx.digest();
+    info!(?tx_digest, "Submitting WaitForLocalExecution tx");
+    tokio::task::spawn(async move {
+        let result = to
+            .execute_transaction_block(
+                ExecuteTransactionRequestV1::new(tx),
+                ExecuteTransactionRequestType::WaitForLocalExecution,
+                None,
+            )
+            .await;
+        result_tx.send(result).await.unwrap();
+    });
+
+    // Tripwire: the request's checkpoint-inclusion wait must register on the
+    // epoch-0 store for the test to exercise the boundary crossing.
+    // Reconfiguration needs several consensus commits plus checkpoint
+    // execution, which cannot complete in the spawn gap above; if this ever
+    // trips, the test has gone degenerate (passing without covering the
+    // boundary) rather than flaky.
+    assert_eq!(
+        test_cluster
+            .fullnode_handle
+            .iota_node
+            .with(|node| node.state().epoch_store_for_testing().epoch()),
+        0,
+        "reconfiguration outran the submission; the wait no longer starts in epoch 0"
+    );
+
+    test_cluster.wait_for_epoch(Some(1)).await;
+
+    // The transaction is checkpointed early in epoch 1 and the request must
+    // resolve shortly after — well under the 30s finality timeout it used to
+    // burn before returning `TimeoutBeforeFinality`. The window leaves room
+    // for the driver's retry backoff, which is capped at 10s.
+    let result = match tokio::time::timeout(Duration::from_secs(20), result_rx.recv()).await {
+        Ok(Some(result)) => result,
+        Ok(None) => panic!("submission task dropped the result channel"),
+        Err(_) => panic!("WaitForLocalExecution did not resolve within 20s of the epoch change"),
+    };
+    let (response, executed_locally) = result
+        .unwrap_or_else(|e| panic!("WaitForLocalExecution failed across the boundary: {e:?}"));
+    assert!(executed_locally, "tx should be executed locally");
+    match response.effects.finality_info {
+        EffectsFinalityInfo::Checkpointed(epoch, _seq) => assert_eq!(epoch, 1),
+        other => panic!("expected Checkpointed finality, got {other:?}"),
+    }
+}
+
 async fn execute_with_orchestrator(
     orchestrator: &TransactionOrchestrator<NetworkAuthorityClient>,
     txn: Transaction,
@@ -319,6 +409,7 @@ async fn execute_with_orchestrator(
 /// through the validators again — on every entry point.
 #[sim_test]
 async fn test_cached_response_for_executed_transaction() -> Result<(), anyhow::Error> {
+    let _pcool_guard = override_pcool_flow(false);
     let mut test_cluster = TestClusterBuilder::new().build().await;
     let context = &mut test_cluster.wallet;
     let handle = &test_cluster.fullnode_handle.iota_node;
@@ -470,41 +561,9 @@ async fn execute_transaction_v1() -> Result<(), anyhow::Error> {
 /// being returned to the caller — otherwise the safety guard at the end of
 /// `execute_transaction_block` would reject the response as
 /// `QuorumDriverInternal`.
-/// Drop-guard that clears the P-COOL env vars on scope exit, so a test
-/// that enables the flow does not contaminate sibling tests sharing the same
-/// process (e.g. when run via `cargo nextest` with `--test-threads`).
-#[must_use = "drop the guard at the end of the test to restore env vars"]
-struct PcoolEnvGuard;
-
-impl Drop for PcoolEnvGuard {
-    fn drop(&mut self) {
-        // SAFETY: paired with `enable_pcool_env`; both calls run on the
-        // test thread before/after the cluster is alive.
-        unsafe {
-            std::env::remove_var("IOTA_PROTOCOL_CONFIG_OVERRIDE_ENABLE");
-            std::env::remove_var("IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_PCOOL_FLOW");
-        }
-    }
-}
-
-fn enable_pcool_env() -> PcoolEnvGuard {
-    // SAFETY: set before spawning the test cluster; env vars are the only
-    // reliable way to flip the P-COOL protocol flag inside validator
-    // tasks spawned by the cluster (thread-local `apply_overrides_for_testing`
-    // does not propagate to spawned tasks outside msim).
-    unsafe {
-        std::env::set_var("IOTA_PROTOCOL_CONFIG_OVERRIDE_ENABLE", "1");
-        std::env::set_var(
-            "IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_PCOOL_FLOW",
-            "true",
-        );
-    }
-    PcoolEnvGuard
-}
-
 #[sim_test]
 async fn test_skip_effect_cert_reconciles_to_checkpointed() -> Result<(), anyhow::Error> {
-    let _env_guard = enable_pcool_env();
+    let _env_guard = override_pcool_flow(true);
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
         config.set_enable_pcool_flow_for_testing(true);
         config
@@ -569,7 +628,7 @@ async fn test_skip_effect_cert_reconciles_to_checkpointed() -> Result<(), anyhow
 /// `Checkpointed`).
 #[sim_test]
 async fn test_cached_response_for_executed_transaction_under_pcool() -> Result<(), anyhow::Error> {
-    let _env_guard = enable_pcool_env();
+    let _env_guard = override_pcool_flow(true);
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
         config.set_enable_pcool_flow_for_testing(true);
         config
@@ -629,7 +688,7 @@ async fn test_cached_response_for_executed_transaction_under_pcool() -> Result<(
 /// or input/output objects must not receive them.
 #[sim_test]
 async fn test_skip_effect_cert_respects_request_flags() -> Result<(), anyhow::Error> {
-    let _env_guard = enable_pcool_env();
+    let _env_guard = override_pcool_flow(true);
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
         config.set_enable_pcool_flow_for_testing(true);
         config
@@ -691,7 +750,7 @@ async fn test_skip_effect_cert_respects_request_flags() -> Result<(), anyhow::Er
 /// in-flight submissions in memory only.
 #[sim_test]
 async fn test_pcool_deduplicates_concurrent_submissions() -> Result<(), anyhow::Error> {
-    let _env_guard = enable_pcool_env();
+    let _env_guard = override_pcool_flow(true);
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
         config.set_enable_pcool_flow_for_testing(true);
         config
@@ -766,7 +825,7 @@ async fn test_pcool_deduplicates_concurrent_submissions() -> Result<(), anyhow::
 /// a checkpoint inclusion that can never happen and timing out.
 #[sim_test]
 async fn test_pcool_duplicate_submission_inherits_failure() -> Result<(), anyhow::Error> {
-    let _env_guard = enable_pcool_env();
+    let _env_guard = override_pcool_flow(true);
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
         config.set_enable_pcool_flow_for_testing(true);
         config
@@ -836,7 +895,7 @@ async fn test_pcool_duplicate_submission_inherits_failure() -> Result<(), anyhow
 #[sim_test]
 async fn test_pcool_duplicate_requiring_certification_returns_certified_effects()
 -> Result<(), anyhow::Error> {
-    let _env_guard = enable_pcool_env();
+    let _env_guard = override_pcool_flow(true);
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
         config.set_enable_pcool_flow_for_testing(true);
         config
@@ -903,7 +962,7 @@ async fn test_pcool_duplicate_requiring_certification_returns_certified_effects(
 /// page on-call for a routine availability dip.
 #[sim_test]
 async fn test_skip_effect_cert_timeout_without_quorum() -> Result<(), anyhow::Error> {
-    let _env_guard = enable_pcool_env();
+    let _env_guard = override_pcool_flow(true);
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
         config.set_enable_pcool_flow_for_testing(true);
         config
@@ -979,7 +1038,7 @@ async fn test_skip_effect_cert_timeout_without_quorum() -> Result<(), anyhow::Er
 /// reconfiguration, since test infra polls its committee epoch.
 #[sim_test]
 async fn test_authority_aggregator_accessor_under_pcool() {
-    let _env_guard = enable_pcool_env();
+    let _env_guard = override_pcool_flow(true);
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
         config.set_enable_pcool_flow_for_testing(true);
         config
@@ -1140,7 +1199,7 @@ async fn test_orchestrator_rejects_expired_transaction() {
 /// the surviving submission instead of driving its own.
 #[sim_test]
 async fn test_submission_survives_caller_abort() -> Result<(), anyhow::Error> {
-    let _env_guard = enable_pcool_env();
+    let _env_guard = override_pcool_flow(true);
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
         config.set_enable_pcool_flow_for_testing(true);
         config

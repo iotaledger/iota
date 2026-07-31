@@ -3691,6 +3691,7 @@ name = "iota-sdk-crypto"
 version = "0.0.1-alpha.1"
 source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=ecad020a7#ecad020a7d6b260c56c8e3544b2226a2bd671df9"
 dependencies = [
+ "base64ct",
  "fastcrypto",
  "iota-sdk-types",
  "rand_core 0.6.4",

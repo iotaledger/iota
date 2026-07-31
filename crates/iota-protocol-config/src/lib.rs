@@ -189,6 +189,8 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             thresholds, grace period) into the protocol config.
 //             Enable the optimistic commit rule (StarfishSpeed) in Starfish
 //             consensus on testnet.
+//             Amortize the minimum checkpoint interval over a sliding window
+//             on testnet.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -576,6 +578,20 @@ struct FeatureFlags {
     // `MoveAuthenticationError` execution error.
     #[serde(skip_serializing_if = "is_false")]
     report_move_authentication_error: bool,
+
+    // If true, the Starfish leader schedule scores reputation over a sliding
+    // window and rebuilds the swap table every `consensus_commits_per_schedule`
+    // commits with a uniform base election; when false, V2 snapshot scoring +
+    // stake-weighted base election is used.
+    #[serde(skip_serializing_if = "is_false")]
+    consensus_enable_sliding_window_leader_schedule: bool,
+
+    // If true, Starfish selects "bad" leader-schedule nodes by absolute
+    // normalized reputation score: exclude validators below a low threshold,
+    // capped at a maximum number of validators, and keep a minimum-size good
+    // (swap-in) pool; when false, the fixed stake cut by rank is used.
+    #[serde(skip_serializing_if = "is_false")]
+    consensus_enable_absolute_score_leader_schedule: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1488,6 +1504,11 @@ pub struct ProtocolConfig {
     /// `validator_low_stake_threshold` before being removed.
     /// Supersedes `SystemParametersV1::validator_low_stake_grace_period`.
     validator_low_stake_grace_period: Option<u64>,
+
+    /// Number of committed subdags the sliding-window leader scorer aggregates
+    /// over (the scoring depth). When unset, defaults to 600. Consulted only
+    /// when `consensus_enable_sliding_window_leader_schedule` is set.
+    consensus_leader_schedule_window_size: Option<u32>,
 }
 
 // feature flags
@@ -1876,12 +1897,37 @@ impl ProtocolConfig {
     }
 
     pub fn commits_per_schedule(&self) -> u32 {
-        if cfg!(msim) {
+        let commits_per_schedule = if cfg!(msim) {
             // Exercise faster leader-schedule rotation in simtests.
             min(10, self.consensus_commits_per_schedule.unwrap_or(300))
         } else {
             self.consensus_commits_per_schedule.unwrap_or(300)
-        }
+        };
+        assert!(
+            commits_per_schedule > 0,
+            "consensus_commits_per_schedule must be greater than 0"
+        );
+        commits_per_schedule
+    }
+
+    pub fn leader_schedule_window_size(&self) -> u32 {
+        self.consensus_leader_schedule_window_size.unwrap_or(600)
+    }
+
+    pub fn consensus_enable_sliding_window_leader_schedule(&self) -> bool {
+        let res = self
+            .feature_flags
+            .consensus_enable_sliding_window_leader_schedule;
+        assert!(
+            !res || self.leader_schedule_window_size() >= self.commits_per_schedule(),
+            "consensus_enable_sliding_window_leader_schedule requires window_size >= commits_per_schedule"
+        );
+        res
+    }
+
+    pub fn consensus_enable_absolute_score_leader_schedule(&self) -> bool {
+        self.feature_flags
+            .consensus_enable_absolute_score_leader_schedule
     }
 
     pub fn deny_rule_governance(&self) -> bool {
@@ -2516,6 +2562,7 @@ impl ProtocolConfig {
             validator_low_stake_threshold: None,
             validator_very_low_stake_threshold: None,
             validator_low_stake_grace_period: None,
+            consensus_leader_schedule_window_size: None,
             // When adding a new constant, set it to None in the earliest version, like this:
             // new_constant: None,
         };
@@ -3110,6 +3157,9 @@ impl ProtocolConfig {
                         // Enable the optimistic commit rule (StarfishSpeed) in
                         // Starfish consensus.
                         cfg.feature_flags.consensus_starfish_speed = true;
+                        // Amortize the minimum checkpoint interval over a sliding
+                        // window so the checkpoint rate holds at the ceiling.
+                        cfg.checkpoint_rate_window_size = Some(20);
                     }
                 }
                 // Use this template when making changes:
@@ -3378,6 +3428,20 @@ impl ProtocolConfig {
 
     pub fn set_report_move_authentication_error_for_testing(&mut self, val: bool) {
         self.feature_flags.report_move_authentication_error = val;
+    }
+
+    pub fn set_leader_schedule_window_size_for_testing(&mut self, val: u32) {
+        self.consensus_leader_schedule_window_size = Some(val);
+    }
+
+    pub fn set_consensus_enable_sliding_window_leader_schedule_for_testing(&mut self, val: bool) {
+        self.feature_flags
+            .consensus_enable_sliding_window_leader_schedule = val;
+    }
+
+    pub fn set_consensus_enable_absolute_score_leader_schedule_for_testing(&mut self, val: bool) {
+        self.feature_flags
+            .consensus_enable_absolute_score_leader_schedule = val;
     }
 }
 

@@ -21,6 +21,7 @@ use iota_types::{
     transaction::CallArg,
 };
 use prost_types::FieldMask;
+use test_cluster::override_pcool_flow;
 
 use crate::utils::{
     NFT_PACKAGE, address_proto, assert_field_presence, assert_tonic_error,
@@ -611,7 +612,17 @@ fn object_id_set(response: &ListOwnedObjectsResponse) -> std::collections::HashS
 }
 
 #[sim_test]
-async fn list_owned_objects_filter_by_type() {
+async fn list_owned_objects_filter_by_type_pre_consensus_flow() {
+    list_owned_objects_filter_by_type(false).await;
+}
+
+#[sim_test]
+async fn list_owned_objects_filter_by_type_pcool_flow() {
+    list_owned_objects_filter_by_type(true).await;
+}
+
+async fn list_owned_objects_filter_by_type(pcool: bool) {
+    let _pcool_guard = override_pcool_flow(pcool);
     let (test_cluster, client) = setup_grpc_test(Some(1), None).await;
     let mut state_client = client.state_service_client();
 

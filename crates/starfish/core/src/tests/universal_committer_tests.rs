@@ -43,12 +43,12 @@ async fn direct_commit() {
 
     // Genesis cert will not be included in commit sequence, marking it as last
     // decided
-    let last_decided = Slot::new(0, 0);
+    let last_finalized = Slot::new(0, 0);
 
     // The universal committer should mark the potential leaders in leader round 6
     // as undecided because there is no way to get enough certificates for
     // leaders of leader round 6 without completing wave (6-7-8).
-    let sequence = test_setup.committer.try_decide(last_decided);
+    let sequence = test_setup.committer.try_decide(last_finalized);
     tracing::info!("Commit sequence: {sequence:#?}");
     // The decided leaders should be all from round 1 to round 5
     assert_eq!(sequence.len(), 5);
@@ -80,8 +80,8 @@ async fn idempotence() {
     );
 
     // Commit one leader.
-    let last_decided = Slot::new(0, 0);
-    let first_sequence = committer.try_decide(last_decided);
+    let last_finalized = Slot::new(0, 0);
+    let first_sequence = committer.try_decide(last_finalized);
     assert_eq!(first_sequence.len(), 1);
 
     if let DecidedLeader::Commit(ref block, _, _) = first_sequence[0] {
@@ -96,7 +96,7 @@ async fn idempotence() {
 
     // Ensure that if try_commit is called again with the same last decided leader
     // input the commit decision will be the same.
-    let first_sequence = committer.try_decide(last_decided);
+    let first_sequence = committer.try_decide(last_finalized);
 
     assert_eq!(first_sequence.len(), 1);
     if let DecidedLeader::Commit(ref block, _, _) = first_sequence[0] {
@@ -121,12 +121,12 @@ async fn idempotence() {
     // Ensure we don't commit the same leader of round 1 again if we mark it as the
     // last decided.
     let leader_status_first_leader = first_sequence.last().unwrap();
-    let last_decided = Slot::new(
+    let last_finalized = Slot::new(
         leader_status_first_leader.round(),
         leader_status_first_leader.authority(),
     );
     let round_5 = 5;
-    let second_sequence = committer.try_decide(last_decided);
+    let second_sequence = committer.try_decide(last_finalized);
     tracing::info!("Commit sequence: {second_sequence:#?}");
 
     // Expect that all leaders between round 2 and round 5 are committed.
@@ -146,7 +146,7 @@ async fn multiple_direct_commit() {
     let (context, dag_state, committer) = basic_test_setup();
 
     let mut ancestors = None;
-    let mut last_decided = Slot::new(0, 0);
+    let mut last_finalized = Slot::new(0, 0);
     for n in 1..=10 {
         // Build the DAG up to the certifying round for leader blocks of authority 1,
         // i.e. full DAG is built with chunks of 3 rounds
@@ -161,7 +161,7 @@ async fn multiple_direct_commit() {
 
         // After every 3 rounds, try commit all leaders in between
         let leader_round = committer.committers[0].leader_round(n);
-        let sequence = committer.try_decide(last_decided);
+        let sequence = committer.try_decide(last_finalized);
         tracing::info!("Commit sequence: {sequence:#?}");
         assert_eq!(sequence.len(), 3);
         if let DecidedLeader::Commit(ref block, _, _) = sequence[2] {
@@ -174,7 +174,7 @@ async fn multiple_direct_commit() {
         // Update the last decided leader so only one new leader is committed as
         // each new wave is completed.
         let leader_status = sequence.last().unwrap();
-        last_decided = Slot::new(leader_status.round(), leader_status.authority());
+        last_finalized = Slot::new(leader_status.round(), leader_status.authority());
     }
 }
 
@@ -189,8 +189,8 @@ async fn direct_commit_late_call() {
     let certifying_round_wave_10 = committer.committers[0].certifying_round(10);
     build_dag(context, dag_state, None, certifying_round_wave_10);
 
-    let last_decided = Slot::new(0, 0);
-    let sequence = committer.try_decide(last_decided);
+    let last_finalized = Slot::new(0, 0);
+    let sequence = committer.try_decide(last_finalized);
     tracing::info!("Commit sequence: {sequence:#?}");
 
     // With 11 full non-intersecting waves completed, excluding genesis in wave 0 as
@@ -267,8 +267,8 @@ async fn direct_skip_no_leader_votes() {
     // committer.
     assert_eq!(committer.committers.len(), 3);
 
-    let last_decided = Slot::new(0, 0);
-    let sequence = committer.try_decide(last_decided);
+    let last_finalized = Slot::new(0, 0);
+    let sequence = committer.try_decide(last_finalized);
     // Only leader for slot B1 should be decided, specifically, skipped
     assert_eq!(sequence.len(), 1);
     if let DecidedLeader::Skip(leader) = sequence[0] {
@@ -385,8 +385,8 @@ async fn indirect_commit() {
 
     // Ensure we indirectly commit the leader of round 3 via the directly committed
     // leader of round 6.
-    let last_decided = Slot::new(0, 0);
-    let sequence = committer.try_decide(last_decided);
+    let last_finalized = Slot::new(0, 0);
+    let sequence = committer.try_decide(last_finalized);
     tracing::info!("Commit sequence: {sequence:#?}");
     assert_eq!(sequence.len(), 6);
 
@@ -463,8 +463,8 @@ async fn indirect_skip() {
 
     // Ensure we indirectly skip the leader of round 4 via the directly committed
     // leader of round 7.
-    let last_decided = Slot::new(0, 0);
-    let sequence = committer.try_decide(last_decided);
+    let last_finalized = Slot::new(0, 0);
+    let sequence = committer.try_decide(last_finalized);
     tracing::info!("Commit sequence: {sequence:#?}");
     assert_eq!(sequence.len(), 7);
 
@@ -545,8 +545,8 @@ async fn undecided() {
 
     // Ensure we indirectly commit the leader of round3 via the directly committed
     // leader of round 6.
-    let last_decided = Slot::new(0, 0);
-    let sequence = committer.try_decide(last_decided);
+    let last_finalized = Slot::new(0, 0);
+    let sequence = committer.try_decide(last_finalized);
     tracing::info!("Commit sequence: {sequence:#?}");
     assert!(sequence.is_empty());
 }
@@ -694,8 +694,8 @@ async fn test_byzantine_direct_commit() {
     // all of these blocks also have good votes for leader A12 through A, B, D.
 
     // Expect a successful direct commit of A12 and all leaders at previous rounds.
-    let last_decided = Slot::new(0, 0);
-    let sequence = committer.try_decide(last_decided);
+    let last_finalized = Slot::new(0, 0);
+    let sequence = committer.try_decide(last_finalized);
     tracing::info!("Commit sequence: {sequence:#?}");
 
     assert_eq!(sequence.len(), 12);
