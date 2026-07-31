@@ -169,9 +169,6 @@ pub struct IotaTestAdapter {
     digest_enumeration: BTreeMap<u64, TransactionDigest>,
     next_fake: (u64, u64),
     gas_price: u64,
-    /// Mirror of the active protocol config's `max_tx_gas`, used as the gas
-    /// budget for dev inspect, where a budget cannot be given explicitly.
-    max_tx_gas: u64,
     /// Mirror of the active protocol config's
     /// `package_metadata_with_dynamic_module_metadata` feature flag: when set,
     /// published modules receive V2 (dynamic) runtime metadata, otherwise V1.
@@ -434,7 +431,6 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
             next_fake: (0, 0),
             // TODO: make this configurable
             gas_price: default_gas_price.unwrap_or(DEFAULT_GAS_PRICE),
-            max_tx_gas: protocol_config.max_tx_gas(),
             dynamic_module_metadata: protocol_config
                 .package_metadata_with_dynamic_module_metadata(),
             staged_modules: BTreeMap::new(),
@@ -1935,18 +1931,15 @@ impl IotaTestAdapter {
         transaction_kind: TransactionKind,
         gas_price: Option<u64>,
     ) -> anyhow::Result<TxnSummary> {
-        let price = match gas_price {
-            Some(price) => price,
-            None => self.executor.reference_gas_price().await?,
-        };
+        let (reference_gas_price, max_tx_gas) = self.executor.gas_price_and_max_budget().await?;
         let transaction = TransactionData::V1(TransactionV1 {
             kind: transaction_kind,
             sender,
             gas_payment: GasPayment {
                 objects: vec![],
                 owner: sender,
-                price,
-                budget: self.max_tx_gas,
+                price: gas_price.unwrap_or(reference_gas_price),
+                budget: max_tx_gas,
             },
             expiration: TransactionExpiration::None,
         });

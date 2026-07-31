@@ -33,7 +33,6 @@ use iota_transaction_builder::TransactionBuilder;
 use iota_types::{
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
     execution_config_utils::to_binary_config,
-    gas_coin::mock_simulation_gas_coin,
     inner_temporary_store::{PackageStoreWithFallback, TemporaryModuleResolver},
     iota_serde::BigInt,
     quorum_driver_types::{
@@ -353,9 +352,15 @@ impl TransactionExecutionApi {
         };
 
         // A transaction submitted without a gas payment is simulated against a mock gas
-        // coin, which the reported transaction input has to account for.
-        if simulation.mock_gas_id.is_some() {
-            let mock_gas = mock_simulation_gas_coin(txn_data.gas_data().owner);
+        // coin, which the reported transaction input has to account for. Take the coin
+        // back out of the simulation's inputs rather than minting a second one, so the
+        // reported payment is the reference the simulation actually charged.
+        if let Some(mock_gas_id) = simulation.mock_gas_id {
+            let mock_gas = simulation.input_objects.get(&mock_gas_id).ok_or_else(|| {
+                Error::Unexpected(format!(
+                    "simulation minted mock gas coin {mock_gas_id} but did not report it as an input",
+                ))
+            })?;
             txn_data.gas_data_mut().objects = vec![mock_gas.object_ref()];
         }
 
@@ -386,7 +391,7 @@ impl TransactionExecutionApi {
                 ))
             })?;
             let events = IotaTransactionBlockEvents::try_from(
-                simulation.events.clone().unwrap_or_default(),
+                simulation.events.unwrap_or_default(),
                 tx_digest,
                 None,
                 layout_resolver.as_mut(),

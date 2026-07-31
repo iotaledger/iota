@@ -216,6 +216,12 @@ impl<P> ObjectProviderCache<P> {
         for (object_id, object) in written_objects {
             let key = (*object_id, object.version());
             object_cache.insert(key, object.clone());
+            // No keep-the-greater-version check here, unlike
+            // `insert_objects_into_cache`: `last_version_cache` is keyed by the
+            // version being looked up, and the value is that same version, so any
+            // entry this loop could collide with holds a value equal to the one
+            // being written. `written_objects` is also keyed by object ID, so each
+            // key is produced at most once to begin with.
             last_version_cache.insert(key, object.version());
         }
 

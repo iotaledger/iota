@@ -103,7 +103,9 @@ pub trait TransactionalAdapter: Send + Sync + ReadStore {
         checks: VmChecks,
     ) -> IotaResult<SimulateTransactionResult>;
 
-    async fn reference_gas_price(&self) -> IotaResult<u64>;
+    /// Reference gas price and maximum transaction gas budget of the current
+    /// epoch, used to fill in the gas payment a dev inspect leaves out.
+    async fn gas_price_and_max_budget(&self) -> IotaResult<(u64, u64)>;
 
     async fn query_tx_events_asc(
         &self,
@@ -176,11 +178,12 @@ impl TransactionalAdapter for ValidatorWithFullnode {
         self.fullnode.simulate_transaction(transaction, checks)
     }
 
-    async fn reference_gas_price(&self) -> IotaResult<u64> {
-        Ok(self
-            .fullnode
-            .load_epoch_store_one_call_per_task()
-            .reference_gas_price())
+    async fn gas_price_and_max_budget(&self) -> IotaResult<(u64, u64)> {
+        let epoch_store = self.fullnode.load_epoch_store_one_call_per_task();
+        Ok((
+            epoch_store.reference_gas_price(),
+            epoch_store.protocol_config().max_tx_gas(),
+        ))
     }
 
     async fn query_tx_events_asc(
@@ -423,14 +426,17 @@ impl TransactionalAdapter for Simulacrum<StdRng, PersistedStore> {
 
     async fn simulate_transaction(
         &self,
-        _transaction: TransactionData,
-        _checks: VmChecks,
+        transaction: TransactionData,
+        checks: VmChecks,
     ) -> IotaResult<SimulateTransactionResult> {
-        unimplemented!("simulate_transaction not supported in simulator mode")
+        Simulacrum::simulate_transaction(self, transaction, checks)
     }
 
-    async fn reference_gas_price(&self) -> IotaResult<u64> {
-        Ok(Simulacrum::reference_gas_price(self))
+    async fn gas_price_and_max_budget(&self) -> IotaResult<(u64, u64)> {
+        Ok((
+            Simulacrum::reference_gas_price(self),
+            Simulacrum::max_tx_gas(self),
+        ))
     }
 
     async fn query_tx_events_asc(
