@@ -3341,14 +3341,14 @@ async fn grpc_input_refs(
         .get_objects(&requests, Some(ReadMask::from(ObjectField::REFERENCE)))
         .await?
         .into_inner();
-    Ok(objects
+    objects
         .into_iter()
         .map(|result| match result {
             Ok(obj) => obj.object_reference().map_err(|e| anyhow::anyhow!(e)),
             Err(e) if e.is_not_found() => Err(anyhow::anyhow!("Object not found: {e}")),
             Err(e) => Err(anyhow::anyhow!(e)),
         })
-        .collect::<Result<_, _>>()?)
+        .collect()
 }
 
 /// Dry run, execute, or serialize a transaction.
