@@ -47,8 +47,8 @@ pub(crate) async fn collect_get_result_with_progress(
     on_bytes: &(dyn Fn(u64) + Send + Sync),
 ) -> Result<Bytes> {
     use futures::StreamExt;
+    let mut buf = Vec::with_capacity(result.meta.size as usize);
     let mut stream = result.into_stream();
-    let mut buf = Vec::new();
     while let Some(chunk) = stream.next().await {
         let chunk = chunk
             .map_err(|e| anyhow!("Failed to stream GET result for file {src} with error: {e:?}"))?;

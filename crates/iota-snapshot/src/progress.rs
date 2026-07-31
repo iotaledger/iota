@@ -145,6 +145,10 @@ impl DownloadProgressBar {
     /// doesn't count them twice.
     pub fn remove_bytes(&self, n: u64) {
         if self.byte_denominated {
+            // The read-modify-write races with concurrent `add_bytes` calls
+            // from other in-flight downloads (indicatif has no atomic
+            // decrement); a lost increment only skews the displayed position
+            // slightly, which is acceptable for a progress bar.
             self.bar.set_position(self.bar.position().saturating_sub(n));
         }
     }
