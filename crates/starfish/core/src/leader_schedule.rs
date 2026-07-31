@@ -1258,6 +1258,15 @@ mod tests {
         context
             .protocol_config
             .set_consensus_bad_nodes_stake_threshold_for_testing(33);
+        // Scores feed the V2 batch path and the good/bad split assumes
+        // stake-rank selection; run with the sliding-window schedule and
+        // absolute-score selection off.
+        context
+            .protocol_config
+            .set_consensus_enable_sliding_window_leader_schedule_for_testing(false);
+        context
+            .protocol_config
+            .set_consensus_enable_absolute_score_leader_schedule_for_testing(false);
         let context = Arc::new(context);
         let leader_schedule = Arc::new(LeaderSchedule::new(
             context.clone(),
@@ -1681,8 +1690,11 @@ mod tests {
 
         // The stake-rank path (flag off) admits only the single top scorer as
         // good; the absolute path admits both authorities above the threshold.
-        let stake_rank_context = Arc::new(Context::new_for_test(4).0);
-        let stake_rank = LeaderSwapTable::new_inner(stake_rank_context, 33, 0, scores());
+        let mut stake_rank_context = Context::new_for_test(4).0;
+        stake_rank_context
+            .protocol_config
+            .set_consensus_enable_absolute_score_leader_schedule_for_testing(false);
+        let stake_rank = LeaderSwapTable::new_inner(Arc::new(stake_rank_context), 33, 0, scores());
         assert_eq!(stake_rank.good_nodes.len(), 1);
         assert_eq!(first.good_nodes.len(), 2);
     }
@@ -1768,6 +1780,15 @@ mod tests {
         context
             .protocol_config
             .set_consensus_bad_nodes_stake_threshold_for_testing(33);
+        // Scores feed the V2 batch path and the good/bad split assumes
+        // stake-rank selection; run with the sliding-window schedule and
+        // absolute-score selection off.
+        context
+            .protocol_config
+            .set_consensus_enable_sliding_window_leader_schedule_for_testing(false);
+        context
+            .protocol_config
+            .set_consensus_enable_absolute_score_leader_schedule_for_testing(false);
         let context = Arc::new(context);
         let store = Arc::new(MemStore::new());
 
@@ -1893,6 +1914,15 @@ mod tests {
         context
             .protocol_config
             .set_consensus_bad_nodes_stake_threshold_for_testing(33);
+        // Scores feed the V2 batch path and the good/bad split assumes
+        // stake-rank selection; run with the sliding-window schedule and
+        // absolute-score selection off.
+        context
+            .protocol_config
+            .set_consensus_enable_sliding_window_leader_schedule_for_testing(false);
+        context
+            .protocol_config
+            .set_consensus_enable_absolute_score_leader_schedule_for_testing(false);
         let context = Arc::new(context);
 
         // Two full 5-commit windows, built once and shared by both scenarios so
@@ -1989,6 +2019,11 @@ mod tests {
         context
             .protocol_config
             .set_consensus_enable_sliding_window_leader_schedule_for_testing(true);
+        // The good/bad split assumes stake-rank selection; run with
+        // absolute-score selection off.
+        context
+            .protocol_config
+            .set_consensus_enable_absolute_score_leader_schedule_for_testing(false);
         let context = Arc::new(context);
         let store = Arc::new(MemStore::new());
 
