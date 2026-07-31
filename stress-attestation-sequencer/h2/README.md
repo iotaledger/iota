@@ -39,7 +39,7 @@ Each invocation prints the per-transaction result and appends a row to
 `results/calibration-<machine>.csv`. `<machine>` is a label of the CPU model
 of the machine it ran on (for example, `ryzen-9-9950x3d` or `epyc-9454p`),
 so sweeps from different machines do not collide and the analysis scripts can
-tell them apart:
+distinguish them:
 
 ```text
 start_epoch, slow_n, slow_size, product, shared, qps, duration, n_samples,
@@ -88,68 +88,71 @@ Prometheus window. Attestation is on in both runs, so the mode is the only
 thing that differs; with it off, `TotalComputationUnits` has no attested cost
 to schedule on and falls back to `gas_budget / gas_price`.
 
-Both runs have to be able to admit the same amount of work, which means
-different numeric limits. Set `CU_PER_TX` to the workload's attested
-computation units per transaction and Run B's limits are computed from Run
-A's:
+`LIMIT_A` is a transaction count per object per commit, `LIMIT_B` computation
+units per object per commit; neither is computed from the other. `LIMIT_A`
+defaults to production's 10, `LIMIT_B` is required. Ten transactions of a
+workload costing C units each is `10 × C` units of work, so `LIMIT_B = 10 × C`
+is the limit that admits the same work as Run A at that one cost: 10,000 units
+for `cu1k`, 160,000 for `cu16k`, 4,910,000 for `cu491k`. Those differ by 491×,
+which is why the limit has to be picked from a measurement rather than
+converted from `LIMIT_A`.
 
 ```bash
-# one point, one rate, 3 iterations
-LABEL=cu4k-qps500-n4 ITERS=3 WORKLOAD=slow SLOW_N=100 SLOW_SIZE=100 \
-  CU_PER_TX=4000 LIMIT_A=10 TARGET_QPS=500 ./run.sh
+# one cost point, one limit, one rate, 3 iterations
+LABEL=cu16k-lim160k-qps500 ITERS=3 WORKLOAD=slow SLOW_N=200 SLOW_SIZE=100 \
+  LIMIT_A=10 LIMIT_B=160000 TARGET_QPS=500 ./run.sh
 
-# Run B's limits set directly instead of computed, for a workload with no
-# single per-transaction cost
-LABEL=mixed-lim20k-qps500-n4 WORKLOAD=slow LIMIT_B=20000 \
-  OVERSHOOT_B=0 TARGET_QPS=500 ./run.sh
-
-# the whole grid, 5 iterations each, or one cost point at a time
+# the whole grid, or one cost point / limit / rate at a time
 ITERS=5 ./matrix.sh
-ITERS=5 ./matrix.sh cu4k-
+ITERS=5 ./matrix.sh cu491k
+ITERS=5 ./matrix.sh lim160k
+ITERS=5 ./matrix.sh qps2000
 ```
 
-Every config in the grid runs one fixed cost, so all the transactions in a run
-are identical and both modes admit the same work once the limits match. That
-makes the grid the control: it shows whether `TotalComputationUnits` keeps up
-with `TotalTxCount` at each gas bucket. A run whose transactions differ in cost
-— where the two modes would admit different amounts of work — comes later; see
-Next steps.
+The limit to look for is the most units a commit can admit for one object before
+execution falls behind and checkpoint lag grows. How many transactions that is
+depends on what they cost, where `TotalTxCount` always admits 10.
 
-The burst above the base limit is off by default (`OVERSHOOT_A=0`, and Run B's
-follows from it), so each run is described by one number: `LIMIT_A`, the
-transaction count per object per commit that Run B's limit is computed from.
-With the burst off nothing exceeds the base limit and no debt is carried into
-later commits, so the two runs differ only in that one number — with a burst,
-the debt would be carried in transactions on one side and in computation units
-on the other. Once a base limit is settled, re-run it with
-`OVERSHOOT_A=$((10 * LIMIT_A))` to see what the burst adds.
+The top of the range is fixed by the protocol. A transaction is metered against
+`min(gas_budget, max_gas_computation_bucket × gas_price)`, so no transaction can
+be charged more than 5,000,000 computation units, whatever budget it declares
+(see `probe-test.md`). Ten of those is 50,000,000 units, so that is the widest
+per-object limit a 10-transaction commit could ever need, and it is the grid's
+top rung.
 
-`run.sh` defaults `LIMIT_A` to production's 10, but 10 transactions per object
-per commit may well be below what four validators can execute, in which case
-the limit and not the mode is what caps throughput. `matrix.sh` therefore
-spells it out in every cell and runs the two lightest points at 100 as well.
+The burst above the base limit is off by default (`OVERSHOOT_A=0`,
+`OVERSHOOT_B=0`), so each run is described by one number and no debt is carried
+between commits. Once a limit is settled, re-run it with an overshoot ten times
+the base to see what the burst adds.
 
-One constraint comes with the burst off: the base limit still has to fit a
-single transaction, or that transaction is deferred every commit and cancelled
-after `MAX_DEFERRAL_ROUNDS`. `LIMIT_A >= 1` covers `TotalTxCount`, and
-`LIMIT_A × CU_PER_TX` leaves `LIMIT_A` transactions of headroom under
-`TotalComputationUnits`, so this only bites if the real attested cost is far
-above `CU_PER_TX` — which is the other reason to measure it first.
+With the burst off, a limit below the cost of a _single_ transaction admits
+nothing at all: the scheduler needs `start_time + cost <= limit` and
+`start_time` is at least 0, so every transaction is deferred each commit and
+then cancelled at `MAX_DEFERRAL_ROUNDS`. That is why each cost point's limits
+start at or above its own per-transaction cost, and why the tightest meaningful
+limit for `cu491k` is one transaction per commit.
+
+The rate is the second knob: it sets how many transactions are available per
+commit, and a limit only binds when demand exceeds what it admits, so each cell
+pairs a limit with a rate high enough to saturate it. The limits that match Run
+A's capacity run the whole 250/500/1000/2000 ladder.
+
+Computation units are machine-independent, but execution time is not, so the
+same limit saturates differently on each machine — measure where lag starts
+growing on that machine rather than reusing a number from elsewhere.
 
 Both scripts submit through the fullnode (`DIRECT=false`, as in H1): one
-mutable shared object caps throughput low enough that these rates stay under
-what the fullnode can push, and that path keeps the client's latency in
+mutable shared object caps throughput low enough that these rates should stay
+under what the fullnode can push, and that path keeps the client's latency in
 Prometheus. `DIRECT=true` switches to a client in docker submitting straight
 to the validators, and its throughput and latency then come only from the
 report it prints (`run-*-stress-report.log`), which every run saves either
-way.
+way. The one cell that may need it is `cu1k`, whose object can drain thousands
+of transactions a second.
 
-The grid uses `slow` (W5) throughout. It publishes one `slow::Obj` shared
-object and every transaction takes it as a mutable input, so all of them
-contend on the same object; the workload has no setting for more objects.
-Transactions on one mutable shared object also execute one after another, so
-`matrix.sh` picks the rates per cost point rather than using the same rates
-everywhere.
+The grid uses `slow` (W5) throughout. It publishes one `slow::Obj` and every
+transaction takes it as a mutable input, so all of them contend on the same
+object; the workload has no setting for more objects.
 
 The plan's W1 (`shared`, `--shared-counter`) is not in the grid. With
 `NUM_SHARED_COUNTERS=1` every transaction increments the same counter at a cost
@@ -161,7 +164,7 @@ against if the `slow` numbers look surprising.
 Results follow the H1 layout: `results/<LABEL>/iter-NNN/`, one config per
 label, enforced by the same config gate (`../exp_dir.py`):
 
-```
+```text
 results/<LABEL>/
     config.json                    # canonical inputs; rejects a changed config
     iter-001/
@@ -176,8 +179,7 @@ results/<LABEL>/
 ## Tooling
 
 - `run.sh` — the mode comparison; one iteration is bootstrap, Run A, reset,
-  Run B. Needs `LABEL`, and either `CU_PER_TX` or both `LIMIT_B` and
-  `OVERSHOOT_B`.
+  Run B. Needs `LABEL` and `LIMIT_B`.
 - `matrix.sh` — runs `run.sh` over the config grid, one iteration of every
   config per round, `ITERS` rounds, with one log per config under `logs/`.
 - `probe.sh` — run one `(SLOW_N, SLOW_SIZE)` point: start the network or reuse a
@@ -201,12 +203,13 @@ The results so far are written up in `probe-test.md`.
 The grid in `matrix.sh` is set up but has not been run yet. Still to do:
 
 - **Measure the computation units of the shared-object transactions.** The
-  calibration measured owned-object ones; the transactions in the comparison
-  carry a mutable shared input as well. Run
-  `SLOW_N=<n> SLOW_SIZE=100 SLOW_SHARED=true ./probe.sh`
-  for each of the five points and correct `CU_PER_TX` in `matrix.sh` if the
-  numbers differ. A wrong value gives the two runs different capacity, and then
-  the comparison no longer measures the mode.
+  calibration measured owned-object ones; the transactions in the grid carry a
+  mutable shared input as well. Run
+  `SLOW_N=<n> SLOW_SIZE=100 SLOW_SHARED=true ./probe.sh` for each cost point and
+  correct the table in `matrix.sh` if the numbers differ. The costs decide which
+  limits a point can be run at — a limit below one transaction's cost admits
+  nothing — and they are how the units admitted per commit get read back as a
+  number of transactions.
 - **Decide what to collect and write the aggregation.** Every run saves the full
   metric set, but nothing reads it yet: H2 needs its own `aggregate.py` and
   `plot.py`, adapted from `../h1/` for two modes instead of attestation off/on.
@@ -218,7 +221,7 @@ The grid in `matrix.sh` is set up but has not been run yet. Still to do:
   `consensus_handler_transaction_deferral_rounds`,
   `consensus_handler_scheduled_transactions_per_object_per_commit`).
 - **Add a run whose transactions do not all cost the same.** The grid is all
-  fixed-cost, which is the control; the modes can only pull apart when the cost
+  fixed-cost, which is the control; the modes can only differ when the cost
   varies, since that is when a count limit and a cost limit admit different
   amounts of work. The only mixed-cost workload available today is
   `slow::bimodal`, which alternates every 10s between 4,000 and 1,000

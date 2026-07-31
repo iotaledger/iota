@@ -1,101 +1,69 @@
 #!/usr/bin/env bash
 #
-# matrix.sh — run the H2 congestion-mode matrix (Run A TotalTxCount vs Run B
-# TotalComputationUnits), ITERS iterations each, as labeled experiments under
+# matrix.sh — sweep Run B's per-object computation-unit limit against a fixed
+# TotalTxCount reference, ITERS iterations each, as labeled experiments under
 # results/<LABEL>/.
 #
-# Every cell runs both modes on the same load with attestation ON in both, so the
-# mode is the only thing that differs. Both runs have to be able to admit the same
-# amount of work, which means different numeric limits: Run A gets a transaction
-# count per object per commit (LIMIT_A base, OVERSHOOT_A burst) and Run B gets that
-# count multiplied by the workload's attested computation units per transaction
-# (run.sh computes it from CU_PER_TX).
+# Adapted from ../h1/matrix.sh.
 #
-# The burst is off in every cell (OVERSHOOT_A=0, and OVERSHOOT_B follows from it),
-# so each arm is described by one number: the base limit per object per commit.
-# Nothing exceeds it and no debt is carried between commits, which keeps the two
-# arms comparable — with a burst, the debt would be carried in transactions on one
-# side and in computation units on the other. Once a base limit is settled, re-run
-# it with OVERSHOOT_A=10*LIMIT_A to see what the burst adds.
+# LIMIT_B (computation units per object per commit) is the swept axis; Run A stays
+# at production's LIMIT_A=10 transactions in every cell as the reference. The two
+# limits are independent inputs in different units.
 #
-# LIMIT_A is spelled out per cell, because the value chosen decides what the cell
-# measures. 10 is production's base limit and the reference, but 10 transactions per
-# object per commit is likely well below what these four validators can execute, so
-# the limit rather than the mode would cap throughput. The two lightest points
-# therefore also run at 100 (`lim100` in the label): if throughput moves with the
-# limit, the limit was binding; if it does not, execution was.
+# The burst is off everywhere (OVERSHOOT_A=0, OVERSHOOT_B=0), so each run is
+# described by one number and no debt is carried between commits.
 #
-# Every config runs ONE fixed cost, so all the transactions in a run are identical
-# and both modes admit the same work once the limits match. A run whose transactions
-# differ in cost — where a count limit and a cost limit would admit different
-# amounts of work — is out of the grid for now (see README.md).
+# The grid has two knobs. TARGET_QPS sets how many transactions are available
+# per commit, swept 250/500/1000/2000; a limit only binds when demand exceeds what
+# it admits, so each cell pairs a limit with a rate high enough to saturate it.
+# SLOW_N sets the cost per transaction, which converts a unit limit into a
+# transaction count.
 #
-# Both workloads are SHARED-object ones — only those exercise per-object
-# congestion control. The `slow` workload publishes ONE `slow::Obj` shared object
-# and every transaction takes it as a mutable input, so all of them contend on the
-# same object; the workload has no setting for more objects. Transactions on one
-# mutable shared object also execute one after another, so the rates are picked per
-# cost point (roughly what that point can execute, then a few times more) rather
-# than using the same rates everywhere: at 2000 qps the heaviest point would only
-# build a backlog the network cannot drain. Those same low rates are why every cell
-# submits through the fullnode (run.sh's default) — nothing here comes close to
-# saturating it.
+# Cost points from the h2 calibration (probe-test.md; size fixed at 100). "drains"
+# is 1 / execution time — how fast one object can execute that point, since
+# transactions on one mutable shared object run one after another:
 #
-# The cost points come from the h2 calibration (probe-test.md; size fixed at 100,
-# units are the same on any machine), listed with the execution time per transaction
-# that decides how fast a single object can drain:
+#   point    slow_n   units/tx   exec ms (WS / EPYC)   drains (WS / EPYC)
+#   cu1k          1      1,000     0.23 /  0.55        4400 / 1800 per s
+#   cu16k       200     16,000     4.27 / 18.78         234 /   53 per s
+#   cu491k     1000    491,000    18.81 / 74.62          53 /   13 per s
 #
-#   label    slow_n   product   units/tx   exec ms (WS / EPYC)   rates (qps)
-#   cu1k          1       100      1,000      0.23 / 0.55        200 1000 2000
-#   cu4k        100    10,000      4,000      2.30 / 9.28        100 500
-#   cu16k       200    20,000     16,000      4.27 / 18.78       50 250
-#   cu130k      400    40,000    130,000      7.96 / 35.04       25 100
-#   cu491k     1000   100,000    491,000     18.81 / 74.62       10 50
+# The limits per point, as units and as the transactions per commit they admit:
 #
-# cu1k and cu4k run their upper rates twice, once at each base limit, and those four
-# cells carry `lim100` in the label.
+#   point    limit    tx/commit   note
+#   cu1k     5k               5   tighter than Run A
+#   cu1k     10k             10   same as Run A
+#   cu1k     100k           100   needs 2000 qps to saturate
+#   cu16k    100k             6   tighter than Run A
+#   cu16k    160k            10   same as Run A
+#   cu16k    500k            31   more than either machine drains
+#   cu491k   491k             1   the floor: one transaction per commit
+#   cu491k   1m               2
+#   cu491k   4910k           10   same as Run A
+#   cu491k   50m            100   far more than either machine drains
 #
-# Those units were measured on OWNED slow transactions; the ones here carry a
-# mutable shared input as well, so confirm each point with
-# `SLOW_N=<n> SLOW_SIZE=100 SLOW_SHARED=true ./probe.sh` before a long campaign. A
-# wrong CU_PER_TX gives the two runs different capacity, and then the cell no longer
-# measures the mode.
+# A limit below one transaction's cost admits nothing at all: the scheduler needs
+# `start_time + cost <= limit` with a start time of at least 0, so every transaction
+# is deferred each commit and cancelled after max_deferral_rounds. That is why the
+# limits per point all start at or above that point's own cost.
 #
-# The plan's W1 (`--shared-counter` on one counter) is not in the grid: with
-# NUM_SHARED_COUNTERS=1 every transaction increments the same counter at a cost that
-# also lands on the 1,000-unit floor, which is what cu1k already runs. run.sh still
-# takes WORKLOAD=shared, so it is there as a second workload to cross-check against
-# if the `slow` numbers look surprising.
+# The `slow` workload publishes ONE `slow::Obj` and every transaction takes it as a
+# mutable input, so all of them contend on the same object.
 #
-# 15 configs total. Use the substring FILTER to run one point at a time — the full
-# grid at ITERS=5 is days of wall time.
+# 19 configs total. Use the substring FILTER to run one cost point, one limit or one
+# rate at a time.
 #
-# Labels carry the network size as an -n4 suffix and pass N=4 to run.sh: 4
-# validators are enough, since every validator schedules the same committed order
-# through the same per-object limits. The same grid can be run on another size
-# under distinct labels without colliding with these results.
-#
-# Round-robin: each round runs 1 iteration (A+B) of every config; ITERS rounds
-# total, so each config ends with ITERS iters — interleaved, not config-major. So
-# an interrupted run leaves every config with ~equal iters. That's 15 * ITERS full
-# experiments — DAYS of wall time at ITERS=5 for the whole grid, so filter to one
-# group unless you mean it. Per-config console output goes to
-# logs/<LABEL>.log (truncated on round 1, appended thereafter); redirecting it also
-# makes run.sh non-interactive (no monitoring prompt) and strips ANSI colors, so
-# the matrix runs unattended.
+# Every cell runs on 4 validators; N=4 is not in the label since nothing else is
+# planned.
 #
 # Usage:
-#   ITERS=5 ./matrix.sh             # run all 15 configs
-#   ITERS=3 ./matrix.sh lim100      # only the 4 higher-limit configs
-#   ITERS=3 ./matrix.sh cu4k-       # one cost point, every rate and limit (4 configs)
+#   ITERS=5 ./matrix.sh             # run all 19 configs
+#   ITERS=5 ./matrix.sh cu491k      # one cost point, every limit and rate
+#   ITERS=5 ./matrix.sh lim4910k    # one limit, its whole rate ladder
+#   ITERS=5 ./matrix.sh qps2000     # one rate, every cost point and limit
 #
-# A config that fails (or is interrupted) does NOT abort the matrix — it's logged
-# and the next config runs. Re-running is safe: run.sh's config gate appends more
-# iterations to an existing label (same config) rather than overwriting.
-#
-# Unlike ../h1/matrix.sh there is no aggregate/plot sweep at the end: H2 has no
-# aggregation step yet (see README.md), so a campaign leaves the raw per-run JSONs
-# plus the per-config logs.
+# A failed config does not abort the matrix. Re-running appends iterations to an
+# existing label rather than overwriting (run.sh's config gate).
 
 set -uo pipefail
 
@@ -109,47 +77,49 @@ mkdir -p "$LOGDIR"
 # (parallel gzip, same .gz format) when installed.
 GZIP_BIN="$(command -v pigz || echo gzip)"
 
-# When launched detached (nohup / output not a terminal), send our own console
-# output to logs/_matrix.log instead of relying on an outer `> logs/_matrix.log`
-# redirect — that redirect is opened by the shell before this script's mkdir runs,
-# so it would fail if logs/ didn't exist yet. Now `nohup ./matrix.sh &` just works.
-# (Per-config detail still goes to logs/<LABEL>.log.)
+# Detached runs (nohup, output not a terminal) send this script's console output to
+# logs/_matrix.log; per-config detail still goes to logs/<LABEL>.log.
 if [[ ! -t 1 ]]; then
   exec >"$LOGDIR/_matrix.log" 2>&1
 fi
 
 # The repeated env groups, named once so each config row shows what varies.
-SLOW1="WORKLOAD=slow SLOW_N=1 SLOW_SIZE=100 SLOW_SHARED=true CU_PER_TX=1000"
-SLOW100="WORKLOAD=slow SLOW_N=100 SLOW_SIZE=100 SLOW_SHARED=true CU_PER_TX=4000"
-SLOW200="WORKLOAD=slow SLOW_N=200 SLOW_SIZE=100 SLOW_SHARED=true CU_PER_TX=16000"
-SLOW400="WORKLOAD=slow SLOW_N=400 SLOW_SIZE=100 SLOW_SHARED=true CU_PER_TX=130000"
-SLOW1000="WORKLOAD=slow SLOW_N=1000 SLOW_SIZE=100 SLOW_SHARED=true CU_PER_TX=491000"
-# Base limit per object per commit, burst off. 10 is production's base limit.
-BASE10="LIMIT_A=10 OVERSHOOT_A=0"
-BASE100="LIMIT_A=100 OVERSHOOT_A=0"
+SLOW1="WORKLOAD=slow SLOW_N=1 SLOW_SIZE=100 SLOW_SHARED=true"       # 1,000 units/tx
+SLOW200="WORKLOAD=slow SLOW_N=200 SLOW_SIZE=100 SLOW_SHARED=true"   # 16,000 units/tx
+SLOW1000="WORKLOAD=slow SLOW_N=1000 SLOW_SIZE=100 SLOW_SHARED=true" # 491,000 units/tx
+# Run A's reference in every cell: production's count limit, burst off in both runs.
+REF="N=4 LIMIT_A=10 OVERSHOOT_A=0 OVERSHOOT_B=0"
 
 # "LABEL | env assignments passed to run.sh"
 configs=(
-  # One fixed cost per run; with the limits matched, both modes admit the same work.
-  "cu1k-qps200-n4     | $SLOW1 $BASE10 TARGET_QPS=200  N=4"
-  "cu1k-qps1000-n4    | $SLOW1 $BASE10 TARGET_QPS=1000 N=4"
-  "cu1k-qps2000-n4    | $SLOW1 $BASE10 TARGET_QPS=2000 N=4"
-  "cu1k-lim100-qps1000-n4 | $SLOW1 $BASE100 TARGET_QPS=1000 N=4"
-  "cu1k-lim100-qps2000-n4 | $SLOW1 $BASE100 TARGET_QPS=2000 N=4"
+  # ---- cu1k, 1,000 units/tx. lim10k admits 10/commit, the same as Run A, and gets
+  #      the full rate ladder. lim5k halves that; lim100k needs the top rate to bind.
+  "cu1k-lim10k-qps250    | $SLOW1 $REF LIMIT_B=10000  TARGET_QPS=250"
+  "cu1k-lim10k-qps500    | $SLOW1 $REF LIMIT_B=10000  TARGET_QPS=500"
+  "cu1k-lim10k-qps1000   | $SLOW1 $REF LIMIT_B=10000  TARGET_QPS=1000"
+  "cu1k-lim10k-qps2000   | $SLOW1 $REF LIMIT_B=10000  TARGET_QPS=2000"
+  "cu1k-lim5k-qps250     | $SLOW1 $REF LIMIT_B=5000   TARGET_QPS=250"
+  "cu1k-lim100k-qps2000  | $SLOW1 $REF LIMIT_B=100000 TARGET_QPS=2000"
   #
-  "cu4k-qps100-n4     | $SLOW100 $BASE10 TARGET_QPS=100 N=4"
-  "cu4k-qps500-n4     | $SLOW100 $BASE10 TARGET_QPS=500 N=4"
-  "cu4k-lim100-qps100-n4 | $SLOW100 $BASE100 TARGET_QPS=100 N=4"
-  "cu4k-lim100-qps500-n4 | $SLOW100 $BASE100 TARGET_QPS=500 N=4"
+  # ---- cu16k, 16,000 units/tx. lim160k is the same as Run A; lim100k is tighter,
+  #      lim500k admits more than either machine can execute.
+  "cu16k-lim160k-qps250  | $SLOW200 $REF LIMIT_B=160000 TARGET_QPS=250"
+  "cu16k-lim160k-qps500  | $SLOW200 $REF LIMIT_B=160000 TARGET_QPS=500"
+  "cu16k-lim160k-qps1000 | $SLOW200 $REF LIMIT_B=160000 TARGET_QPS=1000"
+  "cu16k-lim160k-qps2000 | $SLOW200 $REF LIMIT_B=160000 TARGET_QPS=2000"
+  "cu16k-lim100k-qps250  | $SLOW200 $REF LIMIT_B=100000 TARGET_QPS=250"
+  "cu16k-lim500k-qps1000 | $SLOW200 $REF LIMIT_B=500000 TARGET_QPS=1000"
   #
-  "cu16k-qps50-n4     | $SLOW200 $BASE10 TARGET_QPS=50  N=4"
-  "cu16k-qps250-n4    | $SLOW200 $BASE10 TARGET_QPS=250 N=4"
-  #
-  "cu130k-qps25-n4    | $SLOW400 $BASE10 TARGET_QPS=25  N=4"
-  "cu130k-qps100-n4   | $SLOW400 $BASE10 TARGET_QPS=100 N=4"
-  #
-  "cu491k-qps10-n4    | $SLOW1000 $BASE10 TARGET_QPS=10 N=4"
-  "cu491k-qps50-n4    | $SLOW1000 $BASE10 TARGET_QPS=50 N=4"
+  # ---- cu491k, 491,000 units/tx. lim4910k is the same as Run A; lim491k is the
+  #      floor of one transaction per commit, and lim50m is far past what the
+  #      network can execute.
+  "cu491k-lim4910k-qps250  | $SLOW1000 $REF LIMIT_B=4910000  TARGET_QPS=250"
+  "cu491k-lim4910k-qps500  | $SLOW1000 $REF LIMIT_B=4910000  TARGET_QPS=500"
+  "cu491k-lim4910k-qps1000 | $SLOW1000 $REF LIMIT_B=4910000  TARGET_QPS=1000"
+  "cu491k-lim4910k-qps2000 | $SLOW1000 $REF LIMIT_B=4910000  TARGET_QPS=2000"
+  "cu491k-lim491k-qps250   | $SLOW1000 $REF LIMIT_B=491000   TARGET_QPS=250"
+  "cu491k-lim1m-qps250     | $SLOW1000 $REF LIMIT_B=1000000  TARGET_QPS=250"
+  "cu491k-lim50m-qps2000   | $SLOW1000 $REF LIMIT_B=50000000 TARGET_QPS=2000"
 )
 
 # Cache sudo up front (run.sh uses sudo per iteration) and keep it alive for the
@@ -178,11 +148,8 @@ n=0
 ok=0
 fail=0
 start=$(date +%s)
-# Round-robin: each round runs ONE iteration of every config; ITERS rounds total,
-# so each config ends with ITERS iters but they are interleaved. An interrupted
-# matrix then leaves every config with ~equal iterations, instead of the first
-# configs fully done and the last ones with none. (run.sh's config gate appends
-# each round's iter to results/<LABEL>/.)
+# Round-robin: each round runs ONE iteration of every config, so an interrupted
+# matrix leaves every config with about equal iterations.
 for ((round = 1; round <= ITERS; round++)); do
   echo "########## round $round of $ITERS ##########"
   for row in "${configs[@]}"; do

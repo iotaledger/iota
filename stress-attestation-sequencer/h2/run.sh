@@ -1,52 +1,34 @@
 #!/usr/bin/env bash
 #
-# run.sh — run the H2 experiment (congestion-control mode comparison, W1/W5:
-# TotalTxCount vs TotalComputationUnits) ITERS times and pool the iterations.
-# REQUIRES a LABEL env var naming the experiment; all its iterations accumulate
-# under results/<LABEL>/iter-NNN/, gated by a config.json so a label can never mix
-# configs (see ../exp_dir.py). Each iteration:
-#   1. cleanup    tear down anything already running (best-effort)
+# run.sh — run the H2 mode comparison (TotalTxCount vs TotalComputationUnits)
+# ITERS times. LABEL is required and names results/<LABEL>/; every iteration of a
+# label accumulates under it, gated by config.json (see ../exp_dir.py). Each
+# iteration:
+#   1. cleanup    tear down anything already running
 #   2. bootstrap  -b, regenerate genesis with benchmark gas accounts
-#   3. Run A — MODE_A (default TotalTxCount), limits LIMIT_A / OVERSHOOT_A
-#   4. Run B — MODE_B (default TotalComputationUnits), limits LIMIT_B /
-#                 OVERSHOOT_B, same load (network reset between A and B —
-#                 cleanup wipes the node DBs but keeps Run A's genesis, so Run B
-#                 cold-starts like Run A; unattended runs wipe the Prometheus TSDB (at each
-#                 iteration start AND between A and B) for cleanly separated runs;
-#                 interactively nothing is wiped, so all runs coexist in Grafana;
-#                 Run A's JSON is saved before the reset)
-#   5. capture    save each run's window as a raw timeseries JSON + the client's
-#                 benchmark report + node logs, then stop the network.
-# There is no aggregation step yet (see README.md), so each iteration leaves only
-# its raw per-run JSONs.
+#   3. Run A — MODE_A (default TotalTxCount), LIMIT_A / OVERSHOOT_A
+#   4. Run B — MODE_B (default TotalComputationUnits), LIMIT_B / OVERSHOOT_B,
+#              same load, after a network reset that keeps Run A's genesis
+#   5. capture    per-run timeseries JSON + client report + node logs, then stop
 #
-# Attestation is ON in BOTH runs: the congestion-control mode is then the only
-# thing that differs, and TotalComputationUnits needs the attested cost — with
-# attestation off it falls back to gas_budget / gas_price, which is 5,000,000
-# units for these transactions and a different experiment.
+# Adapted from ../h1/run.sh, which runs the same flow with attestation off/on.
 #
-# Both runs have to be able to admit the same amount of work, which means
-# different numeric limits: 10 means 10 transactions under TotalTxCount but 10
-# computation units — a hundredth of one transaction — under
-# TotalComputationUnits. Set CU_PER_TX to the workload's attested computation
-# units per transaction (measure it with ./probe.sh, see probe-test.md) and Run
-# B's limits are computed as LIMIT_A * CU_PER_TX and OVERSHOOT_A * CU_PER_TX. Set
-# LIMIT_B / OVERSHOOT_B directly instead when the transactions do not all cost the
-# same, as in the bimodal workload, since there is no single number to compute
-# them from.
+# Attestation is ON in both runs, so the mode is the only difference; without it
+# TotalComputationUnits falls back to gas_budget / gas_price (5,000,000 units).
 #
-# Run as a NORMAL user (cargo must not run as root); `sudo` is used internally
-# only for cleanup/bootstrap.
+# LIMIT_A (transactions per object per commit) and LIMIT_B (computation units per
+# object per commit) are independent inputs; neither is computed from the other.
 #
-# Required env: LABEL (experiment name -> results/<LABEL>/), and either CU_PER_TX
-#               or both LIMIT_B and OVERSHOOT_B.
+# Run as a NORMAL user; sudo is used internally for cleanup/bootstrap.
+#
+# Required env: LABEL and LIMIT_B.
 # Tunables (env): ITERS (default 1), N, RUN_DURATION, TARGET_QPS, NUM_WORKERS,
 #                 NUM_CLIENT_THREADS, NUM_TRANSFER_ACCOUNTS, IN_FLIGHT_RATIO,
 #                 DIRECT, NUM_TARGET_VALIDATORS,
 #                 WORKLOAD (owned|shared|slow),
 #                 NUM_SHARED_COUNTERS, SLOW_N, SLOW_SIZE, SLOW_SHARED,
-#                 MODE_A, LIMIT_A, OVERSHOOT_A, MODE_B, LIMIT_B, OVERSHOOT_B,
-#                 CU_PER_TX, MAX_DEFERRAL_ROUNDS, ATTEST, PRE_SPAM_DELAY_SECS,
+#                 MODE_A, LIMIT_A, OVERSHOOT_A, MODE_B, OVERSHOOT_B,
+#                 MAX_DEFERRAL_ROUNDS, ATTEST, PRE_SPAM_DELAY_SECS,
 #                 SLEEP_BETWEEN_RUNS_S, PRE_SPAM_WAIT_S, PRE_STOP_WAIT_S, PROM,
 #                 TS_STEP, EPOCH_DURATION_MS, NODE_LOG.
 
@@ -109,12 +91,9 @@ NUM_WORKERS="${NUM_WORKERS:-24}"
 NUM_CLIENT_THREADS="${NUM_CLIENT_THREADS:-12}"      # tokio threads driving the client (raise for higher qps)
 NUM_TRANSFER_ACCOUNTS="${NUM_TRANSFER_ACCOUNTS:-4}" # pure multiplier on setup-phase gas-coin count
 IN_FLIGHT_RATIO="${IN_FLIGHT_RATIO:-2}"             # max in-flight = IN_FLIGHT_RATIO * TARGET_QPS
-# Via the fullnode by default, as in ../h1/run.sh: a single mutable shared object
-# caps throughput low enough that the rates here stay well under what the fullnode
-# can push, and that path keeps the client-side latency metrics in Prometheus.
-# Switch to DIRECT=true if the fullnode turns out to be the limit — the client then
-# runs in docker and submits straight to the validators, and its throughput and
-# latency come only from the report it prints (run-*-stress-report.log).
+# Via the fullnode by default: one mutable shared object caps throughput well below
+# what the fullnode can push, and that path keeps the client's latency metrics in
+# Prometheus. DIRECT=true runs the client in docker instead.
 DIRECT="${DIRECT:-false}"                          # true => submit direct-to-validator (in-docker); false => via fullnode
 NUM_TARGET_VALIDATORS="${NUM_TARGET_VALIDATORS:-}" # DIRECT only: pin submission/attestation to first N validators (empty => all)
 WORKLOAD="${WORKLOAD:-slow}"                       # slow (slow::slow / slow::bimodal on a shared object) | shared (shared-counter) | owned (transfer; no congestion control)
@@ -122,35 +101,22 @@ NUM_SHARED_COUNTERS="${NUM_SHARED_COUNTERS:-}"     # WORKLOAD=shared: fewer => m
 SLOW_N="${SLOW_N:-}"                               # WORKLOAD=slow: slow::slow(n,size) — n vectors (empty + empty SLOW_SIZE => bimodal)
 SLOW_SIZE="${SLOW_SIZE:-}"                         # WORKLOAD=slow: each vector size in bytes
 SLOW_SHARED="${SLOW_SHARED:-true}"                 # WORKLOAD=slow: true attaches the mutable shared input congestion control needs; false => owned-only pure compute
-# Congestion-control mode + per-object limits for each arm, both per shared object
-# per commit. LIMIT_* is the base budget; OVERSHOOT_* lets a single commit exceed
-# it, and the excess is carried as debt that blocks the object in later commits
-# until it is repaid, so LIMIT_* is the long-run rate either way.
+# Per shared object per commit: LIMIT_* is the base budget, OVERSHOOT_* the burst a
+# single commit may exceed it by, carried as debt and repaid from later commits.
 #
-# OVERSHOOT defaults to 0 in both arms, which turns the burst off: a transaction is
-# scheduled only if it fits under the base limit (the scheduler compares against
-# base + overshoot), nothing ever exceeds it, and no debt is carried. That keeps the
-# comparison to one number per arm — the base limit — instead of also comparing a
-# debt carried in transactions on one side and in computation units on the other.
-# Once a base limit is settled, re-run it with OVERSHOOT_A=10*LIMIT_A to see what
-# the burst adds.
+# OVERSHOOT defaults to 0 in both runs, so nothing exceeds the base limit and no
+# debt is carried — each run is described by one number.
 #
-# With the burst off, the base limit must still fit ONE transaction, or that
-# transaction can never be scheduled: it is deferred every commit and cancelled
-# after MAX_DEFERRAL_ROUNDS. LIMIT_A >= 1 covers TotalTxCount, and
-# LIMIT_A * CU_PER_TX covers TotalComputationUnits with LIMIT_A transactions of
-# headroom — so this only bites if the real attested cost is far above CU_PER_TX.
+# With the burst off the base limit must fit ONE transaction: the scheduler needs
+# start_time + cost <= limit with start_time >= 0, so a smaller limit defers the
+# transaction every commit until MAX_DEFERRAL_ROUNDS cancels it. probe-test.md
+# lists what each slow point costs.
 MODE_A="${MODE_A:-TotalTxCount}"
-LIMIT_A="${LIMIT_A:-10}"
+LIMIT_A="${LIMIT_A:-10}" # transactions per object per commit (production's value)
 OVERSHOOT_A="${OVERSHOOT_A:-0}"
 MODE_B="${MODE_B:-TotalComputationUnits}"
-# Empty is NOT the same as 0 for these two: empty means "compute it from Run A's
-# value and CU_PER_TX" (so OVERSHOOT_A=0 already gives Run B no burst), while 0
-# means "no burst, whatever Run A got" — which would leave Run B without one after
-# Run A's is raised.
-LIMIT_B="${LIMIT_B:-}"
-OVERSHOOT_B="${OVERSHOOT_B:-}"
-CU_PER_TX="${CU_PER_TX:-}"                     # attested computation units per transaction (from ./probe.sh); Run B's limits are computed from it
+LIMIT_B="${LIMIT_B:?set LIMIT_B=<computation units per object per commit> (required)}"
+OVERSHOOT_B="${OVERSHOOT_B:-0}"
 MAX_DEFERRAL_ROUNDS="${MAX_DEFERRAL_ROUNDS:-}" # rounds a tx may stay deferred before it is CANCELLED (empty => protocol default 10); both arms
 ATTEST="${ATTEST:-true}"                       # validator attestation; both arms (see the header)
 # Setup-phase gas coins prepped before spam = TARGET_QPS * IN_FLIGHT_RATIO *
@@ -172,29 +138,13 @@ PRIMARY_GAS_OWNER="0xf479d29837d22943aba6afc401f518a36521b990874eca784886185bd26
 BENCH_REPO="${BENCH_REPO:-$REPO_ROOT/../network-benchmark}"
 STRESS_BIN="${STRESS_BIN_PATH:-$BENCH_REPO/target/release/stress}"
 
-# --- Run B's limits: explicit, or derived from the per-transaction cost --------
-[[ "$LIMIT_A" =~ ^[0-9]+$ && "$OVERSHOOT_A" =~ ^[0-9]+$ ]] || {
-  echo "${RED}ERROR: LIMIT_A/OVERSHOOT_A must be non-negative integers (got '$LIMIT_A'/'$OVERSHOOT_A').${RESET}" >&2
-  exit 1
-}
-if [[ -z "$LIMIT_B" || -z "$OVERSHOOT_B" ]]; then
-  [[ -n "$CU_PER_TX" ]] || {
-    echo "${RED}ERROR: set CU_PER_TX (attested computation units per transaction — measure it" >&2
-    echo "       with ./probe.sh, see probe-test.md) so Run B's limits can be derived, or set" >&2
-    echo "       both LIMIT_B and OVERSHOOT_B explicitly.${RESET}" >&2
+# --- Validate the limits ------------------------------------------------------
+for _v in LIMIT_A OVERSHOOT_A LIMIT_B OVERSHOOT_B; do
+  [[ "${!_v}" =~ ^[0-9]+$ ]] || {
+    echo "${RED}ERROR: $_v must be a non-negative integer (got '${!_v}').${RESET}" >&2
     exit 1
   }
-  [[ "$CU_PER_TX" =~ ^[0-9]+$ ]] || {
-    echo "${RED}ERROR: CU_PER_TX must be a positive integer (got '$CU_PER_TX').${RESET}" >&2
-    exit 1
-  }
-  LIMIT_B="${LIMIT_B:-$((LIMIT_A * CU_PER_TX))}"
-  OVERSHOOT_B="${OVERSHOOT_B:-$((OVERSHOOT_A * CU_PER_TX))}"
-fi
-[[ "$LIMIT_B" =~ ^[0-9]+$ && "$OVERSHOOT_B" =~ ^[0-9]+$ ]] || {
-  echo "${RED}ERROR: LIMIT_B/OVERSHOOT_B must be non-negative integers (got '$LIMIT_B'/'$OVERSHOOT_B').${RESET}" >&2
-  exit 1
-}
+done
 
 # --- Experiment label + config-gated results directory --------------------
 # LABEL names the EXPERIMENT (one config). Every run.sh iteration for the same
@@ -224,7 +174,7 @@ allocate_iter() {
       CFG_slow_n="${SLOW_N:-default}" CFG_slow_size="${SLOW_SIZE:-default}" CFG_slow_shared="$SLOW_SHARED" \
       CFG_mode_a="$MODE_A" CFG_limit_a="$LIMIT_A" CFG_overshoot_a="$OVERSHOOT_A" \
       CFG_mode_b="$MODE_B" CFG_limit_b="$LIMIT_B" CFG_overshoot_b="$OVERSHOOT_B" \
-      CFG_cu_per_tx="${CU_PER_TX:-explicit}" CFG_attest="$ATTEST" \
+      CFG_attest="$ATTEST" \
       CFG_max_deferral_rounds="${MAX_DEFERRAL_ROUNDS:-default}" \
       python3 "$TOOLS_DIR/exp_dir.py" "$EXP_DIR"
   )" || exit 1
@@ -246,14 +196,11 @@ shared)
   [[ -n "$NUM_SHARED_COUNTERS" ]] && WORKLOAD_ARGS+=(--num-shared-counters "$NUM_SHARED_COUNTERS")
   ;;
 slow)
-  # slow::slow(n, size) per transaction — bigger n/size => more computation units,
-  # so CU_PER_TX has to come from the same (n, size) point. With BOTH knobs empty
-  # the workload runs the clock-driven slow::bimodal instead, alternating every 10s
-  # between slow(100, 100) (4,000 units) and slow(10, 10) (1,000 units); a count
-  # limit and a cost limit then admit different amounts of work.
-  # The workload publishes ONE slow::Obj shared object at init and every payload
-  # takes it as a mutable input, so all of them contend on the same object; there
-  # is no setting for more objects.
+  # slow::slow(n, size) per transaction; bigger n/size costs more computation units
+  # (probe-test.md lists the points). With both knobs empty the workload runs
+  # slow::bimodal instead, alternating heavy and light every 10s.
+  # The workload publishes ONE slow::Obj and every payload takes it as a mutable
+  # input, so all of them contend on the same object.
   WORKLOAD_ARGS=(--transfer-object 0 --slow 100)
   [[ -n "$SLOW_N" ]] && WORKLOAD_ARGS+=(--slow-n "$SLOW_N")
   [[ -n "$SLOW_SIZE" ]] && WORKLOAD_ARGS+=(--slow-size "$SLOW_SIZE")
@@ -309,39 +256,19 @@ wait_for_fullnode() {
   exit 1
 }
 
-# Wipe the Prometheus TSDB (down -v) — but ONLY when output is redirected to a
-# file (an unattended / matrix run). Interactively (stdout is a terminal) it's a
-# no-op, so every run stays visible in Grafana for live debugging. Called at the
-# start of each iteration and between Run A and Run B; for unattended runs that
-# bounds the volume's growth and keeps each run's window on a fresh TSDB (no
-# cross-run carryforward). Where it does NOT wipe (interactive), Run B reuses Run
-# A's series labels and its fresh process resets the counters — but that A->B
-# carryforward is stripped from the saved JSONs by dump_timeseries' reset-aware
-# trim, so the per-run data stays correct regardless.
+# Wipe the Prometheus TSDB, but only when output is redirected (an unattended or
+# matrix run); interactively it is a no-op so every run stays visible in Grafana.
+# Called at each iteration start and between Run A and Run B.
 wipe_monitoring() {
   [[ -t 1 ]] && return 0 # interactive: keep the TSDB so Grafana shows all runs
   (cd "$REPO_ROOT/dev-tools/grafana-local" && docker compose down -v --remove-orphans) \
     >/dev/null 2>&1 || true
 }
 
-# Reset the network between runs so Run B's startup path matches the initial
-# setup before Run A — that symmetry is what keeps the pre-spam warmup the
-# same. We tear EVERYTHING down (incl. the monitoring stack: leaving Prometheus
-# up across the reset appears to give Run B a longer warmup, so cleanup.sh
-# brings the monitoring container down WITHOUT -v and start.sh brings it back
-# up for Run B). cleanup.sh wipes the node DBs (data/) but keeps
-# configs/genesis, so Run B cold-starts from the SAME genesis blob as Run A —
-# byte-identical startup work (better symmetry than a re-bootstrap, whose
-# genesis differs by timestamp) without a second multi-minute genesis ceremony
-# per iteration. The long EPOCH_DURATION_MS epoch keeps Run B's later start
-# within epoch 0 far from any reconfiguration.
-#
-# wipe_monitoring here clears the TSDB between Run A and Run B — but ONLY when
-# output is redirected (unattended run): Run B then starts on a fresh TSDB with no
-# A->B carryforward, so the live dashboard separates the runs cleanly too. INTER-
-# ACTIVELY it's a no-op, so Run A and Run B coexist in one Grafana view for side-
-# by-side debugging (the A->B carryforward that leaves is stripped from the saved
-# JSONs by dump_timeseries, so they stay correct either way).
+# Reset between runs so Run B starts like Run A: cleanup.sh wipes the node DBs but
+# keeps configs/genesis, so Run B cold-starts from the same genesis blob, and the
+# long EPOCH_DURATION_MS keeps it inside epoch 0. The monitoring stack goes down
+# with it and start.sh brings it back up for Run B.
 reset_network() {
   echo "${YELLOW}Tearing everything down for Run B (reusing Run A's genesis, fresh DBs)...${RESET}"
   echo "  - cleanup   -> $(rel "$RESULTS_DIR/cleanup.log")"
@@ -349,13 +276,8 @@ reset_network() {
   wipe_monitoring
 }
 
-# Dump the raw timeseries (Prometheus query_range) over the run window to a JSON
-# file. We store the underlying series verbatim — cumulative histogram buckets
-# (+ _count/_sum) and raw counters/gauges — with NO rate()/histogram_quantile()/
-# aggregation baked in. Everything (any rate window, any quantile, per-validator
-# breakdowns, and correct cross-run aggregation by pooling raw histograms) can be
-# reconstructed from this offline. Each entry is the raw query_range result: one
-# series per full label set (le, host, name, ping, ...), values = [[ts,"v"],...].
+# Dump the run window to JSON: raw histogram buckets, counters and gauges, with no
+# rate() or quantile baked in, so any of that can be computed offline.
 # $1 label  $2 start_epoch  $3 end_epoch  $4 out-timeseries.json
 dump_timeseries() {
   local label="$1" start="$2" end="$3" out="$4"
@@ -371,30 +293,18 @@ dump_timeseries() {
     CFG_slow_n="${SLOW_N:-default}" CFG_slow_size="${SLOW_SIZE:-default}" CFG_slow_shared="$SLOW_SHARED" \
     CFG_mode_a="$MODE_A" CFG_limit_a="$LIMIT_A" CFG_overshoot_a="$OVERSHOOT_A" \
     CFG_mode_b="$MODE_B" CFG_limit_b="$LIMIT_B" CFG_overshoot_b="$OVERSHOOT_B" \
-    CFG_cu_per_tx="${CU_PER_TX:-explicit}" CFG_attest="$ATTEST" \
+    CFG_attest="$ATTEST" \
     CFG_max_deferral_rounds="${MAX_DEFERRAL_ROUNDS:-default}" \
     python3 "$TOOLS_DIR/dump_timeseries.py" "$label" "$start" "$end" "$TS_STEP" "$out"
 }
 
-# Identical load for both runs; the congestion-control mode and its per-object
-# limits are the only difference, so the A<->B delta is what the mode changes about
-# scheduling.
+# Submission path: DIRECT=false goes via the fullnode, whose client-side latency
+# metrics are scraped; DIRECT=true runs the client in docker straight to the
+# validators, where they are not.
 #
-# Submission path (DIRECT env):
-#   DIRECT=true (default) — the in-docker runner submits DIRECTLY to validators
-#     (the TD runs inside the stress container, which is NOT a Prometheus target).
-#     So validator-side metrics (scheduling, execution, CPU) still scrape, but the
-#     client-side settlement/submit latency will be null for these runs — the
-#     client's own benchmark report (saved per run) carries those instead.
-#   DIRECT=false — host binary submits via the fullnode (:9000); the fullnode's
-#     TD/QD drives, and its client-side TD metrics are scraped, but the fullnode
-#     itself caps the achievable rate.
-#
-# The measurement window opens at the instant the client starts SPAMMING, which it
-# prints as PROBE_SPAM_START_UNIX once its gas-coin setup has drained (the same
-# marker ./probe.sh uses). Setup pushes thousands of cheap transactions through the
-# same shared object; counting them would raise the throughput figure and pull the
-# mean attested cost down toward the 1,000-unit floor.
+# The window opens where the client prints PROBE_SPAM_START_UNIX, after its
+# gas-coin setup drains — those setup transactions would otherwise inflate
+# throughput and pull the mean attested cost toward the 1,000-unit floor.
 # $1 label  $2 out.json
 run_stress() {
   local label="$1" ts_out="$2" start end
@@ -473,12 +383,8 @@ run_stress() {
   echo
 }
 
-# Capture per-node restart/OOM state + full logs + a WARN/ERROR crash digest into
-# $1, BEFORE any teardown removes the containers. Called for BOTH Run A (before the
-# reset) and Run B (before final cleanup) so the A-vs-B fork/crash comparison is
-# symmetric. RestartCount/OOMKilled from `docker inspect` reveal whether a node
-# crashed during the run; the digest keeps only real WARN/ERROR panics/forks (the
-# level filter drops benign DEBUG "processing aborted (retriable)" TD spam).
+# Capture per-node restart/OOM state, full logs and a WARN/ERROR crash digest into
+# $1, before teardown removes the containers. Called for both runs.
 capture_node_state() {
   local out="$1" c i _nodes
   mkdir -p "$out"
@@ -597,9 +503,8 @@ sudo -v # cache sudo creds up front so prompts don't interrupt mid-run
 
 banner "== H2 [0/5] client + config =="
 echo "  workload : $WORKLOAD$([[ "$WORKLOAD" == slow ]] && echo " (slow(${SLOW_N:-bimodal}, ${SLOW_SIZE:-bimodal}), shared=$SLOW_SHARED)")"
-echo "  Run A    : $MODE_A, limit $LIMIT_A, overshoot $OVERSHOOT_A"
-echo "  Run B    : $MODE_B, limit $LIMIT_B, overshoot $OVERSHOOT_B"
-echo "  units/tx : ${CU_PER_TX:-not given (Run B limits set explicitly)}"
+echo "  Run A    : $MODE_A, limit $LIMIT_A transactions, overshoot $OVERSHOOT_A"
+echo "  Run B    : $MODE_B, limit $LIMIT_B units, overshoot $OVERSHOOT_B"
 echo "  load     : $TARGET_QPS qps for $RUN_DURATION, attestation=$ATTEST, $N validators, direct=$DIRECT"
 if [[ "$DIRECT" == true ]]; then
   # The in-docker client comes from the prebuilt stress image, not from cargo.
@@ -645,11 +550,8 @@ echo "Cross-run aggregation and plots are not written yet — see README.md."
 echo
 echo "${CYAN}Grafana: http://localhost:3000/d/attestation-sequencer-stress${RESET}"
 
-# Monitoring teardown happens ONCE, after every iteration. `down -v` also removes
-# the prometheus-data volume, clearing every run's series. Interactively (both
-# stdin AND stdout a terminal) we PROMPT and default to keeping it, so you can
-# keep inspecting the runs in Grafana. When output is redirected (unattended /
-# matrix run) we just CLEAR it — no prompt to block on, and nobody's watching.
+# Monitoring teardown, once after all iterations. `down -v` clears every run's
+# series, so interactively it asks and defaults to keeping it.
 if [[ -t 0 && -t 1 ]]; then
   read -r -p "${YELLOW}Also stop and CLEAR monitoring (Prometheus data)? [y/N] ${RESET}" ans
 else
