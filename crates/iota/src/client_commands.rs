@@ -3341,28 +3341,10 @@ async fn grpc_input_refs(
         .get_objects(&requests, Some(ReadMask::from(ObjectField::REFERENCE)))
         .await?
         .into_inner();
-    // The node answers in request order, but it is only semi-trusted — the CLI
-    // signs locally — so check that rather than assume it. Otherwise a node
-    // could add or substitute objects and have them signed for.
-    ensure!(
-        objects.len() == object_ids.len(),
-        "Asked the node for {} objects but it returned {}",
-        object_ids.len(),
-        objects.len(),
-    );
-    objects
+    Ok(objects
         .iter()
-        .zip(object_ids)
-        .map(|(object, requested)| {
-            let object_ref = object.object_reference()?;
-            ensure!(
-                object_ref.object_id == *requested,
-                "Asked the node for object {requested} but it returned {}",
-                object_ref.object_id,
-            );
-            Ok(object_ref)
-        })
-        .collect()
+        .map(|object| object.object_reference())
+        .collect::<Result<_, _>>()?)
 }
 
 /// Dry run, execute, or serialize a transaction.
