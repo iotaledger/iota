@@ -145,7 +145,7 @@ pub(super) fn prepare_transaction(
     };
 
     // Snapshot the received objects for the coin deny-list check below: the
-    // dev-inspect branch consumes `receiving_objects`, which is not `Clone`.
+    // simulation branch consumes `receiving_objects`, which is not `Clone`.
     let coin_deny_receiving = check_coin_deny_list.then(|| {
         receiving_objects
             .objects
@@ -155,13 +155,14 @@ pub(super) fn prepare_transaction(
     });
 
     let (gas_status, checked_input_objects) = if matches!(mode, ExecutionMode::DevInspect) {
-        let checked_input_objects = iota_transaction_checks::check_dev_inspect_input(
+        let checked_input_objects = iota_transaction_checks::check_simulation_input(
             &env.protocol_config,
             transaction.kind(),
             input_objects,
             receiving_objects,
         )
-        .map_err(|e| ValidationError::new("dev-inspect input check", e))?;
+        .map_err(|e| ValidationError::new("simulation input check", e))?;
+
         // Dev-inspect meters at `max_tx_gas`, not the transaction's declared
         // budget, matching the node's dev-inspect entry point — a run before a
         // budget is settled isn't limited by it. Real gas coins cap the budget

@@ -230,7 +230,7 @@ impl EpochState {
                 authenticator_gas_budget,
             )?
         } else {
-            let checked_input_objects = iota_transaction_checks::check_dev_inspect_input(
+            let checked_input_objects = iota_transaction_checks::check_simulation_input(
                 &self.protocol_config,
                 transaction.kind(),
                 input_objects,

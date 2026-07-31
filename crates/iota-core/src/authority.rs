@@ -2236,7 +2236,7 @@ impl AuthorityState {
                 authenticator_gas_budget,
             )?
         } else {
-            let checked_input_objects = iota_transaction_checks::check_dev_inspect_input(
+            let checked_input_objects = iota_transaction_checks::check_simulation_input(
                 protocol_config,
                 transaction.kind(),
                 input_objects,
@@ -2282,8 +2282,8 @@ impl AuthorityState {
             checks.disabled(),
         );
 
-        // In the case of a dev inspect, the execution_result could be filled with some
-        // values. Else, execution_result is empty in the case of a dry run.
+        // `execution_result` carries the per-command return values only when the
+        // checks are disabled; with them enabled it is empty.
         Ok(SimulateTransactionResult {
             input_objects: inner_temp_store.input_objects,
             output_objects: inner_temp_store.written,

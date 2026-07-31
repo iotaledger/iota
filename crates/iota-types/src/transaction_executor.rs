@@ -89,10 +89,23 @@ pub struct SimulateTransactionResult {
     pub suggested_gas_price: Option<u64>,
 }
 
+/// Which Move VM checks a simulation runs with.
+///
+/// This is the only thing that separates the two ways a transaction can be
+/// simulated, so it is what callers pick between: a dry run wants
+/// [`VmChecks::Enabled`], a dev inspect wants [`VmChecks::Disabled`].
 #[derive(Default, Debug, Copy, Clone)]
 pub enum VmChecks {
+    /// Run the transaction as it would run on chain: the same input and gas
+    /// checks a validator applies, and metering against the transaction's own
+    /// budget. Command return values are not reported.
     #[default]
     Enabled,
+    /// Relax the rules around entry functions and argument values, so that any
+    /// Move function can be called and any value built from its bytes, and
+    /// report the return values of every command. Input checks are reduced to
+    /// the ones execution cannot proceed without, and a gas budget the caller
+    /// left at zero is resolved for them.
     Disabled,
 }
 

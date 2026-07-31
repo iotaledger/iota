@@ -28,7 +28,7 @@ effects are committed:
 
 | Mode         | Input check                                             | Gas budget                                                            | Mock gas coin if none supplied? | Commits to store? |
 | ------------ | ------------------------------------------------------- | --------------------------------------------------------------------- | ------------------------------- | ----------------- |
-| `DevInspect` | `check_dev_inspect_input` (relaxed)                     | `max_tx_gas` (mock gas) or `min(max_tx_gas, coin balance)` (real gas) | yes                             | no                |
+| `DevInspect` | `check_simulation_input` (relaxed)                      | `max_tx_gas` (mock gas) or `min(max_tx_gas, coin balance)` (real gas) | yes                             | no                |
 | `DryRun`     | `check_transaction_input` (budget `0` → full tx budget) | transaction's declared budget                                         | yes                             | no                |
 | `Execute`    | `check_transaction_input` (budget `0` → full tx budget) | transaction's declared budget                                         | no — requires real gas          | yes, on success   |
 
