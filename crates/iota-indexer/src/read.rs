@@ -89,7 +89,7 @@ use crate::{
     schema::{
         address_metrics, addresses, chain_identifier, checkpoints, display, epochs, events,
         objects, objects_version, optimistic_transactions, packages, pruner_cp_watermark,
-        transactions, tx_digests, tx_global_order,
+        transactions, tx_global_order,
     },
     store::{
         diesel_macro::{mark_in_blocking_pool, *},
@@ -1783,52 +1783,52 @@ impl IndexerReader {
                 function,
                 ..
             }) => match (module, function) {
-                (Some(_), Some(_)) => &[TxCallsFun, TxDigests],
-                (Some(_), None) => &[TxCallsMod, TxDigests],
+                (Some(_), Some(_)) => &[TxCallsFun, TxGlobalOrder],
+                (Some(_), None) => &[TxCallsMod, TxGlobalOrder],
                 (None, Some(_)) => {
                     return Err(IndexerError::InvalidArgument(
                         "Function cannot be present without Module.".into(),
                     ));
                 }
-                (None, None) => &[TxCallsPkg, TxDigests],
+                (None, None) => &[TxCallsPkg, TxGlobalOrder],
             },
             TransactionFilterKind::V1(TransactionFilter::InputObject(_))
             | TransactionFilterKind::V2(TransactionFilterV2::InputObject(_)) => {
-                &[TxInputObjects, TxDigests]
+                &[TxInputObjects, TxGlobalOrder]
             }
             TransactionFilterKind::V1(TransactionFilter::ChangedObject(_))
             | TransactionFilterKind::V2(TransactionFilterV2::ChangedObject(_)) => {
-                &[TxChangedObjects, TxDigests]
+                &[TxChangedObjects, TxGlobalOrder]
             }
             TransactionFilterKind::V2(TransactionFilterV2::WrappedOrDeletedObject(_)) => {
-                &[TxWrappedOrDeletedObjects, TxDigests]
+                &[TxWrappedOrDeletedObjects, TxGlobalOrder]
             }
             TransactionFilterKind::V1(TransactionFilter::FromAddress(_))
             | TransactionFilterKind::V2(TransactionFilterV2::FromAddress(_)) => {
-                &[TxSenders, TxDigests]
+                &[TxSenders, TxGlobalOrder]
             }
             TransactionFilterKind::V1(TransactionFilter::ToAddress(_))
             | TransactionFilterKind::V2(TransactionFilterV2::ToAddress(_)) => {
-                &[TxRecipients, TxDigests]
+                &[TxRecipients, TxGlobalOrder]
             }
             TransactionFilterKind::V1(TransactionFilter::FromAndToAddress { .. })
             | TransactionFilterKind::V2(TransactionFilterV2::FromAndToAddress { .. }) => {
-                &[TxSenders, TxRecipients, TxDigests]
+                &[TxSenders, TxRecipients, TxGlobalOrder]
             }
             TransactionFilterKind::V1(TransactionFilter::TransactionKind(_))
             | TransactionFilterKind::V2(TransactionFilterV2::TransactionKind(_))
             | TransactionFilterKind::V1(TransactionFilter::TransactionKindIn(_))
             | TransactionFilterKind::V2(TransactionFilterV2::TransactionKindIn(_)) => {
-                &[TxKinds, TxDigests]
+                &[TxKinds, TxGlobalOrder]
             }
             // Served by dedicated fallback paths
             TransactionFilterKind::V1(TransactionFilter::Checkpoint(_))
             | TransactionFilterKind::V2(TransactionFilterV2::Checkpoint(_)) => {
-                &[Transactions, PrunerCpWatermark, TxDigests]
+                &[Transactions, PrunerCpWatermark, TxGlobalOrder]
             }
             TransactionFilterKind::V1(TransactionFilter::FromOrToAddress { .. })
             | TransactionFilterKind::V2(TransactionFilterV2::FromOrToAddress { .. }) => {
-                &[TxSenders, TxRecipients, TxDigests]
+                &[TxSenders, TxRecipients, TxGlobalOrder]
             }
             // Unsupported V2-only filters error out in the query match.
             TransactionFilterKind::V2(_) => {
@@ -3110,12 +3110,15 @@ impl<'a> DBReader<'a> {
         }
 
         query = query.filter(
-            events::tx_sequence_number.nullable().eq(tx_digests::table
-                .select(tx_digests::tx_sequence_number)
-                // we filter the tx_digests table because it is indexed by digest,
-                // events table is not
-                .filter(tx_digests::tx_digest.eq(tx_digest.into_inner().to_vec()))
-                .single_value()),
+            events::tx_sequence_number
+                .nullable()
+                .eq(tx_global_order::table
+                    .select(tx_global_order::chk_tx_sequence_number.assume_not_null())
+                    // we filter the tx_global_order table because it is indexed by digest,
+                    // events table is not
+                    .filter(tx_global_order::tx_digest.eq(tx_digest.into_inner().to_vec()))
+                    .filter(tx_global_order::chk_tx_sequence_number.is_not_null())
+                    .single_value()),
         );
 
         let pool = self.main_reader.get_pool();
@@ -3154,11 +3157,12 @@ impl<'a> DBReader<'a> {
     ) -> IndexerResult<Option<i64>> {
         let pool = self.main_reader.get_pool();
         run_query_async!(&pool, move |conn| {
-            tx_digests::table
-                .select(tx_digests::tx_sequence_number)
-                // we filter the tx_digests table because it is indexed by digest,
+            tx_global_order::table
+                .select(tx_global_order::chk_tx_sequence_number.assume_not_null())
+                // we filter the tx_global_order table because it is indexed by digest,
                 // transactions (and other tables) are not
-                .filter(tx_digests::tx_digest.eq(cursor.into_inner().to_vec()))
+                .filter(tx_global_order::tx_digest.eq(cursor.into_inner().to_vec()))
+                .filter(tx_global_order::chk_tx_sequence_number.is_not_null())
                 .first::<i64>(conn)
                 .optional()
         })
@@ -3174,11 +3178,12 @@ impl<'a> DBReader<'a> {
                 .filter(
                     transactions::tx_sequence_number
                         .nullable()
-                        .eq(tx_digests::table
-                            .select(tx_digests::tx_sequence_number)
-                            // we filter the tx_digests table because it is indexed by digest,
+                        .eq(tx_global_order::table
+                            .select(tx_global_order::chk_tx_sequence_number.assume_not_null())
+                            // we filter the tx_global_order table because it is indexed by digest,
                             // transactions table is not
-                            .filter(tx_digests::tx_digest.eq(digest.into_inner().to_vec()))
+                            .filter(tx_global_order::tx_digest.eq(digest.into_inner().to_vec()))
+                            .filter(tx_global_order::chk_tx_sequence_number.is_not_null())
                             .single_value()),
                 )
                 .select((transactions::timestamp_ms, transactions::events))
@@ -3477,9 +3482,10 @@ impl<'a> DBReader<'a> {
         let pool = self.main_reader.get_pool();
         run_query_async!(&pool, |conn| {
             // using two-step query to allow partition pruning during execution.
-            let tx_sequence_numbers = tx_digests::table
-                .filter(tx_digests::tx_digest.eq_any(&digests))
-                .select(tx_digests::tx_sequence_number)
+            let tx_sequence_numbers = tx_global_order::table
+                .filter(tx_global_order::tx_digest.eq_any(&digests))
+                .filter(tx_global_order::chk_tx_sequence_number.is_not_null())
+                .select(tx_global_order::chk_tx_sequence_number.assume_not_null())
                 .load::<i64>(conn)?;
 
             if tx_sequence_numbers.is_empty() {
@@ -3580,9 +3586,12 @@ impl<'a> DBReader<'a> {
         let pool = self.main_reader.get_pool();
 
         let rows = run_query_async!(&pool, |conn| {
-            tx_digests::table
-                .filter(tx_digests::tx_sequence_number.eq_any(tx_sequence_numbers))
-                .select(tx_digests::tx_digest)
+            tx_global_order::table
+                .filter(
+                    tx_global_order::chk_tx_sequence_number
+                        .eq_any(tx_sequence_numbers.into_iter().map(Some)),
+                )
+                .select(tx_global_order::tx_digest)
                 .load::<Vec<u8>>(conn)
         })?;
 

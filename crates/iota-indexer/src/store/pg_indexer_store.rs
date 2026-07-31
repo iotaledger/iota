@@ -987,7 +987,6 @@ impl PgIndexerStore {
         let pkgs: Vec<_> = splits.iter().flat_map(|ix| ix.tx_pkgs.clone()).collect();
         let mods: Vec<_> = splits.iter().flat_map(|ix| ix.tx_mods.clone()).collect();
         let funs: Vec<_> = splits.iter().flat_map(|ix| ix.tx_funs.clone()).collect();
-        let digests: Vec<_> = splits.iter().flat_map(|ix| ix.tx_digests.clone()).collect();
         let kinds: Vec<_> = splits.iter().flat_map(|ix| ix.tx_kinds.clone()).collect();
 
         let futures = [
@@ -1022,9 +1021,6 @@ impl PgIndexerStore {
             }),
             self.spawn_blocking_task(move |this| {
                 persist_chunk_into_table!(tx_calls_fun::table, funs, &this.blocking_cp)
-            }),
-            self.spawn_blocking_task(move |this| {
-                persist_chunk_into_table!(tx_digests::table, digests, &this.blocking_cp)
             }),
             self.spawn_blocking_task(move |this| {
                 persist_chunk_into_table!(tx_kinds::table, kinds, &this.blocking_cp)

@@ -23,11 +23,8 @@ mod ingestion_tests {
             obj_indices::StoredObjectVersion,
             objects::{StoredCheckpointedObject, StoredObject},
             transactions::{StoredTransaction, TxGlobalOrder},
-            tx_indices::StoredTxDigest,
         },
-        schema::{
-            checkpointed_objects, checkpoints, objects, transactions, tx_digests, tx_global_order,
-        },
+        schema::{checkpointed_objects, checkpoints, objects, transactions, tx_global_order},
         store::{PgIndexerStore, indexer_store::IndexerStore},
         transactional_blocking_with_retry,
         types::{EventIndex, ObjectStatus, TxIndex},
@@ -220,14 +217,6 @@ mod ingestion_tests {
 
         let digest = effects.transaction_digest();
 
-        let stored_tx_digest = read_only_blocking!(&pg_store.blocking_cp(), |conn| {
-            tx_digests::table
-                .filter(tx_digests::tx_digest.eq(digest.inner().to_vec()))
-                .select(StoredTxDigest::as_select())
-                .first::<StoredTxDigest>(conn)
-        })
-        .context("failed reading `tx_global_order` from PostgresDB")?;
-
         let stored_global_order = read_only_blocking!(&pg_store.blocking_cp(), |conn| {
             tx_global_order::table
                 .filter(tx_global_order::tx_digest.eq(digest.inner().to_vec()))
@@ -237,8 +226,8 @@ mod ingestion_tests {
         .context("failed reading `tx_global_order` from PostgresDB")?;
 
         assert_eq!(
-            stored_global_order.global_sequence_number,
-            stored_tx_digest.tx_sequence_number
+            stored_global_order.chk_tx_sequence_number,
+            Some(stored_global_order.global_sequence_number)
         );
         let expected_optimistic_sequence_number = -1;
         assert_eq!(

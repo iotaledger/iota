@@ -6,14 +6,7 @@ use std::{
     time::{Duration, SystemTime},
 };
 
-use diesel::RunQueryDsl;
-use downcast::Any;
-use iota_indexer::{
-    errors::IndexerError,
-    schema::{optimistic_transactions, tx_global_order},
-    store::PgIndexerStore,
-    transactional_blocking_with_retry,
-};
+use iota_indexer::errors::IndexerError;
 use iota_json::{call_args, type_args};
 use iota_json_rpc_api::{IndexerApiClient, TransactionBuilderClient, WriteApiClient};
 use iota_json_rpc_types::{
@@ -650,101 +643,6 @@ fn test_query_transaction_blocks_pagination() -> Result<(), anyhow::Error> {
     })
 }
 
-#[tokio::test]
-async fn test_query_transaction_blocks_pagination_with_partial_global_order()
--> Result<(), anyhow::Error> {
-    // separate test environment needed because DB is wiped during test
-    let (cluster, store, client) = &start_test_cluster_with_read_write_indexer(
-        Some("test_query_transaction_blocks_pagination_with_partial_global_order"),
-        None,
-        None,
-    )
-    .await;
-    indexer_wait_for_checkpoint(store, 1).await;
-
-    let (address, key): (_, AccountPrivateKey) = get_key_pair();
-
-    let gas_ref = cluster
-        .fund_address_and_return_gas(
-            cluster.get_reference_gas_price().await,
-            Some(500_000_000),
-            address,
-        )
-        .await;
-    indexer_wait_for_object(client, gas_ref.object_id, gas_ref.version).await;
-    let coin_to_split = cluster
-        .fund_address_and_return_gas(
-            cluster.get_reference_gas_price().await,
-            Some(500_000_000),
-            address,
-        )
-        .await;
-    indexer_wait_for_object(client, coin_to_split.object_id, coin_to_split.version).await;
-    let grpc_client = cluster.grpc_client();
-    let mut expected_tx_digests = vec![];
-
-    for _ in 0..5 {
-        let tx_data = split_coin_equal_tx(
-            &grpc_client,
-            address,
-            coin_to_split.object_id,
-            2,
-            Some(gas_ref.object_id),
-            10_000_000,
-        )
-        .await;
-        let signed_transaction = to_sender_signed_transaction(tx_data, &key);
-        let (tx_bytes, signatures) = signed_transaction.to_tx_bytes_and_signatures();
-        let res = client
-            .execute_transaction_block(
-                tx_bytes,
-                signatures,
-                Some(IotaTransactionBlockResponseOptions::new().with_effects()),
-                Some(ExecuteTransactionRequestType::WaitForEffectsCert.into()),
-            )
-            .await?;
-        indexer_wait_for_transaction(res.digest, store, client).await;
-        expected_tx_digests.push(res.digest);
-    }
-
-    wipe_global_order_and_optimistic_tables(store); // data indexed before this point will not have global order
-
-    for _ in 0..5 {
-        let tx_data = split_coin_equal_tx(
-            &grpc_client,
-            address,
-            coin_to_split.object_id,
-            2,
-            Some(gas_ref.object_id),
-            10_000_000,
-        )
-        .await;
-        let signed_transaction = to_sender_signed_transaction(tx_data, &key);
-        let (tx_bytes, signatures) = signed_transaction.to_tx_bytes_and_signatures();
-        let res = client
-            .execute_transaction_block(
-                tx_bytes,
-                signatures,
-                Some(IotaTransactionBlockResponseOptions::new().with_effects()),
-                Some(ExecuteTransactionRequestType::WaitForEffectsCert.into()),
-            )
-            .await?;
-        indexer_wait_for_transaction(res.digest, store, client).await;
-        expected_tx_digests.push(res.digest);
-    }
-
-    let filter = TransactionFilter::FromAddress(address);
-
-    assert_paginated_filtered_transactions(client, &expected_tx_digests, filter.clone(), 2).await?;
-
-    // wait for data to be checkpointed
-    tokio::time::sleep(Duration::from_secs(2)).await;
-
-    assert_paginated_filtered_transactions(client, &expected_tx_digests, filter, 2).await?;
-
-    Ok(())
-}
-
 #[test]
 fn test_query_transaction_blocks() -> Result<(), anyhow::Error> {
     let ApiTestSetup {
@@ -1323,24 +1221,6 @@ fn test_get_dynamic_fields() -> Result<(), anyhow::Error> {
 
         Ok(())
     })
-}
-
-fn wipe_global_order_and_optimistic_tables(store: &PgIndexerStore) {
-    let pool = store.blocking_cp();
-
-    transactional_blocking_with_retry!(
-        &pool,
-        |conn| { diesel::dsl::delete(tx_global_order::table).execute(conn) },
-        Duration::from_secs(10)
-    )
-    .unwrap();
-
-    transactional_blocking_with_retry!(
-        &pool,
-        |conn| { diesel::dsl::delete(optimistic_transactions::table).execute(conn) },
-        Duration::from_secs(10)
-    )
-    .unwrap();
 }
 
 #[test]
