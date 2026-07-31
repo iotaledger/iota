@@ -3160,6 +3160,10 @@ impl ProtocolConfig {
                         // Amortize the minimum checkpoint interval over a sliding
                         // window so the checkpoint rate holds at the ceiling.
                         cfg.checkpoint_rate_window_size = Some(20);
+                        // Publish package metadata with the module metadata stored as a
+                        // dynamic field.
+                        cfg.feature_flags
+                            .package_metadata_with_dynamic_module_metadata = true;
                     }
                 }
                 // Use this template when making changes:
