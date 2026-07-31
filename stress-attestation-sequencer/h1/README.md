@@ -4,8 +4,10 @@ End-to-end stress experiment comparing **V1** (attestation OFF) against **V2**
 (attestation ON) on a local private network, scraping Prometheus into per-run
 JSON, then aggregating many runs into pooled stats and Grafana-style plots.
 
-Shared network scripts (`start.sh`, `cleanup.sh`, `bootstrap.sh`,
-`run-stress-docker.sh`) live one level up in `../`; everything H1-specific is here.
+Shared scripts live one level up in `../`: the network ones (`start.sh`,
+`cleanup.sh`, `bootstrap.sh`, `run-stress-docker.sh`) and the two every
+experiment uses (`exp_dir.py`, `dump_timeseries.py`). Everything H1-specific is
+here.
 
 ## Workflow
 
@@ -44,7 +46,7 @@ results/<LABEL>/
     plots/*.png     # one figure per Grafana panel, V1 vs V2 (plot.py)
 ```
 
-## The config gate (`exp_dir.py`)
+## The config gate (`../exp_dir.py`)
 
 A `LABEL` is **one experiment = one config**. The first `run.sh` for a label
 writes `config.json`; every later run with that label must match it, or it is
@@ -55,12 +57,16 @@ iterations is valid — and it replaces the old `archive/` de-mixing hack. Use a
 
 ## Tooling
 
-- `run.sh` — run the experiment ITERS times; config-gated; auto-aggregates + plots.
-- `exp_dir.py` — allocates `iter-NNN` and enforces the config gate.
-- `dump_timeseries.py` — scrapes one run window from Prometheus into a raw
+- `run.sh` — run the experiment ITERS times; config-gated; auto-aggregates +
+  plots.
+- `../exp_dir.py` — allocates `iter-NNN` and enforces the config gate. Shared
+  with the other experiments; driven entirely by `CFG_*` env vars.
+- `../dump_timeseries.py` — scrapes one run window from Prometheus into a raw
   per-run JSON (stdlib only; reset-aware trim). Collects the FULL metric set
-  regardless of what's plotted. Re-runnable standalone to re-scrape a past window.
-- `aggregate.py` — pools raw histograms across a label's iterations → `summary.md`.
+  regardless of what's plotted. Re-runnable standalone to re-scrape a past
+  window. Shared with the other experiments, so add new metrics here once.
+- `aggregate.py` — pools raw histograms across a label's iterations →
+  `summary.md`.
 - `plot.py` — parses the Grafana dashboard JSON and replays each panel's PromQL
   against the saved series. Per-validator metrics are collapsed to ONE network
   curve (mean/median across validators — not summed), then aggregated across

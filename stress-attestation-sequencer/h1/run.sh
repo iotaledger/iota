@@ -188,7 +188,7 @@ allocate_iter() {
       CFG_max_accumulated_txn_cost="${MAX_ACCUMULATED_TXN_COST:-default}" \
       CFG_max_congestion_overshoot="${MAX_CONGESTION_OVERSHOOT:-default}" \
       "${cfg_auth[@]}" \
-      python3 "$SCRIPT_DIR/exp_dir.py" "$EXP_DIR"
+      python3 "$TOOLS_DIR/exp_dir.py" "$EXP_DIR"
   )" || exit 1
   RESULTS_DIR="$EXP_DIR/$iter"
   mkdir -p "$RESULTS_DIR"
@@ -353,7 +353,7 @@ dump_timeseries() {
     CFG_max_deferral_rounds="${MAX_DEFERRAL_ROUNDS:-default}" \
     CFG_max_accumulated_txn_cost="${MAX_ACCUMULATED_TXN_COST:-default}" \
     CFG_max_congestion_overshoot="${MAX_CONGESTION_OVERSHOOT:-default}" \
-    python3 "$SCRIPT_DIR/dump_timeseries.py" "$label" "$start" "$end" "$TS_STEP" "$out"
+    python3 "$TOOLS_DIR/dump_timeseries.py" "$label" "$start" "$end" "$TS_STEP" "$out"
 }
 
 # The aggregated V1-vs-V2 summary is built across ALL iterations of this label by
