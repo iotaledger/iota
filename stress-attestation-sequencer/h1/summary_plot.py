@@ -51,14 +51,20 @@ GAP_LARGE = 1.8  # between (slow, qps) groups
 
 
 def parse_cfg(label):
-    """slow{S}-owned-{f1|v1|v4}-qps{Q}[-n{N}] -> (n, slow, qps, path). The -n
-    suffix is the network size; labels without it are the old 4-validator runs."""
-    slow = int(re.search(r"slow(\d+)", label).group(1))
+    """{slow|auth}{S}-owned-{f1|v1|v4}-qps{Q}[-n{N}] -> (n, size, qps, path).
+    The -n suffix is the network size; labels without it are the old
+    4-validator runs."""
+    size = int(re.search(r"(?:slow|auth)(\d+)", label).group(1))
     qps = int(re.search(r"qps(\d+)", label).group(1))
     wl = re.search(r"owned-([a-z0-9]+)", label).group(1)
     m = re.search(r"-n(\d+)$", label)
     n = int(m.group(1)) if m else 4
-    return n, slow, qps, wl
+    return n, size, qps, wl
+
+
+def cfg_kind(label):
+    """Workload kind of a label: "slow" or "auth"."""
+    return "auth" if label.startswith("auth") else "slow"
 
 
 def load(csv_path, metric):
@@ -176,7 +182,10 @@ def draw_metric(
             left += W
         xticks.append(x + nbars * W / 2)  # center of the config's bars
         xlabels.append(
-            f"s{slow}" + (f"·q{qps}" if show_qps else "") + f"·{wl}"
+            ("s" if cfg_kind(cfg) == "slow" else "a")
+            + str(slow)
+            + (f"·q{qps}" if show_qps else "")
+            + f"·{wl}"
             + (f"·n{n}" if show_n else "")
         )
         x += nbars * W
@@ -268,7 +277,8 @@ def fig_configs(configs, spec):
     out = []
     for c in configs:
         n, s, q, wl = parse_cfg(c)
-        if s in slow and q in qps and (paths is None or wl in paths):
+        size_ok = s in slow if cfg_kind(c) == "slow" else True
+        if size_ok and q in qps and (paths is None or wl in paths):
             out.append(c)
     return out
 
@@ -461,9 +471,7 @@ def make_figure(
     # 2-subplot one and shrinks that much more).
     tick = round(3 + 2.5 * n)
     fs = {"tick": tick, "title": tick + 2, "legend": tick}
-    fig, axes = plt.subplots(
-        n, 1, sharex=True, figsize=(11.4, 3.4 * n + 1.5)
-    )
+    fig, axes = plt.subplots(n, 1, sharex=True, figsize=(11.4, 3.4 * n + 1.5))
     axes = [axes] if n == 1 else list(axes)
     for i, (ax, metric) in enumerate(zip(axes, metrics)):
         if n == 1:
@@ -524,10 +532,16 @@ def main():
         help="which campaign to plot: picks results/summary_table_n<net>.csv and "
         "writes to results/summary_plots_n<net>/ unless --csv/--outdir override",
     )
-    ap.add_argument("--csv", default=None, help="tidy CSV from make_table.py "
-        "(default: results/summary_table_n<net>.csv)")
-    ap.add_argument("--outdir", default=None, help="figure output directory "
-        "(default: results/summary_plots_n<net>)")
+    ap.add_argument(
+        "--csv",
+        default=None,
+        help="tidy CSV from make_table.py (default: results/summary_table_n<net>.csv)",
+    )
+    ap.add_argument(
+        "--outdir",
+        default=None,
+        help="figure output directory (default: results/summary_plots_n<net>)",
+    )
     ap.add_argument(
         "--metric",
         nargs="+",

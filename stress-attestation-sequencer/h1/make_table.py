@@ -443,10 +443,11 @@ def fmt_cell(center, disp_val, disp):
 
 
 def sort_key(label):
-    """slow{S}-owned-{f1|v1|v4}-qps{Q}[-n{N}] -> (network size, slow, qps, path):
-    group by network size first, then slow, then qps, with the paths adjacent
-    for each qps. Labels without an -n suffix are the old 4-validator runs."""
-    slow = re.search(r"slow(\d+)", label)
+    """{slow|auth}{S}-owned-{f1|v1|v4}-qps{Q}[-n{N}] -> (network size, size,
+    qps, path): group by network size first, then workload size, then qps,
+    with the paths adjacent for each qps. Labels without an -n suffix are the
+    old 4-validator runs."""
+    slow = re.search(r"(?:slow|auth)(\d+)", label)
     qps = re.search(r"qps(\d+)", label)
     wl = re.search(r"owned-([a-z0-9]+)", label)
     n = re.search(r"-n(\d+)$", label)
@@ -476,6 +477,13 @@ def main():
         ),
     )
     ap.add_argument("--label", default=None, help="only this label (default: all)")
+    ap.add_argument(
+        "--prefix",
+        default="slow",
+        help="workload label prefix to include (default: slow; e.g. auth). "
+        "Non-default prefixes get their own summary_table_<prefix>_n<net> "
+        "output files",
+    )
     ap.add_argument(
         "--net",
         type=int,
@@ -534,6 +542,9 @@ def main():
     args = ap.parse_args()
 
     iter_counts = discover_labels(args.root, args.label)  # {label: (n_v1, n_v2)}
+    iter_counts = {
+        lab: v for lab, v in iter_counts.items() if lab.startswith(args.prefix)
+    }
     if args.net:
         iter_counts = {
             lab: v for lab, v in iter_counts.items() if sort_key(lab)[0] == args.net
@@ -633,7 +644,9 @@ def main():
     disp_idx = 1 if args.disp == "std" else 2  # index into (center,std,sem,n)
 
     # ---- Markdown ------------------------------------------------------------
-    suffix = f"_n{args.net}" if args.net else ""
+    suffix = ("" if args.prefix == "slow" else f"_{args.prefix}") + (
+        f"_n{args.net}" if args.net else ""
+    )
     out_path = args.out or os.path.join(args.root, f"summary_table{suffix}.md")
     lines = []
     lines.append("# H1 — attestation A/B comparison across configs\n")
