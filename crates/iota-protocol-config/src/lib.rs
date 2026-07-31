@@ -191,6 +191,8 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             consensus on testnet.
 //             Amortize the minimum checkpoint interval over a sliding window
 //             on testnet.
+//             Start publishing package metadata using module metadata as a
+//             dynamic field on testnet.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -3160,6 +3162,10 @@ impl ProtocolConfig {
                         // Amortize the minimum checkpoint interval over a sliding
                         // window so the checkpoint rate holds at the ceiling.
                         cfg.checkpoint_rate_window_size = Some(20);
+                        // Publish package metadata with the module metadata stored as a
+                        // dynamic field.
+                        cfg.feature_flags
+                            .package_metadata_with_dynamic_module_metadata = true;
                     }
                 }
                 // Use this template when making changes:
