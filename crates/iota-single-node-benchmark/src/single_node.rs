@@ -20,6 +20,7 @@ use iota_core::{
     global_state_hasher::GlobalStateHasher,
     mock_consensus::{ConsensusMode, MockConsensusClient},
 };
+use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{Address, ObjectReference, TransactionDigest};
 use iota_test_transaction_builder::{PublishData, TestTransactionBuilder};
 use iota_types::{
@@ -48,7 +49,14 @@ pub struct SingleValidator {
 
 impl SingleValidator {
     pub(crate) async fn new(genesis_objects: &[Object], component: Component) -> Self {
+        // Every component certifies its transactions first, and the validator
+        // entry points measured here (`handle_transaction`,
+        // `handle_certificate_v1`) reject requests once the P-COOL flow is on,
+        // so the benchmark runs the certified flow.
+        let mut protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
+        protocol_config.set_enable_pcool_flow_for_testing(false);
         let validator = TestAuthorityBuilder::new()
+            .with_protocol_config(protocol_config)
             .disable_indexer()
             .with_starting_objects(genesis_objects)
             // This is needed to properly run checkpoint executor.
