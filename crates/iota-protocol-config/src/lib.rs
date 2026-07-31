@@ -191,6 +191,8 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             consensus on testnet.
 //             Amortize the minimum checkpoint interval over a sliding window
 //             on testnet.
+//             Start publishing package metadata using module metadata as a
+//             dynamic field on testnet.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
