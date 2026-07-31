@@ -1,3 +1,6 @@
+// Copyright (c) 2026 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 module no_deps::no_deps;
 
 public struct Foo has copy, drop {
