@@ -119,10 +119,10 @@ pub(crate) fn build_dag_layer(
     references
 }
 
-/// The strong vote for a block at `round` linking `ancestors`. Blocks built here
-/// acknowledge nothing, so the vote on the leader at `round - 1` is a blame,
-/// except on the genesis leader, which carries no transactions to be missing.
-/// `None` when the block does not link the leader, or while
+/// The strong vote for a block at `round` linking `ancestors`. Blocks built
+/// here acknowledge nothing, so the vote on the leader at `round - 1` is a
+/// blame, except on the genesis leader, which carries no transactions to be
+/// missing. `None` when the block does not link the leader, or while
 /// `consensus_starfish_speed` is off.
 fn strong_vote_for_leader(
     context: &Context,

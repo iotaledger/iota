@@ -2489,10 +2489,6 @@ mod test {
         sleep(context.parameters.min_block_delay).await;
         // add blocks to trigger proposal.
         _ = core.add_blocks(vec![block_3], DataSource::Test);
-        // Round 1 blames the genesis leader, whose transactions are never recorded
-        // as available, so no strong-vote quorum stands behind round 2 and
-        // production proposes it on the leader timeout.
-        core.new_block(2, ReasonToCreateBlock::SoftTimeout).unwrap();
 
         assert_eq!(core.last_proposed_round(), 2);
 
@@ -2887,16 +2883,9 @@ mod test {
             )
             .await;
         }
-        // The ordinary path proposes every round but the second, which has no
-        // strong-vote quorum behind it.
-        assert_eq!(
-            rounds_needing_timeout,
-            if starfish_speed {
-                BTreeSet::from([2])
-            } else {
-                BTreeSet::new()
-            }
-        );
+        // The ordinary path proposes every round; this run does not cross a
+        // schedule rotation.
+        assert_eq!(rounds_needing_timeout, BTreeSet::new());
 
         for core_fixture in cores {
             // Check commits have been persisted to store
@@ -2958,11 +2947,9 @@ mod test {
     ///
     /// Stands in for the leader timeout where the ordinary path did not
     /// propose, recording the round in `rounds_needing_timeout`. Under
-    /// StarfishSpeed this is round 2 (a round 1 block votes on the genesis
-    /// leader, whose transactions are never recorded as available, so no
-    /// strong-vote quorum stands behind round 2) and the round after a
-    /// schedule rotation (the strong votes of the previous round are pinned
-    /// to the leader the previous schedule elected).
+    /// StarfishSpeed this is the round after a schedule rotation: the strong
+    /// votes of the previous round are pinned to the leader the previous
+    /// schedule elected, not the one now elected.
     async fn gossip_one_round(
         cores: &mut [CoreTestFixture],
         round: u32,
@@ -3573,11 +3560,8 @@ mod test {
                     .add_blocks(last_round_blocks.clone(), DataSource::Test)
                     .unwrap();
                 // Stand in for the leader timeout where the ordinary path did not
-                // propose. Two kinds of round need it: round 2, which has no
-                // strong-vote quorum behind it because a round 1 block votes on
-                // the genesis leader, whose transactions are never recorded as
-                // available; and the round after the schedule rotates, where the
-                // strong votes of the previous round are pinned to the leader the
+                // propose: the round after the schedule rotates, where the strong
+                // votes of the previous round are pinned to the leader the
                 // previous schedule elected rather than the one now elected.
                 if core_fixture.core.last_proposed_round() < round {
                     rounds_needing_timeout.insert(round);
@@ -3626,12 +3610,12 @@ mod test {
             }
             last_round_blocks = this_round_blocks;
         }
-        // The ordinary path proposes every round but the second and round 23, where
-        // the rotation moves the leader the round 22 votes were pinned to.
+        // The ordinary path proposes every round but round 23, where the
+        // rotation moves the leader the round 22 votes were pinned to.
         assert_eq!(
             rounds_needing_timeout,
             if starfish_speed {
-                BTreeSet::from([2, 23])
+                BTreeSet::from([23])
             } else {
                 BTreeSet::new()
             }
@@ -3732,9 +3716,8 @@ mod test {
                     .add_blocks(last_round_blocks.clone(), DataSource::Test)
                     .unwrap();
                 // Stand in for the leader timeout where the ordinary path did not
-                // propose. Round 1 votes on the genesis leader, whose transactions
-                // are never recorded as available, so no strong-vote quorum stands
-                // behind round 2.
+                // propose, e.g. the round after a schedule rotation moves the
+                // leader the previous round's votes were pinned to.
                 if core_fixture.core.last_proposed_round() < round {
                     rounds_needing_timeout.insert(round);
                     core_fixture
@@ -3785,16 +3768,9 @@ mod test {
 
             last_round_blocks = this_round_blocks;
         }
-        // The ordinary path proposes every round but the second, which has no
-        // strong-vote quorum behind it.
-        assert_eq!(
-            rounds_needing_timeout,
-            if starfish_speed {
-                BTreeSet::from([2])
-            } else {
-                BTreeSet::new()
-            }
-        );
+        // The ordinary path proposes every round; this run does not cross a
+        // schedule rotation.
+        assert_eq!(rounds_needing_timeout, BTreeSet::new());
 
         for core_fixture in cores {
             // Check commits have been persisted to store
