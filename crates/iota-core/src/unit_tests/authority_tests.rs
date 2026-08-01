@@ -847,6 +847,79 @@ async fn test_dev_inspect_uses_supplied_gas_budget() {
     );
 }
 
+/// An unset gas budget becomes `max_tx_gas`, so a supplied gas coin has to back
+/// that budget for a dry run to go through, exactly as a validator would
+/// require.
+///
+/// The budget deliberately is not the coin's balance: a transaction that pays
+/// out of its own gas coin would then have nothing left to pay with.
+#[tokio::test]
+async fn test_simulate_unset_gas_budget_uses_max_tx_gas() {
+    let sender = Address::random();
+    let recipient = Address::random();
+    let (validator, fullnode, _object_basics) =
+        init_state_with_ids_and_object_basics_with_fullnode(vec![]).await;
+
+    let max_tx_gas = validator
+        .epoch_store_for_testing()
+        .protocol_config()
+        .max_tx_gas();
+
+    let simulate_paying_from_gas_coin = |gas_balance: u64, checks| {
+        let gas_object = Object::new_gas_with_balance_and_owner_for_testing(gas_balance, sender);
+        let gas_object_ref = gas_object.object_ref();
+        validator.insert_genesis_object(gas_object.clone());
+        fullnode.insert_genesis_object(gas_object);
+
+        let pt = {
+            let mut builder = ProgrammableTransactionBuilder::new();
+            builder.pay_iota(vec![recipient], vec![500]).unwrap();
+            builder.finish()
+        };
+        fullnode.simulate_transaction(
+            TransactionData::V1(TransactionV1 {
+                kind: TransactionKind::new_programmable(pt),
+                sender,
+                gas_payment: GasPayment {
+                    objects: vec![gas_object_ref],
+                    owner: sender,
+                    price: 0,
+                    budget: 0,
+                },
+                expiration: TransactionExpiration::None,
+            }),
+            checks,
+        )
+    };
+
+    // A coin that backs `max_tx_gas` with room to spare.
+    for checks in [VmChecks::Enabled, VmChecks::Disabled] {
+        let result = simulate_paying_from_gas_coin(max_tx_gas * 4, checks)
+            .unwrap_or_else(|e| panic!("simulation with {checks:?} failed: {e}"));
+        assert!(result.effects.status().is_success());
+        // The supplied coin was used rather than a mock one being minted.
+        assert!(result.mock_gas_id.is_none());
+    }
+
+    // A coin that cannot back the budget is rejected over the gas, up front,
+    // rather than part-way through the transaction. Execution reserves the budget
+    // from the coin either way, so this does not depend on the checks.
+    for checks in [VmChecks::Enabled, VmChecks::Disabled] {
+        let Err(error) = simulate_paying_from_gas_coin(max_tx_gas / 2, checks) else {
+            panic!("{checks:?} should reject a gas coin that cannot back the budget");
+        };
+        assert!(
+            matches!(
+                error,
+                IotaError::UserInput {
+                    error: UserInputError::GasBalanceTooLow { .. }
+                }
+            ),
+            "unexpected error for {checks:?}: {error:?}"
+        );
+    }
+}
+
 #[tokio::test]
 async fn test_dev_inspect_gas_price() {
     let (_, fullnode, _object_basics) =
@@ -4470,10 +4543,12 @@ pub fn dev_inspect_with_budget(
         kind,
         sender,
         gas_payment: GasPayment {
+            // Left unset the same way the RPC layer leaves them, so that the
+            // simulation fills them in.
             objects: vec![],
             owner: sender,
-            price: gas_price.unwrap_or_else(|| epoch_store.reference_gas_price()),
-            budget: gas_budget.unwrap_or_else(|| epoch_store.protocol_config().max_tx_gas()),
+            price: gas_price.unwrap_or_default(),
+            budget: gas_budget.unwrap_or_default(),
         },
         expiration: TransactionExpiration::None,
     });

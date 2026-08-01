@@ -8,16 +8,18 @@ pub use checked::*;
 #[iota_macros::with_checked_arithmetic]
 pub mod checked {
 
+    use std::collections::HashSet;
+
     use enum_dispatch::enum_dispatch;
     use iota_protocol_config::ProtocolConfig;
-    use iota_sdk_types::gas::GasCostSummary;
+    use iota_sdk_types::{ObjectReference, gas::GasCostSummary};
 
     use crate::{
         ObjectId,
         error::{ExecutionError, IotaResult, UserInputError, UserInputResult},
         gas_model::{gas_v1::IotaGasStatus as IotaGasStatusV1, tables::GasStatus},
         object::{MoveStructExt, Object},
-        transaction::ObjectReadResult,
+        transaction::{InputObjects, ObjectReadResult},
     };
 
     #[enum_dispatch]
@@ -144,5 +146,20 @@ pub mod checked {
                 object_id: gas_object.id(),
             })
         }
+    }
+
+    /// Combined balance of the gas coins `gas` refers to.
+    ///
+    /// Anything `gas` names that `input_objects` does not hold, or that is not
+    /// a gas coin, contributes nothing, since the gas checks report those
+    /// cases themselves.
+    pub fn gas_coins_balance(input_objects: &InputObjects, gas: &[ObjectReference]) -> u128 {
+        let gas_ids: HashSet<_> = gas.iter().map(|gas_ref| gas_ref.object_id).collect();
+        input_objects
+            .iter()
+            .filter(|object| gas_ids.contains(&object.id()))
+            .filter_map(|object| object.as_object())
+            .filter_map(|object| get_gas_balance(object).ok())
+            .fold(0u128, |total, balance| total + balance as u128)
     }
 }

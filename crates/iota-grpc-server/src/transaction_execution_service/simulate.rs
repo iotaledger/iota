@@ -195,10 +195,10 @@ async fn simulate_single_transaction(
         VmChecks::Enabled
     };
 
-    // A zero gas budget with VM checks disabled means "estimate the cost for me":
-    // the simulation meters against the maximum gas budget, and the transaction in
-    // the response reports the cost it actually incurred.
-    let report_gas_used_as_budget = vm_checks.disabled() && transaction_data.gas_data().budget == 0;
+    // A zero gas budget means "estimate the cost for me": the simulation meters
+    // against the protocol maximum gas budget, and the transaction in the response
+    // reports the cost it actually incurred rather than the zero that was sent.
+    let report_gas_used_as_budget = transaction_data.gas_data().budget == 0;
 
     let system_state = if read_mask.contains(SimulatedTransaction::SUGGESTED_GAS_PRICE_FIELD.name) {
         Some(reader.get_system_state_summary().map_err(|e| {

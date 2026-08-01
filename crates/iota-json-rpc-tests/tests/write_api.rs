@@ -105,7 +105,9 @@ async fn test_dev_inspect_transaction_block() -> Result<(), anyhow::Error> {
 
 /// A dev inspect fills a zero gas price and a zero gas budget in from the
 /// epoch, rather than metering against those zeroes and failing with
-/// `GasPriceUnderRGP` or `InsufficientGas`.
+/// `GasPriceUnderRGP` or `InsufficientGas`. This holds whether or not the
+/// caller asks for the checks to be skipped: `DevInspectArgs` models both
+/// fields as optional, so leaving them out has to work in either mode.
 #[sim_test]
 async fn test_dev_inspect_transaction_block_zero_gas_price_and_budget() -> Result<(), anyhow::Error>
 {
@@ -157,7 +159,7 @@ async fn test_dev_inspect_transaction_block_zero_gas_price_and_budget() -> Resul
     let devinspect_response = http_client
         .dev_inspect_transaction_block(
             address,
-            tx_bytes,
+            tx_bytes.clone(),
             Some(0.into()),
             None,
             Some(DevInspectArgs {
@@ -170,6 +172,29 @@ async fn test_dev_inspect_transaction_block_zero_gas_price_and_budget() -> Resul
         *devinspect_response.effects.status(),
         IotaExecutionStatus::Success
     );
+
+    // Both gas fields omitted entirely, with and without the checks. GraphQL's
+    // `dryRunTransactionBlock` issues exactly the `skip_checks: false` shape when
+    // it is given a `txMeta` carrying only a sender.
+    for skip_checks in [true, false] {
+        let devinspect_response = http_client
+            .dev_inspect_transaction_block(
+                address,
+                tx_bytes.clone(),
+                None,
+                None,
+                Some(DevInspectArgs {
+                    skip_checks: Some(skip_checks),
+                    ..Default::default()
+                }),
+            )
+            .await
+            .unwrap_or_else(|e| panic!("dev inspect with skip_checks={skip_checks} failed: {e}"));
+        assert_eq!(
+            *devinspect_response.effects.status(),
+            IotaExecutionStatus::Success
+        );
+    }
 
     Ok(())
 }

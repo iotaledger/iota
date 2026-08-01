@@ -491,9 +491,10 @@ impl TransactionExecutionApi {
             kind: transaction_kind,
             sender,
             gas_payment: GasPayment {
-                // Any of these the caller leaves out is filled in by the simulation: an
-                // empty payment gets a mock gas coin, and a zero price or budget gets
-                // this epoch's defaults.
+                // Any of these the caller leaves out is filled in by the simulation,
+                // whether or not the checks are skipped: an empty payment gets a mock
+                // gas coin, a zero price gets the epoch's reference gas price, and a
+                // zero budget gets the protocol maximum.
                 objects: gas_objects.unwrap_or_default(),
                 owner: gas_sponsor.unwrap_or(sender),
                 price: gas_price.unwrap_or_default(),

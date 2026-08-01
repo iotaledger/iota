@@ -2111,12 +2111,13 @@ impl AuthorityState {
     /// `VmChecks::Disabled` relaxes the checks around entry functions and
     /// argument values, and reports per-command return values (a dev inspect).
     ///
-    /// If the transaction carries no gas payment, a mock gas coin is minted for
-    /// it and its ID is reported back in
-    /// [`SimulateTransactionResult::mock_gas_id`]. With `VmChecks::Disabled`, a
-    /// zero gas price or gas budget is replaced by the epoch's reference gas
-    /// price and the protocol maximum gas budget respectively, so callers with
-    /// no gas to declare can leave both unset.
+    /// Under either `checks`, the simulation fills in whatever gas the
+    /// transaction leaves unset, so that a caller with no gas to declare can
+    /// leave all of it out: no gas payment mints a mock gas coin, whose ID is
+    /// reported back in [`SimulateTransactionResult::mock_gas_id`]; a zero gas
+    /// price becomes the epoch's reference gas price; and a zero gas budget
+    /// becomes the protocol maximum. Anything the transaction does declare is
+    /// metered as given, so a dry run still rejects the gas a validator would.
     pub fn simulate_transaction(
         &self,
         transaction: TransactionData,
@@ -2185,6 +2186,20 @@ impl AuthorityState {
         // mock gas object. It checks for other transaction input validity.
         transaction.validity_check_no_gas_check(epoch_store.protocol_config())?;
 
+        // The full validity check caps the gas payment size alongside requiring a
+        // gas payment at all, which a simulation relaxes so it can mock one. The cap
+        // still applies, and is cheapest before any object is loaded.
+        let max_gas_payment_objects =
+            epoch_store.protocol_config().max_gas_payment_objects() as usize;
+        fp_ensure!(
+            transaction.gas().len() < max_gas_payment_objects,
+            UserInputError::SizeLimitExceeded {
+                limit: "maximum number of gas payment objects".to_string(),
+                value: max_gas_payment_objects.to_string(),
+            }
+            .into()
+        );
+
         let input_object_kinds = transaction.input_objects()?;
         let receiving_object_refs = transaction.receiving_objects();
 
@@ -2221,24 +2236,21 @@ impl AuthorityState {
 
         let protocol_config = epoch_store.protocol_config();
 
-        // In a simulation with "checks disabled", a zero gas price or
-        // budget means "use this epoch's defaults" rather than being metered as
-        // an actual zero: a zero price is below the reference gas price, and a
-        // zero budget cannot cover any computation, so either would fail the
-        // simulation over gas the caller never meant to set.
-        //
-        // A simulation with "checks enabled" has to reject the same way a validator
-        // would.
-        if checks.disabled() {
+        // Fill in the gas the caller left unset. Nobody submits a simulation to pay
+        // for it, and neither zero is a value the gas checks could accept anyway: a
+        // zero price is below the reference gas price, and a zero budget cannot cover
+        // any computation. Callers that do declare gas are metered against it, so a
+        // dry run still rejects the gas a validator would.
+        if transaction.gas_price() == 0 {
             let reference_gas_price = epoch_store.reference_gas_price();
+            transaction.gas_data_mut().price = reference_gas_price;
+        }
+        if transaction.gas_budget() == 0 {
+            // The protocol maximum, rather than what the gas coins hold: a budget
+            // equal to the whole balance would leave nothing for a transaction that
+            // also pays out of its gas coin.
             let max_tx_gas = protocol_config.max_tx_gas();
-            let gas_data = transaction.gas_data_mut();
-            if gas_data.price == 0 {
-                gas_data.price = reference_gas_price;
-            }
-            if gas_data.budget == 0 {
-                gas_data.budget = max_tx_gas;
-            }
+            transaction.gas_data_mut().budget = max_tx_gas;
         }
 
         // `MoveAuthenticator`s are not supported in simulation, so we set the
@@ -2259,6 +2271,21 @@ impl AuthorityState {
                 authenticator_gas_budget,
             )?
         } else {
+            // Execution reserves the whole gas budget from the gas coins before running
+            // any command, so they have to cover it even though the rest of the gas
+            // checks are skipped here. With the checks enabled,
+            // `check_transaction_input` covers this.
+            let gas_balance = iota_types::gas::gas_coins_balance(&input_objects, transaction.gas());
+            let gas_budget = transaction.gas_budget();
+            fp_ensure!(
+                gas_balance >= gas_budget as u128,
+                UserInputError::GasBalanceTooLow {
+                    gas_balance,
+                    needed_gas_amount: gas_budget as u128,
+                }
+                .into()
+            );
+
             let checked_input_objects = iota_transaction_checks::check_simulation_input(
                 protocol_config,
                 transaction.kind(),

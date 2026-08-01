@@ -14,7 +14,7 @@ use iota_sdk_types::TransactionEffects;
 use iota_types::{
     committee::{Committee, EpochId},
     effects::TransactionEffectsAPI,
-    error::IotaResult,
+    error::{IotaResult, UserInputError},
     gas::IotaGasStatus,
     gas_coin::mock_simulation_gas_coin,
     inner_temporary_store::InnerTemporaryStore,
@@ -181,6 +181,18 @@ impl EpochState {
         // Cheap validity checks for a transaction, including input size limits.
         transaction.validity_check_no_gas_check(&self.protocol_config)?;
 
+        // The full validity check caps the gas payment size alongside requiring a
+        // gas payment at all, which a simulation relaxes so it can mock one. The cap
+        // still applies, and is cheapest before any object is loaded.
+        let max_gas_payment_objects = self.protocol_config.max_gas_payment_objects() as usize;
+        if transaction.gas().len() >= max_gas_payment_objects {
+            return Err(UserInputError::SizeLimitExceeded {
+                limit: "maximum number of gas payment objects".to_string(),
+                value: max_gas_payment_objects.to_string(),
+            }
+            .into());
+        }
+
         let input_object_kinds = transaction.input_objects()?;
         let receiving_object_refs = transaction.receiving_objects();
 
@@ -212,24 +224,21 @@ impl EpochState {
             None
         };
 
-        // In a simulation with "checks disabled", a zero gas price or
-        // budget means "use this epoch's defaults" rather than being metered as
-        // an actual zero: a zero price is below the reference gas price, and a
-        // zero budget cannot cover any computation, so either would fail the
-        // simulation over gas the caller never meant to set.
-        //
-        // A simulation with "checks enabled" has to reject the same way a validator
-        // would.
-        if checks.disabled() {
+        // Fill in the gas the caller left unset. Nobody submits a simulation to pay
+        // for it, and neither zero is a value the gas checks could accept anyway: a
+        // zero price is below the reference gas price, and a zero budget cannot cover
+        // any computation. Callers that do declare gas are metered against it, so a
+        // dry run still rejects the gas a validator would.
+        if transaction.gas_price() == 0 {
             let reference_gas_price = self.epoch_start_state.reference_gas_price();
+            transaction.gas_data_mut().price = reference_gas_price;
+        }
+        if transaction.gas_budget() == 0 {
+            // The protocol maximum, rather than what the gas coins hold: a budget
+            // equal to the whole balance would leave nothing for a transaction that
+            // also pays out of its gas coin.
             let max_tx_gas = self.protocol_config.max_tx_gas();
-            let gas_data = transaction.gas_data_mut();
-            if gas_data.price == 0 {
-                gas_data.price = reference_gas_price;
-            }
-            if gas_data.budget == 0 {
-                gas_data.budget = max_tx_gas;
-            }
+            transaction.gas_data_mut().budget = max_tx_gas;
         }
 
         // `MoveAuthenticator`s are not supported in Simulacrum, so we set the
@@ -250,6 +259,20 @@ impl EpochState {
                 authenticator_gas_budget,
             )?
         } else {
+            // Execution reserves the whole gas budget from the gas coins before running
+            // any command, so they have to cover it even though the rest of the gas
+            // checks are skipped here. With the checks enabled,
+            // `check_transaction_input` covers this.
+            let gas_balance = iota_types::gas::gas_coins_balance(&input_objects, transaction.gas());
+            let gas_budget = transaction.gas_budget();
+            if gas_balance < gas_budget as u128 {
+                return Err(UserInputError::GasBalanceTooLow {
+                    gas_balance,
+                    needed_gas_amount: gas_budget as u128,
+                }
+                .into());
+            }
+
             let checked_input_objects = iota_transaction_checks::check_simulation_input(
                 &self.protocol_config,
                 transaction.kind(),
