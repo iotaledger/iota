@@ -791,8 +791,7 @@ pub struct IndexStore {
     pending_updates: Mutex<BTreeMap<CheckpointSequenceNumber, PendingCheckpointUpdate>>,
     history_backfill_task: Mutex<Option<tokio::task::JoinHandle<()>>>,
     /// The retention horizon recorded by the last [`Self::prune`] call:
-    /// epochs below it are dropped on the pruner's next pass. Zero until the
-    /// first prune — no pruning means no horizon.
+    /// epochs below it are dropped on the pruner's next pass.
     earliest_retained_epoch: AtomicU64,
 }
 

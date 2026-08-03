@@ -8033,7 +8033,6 @@ dependencies = [
  "iota-tls",
  "iota-types",
  "itertools 0.13.0",
- "move-core-types",
  "num_cpus",
  "object_store 0.13.1",
  "prometheus-filtered",
