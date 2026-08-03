@@ -9,16 +9,18 @@ use iota_json_rpc_api::{
 };
 use iota_json_rpc_types::{
     DevInspectArgs, IotaExecutionStatus, IotaMoveValue, IotaObjectDataOptions,
-    IotaObjectResponseQuery, IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
-    IotaTransactionBlockResponseOptions, ObjectChange, TransactionBlockBytes,
+    IotaObjectResponseQuery, IotaTransactionBlockDataAPI, IotaTransactionBlockEffectsAPI,
+    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, ObjectChange,
+    TransactionBlockBytes,
 };
 use iota_macros::sim_test;
 use iota_move_build::BuildConfig;
-use iota_sdk_types::{ObjectId, Owner, TransactionKind};
+use iota_sdk_types::{GasPayment, ObjectId, Owner, TransactionExpiration, TransactionKind};
 use iota_simulator::fastcrypto::encoding::Base64;
 use iota_types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::ExecuteTransactionRequestType,
+    transaction::{TransactionData, TransactionDataAPI, TransactionDataV1},
 };
 use test_cluster::TestClusterBuilder;
 
@@ -195,6 +197,68 @@ async fn test_dev_inspect_transaction_block_zero_gas_price_and_budget() -> Resul
             IotaExecutionStatus::Success
         );
     }
+
+    Ok(())
+}
+
+/// A caller that declares no gas budget is asking what the transaction costs,
+/// so the reported transaction carries the cost the simulation charged rather
+/// than the zero that was sent. Matches gRPC `simulate_transactions`.
+#[sim_test]
+async fn test_zero_gas_budget_is_reported_as_the_gas_used() -> Result<(), anyhow::Error> {
+    let cluster = TestClusterBuilder::new().build().await;
+    let http_client = cluster.rpc_client();
+    let address = cluster.get_address_0();
+    let other_address = cluster.get_address_1();
+
+    let pt = {
+        let mut builder = ProgrammableTransactionBuilder::new();
+        builder.transfer_iota(other_address, Some(1_000));
+        builder.finish()
+    };
+
+    // No gas payment, no price and no budget: the simulation fills all of it in.
+    let transaction = TransactionData::V1(TransactionDataV1 {
+        kind: TransactionKind::new_programmable(pt.clone()),
+        sender: address,
+        gas_payment: GasPayment {
+            objects: vec![],
+            owner: address,
+            price: 0,
+            budget: 0,
+        },
+        expiration: TransactionExpiration::None,
+    });
+
+    let response = http_client
+        .dry_run_transaction_block(Base64::from_bytes(&bcs::to_bytes(&transaction)?))
+        .await?;
+    assert_eq!(*response.effects.status(), IotaExecutionStatus::Success);
+
+    let gas_used = response.effects.gas_cost_summary().gas_used();
+    assert_ne!(gas_used, 0, "a successful transfer has to cost something");
+    assert_eq!(
+        response.input.gas_data().budget,
+        gas_used,
+        "the reported budget should be the cost the simulation charged"
+    );
+
+    // The same for the raw transaction a dev inspect hands back.
+    let raw_txn_data = http_client
+        .dev_inspect_transaction_block(
+            address,
+            Base64::from_bytes(&bcs::to_bytes(&TransactionKind::new_programmable(pt))?),
+            None,
+            None,
+            Some(DevInspectArgs {
+                show_raw_txn_data_and_effects: Some(true),
+                ..Default::default()
+            }),
+        )
+        .await?
+        .raw_txn_data;
+    let reported: TransactionData = bcs::from_bytes(&raw_txn_data)?;
+    assert_ne!(reported.gas_data().budget, 0);
 
     Ok(())
 }

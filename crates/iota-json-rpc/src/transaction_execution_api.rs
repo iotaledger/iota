@@ -31,7 +31,7 @@ use iota_sdk_types::{
 };
 use iota_transaction_builder::TransactionBuilder;
 use iota_types::{
-    effects::{TransactionEffectsAPI, TransactionEffectsExt},
+    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
     execution_config_utils::to_binary_config,
     inner_temporary_store::{PackageStoreWithFallback, TemporaryModuleResolver},
     iota_serde::BigInt,
@@ -363,6 +363,7 @@ impl TransactionExecutionApi {
             })?;
             txn_data.gas_data_mut().objects = vec![mock_gas.object_ref()];
         }
+        Self::report_gas_used_as_budget(&mut txn_data, &simulation.effects);
 
         let tx_digest = *simulation.effects.transaction_digest();
         // Resolve types against the objects the simulation wrote before falling back to
@@ -466,6 +467,17 @@ impl TransactionExecutionApi {
         .map_err(Error::from)?
     }
 
+    /// Report the gas the simulation charged in place of a zero gas budget.
+    ///
+    /// A caller that declares no budget is asking what the transaction costs,
+    /// so echoing its own zero back tells it nothing. gRPC
+    /// `simulate_transactions` reports the cost in the same field.
+    fn report_gas_used_as_budget(transaction: &mut TransactionData, effects: &TransactionEffects) {
+        if transaction.gas_budget() == 0 {
+            transaction.gas_data_mut().budget = effects.gas_cost_summary().gas_used();
+        }
+    }
+
     fn dev_inspect_transaction_impl(
         &self,
         sender: Address,
@@ -503,22 +515,29 @@ impl TransactionExecutionApi {
             expiration: TransactionExpiration::None,
         });
 
-        let raw_txn_data = if show_raw_txn_data_and_effects {
-            bcs::to_bytes(&transaction).map_err(|_| {
-                Error::Unexpected("Failed to serialize transaction during dev inspect".to_string())
-            })?
-        } else {
-            vec![]
-        };
-
         let checks = if skip_checks {
             VmChecks::Disabled
         } else {
             VmChecks::Enabled
         };
+        // Kept back from the simulation, which consumes the transaction, so that the
+        // reported gas can be filled in from what the simulation charged.
+        let mut reported_transaction = show_raw_txn_data_and_effects.then(|| transaction.clone());
         let simulation =
             self.state
                 .simulate_transaction_in_epoch(&epoch_store, transaction, checks)?;
+
+        let raw_txn_data = match reported_transaction.as_mut() {
+            Some(transaction) => {
+                Self::report_gas_used_as_budget(transaction, &simulation.effects);
+                bcs::to_bytes(transaction).map_err(|_| {
+                    Error::Unexpected(
+                        "Failed to serialize transaction during dev inspect".to_string(),
+                    )
+                })?
+            }
+            None => vec![],
+        };
 
         let raw_effects = if show_raw_txn_data_and_effects {
             bcs::to_bytes(&simulation.effects).map_err(|_| {
