@@ -44,7 +44,6 @@ use iota_types::{
 };
 use jsonrpsee::{core::client::ClientT, rpc_params};
 use move_core_types::annotated_value::MoveStructLayout;
-use rand::rngs::OsRng;
 use test_cluster::{TestClusterBuilder, override_pcool_flow};
 use tokio::{
     sync::RwLock,
