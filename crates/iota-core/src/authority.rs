@@ -3590,6 +3590,7 @@ impl AuthorityState {
             indexes.clone(),
             config.authority_store_pruning_config.clone(),
             epoch_store.committee().authority_exists(&name),
+            epoch_store.protocol_config().enable_validator_attestation(),
             epoch_store.epoch_start_state().epoch_duration_ms(),
             prometheus_registry,
             archive_readers,

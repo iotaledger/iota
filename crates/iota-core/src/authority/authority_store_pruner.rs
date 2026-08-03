@@ -66,6 +66,10 @@ static PERIODIC_PRUNING_TABLES: Lazy<BTreeSet<String>> = Lazy::new(|| {
 pub const EPOCH_DURATION_MS_FOR_TESTING: u64 = 24 * 60 * 60 * 1000;
 pub const MIN_EPOCHS_TO_RETAIN_FOR_INDEXES: u64 = 7;
 
+/// Object-version retention floor applied to validators when the attestation
+/// flow is enabled.
+pub const MIN_EPOCHS_TO_RETAIN_FOR_ATTESTATION: u64 = 1;
+
 /// Maximum number of checkpoints whose data is written in a single pruning
 /// `WriteBatch`. Bounds batch memory only; it does not cap total work per run,
 /// so it cannot cause the pruner to fall behind.
@@ -111,6 +115,46 @@ pub struct AuthorityStorePruner {
     /// Executor -> pruner: latest executed checkpoint sequence number. Updating
     /// it both records progress and wakes the pruner task to drain.
     executed: watch::Sender<CheckpointSequenceNumber>,
+}
+
+/// Object-version retention, in epochs, after the overrides a node applies to
+/// its configured value.
+///
+/// Validators are reset to the aggressive pruner, except under the attestation
+/// flow: Move authentication is re-run at the object versions an attestation
+/// recorded, which are versions the transaction has since superseded, and the
+/// resulting verdict goes into the transaction's effects. Retaining whole
+/// epochs makes the retained set identical across validators, because the epoch
+/// guard in `prune_for_eligible_epochs` is expressed in consensus-agreed epoch
+/// numbers. `u64::MAX` disables object pruning and so already retains more than
+/// the floor requires.
+fn object_retention_epochs(
+    configured: u64,
+    is_validator: bool,
+    enable_validator_attestation: bool,
+) -> u64 {
+    let mut num_epochs_to_retain = configured;
+    if num_epochs_to_retain > 0 && num_epochs_to_retain < u64::MAX {
+        warn!(
+            "Using objects pruner with num_epochs_to_retain = {num_epochs_to_retain} can lead to performance issues"
+        );
+        if is_validator {
+            warn!("Resetting to aggressive pruner.");
+            num_epochs_to_retain = 0;
+        } else {
+            warn!("Consider using an aggressive pruner (num_epochs_to_retain = 0)");
+        }
+    }
+    if is_validator
+        && enable_validator_attestation
+        && num_epochs_to_retain < MIN_EPOCHS_TO_RETAIN_FOR_ATTESTATION
+    {
+        info!(
+            "Raising num_epochs_to_retain from {num_epochs_to_retain} to {MIN_EPOCHS_TO_RETAIN_FOR_ATTESTATION} so attested object versions stay readable"
+        );
+        num_epochs_to_retain = MIN_EPOCHS_TO_RETAIN_FOR_ATTESTATION;
+    }
+    num_epochs_to_retain
 }
 
 impl AuthorityStorePruner {
@@ -960,25 +1004,18 @@ impl AuthorityStorePruner {
         jsonrpc_index: Option<Arc<IndexStore>>,
         mut pruning_config: AuthorityStorePruningConfig,
         is_validator: bool,
+        enable_validator_attestation: bool,
         epoch_duration_ms: u64,
         registry: &Registry,
         archive_readers: ArchiveReaderBalancer,
         pruner_db: Option<Arc<AuthorityPrunerTables>>,
         progress_tracker: Option<Arc<CheckpointProgressTracker>>,
     ) -> Self {
-        if pruning_config.num_epochs_to_retain > 0 && pruning_config.num_epochs_to_retain < u64::MAX
-        {
-            warn!(
-                "Using objects pruner with num_epochs_to_retain = {} can lead to performance issues",
-                pruning_config.num_epochs_to_retain
-            );
-            if is_validator {
-                warn!("Resetting to aggressive pruner.");
-                pruning_config.num_epochs_to_retain = 0;
-            } else {
-                warn!("Consider using an aggressive pruner (num_epochs_to_retain = 0)");
-            }
-        }
+        pruning_config.num_epochs_to_retain = object_retention_epochs(
+            pruning_config.num_epochs_to_retain,
+            is_validator,
+            enable_validator_attestation,
+        );
         // Coordination channel between the checkpoint executor and the pruner
         // task. The pruner task receives nudges (`executed_rx`); the sending
         // end is kept on the returned handle for `nudge`.
@@ -1104,7 +1141,10 @@ mod tests {
         rocks::{DBMap, MetricConf, ReadWriteOptions, default_db_options},
     };
 
-    use super::{AuthorityStorePruner, PruningMode};
+    use super::{
+        AuthorityStorePruner, MIN_EPOCHS_TO_RETAIN_FOR_ATTESTATION, PruningMode,
+        object_retention_epochs,
+    };
     use crate::{
         authority::{
             authority_store_pruner::AuthorityStorePruningMetrics,
@@ -1521,6 +1561,36 @@ mod tests {
         let timestamps: Vec<_> = (1..=9).map(|i| i * 1000).collect();
         let pruned = run_checkpoint_pruning(&timestamps, u64::MAX, u64::MAX, 1).await;
         assert_eq!(pruned, None);
+    }
+
+    /// The attestation flow re-runs Move authentication at the object versions
+    /// an attestation recorded, so a validator running it must keep superseded
+    /// versions for the epoch instead of pruning aggressively.
+    #[test]
+    fn test_object_retention_epochs_floors_attesting_validators() {
+        // A validator's configured value is reset to the aggressive pruner...
+        assert_eq!(object_retention_epochs(5, true, false), 0);
+        // ...unless the attestation flow needs the versions kept.
+        assert_eq!(
+            object_retention_epochs(5, true, true),
+            MIN_EPOCHS_TO_RETAIN_FOR_ATTESTATION
+        );
+        // The floor also lifts the default of pruning everything.
+        assert_eq!(object_retention_epochs(0, true, false), 0);
+        assert_eq!(
+            object_retention_epochs(0, true, true),
+            MIN_EPOCHS_TO_RETAIN_FOR_ATTESTATION
+        );
+    }
+
+    /// Only validators judge an attestation, and `u64::MAX` already retains
+    /// every version, so neither is touched by the floor.
+    #[test]
+    fn test_object_retention_epochs_leaves_others_alone() {
+        assert_eq!(object_retention_epochs(5, false, true), 5);
+        assert_eq!(object_retention_epochs(0, false, true), 0);
+        assert_eq!(object_retention_epochs(u64::MAX, true, true), u64::MAX);
+        assert_eq!(object_retention_epochs(u64::MAX, false, true), u64::MAX);
     }
 
     // Each pruning pass publishes the timestamp of the last checkpoint it
