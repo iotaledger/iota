@@ -3,10 +3,10 @@
 .venv*/
 __pycache__/
 results/*
-!results/summary_table_n*.md
-!results/summary_table_n*.csv
-!results/summary_plots_n*/
-results/summary_plots_n*/*
-!results/summary_plots_n*/*.png
+!results/summary_table_*.md
+!results/summary_table_*.csv
+!results/summary_plots_*/
+results/summary_plots_*/*
+!results/summary_plots_*/*.png
 logs/
 nohup.out
