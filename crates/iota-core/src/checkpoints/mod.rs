@@ -266,16 +266,6 @@ impl CheckpointStore {
         CheckpointStore::new(storage_dir.as_path())
     }
 
-    pub fn new_for_db_checkpoint_handler(path: &Path) -> Arc<Self> {
-        let tables = CheckpointStoreTables::new(path, "db_checkpoint");
-        Arc::new(Self {
-            tables,
-            full_checkpoint_contents_cache: FullCheckpointContentsCache::default(),
-            synced_checkpoint_notify_read: NotifyRead::new(),
-            executed_checkpoint_notify_read: NotifyRead::new(),
-        })
-    }
-
     pub fn open_readonly(path: &Path) -> CheckpointStoreTablesReadOnly {
         CheckpointStoreTables::open_readonly(path)
     }

@@ -60,7 +60,7 @@ Generate the genesis files and validators’ configuration:
 The script supports different modes, which can be used individually or in combination. Regardless of the mode chosen, the validators will always be active.
 
 - faucet: Brings up one fullnode, and faucet.
-- backup: Brings up one fullnode with backup features enabled. This includes generating database snapshots, formal snapshots, and enabling archive mode. If you do not want to enable archive mode, comment out the configuration in `configs/fullnode/backup.yaml`.
+- backup: Brings up one fullnode with backup features enabled. This includes generating formal snapshots and enabling archive mode. If you do not want to enable archive mode, comment out the configuration in `configs/fullnode/backup.yaml`.
 - indexer: Brings up one fullnode, one indexer, and a PostgreSQL database.
 - indexer-cluster: Brings up two fullnodes, two indexers, and a PostgreSQL cluster with a primary and replica database. indexer-1 uses the primary PostgreSQL, while indexer-2 uses the replica.
 - all: Brings up all services.

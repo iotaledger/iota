@@ -5932,7 +5932,6 @@ dependencies = [
  "iota-swarm",
  "iota-swarm-config",
  "iota-test-transaction-builder",
- "iota-tool",
  "iota-types",
  "iota-vm-sdk",
  "jsonrpsee",

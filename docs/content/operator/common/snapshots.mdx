@@ -1,6 +1,6 @@
 import FormalSnapshotPicker from '@site/src/components/FormalSnapshotPicker';
 
-Snapshots provide a point-in-time view of a database's store. In IOTA, the database snapshot captures a running database's view of the IOTA network from a particular node at the end of an epoch. 
+Snapshots capture a node's view of the IOTA network at the end of an epoch.
 
 :::info
 
@@ -12,26 +12,13 @@ Snapshots of the IOTA network enable full node operators a way to bootstrap a fu
 
 To maintain a healthy IOTA network, IOTA encourages the IOTA community to bring up additional snapshots to ensure stronger data availability across the network.
 
-## Supported snapshot types
-
-IOTA supports two types of snapshots:
-- RocksDB snapshots
-- Formal snapshots
+## Formal snapshots
 
 :::info
 
 Formal snapshots are not suitable for use if you are running an RPC node that does any historical data lookups. For more information on node data management, see [Data Management](../data-management.mdx).
 
 :::
-
-You can configure a full node snapshot to generate a state snapshot at the end of each epoch.
-A single full node can generate RocksDB snapshots, Formal snapshots, or both.
-
-### RocksDB snapshots 
-
-RocksDB snapshots are a point-in-time view of a database store. This means that the snapshot keeps the state of the system at the moment it generates the snapshot, including non-pruned data, additional indices, and other data.
-
-### Formal snapshots
 
 Formal snapshots are database-agnostic, minimalistic snapshots containing only essential data for node restoration at a specific epoch. They offer smaller storage footprint and faster restoration compared to database snapshots.  Natively supported by IOTA protocol, this means the snapshot contents can be cryptographically verified against the committee's epoch-end commitment, a process that occurs automatically during restoration (unless explicitly bypassed).
 
@@ -52,27 +39,6 @@ Follow these steps to change the configs for the node:
 1. Stop your node, if it's running.
 2. Open your `fullnode.yaml` file and apply config updates as the following. Using Amazon's S3 service as an example:
 
-   <Tabs groupId="snapshots">
-
-   <TabItem label="RocksDB snapshots" value="db-snapshots">
-
-   ```yaml
-   db-checkpoint-config:
-      perform-db-checkpoints-at-epoch-end: true
-      perform-index-db-checkpoints-at-epoch-end: true
-      object-store-config:
-         object-store: "S3"
-         bucket: "`<BUCKET-NAME>`"
-         aws-access-key-id: "`<ACCESS-KEY>`"
-         aws-secret-access-key: "`<SHARED-KEY>`"
-         aws-region: "`<BUCKET-REGION>`"
-         object-store-connection-limit: 20
-   ```
-
-   </TabItem>
-
-   <TabItem label="Formal snapshots" value="formal-snapshots">
-
    ```yaml
    state-snapshot-write-config:
       object-store-config:
@@ -85,10 +51,6 @@ Follow these steps to change the configs for the node:
       concurrency: 10
    ```
 
-   </TabItem>
-
-   </Tabs>
-
    - `object-store`: The remote object store to upload snapshots. Set as Amazon's `S3` service in the example.
    - `bucket`: The S3 bucket name to store the snapshots.
    - `aws-access-key-id` and `aws-secret-access-key`: AWS authentication information with write access to the bucket.
@@ -100,93 +62,6 @@ Follow these steps to change the configs for the node:
    
 
 ## Restoring a full node from snapshots
-
-### Restoring from RocksDB snapshots
-
-To restore from a RocksDB snapshot, follow these steps:
-
-1. Empty the snapshot directory specified by the `db-path` in your `fullnode.yaml`.
-2. Set the `AWS_SNAPSHOT_ENDPOINT` environment variable to the target snapshot URL. If not set, the default values are endpoints provided by the IOTA Foundation with public access:
-3. **Download the snapshot** for your target epoch to your local disk. Snapshots are stored per epoch in S3 buckets. For example, if you're restoring the latest epoch:
-
-   <Tabs groupId="rocksdb-snapshot-command" queryString>
-      <TabItem label="Mainnet (Binary)" value="mainnet-binary">
-      ```shell
-      iota-tool download-db-snapshot \
-         --latest \
-         --network mainnet \
-         --path "<PATH-TO-NODE-DB>" \
-         --num-parallel-downloads 25 \
-         --skip-indexes \
-         --no-sign-request \
-         --verbose
-      ```
-      </TabItem>
-      <TabItem label="Mainnet (Docker)" value="mainnet-docker">
-      ```shell
-      docker run --rm \
-         -v "<PATH-TO-NODE-DB>":/opt/iota/db \
-         iotaledger/iota-tools:mainnet \
-         /bin/sh -c "/usr/local/bin/iota-tool download-db-snapshot \
-            --latest \
-            --network mainnet \
-            --path /opt/iota/db \
-            --num-parallel-downloads 25 \
-            --skip-indexes \
-            --no-sign-request \
-            --verbose"
-      ```
-      </TabItem>
-      <TabItem label="Testnet (Binary)" value="testnet-binary">
-      ```shell
-      iota-tool download-db-snapshot \
-         --latest \
-         --network testnet \
-         --path "<PATH-TO-NODE-DB>" \
-         --num-parallel-downloads 25 \
-         --skip-indexes \
-         --no-sign-request \
-         --verbose
-      ```
-      </TabItem>
-      <TabItem label="Testnet (Docker)" value="testnet-docker">
-      ```shell
-      docker run --rm \
-         -v "<PATH-TO-NODE-DB>":/opt/iota/db \
-         iotaledger/iota-tools:testnet \
-         /bin/sh -c "/usr/local/bin/iota-tool download-db-snapshot \
-            --latest \
-            --network testnet \
-            --path /opt/iota/db \
-            --num-parallel-downloads 25 \
-            --skip-indexes \
-            --no-sign-request \
-            --verbose"
-      ```
-      </TabItem>
-   </Tabs>
-
-   **iota-tool options:**
-   - `--epoch`: The epoch that you want to download, for example `200`. The buckets hosted by the IOTA Foundation will only keep the last 90 epochs, you can check the most recent epoch on the [IOTA Explorer](https://explorer.iota.org).
-   - `--latest`: Rather than explicitly passing a epoch via `--epoch`, you can pass the `--latest` flag, which will automatically select the latest snapshot`
-   - `--network`: Network to download snapshot for. Defaults to "mainnet".
-   - `--path`: Path to snapshot directory on local filesystem.
-   - `--skip-indexes`: Skips downloading the very large `indexes/` dir, used by jsonrpc on the fullnode.
-
-4. **Move the snapshot**: The snapshot will be located in the `epoch_[NUM]` directory at your specified path. Move it to the snapshot directory specified by the `db-path` in your `fullnode.yaml` and mark the snapshot as `live`.
-For example, if `db-path` is `/opt/iota/db` and epoch_10 directory locates in `/opt/iota/db`, move the snapshot:
-   ```shell
-   mv /opt/iota/db/epoch_10 /opt/iota/db/live
-   ```
-
-5. **Update ownership**: Make sure you update the ownership of the downloaded directory to the `iota` user (or whichever linux user you run `iota-node` as):
-   ```shell
-   sudo chown -R iota:iota /opt/iota/db/live
-   ```
-
-6. **Start your IOTA node**.
-
-### Restoring from Formal snapshots
 
 To restore from a Formal snapshot, use the `iota-tool` binary. `iota-tool` can be downloaded along with other iota binaries.
 See [Install IOTA](../../developer/getting-started/install-iota.mdx#install-from-binaries) for more details.
@@ -231,19 +106,16 @@ The IOTA Foundation provides the public snapshot access:
 
 <TabItem label="Mainnet" value="mainnet-default-snapshot-endpoint">
 
-- **RocksDB**: https://rocksdb-snapshot.mainnet.iota.cafe
 - **Formal**: https://formal-snapshot.mainnet.iota.cafe
 
 </TabItem>
 <TabItem label="Testnet" value="testnet-default-snapshot-endpoint">
 
-- **RocksDB**: https://rocksdb-snapshot.testnet.iota.cafe
 - **Formal**: https://formal-snapshot.testnet.iota.cafe
 
 </TabItem>
 <TabItem label="Devnet" value="devnet-default-snapshot-endpoint">
 
-- **RocksDB**: https://rocksdb-snapshot.devnet.iota.cafe
 - **Formal**: https://formal-snapshot.devnet.iota.cafe
 
 </TabItem>

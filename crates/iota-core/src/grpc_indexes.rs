@@ -5,7 +5,7 @@
 use std::{
     collections::{BTreeMap, HashMap},
     hash::Hasher,
-    path::{Path, PathBuf},
+    path::PathBuf,
     sync::{Arc, Mutex},
     time::{Duration, Instant},
 };
@@ -16,7 +16,6 @@ use iota_sdk_types::{
 };
 use iota_types::{
     committee::EpochId,
-    error::IotaResult,
     full_checkpoint_content::CheckpointData,
     messages_checkpoint::{CheckpointContentsExt, CheckpointSequenceNumber},
     move_package::MovePackageExt,
@@ -952,11 +951,6 @@ impl GrpcIndexesStore {
             tables,
             pending_updates: Default::default(),
         }
-    }
-
-    pub fn checkpoint_db(&self, path: &Path) -> IotaResult {
-        // We are checkpointing the whole db
-        self.tables.meta.checkpoint_db(path).map_err(Into::into)
     }
 
     pub fn prune(

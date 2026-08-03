@@ -2,15 +2,13 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{num::NonZeroUsize, path::PathBuf, sync::Arc, time::Duration};
+use std::{fs, num::NonZeroUsize, path::PathBuf, sync::Arc, time::Duration};
 
 use anyhow::{Context, Result};
 use bytes::Bytes;
 use iota_config::object_storage_config::{ObjectStoreConfig, ObjectStoreType};
 use iota_core::{
-    authority::authority_store_tables::AuthorityPerpetualTables,
-    checkpoints::CheckpointStore,
-    db_checkpoint_handler::{STATE_SNAPSHOT_COMPLETED_MARKER, SUCCESS_MARKER},
+    authority::authority_store_tables::AuthorityPerpetualTables, checkpoints::CheckpointStore,
 };
 use iota_sdk_types::CheckpointCommitment;
 use iota_storage::{
@@ -33,6 +31,10 @@ use crate::writer::StateSnapshotWriterV1;
 /// Default parallelism for uploading a snapshot's files to the remote store,
 /// used when `state_snapshot_write_config.concurrency` is unset (`0`).
 const DEFAULT_UPLOAD_CONCURRENCY: usize = 20;
+
+/// Marker file written to an epoch directory in the remote store once all
+/// snapshot files for that epoch have been uploaded.
+pub const SUCCESS_MARKER: &str = "_SUCCESS";
 
 pub struct StateSnapshotUploaderMetrics {
     pub first_missing_state_snapshot_epoch: IntGauge,
@@ -203,25 +205,10 @@ impl StateSnapshotUploader {
                 let bytes = Bytes::from_static(b"success");
                 let success_marker = db_path.child(SUCCESS_MARKER);
                 put(&self.snapshot_store, &success_marker, bytes.clone()).await?;
-                let state_snapshot_completed_marker =
-                    db_path.child(STATE_SNAPSHOT_COMPLETED_MARKER);
-                put(
-                    &self.db_checkpoint_store.clone(),
-                    &state_snapshot_completed_marker,
-                    bytes.clone(),
-                )
-                .await?;
+                self.remove_db_checkpoint(db_path)?;
                 info!("State snapshot completed for epoch: {epoch}");
             } else {
-                let bytes = Bytes::from_static(b"success");
-                let state_snapshot_completed_marker =
-                    db_path.child(STATE_SNAPSHOT_COMPLETED_MARKER);
-                put(
-                    &self.db_checkpoint_store.clone(),
-                    &state_snapshot_completed_marker,
-                    bytes.clone(),
-                )
-                .await?;
+                self.remove_db_checkpoint(db_path)?;
                 info!("State snapshot skipped for epoch: {epoch}");
             }
         }
@@ -266,5 +253,13 @@ impl StateSnapshotUploader {
     async fn get_missing_epochs(&self) -> Result<Vec<u64>> {
         let missing_epochs = find_missing_epochs_dirs(&self.snapshot_store, SUCCESS_MARKER).await?;
         Ok(missing_epochs.to_vec())
+    }
+
+    /// Deletes a local db checkpoint directory once the state snapshot for its
+    /// epoch is no longer needed.
+    fn remove_db_checkpoint(&self, db_path: &object_store::path::Path) -> Result<()> {
+        let local_db_path = path_to_filesystem(self.db_checkpoint_path.clone(), db_path)?;
+        fs::remove_dir_all(&local_db_path)?;
+        Ok(())
     }
 }

@@ -8,7 +8,7 @@
 use std::{
     cmp::{max, min},
     collections::{BTreeMap, HashMap, HashSet},
-    path::{Path, PathBuf},
+    path::PathBuf,
     sync::{
         Arc,
         atomic::{AtomicU64, Ordering},
@@ -1442,14 +1442,6 @@ impl IndexStore {
 
     pub fn is_empty(&self) -> bool {
         self.tables.owner_index.is_empty()
-    }
-
-    pub fn checkpoint_db(&self, path: &Path) -> IotaResult {
-        // We are checkpointing the whole db
-        self.tables
-            .transactions_from_addr
-            .checkpoint_db(path)
-            .map_err(Into::into)
     }
 
     /// This method first gets the balance from `per_coin_type_balance` cache.

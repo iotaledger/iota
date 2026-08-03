@@ -108,8 +108,7 @@ pub struct MetricGroups {
     /// uploads. The authority object store is part of the `authority` group,
     /// not this one.
     ///
-    /// Modules: `typed_store`, `iota_storage`,
-    /// `iota_core::db_checkpoint_handler`, `iota_snapshot`.
+    /// Modules: `typed_store`, `iota_storage`, `iota_snapshot`.
     pub storage: MetricLevel,
     /// API servers and RPC-facing indexes.
     ///
@@ -206,12 +205,7 @@ impl MetricGroups {
                 "iota_network::state_sync",
             ],
             "p2p" => &["iota_metrics::metrics_network"],
-            "storage" => &[
-                "typed_store",
-                "iota_storage",
-                "iota_core::db_checkpoint_handler",
-                "iota_snapshot",
-            ],
+            "storage" => &["typed_store", "iota_storage", "iota_snapshot"],
             "rpc" => &[
                 "iota_json_rpc",
                 "iota_grpc_server",
