@@ -127,8 +127,6 @@ This configuration manages the full object history while still pruning historic 
 
 The main caveat is that the current setup enables the **transaction pruner** to go ahead of the **object pruner**. The object pruner might not be able to properly clean up the objects modified by the transactions that have been already pruned. You should closely monitor the disk space growth on a full node with this configuration.
 
-In addition to the regular (pruned) snapshots, the IOTA Foundation also maintains special RocksDB snapshots with the full history of object versions available for the operators using this configuration.
-
 ```yaml
 authority-store-pruning-config:
   # No pruning of object versions (use u64::max for num of epochs)
