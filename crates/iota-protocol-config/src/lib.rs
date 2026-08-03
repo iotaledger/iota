@@ -191,6 +191,15 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             consensus on testnet.
 //             Amortize the minimum checkpoint interval over a sliding window
 //             on testnet.
+//             Start publishing package metadata using module metadata as a
+//             dynamic field on testnet.
+//             Enable the redesigned leader schedule (sliding-window reputation
+//             scoring and absolute-score bad-node selection) in Starfish
+//             consensus on devnet.
+//             Enable Move-based sponsor account authentication on mainnet.
+//             Only sponsor Move authentication is performed pre-consensus on
+//             mainnet.
+//             Enable the P-COOL flow on devnet.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -1911,7 +1920,16 @@ impl ProtocolConfig {
     }
 
     pub fn leader_schedule_window_size(&self) -> u32 {
-        self.consensus_leader_schedule_window_size.unwrap_or(600)
+        if cfg!(msim) {
+            // Keep the scoring window commensurate with the msim-scaled
+            // commit sync parameters.
+            min(
+                20,
+                self.consensus_leader_schedule_window_size.unwrap_or(600),
+            )
+        } else {
+            self.consensus_leader_schedule_window_size.unwrap_or(600)
+        }
     }
 
     pub fn consensus_enable_sliding_window_leader_schedule(&self) -> bool {
@@ -3153,6 +3171,12 @@ impl ProtocolConfig {
                     cfg.validator_very_low_stake_threshold = Some(1_000_000_000_000_000);
                     cfg.validator_low_stake_grace_period = Some(7);
 
+                    // Enable Move-based sponsor account authentication in mainnet.
+                    cfg.feature_flags.enable_move_authentication_for_sponsor = true;
+                    // Only sponsor Move authentication is performed pre-consensus in mainnet.
+                    cfg.feature_flags
+                        .pre_consensus_sponsor_only_move_authentication = true;
+
                     if chain != Chain::Mainnet {
                         // Enable the optimistic commit rule (StarfishSpeed) in
                         // Starfish consensus.
@@ -3160,6 +3184,24 @@ impl ProtocolConfig {
                         // Amortize the minimum checkpoint interval over a sliding
                         // window so the checkpoint rate holds at the ceiling.
                         cfg.checkpoint_rate_window_size = Some(20);
+                        // Publish package metadata with the module metadata stored as a
+                        // dynamic field.
+                        cfg.feature_flags
+                            .package_metadata_with_dynamic_module_metadata = true;
+                    }
+
+                    if chain != Chain::Mainnet && chain != Chain::Testnet {
+                        // Enable the redesigned leader schedule: sliding-window
+                        // reputation scoring and absolute-score bad-node
+                        // selection.
+                        cfg.feature_flags
+                            .consensus_enable_sliding_window_leader_schedule = true;
+                        cfg.feature_flags
+                            .consensus_enable_absolute_score_leader_schedule = true;
+                        // Enable the P-COOL flow: transactions skip
+                        // pre-consensus certification and owned-object locking,
+                        // and conflicts are resolved after consensus.
+                        cfg.feature_flags.enable_pcool_flow = true;
                     }
                 }
                 // Use this template when making changes:

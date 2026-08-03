@@ -2,14 +2,14 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use axum::{Json, extract::State, response::IntoResponse};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::types::SharedRestServerAppState;
 
 bin_version::bin_version!();
 
 /// Represent a health status response of the REST API server.
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
 pub struct HealthResponse {
     /// Version of the binary.
     pub version: String,

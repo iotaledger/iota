@@ -542,6 +542,30 @@ where
             .collect_vec();
         #[cfg(not(test))]
         target_authorities.shuffle(&mut ThreadRng::default());
+        // A peer that has voted for the end of the range has solidified every
+        // commit in it, so it is the one worth asking. A peer that has not may
+        // still serve the range: votes are only seen from blocks we received,
+        // and serving additionally needs the certifying headers in the peer's
+        // storage. So it is ordered behind, keeping the shuffled order within
+        // each group. Since the truncation below runs after this, a committee
+        // with more voters than MAX_NUM_TARGETS fills every round with voters,
+        // and a peer whose headers do not reach us is not asked until they do.
+        // Accepted: rounds retry forever over the up-to-24 peers that
+        // provably solidified the range, and any header from a behind-listed
+        // peer carrying a recent commit vote promotes it immediately.
+        if inner
+            .context
+            .parameters
+            .enable_commit_sync_peer_selection_by_commit_votes
+        {
+            let (caught_up, behind): (Vec<_>, Vec<_>) =
+                target_authorities.into_iter().partition(|authority| {
+                    inner
+                        .commit_vote_monitor
+                        .has_voted_for_commit(*authority, commit_range.end())
+                });
+            target_authorities = caught_up.into_iter().chain(behind).collect();
+        }
         target_authorities.truncate(MAX_NUM_TARGETS);
         // Increase timeout multiplier for each loop until MAX_TIMEOUT_MULTIPLIER.
         timeout_multiplier = (timeout_multiplier + 1).min(MAX_TIMEOUT_MULTIPLIER);
@@ -822,11 +846,13 @@ pub(crate) mod tests {
     };
 
     /// Fake `NetworkClient` for commit syncer tests. Serves the canned
-    /// `fetch_commits_and_transactions` response when one is set; all other
-    /// endpoints are unimplemented.
+    /// `fetch_commits_and_transactions` response when one is set and fails the
+    /// fetch when none is; all other endpoints are unimplemented.
     #[derive(Default)]
     pub(crate) struct FakeNetworkClient {
         pub(crate) commits_and_transactions: Option<(Vec<Bytes>, Vec<Bytes>, Vec<Bytes>)>,
+        /// Every peer asked for commits, in the order it was asked.
+        pub(crate) requested_peers: parking_lot::Mutex<Vec<AuthorityIndex>>,
     }
 
     #[async_trait::async_trait]
@@ -870,13 +896,14 @@ pub(crate) mod tests {
 
         async fn fetch_commits_and_transactions(
             &self,
-            _peer: AuthorityIndex,
+            peer: AuthorityIndex,
             _commit_range: CommitRange,
             _timeout: Duration,
         ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>, Vec<Bytes>)> {
+            self.requested_peers.lock().push(peer);
             match &self.commits_and_transactions {
                 Some(response) => Ok(response.clone()),
-                None => unimplemented!("Unimplemented"),
+                None => Err(ConsensusError::NoCommitReceived { peer }),
             }
         }
 
