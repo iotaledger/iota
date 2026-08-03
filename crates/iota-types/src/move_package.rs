@@ -826,6 +826,10 @@ pub struct ProtocolBuildConfig {
     /// Build the module metadata with view function information and enable the
     /// verifier to check the correctness of the view function attribute.
     pub allow_view_function: bool,
+    /// Maximum size (in bytes) a published package may occupy on-chain. `None`
+    /// when the config was not derived from a network protocol config, in which
+    /// case the real limit is unknown.
+    pub max_move_package_size: Option<u64>,
 }
 
 impl ProtocolBuildConfig {
@@ -833,6 +837,7 @@ impl ProtocolBuildConfig {
     pub fn from_protocol_config(protocol_config: &ProtocolConfig) -> Self {
         Self {
             allow_view_function: protocol_config.package_metadata_with_dynamic_module_metadata(),
+            max_move_package_size: Some(protocol_config.max_move_package_size()),
         }
     }
 }
