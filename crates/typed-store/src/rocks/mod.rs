@@ -64,14 +64,17 @@ impl Drop for RocksDB {
     }
 }
 
+/// Resolves a column family handle. Fails with
+/// [`TypedStoreError::UnregisteredColumn`] if the column family is not open,
+/// which includes one dropped after the caller obtained its map.
 pub(crate) fn rocks_cf<'a>(
     rocks_db: &'a RocksDB,
     cf_name: &str,
-) -> Arc<rocksdb::BoundColumnFamily<'a>> {
+) -> Result<Arc<rocksdb::BoundColumnFamily<'a>>, TypedStoreError> {
     rocks_db
         .underlying
         .cf_handle(cf_name)
-        .expect("Map-keying column family should have been checked at DB creation")
+        .ok_or_else(|| TypedStoreError::UnregisteredColumn(cf_name.to_string()))
 }
 
 // Check if the database is corrupted, and if so, panic.

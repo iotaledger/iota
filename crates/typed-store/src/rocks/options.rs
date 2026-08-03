@@ -63,7 +63,7 @@ pub struct DBOptions {
 /// Write options tuned for one-shot bulk ingestion into a freshly created
 /// store.
 pub fn bulk_ingestion_write_options() -> rocksdb::WriteOptions {
-    let mut opts = rocksdb::WriteOptions::default();
+    let mut opts = crate::database::batch_write_options();
     opts.disable_wal(true);
     opts
 }

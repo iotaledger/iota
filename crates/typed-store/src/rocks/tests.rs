@@ -1152,6 +1152,122 @@ async fn test_tagged_dbmaps_share_a_column_family() {
     assert_eq!(words.get(&"one".to_string()).unwrap(), Some(1));
 }
 
+/// Operations on a column family dropped at runtime must report
+/// [`TypedStoreError::UnregisteredColumn`] rather than panicking.
+#[tokio::test]
+async fn test_operations_on_dropped_cf_report_an_error() {
+    let tmp_dir = iota_common::tempdir();
+    let db = open_rocksdb(tmp_dir.path(), &["doomed"]);
+    let map =
+        DBMap::<u32, String>::reopen(&db, Some("doomed"), &ReadWriteOptions::default(), false)
+            .expect("the map should open");
+    map.insert(&1, &"one".to_string())
+        .expect("the row should insert");
+
+    db.drop_cf("doomed").expect("the column family should drop");
+
+    let assert_unregistered = |op: &str, error: TypedStoreError| {
+        assert!(
+            matches!(&error, TypedStoreError::UnregisteredColumn(cf) if cf == "doomed"),
+            "{op}: unexpected error: {error}"
+        );
+    };
+
+    assert_unregistered("get", map.get(&1).unwrap_err());
+    assert_unregistered("contains_key", map.contains_key(&1).unwrap_err());
+    assert_unregistered("multi_get", map.multi_get([1, 2, 3]).unwrap_err());
+    assert_unregistered("insert", map.insert(&2, &"two".to_string()).unwrap_err());
+    assert_unregistered("remove", map.remove(&1).unwrap_err());
+
+    // A batch resolves the handle when the operation is staged, not at write.
+    let mut batch = map.batch();
+    assert_unregistered(
+        "insert_batch",
+        batch
+            .insert_batch(&map, [(3u32, "three".to_string())])
+            .map(drop)
+            .unwrap_err(),
+    );
+    assert_unregistered(
+        "delete_batch",
+        batch.delete_batch(&map, [1u32]).map(drop).unwrap_err(),
+    );
+    assert_unregistered(
+        "schedule_delete_range",
+        batch
+            .schedule_delete_range(&map, &0, &9)
+            .map(drop)
+            .unwrap_err(),
+    );
+
+    // A scan reports the error as its first item, having no fallible
+    // constructor.
+    for (op, mut scan) in [
+        ("safe_iter", map.safe_iter()),
+        ("safe_range_iter", map.safe_range_iter(..)),
+        ("safe_range_iter_reversed", map.safe_range_iter_reversed(..)),
+    ] {
+        assert_unregistered(
+            op,
+            scan.next()
+                .expect("the scan should yield an item")
+                .unwrap_err(),
+        );
+    }
+}
+
+/// Dropping one column family must leave the others serving.
+#[tokio::test]
+async fn test_dropping_one_cf_leaves_the_others_serving() {
+    let tmp_dir = iota_common::tempdir();
+    let db = open_rocksdb(tmp_dir.path(), &["doomed", "kept"]);
+    let doomed =
+        DBMap::<u32, String>::reopen(&db, Some("doomed"), &ReadWriteOptions::default(), false)
+            .expect("the doomed map should open");
+    let kept = DBMap::<u32, String>::reopen(&db, Some("kept"), &ReadWriteOptions::default(), false)
+        .expect("the kept map should open");
+    doomed.insert(&1, &"one".to_string()).unwrap();
+    kept.insert(&1, &"one".to_string()).unwrap();
+
+    db.drop_cf("doomed").expect("the column family should drop");
+
+    assert!(doomed.get(&1).is_err());
+    assert_eq!(kept.get(&1).unwrap(), Some("one".to_string()));
+    kept.insert(&2, &"two".to_string())
+        .expect("the kept column family should still accept writes");
+    assert_eq!(kept.safe_iter().count(), 2);
+}
+
+/// A batch staged while its column family existed must write cleanly after
+/// the column family is dropped.
+#[tokio::test]
+async fn test_batch_staged_before_cf_drop_still_writes() {
+    let tmp_dir = iota_common::tempdir();
+    let db = open_rocksdb(tmp_dir.path(), &["doomed", "kept"]);
+    let doomed =
+        DBMap::<u32, String>::reopen(&db, Some("doomed"), &ReadWriteOptions::default(), false)
+            .expect("the doomed map should open");
+    let kept = DBMap::<u32, String>::reopen(&db, Some("kept"), &ReadWriteOptions::default(), false)
+        .expect("the kept map should open");
+
+    let mut batch = doomed.batch();
+    batch
+        .insert_batch(&doomed, [(1u32, "one".to_string())])
+        .unwrap();
+    batch
+        .insert_batch(&kept, [(1u32, "one".to_string())])
+        .unwrap();
+
+    db.drop_cf("doomed").expect("the column family should drop");
+
+    batch.write().expect("the batch should write");
+    assert_eq!(kept.get(&1).unwrap(), Some("one".to_string()));
+
+    // The database was not stopped by the dropped entries.
+    kept.insert(&2, &"two".to_string())
+        .expect("the kept column family should still accept writes");
+}
+
 fn open_map<P: AsRef<Path>, K, V>(path: P, opt_cf: Option<&str>) -> DBMap<K, V> {
     let cf_key = opt_cf.unwrap_or(rocksdb::DEFAULT_COLUMN_FAMILY_NAME);
     DBMap::<K, V>::reopen(
