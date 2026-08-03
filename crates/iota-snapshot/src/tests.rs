@@ -28,6 +28,7 @@ use iota_sdk_types::{
     Address, CheckpointCommitment, CheckpointDigest, GasCostSummary, ObjectId, TransactionDigest,
     checkpoint::{CheckpointContents, CheckpointSummary, EndOfEpochData},
 };
+use iota_storage::object_store::util::SUCCESS_MARKER;
 use iota_types::{
     committee::{Committee, EpochId},
     crypto::AuthorityKeyPair,
@@ -47,11 +48,8 @@ use prometheus_filtered::Registry;
 use crate::{
     EPOCH_INFO_FILE_MAGIC, EpochInfo, EpochInfoV1, EpochInfoV1Entry, FileCompression, FileMetadata,
     FileType, MAGIC_BYTES, MANIFEST_FILE_MAGIC, Manifest, ManifestV2, OBJECT_REF_BYTES,
-    reader::StateSnapshotReaderV1,
-    restore::RestoreWithGrpcIndexes,
-    uploader::{SUCCESS_MARKER, StateSnapshotUploader},
-    verify_epoch_info_chain,
-    writer::StateSnapshotWriterV1,
+    reader::StateSnapshotReaderV1, restore::RestoreWithGrpcIndexes,
+    uploader::StateSnapshotUploader, verify_epoch_info_chain, writer::StateSnapshotWriterV1,
 };
 
 /// A fresh `CheckpointStore` seeded with fully-populated `epoch_info` rows for

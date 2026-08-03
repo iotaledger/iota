@@ -14,7 +14,7 @@ use iota_sdk_types::CheckpointCommitment;
 use iota_storage::{
     FileCompression,
     object_store::util::{
-        EPOCH_METADATA_FILENAME, EpochMetadata, find_all_dirs_with_epoch_prefix,
+        EPOCH_METADATA_FILENAME, EpochMetadata, SUCCESS_MARKER, find_all_dirs_with_epoch_prefix,
         find_missing_epochs_dirs, path_to_filesystem, put, run_manifest_update_loop,
     },
 };
@@ -31,10 +31,6 @@ use crate::writer::StateSnapshotWriterV1;
 /// Default parallelism for uploading a snapshot's files to the remote store,
 /// used when `state_snapshot_write_config.concurrency` is unset (`0`).
 const DEFAULT_UPLOAD_CONCURRENCY: usize = 20;
-
-/// Marker file written to an epoch directory in the remote store once all
-/// snapshot files for that epoch have been uploaded.
-pub const SUCCESS_MARKER: &str = "_SUCCESS";
 
 pub struct StateSnapshotUploaderMetrics {
     pub first_missing_state_snapshot_epoch: IntGauge,

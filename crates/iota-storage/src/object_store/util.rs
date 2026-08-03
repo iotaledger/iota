@@ -24,6 +24,9 @@ use crate::object_store::{
 
 pub const MANIFEST_FILENAME: &str = "MANIFEST";
 pub const EPOCH_METADATA_FILENAME: &str = "_epoch_metadata.json";
+/// Marker file written to an epoch directory in the store once all files for
+/// that epoch have been written.
+pub const SUCCESS_MARKER: &str = "_SUCCESS";
 
 #[derive(Serialize, Deserialize)]
 pub struct RootManifest {
@@ -221,7 +224,7 @@ pub async fn list_all_epochs(object_store: Arc<DynObjectStore>) -> Result<Vec<(u
     let mut out = vec![];
     let mut success_marker_found = false;
     for (epoch, path) in remote_epoch_dirs.iter().sorted() {
-        let success_marker = path.child("_SUCCESS");
+        let success_marker = path.child(SUCCESS_MARKER);
         let get_result = object_store.get(&success_marker).await;
         match get_result {
             Err(_) => {

@@ -48,9 +48,13 @@ use iota_sdk_types::{
 };
 use iota_snapshot::{
     VerifiedEpochInfo, reader::StateSnapshotReaderV1, restore::RestoreWithGrpcIndexes,
-    setup_db_state, uploader::SUCCESS_MARKER,
+    setup_db_state,
 };
-use iota_storage::object_store::{ObjectStoreGetExt, http::HttpDownloaderBuilder, util::get_path};
+use iota_storage::object_store::{
+    ObjectStoreGetExt,
+    http::HttpDownloaderBuilder,
+    util::{SUCCESS_MARKER, get_path},
+};
 use iota_types::{
     base_types::*,
     committee::QUORUM_THRESHOLD,
