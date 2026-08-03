@@ -441,7 +441,7 @@ mod test {
 
         assert!(
             max_commit - min_commit < MAX_COMMIT_GAP,
-            "Gap too large: {max_commit} - {min_commit} >= {MAX_COMMIT_GAP}"
+            "Gap too large: {max_commit} - {min_commit} >= {MAX_COMMIT_GAP} (all: {commit_indices:?})"
         );
 
         // Final commit consistency verification
@@ -458,7 +458,7 @@ mod test {
 
         assert!(
             max_final - min_final <= CATCH_UP_SLACK,
-            "After settlement, authorities not caught up: min={min_final}, max={max_final}, gap={} (slack: {CATCH_UP_SLACK})",
+            "After settlement, authorities not caught up: min={min_final}, max={max_final}, gap={} (slack: {CATCH_UP_SLACK}, all: {final_commits:?})",
             max_final - min_final
         );
 

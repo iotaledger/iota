@@ -470,7 +470,13 @@ mod tests {
     #[tokio::test]
     async fn test_scoring_subdag() {
         telemetry_subscribers::init_for_testing();
-        let context = Arc::new(Context::new_for_test(4).0);
+        // The vote traversal that feeds these scores is skipped when the
+        // sliding-window schedule is on; run with it off.
+        let mut context = Context::new_for_test(4).0;
+        context
+            .protocol_config
+            .set_consensus_enable_sliding_window_leader_schedule_for_testing(false);
+        let context = Arc::new(context);
         // Populate fully connected test blocks for round 0 ~ 3, authorities 0 ~ 3.
         let mut dag_builder = DagBuilder::new(context.clone());
         dag_builder.layers(1..=3).build();

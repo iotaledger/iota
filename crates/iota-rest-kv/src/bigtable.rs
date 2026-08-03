@@ -105,6 +105,23 @@ impl KvStoreClient {
         })
     }
 
+    /// Create a client pointed at a closed local port.
+    ///
+    /// The BigTable channel connects lazily, so the client can be constructed
+    /// and stored, but any request reaching it fails: tests use it to
+    /// exercise code paths that must answer before touching the store.
+    #[cfg(test)]
+    pub(crate) fn new_for_tests() -> Self {
+        let bigtable_client =
+            BigTableClient::new_local("localhost:1", "iota-rest-kv-tests", "test-instance", "iota")
+                .expect("local client construction does not connect");
+
+        Self {
+            bigtable_client,
+            start_time: Instant::now(),
+        }
+    }
+
     /// Builds a [`RowFilter`] that matches only cells whose column qualifier
     /// equals `column_qualifier` exactly.
     ///
@@ -593,5 +610,63 @@ impl TryFrom<Vec<Key>> for ObjectsBeforeVersionRequest {
         .collect();
 
         Ok(ObjectsBeforeVersionRequest(object_range_keys))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use iota_sdk_types::{ObjectId, Version};
+    use iota_types::storage::ObjectKey;
+
+    use super::*;
+
+    #[test]
+    fn object_range_scans_from_min_version_up_to_requested_version() {
+        let id = ObjectId::ZERO;
+        let key = ObjectKey(id, Version::from_u64(5));
+
+        let range = ObjectRangeKeyBound::from(key);
+
+        assert_eq!(
+            range.start_key,
+            StartKey::StartKeyClosed(raw_object_key(&ObjectKey::min_for_id(&id)))
+        );
+        assert_eq!(range.end_key, EndKey::EndKeyOpen(raw_object_key(&key)));
+        assert!(!range.is_empty());
+    }
+
+    #[test]
+    fn object_range_for_min_version_is_empty() {
+        let range = ObjectRangeKeyBound::from(ObjectKey::min_for_id(&ObjectId::ZERO));
+        assert!(range.is_empty());
+    }
+
+    #[test]
+    fn object_range_rejects_non_object_keys() {
+        assert!(
+            ObjectRangeKeyBound::try_from(Key::Transaction(TransactionDigest::random())).is_err()
+        );
+    }
+
+    #[test]
+    fn objects_before_version_request_rejects_mixed_key_types() {
+        let keys = vec![
+            Key::ObjectKey(ObjectKey::min_for_id(&ObjectId::ZERO)),
+            Key::Transaction(TransactionDigest::random()),
+        ];
+        assert!(ObjectsBeforeVersionRequest::try_from(keys).is_err());
+    }
+
+    #[test]
+    fn extract_keys_rejects_mixed_key_types() {
+        let keys = [
+            Key::Transaction(TransactionDigest::random()),
+            Key::TransactionEffects(TransactionDigest::random()),
+        ];
+        let result = extract_keys(&keys, |k| match k {
+            Key::Transaction(digest) => Some(*digest),
+            _ => None,
+        });
+        assert!(matches!(result, Err(ApiError::BadRequest(_))));
     }
 }

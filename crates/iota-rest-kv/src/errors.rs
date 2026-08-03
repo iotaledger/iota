@@ -9,7 +9,7 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use iota_storage::http_key_value_store::ItemType;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 /// An Error type which represents the possible errors the REST API server can
@@ -52,10 +52,10 @@ impl IntoResponse for ApiError {
 }
 
 /// Describes the response body of a unsuccessful HTTP request.
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub(crate) struct ErrorResponse {
-    error_code: String,
-    error_message: String,
+    pub(crate) error_code: String,
+    pub(crate) error_message: String,
 }
 
 #[derive(Error, Debug)]

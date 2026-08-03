@@ -2831,6 +2831,15 @@ mod test {
         context
             .protocol_config
             .set_consensus_starfish_speed_for_testing(false);
+        // The expected scores come from V2 vote scoring and the good/bad split
+        // assumes stake-rank selection; run with the sliding-window schedule
+        // and absolute-score selection off.
+        context
+            .protocol_config
+            .set_consensus_enable_sliding_window_leader_schedule_for_testing(false);
+        context
+            .protocol_config
+            .set_consensus_enable_absolute_score_leader_schedule_for_testing(false);
         // create the cores and their signals for all the authorities
         let mut cores = create_cores(context, vec![1, 1, 1, 1]).await;
 
@@ -3466,6 +3475,15 @@ mod test {
         context
             .protocol_config
             .set_consensus_starfish_speed_for_testing(false);
+        // The expected scores come from V2 vote scoring and the good/bad split
+        // assumes stake-rank selection; run with the sliding-window schedule
+        // and absolute-score selection off.
+        context
+            .protocol_config
+            .set_consensus_enable_sliding_window_leader_schedule_for_testing(false);
+        context
+            .protocol_config
+            .set_consensus_enable_absolute_score_leader_schedule_for_testing(false);
 
         // create the cores and their signals for all the authorities
         let mut cores = create_cores(context, vec![1, 1, 1, 1, 1, 1]).await;
