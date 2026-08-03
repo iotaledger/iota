@@ -317,6 +317,7 @@ impl EpochState {
             execution_result,
             mock_gas_id,
             suggested_gas_price: None,
+            gas_data: transaction.gas_data().clone(),
         })
     }
 }

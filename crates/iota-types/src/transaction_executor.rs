@@ -4,7 +4,9 @@
 
 use std::{collections::BTreeMap, time::Duration};
 
-use iota_sdk_types::{ObjectId, TransactionDigest, TransactionEffects, TransactionEvents};
+use iota_sdk_types::{
+    GasPayment, ObjectId, TransactionDigest, TransactionEffects, TransactionEvents,
+};
 
 use crate::{
     error::{ExecutionError, IotaError},
@@ -87,6 +89,11 @@ pub struct SimulateTransactionResult {
     pub execution_result: Result<Vec<ExecutionResult>, ExecutionError>,
     pub mock_gas_id: Option<ObjectId>,
     pub suggested_gas_price: Option<u64>,
+    /// The gas the simulation ran with, once whatever the transaction left
+    /// unset was filled in. Callers reporting the transaction back should
+    /// use this rather than re-deriving it, which would read a possibly
+    /// different epoch.
+    pub gas_data: GasPayment,
 }
 
 /// Which Move VM checks a simulation runs with.

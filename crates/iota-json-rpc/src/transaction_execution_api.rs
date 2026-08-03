@@ -31,7 +31,7 @@ use iota_sdk_types::{
 };
 use iota_transaction_builder::TransactionBuilder;
 use iota_types::{
-    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
+    effects::{TransactionEffectsAPI, TransactionEffectsExt},
     execution_config_utils::to_binary_config,
     inner_temporary_store::{PackageStoreWithFallback, TemporaryModuleResolver},
     iota_serde::BigInt,
@@ -40,7 +40,7 @@ use iota_types::{
     },
     storage::PostExecutionPackageResolver,
     transaction::{InputObjectKind, TransactionData, TransactionDataAPI, TransactionEnvelope},
-    transaction_executor::VmChecks,
+    transaction_executor::{SimulateTransactionResult, VmChecks},
 };
 use jsonrpsee::{RpcModule, core::RpcResult};
 use tracing::{Instrument, instrument};
@@ -351,19 +351,7 @@ impl TransactionExecutionApi {
             .map_err(Error::from)??
         };
 
-        // A transaction submitted without a gas payment is simulated against a mock gas
-        // coin, which the reported transaction input has to account for. Take the coin
-        // back out of the simulation's inputs rather than minting a second one, so the
-        // reported payment is the reference the simulation actually charged.
-        if let Some(mock_gas_id) = simulation.mock_gas_id {
-            let mock_gas = simulation.input_objects.get(&mock_gas_id).ok_or_else(|| {
-                Error::Unexpected(format!(
-                    "simulation minted mock gas coin {mock_gas_id} but did not report it as an input",
-                ))
-            })?;
-            txn_data.gas_data_mut().objects = vec![mock_gas.object_ref()];
-        }
-        Self::report_gas_used_as_budget(&mut txn_data, &simulation.effects);
+        Self::report_effective_gas(&mut txn_data, &simulation);
 
         let tx_digest = *simulation.effects.transaction_digest();
         // Resolve types against the objects the simulation wrote before falling back to
@@ -467,14 +455,23 @@ impl TransactionExecutionApi {
         .map_err(Error::from)?
     }
 
-    /// Report the gas the simulation charged in place of a zero gas budget.
+    /// Report the gas the simulation ran with, in place of whatever the caller
+    /// left unset.
     ///
-    /// A caller that declares no budget is asking what the transaction costs,
-    /// so echoing its own zero back tells it nothing. gRPC
-    /// `simulate_transactions` reports the cost in the same field.
-    fn report_gas_used_as_budget(transaction: &mut TransactionData, effects: &TransactionEffects) {
-        if transaction.gas_budget() == 0 {
-            transaction.gas_data_mut().budget = effects.gas_cost_summary().gas_used();
+    /// A zero budget asks what the transaction costs, so it comes back as the
+    /// gas charged rather than as the caller's own zero, which would say
+    /// nothing. The price it was charged at comes back too: only the
+    /// computation half of the cost scales with the price, so an estimate
+    /// cannot be read without it. gRPC `simulate_transactions` reports the
+    /// cost in the same field.
+    fn report_effective_gas(
+        transaction: &mut TransactionData,
+        simulation: &SimulateTransactionResult,
+    ) {
+        let estimating = transaction.gas_budget() == 0;
+        *transaction.gas_data_mut() = simulation.gas_data.clone();
+        if estimating {
+            transaction.gas_data_mut().budget = simulation.effects.gas_cost_summary().gas_used();
         }
     }
 
@@ -529,7 +526,7 @@ impl TransactionExecutionApi {
 
         let raw_txn_data = match reported_transaction.as_mut() {
             Some(transaction) => {
-                Self::report_gas_used_as_budget(transaction, &simulation.effects);
+                Self::report_effective_gas(transaction, &simulation);
                 bcs::to_bytes(transaction).map_err(|_| {
                     Error::Unexpected(
                         "Failed to serialize transaction during dev inspect".to_string(),

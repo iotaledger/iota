@@ -198,7 +198,7 @@ async fn simulate_single_transaction(
     // A zero gas budget means "estimate the cost for me": the simulation meters
     // against the protocol maximum gas budget, and the transaction in the response
     // reports the cost it actually incurred rather than the zero that was sent.
-    let report_gas_used_as_budget = transaction_data.gas_data().budget == 0;
+    let estimating_gas_budget = transaction_data.gas_data().budget == 0;
 
     let system_state = if read_mask.contains(SimulatedTransaction::SUGGESTED_GAS_PRICE_FIELD.name) {
         Some(reader.get_system_state_summary().map_err(|e| {
@@ -220,6 +220,7 @@ async fn simulate_single_transaction(
         execution_result,
         mock_gas_id,
         suggested_gas_price,
+        gas_data,
     } = executor
         .simulate_transaction(transaction_data.clone(), vm_checks)
         .map_err(|e| {
@@ -235,7 +236,11 @@ async fn simulate_single_transaction(
     // Only include transaction if requested
     if let Some(tx_mask) = read_mask.subtree(SimulatedTransaction::EXECUTED_TRANSACTION_FIELD.name)
     {
-        if report_gas_used_as_budget {
+        // Report the price the simulation charged at, which it fills in for a caller
+        // that leaves it at zero. Only the computation half of the cost scales with
+        // the price, so an estimate cannot be read without it.
+        transaction_data.gas_data_mut().price = gas_data.price;
+        if estimating_gas_budget {
             transaction_data.gas_data_mut().budget = effects.gas_cost_summary().gas_used();
         }
 

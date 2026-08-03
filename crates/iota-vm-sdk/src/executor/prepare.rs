@@ -13,8 +13,8 @@ use std::collections::HashSet;
 
 use iota_config::transaction_deny_config::TransactionDenyConfig;
 use iota_sdk_types::{
-    Address, Digest, Event, MoveAuthenticator, ObjectId, ObjectReference, TransactionEffects,
-    UserSignature,
+    Address, Digest, Event, GasPayment, MoveAuthenticator, ObjectId, ObjectReference,
+    TransactionEffects, UserSignature,
 };
 use iota_types::{
     account_abstraction::authenticator_function::{
@@ -270,6 +270,7 @@ pub(super) fn execute_prepared(
         effects,
         execution_result,
         mock_gas_id,
+        transaction.gas_data().clone(),
     ))
 }
 
@@ -279,6 +280,7 @@ fn simulation_result(
     effects: TransactionEffects,
     execution_result: Result<Vec<CommandResult>, iota_types::error::ExecutionError>,
     mock_gas_id: Option<ObjectId>,
+    gas_data: GasPayment,
 ) -> SimulateTransactionResult {
     SimulateTransactionResult {
         input_objects: inner_temp_store.input_objects,
@@ -288,6 +290,7 @@ fn simulation_result(
         execution_result,
         mock_gas_id,
         suggested_gas_price: None,
+        gas_data,
     }
 }
 
@@ -441,6 +444,7 @@ pub(super) fn execute_with_move_authenticators(
             effects,
             execution_result.map(|_| Vec::new()),
             mock_gas_id,
+            transaction.gas_data().clone(),
         ),
         authenticator_outcome,
     ))

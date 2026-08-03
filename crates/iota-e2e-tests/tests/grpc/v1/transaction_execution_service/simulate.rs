@@ -245,8 +245,55 @@ async fn simulate_transaction_zero_gas_budget_uses_max() {
     let returned_tx: TransactionData = bcs::from_bytes(&bcs_data.data).unwrap();
     assert!(
         returned_tx.gas_data().budget > 0,
-        "gas budget should have been replaced with max_tx_gas, but was 0"
+        "the budget should have been replaced with the gas the simulation charged, but was 0"
     );
+    // Only the computation half of the cost scales with the price, so the budget
+    // above cannot be read without the price it was charged at.
+    assert_eq!(
+        returned_tx.gas_data().price,
+        1000,
+        "the price the caller sent should be reported back"
+    );
+
+    // The same with the price left at zero, which the simulation fills in from the
+    // epoch: the response has to report what it charged at, not the zero.
+    let tx_data = TransactionData::new_transfer(
+        recipient,
+        *obj_to_send,
+        sender,
+        *gas_obj,
+        0, // zero gas budget
+        0, // zero gas price
+    );
+    let item = SimulateTransactionItem::default()
+        .with_transaction(
+            ProtoTransaction::default()
+                .with_bcs(BcsData::default().with_data(bcs::to_bytes(&tx_data).unwrap())),
+        )
+        .with_tx_checks(vec![TransactionCheckModes::DisableVmChecks as i32]);
+    let response = exec_client
+        .simulate_transactions(SimulateTransactionsRequest::default().with_transactions(vec![item]))
+        .await
+        .unwrap()
+        .into_inner();
+
+    let bcs_data = first_simulated_transaction(&response)
+        .executed_transaction
+        .as_ref()
+        .unwrap()
+        .transaction
+        .as_ref()
+        .unwrap()
+        .bcs
+        .as_ref()
+        .unwrap();
+    let returned_tx: TransactionData = bcs::from_bytes(&bcs_data.data).unwrap();
+    assert_eq!(
+        returned_tx.gas_data().price,
+        test_cluster.get_reference_gas_price().await,
+        "the price the simulation filled in should be reported back"
+    );
+    assert!(returned_tx.gas_data().budget > 0);
 }
 
 #[sim_test]

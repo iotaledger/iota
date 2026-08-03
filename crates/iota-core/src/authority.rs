@@ -2344,6 +2344,7 @@ impl AuthorityState {
                 .congestion_tracker
                 .get_prediction_suggested_gas_price(&transaction),
             mock_gas_id,
+            gas_data: transaction.gas_data().clone(),
         })
     }
 

@@ -15,12 +15,14 @@ use iota_json_rpc_types::{
 };
 use iota_macros::sim_test;
 use iota_move_build::BuildConfig;
-use iota_sdk_types::{GasPayment, ObjectId, Owner, TransactionExpiration, TransactionKind};
+use iota_sdk_types::{
+    GasPayment, ObjectId, Owner, TransactionExpiration, TransactionKind, TransactionV1,
+};
 use iota_simulator::fastcrypto::encoding::Base64;
 use iota_types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::ExecuteTransactionRequestType,
-    transaction::{TransactionData, TransactionDataAPI, TransactionDataV1},
+    transaction::{TransactionData, TransactionDataAPI},
 };
 use test_cluster::TestClusterBuilder;
 
@@ -218,7 +220,7 @@ async fn test_zero_gas_budget_is_reported_as_the_gas_used() -> Result<(), anyhow
     };
 
     // No gas payment, no price and no budget: the simulation fills all of it in.
-    let transaction = TransactionData::V1(TransactionDataV1 {
+    let transaction = TransactionData::V1(TransactionV1 {
         kind: TransactionKind::new_programmable(pt.clone()),
         sender: address,
         gas_payment: GasPayment {
@@ -236,12 +238,23 @@ async fn test_zero_gas_budget_is_reported_as_the_gas_used() -> Result<(), anyhow
     assert_eq!(*response.effects.status(), IotaExecutionStatus::Success);
 
     let gas_used = response.effects.gas_cost_summary().gas_used();
+    let reference_gas_price = cluster.get_reference_gas_price().await;
     assert_ne!(gas_used, 0, "a successful transfer has to cost something");
     assert_eq!(
         response.input.gas_data().budget,
         gas_used,
         "the reported budget should be the cost the simulation charged"
     );
+    // Only the computation half of the cost scales with the price, so the estimate
+    // above cannot be read without the price it was charged at.
+    assert_eq!(
+        response.input.gas_data().price,
+        reference_gas_price,
+        "the reported price should be the one the simulation charged at"
+    );
+    // A mock gas coin was minted, so the reported payment names it rather than
+    // staying empty.
+    assert_eq!(response.input.gas_data().payment.len(), 1);
 
     // The same for the raw transaction a dev inspect hands back.
     let raw_txn_data = http_client
@@ -258,7 +271,8 @@ async fn test_zero_gas_budget_is_reported_as_the_gas_used() -> Result<(), anyhow
         .await?
         .raw_txn_data;
     let reported: TransactionData = bcs::from_bytes(&raw_txn_data)?;
-    assert_ne!(reported.gas_data().budget, 0);
+    assert_ne!(reported.gas_budget(), 0);
+    assert_eq!(reported.gas_price(), reference_gas_price);
 
     Ok(())
 }
