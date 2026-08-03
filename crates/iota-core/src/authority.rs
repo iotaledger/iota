@@ -66,7 +66,10 @@ use iota_types::{
         authenticator_function_ref_v1_from_dynamic_field_object,
         derive_authenticator_function_ref_v1_dynamic_field_id, extract_auth_fun_refs,
     },
-    attestation::Attestation,
+    attestation::{
+        Attestation, AttestationVerdictContext, AttestedObjectVersionReader,
+        AttestedObjectVersionState,
+    },
     auth_context::AuthContextData,
     base_types::{AuthorityName, ConciseableName, ObjectInfo, ObjectType, VersionNumber},
     committee::{Committee, EpochId, ProtocolVersion},
@@ -158,7 +161,7 @@ use crate::{
         authority_per_epoch_store_pruner::AuthorityPerEpochStorePruner,
         authority_store::{ExecutionLockReadGuard, ObjectLockStatus},
         authority_store_pruner::{AuthorityStorePruner, EPOCH_DURATION_MS_FOR_TESTING},
-        authority_store_tables::AuthorityPrunerTables,
+        authority_store_tables::{AuthorityPerpetualTables, AuthorityPrunerTables},
         epoch_start_configuration::{EpochStartConfigTrait, EpochStartConfiguration},
     },
     authority_client::NetworkAuthorityClient,
@@ -863,6 +866,9 @@ pub struct AuthorityState {
 
     /// The database
     input_loader: TransactionInputLoader,
+    /// Object-version history, read when an attestation's recorded versions are
+    /// judged after a Move-authentication failure.
+    perpetual_tables: Arc<AuthorityPerpetualTables>,
     execution_cache_trait_pointers: ExecutionCacheTraitPointers,
 
     epoch_store: ArcSwap<AuthorityPerEpochStore>,
@@ -1302,43 +1308,7 @@ impl AuthorityState {
             .checked_div(tx.gas_price())
             .unwrap_or(0);
 
-        // `object_versions` is the evidence base for malicious-attestor detection. We
-        // pull `input_objects` (resolved tx + authenticator inputs) and
-        // `loaded_runtime_objects` (dynamic fields / children) from the
-        // execution's temporary store. Both record the pre-execution read version, and
-        // the two maps are disjoint by `ObjectId`.
-
-        // We then drop owned, gas, and receiving objects (pinned by
-        // `TransactionData`) and immutable objects / packages (frozen).
-        let tx_pinned_ids: HashSet<ObjectId> = tx
-            .input_objects()?
-            .into_iter()
-            .filter_map(|kind| match kind {
-                InputObjectKind::ImmOrOwnedMoveObject(oref) => Some(oref.object_id),
-                InputObjectKind::MovePackage(_) | InputObjectKind::SharedMoveObject { .. } => None,
-            })
-            .chain(tx.gas().iter().map(|oref| oref.object_id))
-            .chain(
-                tx.receiving_objects()
-                    .into_iter()
-                    .map(|oref| oref.object_id),
-            )
-            .collect();
-
-        let object_versions: Vec<ObjectReference> = inner_temp_store
-            .input_objects
-            .values()
-            .filter(|obj| !obj.is_immutable())
-            .map(|obj| obj.object_ref())
-            .chain(
-                inner_temp_store
-                    .loaded_runtime_objects
-                    .iter()
-                    .filter(|(_, meta)| !matches!(meta.owner, Owner::Immutable))
-                    .map(|(id, meta)| ObjectReference::new(*id, meta.version, meta.digest)),
-            )
-            .filter(|oref| !tx_pinned_ids.contains(&oref.object_id))
-            .collect();
+        let object_versions = attestable_object_versions(tx, &inner_temp_store)?;
 
         Ok((
             AttestationData::V1 {
@@ -2277,9 +2247,24 @@ impl AuthorityState {
                     }
                 };
 
-            let attested_object_versions = transaction
+            // Only attested transactions can have their Move-authentication
+            // failure attributed, and only they carry recorded versions to judge.
+            let attested_object_versions =
+                transaction.attestation().map(|_| AttestedObjectVersions {
+                    object_cache: self.get_object_cache_reader().as_ref(),
+                    transaction_cache: self.get_transaction_cache_reader().as_ref(),
+                    perpetual_tables: &self.perpetual_tables,
+                    current_epoch: epoch_id,
+                });
+            let attestation_verdict_context = transaction
                 .attestation()
-                .map(|attestation| attestation.object_versions().to_vec());
+                .zip(attested_object_versions.as_ref())
+                .map(
+                    |(attestation, version_age_reader)| AttestationVerdictContext {
+                        object_versions: attestation.object_versions().to_vec(),
+                        version_age_reader: Some(version_age_reader),
+                    },
+                );
 
             let (
                 inner_temp_store,
@@ -2308,7 +2293,7 @@ impl AuthorityState {
                     tx_digest,
                     auth_context_data,
                     pre_authentication_error,
-                    attested_object_versions,
+                    attestation_verdict_context,
                     &mut None,
                 );
             (inner_temp_store, gas_status, effects, execution_error_opt)
@@ -3619,6 +3604,7 @@ impl AuthorityState {
             name,
             secret,
             execution_lock: RwLock::new(epoch),
+            perpetual_tables: store.perpetual_tables.clone(),
             epoch_store: ArcSwap::new(epoch_store.clone()),
             input_loader,
             execution_cache_trait_pointers,
@@ -6893,6 +6879,102 @@ impl NodeStateDump {
         let file = File::open(path)?;
         serde_json::from_reader(file).map_err(|e| anyhow::anyhow!(e))
     }
+}
+
+/// Judges the object versions recorded in an attestation, so that a
+/// Move-authentication failure can be attributed to the issuer or the attestor.
+///
+/// A version is only re-run at when it was superseded during the current epoch.
+struct AttestedObjectVersions<'a> {
+    object_cache: &'a dyn ObjectCacheRead,
+    transaction_cache: &'a dyn TransactionCacheRead,
+    perpetual_tables: &'a AuthorityPerpetualTables,
+    current_epoch: EpochId,
+}
+
+impl AttestedObjectVersionReader for AttestedObjectVersions<'_> {
+    fn attested_object_version_state(
+        &self,
+        object_id: &ObjectId,
+        version: Version,
+    ) -> AttestedObjectVersionState {
+        let Some(current) = self.object_cache.get_object(object_id) else {
+            return AttestedObjectVersionState::Stale;
+        };
+        if current.version() == version {
+            return AttestedObjectVersionState::Current;
+        }
+
+        let successor = match self
+            .perpetual_tables
+            .get_next_object_key(object_id, version)
+        {
+            Ok(successor) => successor,
+            Err(_) => return AttestedObjectVersionState::Stale,
+        };
+        let Some(ObjectKey(_, successor_version)) = successor else {
+            // The object has moved on but no later version has reached the
+            // database yet, so it was superseded too recently to have been
+            // written back, which can only have happened in this epoch.
+            return AttestedObjectVersionState::SupersededInCurrentEpoch;
+        };
+
+        // The transaction that wrote the successor is the one that superseded
+        // this version, so its epoch is when the version stopped being current.
+        let superseded_by = self
+            .object_cache
+            .get_object_by_key(object_id, successor_version)
+            .map(|successor| successor.previous_transaction);
+        let superseded_in_epoch = superseded_by
+            .and_then(|digest| self.transaction_cache.get_executed_effects(&digest))
+            .map(|effects| effects.epoch());
+
+        match superseded_in_epoch {
+            Some(epoch) if epoch == self.current_epoch => {
+                AttestedObjectVersionState::SupersededInCurrentEpoch
+            }
+            // Superseded in an earlier epoch, or unresolvable: either way the
+            // attestation is not proven honest and the attestor is accountable.
+            _ => AttestedObjectVersionState::Stale,
+        }
+    }
+}
+
+/// Versions of the objects an attestation records to be used as the evidence
+/// base for detecting a false attestation.
+fn attestable_object_versions(
+    tx: &TransactionData,
+    inner_temp_store: &InnerTemporaryStore,
+) -> IotaResult<Vec<ObjectReference>> {
+    let tx_pinned_ids: HashSet<ObjectId> = tx
+        .input_objects()?
+        .into_iter()
+        .filter_map(|kind| match kind {
+            InputObjectKind::ImmOrOwnedMoveObject(oref) => Some(oref.object_id),
+            InputObjectKind::MovePackage(_) | InputObjectKind::SharedMoveObject { .. } => None,
+        })
+        .chain(tx.gas().iter().map(|oref| oref.object_id))
+        .chain(
+            tx.receiving_objects()
+                .into_iter()
+                .map(|oref| oref.object_id),
+        )
+        .collect();
+
+    Ok(inner_temp_store
+        .input_objects
+        .values()
+        .filter(|obj| !obj.is_immutable())
+        .map(|obj| obj.object_ref())
+        .chain(
+            inner_temp_store
+                .loaded_runtime_objects
+                .iter()
+                .filter(|(_, meta)| !matches!(meta.owner, Owner::Immutable))
+                .map(|(id, meta)| ObjectReference::new(*id, meta.version, meta.digest)),
+        )
+        .filter(|oref| !tx_pinned_ids.contains(&oref.object_id))
+        .collect())
 }
 
 /// Returns the [`MoveAuthenticator`]s to execute during the pre-consensus

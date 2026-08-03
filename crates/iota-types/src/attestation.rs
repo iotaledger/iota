@@ -1,7 +1,9 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::{Address, ObjectReference, TransactionDigest};
+use std::collections::BTreeSet;
+
+use iota_sdk_types::{Address, ObjectId, ObjectReference, TransactionDigest, Version};
 use serde::{Deserialize, Serialize};
 // TODO: change the import once the AuthorityIndex refactor is ready
 // See https://github.com/iotaledger/iota-private/issues/404
@@ -91,6 +93,71 @@ impl Attestation {
             object_versions, ..
         } = payload;
         object_versions
+    }
+}
+
+/// State of an object version recorded in an attestation, relative to the epoch
+/// executing the attested transaction.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AttestedObjectVersionState {
+    /// Still the object's current version, so the transaction executed against
+    /// exactly this state.
+    Current,
+    /// Superseded by a transaction that executed in the current epoch. Retained
+    /// by every validator, so it can be re-run at.
+    SupersededInCurrentEpoch,
+    /// Superseded in an earlier epoch, or its supersession is unresolvable.
+    Stale,
+}
+
+/// Resolves the state of the object versions recorded in an attestation.
+pub trait AttestedObjectVersionReader: Send + Sync {
+    fn attested_object_version_state(
+        &self,
+        object_id: &ObjectId,
+        version: Version,
+    ) -> AttestedObjectVersionState;
+}
+
+/// What the execution layer needs to judge an attestation when the attested
+/// transaction fails Move authentication at execution.
+pub struct AttestationVerdictContext<'a> {
+    pub object_versions: Vec<ObjectReference>,
+    /// Consulted only on the authentication-failure path. `None` leaves every
+    /// failure to re-run, for callers with no object-version history to read.
+    pub version_age_reader: Option<&'a dyn AttestedObjectVersionReader>,
+}
+
+impl AttestationVerdictContext<'_> {
+    /// Whether authentication should be re-run at the recorded versions.
+    ///
+    /// False when nothing drifted, because authentication just failed against
+    /// exactly the recorded state and a re-run would reproduce it, proving the
+    /// attestor's claim false. Also false when a drifted version is too old to
+    /// judge. Both cases are `InvalidAttestation`.
+    ///
+    /// Only the versions the re-run reloads are considered, given by
+    /// `reauthenticated_object_ids`: an attestation also records the versions
+    /// the transaction body read, and those cannot decide whether
+    /// authentication would have succeeded.
+    pub fn should_reauthenticate(&self, reauthenticated_object_ids: &BTreeSet<ObjectId>) -> bool {
+        let Some(version_age_reader) = self.version_age_reader else {
+            return true;
+        };
+        let mut drifted = false;
+        for object_ref in &self.object_versions {
+            if !reauthenticated_object_ids.contains(object_ref.object_id()) {
+                continue;
+            }
+            match version_age_reader
+                .attested_object_version_state(object_ref.object_id(), object_ref.version())
+            {
+                AttestedObjectVersionState::Current => {}
+                AttestedObjectVersionState::SupersededInCurrentEpoch => drifted = true,
+                AttestedObjectVersionState::Stale => return false,
+            }
+        }
+        drifted
     }
 }
 

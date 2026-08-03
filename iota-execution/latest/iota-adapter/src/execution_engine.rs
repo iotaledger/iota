@@ -30,6 +30,7 @@ mod checked {
             AuthenticatorFunctionRef, AuthenticatorFunctionRefForExecution,
             AuthenticatorFunctionRefV1,
         },
+        attestation::AttestationVerdictContext,
         auth_context::{AuthContext, AuthContextData},
         balance::{BALANCE_CREATE_REWARDS_FUNCTION_NAME, BALANCE_DESTROY_REBATES_FUNCTION_NAME},
         base_types::TxContext,
@@ -325,7 +326,7 @@ mod checked {
         // failure effect.
         pre_authentication_error: Option<ExecutionError>,
         // The attestor's recorded object versions, for attested transactions.
-        attested_object_versions: Option<Vec<ObjectReference>>,
+        attestation_verdict_context: Option<AttestationVerdictContext<'_>>,
         // Tracing
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
         // VM
@@ -399,7 +400,7 @@ mod checked {
 
         // Retain the resolved authenticators so that a Move-authentication function
         // abort at execution can be re-checked at the versions the attestor recorded.
-        let authenticators_for_reauth = attested_object_versions.as_ref().map(|_| {
+        let authenticators_for_reauth = attestation_verdict_context.as_ref().map(|_| {
             authenticators
                 .iter()
                 .map(
@@ -496,28 +497,49 @@ mod checked {
             is_structural_failure,
             &authentication_execution_result,
             authenticators_for_reauth,
-            &attested_object_versions,
+            &attestation_verdict_context,
         ) {
-            (false, Err(_), Some(reauth_authenticators), Some(attested_object_versions)) => {
-                let attestation_proven_honest = reauthenticate_at_attested_versions(
-                    store,
-                    protocol_config,
-                    metrics.clone(),
-                    epoch_id,
-                    epoch_timestamp_ms,
-                    transaction_signer,
-                    sponsor,
-                    gas_price,
-                    rgp,
-                    gas_budget,
-                    &mut gas_charger,
-                    reauth_authenticators,
-                    attested_object_versions,
-                    &transaction_kind,
-                    transaction_digest,
-                    &auth_context_data,
-                    move_vm,
-                );
+            (false, Err(_), Some(reauth_authenticators), Some(verdict_context)) => {
+                // The objects the re-run reloads: the authenticators' own inputs
+                // and the field objects holding their function refs. The
+                // attestation records more than this, but the rest is read by
+                // the transaction body and says nothing about authentication.
+                let reauthenticated_object_ids: BTreeSet<ObjectId> = reauth_authenticators
+                    .iter()
+                    .flat_map(
+                        |(_, function_ref_for_execution, authenticator_input_objects)| {
+                            authenticator_input_objects
+                                .iter()
+                                .map(|object| object.id())
+                                .chain(std::iter::once(function_ref_for_execution.loaded_object_id))
+                        },
+                    )
+                    .collect();
+
+                // Skipped when nothing drifted, since authentication just failed
+                // against exactly the recorded state, and when a drifted version is
+                // too old to judge. Both leave the attestation unproven.
+                let attestation_proven_honest = verdict_context
+                    .should_reauthenticate(&reauthenticated_object_ids)
+                    && reauthenticate_at_attested_versions(
+                        store,
+                        protocol_config,
+                        metrics.clone(),
+                        epoch_id,
+                        epoch_timestamp_ms,
+                        transaction_signer,
+                        sponsor,
+                        gas_price,
+                        rgp,
+                        gas_budget,
+                        &mut gas_charger,
+                        reauth_authenticators,
+                        &verdict_context.object_versions,
+                        &transaction_kind,
+                        transaction_digest,
+                        &auth_context_data,
+                        move_vm,
+                    );
                 if attestation_proven_honest {
                     authentication_execution_result
                 } else {
@@ -699,7 +721,7 @@ mod checked {
     }
 
     /// Rebuilds the input objects for authentication at the versions the
-    /// attestor recorded. 
+    /// attestor recorded.
     ///
     /// Returns `None` if an attested version is no longer present in `store`.
     fn reload_input_objects_at_attested_versions(
@@ -714,7 +736,7 @@ mod checked {
                 Some(object_ref) => {
                     let object = store.get_object_by_key(&object_id, object_ref.version())?;
                     reloaded.push(ObjectReadResult::new(
-                        object_read_result.input_object_kind.clone(),
+                        object_read_result.input_object_kind,
                         ObjectReadResultKind::Object(object),
                     ));
                 }
@@ -730,7 +752,7 @@ mod checked {
         DynamicallyLoadedObjectMetadata {
             version: object.version(),
             digest: object.digest(),
-            owner: object.owner.clone(),
+            owner: object.owner,
             storage_rebate: object.storage_rebate,
             previous_transaction: object.previous_transaction,
         }

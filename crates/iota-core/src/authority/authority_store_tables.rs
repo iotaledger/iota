@@ -409,6 +409,27 @@ impl AuthorityPerpetualTables {
         Ok(self.executed_transactions_to_checkpoint.get(digest)?)
     }
 
+    /// First stored version of `object_id` greater than `version`, i.e. the
+    /// version that superseded it, if one has been written to the database.
+    pub fn get_next_object_key(
+        &self,
+        object_id: &ObjectId,
+        version: Version,
+    ) -> IotaResult<Option<ObjectKey>> {
+        let Ok(next_version) = version.next() else {
+            return Ok(None);
+        };
+        match self
+            .objects
+            .safe_iter_with_prefix_from(object_id, &next_version)
+            .next()
+        {
+            Some(Ok((key, _))) => Ok(Some(key)),
+            Some(Err(e)) => Err(e.into()),
+            None => Ok(None),
+        }
+    }
+
     pub fn get_newer_object_keys(
         &self,
         object: &(ObjectId, Version),
