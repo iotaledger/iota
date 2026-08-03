@@ -80,6 +80,24 @@ not presented here — where comparable, it agrees in direction with `n24`
 (e.g., the pinned host's CPU B/A continues 1.56 → 2.06 → 2.34 across
 `n4` → `n24` → `n48`).
 
+Everything above measures the slow workload, where attestation is extra work
+on top of execution. In the `moveauth` campaign, it is the cheaper side
+instead: with attestation on, the network is faster and delivers more. There
+each transaction's signature is checked by a Move function, and that check is
+not part of executing the transaction. With attestation off, every validator
+runs the check itself in the post-consensus validation pass, so that pass
+grows with the number of verifications (p95 43 ms at one verification, 188 ms
+at fifty) and the network falls behind: at twenty and fifty verifications,
+it delivers 595 and 254 tx/s of a requested 1000, and finality takes 1.1–2.8
+s. With attestation on, the check runs once, before consensus, on the
+validator that attests; post-consensus validation then stays at 6–7 ms,
+throughput holds the full rate at every cycle count, and finality stays
+near 200 ms (findings 3, 5, 8). The dry-run that makes this possible is cheap
+here (≤17 ms p95), and the verification is not billed as computation
+units, so gas does not price it either (finding 1). Where the checked work is
+part of execution, as in the slow workload, attestation is extra work; where
+it is not, attestation replaces the same work done on every validator.
+
 ---
 
 ### Experiment as run
@@ -151,7 +169,23 @@ Two host-bound effects shape the `n24` results from `slow100` up:
   clock, commit sizes, queues, checkpoint lag, post-consensus shedding),
   that is less load being admitted, not a cheaper pipeline.
 
-A third campaign on a **48-validator** network was run as well, but is not
+The same 4-validator network was also run with a different workload,
+**`moveauth`** (account abstraction): every transaction is signed with a
+`MoveAuthenticator`, so the signature is verified on-chain by a Move function
+before the transaction body runs. This sweep replaces the
+computation size with the number of Ed25519 verifications per transaction
+(`AUTH_CYCLES`): {1, 5, 10, 20, 50}, again × 3 paths × 3 rates = 45
+configurations, 10 iterations each, with `AUTHENTICATOR=ed25519heavy` and
+`AUTH_OBJ_TYPE=owned-object`. Labels are
+`auth<cycles>-owned-<path>-qps<rate>-n4`, and the results land in
+`results/summary_table_auth_n4.{md,csv}` and
+`results/summary_plots_auth_n4/` (`--prefix auth` on the tooling below).
+
+The findings below carry a collapsed `moveauth` block wherever that campaign
+answers differently from the slow-workload one; where a finding has no such
+block, the two agree.
+
+A campaign on a **48-validator** network was run as well, but is not
 presented: doubling the replication again oversaturated the machine (only
 ≈60 % of the target delivered already at `slow0`, every latency
 backlog-shaped, and the semaphore down to 833 permits — small enough that
@@ -501,6 +535,37 @@ transaction is identical and the mean is the exact cost. A p50 would instead
 interpolate between histogram bucket edges and land on impossible values
 (e.g., 850 for `slow0`, below the 1000-unit `gas_rounding_step` floor).
 
+<details>
+<summary>The <code>moveauth</code> campaign</summary>
+
+The verification work shows up in the dry-run but not in execution. The
+dry-run grows with the number of verifications per transaction (0.97 ms p95
+at one, 16.79 ms at fifty), while actual execution latency stays flat
+(20.3–23.6 ms p95): checking the authenticator is not part of running the
+transaction body. Computation units stay at the 1000-unit floor at every
+cycle count, so the verification is not billed in gas — and attested still
+equals actual. The pool wait and async resume stay at the histogram floor
+(p50 ≤0.6 ms; the wait only reaches 15.8 ms at p99 with fifty
+verifications), because these dry-runs are short enough not to queue.
+
+Fullnode path (`f1`), B side:
+
+| auth_cycles | dry-run p95 | exec. lat. p95 | full attest. p95 | CUs |
+| :---: | --- | --- | --- | --- |
+| 1 | 0.97 ms | 20.27 ms | 2.08 ms | 1k |
+| 5 | 4.79 ms | 20.77 ms | 4.80 ms | 1k |
+| 10 | 4.80 ms | 20.45 ms | 4.82 ms | 1k |
+| 20 | 8.43 ms | 20.16 ms | 8.78 ms | 1k |
+| 50 | 16.79 ms | 23.56 ms | 20.33 ms | 1k |
+
+![Attestation computation units and dry-run execution latency, moveauth](h1/results/summary_plots_auth_n4/attestation_latency_exec.png)
+
+*Computation units, dry-run execution latency, and actual execution latency,
+`moveauth` campaign — the CU column is flat because the verification is not
+billed.*
+
+</details>
+
 ---
 
 **2. Internal execution latency: unchanged by attestation.**
@@ -699,6 +764,48 @@ machine's backlog.*
 
 </details>
 
+<details>
+<summary>The <code>moveauth</code> campaign</summary>
+
+Here B is the faster side, and the gap grows with the number of
+verifications: receipt→execution p50 is 228 ms on A and 197 ms on B at one
+verification, and 3.08 s on A against 258 ms on B at fifty. The direct
+paths behave the same (B/A at fifty: 0.05 on `v1`, 0.06 on `v4`). The
+client sees it too — settlement finality p50 goes from 223 ms to 2.82 s on
+A while B stays between 196 and 224 ms. Finding 5 shows where that time
+goes.
+
+Fullnode path (`f1`), receipt→execution p50:
+
+| auth_cycles | A | B | B/A |
+| :---: | --- | --- | --- |
+| 1 | 227.91 ms | 197.47 ms | 0.87 |
+| 5 | 331.12 ms | 212.32 ms | 0.64 |
+| 10 | 385.39 ms | 211.29 ms | 0.55 |
+| 20 | 1.426 s | 225.98 ms | 0.16 |
+| 50 | 3.080 s | 258.45 ms | 0.08 |
+
+Fullnode path (`f1`), settlement finality p50:
+
+| auth_cycles | A | B | B/A |
+| :---: | --- | --- | --- |
+| 1 | 223.02 ms | 195.74 ms | 0.88 |
+| 5 | 278.53 ms | 203.53 ms | 0.73 |
+| 10 | 343.35 ms | 204.74 ms | 0.60 |
+| 20 | 1.118 s | 212.66 ms | 0.19 |
+| 50 | 2.820 s | 223.59 ms | 0.08 |
+
+![Receipt → execution latency, moveauth](h1/results/summary_plots_auth_n4/receipt_to_exec_latency.png)
+
+*Receipt → executed latency, `moveauth` campaign — A grows with the number
+of verifications, B does not.*
+
+![Settlement finality latency, moveauth](h1/results/summary_plots_auth_n4/settlement_finality_latency.png)
+
+*Client settlement-finality latency, `moveauth` campaign.*
+
+</details>
+
 ---
 
 **4. Checkpoint creation lag: attestation moves the backlog ahead of
@@ -799,6 +906,33 @@ sits after consensus.*
 *Checkpoint creation lag, `n24` campaign — on the pinned path B's bars
 collapse from `slow100` on (attestation plus the semaphore move the backlog
 ahead of consensus); `v24` shows no such shift.*
+
+</details>
+
+<details>
+<summary>The <code>moveauth</code> campaign</summary>
+
+The backlog moves ahead of consensus on every path here, the fullnode path
+included. A's checkpoint lag grows with the number of verifications (1.37 s
+to 4.26 s p95 on `f1`) because the work sits after consensus, while B's
+stays between 257 ms and 881 ms; B/A is 0.11–0.53 on `f1`, 0.08–0.71 on
+`v1` and 0.13–0.61 on `v4`. In the slow-workload campaign, only the direct
+paths showed this, and the fullnode path went the other way.
+
+Fullnode path (`f1`), p95:
+
+| auth_cycles | A | B | B/A |
+| :---: | --- | --- | --- |
+| 1 | 1.372 s | 256.86 ms | 0.19 |
+| 5 | 811.94 ms | 300.62 ms | 0.37 |
+| 10 | 1.792 s | 622.76 ms | 0.35 |
+| 20 | 1.654 s | 880.88 ms | 0.53 |
+| 50 | 4.260 s | 455.67 ms | 0.11 |
+
+![Checkpoint creation lag, moveauth](h1/results/summary_plots_auth_n4/checkpoint_creation_latency.png)
+
+*Checkpoint creation lag, `moveauth` campaign — B's bars sit below A's on
+every path.*
 
 </details>
 
@@ -918,6 +1052,36 @@ collapse from `slow100` on (near-empty commits).*
 
 </details>
 
+<details>
+<summary>The <code>moveauth</code> campaign</summary>
+
+This is the finding the `moveauth` campaign answers differently, and it
+explains the rest. The pass is timed per consensus commit. With attestation
+off, it verifies each transaction's Move authenticator itself, so it grows
+with the number of verifications: p95 43 ms at one verification, 188 ms at
+fifty on `f1` (210 ms on `v1`, 228 ms on `v4`), p50 17 ms to 37 ms. With
+attestation on, it only checks the attestation (Check #3) and stays flat at
+6–7 ms p95 and 2–3 ms p50 at every cycle count. Network-wide that is one
+verification instead of one per validator, and it happens before consensus
+instead of after it.
+
+Fullnode path (`f1`):
+
+| auth_cycles | p50 A | p50 B | p95 A | p95 B |
+| :---: | --- | --- | --- | --- |
+| 1 | 17.1 ms | 2.9 ms | 43.1 ms | 7.0 ms |
+| 5 | 29.3 ms | 2.9 ms | 90.7 ms | 7.0 ms |
+| 10 | 32.9 ms | 2.7 ms | 102.6 ms | 7.1 ms |
+| 20 | 40.9 ms | 2.4 ms | 154.4 ms | 6.7 ms |
+| 50 | 37.1 ms | 1.9 ms | 187.8 ms | 5.8 ms |
+
+![Post-consensus validation latency, moveauth](h1/results/summary_plots_auth_n4/post_consensus_validation_latency.png)
+
+*Time in `validate_and_resolve_conflicts`, `moveauth` campaign — A grows
+with the number of verifications, B stays flat.*
+
+</details>
+
 ---
 
 **6. Submit latency (fullnode path): a fixed per-transaction addition.**
@@ -1011,6 +1175,35 @@ machine saturates the baselines inflate and the ratio caps at ≈9× at
 
 *Client submit latency, `n24` campaign — `n4`'s shape at the light sizes;
 queueing baselines above that.*
+
+</details>
+
+<details>
+<summary>The <code>moveauth</code> campaign</summary>
+
+The addition still holds, and here it stays small across the whole sweep:
+B − A is 0.6–2.9 ms against a full attestation latency of 0.5–6.8 ms p50. In
+the slow workload, the same addition grew with the computation size — 0.4 ms
+at `slow0` but 178 ms at `slow200` and 1.66 s at `slow500` — because the
+dry-run itself grew that large. The verification work keeps the dry-run cheap
+at every cycle count (finding 1), so the client-side cost stays in the
+milliseconds. At fifty verifications, it disappears (B − A = −0.7 ms), because
+A's own submit path slows down as its validators fall behind: A's submit p50
+goes from 4.1 ms at one verification to 16.5 ms at fifty.
+
+Fullnode path (`f1`), p50, `qps1000`:
+
+| auth_cycles | A | B | B − A | full attest. |
+| :---: | --- | --- | --- | --- |
+| 1 | 4.1 ms | 4.7 ms | +0.6 ms | 0.5 ms |
+| 5 | 5.9 ms | 8.3 ms | +2.4 ms | 3.0 ms |
+| 10 | 8.2 ms | 9.6 ms | +1.4 ms | 3.0 ms |
+| 20 | 8.8 ms | 11.7 ms | +2.9 ms | 3.5 ms |
+| 50 | 16.5 ms | 15.8 ms | -0.7 ms | 6.8 ms |
+
+![Submit-transaction latency, moveauth](h1/results/summary_plots_auth_n4/submit_latency.png)
+
+*Client submit latency, `moveauth` campaign.*
 
 </details>
 
@@ -1137,6 +1330,35 @@ both sides; the attesting `v1` host doubles.*
 
 </details>
 
+<details>
+<summary>The <code>moveauth</code> campaign</summary>
+
+Attestation is not the more expensive side here. Through ten verifications,
+where both sides keep up with the requested rate, the busiest validator's
+CPU is the same or slightly lower with attestation on (B/A 0.85–1.07),
+because the network verifies once instead of once per validator. At twenty
+and fifty verifications, B uses more cores (up to 1.78 on `f1`, 1.82 on
+`v1`) but also finishes three to four times as many transactions, so per
+transaction it costs about half: at fifty verifications, A runs 6.0 cores
+for 254 tx/s, B runs 10.6 cores for 932 tx/s.
+
+Fullnode path (`f1`), busiest validator:
+
+| auth_cycles | cores A | cores B | B/A | TPS A | TPS B |
+| :---: | --- | --- | --- | --- | --- |
+| 1 | 3.4 | 3.6 | 1.07 | 871 | 991 |
+| 5 | 5.0 | 4.8 | 0.96 | 921 | 977 |
+| 10 | 6.2 | 5.8 | 0.94 | 851 | 933 |
+| 20 | 7.3 | 7.3 | 1.00 | 595 | 933 |
+| 50 | 6.0 | 10.6 | 1.78 | 254 | 932 |
+
+![CPU and memory, moveauth](h1/results/summary_plots_auth_n4/resources.png)
+
+*Whole-machine host CPU and busiest-validator CPU / memory,
+`moveauth` campaign.*
+
+</details>
+
 ---
 
 **8. Throughput: no penalty at normal load, a fullnode cost at heavy compute,
@@ -1258,6 +1480,36 @@ Post-consensus validation drops stay at zero throughout:
 are at their worst. Its rate is the third panel of the throughput figure
 above.
 
+<details>
+<summary>The <code>moveauth</code> campaign</summary>
+
+Throughput is where the two sides differ most. Through ten verifications,
+both stay close to the requested rate (A 851–921, B 933–991 on `f1`). At
+twenty and fifty verifications, A falls to 595 and 254 tx/s of a requested
+1000 on `f1` (651 and 299 on `v1`, 648 and 296 on `v4`), while B holds
+930–1020 on every path. At `qps2000` the same split is wider: at fifty
+verifications, A delivers 248 tx/s and B 1460. Attestation rates match the
+slow-workload campaign — the busiest validator attests ≈460–500/s on `f1`
+and `v4`, ≈1000/s on `v1` — and there are no post-consensus validation
+drops here either.
+
+Fullnode path (`f1`):
+
+| auth_cycles | qps1000 A | qps1000 B | qps2000 A | qps2000 B |
+| :---: | --- | --- | --- | --- |
+| 1 | 871 | 991 | 1560 | 1566 |
+| 5 | 921 | 977 | 1511 | 1649 |
+| 10 | 851 | 933 | 935 | 1650 |
+| 20 | 595 | 933 | 520 | 1714 |
+| 50 | 254 | 932 | 248 | 1460 |
+
+![Throughput, attestation rate, and validation-drop rate, moveauth](h1/results/summary_plots_auth_n4/TPS.png)
+
+*Finalized TPS, attestations / sec, and post-consensus validation-drops /
+sec, `moveauth` campaign.*
+
+</details>
+
 ---
 
 **9. Execution queues and backpressure: deeper backlog under heavy load.**
@@ -1338,6 +1590,34 @@ except ≈125–190 on `v24` at `slow200`).
 
 *Queues, `n24` campaign — `n4`-like through `slow50`; above that the delay
 tracks the saturated machine, with the pinned path's B draining early.*
+
+</details>
+
+<details>
+<summary>The <code>moveauth</code> campaign</summary>
+
+Queue delay does not separate the two sides (20–42 ms p95 either way, no
+direction). `num_inflight` does, and in the opposite direction to the
+slow-workload campaign: A's peak is the higher one — 500 against 200 at
+fifty verifications on `f1`, and 1018 against 595 at `qps2000` — because
+A's transactions wait in the submit pipeline while its validators verify
+after consensus. B's dispatch queue is the deeper one instead (276 against
+126 at fifty verifications), holding work it is getting through.
+
+Fullnode path (`f1`), queue delay p95 and `num_inflight` peak:
+
+| auth_cycles | queue delay A | queue delay B | `num_inflight` A | `num_inflight` B |
+| :---: | --- | --- | --- | --- |
+| 1 | 21.6 ms | 22.7 ms | 187 | 170 |
+| 5 | 23.8 ms | 24.3 ms | 240 | 193 |
+| 10 | 23.3 ms | 23.9 ms | 291 | 199 |
+| 20 | 29.5 ms | 25.2 ms | 472 | 206 |
+| 50 | 23.9 ms | 37.2 ms | 500 | 200 |
+
+![Execution queues and backpressure, moveauth](h1/results/summary_plots_auth_n4/queues.png)
+
+*Execution dispatch queue, pending transactions, and execution queue delay,
+`moveauth` campaign.*
 
 </details>
 
@@ -1436,6 +1716,33 @@ is dropped, because almost nothing is admitted (finding 8).*
 
 </details>
 
+<details>
+<summary>The <code>moveauth</code> campaign</summary>
+
+Shedding happens only at `qps2000`, at a few transactions per second, and
+mostly on the attested side. At one verification, A sheds more (10.5 and
+10.8 /s on `v1` and `v4` against 3.1 and 0 for B), but from five
+verifications up, only B sheds (1.1–7.3 /s) and A sheds nothing at all.
+That follows from throughput (finding 8): at `qps2000`, B admits and
+executes 1460–1650 tx/s, so it is the side with a post-consensus backlog to
+shed, while A never gets that far. No configuration at `qps200` or
+`qps1000` drops anything.
+
+| config | A drops/s | A quorum % | A local % | B drops/s | B quorum % | B local % |
+| :---: | --- | --- | --- | --- | --- | --- |
+| `auth1-v1-q2000` | 10.5 | 3.8 | 9.4 | 3.1 | 1.1 | 8.1 |
+| `auth1-v4-q2000` | 10.8 | 5.1 | 18.1 | 0.0 | 0.0 | 4.9 |
+| `auth5-f1-q2000` | 0.0 | 0.0 | 1.2 | 3.0 | 1.3 | 6.2 |
+| `auth5-v1-q2000` | 0.9 | 0.3 | 3.5 | 3.5 | 2.1 | 3.9 |
+| `auth5-v4-q2000` | 0.0 | 0.0 | 0.5 | 1.1 | 0.4 | 6.4 |
+| `auth10-v1-q2000` | 0.0 | 0.0 | 0.0 | 5.1 | 2.0 | 10.0 |
+| `auth10-v4-q2000` | 0.0 | 0.0 | 0.0 | 7.3 | 2.6 | 9.4 |
+| `auth20-v1-q2000` | 0.0 | 0.0 | 0.0 | 4.8 | 1.4 | 4.1 |
+| `auth20-v4-q2000` | 0.0 | 0.0 | 0.0 | 5.7 | 2.3 | 4.9 |
+| `auth50-v4-q2000` | 0.0 | 0.0 | 0.0 | 2.1 | 0.7 | 10.6 |
+
+</details>
+
 ---
 
 **11. Pre-consensus load shedding: quiet until the heaviest pinned
@@ -1505,6 +1812,17 @@ anywhere. Outside the pinned path, exactly two configurations fire, both at
 `qps2000` and both A-heavy: `f1-slow500` (A ≈31 /s, B none — B's longer
 submit RPC paces the fullnode's driver, so its stream arrives gentler) and
 `v24-slow500` (A 43 /s vs B 5.8).
+
+<details>
+<summary>The <code>moveauth</code> campaign</summary>
+
+Nothing is rejected before consensus anywhere in this campaign — no path,
+cycle count or rate records a single overload rejection. The dry-runs are
+short (finding 1), so transactions do not pile up in the submit pipeline:
+`num_inflight` peaks at 2304 (`auth50-v1-qps2000`, B), far from the
+10000-permit semaphore.
+
+</details>
 
 ---
 
