@@ -18,7 +18,7 @@ use iota_types::{
     base_types::EpochId, effects::TransactionEffectsAPI,
     messages_checkpoint::CheckpointSequenceNumber, storage::ObjectStore,
 };
-use typed_store::rocks::{MetricConf, safe_drop_db};
+use typed_store::rocks::MetricConf;
 
 use self::{
     db_dump::{StoreName, dump_table, duplicate_objects_summary, list_tables, table_summary},
@@ -42,7 +42,6 @@ pub enum DbToolCommand {
     PrintObject(PrintObjectOptions),
     PrintCheckpoint(PrintCheckpointOptions),
     PrintCheckpointContent(PrintCheckpointContentOptions),
-    ResetDB,
     RewindCheckpointExecution(RewindCheckpointExecutionOptions),
     Compact,
     PruneObjects,
@@ -189,7 +188,6 @@ pub async fn execute_db_tool_command(db_path: PathBuf, cmd: DbToolCommand) -> an
         DbToolCommand::PrintObject(o) => print_object(&db_path, o),
         DbToolCommand::PrintCheckpoint(d) => print_checkpoint(&db_path, d),
         DbToolCommand::PrintCheckpointContent(d) => print_checkpoint_content(&db_path, d),
-        DbToolCommand::ResetDB => reset_db_to_genesis(&db_path).await,
         DbToolCommand::RewindCheckpointExecution(d) => {
             rewind_checkpoint_execution(&db_path, d.epoch, d.checkpoint_sequence_number)
         }
@@ -318,27 +316,6 @@ pub fn print_checkpoint_content(
             opt.digest
         ))?;
     println!("Checkpoint content: {contents:?}");
-    Ok(())
-}
-
-pub async fn reset_db_to_genesis(path: &Path) -> anyhow::Result<()> {
-    // Follow the below steps to test:
-    //
-    // Get a node database, e.g. restored from a formal snapshot or synced from
-    // genesis, in the dir the node config is pointing to (the `live` dir under
-    // `db-path` in fullnode.yaml). Reset the db to execute from genesis with:
-    // cargo run --package iota-tool -- db-tool --db-path
-    // /opt/iota/db/authorities_db/live reset-db Start the iota full node: cargo
-    // run --release --bin iota-node -- --config-path fullnode.yaml
-    safe_drop_db(
-        path.join("store").join("perpetual"),
-        std::time::Duration::from_secs(60),
-    )
-    .await?;
-
-    let checkpoint_db = CheckpointStore::new(&path.join("checkpoints"));
-    checkpoint_db.reset_db_for_execution_since_genesis()?;
-
     Ok(())
 }
 

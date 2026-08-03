@@ -939,21 +939,6 @@ impl CheckpointStore {
                 .computation_cost,
         })
     }
-
-    pub fn delete_highest_executed_checkpoint_test_only(&self) -> Result<(), TypedStoreError> {
-        let mut wb = self.tables.watermarks.batch();
-        wb.delete_batch(
-            &self.tables.watermarks,
-            std::iter::once(CheckpointWatermark::HighestExecuted),
-        )?;
-        wb.write()?;
-        Ok(())
-    }
-
-    pub fn reset_db_for_execution_since_genesis(&self) -> IotaResult {
-        self.delete_highest_executed_checkpoint_test_only()?;
-        Ok(())
-    }
 }
 
 #[derive(Copy, Clone, Debug, Serialize, Deserialize)]
