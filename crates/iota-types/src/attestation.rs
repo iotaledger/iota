@@ -182,6 +182,100 @@ mod tests {
         utils::create_fake_transaction,
     };
 
+    /// Reports whatever state a test assigned to an object, treating anything
+    /// unmentioned as `Stale`.
+    struct FakeVersionStates(std::collections::BTreeMap<ObjectId, AttestedObjectVersionState>);
+
+    impl AttestedObjectVersionReader for FakeVersionStates {
+        fn attested_object_version_state(
+            &self,
+            object_id: &ObjectId,
+            _version: Version,
+        ) -> AttestedObjectVersionState {
+            self.0
+                .get(object_id)
+                .copied()
+                .unwrap_or(AttestedObjectVersionState::Stale)
+        }
+    }
+
+    fn verdict_context<'a>(
+        object_versions: &[ObjectReference],
+        reader: &'a FakeVersionStates,
+    ) -> AttestationVerdictContext<'a> {
+        AttestationVerdictContext {
+            object_versions: object_versions.to_vec(),
+            version_age_reader: Some(reader),
+        }
+    }
+
+    /// Authentication failed against exactly the recorded state, so re-running
+    /// would only reproduce it: the attestor vouched for a transaction that
+    /// fails at the versions it saw.
+    #[test]
+    fn no_drift_skips_reauthentication() {
+        let account = random_object_ref();
+        let reader =
+            FakeVersionStates([(account.object_id, AttestedObjectVersionState::Current)].into());
+        let ids = BTreeSet::from([account.object_id]);
+
+        assert!(!verdict_context(&[account], &reader).should_reauthenticate(&ids));
+    }
+
+    /// The account moved on after an honest attestation, so the recorded state
+    /// still has to be checked before anyone is charged.
+    #[test]
+    fn drift_within_the_epoch_reauthenticates() {
+        let account = random_object_ref();
+        let reader = FakeVersionStates(
+            [(
+                account.object_id,
+                AttestedObjectVersionState::SupersededInCurrentEpoch,
+            )]
+            .into(),
+        );
+        let ids = BTreeSet::from([account.object_id]);
+
+        assert!(verdict_context(&[account], &reader).should_reauthenticate(&ids));
+    }
+
+    /// A version superseded before the retained window cannot be re-run at, and
+    /// an attestation is never taken on trust without it.
+    #[test]
+    fn stale_version_skips_reauthentication() {
+        let account = random_object_ref();
+        let reader =
+            FakeVersionStates([(account.object_id, AttestedObjectVersionState::Stale)].into());
+        let ids = BTreeSet::from([account.object_id]);
+
+        assert!(!verdict_context(&[account], &reader).should_reauthenticate(&ids));
+    }
+
+    /// An attestation also records the versions the transaction body read.
+    /// Those cannot change whether authentication would have succeeded, so a
+    /// stale one must not decide the verdict.
+    #[test]
+    fn versions_the_reauthentication_does_not_read_are_ignored() {
+        let account = random_object_ref();
+        let body_object = random_object_ref();
+        let reader = FakeVersionStates(
+            [
+                (
+                    account.object_id,
+                    AttestedObjectVersionState::SupersededInCurrentEpoch,
+                ),
+                (body_object.object_id, AttestedObjectVersionState::Stale),
+            ]
+            .into(),
+        );
+        let ids = BTreeSet::from([account.object_id]);
+
+        assert!(
+            verdict_context(&[account, body_object], &reader).should_reauthenticate(&ids),
+            "a stale body-side version must not suppress the re-run"
+        );
+    }
+
     fn make_attestation_data() -> AttestationData {
         AttestationData::V1 {
             computation_units: 1_000_000,
