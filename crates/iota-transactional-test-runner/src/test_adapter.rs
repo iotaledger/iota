@@ -18,11 +18,7 @@ use anyhow::{Context, anyhow, bail};
 use async_trait::async_trait;
 use bimap::btree::BiBTreeMap;
 use criterion::Criterion;
-use fastcrypto::{
-    ed25519::Ed25519KeyPair,
-    encoding::{Base64, Encoding},
-    traits::ToFromBytes,
-};
+use fastcrypto::encoding::{Base64, Encoding};
 use iota_core::authority::{AuthorityState, test_authority_builder::TestAuthorityBuilder};
 use iota_framework::DEFAULT_FRAMEWORK_PATH;
 use iota_json_rpc_api::QUERY_MAX_RESULT_LIMIT;
@@ -35,8 +31,9 @@ use iota_protocol_config::{Chain, ProtocolConfig};
 use iota_sdk_types::{
     Address, Argument, CheckpointContentsDigest, CheckpointDigest, Command, ConsensusCommitDigest,
     Event, ExecutionStatus, Identifier, MoveAuthenticatorV1, ObjectData, ObjectId, ObjectReference,
-    ProgrammableTransaction, RandomnessRound, TransactionDigest, TransactionKind, TypeTag, Version,
-    gas::GasCostSummary, move_package::MovePackage,
+    ProgrammableTransaction, RandomnessRound, TransactionDigest, TransactionKind, TypeTag,
+    UserSignature, Version, checkpoint::CheckpointContents, gas::GasCostSummary,
+    move_package::MovePackage,
 };
 use iota_storage::{
     key_value_store::TransactionKeyValueStore, key_value_store_metrics::KeyValueStoreMetrics,
@@ -48,16 +45,18 @@ use iota_types::{
     crypto::{AccountKeyPair, get_authority_key_pair, get_key_pair_from_rng},
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     iota_sdk_types_conversions::type_tag_core_to_sdk,
-    messages_checkpoint::{CheckpointContents, CheckpointSequenceNumber, VerifiedCheckpoint},
+    messages_checkpoint::{CheckpointSequenceNumber, VerifiedCheckpoint},
     move_package::{
         IotaAttribute, IotaAttributeV1, IotaAttributeV2, RuntimeModuleMetadata,
         RuntimeModuleMetadataWrapper,
     },
-    object::{GAS_VALUE_FOR_TESTING, MoveObjectExt, Object, bounded_visitor::BoundedVisitor},
+    object::{GAS_VALUE_FOR_TESTING, MoveStructExt, Object, bounded_visitor::BoundedVisitor},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    signature::GenericSignature,
     storage::{ObjectStore, ReadStore},
-    transaction::{CallArg, Transaction, TransactionData, TransactionDataAPI, VerifiedTransaction},
+    transaction::{
+        CallArg, SenderSignedTransactionAPI, Transaction, TransactionData, TransactionDataAPI,
+        VerifiedTransaction,
+    },
     utils::{
         to_sender_signed_transaction, to_sender_signed_transaction_with_multi_signers,
         to_sender_signed_transaction_with_optional_sponsor,
@@ -1411,7 +1410,7 @@ impl IotaTestAdapter {
         &mut self,
         authenticator_inputs: Vec<ParsedValue<IotaExtraValueArgs>>,
         account: ParsedValue<IotaExtraValueArgs>,
-    ) -> anyhow::Result<(ObjectId, GenericSignature)> {
+    ) -> anyhow::Result<(ObjectId, UserSignature)> {
         // Resolve authenticator inputs
         let auth_inputs_resolved = self.compiled_state().resolve_args(authenticator_inputs)?;
         let auth_inputs: Vec<CallArg> = auth_inputs_resolved
@@ -1430,7 +1429,7 @@ impl IotaTestAdapter {
         match &aa_call_arg {
             CallArg::ImmutableOrOwned(obj_ref) => Ok((
                 obj_ref.object_id,
-                GenericSignature::MoveAuthenticator(
+                UserSignature::MoveAuthenticator(
                     MoveAuthenticatorV1::new_with_immutable_account_object(
                         auth_inputs,
                         vec![],
@@ -1441,7 +1440,7 @@ impl IotaTestAdapter {
             )),
             CallArg::Shared(shared) => Ok((
                 shared.object_id,
-                GenericSignature::MoveAuthenticator(
+                UserSignature::MoveAuthenticator(
                     MoveAuthenticatorV1::new_with_shared_account_object(
                         auth_inputs,
                         vec![],
@@ -1717,7 +1716,7 @@ impl IotaTestAdapter {
         sender: &TestAccount,
         sponsor: Option<String>,
         payment: Vec<FakeID>,
-        aa_sig: Option<GenericSignature>,
+        aa_sig: Option<UserSignature>,
         txn_data: impl FnOnce(
             // sender
             Address,
@@ -2676,12 +2675,9 @@ async fn init_sim_executor(
     let (mut validator_addr, mut validator_key, mut key_copy) = (None, None, None);
     if custom_validator_account {
         // Make a validator account with a gas object
-        let (a, b): (Address, Ed25519KeyPair) = get_key_pair_from_rng(&mut rng);
+        let (a, b): (Address, AccountKeyPair) = get_key_pair_from_rng(&mut rng);
 
-        key_copy = Some(
-            Ed25519KeyPair::from_bytes(b.as_bytes())
-                .expect("FATAL: recovering key from bytes failed"),
-        );
+        key_copy = Some(b.clone());
         validator_addr = Some(a);
         validator_key = Some(b);
     }

@@ -59,7 +59,7 @@ impl Filter<StoredTransaction> for SubscriptionTransactionFilter {
             Kind(kind) => transaction.transaction_kind == IotaTransactionKind::from(kind) as i16,
             SigningAddress(address) => transaction
                 .try_into_sender_signed_data()
-                .map(|data| data.transaction_data().sender() == (*address).into())
+                .map(|data| data.transaction().sender() == (*address).into())
                 .unwrap_or_default(),
             Function(name) => {
                 let move_call = MoveCall::from(name);
@@ -67,7 +67,7 @@ impl Filter<StoredTransaction> for SubscriptionTransactionFilter {
                 transaction
                     .try_into_sender_signed_data()
                     .map(|data| {
-                        data.transaction_data()
+                        data.transaction()
                             .move_calls()
                             .iter()
                             .any(|(p, m, f)| move_call.matches_transaction_move_call(p, m, f))

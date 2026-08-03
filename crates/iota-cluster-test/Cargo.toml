@@ -26,7 +26,6 @@ uuid.workspace = true
 # internal dependencies
 iota-config.workspace = true
 iota-faucet.workspace = true
-iota-genesis-builder.workspace = true
 iota-graphql-rpc.workspace = true
 iota-grpc-client.workspace = true
 iota-indexer.workspace = true

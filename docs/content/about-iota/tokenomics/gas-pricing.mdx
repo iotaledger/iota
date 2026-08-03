@@ -6,9 +6,6 @@ teams:
   - iotaledger/research
 ---
 
-import Quiz from '@site/src/components/Quiz';
-import quizData from '../../../site/static/json/about-iota/tokenomics/gas-pricing.json';
-
 The IOTA gas pricing mechanism determines how transaction fees are computed and plays a central role in ensuring efficient network operation. It serves two primary objectives:
 
 1. Delivering **low, predictable transaction fees**.
@@ -174,9 +171,5 @@ During a dry run, the suggested gas price is calculated as:
 where `max_hotness` is the highest hotness value among all mutable shared objects accessed by the transaction.
 If the transaction does not access any tracked shared objects, the suggested gas price falls back to the current `reference_gas_price`.
 
-
 By using the `suggested_gas_price` from a dry-run response, users can adapt their gas price to current network conditions.
 This reduces the risk of underbidding during congestion while avoiding unnecessary overpayment during periods of low activity.
-
-
-<Quiz questions={quizData.questions} />

@@ -35,7 +35,7 @@ import threading
 import time
 import urllib.parse
 import urllib.request
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 
@@ -338,6 +338,9 @@ def acquire_single_run_lock(runner: str) -> None:
     )
     fh.flush()
     _run_lock_fh = fh  # keep the fd open: the flock dies with the process
+    # Child scripts (bootstrap.sh -> cleanup.sh, direct cleanup.sh/run.sh)
+    # inherit this and skip their own lock check, since we already hold it.
+    os.environ["IOTA_EXPERIMENT_LOCK_HELD"] = "1"
 
 
 def _lock_holder_pid(holder: str) -> int | None:
@@ -746,9 +749,15 @@ def generate_compose_file(
 
 
 def bootstrap_genesis(network_dir: Path, num_validators: int, epoch_ms: int) -> None:
-    """Run bootstrap.sh under sudo (writes the root-owned data dir)."""
+    """Run bootstrap.sh under sudo (writes the root-owned data dir).
+
+    Passes the lock-held flag as a sudo cmdline assignment (sudo's env_reset
+    strips inherited env) so the child's lock check is bypassed."""
     run_timed(
-        ["sudo", "./bootstrap.sh", "-n", str(num_validators), "-e", str(epoch_ms)],
+        [
+            "sudo", "IOTA_EXPERIMENT_LOCK_HELD=1",
+            "./bootstrap.sh", "-n", str(num_validators), "-e", str(epoch_ms),
+        ],
         "Bootstrapping genesis",
         cwd=network_dir,
     )
@@ -804,6 +813,7 @@ def start_grafana(grafana_dir: Path, override_file: str | None = None) -> None:
     run_timed(cmd, "Starting monitoring stack", cwd=grafana_dir)
     print()
     log(f"  Grafana: {_C.CYAN}http://localhost:3000/dashboards{_C.RESET}")
+    log(f"  StarfishOverview: {_C.CYAN}http://localhost:3000/d/StarfishOverview{_C.RESET}")
     log(f"  Prometheus: {_C.CYAN}http://localhost:9090/targets{_C.RESET}")
 
 
@@ -948,6 +958,19 @@ def _update_or_clone_benchmark_repo() -> None:
     run_timed(
         ["git", "clone", NETWORK_BENCHMARK_REPO, str(NETWORK_BENCHMARK_DIR)],
         "Cloning network-benchmark", check=False,
+    )
+
+
+def ensure_iota_spammer_script() -> None:
+    """Fail fast if the iota-spammer fuzz script is missing, before the
+    network comes up (otherwise the run fails in start_spammer ~5 min in)."""
+    script = Path.home() / "iota-spammer" / "scripts" / "spamming_fuzz_test.sh"
+    if script.is_file():
+        return
+    raise RuntimeError(
+        f"iota-spammer spammer requested but script not found at {script}; "
+        "clone github.com/iotaledger/iota-spammer to ~/iota-spammer "
+        "or select the stress backend (-C stress)"
     )
 
 
@@ -1182,9 +1205,10 @@ def stop_spammer(cfg, proc: subprocess.Popen[str] | None) -> None:
         proc.wait(timeout=5)
 
 
-def run_loop(cfg, prefix: str, final_prefix: str) -> None:
+def run_loop(cfg, prefix: str, final_prefix: str) -> str:
     """Sleep for cfg.run_duration with a progress bar, saving validator logs
-    every cfg.log_interval seconds and once more at the end."""
+    every cfg.log_interval seconds and once more at the end. Returns the
+    timestamp used in the final archive filenames."""
     log(_phase_banner(
         f"Running for {cfg.run_duration}s (logs every {cfg.log_interval}s)", "RUN",
     ))
@@ -1207,6 +1231,126 @@ def run_loop(cfg, prefix: str, final_prefix: str) -> None:
         prefix=f"{final_prefix}-{ts}",
         latest=False,
     )
+    return ts
+
+
+# Correctness-failure markers grepped from per-validator archives.
+_CANARY_MARKER_RE = re.compile(
+    r"Split brain detected|"
+    r"Local checkpoint fork detected|"
+    r"WrongBlockHeaderVersionForFlag|"
+    r"panicked at"
+)
+# Leading UTC timestamp on every iota-node log line.
+_VAL_LINE_TS_RE = re.compile(
+    r"^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z)\b"
+)
+# `network-fuzz.sh` emits one of these per validator at each mid-run restart.
+_FUZZ_STOP_RE = re.compile(
+    r"^(\S+)\s+Stopping validator-(\d+)\b"
+)
+
+
+def _parse_iso_utc(ts_str: str) -> datetime:
+    """Parse an ISO-8601 timestamp to a tz-aware UTC datetime, accepting a
+    trailing `Z` UTC marker (normalized to `+00:00` before parsing). A
+    timestamp without an offset is assumed to be UTC."""
+    if ts_str.endswith("Z"):
+        ts_str = ts_str[:-1] + "+00:00"
+    ts = datetime.fromisoformat(ts_str)
+    if ts.tzinfo is None:
+        ts = ts.replace(tzinfo=timezone.utc)
+    return ts.astimezone(timezone.utc)
+
+
+def post_run_canary(
+    log_dir: Path,
+    archive_prefix: str,
+    archive_ts: str,
+    fuzz_log_path: Path | None,
+    num_validators: int,
+    *,
+    grace_seconds: int = 30,
+) -> None:
+    """Classify panic/fork/split-brain markers in per-validator archives.
+
+    A marker within `grace_seconds` of a `Stopping validator-N` fuzz-log
+    event is treated as expected shutdown-race noise; anything else counts
+    toward a `Canary FAILURE` verdict. With `fuzz_log_path=None` there are no
+    shutdown windows, so every marker is unknown (for runners that never
+    restart validators mid-run, e.g. benchmark).
+    """
+    # Locate per-validator archives written by `run_loop`.
+    archives = [
+        log_dir / f"{archive_prefix}-{archive_ts}-validator-{i}.log"
+        for i in range(1, num_validators + 1)
+    ]
+    archives = [p for p in archives if p.exists()]
+    if not archives:
+        log(f"  Canary: no validator archives found at "
+            f"{log_dir}/{archive_prefix}-{archive_ts}-validator-*.log; "
+            "skipping.")
+        return
+
+    # Parse fuzz log for per-validator stop timestamps.
+    stop_windows: dict[int, list[tuple[datetime, datetime]]] = {}
+    if fuzz_log_path is not None and fuzz_log_path.exists():
+        grace = timedelta(seconds=grace_seconds)
+        for line in fuzz_log_path.read_text().splitlines():
+            m = _FUZZ_STOP_RE.match(line)
+            if not m:
+                continue
+            try:
+                ts_utc = _parse_iso_utc(m.group(1))
+            except ValueError:
+                continue
+            idx = int(m.group(2))
+            stop_windows.setdefault(idx, []).append((ts_utc, ts_utc + grace))
+
+    def _in_shutdown_window(idx: int, ts: datetime) -> bool:
+        for lo, hi in stop_windows.get(idx, ()):
+            if lo <= ts <= hi:
+                return True
+        return False
+
+    filtered = 0
+    unknown: list[str] = []
+    for archive in archives:
+        idx = int(archive.stem.rsplit("-validator-", 1)[1])
+        for lineno, line in enumerate(archive.read_text().splitlines(), 1):
+            if not _CANARY_MARKER_RE.search(line):
+                continue
+            ts_match = _VAL_LINE_TS_RE.match(line)
+            if not ts_match:
+                # Continuation line of a multi-line panic; the first line
+                # carries the timestamp we classify on. Skip.
+                continue
+            # Trim long stack-trace lines for the summary log.
+            snippet = line[:240] + ("..." if len(line) > 240 else "")
+            try:
+                ts = _parse_iso_utc(ts_match.group(1))
+            except ValueError:
+                unknown.append(
+                    f"{archive.name}:{lineno} (unparsable timestamp): {snippet}"
+                )
+                continue
+            if _in_shutdown_window(idx, ts):
+                filtered += 1
+            else:
+                unknown.append(f"{archive.name}:{lineno}: {snippet}")
+
+    if not unknown and filtered == 0:
+        log(f"  Canary CLEAN: no panic/fork/split-brain markers in "
+            f"{len(archives)} validator archive(s).")
+    elif not unknown:
+        log(f"  Canary CLEAN: {filtered} marker(s) filtered as expected "
+            "shutdown-race noise (in fuzz-stop windows); no unknown.")
+    else:
+        log(f"  {_C.RED}Canary FAILURE{_C.RESET}: {len(unknown)} "
+            "unknown marker(s) outside expected shutdown windows "
+            f"({filtered} other marker(s) filtered as shutdown noise):")
+        for entry in unknown:
+            log(f"    {entry}")
 
 
 def network_stats(num_validators: int) -> None:

@@ -5,10 +5,6 @@ teams:
   - iotaledger/vm-language
 ---
 
-import Quiz from '@site/src/components/Quiz';
-import questions from '/json/developer/getting-started/create-a-module.json';
-
-
 # Create a Move Module
 
 A [package](create-a-package.mdx)'s utility is defined by its modules. A module contains the logic for your package. You can create any number of modules per package. To add a module, create a `.move` file in the `sources` directory. For this guide, create a file called `first_package.move` and add the following content:
@@ -25,7 +21,6 @@ And now let's add some code:
 In `.move` files, use double slashes (`//`) to denote a comment.
 
 :::
-
 
 ```move file=<rootDir>/examples/move/first_package/sources/first_package.move#L7-L41
 ```
@@ -86,6 +81,3 @@ Add the `entry` modifier to functions you want to call from a [programmable tran
 #### Accessor Functions
 
 Accessor functions are `public` functions that allow the fields of the module's structs to be read from other modules.
-
-
-<Quiz questions={questions} />

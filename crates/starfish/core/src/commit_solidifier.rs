@@ -225,10 +225,13 @@ mod tests {
 
     use super::*;
     use crate::{
-        block_header::{genesis_block_headers, genesis_blocks},
+        block_header::{
+            TestBlockHeader, VerifiedBlockHeader, genesis_block_headers, genesis_blocks,
+        },
         commit::{CommitRef, PendingSubDag},
         context::Context,
         dag_state::{DagState, DataSource},
+        encoder::create_encoder,
         storage::mem_store::MemStore,
         test_dag_builder::DagBuilder,
     };
@@ -581,6 +584,42 @@ mod tests {
         assert_eq!(missing[0], committed_ref);
         assert_eq!(commit_solidifier.pending_subdags.len(), 1);
         assert_eq!(commit_solidifier.last_solid_committed_index, 0);
+    }
+
+    /// A committed ref whose commitment is over an empty transaction list
+    /// counts as present without a stored payload, so it neither blocks
+    /// solidification nor enters the missing set.
+    #[tokio::test]
+    async fn test_empty_transactions_solidify_without_payload() {
+        let setup = Arc::new(TestSetup::new(3));
+        let mut commit_solidifier = CommitSolidifier::new(setup.dag_state.clone());
+
+        let mut encoder = create_encoder(&setup.context);
+        let empty_header = VerifiedBlockHeader::new_for_test(
+            TestBlockHeader::new_with_commitment(1, 1, &setup.context, &mut encoder).build(),
+        );
+        setup
+            .dag_state
+            .write()
+            .accept_block_header(empty_header.clone(), DataSource::Test);
+        let empty_ref = GenericTransactionRef::TransactionRef(empty_header.transaction_ref());
+
+        let subdag = SubDagBuilder::new(setup.clone(), 1)
+            .leader(3, 0)
+            .with_blocks(vec![
+                BlockSpec::all_from_round(0),
+                BlockSpec::all_from_round(1),
+                BlockSpec::all_from_round(2),
+            ])
+            .with_committed_refs(vec![empty_ref])
+            .build();
+
+        let (committed, missing) = commit_solidifier.try_get_solid_sub_dags(&[subdag]);
+        assert_eq!(committed.len(), 1);
+        assert!(missing.is_empty());
+        assert_eq!(committed[0].transactions.len(), 1);
+        assert!(!committed[0].transactions[0].has_transactions());
+        assert!(commit_solidifier.pending_subdags.is_empty());
     }
 
     #[tokio::test]

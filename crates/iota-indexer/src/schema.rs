@@ -81,6 +81,8 @@ diesel::table! {
         min_tx_sequence_number -> Nullable<Int8>,
         max_tx_sequence_number -> Nullable<Int8>,
         computation_cost_burned -> Nullable<Int8>,
+        content_digest -> Nullable<Bytea>,
+        version_specific_data -> Nullable<Bytea>,
     }
 }
 
@@ -90,6 +92,7 @@ diesel::table! {
         id -> Bytea,
         version -> Int2,
         bcs -> Bytea,
+        bcs_kind -> Int2,
     }
 }
 

@@ -8,14 +8,15 @@ use dashmap::DashMap;
 use fastcrypto_tbls::{dkg_v1, nodes::PartyId};
 use iota_common::{fatal, random_util::randomize_cache_capacity_in_tests};
 use iota_sdk_types::{
-    ObjectId, ObjectReference, RandomnessRound, TransactionDigest, Version, VersionAssignment,
+    ObjectId, ObjectReference, RandomnessRound, TransactionDigest, UserSignature, Version,
+    VersionAssignment, checkpoint::CheckpointContents,
 };
 use iota_types::{
     base_types::AuthorityName,
     error::IotaResult,
-    messages_checkpoint::{CheckpointContents, CheckpointContentsExt, CheckpointSequenceNumber},
-    messages_consensus::VersionedDkgConfirmation,
-    signature::GenericSignature,
+    messages_checkpoint::{CheckpointContentsExt, CheckpointSequenceNumber},
+    messages_consensus::{TransactionDenyRuleProposal, VersionedDkgConfirmation},
+    transaction::SenderSignedTransactionAPI,
 };
 use moka::{policy::EvictionPolicy, sync::SegmentedCache as MokaCache};
 use parking_lot::Mutex;
@@ -95,6 +96,11 @@ pub(crate) struct ConsensusCommitOutput {
     // `authority_overload_notifications` atomically with `last_consensus_stats`
     // so a partial pre-flush state can never be observed on disk.
     overload_notifications: BTreeMap<AuthorityName, u8>,
+
+    // Newest deny rule proposal from each authority received during this
+    // commit. Flushed to `deny_rule_proposals` atomically with
+    // `last_consensus_stats`.
+    deny_rule_proposals: BTreeMap<AuthorityName, TransactionDenyRuleProposal>,
 }
 
 impl ConsensusCommitOutput {
@@ -239,6 +245,18 @@ impl ConsensusCommitOutput {
         self.overload_notifications.insert(authority, percentage);
     }
 
+    /// Records `proposal`, keeping the newest generation per authority.
+    pub fn record_deny_rule_proposal(&mut self, proposal: TransactionDenyRuleProposal) {
+        if self
+            .deny_rule_proposals
+            .get(&proposal.authority)
+            .is_none_or(|existing| existing.generation < proposal.generation)
+        {
+            self.deny_rule_proposals
+                .insert(proposal.authority, proposal);
+        }
+    }
+
     pub fn write_to_batch(
         self,
         epoch_store: &AuthorityPerEpochStore,
@@ -368,6 +386,8 @@ impl ConsensusCommitOutput {
             self.overload_notifications,
         )?;
 
+        batch.insert_batch(&tables.deny_rule_proposals, self.deny_rule_proposals)?;
+
         Ok(())
     }
 }
@@ -397,7 +417,7 @@ pub(crate) struct ConsensusOutputCache {
     // checkpoint builder The critical sections are small in both cases so a DashMap is
     // probably not helpful.
     pub(super) user_signatures_for_checkpoints:
-        Mutex<HashMap<TransactionDigest, Vec<GenericSignature>>>,
+        Mutex<HashMap<TransactionDigest, Vec<UserSignature>>>,
 
     executed_in_epoch: RwLock<DashMap<TransactionDigest, ()>>,
     executed_in_epoch_cache: MokaCache<TransactionDigest, ()>,
@@ -575,6 +595,12 @@ pub(crate) struct ConsensusOutputQuarantine {
     // `current_overload_notifications`.
     cached_overload_notifications: HashMap<AuthorityName, u8>,
 
+    // In-memory cache of the `deny_rule_proposals` table, maintained exactly
+    // like `cached_overload_notifications`: seeded at construction, advanced
+    // as commits are flushed, overlaid with queued commits by
+    // `current_deny_rule_proposals`.
+    cached_deny_rule_proposals: BTreeMap<AuthorityName, TransactionDenyRuleProposal>,
+
     metrics: Arc<EpochMetrics>,
 }
 
@@ -582,6 +608,7 @@ impl ConsensusOutputQuarantine {
     pub(super) fn new(
         highest_executed_checkpoint: CheckpointSequenceNumber,
         cached_overload_notifications: HashMap<AuthorityName, u8>,
+        cached_deny_rule_proposals: BTreeMap<AuthorityName, TransactionDenyRuleProposal>,
         authority_metrics: Arc<EpochMetrics>,
     ) -> Self {
         Self {
@@ -596,6 +623,7 @@ impl ConsensusOutputQuarantine {
             processed_consensus_messages: RefCountedHashMap::new(),
             owned_object_locks: HashMap::new(),
             cached_overload_notifications,
+            cached_deny_rule_proposals,
             metrics: authority_metrics,
         }
     }
@@ -614,7 +642,16 @@ impl ConsensusOutputQuarantine {
         self.insert_congestion_control_debts(&output);
         self.insert_processed_consensus_messages(&output);
         self.insert_owned_object_locks(&output);
+        let has_deny_rule_proposals = !output.deny_rule_proposals.is_empty();
         self.output_queue.push_back(output);
+
+        // Recompute the active deny rules whenever a commit recorded
+        // proposals, so the set applies from the next commit on. Computed
+        // inline: `epoch_store` methods that take the quarantine lock would
+        // self-deadlock here.
+        if has_deny_rule_proposals {
+            epoch_store.store_active_transaction_deny_rules(&self.current_deny_rule_proposals());
+        }
 
         self.metrics
             .consensus_quarantine_queue_size
@@ -752,11 +789,13 @@ impl ConsensusOutputQuarantine {
                 self.remove_processed_consensus_messages(&output);
                 self.remove_congestion_control_debts(&output);
                 self.remove_owned_object_locks(&output);
-                // Advance the in-memory cache in lockstep with the table write
-                // below, so it stays equal to the persisted state once this
-                // commit leaves the queue.
+                // Advance the in-memory caches in lockstep with the table
+                // writes below, so they stay equal to the persisted state once
+                // this commit leaves the queue.
                 self.cached_overload_notifications
                     .extend(&output.overload_notifications);
+                self.cached_deny_rule_proposals
+                    .extend(output.deny_rule_proposals.clone());
                 epoch_store.remove_shared_version_assignments(
                     output
                         .pending_checkpoints
@@ -980,6 +1019,42 @@ impl ConsensusOutputQuarantine {
             .insert(authority, percentage);
     }
 
+    /// Returns the current deny rule proposals keyed by authority: the
+    /// in-memory cache of the persisted table with every queued
+    /// (processed-but-not-yet-flushed) commit's proposals layered on top.
+    pub(super) fn current_deny_rule_proposals(
+        &self,
+    ) -> BTreeMap<AuthorityName, TransactionDenyRuleProposal> {
+        let mut proposals = self.cached_deny_rule_proposals.clone();
+        for output in &self.output_queue {
+            for (authority, proposal) in &output.deny_rule_proposals {
+                proposals.insert(*authority, proposal.clone());
+            }
+        }
+        proposals
+    }
+
+    /// Returns the generation of `authority`'s newest recorded proposal, if
+    /// any. The record path keeps generations monotonic, so the newest queued
+    /// entry (or, failing that, the flushed one) is the maximum.
+    pub(super) fn deny_rule_proposal_generation(&self, authority: &AuthorityName) -> Option<u64> {
+        self.output_queue
+            .iter()
+            .rev()
+            .find_map(|output| output.deny_rule_proposals.get(authority))
+            .or_else(|| self.cached_deny_rule_proposals.get(authority))
+            .map(|proposal| proposal.generation)
+    }
+
+    #[cfg(test)]
+    pub(super) fn apply_cached_deny_rule_proposal_for_test(
+        &mut self,
+        proposal: TransactionDenyRuleProposal,
+    ) {
+        self.cached_deny_rule_proposals
+            .insert(proposal.authority, proposal);
+    }
+
     pub(super) fn get_randomness_last_round_timestamp(&self) -> Option<CheckpointTimestamp> {
         self.output_queue
             .iter()
@@ -1015,28 +1090,20 @@ impl ConsensusOutputQuarantine {
         };
         let mut shared_input_object_ids: Vec<_> = transactions
             .iter()
+            // Only user transactions carry shared inputs to preload; which kinds
+            // those are lives in `as_sender_signed_data`. System transactions contribute
+            // none.
             .filter_map(|tx| match &tx.0.transaction {
-                SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                    kind: ConsensusTransactionKind::CertifiedTransaction(tx),
-                    ..
-                }) => Some(
-                    tx.shared_input_objects()
-                        .into_iter()
-                        .map(|obj| obj.object_id)
-                        .collect::<Vec<_>>(),
-                ),
-                SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                    kind: ConsensusTransactionKind::UserTransactionV1(tx),
-                    ..
-                }) => Some(
-                    tx.shared_input_objects()
-                        .into_iter()
-                        .map(|obj| obj.object_id)
-                        .collect::<Vec<_>>(),
-                ),
-                _ => None,
+                SequencedConsensusTransactionKind::External(ext) => {
+                    ext.kind.as_sender_signed_data()
+                }
+                SequencedConsensusTransactionKind::System(_) => None,
             })
-            .flatten()
+            .flat_map(|data| {
+                data.shared_input_objects()
+                    .into_iter()
+                    .map(|obj| obj.object_id)
+            })
             .collect();
         shared_input_object_ids.sort();
         shared_input_object_ids.dedup();

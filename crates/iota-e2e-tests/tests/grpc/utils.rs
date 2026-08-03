@@ -129,7 +129,7 @@ pub fn is_success(status: &ExecutionStatus) -> bool {
 pub async fn create_signed_transaction(test_cluster: &TestCluster) -> SignedTransaction {
     let recipient = Address::random();
     let tx = make_transfer_iota_transaction(&test_cluster.wallet, Some(recipient), Some(100)).await;
-    tx.try_into().expect("SDK type conversion failed")
+    tx.into()
 }
 
 /// Create an unsigned transaction for simulation testing.
@@ -643,6 +643,14 @@ macro_rules! impl_field_presence_checker {
 
         Some((present, nested))
     }};
+
+    // Helper rule for repeated leaf fields (when `: []` is specified, i.e. no
+    // element type). Use for repeated fields whose element type has no
+    // presence-checkable substructure of its own (e.g. `BcsData`, which is
+    // just raw bytes with nothing to recurse into).
+    (@field_check $self:ident, $field:ident, []) => {
+        Some((!$self.$field.is_empty(), None))
+    };
 
     // Helper rule for nested fields (when `: Type` is specified)
     (@field_check $self:ident, $field:ident, $nested_type:ty) => {{

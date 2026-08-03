@@ -37,7 +37,6 @@ url.workspace = true
 
 # internal dependencies
 bin-version.workspace = true
-iota-archival.workspace = true
 iota-common.workspace = true
 iota-config.workspace = true
 iota-core.workspace = true

@@ -7,8 +7,6 @@ teams:
   - iotaledger/dev-tools
   - iotaledger/vm-language
 ---
-import Quiz from '@site/src/components/Quiz';
-import questions from '/json/developer/iota-101/objects/transfers/transfer-to-object.json';
 
 In IOTA, you have the flexibility to transfer objects not only to addresses but also directly to other objects.
 This feature is possible because the IOTA system does not differentiate between the 32-byte ID of an address
@@ -82,7 +80,6 @@ The process is seamless, and existing RPC methods, such as `getOwnedObjects`, wo
 
 ## Receiving Objects
 
-
 When an object `c` is sent to another object `p`, `p` must receive `c` before it can interact with it.
 To receive `c`, the `Receiving(o: ObjectRef)` argument type is used in programmable transaction blocks (PTBs).
 This argument type includes the `ObjectID`, `Version`, and `Digest` of the object, similar to owned object arguments in PTBs. However, `Receiving` PTB arguments are not passed as an owned value or mutable reference within the transaction.
@@ -90,7 +87,6 @@ This argument type includes the `ObjectID`, `Version`, and `Digest` of the objec
 ### The Receiving Interface in Move
 
 The core of the receiving interface is defined in the [`iota::transfer`](../../../../developer/references/framework/iota/transfer.mdx) module in the IOTA framework:
-
 
 ```move
 module iota::transfer {
@@ -316,8 +312,6 @@ Soul-bound objects are bound to a specific address and must remain there or be r
 The following module implements this by creating a receipt that must be destroyed within the same transaction where the object is received.
 The object must then be transferred back to its original location using the `return_object` function.
 
-
-
 ```move
 module examples::soul_bound {
     use iota::transfer::Receiving;
@@ -367,5 +361,3 @@ module examples::soul_bound {
     }
 }
 ```
-
-<Quiz questions={questions} />

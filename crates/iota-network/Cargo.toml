@@ -24,14 +24,15 @@ rand.workspace = true
 serde.workspace = true
 tap.workspace = true
 tokio = { workspace = true, features = ["rt", "macros", "sync", "time"] }
+tokio-util.workspace = true
 tonic.workspace = true
 tonic-prost.workspace = true
 tower.workspace = true
 tracing.workspace = true
 
 # internal dependencies
-iota-archival.workspace = true
 iota-config.workspace = true
+iota-data-ingestion-core.workspace = true
 iota-macros.workspace = true
 iota-metrics.workspace = true
 iota-network-stack.workspace = true
@@ -47,7 +48,7 @@ tonic-prost-build = "0.14"
 
 [dev-dependencies]
 # external dependencies
-ed25519-consensus.workspace = true
+ed25519-consensus = { version = "2.0.1", features = ["serde"] }
 tempfile.workspace = true
 tokio = { workspace = true, features = ["test-util"] }
 

@@ -2,11 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{ops::Range, sync::Arc, time::Duration};
+use std::{num::NonZeroUsize, ops::Range, sync::Arc, time::Duration};
 
 use bytes::{Buf, Bytes, buf::Reader};
 use futures::{Stream, StreamExt, TryStreamExt};
-use iota_config::node::ArchiveReaderConfig as HistoricalReaderConfig;
+use iota_config::object_storage_config::ObjectStoreConfig;
 use iota_storage::{
     compute_sha3_checksum_for_bytes, make_iterator,
     object_store::{ObjectStoreGetExt, http::HttpDownloaderBuilder, util::get},
@@ -41,6 +41,12 @@ pub struct HistoricalReader {
     sender: Arc<Sender<()>>,
     manifest: Arc<Mutex<Manifest>>,
     remote_object_store: Arc<dyn ObjectStoreGetExt>,
+}
+
+#[derive(Debug, Clone)]
+pub struct HistoricalReaderConfig {
+    pub remote_store_config: ObjectStoreConfig,
+    pub download_concurrency: NonZeroUsize,
 }
 
 impl HistoricalReader {

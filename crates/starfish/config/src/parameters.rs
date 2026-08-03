@@ -145,6 +145,16 @@ pub struct Parameters {
     #[serde(default = "Parameters::default_enable_fast_commit_syncer")]
     pub enable_fast_commit_syncer: bool,
 
+    /// Ask commit-sync peers that have voted for the end of the requested
+    /// range before those that have not, since a vote means the peer has
+    /// solidified every commit in the range. Peers without an observed vote
+    /// are ordered behind; each fetch round tries a bounded number of peers,
+    /// so on a committee larger than that bound they can stay outside the
+    /// round until their votes are observed. Enabled by default; disabling it
+    /// restores a plain uniform order.
+    #[serde(default = "Parameters::default_enable_commit_sync_peer_selection_by_commit_votes")]
+    pub enable_commit_sync_peer_selection_by_commit_votes: bool,
+
     /// Enable adaptive acknowledgment filtering for StarfishSpeed.
     /// Local heuristic that drops acks for authorities persistently blamed
     /// by recent strong-vote masks. Effective only when the protocol-level
@@ -152,6 +162,15 @@ pub struct Parameters {
     /// operators can disable it locally without a protocol change.
     #[serde(default = "Parameters::default_enable_starfish_speed_adaptive_acknowledgments")]
     pub enable_starfish_speed_adaptive_acknowledgments: bool,
+
+    /// Prefer more responsive peers when the transactions synchronizer selects
+    /// peers to fetch from. Ranking is a preference within the already-eligible
+    /// candidate set, not a change of eligibility, so it cannot affect safety.
+    /// Enabled by default; disabling it restores the previous selection: a
+    /// uniform random order that excludes the most recently failed peers (up
+    /// to less than f+1 by stake).
+    #[serde(default = "Parameters::default_enable_peer_responsiveness_ranking")]
+    pub enable_peer_responsiveness_ranking: bool,
 
     /// Port for the DAG visualizer gRPC server (localhost only).
     /// When set, starts a debugging server for real-time DAG visualization.
@@ -191,7 +210,7 @@ impl Parameters {
     }
 
     pub(crate) fn default_soft_leader_timeout() -> Duration {
-        Duration::from_millis(100)
+        Duration::from_millis(5)
     }
 
     pub(crate) fn default_block_rate_window() -> Duration {
@@ -420,7 +439,16 @@ impl Parameters {
         true
     }
 
+    pub(crate) fn default_enable_commit_sync_peer_selection_by_commit_votes() -> bool {
+        // Enabled by default. Ordering only, so it cannot diverge consensus.
+        true
+    }
+
     pub(crate) fn default_enable_starfish_speed_adaptive_acknowledgments() -> bool {
+        true
+    }
+
+    pub(crate) fn default_enable_peer_responsiveness_ranking() -> bool {
         true
     }
 }
@@ -455,8 +483,12 @@ impl Default for Parameters {
             fast_commit_sync_batch_size: Parameters::default_fast_commit_sync_batch_size(),
             commit_sync_gap_threshold: Parameters::default_commit_sync_gap_threshold(),
             enable_fast_commit_syncer: Parameters::default_enable_fast_commit_syncer(),
+            enable_commit_sync_peer_selection_by_commit_votes:
+                Parameters::default_enable_commit_sync_peer_selection_by_commit_votes(),
             enable_starfish_speed_adaptive_acknowledgments:
                 Parameters::default_enable_starfish_speed_adaptive_acknowledgments(),
+            enable_peer_responsiveness_ranking:
+                Parameters::default_enable_peer_responsiveness_ranking(),
             dag_visualizer_port: None,
         }
     }

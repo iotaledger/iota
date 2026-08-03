@@ -72,7 +72,6 @@ scripts/simtest/cargo-simtest simtest \
   --color always \
   --test-threads "$NUM_CPUS" \
   --package iota-core \
-  --package iota-archival \
   --package iota-e2e-tests \
   --profile simtestnightly \
   -E "$FINAL_TEST_FILTER" 2>&1 | tee "$LOG_FILE"

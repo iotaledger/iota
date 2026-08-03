@@ -7,8 +7,10 @@ use iota_json_rpc_types::{
     IotaTransactionKind, ObjectChange,
 };
 use iota_sdk_types::{
-    Address, CheckpointDigest, ObjectDigest, ObjectId, Owner, StructTag, TransactionDigest,
-    TypeTag, Version, move_package::MovePackage,
+    Address, CheckpointContentsDigest, CheckpointDigest, ObjectDigest, ObjectId, Owner, StructTag,
+    TransactionDigest, TypeTag, Version,
+    checkpoint::{CheckpointCommitment, CheckpointContents, EndOfEpochData},
+    move_package::MovePackage,
 };
 use iota_types::{
     crypto::AggregateAuthoritySignature,
@@ -16,9 +18,7 @@ use iota_types::{
     effects::TransactionEffects,
     event::{SystemEpochInfoEvent, SystemEpochInfoEventV1, SystemEpochInfoEventV2},
     iota_serde::{IotaStructTag, IotaTypeTag},
-    messages_checkpoint::{
-        CheckpointCommitment, CheckpointContentsExt, CheckpointSequenceNumber, EndOfEpochData,
-    },
+    messages_checkpoint::{CheckpointContentsExt, CheckpointSequenceNumber},
     object::Object,
     transaction::SenderSignedData,
 };
@@ -48,6 +48,8 @@ pub struct IndexedCheckpoint {
     pub non_refundable_storage_fee: u64,
     pub checkpoint_commitments: Vec<CheckpointCommitment>,
     pub validator_signature: AggregateAuthoritySignature,
+    pub content_digest: CheckpointContentsDigest,
+    pub version_specific_data: Vec<u8>,
     // Note: not used in StoredCheckpoint conversion and in code overall.
     pub successful_tx_num: usize,
     pub end_of_epoch_data: Option<EndOfEpochData>,
@@ -59,7 +61,7 @@ pub struct IndexedCheckpoint {
 impl IndexedCheckpoint {
     pub fn from_iota_checkpoint(
         checkpoint: &iota_types::messages_checkpoint::CertifiedCheckpointSummary,
-        contents: &iota_types::messages_checkpoint::CheckpointContents,
+        contents: &CheckpointContents,
         successful_tx_num: usize,
     ) -> Self {
         let total_gas_cost = checkpoint.epoch_rolling_gas_cost_summary.computation_cost as i64
@@ -93,6 +95,8 @@ impl IndexedCheckpoint {
             timestamp_ms: checkpoint.timestamp_ms,
             validator_signature: auth_sig.clone(),
             checkpoint_commitments: checkpoint.checkpoint_commitments.clone(),
+            content_digest: checkpoint.contents_digest,
+            version_specific_data: checkpoint.version_specific_data.clone(),
             min_tx_sequence_number,
             max_tx_sequence_number,
         }
@@ -391,9 +395,17 @@ impl IndexedDeletedObject {
 
 #[derive(Debug)]
 pub struct IndexedPackage {
-    pub package_id: ObjectId,
     pub move_package: MovePackage,
     pub checkpoint_sequence_number: u64,
+}
+
+impl IndexedPackage {
+    pub(crate) fn new(move_package: MovePackage, checkpoint_sequence_number: u64) -> Self {
+        Self {
+            move_package,
+            checkpoint_sequence_number,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]

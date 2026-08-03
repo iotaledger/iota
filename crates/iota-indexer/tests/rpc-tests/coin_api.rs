@@ -14,10 +14,11 @@ use iota_json_rpc_types::{
     IotaTransactionBlockResponseOptions, IotaTypeTag, TransactionBlockBytes,
 };
 use iota_keys::keystore::AccountKeystore;
+use iota_sdk_crypto::Signer;
 use iota_sdk_types::{Address, Identifier, ObjectId, ObjectReference, StructTag, TypeTag};
 use iota_types::{
     balance::Supply,
-    crypto::{AccountKeyPair, IotaKeyPair, get_key_pair},
+    crypto::{AccountKeyPair, IotaKeyPair, Signature, get_key_pair},
     parse_iota_struct_tag,
     quorum_driver_types::ExecuteTransactionRequestType,
     utils::to_sender_signed_transaction,
@@ -784,7 +785,7 @@ async fn create_trusted_coins(
 pub async fn execute_move_call(
     client: &HttpClient,
     address: Address,
-    account_keypair: impl Into<IotaKeyPair>,
+    account_keypair: &impl Signer<Signature>,
     package_object_id: ObjectId,
     module: String,
     function: String,

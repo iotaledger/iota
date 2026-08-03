@@ -3,16 +3,17 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::{anyhow, bail};
-use iota_sdk_types::{Event, ObjectReference};
+use iota_sdk_types::{
+    Event, ObjectReference,
+    checkpoint::{CheckpointContents, EndOfEpochData},
+};
 use iota_types::{
     committee::Committee,
     effects::{
         TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt, TransactionEvents,
     },
     event::EventID,
-    messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointContents, CheckpointContentsExt, EndOfEpochData,
-    },
+    messages_checkpoint::{CertifiedCheckpointSummary, CheckpointContentsExt},
     object::Object,
     transaction::Transaction,
 };

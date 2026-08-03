@@ -7,8 +7,6 @@ teams:
 ---
 
 import TestingCheatSheet from "../../_snippets/testing-cheat-sheet.mdx";
-import Quiz from '@site/src/components/Quiz';
-import questions from '/json/developer/getting-started/build-test.json';
 
 # Build and Test Packages
 
@@ -178,7 +176,6 @@ The `Scenario` instance will emulate the IOTA object storage with an object pool
 
 You should update the `first_package.move` file to include entry functions callable from IOTA that implement `sword` creation and transfer. You can add these after the accessor functions.
 
-
 ```move file=<rootDir>/examples/move/first_package/sources/first_package.move#L68-L85
 ```
 
@@ -314,6 +311,3 @@ Test result: OK. Total tests: 8; passed: 8; failed: 0
 
 - [`test_scenario` source](https://github.com/iotaledger/iota/blob/develop/crates/iota-framework/packages/iota-framework/sources/test/test_scenario.move)
 - [`test_utils` source](https://github.com/iotaledger/iota/blob/develop/crates/iota-framework/packages/iota-framework/sources/test/test_utils.move)
-
-
-<Quiz questions={questions} />

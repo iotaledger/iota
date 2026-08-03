@@ -18,7 +18,6 @@ use iota_sdk::{
         IotaTransactionBlockResponseOptions,
     },
     types::{
-        crypto::SignatureScheme::ED25519,
         dynamic_field::DynamicFieldName,
         gas_coin::GAS,
         programmable_transaction_builder::ProgrammableTransactionBuilder,
@@ -27,7 +26,7 @@ use iota_sdk::{
         transaction::{CallArg, Transaction, TransactionData},
     },
 };
-use iota_sdk_types::{Argument, Identifier, ObjectId, TypeTag, crypto::Intent};
+use iota_sdk_types::{Argument, Identifier, ObjectId, SignatureScheme, TypeTag, crypto::Intent};
 use iota_types::transaction::TransactionDataAPI;
 
 /// Got from iota-genesis-builder/src/stardust/test_outputs/alias_ownership.rs
@@ -50,7 +49,7 @@ async fn main() -> Result<(), anyhow::Error> {
     // Derive the address of the first account and set it as default
     let sender = keystore.import_from_mnemonic(
         MAIN_ADDRESS_MNEMONIC,
-        ED25519,
+        SignatureScheme::Ed25519,
         Some(derivation_path),
         None,
     )?;

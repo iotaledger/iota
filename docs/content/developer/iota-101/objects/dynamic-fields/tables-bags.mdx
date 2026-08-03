@@ -5,8 +5,6 @@ teams:
   - iotaledger/vm-language
 description: IOTA provides `Table` and `Bag` collections built using dynamic fields, offering additional support to count entries and prevent accidental deletion when non-empty.
 ---
-import Quiz from '@site/src/components/Quiz';
-import questions from '/json/developer/iota-101/objects/dynamic-fields/tables-bags.json';
 
 [Dynamic fields](dynamic-fields.mdx) in IOTA allow developers to extend existing objects by adding or removing fields on-the-fly.
 However, deleting an object that still has dynamic fields, especially non-drop fields, can lead to issues, particularly with on-chain collections holding numerous key-value pairs. 
@@ -200,7 +198,6 @@ public fun drop<K: copy + drop + store, V: drop + store>(
 }
 ```
 
-
 This function can delete a table regardless of its state but only if the value type (`V`) has the `drop` ability.
 Unlike other languages, Move requires you to call `drop` explicitly—it does not occur automatically when a table goes out of scope.
 
@@ -224,5 +221,3 @@ assert!(&t1 != &t2, 1);
 ```
 
 This identity-based equality is unlikely to be the behavior you want for comparing collections.
-
-<Quiz questions={questions} />

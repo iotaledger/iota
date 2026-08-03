@@ -66,13 +66,13 @@ impl Display {
     /// Render the fields defined by this `Display` from the contents of
     /// `struct_`.
     pub(crate) fn render(&self, struct_: &MoveStruct) -> Result<Vec<DisplayEntry>, Error> {
-        let event = self
+        let display_fields = self
             .stored
-            .to_display_update_event()
+            .to_display_fields()
             .map_err(|e| Error::Internal(e.to_string()))?;
 
         let mut rendered = vec![];
-        for entry in event.fields.contents {
+        for entry in display_fields.contents {
             rendered.push(match parse_template(&entry.value, struct_) {
                 Ok(v) => DisplayEntry::create_value(entry.key, v),
                 Err(e) => DisplayEntry::create_error(entry.key, e.to_string()),

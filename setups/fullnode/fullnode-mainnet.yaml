@@ -32,16 +32,10 @@ p2p-config:
     - address: /dns/access-3.r.mainnet.iota.cafe/udp/8084
       peer-id: 2c1e05e9bddaf505b70184baf21a188a7c270b1b58f38d55e3aea42d067c5fb6
 
-# State Sync Archive Fallback
-state-archive-read-config:
-  - object-store-config:
-      object-store: "S3"
-      aws-endpoint: "https://archive.mainnet.iota.cafe"
-      aws-virtual-hosted-style-request: true
-      object-store-connection-limit: 20
-      no-sign-request: true
-    concurrency: 5
-    use-for-pruning-watermark: false
+# State Sync Checkpoint Archive Fallback
+checkpoint-archive-config:
+  url: "https://checkpoints.mainnet.iota.cafe/ingestion/historical"
+  download-concurrency: 5
 
 # Set the exposure level for each Prometheus metric group. The values below
 # are the defaults; omitting a group (or this whole section) is the same as

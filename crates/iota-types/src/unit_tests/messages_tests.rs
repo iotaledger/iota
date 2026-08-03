@@ -8,13 +8,10 @@ use std::{
     hash::Hasher,
 };
 
-use fastcrypto::{
-    ed25519::Ed25519KeyPair,
-    traits::{AggregateAuthenticator, KeyPair},
-};
-use iota_sdk_crypto::simple::SimpleKeypair;
+use fastcrypto::traits::{AggregateAuthenticator, KeyPair};
+use iota_sdk_crypto::{ed25519::Ed25519PrivateKey, simple::SimpleKeypair};
 use iota_sdk_types::{
-    Address, ExecutionStatus, GasPayment, Owner, SharedObjectReference, StructTag,
+    Address, ExecutionStatus, GasPayment, Owner, SharedObjectReference, SignatureScheme, StructTag,
     TransactionEventsDigest, gas::GasCostSummary,
 };
 use roaring::RoaringBitmap;
@@ -25,13 +22,12 @@ use crate::{
     committee::Committee,
     crypto::{
         AccountKeyPair, AuthorityKeyPair, AuthorityPublicKeyBytes, AuthoritySignInfoTrait,
-        IotaAuthoritySignature, IotaKeyPair, IotaSignature, SignatureScheme,
-        VerificationObligation,
+        IotaAuthoritySignature, IotaKeyPair, IotaSignature, VerificationObligation,
         bcs_signable_test::{Foo, get_obligation_input},
         get_key_pair,
     },
     effects::{SignedTransactionEffects, TestEffectsBuilder, TransactionEffectsAPIForTesting},
-    signature::ZkLoginAuthenticatorDeprecated,
+    transaction::SenderSignedTransactionAPI,
     utils::{
         blake2b256_of_sig, make_move_authenticator_sig, make_move_authenticator_tx,
         make_passkey_authenticator_sig, make_sponsored_move_authenticator_tx,
@@ -535,8 +531,7 @@ fn test_digest_caching() {
 
     signed_tx
         .data_mut_for_testing()
-        .intent_message_mut_for_testing()
-        .value
+        .transaction_mut_for_testing()
         .gas_data_mut()
         .budget += 1;
 
@@ -716,7 +711,7 @@ fn test_user_signature_committed_in_signed_transactions() {
 fn signature_from_signer(
     data: TransactionData,
     intent: Intent,
-    signer: impl Into<IotaKeyPair>,
+    signer: &impl iota_sdk_crypto::Signer<Signature>,
 ) -> Signature {
     let intent_msg = IntentMessage::new(intent, data);
     Signature::new_secure(&intent_msg, signer)
@@ -746,11 +741,11 @@ fn test_sponsored_transaction_message() {
     };
     let tx_data = TransactionData::new_with_gas_data(kind, sender, gas_data.clone());
     let intent = Intent::iota_transaction();
-    let sender_sig: GenericSignature =
+    let sender_sig: UserSignature =
         signature_from_signer(tx_data.clone(), intent, &sender_kp).into();
-    let sponsor_sig: GenericSignature =
+    let sponsor_sig: UserSignature =
         signature_from_signer(tx_data.clone(), intent, &sponsor_kp).into();
-    let transaction = Transaction::from_generic_sig_data(
+    let transaction = Transaction::from_user_sig_data(
         tx_data.clone(),
         vec![sender_sig.clone(), sponsor_sig.clone()],
     )
@@ -766,7 +761,7 @@ fn test_sponsored_transaction_message() {
     assert_eq!(transaction.gas(), &[gas_obj_ref]);
 
     // Sig order does not matter
-    let transaction = Transaction::from_generic_sig_data(
+    let transaction = Transaction::from_user_sig_data(
         tx_data.clone(),
         vec![sponsor_sig.clone(), sender_sig.clone()],
     )
@@ -775,7 +770,7 @@ fn test_sponsored_transaction_message() {
 
     // Test incomplete signature lists (missing sponsor sig)
     assert!(matches!(
-        Transaction::from_generic_sig_data(tx_data.clone(), vec![sender_sig.clone()],)
+        Transaction::from_user_sig_data(tx_data.clone(), vec![sender_sig.clone()],)
             .try_into_verified_for_testing(&Default::default())
             .unwrap_err(),
         IotaError::SignerSignatureNumberMismatch { .. }
@@ -783,7 +778,7 @@ fn test_sponsored_transaction_message() {
 
     // Test incomplete signature lists (missing sender sig)
     assert!(matches!(
-        Transaction::from_generic_sig_data(tx_data.clone(), vec![sponsor_sig.clone()],)
+        Transaction::from_user_sig_data(tx_data.clone(), vec![sponsor_sig.clone()],)
             .try_into_verified_for_testing(&Default::default())
             .unwrap_err(),
         IotaError::SignerSignatureNumberMismatch { .. }
@@ -791,10 +786,10 @@ fn test_sponsored_transaction_message() {
 
     // Test incomplete signature lists (more sigs than expected)
     let third_party_kp = IotaKeyPair::Ed25519(get_key_pair().1);
-    let third_party_sig: GenericSignature =
+    let third_party_sig: UserSignature =
         signature_from_signer(tx_data.clone(), intent, &third_party_kp).into();
     assert!(matches!(
-        Transaction::from_generic_sig_data(
+        Transaction::from_user_sig_data(
             tx_data.clone(),
             vec![sender_sig, sponsor_sig.clone(), third_party_sig.clone()],
         )
@@ -805,13 +800,13 @@ fn test_sponsored_transaction_message() {
 
     // Test irrelevant sigs
     assert!(matches!(
-        Transaction::from_generic_sig_data(tx_data, vec![sponsor_sig, third_party_sig],)
+        Transaction::from_user_sig_data(tx_data, vec![sponsor_sig, third_party_sig],)
             .try_into_verified_for_testing(&Default::default())
             .unwrap_err(),
         IotaError::SignerSignatureAbsent { .. }
     ));
 
-    let tx = transaction.data().transaction_data();
+    let tx = transaction.data().transaction();
     assert_eq!(tx.gas(), &[gas_obj_ref],);
     assert_eq!(tx.gas_data(), &gas_data,);
     assert_eq!(tx.sender(), sender,);
@@ -977,15 +972,12 @@ fn verify_sender_signature_correctly_with_flag() {
         AuthorityPublicKeyBytes::from(sec1.public()),
     );
 
-    let s = match &transaction.data().tx_signatures()[0] {
-        GenericSignature::Signature(s) => s,
+    let s = match &transaction.data().signatures()[0] {
+        UserSignature::Simple(s) => s,
         _ => panic!("invalid"),
     };
     // signature contains the correct Secp256k1 flag
-    assert_eq!(
-        s.signature_scheme().flag(),
-        SignatureScheme::Secp256k1.flag()
-    );
+    assert_eq!(s.scheme(), SignatureScheme::Secp256k1);
 
     // authority accepts signs tx after verification
     assert!(
@@ -1009,13 +1001,13 @@ fn verify_sender_signature_correctly_with_flag() {
         &sec1,
         AuthorityPublicKeyBytes::from(sec1.public()),
     );
-    let s = match &transaction_1.data().tx_signatures()[0] {
-        GenericSignature::Signature(s) => s,
+    let s = match &transaction_1.data().signatures()[0] {
+        UserSignature::Simple(s) => s,
         _ => panic!("unexpected signature scheme"),
     };
 
     // signature contains the correct Ed25519 flag
-    assert_eq!(s.signature_scheme().flag(), SignatureScheme::ED25519.flag());
+    assert_eq!(s.scheme(), SignatureScheme::Ed25519);
 
     // signature verified
     assert!(
@@ -1086,15 +1078,7 @@ fn test_consensus_commit_prologue_v1_transaction() {
         SharedObjectReference::new(ObjectId::CLOCK, IOTA_CLOCK_OBJECT_SHARED_VERSION, true,),
     );
     assert!(tx.is_system_tx());
-    assert_eq!(
-        tx.data()
-            .intent_message()
-            .value
-            .input_objects()
-            .unwrap()
-            .len(),
-        1
-    );
+    assert_eq!(tx.data().transaction().input_objects().unwrap().len(), 1);
 }
 
 #[test]
@@ -1277,7 +1261,7 @@ fn test_certificate_digest() {
     let (sender2, sender2_sec): (_, AccountKeyPair) = get_key_pair();
 
     let gas_price = 10;
-    let make_tx = |sender, sender_sec: Ed25519KeyPair| {
+    let make_tx = |sender, sender_sec: AccountKeyPair| {
         Transaction::from_data_and_signer(
             TransactionData::new_transfer(
                 receiver,
@@ -1331,7 +1315,7 @@ fn test_certificate_digest() {
         .data_mut_for_testing()
         .tx_signatures_mut_for_testing()
         .get_mut(0)
-        .unwrap() = t2.tx_signatures()[0].clone();
+        .unwrap() = t2.signatures()[0].clone();
     assert_ne!(digest, cert.certificate_digest());
 
     // mutating signature epoch changes digest
@@ -1392,41 +1376,29 @@ fn check_approx_effects_components_size() {
 fn auth_digest_for_move_authenticator_equals_authenticator_digest() {
     let (sender, _): (_, AccountKeyPair) = get_key_pair();
     let (sig, authenticator) = make_move_authenticator_sig(sender);
-    assert_eq!(auth_digest_for_sig(&sig).unwrap(), authenticator.digest());
+    assert_eq!(sig.auth_digest(), authenticator.digest());
 }
 
 #[test]
 fn auth_digest_for_regular_signature_is_hash_of_sig_bytes() {
-    let (sender, kp): (_, AccountKeyPair) = get_key_pair();
-    // TODO remove conversion https://github.com/iotaledger/iota/issues/11590
-    let kp = SimpleKeypair::from_bytes(IotaKeyPair::Ed25519(kp).to_bytes()).unwrap();
+    let kp = SimpleKeypair::from(Ed25519PrivateKey::generate(rand::thread_rng()));
+    let sender = kp.public_key().derive_address();
     let tx = make_transaction(sender, &kp);
-    let sig = tx.tx_signatures().first().unwrap();
-    assert_eq!(auth_digest_for_sig(sig).unwrap(), blake2b256_of_sig(sig));
+    let sig = tx.signatures().first().unwrap();
+    assert_eq!(sig.auth_digest(), blake2b256_of_sig(sig));
 }
 
 #[test]
 fn auth_digest_for_multisig_is_hash_of_sig_bytes() {
     let tx = make_upgraded_multisig_tx();
-    let sig = tx.tx_signatures().first().unwrap();
-    assert_eq!(auth_digest_for_sig(sig).unwrap(), blake2b256_of_sig(sig));
+    let sig = tx.signatures().first().unwrap();
+    assert_eq!(sig.auth_digest(), blake2b256_of_sig(sig));
 }
 
 #[test]
 fn auth_digest_for_passkey_is_hash_of_sig_bytes() {
     let sig = make_passkey_authenticator_sig();
-    assert_eq!(auth_digest_for_sig(&sig).unwrap(), blake2b256_of_sig(&sig));
-}
-
-#[test]
-#[allow(deprecated)]
-fn auth_digest_for_zk_login_returns_unsupported_error() {
-    let sig = GenericSignature::ZkLoginAuthenticatorDeprecated(ZkLoginAuthenticatorDeprecated);
-    let err = auth_digest_for_sig(&sig).unwrap_err();
-    assert!(
-        matches!(err, IotaError::UnsupportedFeature { .. }),
-        "expected UnsupportedFeature, got {err:?}",
-    );
+    assert_eq!(sig.auth_digest(), blake2b256_of_sig(&sig));
 }
 
 #[test]
@@ -1441,11 +1413,10 @@ fn compute_auth_digests_non_sponsored_move_authenticator() {
 
 #[test]
 fn compute_auth_digests_non_sponsored_regular_signature() {
-    let (sender, kp): (_, AccountKeyPair) = get_key_pair();
-    // TODO remove conversion https://github.com/iotaledger/iota/issues/11590
-    let kp = SimpleKeypair::from_bytes(IotaKeyPair::Ed25519(kp).to_bytes()).unwrap();
+    let kp = SimpleKeypair::from(Ed25519PrivateKey::generate(rand::thread_rng()));
+    let sender = kp.public_key().derive_address();
     let tx = make_transaction(sender, &kp);
-    let sig = tx.tx_signatures().first().unwrap();
+    let sig = tx.signatures().first().unwrap();
     let (sender_digest, sponsor_digest) = tx.data().compute_auth_digests().unwrap();
     assert_eq!(sender_digest, blake2b256_of_sig(sig));
     assert!(sponsor_digest.is_none());
@@ -1466,14 +1437,14 @@ fn compute_auth_digests_sponsored_regular_signatures() {
     let (tx, sender, sponsor) = make_sponsored_regular_sig_tx();
 
     let sender_sig = tx
-        .tx_signatures()
+        .signatures()
         .iter()
-        .find(|s| Address::try_from(*s).ok() == Some(sender))
+        .find(|s| s.derive_address() == sender)
         .unwrap();
     let sponsor_sig = tx
-        .tx_signatures()
+        .signatures()
         .iter()
-        .find(|s| Address::try_from(*s).ok() == Some(sponsor))
+        .find(|s| s.derive_address() == sponsor)
         .unwrap();
 
     let (sender_digest, sponsor_digest) = tx.data().compute_auth_digests().unwrap();

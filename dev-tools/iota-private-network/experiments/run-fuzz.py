@@ -109,10 +109,12 @@ _spammer_proc: subprocess.Popen[str] | None = None
 # ========================= Fuzz-specific phases =========================
 
 
-def apply_fuzz(cfg: Config) -> subprocess.Popen[str]:
+def apply_fuzz(cfg: Config) -> tuple[subprocess.Popen[str], Path]:
     """Launch network-fuzz.sh (it self-sudos for tc/iptables). Returns the
-    running process. A separate timestamped fuzz log keeps its per-round
-    output out of the main script log."""
+    running process and the per-run fuzz log path (consumed later by the
+    post-run canary to derive validator-stop timestamps). A separate
+    timestamped fuzz log keeps its per-round output out of the main script
+    log."""
     ts = datetime.now().strftime("%Y%m%d-%H%M%S")
     fuzz_log = cfg.log_dir / f"fuzz_{ts}.log"
     # Clear any leftover stop/lock files from a previous fuzz run.
@@ -148,7 +150,7 @@ def apply_fuzz(cfg: Config) -> subprocess.Popen[str]:
         time.sleep(1)
     print()
     log(f"  Fuzz ({cfg.topology}) applied; log: {fuzz_log}")
-    return proc
+    return proc, fuzz_log
 
 
 def _clear_fuzzdrop_rules() -> None:
@@ -322,6 +324,10 @@ def main() -> None:
             # Resolve the load image up front (pull, else build from the
             # network-benchmark clone) instead of surprising the run mid-way.
             ec.ensure_stress_image(cfg.spammer_image)
+        if cfg.spammer_enable and cfg.spammer_type == "iota-spammer":
+            # Check the script exists before bringing up the network; surfaces
+            # a misconfigured spammer in seconds instead of ~5 min in.
+            ec.ensure_iota_spammer_script()
         if not cfg.build:
             ec.require_local_image(
                 cfg.image,
@@ -358,7 +364,7 @@ def main() -> None:
         log(ec._phase_banner("Starting Grafana/Prometheus", "MONITOR"))
         ec.start_grafana(cfg.grafana_dir)
         log(ec._phase_banner(f"Applying fuzz ({cfg.topology})", "FUZZ"))
-        _fuzz_proc = apply_fuzz(cfg)
+        _fuzz_proc, fuzz_log_path = apply_fuzz(cfg)
         # Start load as soon as the network is up (validators running, fuzz
         # applied) so the block-production measurement runs under load — matching
         # the migration runner. Previously the spammer started only after the
@@ -368,7 +374,14 @@ def main() -> None:
             ec.measure_block_production(
                 cfg.num_validators, cfg.block_measurement_seconds,
             )
-        ec.run_loop(cfg, "fuzz", "fuzz")
+        archive_ts = ec.run_loop(cfg, "fuzz", "fuzz")
+        ec.post_run_canary(
+            cfg.log_dir,
+            archive_prefix="fuzz",
+            archive_ts=archive_ts,
+            fuzz_log_path=fuzz_log_path,
+            num_validators=cfg.num_validators,
+        )
     finally:
         cleanup(cfg)
 

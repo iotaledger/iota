@@ -4,9 +4,6 @@ teams:
    - iotaledger/tooling
 ---
 
-import Quiz from '@site/src/components/Quiz';
-import questions from '/json/developer/cryptography/offline-signing.json';
-
 # Building Offline
 
 This page demonstrates **offline transaction building and signing** on IOTA.
@@ -34,7 +31,6 @@ iota client pay-all-iota --input-coins <COIN-OBJECT-ID> --recipient <IOTA-ADDRES
 ```
 
 The console responds with the resulting `<TX_BYTES>` value.
-
 
 :::tip
 
@@ -126,8 +122,6 @@ After you obtain the signed transaction bytes, you can submit it using the `exec
 ```shell
 iota client execute-combined-signed-tx --signed-tx-bytes <SIGNED-TX-BYTES>
 ```
-
-<Quiz questions={questions} />
 </TabItem>
 
 <TabItem value="ts" label="TypeScript SDK">

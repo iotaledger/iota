@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{any::Any, collections::BTreeMap};
+use std::any::Any;
 
 use async_trait::async_trait;
 use diesel::PgConnection;
@@ -18,13 +18,12 @@ use crate::{
         display::StoredDisplay,
         obj_indices::StoredObjectVersion,
         objects::StoredBackwardHistoryObject,
+        packages::StoredPackage,
         transactions::{OptimisticTransaction, TxGlobalOrder},
         watermarks::StoredWatermark,
     },
     pruning::pruner::PrunableTable,
-    types::{
-        EventIndex, IndexedCheckpoint, IndexedEvent, IndexedPackage, IndexedTransaction, TxIndex,
-    },
+    types::{EventIndex, IndexedCheckpoint, IndexedEvent, IndexedTransaction, TxIndex},
 };
 
 #[async_trait]
@@ -70,12 +69,9 @@ pub trait IndexerStore: Any + Clone + Sync + Send + 'static {
         event_indices: Vec<EventIndex>,
     ) -> Result<(), IndexerError>;
 
-    async fn persist_displays(
-        &self,
-        display_updates: BTreeMap<String, StoredDisplay>,
-    ) -> Result<(), IndexerError>;
+    async fn persist_displays(&self, displays: Vec<StoredDisplay>) -> Result<(), IndexerError>;
 
-    async fn persist_packages(&self, packages: Vec<IndexedPackage>) -> Result<(), IndexerError>;
+    async fn persist_packages(&self, packages: Vec<StoredPackage>) -> Result<(), IndexerError>;
 
     async fn persist_epoch(&self, epoch: EpochToCommit) -> Result<(), IndexerError>;
 
@@ -90,10 +86,10 @@ pub trait IndexerStore: Any + Clone + Sync + Send + 'static {
 
     fn as_any(&self) -> &dyn Any;
 
-    fn persist_displays_in_existing_transaction(
+    fn persist_displays_chunk_in_existing_transaction(
         &self,
         conn: &mut PgConnection,
-        display_updates: Vec<&StoredDisplay>,
+        displays: &[StoredDisplay],
     ) -> Result<(), IndexerError>;
 
     fn persist_objects_in_existing_transaction(
@@ -112,9 +108,9 @@ pub trait IndexerStore: Any + Clone + Sync + Send + 'static {
 
     /// Updates each watermark entry's lower bounds per the list of tables and
     /// their new epoch lower bounds.
-    async fn update_watermarks_lower_bound(
+    async fn update_watermarks_lower_bound<Table: AsRef<str> + Send + 'static>(
         &self,
-        watermarks: Vec<(PrunableTable, u64)>,
+        watermarks: Vec<(Table, u64)>,
     ) -> Result<(), IndexerError>;
 
     /// Load all watermark entries from the store, and the latest timestamp from
@@ -180,6 +176,11 @@ pub trait IndexerStore: Any + Clone + Sync + Send + 'static {
         &self,
         table: &PrunableTable,
         lowest_unpruned_key: u64,
+    ) -> Result<(), IndexerError>;
+
+    async fn update_watermarks_lowest_unpruned_key<Table: AsRef<str> + Send + 'static>(
+        &self,
+        unpruned_keys: Vec<(Table, u64)>,
     ) -> Result<(), IndexerError>;
 
     async fn get_watermark_by_entity(

@@ -14,7 +14,6 @@ use iota_sdk::{
     IotaClientBuilder,
     rpc_types::{IotaData, IotaObjectDataOptions, IotaTransactionBlockResponseOptions},
     types::{
-        crypto::SignatureScheme::ED25519,
         gas_coin::GAS,
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         quorum_driver_types::ExecuteTransactionRequestType,
@@ -22,7 +21,7 @@ use iota_sdk::{
         transaction::{CallArg, Transaction, TransactionData},
     },
 };
-use iota_sdk_types::{Argument, Identifier, ObjectId, TypeTag, crypto::Intent};
+use iota_sdk_types::{Argument, Identifier, ObjectId, SignatureScheme, TypeTag, crypto::Intent};
 use iota_types::transaction::TransactionDataAPI;
 
 /// Got from iota-genesis-builder/src/stardust/test_outputs/stardust_mix.rs
@@ -37,7 +36,12 @@ async fn main() -> Result<(), anyhow::Error> {
     let mut keystore = setup_keystore()?;
 
     // Derive the address of the first account and set it as default
-    let sender = keystore.import_from_mnemonic(MAIN_ADDRESS_MNEMONIC, ED25519, None, None)?;
+    let sender = keystore.import_from_mnemonic(
+        MAIN_ADDRESS_MNEMONIC,
+        SignatureScheme::Ed25519,
+        None,
+        None,
+    )?;
 
     println!("Sender address: {sender}");
 

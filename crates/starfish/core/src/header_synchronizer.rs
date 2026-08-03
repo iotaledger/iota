@@ -863,7 +863,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                 .map_err(ConsensusError::MalformedHeader)
                 .inspect_err(|e| {
                     // Author is unknown when deserialization fails — blame the peer.
-                    misbehavior_store.record_faulty_block_header(peer_index, peer_index, e);
+                    misbehavior_store.record_faulty_block(peer_index, peer_index, e);
                 })?;
 
             if let Err(e) = block_verifier.verify(&signed_block_header) {
@@ -877,11 +877,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                     .synchronizer_invalid_block_headers
                     .with_label_values(&[hostname.as_str(), "synchronizer", e.name()])
                     .inc();
-                misbehavior_store.record_faulty_block_header(
-                    peer_index,
-                    signed_block_header.author(),
-                    &e,
-                );
+                misbehavior_store.record_faulty_block(peer_index, signed_block_header.author(), &e);
                 warn!("Invalid block received from {}: {}", peer_index, e);
                 return Err(e);
             }
@@ -1008,7 +1004,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                                             .map_err(ConsensusError::MalformedHeader)
                                             .inspect_err(|e| {
                                                 // Author unknown when deserialization fails — blame the peer.
-                                                misbehavior_store.record_faulty_block_header(
+                                                misbehavior_store.record_faulty_block(
                                                     authority_index,
                                                     authority_index,
                                                     e,
@@ -1022,7 +1018,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                                                 .synchronizer_invalid_block_headers
                                                 .with_label_values(&[hostname.as_str(), "synchronizer_own_block_header", err.clone().name()])
                                                 .inc();
-                                            misbehavior_store.record_faulty_block_header(
+                                            misbehavior_store.record_faulty_block(
                                                 authority_index,
                                                 signed_block_header.author(),
                                                 err,
@@ -2174,6 +2170,7 @@ mod tests {
             context.clone(),
             core_dispatcher.clone(),
             dag_state.clone(),
+            block_verifier.clone(),
         );
 
         let misbehavior_store = Arc::new(MisbehaviorStore::new(&context));
@@ -2245,6 +2242,7 @@ mod tests {
             context.clone(),
             core_dispatcher.clone(),
             dag_state.clone(),
+            block_verifier.clone(),
         );
 
         let misbehavior_store = Arc::new(MisbehaviorStore::new(&context));
@@ -2330,6 +2328,7 @@ mod tests {
             context.clone(),
             core_dispatcher.clone(),
             dag_state.clone(),
+            block_verifier.clone(),
         );
         // Create some test block headers
         let expected_block_headers_1 = (0..10)
@@ -2444,6 +2443,7 @@ mod tests {
             context.clone(),
             core_dispatcher.clone(),
             dag_state.clone(),
+            block_verifier.clone(),
         );
         // AND stub some missing blocks. The highest accepted round is 0.
         // Create some blocks that are below and above the threshold sync.
@@ -2582,6 +2582,7 @@ mod tests {
             context.clone(),
             core_dispatcher.clone(),
             dag_state.clone(),
+            block_verifier.clone(),
         );
         // AND stub some missing blocks. The highest accepted round is 0. Create blocks
         // that are above the threshold sync.
@@ -2735,6 +2736,7 @@ mod tests {
             context.clone(),
             core_dispatcher.clone(),
             dag_state.clone(),
+            block_verifier.clone(),
         );
         // Create some test block headers
         let mut expected_block_headers = (8..=10)
@@ -3247,6 +3249,7 @@ mod tests {
             context.clone(),
             core_dispatcher.clone(),
             dag_state.clone(),
+            block_verifier.clone(),
         );
         // Create input test blocks:
         // - Authority 0 block at round 60.
@@ -3393,6 +3396,7 @@ mod tests {
             context.clone(),
             core_dispatcher.clone(),
             dag_state.clone(),
+            block_verifier.clone(),
         );
 
         // Frontier is genesis round 0; a header one past the ceiling can never

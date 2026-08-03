@@ -9,7 +9,7 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use iota_storage::http_key_value_store::ItemType;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 /// An Error type which represents the possible errors the REST API server can
@@ -21,14 +21,7 @@ pub enum ApiError {
     #[error("not found")]
     NotFound,
     #[error("internal server error")]
-    InternalServerError,
-}
-
-impl From<anyhow::Error> for ApiError {
-    fn from(err: anyhow::Error) -> Self {
-        tracing::error!("internal server error: {err}");
-        ApiError::InternalServerError
-    }
+    InternalServerError(#[from] anyhow::Error),
 }
 
 impl IntoResponse for ApiError {
@@ -36,8 +29,18 @@ impl IntoResponse for ApiError {
         let status_code = match self {
             ApiError::BadRequest(_) => StatusCode::BAD_REQUEST,
             ApiError::NotFound => StatusCode::NOT_FOUND,
-            ApiError::InternalServerError => StatusCode::INTERNAL_SERVER_ERROR,
+            ApiError::InternalServerError(_) => StatusCode::INTERNAL_SERVER_ERROR,
         };
+
+        match self {
+            ApiError::InternalServerError(ref e) => {
+                tracing::Span::current().record("error", format_args!("{e:#}"));
+            }
+            ApiError::BadRequest(ref e) => {
+                tracing::Span::current().record("error", format_args!("{e}"));
+            }
+            ApiError::NotFound => {}
+        }
 
         let body = Json(ErrorResponse {
             error_code: status_code.as_u16().to_string(),
@@ -49,10 +52,10 @@ impl IntoResponse for ApiError {
 }
 
 /// Describes the response body of a unsuccessful HTTP request.
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub(crate) struct ErrorResponse {
-    error_code: String,
-    error_message: String,
+    pub(crate) error_code: String,
+    pub(crate) error_message: String,
 }
 
 #[derive(Error, Debug)]
