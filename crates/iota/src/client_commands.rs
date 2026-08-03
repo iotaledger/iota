@@ -1362,12 +1362,6 @@ impl IotaClientCommands {
                 gas_data,
                 processing,
             } => {
-                // The node rejects an object that is also a gas coin, so fail
-                // here with something clearer than its error.
-                ensure!(
-                    !payment.gas.contains(&object_id),
-                    "Object to transfer is also used for gas payment, use different gas objects!"
-                );
                 let signer = context.get_object_owner(&object_id).await?;
                 let to = get_identity_address(Some(to), context).await?;
                 let client = context.get_grpc_client().await?;
