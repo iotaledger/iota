@@ -6,6 +6,7 @@ use std::{env, sync::Arc};
 
 use parking_lot::RwLock;
 use rand::{Rng, SeedableRng, prelude::SliceRandom, rngs::StdRng};
+use rstest::rstest;
 use starfish_config::AuthorityIndex;
 
 use crate::{
@@ -30,14 +31,12 @@ const NUM_ROUNDS: u32 = 200;
 /// - Links to leader of previous round.
 ///
 /// Should result in a direct commit for every round.
+#[rstest]
 #[tokio::test]
-async fn test_randomized_dag_all_direct_commit() {
+async fn test_randomized_dag_all_direct_commit(#[values(false, true)] starfish_speed: bool) {
     let mut random_test_setup = random_test_setup();
 
-    // Alternate the flag across runs rather than repeating the whole campaign
-    // for each value.
-    for run in 0..NUM_RUNS {
-        let starfish_speed = run % 2 == 0;
+    for _ in 0..NUM_RUNS {
         let seed = random_test_setup.seeded_rng.gen_range(0..10000);
         let num_authorities = random_test_setup.seeded_rng.gen_range(4..10);
         let authority = authority_setup(num_authorities, 0, starfish_speed);
@@ -88,14 +87,12 @@ async fn test_randomized_dag_all_direct_commit() {
 /// sequence will include Commit & Skip decisions and potentially will stop
 /// before coming to a decision on all waves as we may have an Undecided leader
 /// somewhere early in the sequence.
+#[rstest]
 #[tokio::test]
-async fn test_randomized_dag_and_decision_sequence() {
-    // Alternate the flag across runs rather than repeating the whole campaign
-    // for each value.
+async fn test_randomized_dag_and_decision_sequence(#[values(false, true)] starfish_speed: bool) {
     let mut random_test_setup = random_test_setup();
 
-    for run in 0..NUM_RUNS {
-        let starfish_speed = run % 2 == 0;
+    for _ in 0..NUM_RUNS {
         let seed = random_test_setup.seeded_rng.gen_range(0..10000);
         let num_authorities = random_test_setup.seeded_rng.gen_range(4..10);
 
