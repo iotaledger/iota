@@ -588,6 +588,13 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "is_false")]
     deny_rule_governance: bool,
 
+    // If true, the consensus-governed deny rule set is mirrored into the on-chain
+    // `TransactionDenyRules` object: the object is created at the end of the first
+    // enabled epoch and updated by system transactions when the active set changes.
+    // Requires `deny_rule_governance`.
+    #[serde(skip_serializing_if = "is_false")]
+    deny_rule_governance_on_chain: bool,
+
     // If true, package metadata can be published with ModuleMetadata as a dynamic
     // field.
     #[serde(skip_serializing_if = "is_false")]
@@ -1970,6 +1977,10 @@ impl ProtocolConfig {
         self.feature_flags.deny_rule_governance
     }
 
+    pub fn deny_rule_governance_on_chain(&self) -> bool {
+        self.feature_flags.deny_rule_governance_on_chain
+    }
+
     pub fn package_metadata_with_dynamic_module_metadata(&self) -> bool {
         let res = self
             .feature_flags
@@ -2087,6 +2098,13 @@ impl ProtocolConfig {
 
             feature_flag_overrides.apply_to(&mut ret.feature_flags);
         }
+
+        // The on-chain mirror has no state to mirror without governance itself.
+        assert!(
+            !ret.feature_flags.deny_rule_governance_on_chain
+                || ret.feature_flags.deny_rule_governance,
+            "deny_rule_governance_on_chain requires deny_rule_governance"
+        );
 
         ret
     }
@@ -3539,6 +3557,10 @@ impl ProtocolConfig {
 
     pub fn set_deny_rule_governance_for_testing(&mut self, val: bool) {
         self.feature_flags.deny_rule_governance = val;
+    }
+
+    pub fn set_deny_rule_governance_on_chain_for_testing(&mut self, val: bool) {
+        self.feature_flags.deny_rule_governance_on_chain = val;
     }
 
     pub fn set_package_metadata_with_dynamic_module_metadata_for_testing(&mut self, val: bool) {
