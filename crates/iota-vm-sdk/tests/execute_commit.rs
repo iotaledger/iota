@@ -296,10 +296,11 @@ fn dev_inspect_and_dry_run_fund_gasless_transactions_with_mock_coin() {
     }
 }
 
-/// Dev-inspect meters at `max_tx_gas` even when a real gas coin with a lower
-/// declared budget is supplied, matching the node's dev-inspect entry point.
+/// A zero budget is filled in from the epoch even when a real gas coin is
+/// supplied, so a dev inspect whose gas is not yet settled still runs. The coin
+/// is used as-is rather than being replaced by a mock one.
 #[test]
-fn dev_inspect_with_real_gas_coin_ignores_declared_budget() {
+fn dev_inspect_with_real_gas_coin_fills_in_a_zero_budget() {
     let sender = Address::ZERO;
     let recipient = Address::from(ObjectId::random());
 
@@ -322,6 +323,32 @@ fn dev_inspect_with_real_gas_coin_ignores_declared_budget() {
     assert!(
         result.mock_gas_id.is_none(),
         "a supplied gas coin must be used as-is"
+    );
+}
+
+/// A budget the caller does declare is metered against, rather than being
+/// replaced by `max_tx_gas`: a budget too small for the transfer runs out of
+/// gas.
+#[test]
+fn dev_inspect_meters_against_a_declared_budget() {
+    let sender = Address::ZERO;
+    let recipient = Address::from(ObjectId::random());
+
+    let gas = gas_coin(sender);
+    let mut store = InMemoryStore::with_framework();
+    store.insert(gas.clone());
+    let mut vm = LocalVm::new(chain_context(), store).expect("build LocalVm");
+
+    let mut tx = transfer_tx(sender, &gas, recipient, TRANSFER_AMOUNT);
+    tx.gas_data_mut().budget = GAS_PRICE;
+
+    let result = vm
+        .execute(tx, ExecuteOptions::dev_inspect())
+        .expect("dev-inspect must not error");
+    assert!(
+        !result.status.is_success(),
+        "a budget too small for the transfer should not succeed, got {:?}",
+        result.status
     );
 }
 

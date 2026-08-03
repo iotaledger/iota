@@ -138,11 +138,33 @@ pub(super) fn prepare_transaction(
         let mock_gas_object = mock_simulation_gas_coin(transaction.gas_data().owner);
         let mock_gas_object_ref = mock_gas_object.object_ref();
         transaction.gas_data_mut().objects = vec![mock_gas_object_ref];
+        gas_balance =
+            gas_balance.saturating_add(mock_gas_object.as_coin_maybe().map_or(0, |c| c.value()));
         input_objects.push(ObjectReadResult::new_from_gas_object(&mock_gas_object));
         Some(mock_gas_object.id())
     } else {
         None
     };
+
+    // Fill in the gas the caller left unset, the same way the node's simulation
+    // paths do: a zero price is below the reference gas price and a zero budget
+    // cannot cover any computation, so neither is a value to meter against.
+    // `Execute` commits its effects, so it holds a transaction to its own gas the
+    // way a validator would.
+
+    // Fill in the gas the caller left unset, the same way the node's simulation
+    // paths do: a zero price is below the reference gas price and a zero budget
+    // cannot cover any computation, so neither is a value to meter against.
+    // `Execute` commits its effects, so it holds a transaction to its own gas the
+    // way a validator would.
+    if !matches!(mode, ExecutionMode::Execute) {
+        if transaction.gas_price() == 0 {
+            transaction.gas_data_mut().price = env.reference_gas_price;
+        }
+        if transaction.gas_budget() == 0 {
+            transaction.gas_data_mut().budget = env.protocol_config.max_tx_gas();
+        }
+    }
 
     // Snapshot the received objects for the coin deny-list check below: the
     // simulation branch consumes `receiving_objects`, which is not `Clone`.
@@ -163,16 +185,11 @@ pub(super) fn prepare_transaction(
         )
         .map_err(|e| ValidationError::new("simulation input check", e))?;
 
-        // Dev-inspect meters at `max_tx_gas`, not the transaction's declared
-        // budget, matching the node's dev-inspect entry point — a run before a
-        // budget is settled isn't limited by it. Real gas coins cap the budget
-        // at their total balance, since the engine smashes the budget off the
-        // coin up front (the mock coin's balance always covers `max_tx_gas`).
-        let dev_inspect_gas_budget = if mock_gas_id.is_some() {
-            env.protocol_config.max_tx_gas()
-        } else {
-            env.protocol_config.max_tx_gas().min(gas_balance)
-        };
+        // Dev-inspect meters against the transaction's budget, which the fill-in
+        // above resolves to `max_tx_gas` when the caller declares none, matching
+        // the node's dev-inspect entry point. The gas coins cap it at their total
+        // balance, since the engine smashes the budget off them up front.
+        let dev_inspect_gas_budget = transaction.gas_budget().min(gas_balance);
         let gas_status = IotaGasStatus::new(
             dev_inspect_gas_budget,
             transaction.gas_price(),
