@@ -39,7 +39,7 @@ async fn test_validator_tx_finalizer_fastpath_tx() {
             node.with_async(|n| async {
                 n.state()
                     .get_transaction_cache_reader()
-                    .notify_read_executed_effects_digests(&tx_digests)
+                    .notify_read_executed_effects_digests("", &tx_digests)
                     .await;
             })
             .await;
@@ -77,7 +77,7 @@ async fn test_validator_tx_finalizer_consensus_tx() {
             node.with_async(|n| async {
                 n.state()
                     .get_transaction_cache_reader()
-                    .notify_read_executed_effects_digests(&tx_digests)
+                    .notify_read_executed_effects_digests("", &tx_digests)
                     .await;
             })
             .await;

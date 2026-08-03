@@ -22,7 +22,11 @@ use std::{
 };
 
 use diffy::create_patch;
-use iota_common::{debug_fatal, fatal, random::get_rng, sync::notify_read::NotifyRead};
+use iota_common::{
+    debug_fatal, fatal,
+    random::get_rng,
+    sync::notify_read::{CHECKPOINT_BUILDER_NOTIFY_READ_TASK_NAME, NotifyRead},
+};
 use iota_metrics::{MonitoredFutureExt, monitored_future, monitored_scope};
 use iota_network::default_iota_network_config;
 use iota_sdk_types::{
@@ -692,7 +696,7 @@ impl CheckpointStore {
         type ReadResult = Result<Vec<Option<VerifiedCheckpoint>>, TypedStoreError>;
 
         notify_read
-            .read(&[seq], |seqs| {
+            .read("notify_read_checkpoint_watermark", &[seq], |seqs| {
                 let seq = seqs[0];
                 let Some(highest) = get_watermark() else {
                     return Ok(vec![None]) as ReadResult;
@@ -1369,7 +1373,10 @@ impl CheckpointBuilder {
                 .await?;
             let root_effects = self
                 .effects_store
-                .try_notify_read_executed_effects(&root_digests)
+                .try_notify_read_executed_effects(
+                    CHECKPOINT_BUILDER_NOTIFY_READ_TASK_NAME,
+                    &root_digests,
+                )
                 .in_monitored_scope("CheckpointNotifyRead")
                 .await?;
 
@@ -3694,6 +3701,7 @@ mod tests {
     impl TransactionCacheRead for HashMap<TransactionDigest, TransactionEffects> {
         fn try_notify_read_executed_effects(
             &self,
+            _: &str,
             digests: &[TransactionDigest],
         ) -> BoxFuture<'_, IotaResult<Vec<TransactionEffects>>> {
             std::future::ready(Ok(digests
@@ -3705,6 +3713,7 @@ mod tests {
 
         fn try_notify_read_executed_effects_digests(
             &self,
+            _: &str,
             digests: &[TransactionDigest],
         ) -> BoxFuture<'_, IotaResult<Vec<TransactionEffectsDigest>>> {
             std::future::ready(Ok(digests

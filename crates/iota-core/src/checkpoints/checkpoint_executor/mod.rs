@@ -579,11 +579,11 @@ impl CheckpointExecutor {
         finish_stage!(pipeline_handle, ExecuteTransactions);
 
         {
-            let _metrics_scope = iota_metrics::monitored_scope(
-                "CheckpointExecutor::notify_read_executed_effects_digests",
-            );
             self.transaction_cache_reader
-                .notify_read_executed_effects_digests(&unexecuted_tx_digests)
+                .notify_read_executed_effects_digests(
+                    "CheckpointExecutor::notify_read_executed_effects_digests",
+                    &unexecuted_tx_digests,
+                )
                 .await;
         }
 
@@ -966,7 +966,10 @@ impl CheckpointExecutor {
         );
 
         self.transaction_cache_reader
-            .notify_read_executed_effects_digests(&[*change_epoch_tx.digest()])
+            .notify_read_executed_effects_digests(
+                "CheckpointExecutor::notify_read_advance_epoch_tx",
+                &[*change_epoch_tx.digest()],
+            )
             .await;
     }
 

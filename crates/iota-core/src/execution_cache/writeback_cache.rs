@@ -2049,10 +2049,11 @@ impl TransactionCacheRead for WritebackCache {
     #[instrument(level = "trace", skip_all)]
     fn try_notify_read_executed_effects_digests<'a>(
         &'a self,
+        task_name: &'static str,
         digests: &'a [TransactionDigest],
     ) -> BoxFuture<'a, IotaResult<Vec<TransactionEffectsDigest>>> {
         self.executed_effects_digests_notify_read
-            .read(digests, |digests| {
+            .read(task_name, digests, |digests| {
                 self.try_multi_get_executed_effects_digests(digests)
             })
             .boxed()

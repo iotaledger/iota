@@ -1762,7 +1762,10 @@ impl IotaNode {
             std::time::Duration::from_secs(timeout),
             state
                 .get_transaction_cache_reader()
-                .try_notify_read_executed_effects_digests(&digests),
+                .try_notify_read_executed_effects_digests(
+                    "IotaNode::notify_read_executed_effects_digests",
+                    &digests,
+                ),
         )
         .await
         .is_err()

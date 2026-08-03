@@ -1841,12 +1841,16 @@ impl AuthorityPerEpochStore {
     ) -> IotaResult<Vec<GlobalStateHash>> {
         let tables = self.tables()?;
         self.checkpoint_state_notify_read
-            .read(checkpoints, |checkpoints| {
-                tables
-                    .state_hash_by_checkpoint
-                    .multi_get(checkpoints)
-                    .map_err(Into::into)
-            })
+            .read(
+                "notify_read_checkpoint_state_hasher",
+                checkpoints,
+                |checkpoints| {
+                    tables
+                        .state_hash_by_checkpoint
+                        .multi_get(checkpoints)
+                        .map_err(Into::into)
+                },
+            )
             .await
     }
 

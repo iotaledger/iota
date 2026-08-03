@@ -485,7 +485,7 @@ impl ValidatorService {
                 let digests_to_watch = [tx_digest];
                 tokio::select! {
                     biased;
-                    effects_digests = cache.notify_read_executed_effects_digests(&digests_to_watch) => {
+                    effects_digests = cache.notify_read_executed_effects_digests("ValidatorService::notify_read_executed_effects_digests", &digests_to_watch) => {
                         Either::Left(effects_digests)
                     }
                     dropped_error = epoch_store.notify_read_dropped_digests(tx_digest) => {
