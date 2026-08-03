@@ -14,15 +14,16 @@ use colored::Colorize;
 use fastcrypto::encoding::Base64;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    Address, Identifier, ObjectData, ObjectId, ObjectReference, Owner, StructTag, Version,
+    Address, Identifier, MoveStruct, ObjectData, ObjectDigest, ObjectId, ObjectReference, Owner,
+    StructTag, TransactionDigest, Version,
     move_package::{MovePackage, TypeOrigin, UpgradeInfo},
 };
 use iota_types::{
-    base_types::{ObjectDigest, ObjectInfo, ObjectType, TransactionDigest},
+    base_types::{ObjectInfo, ObjectType},
     error::{ExecutionError, IotaError, IotaResult, UserInputError, UserInputResult},
     gas_coin::GasCoin,
     messages_checkpoint::CheckpointSequenceNumber,
-    object::{MoveObject, MoveObjectExt, Object, ObjectInner, ObjectRead},
+    object::{MoveStructExt, Object, ObjectInner, ObjectRead},
 };
 use move_bytecode_utils::module_cache::GetModule;
 use move_core_types::annotated_value::{MoveStructLayout, MoveValue};
@@ -603,7 +604,7 @@ impl TryInto<Object> for IotaObjectData {
         let protocol_config = ProtocolConfig::get_for_min_version();
         let data = match self.bcs {
             Some(IotaRawData::MoveObject(o)) => ObjectData::Struct({
-                MoveObject::new_from_execution(
+                MoveStruct::new_from_execution(
                     o.type_().clone(),
                     o.version.into(),
                     o.bcs_bytes,
@@ -699,7 +700,7 @@ impl From<ObjectRefSchema> for ObjectReference {
 pub trait IotaData: Sized {
     type ObjectType;
     type PackageType;
-    fn try_from_object(object: MoveObject, layout: MoveStructLayout)
+    fn try_from_object(object: MoveStruct, layout: MoveStructLayout)
     -> Result<Self, anyhow::Error>;
     fn try_from_package(package: MovePackage) -> Result<Self, anyhow::Error>;
     fn try_as_move(&self) -> Option<&Self::ObjectType>;
@@ -720,7 +721,7 @@ impl IotaData for IotaRawData {
     type ObjectType = IotaRawMoveObject;
     type PackageType = IotaRawMovePackage;
 
-    fn try_from_object(object: MoveObject, _: MoveStructLayout) -> Result<Self, anyhow::Error> {
+    fn try_from_object(object: MoveStruct, _: MoveStructLayout) -> Result<Self, anyhow::Error> {
         Ok(Self::MoveObject(object.into()))
     }
 
@@ -770,7 +771,7 @@ impl IotaData for IotaParsedData {
     type PackageType = IotaMovePackage;
 
     fn try_from_object(
-        object: MoveObject,
+        object: MoveStruct,
         layout: MoveStructLayout,
     ) -> Result<Self, anyhow::Error> {
         Ok(Self::MoveObject(Box::new(
@@ -840,7 +841,7 @@ impl Display for IotaParsedData {
         match self {
             IotaParsedData::MoveObject(o) => {
                 writeln!(writer, "{}: {}", "type".bold().bright_black(), o.type_)?;
-                write!(writer, "{}", &o.fields)?;
+                write!(writer, "{}", o.fields)?;
             }
             IotaParsedData::Package(p) => {
                 write!(
@@ -882,10 +883,10 @@ impl IotaParsedData {
 }
 
 pub trait IotaMoveObject: Sized {
-    fn try_from_layout(object: MoveObject, layout: MoveStructLayout)
+    fn try_from_layout(object: MoveStruct, layout: MoveStructLayout)
     -> Result<Self, anyhow::Error>;
 
-    fn try_from(o: MoveObject, resolver: &impl GetModule) -> Result<Self, anyhow::Error> {
+    fn try_from(o: MoveStruct, resolver: &impl GetModule) -> Result<Self, anyhow::Error> {
         let layout = o.get_layout(resolver)?;
         Self::try_from_layout(o, layout)
     }
@@ -906,7 +907,7 @@ pub struct IotaParsedMoveObject {
 
 impl IotaMoveObject for IotaParsedMoveObject {
     fn try_from_layout(
-        object: MoveObject,
+        object: MoveStruct,
         layout: MoveStructLayout,
     ) -> Result<Self, anyhow::Error> {
         let move_struct = object.to_move_struct(&layout)?.into();
@@ -988,8 +989,8 @@ pub struct IotaRawMoveObject {
     pub bcs_bytes: Vec<u8>,
 }
 
-impl From<MoveObject> for IotaRawMoveObject {
-    fn from(o: MoveObject) -> Self {
+impl From<MoveStruct> for IotaRawMoveObject {
+    fn from(o: MoveStruct) -> Self {
         Self {
             type_: o.struct_tag().clone(),
             version: o.version().into(),
@@ -1000,7 +1001,7 @@ impl From<MoveObject> for IotaRawMoveObject {
 
 impl IotaMoveObject for IotaRawMoveObject {
     fn try_from_layout(
-        object: MoveObject,
+        object: MoveStruct,
         _layout: MoveStructLayout,
     ) -> Result<Self, anyhow::Error> {
         Ok(Self {

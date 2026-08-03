@@ -7,7 +7,7 @@ use std::fmt;
 use anyhow::Result;
 use enum_dispatch::enum_dispatch;
 use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
-use iota_sdk_types::{Identifier, ObjectId};
+use iota_sdk_types::{Identifier, MoveStruct, ObjectId};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
 use self::{
@@ -23,7 +23,7 @@ use crate::{
     dynamic_field::{Field, get_dynamic_field_from_store, get_dynamic_field_object_from_store},
     error::IotaError,
     id::UID,
-    object::{MoveObject, MoveObjectExt, Object},
+    object::{MoveStructExt, Object},
     storage::ObjectStore,
     versioned::Versioned,
 };
@@ -134,7 +134,7 @@ impl IotaSystemStateWrapper {
     }
 
     fn advance_epoch_safe_mode_impl<T>(
-        move_object: &mut MoveObject,
+        move_object: &mut MoveStruct,
         params: &AdvanceEpochParams,
         protocol_config: &ProtocolConfig,
     ) where

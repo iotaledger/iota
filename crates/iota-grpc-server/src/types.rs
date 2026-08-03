@@ -16,16 +16,18 @@ use iota_grpc_types::{
     },
 };
 use iota_node_storage::GrpcStateReader;
-use iota_sdk_types::{Address, ObjectId, StructTag, TypeTag, Version};
+use iota_sdk_types::{
+    Address, CheckpointDigest, ObjectId, StructTag, TransactionDigest, TypeTag, Version,
+    checkpoint::CheckpointContents,
+};
 use iota_types::{
     base_types::VersionNumber,
-    digests::TransactionDigest,
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     full_checkpoint_content::{
         CheckpointData as IotaTypesCheckpointData,
         CheckpointTransaction as IotaTypesCheckpointTransaction,
     },
-    messages_checkpoint::{CertifiedCheckpointSummary, CheckpointContents},
+    messages_checkpoint::CertifiedCheckpointSummary,
     object::Object,
     storage::error::Kind,
 };
@@ -332,7 +334,7 @@ impl GrpcReader {
     /// Get checkpoint sequence number by digest
     pub fn get_checkpoint_sequence_number_by_digest(
         &self,
-        digest: &iota_types::digests::CheckpointDigest,
+        digest: &CheckpointDigest,
     ) -> anyhow::Result<Option<u64>> {
         self.state_reader
             .try_get_checkpoint_by_digest(digest)
@@ -433,14 +435,12 @@ impl GrpcReader {
             let mut checkpoint_proto = grpc_checkpoint::Checkpoint::default()
                 .with_sequence_number(sequence_number);
 
-            let sdk_signature = iota_sdk_types::ValidatorAggregatedSignature::from(checkpoint_summary.auth_sig().clone());
-
             // Use Merge to populate based on mask
             Merge::merge(&mut checkpoint_proto, checkpoint_summary.data(), &checkpoint_mask)
                 .map_err(|e| e.with_context("failed to merge summary"))?;
-            Merge::merge(&mut checkpoint_proto, checkpoint_contents, &checkpoint_mask)
+            Merge::merge(&mut checkpoint_proto, &checkpoint_contents, &checkpoint_mask)
                 .map_err(|e| e.with_context("failed to merge contents"))?;
-            Merge::merge(&mut checkpoint_proto, sdk_signature, &checkpoint_mask)
+            Merge::merge(&mut checkpoint_proto, checkpoint_summary.auth_sig(), &checkpoint_mask)
                 .map_err(|e| e.with_context("failed to merge signature"))?;
 
             yield Ok(grpc_ledger_service::CheckpointData::default().with_checkpoint(checkpoint_proto));
@@ -1151,18 +1151,11 @@ impl GrpcReader {
                 .ok_or(crate::error::TransactionNotFoundError(*digest))?;
 
             let transaction_data = (fields.include_transaction || fields.include_object_changes)
-                .then(|| transaction.transaction_data().clone());
+                .then(|| transaction.transaction().clone());
 
             let signatures_data = fields
                 .include_signatures
-                .then(|| {
-                    transaction
-                        .tx_signatures()
-                        .iter()
-                        .map(|sig| sig.clone().try_into())
-                        .collect::<Result<Vec<_>, _>>()
-                })
-                .transpose()?;
+                .then(|| transaction.signatures().to_owned());
 
             (transaction_data, signatures_data)
         } else {
@@ -1354,14 +1347,14 @@ impl Merge<CheckpointTransactionWithContext>
     ) -> Result<(), Self::Error> {
         if let Some(submask) = mask.subtree(Self::TRANSACTION_FIELD.name) {
             self.transaction = Some(iota_grpc_types::v1::transaction::Transaction::merge_from(
-                source.transaction.transaction.clone(),
+                &source.transaction.transaction,
                 &submask,
             )?);
         }
 
         if let Some(submask) = mask.subtree(Self::SIGNATURES_FIELD.name) {
             self.signatures = Some(iota_grpc_types::v1::signatures::UserSignatures::merge_from(
-                source.transaction.transaction.clone(),
+                &source.transaction.transaction,
                 &submask,
             )?);
         }
@@ -1369,7 +1362,7 @@ impl Merge<CheckpointTransactionWithContext>
         if let Some(submask) = mask.subtree(Self::EFFECTS_FIELD.name) {
             self.effects = Some(
                 iota_grpc_types::v1::transaction::TransactionEffects::merge_from(
-                    source.transaction.effects.clone(),
+                    &source.transaction.effects,
                     &submask,
                 )?,
             );
@@ -1418,7 +1411,7 @@ impl Merge<CheckpointTransactionWithContext>
         if mask.subtree(Self::OBJECT_CHANGES_FIELD.name).is_some() {
             use iota_types::transaction::TransactionDataAPI as _;
 
-            let sender = source.transaction.transaction.transaction_data().sender();
+            let sender = source.transaction.transaction.transaction().sender();
             self.object_changes = Some(
                 iota_grpc_types::v1::transaction::ObjectChanges::default().with_object_changes(
                     crate::changes::derive_object_changes(

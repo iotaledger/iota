@@ -3,10 +3,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_sdk_types::{
-    Address, GasPayment, ObjectId, ObjectReference, TransactionExpiration, TransactionKind,
-    TransactionV1, Version,
+    Address, GasPayment, ObjectDigest, ObjectId, ObjectReference, TransactionExpiration,
+    TransactionKind, TransactionV1, Version,
 };
-use iota_types::{digests::ObjectDigest, transaction::TransactionData};
+use iota_types::transaction::TransactionData;
 use move_core_types::account_address::AccountAddress;
 use proptest::{arbitrary::*, collection::vec, prelude::*};
 

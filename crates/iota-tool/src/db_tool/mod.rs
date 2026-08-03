@@ -13,13 +13,10 @@ use iota_core::{
     },
     checkpoints::CheckpointStore,
 };
-use iota_sdk_types::ObjectId;
+use iota_sdk_types::{CheckpointContentsDigest, CheckpointDigest, ObjectId, TransactionDigest};
 use iota_types::{
-    base_types::EpochId,
-    digests::{CheckpointContentsDigest, TransactionDigest},
-    effects::TransactionEffectsAPI,
-    messages_checkpoint::{CheckpointDigest, CheckpointSequenceNumber},
-    storage::ObjectStore,
+    base_types::EpochId, effects::TransactionEffectsAPI,
+    messages_checkpoint::CheckpointSequenceNumber, storage::ObjectStore,
 };
 use typed_store::rocks::{MetricConf, safe_drop_db};
 
@@ -304,7 +301,7 @@ pub fn print_checkpoint(path: &Path, opt: PrintCheckpointOptions) -> anyhow::Res
     print_checkpoint_content(
         path,
         PrintCheckpointContentOptions {
-            digest: checkpoint.content_digest,
+            digest: checkpoint.contents_digest,
         },
     )
 }
@@ -460,7 +457,7 @@ pub fn set_checkpoint_watermark(
         // will panic if it tries to execute a checkpoint whose contents are
         // missing from the store.
         if checkpoint_db
-            .get_checkpoint_contents(&checkpoint.content_digest)?
+            .get_checkpoint_contents(&checkpoint.contents_digest)?
             .is_none()
         {
             bail!(

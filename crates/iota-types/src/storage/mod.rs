@@ -16,7 +16,9 @@ use std::{
     sync::Arc,
 };
 
-use iota_sdk_types::{ObjectId, ObjectReference, Version, move_package::MovePackage};
+use iota_sdk_types::{
+    ObjectId, ObjectReference, TransactionDigest, Version, move_package::MovePackage,
+};
 use itertools::Itertools;
 use move_binary_format::CompiledModule;
 use move_core_types::language_storage::ModuleId;
@@ -33,7 +35,7 @@ pub use write_store::WriteStore;
 
 use crate::{
     auth_context::AuthContext,
-    base_types::{TransactionDigest, VersionNumber},
+    base_types::VersionNumber,
     committee::EpochId,
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
     error::{ExecutionError, IotaError, IotaResult},
@@ -41,7 +43,7 @@ use crate::{
     iota_sdk_types_conversions::identifier_core_to_sdk,
     object::Object,
     storage::error::Error as StorageError,
-    transaction::{SenderSignedData, TransactionDataAPI},
+    transaction::{SenderSignedData, SenderSignedTransactionAPI, TransactionDataAPI},
 };
 
 /// A potential input to a transaction.
@@ -540,8 +542,7 @@ pub fn transaction_non_shared_input_object_keys(
 }
 
 pub fn transaction_receiving_object_keys(tx: &SenderSignedData) -> Vec<ObjectKey> {
-    tx.intent_message()
-        .value
+    tx.transaction()
         .receiving_objects()
         .into_iter()
         .map(|oref| oref.into())

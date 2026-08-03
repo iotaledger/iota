@@ -13,15 +13,15 @@ use std::collections::HashMap;
 
 use futures::future;
 use iota_json_rpc_types::{CheckpointId, IotaEvent};
-use iota_sdk_types::{Address, ObjectId, Version};
+use iota_sdk_types::{
+    Address, ObjectId, TransactionDigest, Version, checkpoint::CheckpointContents,
+};
 use iota_types::{
-    digests::TransactionDigest,
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
     event::EventID,
     full_checkpoint_content::CheckpointTransaction,
     messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointContents, CheckpointContentsExt,
-        CheckpointSequenceNumber,
+        CertifiedCheckpointSummary, CheckpointContentsExt, CheckpointSequenceNumber,
     },
     object::Object,
 };
@@ -193,7 +193,7 @@ impl HistoricalFallbackReader {
     }
 
     /// Fetches a checkpoint by either a [`CheckpointSequenceNumber`] or
-    /// [`CheckpointDigest`](iota_types::digests::CheckpointDigest).
+    /// [`CheckpointDigest`](iota_sdk_types::CheckpointDigest).
     pub(crate) async fn checkpoint(
         &self,
         id: CheckpointId,

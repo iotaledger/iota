@@ -13,19 +13,18 @@ use std::fmt::Debug;
 
 use executor::Executor;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{Address, GasPayment, ObjectId, Owner};
+use iota_sdk_types::{Address, GasPayment, MoveStruct, ObjectId, Owner, TransactionDigest};
 use iota_types::{
     crypto::{AccountKeyPair, get_key_pair},
-    digests::TransactionDigest,
     gas_coin::NANOS_PER_IOTA,
-    object::{MoveObject, MoveObjectExt, OBJECT_START_VERSION, Object},
+    object::{MoveStructExt, OBJECT_START_VERSION, Object},
 };
 use proptest::{collection::vec, prelude::*, test_runner::TestRunner};
 use rand::{Rng, SeedableRng, rngs::StdRng};
 
 fn new_gas_coin_with_balance_and_owner(balance: u64, owner: Owner) -> Object {
     Object::new_move(
-        MoveObject::new_gas_coin(OBJECT_START_VERSION, ObjectId::random(), balance),
+        MoveStruct::new_gas_coin(OBJECT_START_VERSION, ObjectId::random(), balance),
         owner,
         TransactionDigest::GENESIS_MARKER,
     )

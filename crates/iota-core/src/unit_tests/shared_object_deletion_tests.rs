@@ -9,10 +9,10 @@ use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_sdk_types::{
     Address, CommandArgumentError, ExecutionError as ExecutionFailureStatus,
     ExecutionError::{InputObjectDeleted, SharedObjectOperationNotAllowed},
-    ObjectId, ObjectReference, ProgrammableTransaction, SharedObjectReference, Version,
+    ObjectId, ObjectReference, ProgrammableTransaction, SharedObjectReference, TransactionDigest,
+    Version,
 };
 use iota_types::{
-    base_types::TransactionDigest,
     committee::EpochId,
     crypto::{AccountKeyPair, get_key_pair},
     effects::{TransactionEffects, TransactionEffectsAPI},

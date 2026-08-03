@@ -5,16 +5,17 @@
 use std::sync::Arc;
 
 use iota_node_storage::{GrpcIndexes, GrpcStateReader};
-use iota_sdk_types::StructTag;
+use iota_sdk_types::{
+    CheckpointContentsDigest, CheckpointDigest, StructTag, TransactionDigest,
+    checkpoint::{CheckpointContents, EndOfEpochData},
+};
 use iota_types::{
-    base_types::TransactionDigest,
     committee::{Committee, EpochId},
     effects::{TransactionEffects, TransactionEvents},
     error::IotaError,
     messages_checkpoint::{
-        CheckpointContentsDigest, CheckpointContentsExt, CheckpointDigest,
-        CheckpointSequenceNumber, EndOfEpochData, FullCheckpointContents, VerifiedCheckpoint,
-        VerifiedCheckpointContents,
+        CheckpointContentsExt, CheckpointSequenceNumber, FullCheckpointContents,
+        VerifiedCheckpoint, VerifiedCheckpointContents,
     },
     object::Object,
     storage::{
@@ -231,9 +232,7 @@ impl ReadStore for RocksDbStore {
     fn try_get_checkpoint_contents_by_digest(
         &self,
         digest: &CheckpointContentsDigest,
-    ) -> iota_types::storage::error::Result<
-        Option<iota_types::messages_checkpoint::CheckpointContents>,
-    > {
+    ) -> iota_types::storage::error::Result<Option<CheckpointContents>> {
         self.checkpoint_store
             .get_checkpoint_contents(digest)
             .map_err(iota_types::storage::error::Error::custom)
@@ -242,12 +241,10 @@ impl ReadStore for RocksDbStore {
     fn try_get_checkpoint_contents_by_sequence_number(
         &self,
         sequence_number: CheckpointSequenceNumber,
-    ) -> iota_types::storage::error::Result<
-        Option<iota_types::messages_checkpoint::CheckpointContents>,
-    > {
+    ) -> iota_types::storage::error::Result<Option<CheckpointContents>> {
         match self.try_get_checkpoint_by_sequence_number(sequence_number) {
             Ok(Some(checkpoint)) => {
-                self.try_get_checkpoint_contents_by_digest(&checkpoint.content_digest)
+                self.try_get_checkpoint_contents_by_digest(&checkpoint.contents_digest)
             }
             Ok(None) => Ok(None),
             Err(e) => Err(e),
@@ -434,18 +431,14 @@ impl ReadStore for GrpcReadStore {
     fn try_get_checkpoint_contents_by_digest(
         &self,
         digest: &CheckpointContentsDigest,
-    ) -> iota_types::storage::error::Result<
-        Option<iota_types::messages_checkpoint::CheckpointContents>,
-    > {
+    ) -> iota_types::storage::error::Result<Option<CheckpointContents>> {
         self.rocks.try_get_checkpoint_contents_by_digest(digest)
     }
 
     fn try_get_checkpoint_contents_by_sequence_number(
         &self,
         sequence_number: CheckpointSequenceNumber,
-    ) -> iota_types::storage::error::Result<
-        Option<iota_types::messages_checkpoint::CheckpointContents>,
-    > {
+    ) -> iota_types::storage::error::Result<Option<CheckpointContents>> {
         self.rocks
             .try_get_checkpoint_contents_by_sequence_number(sequence_number)
     }

@@ -11,15 +11,17 @@ use std::{
 
 use better_any::{Tid, TidAble};
 use indexmap::{IndexMap, IndexSet};
-use iota_sdk_types::{Address, ObjectId, Owner, StructTag, TypeTag, Version};
+use iota_sdk_types::{
+    Address, MoveStruct, ObjectDigest, ObjectId, Owner, StructTag, TransactionDigest, TypeTag,
+    Version,
+};
 use iota_types::{
-    digests::{ObjectDigest, TransactionDigest},
     dynamic_field::DynamicFieldInfo,
     execution::DynamicallyLoadedObjectMetadata,
     id::UID,
     in_memory_storage::InMemoryStorage,
     iota_sdk_types_conversions::struct_tag_core_to_sdk,
-    object::{MoveObject, MoveObjectExt, Object},
+    object::{MoveStructExt, Object},
     storage::{BackingPackageStore, ChildObjectResolver},
 };
 use move_binary_format::errors::{PartialVMError, PartialVMResult};
@@ -675,7 +677,7 @@ pub fn allocate_receiving_ticket_for_object(
         ));
     };
     let move_object =
-        MoveObject::new_from_execution_with_limit(tag, object_version, bytes, 250 * 1024).unwrap();
+        MoveStruct::new_from_execution_with_limit(tag, object_version, bytes, 250 * 1024).unwrap();
 
     let Some((owner, _)) = inventories
         .address_inventories

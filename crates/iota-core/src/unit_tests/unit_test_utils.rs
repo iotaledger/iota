@@ -11,9 +11,8 @@ use iota_framework::BuiltInFramework;
 use iota_genesis_builder::validator_info::ValidatorInfo;
 use iota_move_build::test_utils::compile_basics_package;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{Address, ObjectId};
+use iota_sdk_types::{Address, ObjectId, TransactionDigest};
 use iota_types::{
-    base_types::TransactionDigest,
     crypto::{
         AccountKeyPair, AuthorityKeyPair, AuthorityPublicKeyBytes, IotaKeyPair, NetworkKeyPair,
         generate_proof_of_possession, get_key_pair,
@@ -81,8 +80,8 @@ async fn init_genesis(
     for (_, key) in &key_pairs {
         builder = builder.add_validator_signature(key);
     }
-    let genesis_build_effects = builder.build();
-    (genesis_build_effects.genesis, key_pairs, pkg_id)
+    let genesis = builder.build();
+    (genesis, key_pairs, pkg_id)
 }
 
 #[cfg(test)]

@@ -3,16 +3,20 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_protocol_config::ProtocolVersion;
-use iota_sdk_types::{gas::GasCostSummary, validator::ValidatorCommitteeMember};
+use iota_sdk_types::{
+    CheckpointDigest, Digest, TransactionDigest,
+    checkpoint::{CheckpointCommitment, CheckpointContents, CheckpointSummary, EndOfEpochData},
+    gas::GasCostSummary,
+    validator::ValidatorCommitteeMember,
+};
 use iota_types::{
-    base_types::{AuthorityName, TransactionDigest},
+    base_types::AuthorityName,
     committee::{EpochId, StakeUnit},
     crypto::AggregateAuthoritySignature,
-    digests::{CheckpointDigest, Digest},
     iota_serde::BigInt,
     messages_checkpoint::{
-        CheckpointCommitment, CheckpointContents, CheckpointContentsExt, CheckpointSequenceNumber,
-        CheckpointSummary, CheckpointTimestamp, ECMHLiveObjectSetDigest, EndOfEpochData,
+        CheckpointContentsExt, CheckpointSequenceNumber, CheckpointTimestamp,
+        ECMHLiveObjectSetDigest,
     },
 };
 use schemars::JsonSchema;

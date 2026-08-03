@@ -15,13 +15,13 @@ use std::{
 
 use iota_config::WritebackCacheConfig;
 use iota_framework::BuiltInFramework;
-use iota_sdk_types::{Address, Event, Identifier, ObjectId, Owner, StructTag};
+use iota_sdk_types::{Address, Event, Identifier, MoveStruct, ObjectId, Owner, StructTag};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     base_types::random_object_ref,
     crypto::{AccountKeyPair, deterministic_random_account_key, get_key_pair_from_rng},
     effects::{TestEffectsBuilder, TransactionEffectsAPI},
-    object::{MoveObject, MoveObjectExt, OBJECT_START_VERSION},
+    object::{MoveStructExt, OBJECT_START_VERSION},
     storage::ChildObjectResolver,
 };
 use prometheus_filtered::default_registry;
@@ -188,7 +188,7 @@ impl Scenario {
         let id = ObjectId::random();
         let (owner, _) = deterministic_random_account_key();
         Object::new_move(
-            MoveObject::new_gas_coin(OBJECT_START_VERSION, id, 100),
+            MoveStruct::new_gas_coin(OBJECT_START_VERSION, id, 100),
             Owner::Address(owner),
             TransactionDigest::ZERO,
         )
@@ -214,7 +214,7 @@ impl Scenario {
     fn new_child(owner: ObjectId) -> Object {
         let id = ObjectId::random();
         Object::new_move(
-            MoveObject::new_gas_coin(OBJECT_START_VERSION, id, 100),
+            MoveStruct::new_gas_coin(OBJECT_START_VERSION, id, 100),
             Owner::Object(owner),
             TransactionDigest::ZERO,
         )

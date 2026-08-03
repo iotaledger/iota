@@ -10,11 +10,10 @@ use std::{
 
 use futures::{StreamExt as _, future::BoxFuture, stream::FuturesUnordered};
 use iota_common::{backoff::ExponentialBackoff, debug_fatal};
-use iota_sdk_types::ObjectReference;
+use iota_sdk_types::{ObjectReference, TransactionDigest, TransactionEffectsDigest};
 use iota_types::{
     base_types::{AuthorityName, ConciseableName as _},
     committee::StakeUnit,
-    digests::{TransactionDigest, TransactionEffectsDigest},
     effects::{TransactionEffectsAPI as _, TransactionEffectsExt as _},
     error::{IotaError, IotaResult},
     messages_grpc::{ExecutedData, GetTxStatusRequest, TxStatusQuery, TxStatusUpdate},
@@ -1080,10 +1079,11 @@ mod tests {
     };
 
     use async_trait::async_trait;
-    use iota_sdk_types::{Address, ExecutionStatus, GasCostSummary, ObjectId, Owner, Version};
+    use iota_sdk_types::{
+        Address, ExecutionStatus, GasCostSummary, ObjectId, Owner, TransactionDigest, Version,
+    };
     use iota_types::{
         committee::Committee,
-        digests::TransactionDigest,
         effects::{
             EffectsObjectChange, IDOperation, ObjectIn, ObjectOut, TransactionEffects,
             TransactionEffectsExt as _, TransactionEvents,

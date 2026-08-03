@@ -14,9 +14,9 @@ use iota_move_natives::{
 };
 use iota_package_management::system_package_versions::latest_system_packages;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::Address;
+use iota_sdk_types::{Address, TransactionDigest};
 use iota_types::{
-    auth_context::AuthContext, base_types::TxContext, digests::TransactionDigest,
+    auth_context::AuthContext, base_types::TxContext,
     gas_model::tables::initial_cost_schedule_for_unit_tests, in_memory_storage::InMemoryStorage,
     metrics::LimitsMetrics,
 };

@@ -279,7 +279,7 @@ pub struct StateSnapshotWriterV1 {
     checkpoint_store: Arc<CheckpointStore>,
     /// Chain identifier written into the `ManifestV2`.
     chain_id: ChainIdentifier,
-    concurrency: usize,
+    concurrency: NonZeroUsize,
 }
 
 impl StateSnapshotWriterV1 {
@@ -299,7 +299,7 @@ impl StateSnapshotWriterV1 {
             local_staging_store: local_staging_store.clone(),
             checkpoint_store,
             chain_id,
-            concurrency: concurrency.get(),
+            concurrency,
         })
     }
 
@@ -325,7 +325,7 @@ impl StateSnapshotWriterV1 {
             local_staging_store,
             checkpoint_store,
             chain_id,
-            concurrency: concurrency.get(),
+            concurrency,
         })
     }
 
@@ -376,15 +376,13 @@ impl StateSnapshotWriterV1 {
         });
         // Awaits the object and reference files to be written to the local staging
         // directory and informs the upload loop
-        write_handler.await?.context(format!(
-            "Failed to write state snapshot for epoch: {}",
-            &epoch
-        ))?;
+        write_handler
+            .await?
+            .context(format!("Failed to write state snapshot for epoch: {epoch}"))?;
 
         // Awaits the upload loop to finish
         upload_handle.await?.context(format!(
-            "Failed to upload state snapshot for epoch: {}",
-            &epoch
+            "Failed to upload state snapshot for epoch: {epoch}"
         ))?;
 
         // Syncs the manifest file to the remote store
@@ -409,7 +407,7 @@ impl StateSnapshotWriterV1 {
         let local_staging_store = self.local_staging_store.clone();
         let local_dir_path = self.local_staging_dir.clone();
         let epoch_dir = self.epoch_dir(epoch);
-        let upload_concurrency = self.concurrency;
+        let concurrency = self.concurrency;
         let join_handle = tokio::spawn(async move {
             // Uploads the files to the remote store in parallel for each received
             // FileMetadata
@@ -431,7 +429,7 @@ impl StateSnapshotWriterV1 {
                     }
                 })
                 .boxed()
-                .buffer_unordered(upload_concurrency)
+                .buffer_unordered(concurrency.into())
                 .collect()
                 .await;
             results
@@ -666,12 +664,7 @@ impl StateSnapshotWriterV1 {
     async fn setup_epoch_dir(&self, epoch: u64) -> Result<()> {
         let epoch_dir = self.epoch_dir(epoch);
         // Deletes remote epoch dir if it exists
-        delete_recursively(
-            &epoch_dir,
-            &self.remote_object_store,
-            NonZeroUsize::new(self.concurrency).unwrap(),
-        )
-        .await?;
+        delete_recursively(&epoch_dir, &self.remote_object_store, self.concurrency).await?;
         // Deletes local staging epoch dir if it exists
         let local_epoch_dir_path = self.local_staging_dir.join(format!("epoch_{epoch}"));
         if local_epoch_dir_path.exists() {

@@ -17,10 +17,11 @@ use std::{
 };
 
 use iota_grpc_types::v1::transaction as grpc_tx;
-use iota_sdk_types::{Address, ExecutionStatus, ObjectId, Owner, StructTag, TypeTag, Version};
+use iota_sdk_types::{
+    Address, ExecutionStatus, ObjectDigest, ObjectId, Owner, StructTag, TypeTag, Version,
+};
 use iota_types::{
     coin::Coin,
-    digests::ObjectDigest,
     effects::{ObjectRemoveKind, TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
     gas_coin::GAS,
     object::Object,
@@ -493,8 +494,8 @@ impl From<DerivedObjectChange> for grpc_tx::ObjectChange {
 
 #[cfg(test)]
 mod tests {
+    use iota_sdk_types::TransactionDigest;
     use iota_types::{
-        digests::TransactionDigest,
         effects::{TestEffectsBuilder, TransactionEffectsAPIForTesting as _},
         full_checkpoint_content::CheckpointTransaction,
         test_checkpoint_data_builder::TestCheckpointDataBuilder,

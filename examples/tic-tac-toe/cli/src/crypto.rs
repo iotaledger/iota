@@ -6,9 +6,9 @@ use std::collections::BTreeMap;
 
 use anyhow::{Result, anyhow};
 use fastcrypto::encoding::{Base64, Encoding};
-use iota_sdk_types::crypto::PublicKey as SdkPublicKey;
+use iota_sdk_types::{SignatureScheme, crypto::PublicKey as SdkPublicKey};
 use iota_types::{
-    crypto::{EncodeDecodeBase64, PublicKey, SignatureScheme},
+    crypto::{EncodeDecodeBase64, PublicKey},
     multisig::{MultiSigPublicKey, MultisigMember},
 };
 
@@ -16,7 +16,7 @@ use iota_types::{
 pub(crate) fn public_key_from_base64(base64: &str) -> Result<PublicKey> {
     let bytes = Base64::decode(base64).map_err(|_| anyhow!("Failed to decode base64"))?;
 
-    PublicKey::try_from_bytes(SignatureScheme::ED25519, &bytes)
+    PublicKey::try_from_bytes(SignatureScheme::Ed25519, &bytes)
         .map_err(|_| anyhow!("Failed to read public key"))
 }
 

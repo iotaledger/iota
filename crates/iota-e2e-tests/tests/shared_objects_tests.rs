@@ -24,7 +24,7 @@ use iota_types::{
     transaction::CallArg,
 };
 use rand::distributions::Distribution;
-use test_cluster::TestClusterBuilder;
+use test_cluster::{TestClusterBuilder, override_pcool_flow};
 use tokio::time::sleep;
 
 /// Send a simple shared object transaction to IOTA and ensures the client gets
@@ -84,6 +84,7 @@ async fn shared_object_deletion() {
 
 #[sim_test]
 async fn shared_object_deletion_multiple_times() {
+    let _pcool_guard = override_pcool_flow(false);
     let num_deletions = 300;
     let mut test_cluster = TestClusterBuilder::new()
         .with_accounts(vec![AccountConfig {
@@ -140,12 +141,13 @@ async fn shared_object_deletion_multiple_times() {
     fullnode
         .state()
         .get_transaction_cache_reader()
-        .notify_read_executed_effects(&digests)
+        .notify_read_executed_effects_for_testing(&digests)
         .await;
 }
 
 #[sim_test]
 async fn shared_object_deletion_multiple_times_cert_racing() {
+    let _pcool_guard = override_pcool_flow(false);
     let num_deletions = 10;
     let mut test_cluster = TestClusterBuilder::new()
         .with_accounts(vec![AccountConfig {
@@ -196,7 +198,7 @@ async fn shared_object_deletion_multiple_times_cert_racing() {
     fullnode
         .state()
         .get_transaction_cache_reader()
-        .notify_read_executed_effects(&digests)
+        .notify_read_executed_effects_for_testing(&digests)
         .await;
 }
 
@@ -216,6 +218,7 @@ async fn shared_object_deletion_multiple_times_cert_racing() {
 /// regardless of the order. (checkpoint fork detection will also test this).
 #[sim_test]
 async fn shared_object_deletion_multi_certs() {
+    let _pcool_guard = override_pcool_flow(false);
     // cause random delay just before tx is executed
     register_fail_point_async("transaction_execution_delay", move || async move {
         let delay = {
@@ -311,7 +314,7 @@ async fn shared_object_deletion_multi_certs() {
     fullnode
         .state()
         .get_transaction_cache_reader()
-        .notify_read_executed_effects(&[inc_tx_a_digest, inc_tx_b_digest])
+        .notify_read_executed_effects_for_testing(&[inc_tx_a_digest, inc_tx_b_digest])
         .await;
 }
 
@@ -549,6 +552,7 @@ async fn access_clock_object_test() {
 
 #[sim_test]
 async fn shared_object_sync() {
+    let _pcool_guard = override_pcool_flow(false);
     let test_cluster = TestClusterBuilder::new()
         // Set the threshold high enough so it won't be triggered.
         .with_authority_overload_config(AuthorityOverloadConfig {

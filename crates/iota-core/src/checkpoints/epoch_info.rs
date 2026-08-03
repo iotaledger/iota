@@ -12,12 +12,13 @@
 //! epoch whose contiguous prefix is finalized.
 
 use iota_protocol_config::Chain;
+use iota_sdk_types::checkpoint::CheckpointSummary;
 use iota_types::{
     committee::EpochId,
     digests::ChainIdentifier,
     full_checkpoint_content::CheckpointData,
     iota_system_state::IotaSystemStateTrait,
-    messages_checkpoint::{CheckpointSequenceNumber, CheckpointSummary},
+    messages_checkpoint::CheckpointSequenceNumber,
     storage::{EpochInfoV1Entry, EpochInfoV2, error::Error as StorageError},
 };
 use tracing::warn;
@@ -360,16 +361,17 @@ fn open_epoch_of(checkpoint: &CheckpointSummary) -> EpochId {
 
 #[cfg(test)]
 mod tests {
-    use iota_sdk_types::GasCostSummary;
+    use iota_sdk_types::{
+        GasCostSummary, TransactionDigest,
+        checkpoint::{CheckpointContents, CheckpointSummary, EndOfEpochData},
+    };
     use iota_types::{
         crypto::AuthorityStrongQuorumSignInfo,
-        digests::TransactionDigest,
         effects::{TransactionEffects, TransactionEffectsExtForTesting, TransactionEvents},
         iota_system_state::IotaSystemState,
         message_envelope::Envelope,
         messages_checkpoint::{
-            CertifiedCheckpointSummary, CheckpointContents, CheckpointContentsExt,
-            CheckpointSummary, EndOfEpochData, VerifiedCheckpoint,
+            CertifiedCheckpointSummary, CheckpointContentsExt, VerifiedCheckpoint,
         },
     };
     use typed_store::Map;
@@ -390,7 +392,7 @@ mod tests {
             epoch,
             sequence_number,
             network_total_transactions: 0,
-            content_digest: Default::default(),
+            contents_digest: Default::default(),
             previous_digest: None,
             epoch_rolling_gas_cost_summary: GasCostSummary::default(),
             end_of_epoch_data,

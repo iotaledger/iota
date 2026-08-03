@@ -585,7 +585,7 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
                     // errors (wrong count/ref) which classify as Untracked. When
                     // per-header faults become observable here, record them as peer
                     // misbehavior via
-                    // `inner.misbehavior_store.record_faulty_block_header`.
+                    // `inner.misbehavior_store.record_faulty_block`.
                     verify_fetched_headers(
                         target_authority,
                         request_block_refs,
@@ -779,94 +779,24 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
 
 #[cfg(test)]
 mod tests {
-    use std::{
-        sync::{Arc, atomic::AtomicBool},
-        time::Duration,
-    };
+    use std::sync::{Arc, atomic::AtomicBool};
 
-    use bytes::Bytes;
     use parking_lot::RwLock;
     use starfish_config::{AuthorityIndex, Parameters};
 
     use crate::{
-        CommitConsumerMonitor, CommitDigest, CommitRef, Round,
-        block_header::{BlockRef, TestBlockHeader, VerifiedBlockHeader},
+        CommitConsumerMonitor, CommitDigest, CommitRef,
+        block_header::{TestBlockHeader, VerifiedBlockHeader},
         block_verifier::NoopBlockVerifier,
-        commit::CommitRange,
-        commit_syncer::regular::RegularCommitSyncer,
+        commit_syncer::{regular::RegularCommitSyncer, tests::FakeNetworkClient},
         commit_vote_monitor::CommitVoteMonitor,
         context::Context,
         core_thread::tests::MockCoreThreadDispatcher,
         dag_state::DagState,
-        error::ConsensusResult,
         header_synchronizer::HeaderSynchronizer,
         misbehavior_store::MisbehaviorStore,
-        network::{BlockBundleStream, NetworkClient},
         storage::{Store, mem_store::MemStore},
-        transaction_ref::GenericTransactionRef,
     };
-
-    #[derive(Default)]
-    struct FakeNetworkClient {}
-
-    #[async_trait::async_trait]
-    impl NetworkClient for FakeNetworkClient {
-        async fn subscribe_block_bundles(
-            &self,
-            _peer: AuthorityIndex,
-            _last_received: Round,
-            _timeout: Duration,
-        ) -> ConsensusResult<BlockBundleStream> {
-            unimplemented!("Unimplemented")
-        }
-
-        async fn fetch_transactions(
-            &self,
-            _peer: AuthorityIndex,
-            _block_refs: Vec<GenericTransactionRef>,
-            _timeout: Duration,
-        ) -> ConsensusResult<Vec<Bytes>> {
-            unimplemented!("Unimplemented")
-        }
-
-        // Returns a vector of serialized block headers
-        async fn fetch_block_headers(
-            &self,
-            _peer: AuthorityIndex,
-            _block_refs: Vec<BlockRef>,
-            _highest_accepted_rounds: Vec<Round>,
-            _timeout: Duration,
-        ) -> ConsensusResult<Vec<Bytes>> {
-            unimplemented!();
-        }
-
-        async fn fetch_commits(
-            &self,
-            _peer: AuthorityIndex,
-            _commit_range: CommitRange,
-            _timeout: Duration,
-        ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>)> {
-            unimplemented!("Unimplemented")
-        }
-
-        async fn fetch_commits_and_transactions(
-            &self,
-            _peer: AuthorityIndex,
-            _commit_range: CommitRange,
-            _timeout: Duration,
-        ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>, Vec<Bytes>)> {
-            unimplemented!("Unimplemented")
-        }
-
-        async fn fetch_latest_block_headers(
-            &self,
-            _peer: AuthorityIndex,
-            _authorities: Vec<AuthorityIndex>,
-            _timeout: Duration,
-        ) -> ConsensusResult<Vec<Bytes>> {
-            unimplemented!("Unimplemented")
-        }
-    }
 
     #[tokio::test(flavor = "current_thread", start_paused = true)]
     async fn commit_syncer_start_and_pause_scheduling() {
@@ -899,6 +829,7 @@ mod tests {
                 context.clone(),
                 core_thread_dispatcher.clone(),
                 dag_state.clone(),
+                block_verifier.clone(),
             );
         let header_synchronizer = HeaderSynchronizer::start(
             network_client.clone(),
@@ -1025,6 +956,7 @@ mod tests {
                     context.clone(),
                     core_thread_dispatcher.clone(),
                     dag_state.clone(),
+                    block_verifier.clone(),
                 );
             let header_synchronizer = HeaderSynchronizer::start(
                 network_client.clone(),

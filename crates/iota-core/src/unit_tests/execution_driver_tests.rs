@@ -10,10 +10,10 @@ use std::{
 };
 
 use iota_config::node::AuthorityOverloadConfig;
-use iota_sdk_types::Owner;
+use iota_protocol_config::ProtocolConfig;
+use iota_sdk_types::{Owner, TransactionDigest};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::TransactionDigest,
     committee::Committee,
     crypto::{AccountKeyPair, get_key_pair},
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
@@ -268,7 +268,7 @@ pub async fn do_cert_with_shared_objects(
     send_consensus(authority, cert).await;
     authority
         .get_transaction_cache_reader()
-        .notify_read_executed_effects(&[*cert.digest()])
+        .notify_read_executed_effects_for_testing(&[*cert.digest()])
         .await
         .pop()
         .unwrap()
@@ -445,7 +445,7 @@ async fn test_execution_with_dependencies() {
         .collect();
     authorities[3]
         .get_transaction_cache_reader()
-        .notify_read_executed_effects(&digests)
+        .notify_read_executed_effects_for_testing(&digests)
         .await;
 }
 
@@ -508,7 +508,7 @@ async fn test_per_object_overload() {
     for authority in authorities.iter().take(3) {
         authority
             .get_transaction_cache_reader()
-            .notify_read_executed_effects(&[*create_counter_cert.digest()])
+            .notify_read_executed_effects_for_testing(&[*create_counter_cert.digest()])
             .await
             .pop()
             .unwrap();
@@ -522,7 +522,7 @@ async fn test_per_object_overload() {
     send_consensus(&authorities[3], &create_counter_cert).await;
     let create_counter_effects = authorities[3]
         .get_transaction_cache_reader()
-        .notify_read_executed_effects(&[*create_counter_cert.digest()])
+        .notify_read_executed_effects_for_testing(&[*create_counter_cert.digest()])
         .await
         .pop()
         .unwrap();
@@ -633,7 +633,7 @@ async fn test_txn_age_overload() {
     for authority in authorities.iter().take(3) {
         authority
             .get_transaction_cache_reader()
-            .notify_read_executed_effects(&[*create_counter_cert.digest()])
+            .notify_read_executed_effects_for_testing(&[*create_counter_cert.digest()])
             .await
             .pop()
             .unwrap();
@@ -647,7 +647,7 @@ async fn test_txn_age_overload() {
     send_consensus(&authorities[3], &create_counter_cert).await;
     let create_counter_effects = authorities[3]
         .get_transaction_cache_reader()
-        .notify_read_executed_effects(&[*create_counter_cert.digest()])
+        .notify_read_executed_effects_for_testing(&[*create_counter_cert.digest()])
         .await
         .pop()
         .unwrap();
@@ -716,6 +716,13 @@ async fn test_txn_age_overload() {
 #[tokio::test(flavor = "current_thread", start_paused = true)]
 async fn test_authority_txn_signing_pushback() {
     telemetry_subscribers::init_for_testing();
+
+    // Load shedding at signing only applies to the pre-consensus flow, which
+    // `handle_transaction` serves.
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(false);
+        config
+    });
 
     // Create one sender, two recipients addresses, and 2 gas objects.
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
@@ -836,6 +843,13 @@ async fn test_authority_txn_signing_pushback() {
 #[tokio::test(flavor = "current_thread", start_paused = true)]
 async fn test_authority_txn_execution_pushback() {
     telemetry_subscribers::init_for_testing();
+
+    // Load shedding at execution only applies to the pre-consensus flow, which
+    // `handle_certificate` serves.
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(false);
+        config
+    });
 
     // Create one sender, one recipient addresses, and 2 gas objects.
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();

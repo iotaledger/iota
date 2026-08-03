@@ -67,7 +67,8 @@ pub enum ProfileSink {
     /// [`VmSdkError`](crate::VmSdkError).
     Path(PathBuf),
     /// Write the profile to a temporary location and read its bytes back into
-    /// [`ProfileOutput::Json`] after execution.
+    /// [`ProfileOutput::Json`] after execution. (Native only — on wasm32 the
+    /// filesystem is unavailable and this behaves as a no-op.)
     Capture,
 }
 

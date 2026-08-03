@@ -7,7 +7,12 @@
 // finality, and proactively executes finalized transactions locally.
 
 use std::{
-    collections::BTreeMap, net::SocketAddr, ops::Deref, path::Path, sync::Arc, time::Duration,
+    collections::{BTreeMap, HashMap, hash_map::Entry},
+    net::SocketAddr,
+    ops::Deref,
+    path::Path,
+    sync::Arc,
+    time::Duration,
 };
 
 use futures::{
@@ -20,9 +25,9 @@ use iota_metrics::{
     TX_TYPE_SHARED_OBJ_TX, TX_TYPE_SINGLE_WRITER_TX, add_server_timing,
     spawn_logged_monitored_task, spawn_monitored_task,
 };
+use iota_sdk_types::TransactionDigest;
 use iota_storage::write_path_pending_tx_log::WritePathPendingTransactionLog;
 use iota_types::{
-    base_types::TransactionDigest,
     effects::TransactionEffectsAPI,
     error::{IotaError, IotaResult},
     iota_system_state::IotaSystemState,
@@ -33,21 +38,25 @@ use iota_types::{
         QuorumDriverEffectsQueueResult, QuorumDriverError, QuorumDriverResponse,
         QuorumDriverResult,
     },
-    transaction::{TransactionData, VerifiedTransaction},
+    transaction::{SenderSignedTransactionAPI, TransactionData, VerifiedTransaction},
     transaction_driver_types::{
         EffectsFinalityInfo as TdEffectsFinalityInfo, FinalizedEffects as TdFinalizedEffects,
     },
     transaction_executor::{SimulateTransactionResult, VmChecks},
 };
+use parking_lot::Mutex;
 use prometheus_filtered::{
-    Histogram, Registry,
+    Histogram, MetricLevel, Registry,
     core::{AtomicI64, AtomicU64, GenericCounter, GenericGauge},
     register_histogram_vec_with_registry, register_int_counter_vec_with_registry,
     register_int_counter_with_registry, register_int_gauge_vec_with_registry,
     register_int_gauge_with_registry,
 };
 use tokio::{
-    sync::broadcast::{Receiver, error::RecvError},
+    sync::{
+        broadcast::{Receiver, error::RecvError},
+        watch,
+    },
     task::JoinHandle,
     time::timeout,
 };
@@ -94,6 +103,14 @@ pub struct TransactionOrchestrator<A: Clone> {
     validator_state: Arc<AuthorityState>,
     _local_executor_handle: Option<JoinHandle<()>>,
     pending_tx_log: Arc<WritePathPendingTransactionLog>,
+    /// Digests currently being driven to finality by the TransactionDriver;
+    /// used to deduplicate concurrent submissions of the same transaction,
+    /// with a channel per digest through which the driving submission
+    /// publishes its outcome to concurrent duplicates. Kept in memory only:
+    /// the driver path is best-effort, so there is nothing to recover after
+    /// a restart. The QuorumDriver path tracks its submissions in
+    /// `pending_tx_log` instead.
+    in_flight_transactions: InFlightTransactions,
     notifier: Arc<NotifyRead<TransactionDigest, QuorumDriverResult>>,
     metrics: Arc<TransactionOrchestratorMetrics>,
 }
@@ -217,6 +234,7 @@ where
             validator_state,
             _local_executor_handle,
             pending_tx_log,
+            in_flight_transactions: Default::default(),
             notifier,
             metrics,
         }
@@ -228,11 +246,11 @@ where
     A: AuthorityAPI + Send + Sync + 'static + Clone,
 {
     #[instrument(name = "tx_orchestrator_execute_transaction_block", level = "trace", skip_all,
-    fields(
+        fields(
         tx_digest = ?request.transaction.digest(),
         tx_type = ?request_type,
-    ),
-    err)]
+        ),
+        err)]
     pub async fn execute_transaction_block(
         &self,
         request: ExecuteTransactionRequestV1,
@@ -242,6 +260,10 @@ where
     {
         let epoch_store = self.validator_state.load_epoch_store_one_call_per_task();
 
+        let transaction = epoch_store
+            .verify_transaction(request.transaction.clone())
+            .map_err(QuorumDriverError::InvalidUserSignature)?;
+
         // Captured before `request` moves so the skip-cert reconcile reads
         // caller intent, not whatever the submitter happened to return — a
         // Byzantine submitter could otherwise censor a field by returning
@@ -250,41 +272,97 @@ where
         let include_input_objects = request.include_input_objects;
         let include_output_objects = request.include_output_objects;
 
-        let transaction = epoch_store
-            .verify_transaction(request.transaction.clone())
-            .map_err(QuorumDriverError::InvalidUserSignature)?;
+        let tx_digest = *transaction.digest();
+
+        // A resubmission of an already-executed transaction is answered from
+        // the local cache instead of being driven through the validators
+        // again.
+        if let Some(response) = Self::build_response_from_local_effects(
+            &self.validator_state,
+            &tx_digest,
+            include_events,
+            include_input_objects,
+            include_output_objects,
+        )? {
+            self.metrics.early_cached_response.inc();
+            debug!(
+                ?tx_digest,
+                "Returning cached results for already-executed transaction"
+            );
+            return Ok((response, true));
+        }
+
+        // Reject malformed transactions before either driver inspects shared
+        // inputs or `MoveAuthenticator`. Runs after the cache lookup so that,
+        // as on the upstream flow, a resubmission of an executed transaction
+        // gets its cached results even if it no longer passes the current
+        // epoch's checks (e.g. its expiration epoch has passed).
+        transaction
+            .validity_check(&epoch_store.tx_validity_check_context())
+            .map_err(QuorumDriverError::InvalidTransaction)?;
 
         let wait_for_local_execution = matches!(
             request_type,
             ExecuteTransactionRequestType::WaitForLocalExecution
         );
-        let tx_digest = *transaction.digest();
-
         let (mut response, seq) = match (&self.driver, wait_for_local_execution) {
             (Driver::Transaction(td), true) => {
-                self.submit_with_checkpoint_race(td.clone(), request, client_addr, tx_digest)
-                    .await?
+                let td = td.clone();
+                let in_flight_transactions = self.in_flight_transactions.clone();
+                let validator_state = self.validator_state.clone();
+                let metrics = self.metrics.clone();
+                // Detached so a client disconnect (this future dropped) does
+                // not cancel a submission that may already be in consensus;
+                // the task drives the transaction to finality on its own.
+                join_submission_task(spawn_monitored_task!(Self::submit_with_checkpoint_race(
+                    td,
+                    in_flight_transactions,
+                    validator_state,
+                    metrics,
+                    request,
+                    client_addr,
+                    tx_digest,
+                )))
+                .await?
             }
-            (Driver::Transaction(td), false) => (
-                Some(
-                    self.submit_with_transaction_driver(td.clone(), request, client_addr, false)
-                        .await
-                        .map_err(map_td_error_to_qd)?,
-                ),
-                None,
-            ),
+            (Driver::Transaction(td), false) => {
+                let td = td.clone();
+                let in_flight_transactions = self.in_flight_transactions.clone();
+                let validator_state = self.validator_state.clone();
+                // Detached for the same reason as above.
+                let result = join_submission_task(spawn_monitored_task!(
+                    Self::submit_with_transaction_driver(
+                        td,
+                        in_flight_transactions,
+                        validator_state,
+                        request,
+                        client_addr,
+                        false,
+                    )
+                ))
+                .await?;
+                (Some(result), None)
+            }
             (Driver::Quorum(qd), _) => {
-                let (_, qd_resp) = self
-                    .execute_transaction_impl(qd, &epoch_store, request, client_addr)
+                let qd_resp = self
+                    .execute_transaction_impl(
+                        qd,
+                        &epoch_store,
+                        request,
+                        transaction.clone(),
+                        client_addr,
+                    )
                     .await?;
                 (Some(quorum_driver_response_to_v1(qd_resp)), None)
             }
         };
 
         // `needs_cache_rebuild` is derived from finality, not caller intent:
-        // the QD fallback path returns `Certified` (no rebuild needed) even
-        // when the caller asked for `WaitForLocalExecution`, while only the
-        // TD skip-cert engine produces `UncertifiedSingleValidator`. The
+        // the QD fallback path returns `Certified` and a duplicate
+        // submission inheriting the outcome of an in-flight certifying
+        // submission returns `QuorumExecuted` — neither needs a rebuild —
+        // even when the caller asked for `WaitForLocalExecution`, while only
+        // the TD skip-cert engine produces `UncertifiedSingleValidator`. The
         // checkpoint sequence comes from `submit_with_checkpoint_race`, which
         // relies on `executed_transactions_to_checkpoint` being written
         // strictly after every tx's effects — so a `Some(seq)` here implies
@@ -329,9 +407,10 @@ where
             }
             true
         } else {
-            // QD path: response is already 2f+1 certified, just confirm local
-            // execution finished. Removable once QD is dropped from the
-            // fullnode.
+            // The response is already 2f+1 certified — from the QuorumDriver,
+            // or inherited by a duplicate submission from an in-flight
+            // certifying submission — so just confirm local execution
+            // finished.
             let ok = Self::wait_for_finalized_tx_executed_locally_with_timeout(
                 &self.validator_state,
                 &transaction,
@@ -492,10 +571,54 @@ where
         })
     }
 
+    /// Build a response from the local cache for a transaction that has
+    /// already been executed on this node. Returns `Ok(None)` when the
+    /// transaction has not been executed locally. Unlike
+    /// `build_response_from_cache`, no checkpoint sequence is required: local
+    /// effects only exist for finalized transactions, so the response is
+    /// tagged `QuorumExecuted`.
+    fn build_response_from_local_effects(
+        validator_state: &Arc<AuthorityState>,
+        tx_digest: &TransactionDigest,
+        include_events: bool,
+        include_input_objects: bool,
+        include_output_objects: bool,
+    ) -> Result<Option<ExecuteTransactionResponseV1>, QuorumDriverError> {
+        let Some(cached) = read_cached_transaction_data(
+            validator_state,
+            tx_digest,
+            include_events,
+            include_input_objects,
+            include_output_objects,
+        )
+        .map_err(QuorumDriverError::QuorumDriverInternal)?
+        else {
+            return Ok(None);
+        };
+        let iota_types::transaction_executor::CachedTransactionData {
+            effects,
+            events,
+            input_objects,
+            output_objects,
+        } = cached;
+
+        let epoch = effects.epoch();
+        Ok(Some(ExecuteTransactionResponseV1 {
+            effects: FinalizedEffects {
+                effects,
+                finality_info: EffectsFinalityInfo::QuorumExecuted(epoch),
+            },
+            events,
+            input_objects,
+            output_objects,
+            auxiliary_data: None,
+        }))
+    }
+
     // Utilize the handle_certificate_v1 validator api to request input/output
     // objects
     #[instrument(name = "tx_orchestrator_execute_transaction_v1", level = "trace", skip_all,
-                 fields(tx_digest = ?request.transaction.digest()))]
+        fields(tx_digest = ?request.transaction.digest()))]
     pub async fn execute_transaction_v1(
         &self,
         request: ExecuteTransactionRequestV1,
@@ -504,29 +627,64 @@ where
     ) -> Result<ExecuteTransactionResponseV1, QuorumDriverError> {
         let epoch_store = self.validator_state.load_epoch_store_one_call_per_task();
 
+        let transaction = epoch_store
+            .verify_transaction(request.transaction.clone())
+            .map_err(QuorumDriverError::InvalidUserSignature)?;
+        let tx_digest = *transaction.digest();
+
+        // A resubmission of an already-executed transaction is answered from
+        // the local cache instead of being driven through the validators
+        // again.
+        if let Some(response) = Self::build_response_from_local_effects(
+            &self.validator_state,
+            &tx_digest,
+            request.include_events,
+            request.include_input_objects,
+            request.include_output_objects,
+        )? {
+            self.metrics.early_cached_response.inc();
+            debug!(
+                ?tx_digest,
+                "Returning cached results for already-executed transaction"
+            );
+            return Ok(response);
+        }
+
+        // Reject malformed transactions before either driver inspects shared
+        // inputs or `MoveAuthenticator`. Runs after the cache lookup so that,
+        // as on the upstream flow, a resubmission of an executed transaction
+        // gets its cached results even if it no longer passes the current
+        // epoch's checks (e.g. its expiration epoch has passed).
+        transaction
+            .validity_check(&epoch_store.tx_validity_check_context())
+            .map_err(QuorumDriverError::InvalidTransaction)?;
+
         match &self.driver {
             Driver::Transaction(td) => {
+                let td = td.clone();
+                let in_flight_transactions = self.in_flight_transactions.clone();
+                let validator_state = self.validator_state.clone();
                 // v1 does not do an internal wait; callers (e.g. the gRPC
                 // execution service) are responsible for their own
                 // `wait_for_checkpoint_inclusion` when they need it, and will
                 // reconcile the response from the cache there.
-                epoch_store
-                    .verify_transaction(request.transaction.clone())
-                    .map_err(QuorumDriverError::InvalidUserSignature)?;
-                self.submit_with_transaction_driver(
-                    td.clone(),
+                //
+                // Detached so a client disconnect does not cancel a submission
+                // that may already be in consensus.
+                join_submission_task(spawn_monitored_task!(Self::submit_with_transaction_driver(
+                    td,
+                    in_flight_transactions,
+                    validator_state,
                     request,
                     client_addr,
                     skip_certification,
-                )
+                )))
                 .await
-                .map_err(map_td_error_to_qd)
             }
             Driver::Quorum(qd) => {
                 let qd_resp = self
-                    .execute_transaction_impl(qd, &epoch_store, request, client_addr)
-                    .await
-                    .map(|(_, r)| r)?;
+                    .execute_transaction_impl(qd, &epoch_store, request, transaction, client_addr)
+                    .await?;
                 Ok(quorum_driver_response_to_v1(qd_resp))
             }
         }
@@ -547,11 +705,16 @@ where
     /// returned a result (which may carry `UncertifiedSingleValidator`
     /// finality requiring rebuild) and `seq` is the checkpoint sequence if
     /// either future yielded it.
+    ///
+    /// Run inside a detached task so a client disconnect cannot cancel the
+    /// race before the checkpoint-sequence bookkeeping completes.
     #[instrument(name = "tx_orchestrator_submit_with_checkpoint_race", level = "trace", skip_all,
-                 fields(tx_digest = ?tx_digest))]
+        fields(tx_digest = ?tx_digest))]
     async fn submit_with_checkpoint_race(
-        &self,
         td: Arc<TransactionDriver<A>>,
+        in_flight_transactions: InFlightTransactions,
+        validator_state: Arc<AuthorityState>,
+        metrics: Arc<TransactionOrchestratorMetrics>,
         request: ExecuteTransactionRequestV1,
         client_addr: Option<SocketAddr>,
         tx_digest: TransactionDigest,
@@ -563,11 +726,17 @@ where
         QuorumDriverError,
     > {
         let digests = [tx_digest];
-        let checkpoint_inclusion = self
-            .validator_state
-            .wait_for_checkpoint_inclusion(&digests, WAIT_FOR_FINALITY_TIMEOUT);
+        let checkpoint_inclusion =
+            validator_state.wait_for_checkpoint_inclusion(&digests, WAIT_FOR_FINALITY_TIMEOUT);
         tokio::pin!(checkpoint_inclusion);
-        let driver = self.submit_with_transaction_driver(td, request, client_addr, true);
+        let driver = Self::submit_with_transaction_driver(
+            td,
+            in_flight_transactions,
+            validator_state.clone(),
+            request,
+            client_addr,
+            true,
+        );
 
         let seq_for_tx = |inclusion_map: BTreeMap<_, (CheckpointSequenceNumber, _)>| {
             inclusion_map.get(&tx_digest).map(|&(seq, _)| seq)
@@ -580,13 +749,18 @@ where
             // only returns here as `Ok`, `TimeoutWithLastRetriableError`, or
             // a non-retriable error like `RejectedByValidators`.
             driver_result = driver => {
-                let response = Some(driver_result.map_err(map_td_error_to_qd)?);
+                let response = Some(driver_result?);
                 let seq = (&mut checkpoint_inclusion).await.ok().and_then(seq_for_tx);
                 (response, seq)
             }
             checkpoint_result = &mut checkpoint_inclusion => {
-                self.metrics.skip_effect_cert_checkpoint_overrode_driver.inc();
-                (None, checkpoint_result.ok().and_then(seq_for_tx))
+                metrics.skip_effect_cert_checkpoint_overrode_driver.inc();
+                // Dropping the cancelled driver closes the in-flight outcome
+                // channel; duplicate submissions fall back to waiting for
+                // checkpoint inclusion, which this race winning guarantees
+                // resolves immediately.
+                let seq = checkpoint_result.ok().and_then(seq_for_tx);
+                (None, seq)
             }
         };
         add_server_timing("local_execution");
@@ -603,30 +777,52 @@ where
     /// authoritative data — uncertified data must never reach the client.
     /// See `corroborate_single_validator_error` for the per-submission
     /// fetch-failure recovery flow inside the driver.
+    ///
+    /// Run inside a detached task so a client disconnect cannot cancel a
+    /// `drive_transaction` call that may already be in consensus.
     #[instrument(name = "tx_orchestrator_submit_with_td", level = "trace", skip_all,
-                 fields(tx_digest = ?request.transaction.digest()))]
+        fields(tx_digest = ?request.transaction.digest()))]
     async fn submit_with_transaction_driver(
-        &self,
         td: Arc<TransactionDriver<A>>,
+        in_flight_transactions: InFlightTransactions,
+        validator_state: Arc<AuthorityState>,
         request: ExecuteTransactionRequestV1,
         client_addr: Option<SocketAddr>,
         skip_certification: bool,
-    ) -> Result<ExecuteTransactionResponseV1, TransactionDriverError> {
+    ) -> Result<ExecuteTransactionResponseV1, QuorumDriverError> {
         let tx_digest = *request.transaction.digest();
 
-        // TODO: add transaction to some struct to prevent sending the same transaction
-        // multiple times in case client sends it multiple times if self
-        //     .pending_tx_log
-        //     .write_pending_transaction_maybe(&transaction)
-        //     .await
-        //     .map_err(|e| QuorumDriverError::QuorumDriverInternal(e))?
-        // {
-        //     debug!(?tx_digest, "no pending request in flight, submitting to
-        // TransactionDriver."); } else {
-        //     debug!(?tx_digest, "transaction already in flight, skipping duplicate
-        // submission."); }
+        // Deduplicate concurrent submissions of the same digest: only the
+        // first caller drives the committee-wide submission and publishes its
+        // outcome; the rest await that outcome. The guard removes the digest
+        // from the in-flight map on every exit path (success, error, timeout,
+        // or cancellation) when it is dropped.
+        let guard = match TransactionSubmissionGuard::acquire(in_flight_transactions, tx_digest) {
+            TransactionSubmission::Driving(guard) => guard,
+            TransactionSubmission::AlreadyInFlight(receiver) => {
+                debug!(
+                    ?tx_digest,
+                    "transaction already in flight; awaiting its outcome instead of driving a \
+                     duplicate submission"
+                );
+                return Self::await_in_flight_transaction(
+                    receiver,
+                    &td,
+                    &validator_state,
+                    tx_digest,
+                    &request,
+                    client_addr,
+                    skip_certification,
+                )
+                .await;
+            }
+        };
 
-        let td_response = td
+        // This call runs inside a task detached from the caller, so the
+        // outcome is logged here rather than left to the caller — a
+        // disconnected client's continuation never runs and would
+        // otherwise never observe it.
+        let td_response = match td
             .drive_transaction(
                 Some(request.transaction.clone()),
                 SubmitTransactionOptions {
@@ -636,63 +832,188 @@ where
                 Some(WAIT_FOR_FINALITY_TIMEOUT),
                 skip_certification,
             )
-            .await?;
+            .await
+        {
+            Ok(response) => response,
+            Err(e) => {
+                warn!(?tx_digest, "TransactionDriver submission failed: {e}");
+                let error = map_td_error_to_qd(e);
+                guard.publish(Err(error.clone()));
+                return Err(error);
+            }
+        };
 
-        debug!(
-            "TransactionOrchestrator: TransactionDriver submission succeeded for transaction {}",
-            tx_digest
-        );
+        debug!(?tx_digest, "TransactionDriver submission succeeded");
 
+        let td_response = Arc::new(td_response);
+        guard.publish(Ok(td_response.clone()));
+        // Dropping the guard closes the channel, releasing its copy of the
+        // response unless a duplicate submission still holds a receiver — in
+        // the common no-duplicate case the response is then moved into the
+        // reply instead of cloned.
+        drop(guard);
+        let td_response = Arc::try_unwrap(td_response).unwrap_or_else(|shared| (*shared).clone());
+
+        Ok(Self::response_from_driver_response(td_response, &request))
+    }
+
+    /// Build a caller-specific response from a driver response, honoring the
+    /// caller's include flags.
+    fn response_from_driver_response(
+        td_response: QuorumTransactionResponse,
+        request: &ExecuteTransactionRequestV1,
+    ) -> ExecuteTransactionResponseV1 {
         let QuorumTransactionResponse {
-            effects: td_effects,
+            effects,
             events,
             input_objects,
             output_objects,
             auxiliary_data,
         } = td_response;
-
-        let effects = convert_td_to_qd_effects(td_effects);
-        Ok(ExecuteTransactionResponseV1 {
-            effects,
-            events: if request.include_events { events } else { None },
-            input_objects: if request.include_input_objects {
-                input_objects
-            } else {
-                None
-            },
-            output_objects: if request.include_output_objects {
-                output_objects
-            } else {
-                None
-            },
-            auxiliary_data: if request.include_auxiliary_data {
-                auxiliary_data
-            } else {
-                None
-            },
-        })
+        ExecuteTransactionResponseV1 {
+            effects: convert_td_to_qd_effects(effects),
+            events: request.include_events.then_some(events).flatten(),
+            input_objects: request
+                .include_input_objects
+                .then_some(input_objects)
+                .flatten(),
+            output_objects: request
+                .include_output_objects
+                .then_some(output_objects)
+                .flatten(),
+            auxiliary_data: request
+                .include_auxiliary_data
+                .then_some(auxiliary_data)
+                .flatten(),
+        }
     }
 
-    // TODO check if tx is already executed on this node.
-    // Note: since EffectsCert is not stored today, we need to gather that from
-    // validators (and maybe store it for caching purposes)
+    /// Await the outcome of an already in-flight submission of `tx_digest`
+    /// instead of starting a second committee-wide submission for the same
+    /// transaction. Resolves to that submission's outcome — running the
+    /// effects-certification step first if the outcome does not satisfy this
+    /// caller — falls back to waiting for checkpoint inclusion if the
+    /// driving submission went away without publishing one (checkpoint-race
+    /// cancellation, panic, or shutdown), and returns
+    /// `TimeoutBeforeFinality` if nothing is published within
+    /// `WAIT_FOR_FINALITY_TIMEOUT` or the follow-up effects certification
+    /// does not complete within another `WAIT_FOR_FINALITY_TIMEOUT`.
+    async fn await_in_flight_transaction(
+        mut receiver: watch::Receiver<Option<InFlightSubmissionResult>>,
+        td: &Arc<TransactionDriver<A>>,
+        validator_state: &Arc<AuthorityState>,
+        tx_digest: TransactionDigest,
+        request: &ExecuteTransactionRequestV1,
+        client_addr: Option<SocketAddr>,
+        skip_certification: bool,
+    ) -> Result<ExecuteTransactionResponseV1, QuorumDriverError> {
+        // The `Ref` returned by `wait_for` is a read guard and must not be
+        // held across an await, so the outcome is cloned out before
+        // branching. `wait_for` only returns a value matching its predicate,
+        // so `Some` is guaranteed on success; a closed channel yields `None`.
+        let published = tokio::time::timeout(
+            WAIT_FOR_FINALITY_TIMEOUT,
+            receiver.wait_for(|outcome| outcome.is_some()),
+        )
+        .await
+        .map_err(|_elapsed| QuorumDriverError::TimeoutBeforeFinality)?
+        .ok()
+        .and_then(|outcome_ref| outcome_ref.clone());
+
+        let Some(outcome) = published else {
+            // Channel closed without an outcome: the driving submission went
+            // away without publishing — routinely because its checkpoint
+            // race observed the transaction in a local checkpoint and
+            // cancelled it, exceptionally on panic or shutdown. Checkpoint
+            // inclusion is the remaining signal of the outcome.
+            return Self::response_from_checkpoint_inclusion(validator_state, tx_digest, request)
+                .await;
+        };
+        let td_response = outcome?;
+
+        let uncertified = matches!(
+            td_response.effects.finality_info,
+            TdEffectsFinalityInfo::UncertifiedSingleValidator(_)
+        );
+        if uncertified && !skip_certification {
+            // The in-flight submission already drove the transaction into
+            // consensus; only the 2f+1 effects certification is missing for
+            // this caller. Certify the effects directly instead of starting
+            // a second committee-wide submission or waiting for a checkpoint
+            // inclusion the caller never asked for. `certify_transaction` is
+            // internally bounded only by committee size times its per-request
+            // timeout, so cap it to the same client-facing budget the driving
+            // submission gets for its whole `drive_transaction` call.
+            let certified = tokio::time::timeout(
+                WAIT_FOR_FINALITY_TIMEOUT,
+                td.certify_transaction(
+                    tx_digest,
+                    SubmitTransactionOptions {
+                        forwarded_client_addr: client_addr,
+                        ..Default::default()
+                    },
+                ),
+            )
+            .await
+            .map_err(|_elapsed| QuorumDriverError::TimeoutBeforeFinality)?
+            .map_err(map_td_error_to_qd)?;
+            return Ok(Self::response_from_driver_response(certified, request));
+        }
+
+        Ok(Self::response_from_driver_response(
+            (*td_response).clone(),
+            request,
+        ))
+    }
+
+    /// Wait for `tx_digest` to reach a local checkpoint and build the
+    /// response from the authoritative cache. The fallback outcome signal
+    /// for a duplicate whose driving submission went away without
+    /// publishing; the result carries `Checkpointed` finality, so it
+    /// satisfies every caller. Times out with `TimeoutBeforeFinality` if
+    /// the transaction does not get checkpointed in time.
+    async fn response_from_checkpoint_inclusion(
+        validator_state: &Arc<AuthorityState>,
+        tx_digest: TransactionDigest,
+        request: &ExecuteTransactionRequestV1,
+    ) -> Result<ExecuteTransactionResponseV1, QuorumDriverError> {
+        let digests = [tx_digest];
+        // The caller has typically already waited a full timeout on the
+        // outcome channel, but this wait is still required: it is what
+        // yields the checkpoint sequence and guarantees the checkpoint
+        // mapping write has landed (see `reconcile_effects_from_cache`).
+        // When the transaction is already checkpointed — the routine reason
+        // the fallback fires — it resolves immediately; only after a
+        // driving-task death does it actually wait, as the last remaining
+        // signal of the outcome.
+        let seq = validator_state
+            .wait_for_checkpoint_inclusion(&digests, WAIT_FOR_FINALITY_TIMEOUT)
+            .await
+            .ok()
+            .and_then(|inclusion| inclusion.get(&tx_digest).map(|&(seq, _)| seq))
+            .ok_or(QuorumDriverError::TimeoutBeforeFinality)?;
+        Self::build_response_from_cache(
+            validator_state,
+            tx_digest,
+            seq,
+            request.include_events,
+            request.include_input_objects,
+            request.include_output_objects,
+        )
+    }
+
+    /// Submit a transaction via the QuorumDriver. `transaction` must be the
+    /// signature-verified form of `request.transaction`, and the caller must
+    /// have run `validity_check` on it beforehand.
     #[instrument(level = "trace", skip_all, fields(tx_digest = ?request.transaction.digest()))]
     async fn execute_transaction_impl(
         &self,
         quorum_driver: &Arc<QuorumDriverHandler<A>>,
         epoch_store: &Arc<AuthorityPerEpochStore>,
         request: ExecuteTransactionRequestV1,
+        transaction: VerifiedTransaction,
         client_addr: Option<SocketAddr>,
-    ) -> Result<(VerifiedTransaction, QuorumDriverResponse), QuorumDriverError> {
-        // Reject malformed transactions before any code path inspects shared
-        // inputs or `MoveAuthenticator`
-        request
-            .transaction
-            .validity_check(&epoch_store.tx_validity_check_context())
-            .map_err(QuorumDriverError::InvalidTransaction)?;
-        let transaction = epoch_store
-            .verify_transaction(request.transaction.clone())
-            .map_err(QuorumDriverError::InvalidUserSignature)?;
+    ) -> Result<QuorumDriverResponse, QuorumDriverError> {
         let (_in_flight_metrics_guards, good_response_metrics) = self.update_metrics(&transaction);
         let tx_digest = *transaction.digest();
         debug!(?tx_digest, "TO Received transaction execution request.");
@@ -753,7 +1074,7 @@ where
             Ok(Err(err)) => Err(err),
             Ok(Ok(response)) => {
                 good_response_metrics.inc();
-                Ok((transaction, response))
+                Ok(response)
             }
         }
     }
@@ -811,7 +1132,13 @@ where
         })
     }
 
-    #[instrument(name = "tx_orchestrator_wait_for_finalized_tx_executed_locally_with_timeout", level = "debug", skip_all, fields(tx_digest = ?transaction.digest()), err)]
+    #[instrument(
+        name = "tx_orchestrator_wait_for_finalized_tx_executed_locally_with_timeout",
+        level = "debug",
+        skip_all,
+        fields(tx_digest = ?transaction.digest()),
+        err
+    )]
     async fn wait_for_finalized_tx_executed_locally_with_timeout(
         validator_state: &Arc<AuthorityState>,
         transaction: &VerifiedTransaction,
@@ -1020,6 +1347,16 @@ where
     pub fn load_all_pending_transactions(&self) -> IotaResult<Vec<VerifiedTransaction>> {
         self.pending_tx_log.load_all_pending_transactions()
     }
+
+    /// Reports whether a driver submission of `tx_digest` is in flight, and
+    /// if so how many duplicate submissions are awaiting its outcome.
+    #[cfg(any(test, feature = "test-utils"))]
+    pub fn in_flight_duplicates_for_testing(&self, tx_digest: &TransactionDigest) -> Option<usize> {
+        self.in_flight_transactions
+            .lock()
+            .get(tx_digest)
+            .map(|sender| sender.receiver_count())
+    }
 }
 
 /// Convert a `QuorumDriverResponse` (contains
@@ -1138,6 +1475,18 @@ fn count_validator_attempts(errors: &AggregatedRequestErrors) -> u32 {
         .sum()
 }
 
+/// Await a detached submission task, surfacing a task panic as an internal
+/// error.
+async fn join_submission_task<T>(
+    handle: tokio::task::JoinHandle<Result<T, QuorumDriverError>>,
+) -> Result<T, QuorumDriverError> {
+    handle.await.unwrap_or_else(|e| {
+        Err(QuorumDriverError::QuorumDriverInternal(IotaError::Unknown(
+            format!("transaction submission task panicked: {e}"),
+        )))
+    })
+}
+
 /// Prometheus metrics which can be displayed in Grafana, queried and alerted on
 #[derive(Clone)]
 pub struct TransactionOrchestratorMetrics {
@@ -1158,6 +1507,8 @@ pub struct TransactionOrchestratorMetrics {
     local_execution_success: GenericCounter<AtomicU64>,
     local_execution_timeout: GenericCounter<AtomicU64>,
     local_execution_failure: GenericCounter<AtomicU64>,
+
+    early_cached_response: GenericCounter<AtomicU64>,
 
     // Bumped when the skip-effect-certification path reconciles against the
     // local cache but the cache has no events for a tx the single submitter
@@ -1189,9 +1540,10 @@ impl TransactionOrchestratorMetrics {
             "tx_orchestrator_total_req_received",
             "Total number of executions request Transaction Orchestrator receives, group by tx type",
             &["tx_type"],
-            registry
+            registry;
+            MetricLevel::Warn,
         )
-        .unwrap();
+            .unwrap();
 
         let total_req_received_single_writer =
             total_req_received.with_label_values(&[TX_TYPE_SINGLE_WRITER_TX]);
@@ -1202,7 +1554,8 @@ impl TransactionOrchestratorMetrics {
             "tx_orchestrator_good_response",
             "Total number of good responses Transaction Orchestrator generates, group by tx type",
             &["tx_type"],
-            registry
+            registry;
+            MetricLevel::Warn,
         )
         .unwrap();
 
@@ -1214,7 +1567,8 @@ impl TransactionOrchestratorMetrics {
             "tx_orchestrator_req_in_flight",
             "Number of requests in flights Transaction Orchestrator processes, group by tx type",
             &["tx_type"],
-            registry
+            registry;
+            MetricLevel::Warn,
         )
         .unwrap();
 
@@ -1227,7 +1581,8 @@ impl TransactionOrchestratorMetrics {
             "Time spent in processing one Transaction Orchestrator request",
             &["tx_type"],
             iota_metrics::COARSE_LATENCY_SEC_BUCKETS.to_vec(),
-            registry,
+            registry;
+            MetricLevel::Warn,
         )
         .unwrap();
         let wait_for_finality_latency = register_histogram_vec_with_registry!(
@@ -1235,7 +1590,8 @@ impl TransactionOrchestratorMetrics {
             "Time spent in waiting for one Transaction Orchestrator request gets finalized",
             &["tx_type"],
             iota_metrics::COARSE_LATENCY_SEC_BUCKETS.to_vec(),
-            registry,
+            registry;
+            MetricLevel::Warn,
         )
         .unwrap();
         let local_execution_latency = register_histogram_vec_with_registry!(
@@ -1243,7 +1599,8 @@ impl TransactionOrchestratorMetrics {
             "Time spent in waiting for one Transaction Orchestrator gets locally executed",
             &["tx_type"],
             iota_metrics::COARSE_LATENCY_SEC_BUCKETS.to_vec(),
-            registry,
+            registry;
+            MetricLevel::Warn,
         )
         .unwrap();
 
@@ -1257,45 +1614,58 @@ impl TransactionOrchestratorMetrics {
             wait_for_finality_in_flight: register_int_gauge_with_registry!(
                 "tx_orchestrator_wait_for_finality_in_flight",
                 "Number of in flight txns Transaction Orchestrator are waiting for finality for",
-                registry,
+                registry;
+                MetricLevel::Warn,
             )
-            .unwrap(),
+                .unwrap(),
             wait_for_finality_finished: register_int_counter_with_registry!(
                 "tx_orchestrator_wait_for_finality_finished",
                 "Total number of txns Transaction Orchestrator gets responses from Quorum Driver before timeout, either success or failure",
-                registry,
+                registry;
+                MetricLevel::Warn,
             )
-            .unwrap(),
+                .unwrap(),
             wait_for_finality_timeout: register_int_counter_with_registry!(
                 "tx_orchestrator_wait_for_finality_timeout",
                 "Total number of txns timing out in waiting for finality Transaction Orchestrator handles",
-                registry,
+                registry;
+                MetricLevel::Warn,
             )
-            .unwrap(),
+                .unwrap(),
             local_execution_in_flight: register_int_gauge_with_registry!(
                 "tx_orchestrator_local_execution_in_flight",
                 "Number of local execution txns in flights Transaction Orchestrator handles",
-                registry,
+                registry;
+                MetricLevel::Warn,
             )
-            .unwrap(),
+                .unwrap(),
             local_execution_success: register_int_counter_with_registry!(
                 "tx_orchestrator_local_execution_success",
                 "Total number of successful local execution txns Transaction Orchestrator handles",
-                registry,
+                registry;
+                MetricLevel::Warn,
             )
-            .unwrap(),
+                .unwrap(),
             local_execution_timeout: register_int_counter_with_registry!(
                 "tx_orchestrator_local_execution_timeout",
                 "Total number of timed-out local execution txns Transaction Orchestrator handles",
-                registry,
+                registry;
+                MetricLevel::Warn,
             )
-            .unwrap(),
+                .unwrap(),
             local_execution_failure: register_int_counter_with_registry!(
                 "tx_orchestrator_local_execution_failure",
                 "Total number of failed local execution txns Transaction Orchestrator handles",
+                registry;
+                MetricLevel::Warn,
+            )
+                .unwrap(),
+            early_cached_response: register_int_counter_with_registry!(
+                "tx_orchestrator_early_cached_response",
+                "Total number of requests returning cached results for already-executed transactions",
                 registry,
             )
-            .unwrap(),
+                .unwrap(),
             skip_effect_cert_events_cache_miss: register_int_counter_with_registry!(
                 "tx_orchestrator_skip_effect_cert_events_cache_miss",
                 "Number of skip-effect-certification responses rejected because the \
@@ -1303,7 +1673,7 @@ impl TransactionOrchestratorMetrics {
                  corroborate them",
                 registry,
             )
-            .unwrap(),
+                .unwrap(),
             skip_effect_cert_checkpoint_overrode_driver: register_int_counter_with_registry!(
                 "tx_orchestrator_skip_effect_cert_checkpoint_overrode_driver",
                 "Number of skip-effect-certification requests where local checkpoint \
@@ -1311,7 +1681,7 @@ impl TransactionOrchestratorMetrics {
                  driver future was cancelled and the response was rebuilt from cache",
                 registry,
             )
-            .unwrap(),
+                .unwrap(),
             request_latency_single_writer: request_latency
                 .with_label_values(&[TX_TYPE_SINGLE_WRITER_TX]),
             request_latency_shared_obj: request_latency.with_label_values(&[TX_TYPE_SHARED_OBJ_TX]),
@@ -1405,8 +1775,8 @@ fn read_cached_transaction_data(
         return Ok(None);
     };
 
-    let events = if include_events {
-        cache.try_get_events(digest)?
+    let events = if include_events && effects.events_digest().is_some() {
+        Some(validator_state.get_transaction_events(digest)?)
     } else {
         None
     };
@@ -1438,4 +1808,186 @@ fn read_cached_transaction_data(
             output_objects,
         },
     ))
+}
+
+/// Successful outcome of an in-flight driver submission: the unfiltered
+/// driver response, or the local checkpoint the transaction was observed in
+/// when the checkpoint race cancelled the driver (the cache is then the
+/// authoritative source of the effects).
+/// Outcome of an in-flight driver submission, shared with concurrent
+/// submissions of the same digest.
+type InFlightSubmissionResult = Result<Arc<QuorumTransactionResponse>, QuorumDriverError>;
+
+/// Digests currently being driven to finality by the TransactionDriver,
+/// each with a channel through which the driving submission publishes its
+/// outcome to concurrent duplicates.
+type InFlightTransactions =
+    Arc<Mutex<HashMap<TransactionDigest, watch::Sender<Option<InFlightSubmissionResult>>>>>;
+
+/// Result of trying to register a submission of a digest in the in-flight
+/// map: either this caller drives the committee-wide submission, or another
+/// submission of the same digest is already in flight and this caller should
+/// await its published outcome instead.
+enum TransactionSubmission {
+    Driving(TransactionSubmissionGuard),
+    AlreadyInFlight(watch::Receiver<Option<InFlightSubmissionResult>>),
+}
+
+/// Tracks a transaction that is being submitted to finality so that
+/// concurrent submissions of the same digest deduplicate.
+///
+/// Held only by the driving submission, which must `publish` its outcome so
+/// concurrent duplicates can return it. Dropping the guard removes the
+/// digest from the in-flight map on every exit path (success, error,
+/// timeout, and cancellation); receivers subscribed before removal still
+/// observe a published outcome, and if the entry is removed without any
+/// outcome (checkpoint-race cancellation, panic, or shutdown) the closed
+/// channel tells duplicates to fall back to checkpoint inclusion.
+struct TransactionSubmissionGuard {
+    in_flight_transactions: InFlightTransactions,
+    tx_digest: TransactionDigest,
+}
+
+impl TransactionSubmissionGuard {
+    fn acquire(
+        in_flight_transactions: InFlightTransactions,
+        tx_digest: TransactionDigest,
+    ) -> TransactionSubmission {
+        {
+            let mut in_flight = in_flight_transactions.lock();
+            match in_flight.entry(tx_digest) {
+                Entry::Occupied(entry) => {
+                    return TransactionSubmission::AlreadyInFlight(entry.get().subscribe());
+                }
+                Entry::Vacant(entry) => {
+                    let (sender, _initial_receiver) = watch::channel(None);
+                    entry.insert(sender);
+                    debug!(?tx_digest, "added transaction to in-flight map");
+                }
+            }
+        }
+        TransactionSubmission::Driving(Self {
+            in_flight_transactions,
+            tx_digest,
+        })
+    }
+
+    /// Publish the submission outcome to concurrent duplicate submissions.
+    /// The outcome is stored in the channel even when nobody is subscribed
+    /// yet, so a duplicate that subscribes after this call but before the
+    /// entry is removed still reads it instead of a closed channel.
+    fn publish(&self, result: InFlightSubmissionResult) {
+        if let Some(sender) = self.in_flight_transactions.lock().get(&self.tx_digest) {
+            sender.send_replace(Some(result));
+        }
+    }
+}
+
+impl Drop for TransactionSubmissionGuard {
+    fn drop(&mut self) {
+        self.in_flight_transactions.lock().remove(&self.tx_digest);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn acquire_driving(
+        in_flight: &InFlightTransactions,
+        tx_digest: TransactionDigest,
+    ) -> TransactionSubmissionGuard {
+        match TransactionSubmissionGuard::acquire(in_flight.clone(), tx_digest) {
+            TransactionSubmission::Driving(guard) => guard,
+            TransactionSubmission::AlreadyInFlight(_) => {
+                panic!("expected to acquire the driving submission")
+            }
+        }
+    }
+
+    fn acquire_duplicate(
+        in_flight: &InFlightTransactions,
+        tx_digest: TransactionDigest,
+    ) -> watch::Receiver<Option<InFlightSubmissionResult>> {
+        match TransactionSubmissionGuard::acquire(in_flight.clone(), tx_digest) {
+            TransactionSubmission::Driving(_) => {
+                panic!("expected the digest to already be in flight")
+            }
+            TransactionSubmission::AlreadyInFlight(receiver) => receiver,
+        }
+    }
+
+    #[tokio::test]
+    async fn duplicate_submission_receives_published_outcome() {
+        let in_flight = InFlightTransactions::default();
+        let tx_digest = TransactionDigest::random();
+
+        let guard = acquire_driving(&in_flight, tx_digest);
+        let mut receiver = acquire_duplicate(&in_flight, tx_digest);
+
+        guard.publish(Err(QuorumDriverError::TimeoutBeforeFinality));
+        drop(guard);
+
+        // The published outcome must survive the guard drop for receivers
+        // subscribed before the entry was removed.
+        let outcome = receiver
+            .wait_for(|outcome| outcome.is_some())
+            .await
+            .expect("outcome was published before the sender dropped")
+            .clone()
+            .expect("wait_for only returns once the outcome is Some");
+        assert!(matches!(
+            outcome,
+            Err(QuorumDriverError::TimeoutBeforeFinality)
+        ));
+        assert!(
+            in_flight.lock().is_empty(),
+            "guard drop must remove the in-flight entry"
+        );
+    }
+
+    #[tokio::test]
+    async fn duplicate_subscribing_after_publish_receives_outcome() {
+        let in_flight = InFlightTransactions::default();
+        let tx_digest = TransactionDigest::random();
+
+        let guard = acquire_driving(&in_flight, tx_digest);
+        guard.publish(Err(QuorumDriverError::TimeoutBeforeFinality));
+
+        // Subscribing between the publish and the entry removal must still
+        // resolve to the outcome; falling back to checkpoint inclusion here
+        // would cost the duplicate a full finality timeout.
+        let mut receiver = acquire_duplicate(&in_flight, tx_digest);
+        drop(guard);
+
+        let outcome = receiver
+            .wait_for(|outcome| outcome.is_some())
+            .await
+            .expect("the outcome is stored in the channel regardless of subscribers")
+            .clone()
+            .expect("wait_for only returns once the outcome is Some");
+        assert!(matches!(
+            outcome,
+            Err(QuorumDriverError::TimeoutBeforeFinality)
+        ));
+    }
+
+    #[tokio::test]
+    async fn dropped_guard_without_outcome_closes_channel() {
+        let in_flight = InFlightTransactions::default();
+        let tx_digest = TransactionDigest::random();
+
+        let guard = acquire_driving(&in_flight, tx_digest);
+        let mut receiver = acquire_duplicate(&in_flight, tx_digest);
+        drop(guard);
+
+        receiver
+            .wait_for(|outcome| outcome.is_some())
+            .await
+            .expect_err("dropping the guard without publishing must close the channel");
+        assert!(in_flight.lock().is_empty());
+
+        // The digest can be driven again once the entry is gone.
+        let _guard = acquire_driving(&in_flight, tx_digest);
+    }
 }

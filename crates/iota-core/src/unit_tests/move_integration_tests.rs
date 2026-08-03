@@ -13,6 +13,7 @@ use iota_sdk_types::{
 use iota_types::{
     base_types::{RESOLVED_ASCII_STR, RESOLVED_STD_OPTION, RESOLVED_UTF8_STR},
     crypto::{AccountKeyPair, get_key_pair},
+    effects::ObjectOut,
     error::{ExecutionErrorKind, IotaError},
     move_package::UpgradeCap,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
@@ -2926,7 +2927,10 @@ pub async fn build_and_try_publish_test_package(
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     path.extend(["src", "unit_tests", "data", test_dir]);
 
-    let compiled_package = BuildConfig::new_for_testing().build(&path).unwrap();
+    let compiled_package = BuildConfig::new_for_testing()
+        .with_allow_view_function()
+        .build(&path)
+        .unwrap();
     let all_module_bytes = compiled_package.get_package_bytes(with_unpublished_deps);
     let dependencies = compiled_package.get_dependency_storage_package_ids();
 
@@ -2972,6 +2976,26 @@ pub async fn build_and_publish_test_package(
     .0
 }
 
+/// Returns the package object created (or upgraded) by a transaction.
+///
+/// A publish or upgrade can create more than one immutable object: packages
+/// carrying view or authenticator metadata also get a frozen `PackageMetadata`
+/// object. The package is therefore identified through its `PackageWrite`
+/// change in the effects.
+pub fn created_package_ref(effects: &TransactionEffects) -> ObjectReference {
+    effects
+        .as_v1()
+        .changed_objects
+        .iter()
+        .find_map(|change| match &change.output_state {
+            ObjectOut::PackageWrite { version, digest } => {
+                Some(ObjectReference::new(change.object_id, *version, *digest))
+            }
+            _ => None,
+        })
+        .expect("transaction did not write a package object")
+}
+
 pub async fn build_and_publish_test_package_with_upgrade_cap(
     authority: &AuthorityState,
     sender: &Address,
@@ -3001,18 +3025,14 @@ pub async fn build_and_publish_test_package_with_upgrade_cap(
         effects.status()
     );
 
-    let package = effects
-        .created()
-        .into_iter()
-        .find(|(_, owner)| matches!(owner, Owner::Immutable))
-        .unwrap();
+    let package = created_package_ref(&effects);
     let upgrade_cap = effects
         .created()
         .into_iter()
         .find(|(_, owner)| matches!(owner, Owner::Address(_)))
         .unwrap();
 
-    (package.0, upgrade_cap.0)
+    (package, upgrade_cap.0)
 }
 
 pub async fn collect_packages_and_upgrade_caps(

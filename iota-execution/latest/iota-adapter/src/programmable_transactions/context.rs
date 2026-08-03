@@ -1,5 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 pub use checked::*;
@@ -19,7 +19,7 @@ mod checked {
     };
     use iota_protocol_config::ProtocolConfig;
     use iota_sdk_types::{
-        Address, Argument, CommandArgumentError, Event, ObjectData, ObjectId, Owner,
+        Address, Argument, CommandArgumentError, Event, MoveStruct, ObjectData, ObjectId, Owner,
         SharedObjectReference, StructTag, TypeTag, move_package::MovePackage,
     };
     use iota_types::{
@@ -34,7 +34,7 @@ mod checked {
         },
         metrics::LimitsMetrics,
         move_package::{MovePackageExt, derive_package_metadata_id},
-        object::{MoveObject, MoveObjectExt, Object, ObjectInner},
+        object::{MoveStructExt, Object, ObjectInner},
         storage::{BackingPackageStore, DenyListResult, PackageObject},
         transaction::CallArg,
     };
@@ -269,11 +269,17 @@ mod checked {
         /// Create a new ID and update the state
         pub fn fresh_id(&mut self) -> Result<ObjectId, ExecutionError> {
             let object_id = self.tx_context.borrow_mut().fresh_id();
+            self.record_new_uid(object_id)?;
+            Ok(object_id)
+        }
+
+        /// Record a newly-created UID in the object runtime.
+        pub(crate) fn record_new_uid(&mut self, object_id: ObjectId) -> Result<(), ExecutionError> {
             self.native_extensions
                 .get_mut()
                 .and_then(|object_runtime: &mut ObjectRuntime| object_runtime.new_id(object_id))
                 .map_err(|e| self.convert_vm_error(e.finish(Location::Undefined)))?;
-            Ok(object_id)
+            Ok(())
         }
 
         /// Create a new ID and update the state
@@ -282,11 +288,7 @@ mod checked {
             package_storage_id: ObjectId,
         ) -> Result<ObjectId, ExecutionError> {
             let object_id = derive_package_metadata_id(package_storage_id);
-
-            self.native_extensions
-                .get_mut()
-                .and_then(|object_runtime: &mut ObjectRuntime| object_runtime.new_id(object_id))
-                .map_err(|e| self.convert_vm_error(e.finish(Location::Undefined)))?;
+            self.record_new_uid(object_id)?;
             Ok(object_id)
         }
 
@@ -461,6 +463,38 @@ mod checked {
                 ));
             };
             Ok(arg)
+        }
+
+        /// Registers `bytes` as an additional pure input value and returns the
+        /// [`Argument`] referring to it. This lets the adapter feed
+        /// synthesized arguments (values not present in the original
+        /// transaction inputs) into [`Self::splat_args`] and, in turn, into a
+        /// Move call. Pair a run of these calls with [`Self::num_inputs`] /
+        /// [`Self::truncate_inputs`] to drop the synthesized inputs afterwards.
+        pub(crate) fn add_pure_input(
+            &mut self,
+            bytes: Vec<u8>,
+        ) -> Result<Argument, ExecutionError> {
+            let Ok(index) = u16::try_from(self.inputs.len()) else {
+                invariant_violation!("too many inputs to register an additional pure input");
+            };
+            self.inputs
+                .push(InputValue::new_raw(RawValueType::Any, bytes));
+            Ok(Argument::Input(index))
+        }
+
+        /// The current number of registered inputs. Capture this before a run
+        /// of [`Self::add_pure_input`] calls and pass it to
+        /// [`Self::truncate_inputs`] afterwards to drop the synthesized inputs.
+        pub(crate) fn num_inputs(&self) -> usize {
+            self.inputs.len()
+        }
+
+        /// Drops every input registered at or past `len`, removing the pure
+        /// inputs added via [`Self::add_pure_input`] once they are no longer
+        /// needed. `len` must come from an earlier [`Self::num_inputs`] call.
+        pub(crate) fn truncate_inputs(&mut self, len: usize) {
+            self.inputs.truncate(len);
         }
 
         /// Get the argument value. Cloning the value if it is copyable, and
@@ -1621,7 +1655,7 @@ mod checked {
         Ok(())
     }
 
-    /// Generate an MoveObject given an updated/written object
+    /// Generate a MoveStruct given an updated/written object
     fn create_written_object(
         vm: &MoveVM,
         linkage_view: &LinkageView,
@@ -1630,7 +1664,7 @@ mod checked {
         id: ObjectId,
         type_: Type,
         contents: Vec<u8>,
-    ) -> Result<MoveObject, ExecutionError> {
+    ) -> Result<MoveStruct, ExecutionError> {
         debug_assert_eq!(
             id,
             ObjectId::from_bytes(&contents[..ObjectId::LENGTH])
@@ -1650,7 +1684,7 @@ mod checked {
             TypeTag::Struct(inner) => *inner,
             _ => invariant_violation!("Non struct type for object"),
         };
-        MoveObject::new_from_execution(
+        MoveStruct::new_from_execution(
             struct_tag,
             old_obj_ver.unwrap_or_default(),
             contents,

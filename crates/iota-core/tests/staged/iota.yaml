@@ -155,7 +155,7 @@ CheckpointSummary:
     - epoch: U64
     - sequence_number: U64
     - network_total_transactions: U64
-    - content_digest:
+    - contents_digest:
         TYPENAME: CheckpointContentsDigest
     - previous_digest:
         OPTION:
@@ -173,7 +173,7 @@ CheckpointSummary:
 CheckpointTransaction:
   STRUCT:
     - transaction:
-        TYPENAME: "iota_types::message_envelope::Envelope<iota_types::transaction::SenderSignedData, iota_types::crypto::EmptySignInfo>"
+        TYPENAME: "iota_types::message_envelope::Envelope<iota_sdk_types::transaction::SenderSignedTransaction, iota_types::crypto::EmptySignInfo>"
     - effects:
         TYPENAME: TransactionEffects
     - events:
@@ -334,7 +334,7 @@ Event:
 ExecutionData:
   STRUCT:
     - transaction:
-        TYPENAME: "iota_types::message_envelope::Envelope<iota_types::transaction::SenderSignedData, iota_types::crypto::EmptySignInfo>"
+        TYPENAME: "iota_types::message_envelope::Envelope<iota_sdk_types::transaction::SenderSignedTransaction, iota_types::crypto::EmptySignInfo>"
     - effects:
         TYPENAME: TransactionEffects
 ExecutionError:
@@ -471,6 +471,11 @@ ExecutionError:
           - suggested_gas_price: U64
     38:
       InvalidLinkage: UNIT
+    39:
+      MoveAuthenticationError:
+        STRUCT:
+          - error:
+              TYPENAME: ExecutionError
 ExecutionStatus:
   ENUM:
     0:
@@ -489,8 +494,7 @@ FullCheckpointContents:
           TYPENAME: ExecutionData
     - user_signatures:
         SEQ:
-          SEQ:
-            TYPENAME: GenericSignature
+          SEQ: BYTES
 GasCostSummary:
   STRUCT:
     - computation_cost: U64
@@ -507,9 +511,6 @@ GasPayment:
         TYPENAME: Address
     - price: U64
     - budget: U64
-GenericSignature:
-  NEWTYPESTRUCT:
-    SEQ: U8
 GenesisObject:
   ENUM:
     0:
@@ -540,12 +541,6 @@ Intent:
     - scope: U8
     - version: U8
     - app_id: U8
-IntentMessage:
-  STRUCT:
-    - intent:
-        TYPENAME: Intent
-    - value:
-        TYPENAME: Transaction
 MakeMoveVector:
   STRUCT:
     - type:
@@ -776,17 +771,18 @@ RandomnessStateUpdate:
     - randomness_round: U64
     - random_bytes: BYTES
     - randomness_obj_initial_shared_version: U64
-SenderSignedData:
+SenderSignedTransaction:
   NEWTYPESTRUCT:
     SEQ:
-      TYPENAME: SenderSignedTransaction
-SenderSignedTransaction:
+      TYPENAME: SignedTransaction
+SignedTransaction:
   STRUCT:
-    - intent_message:
-        TYPENAME: IntentMessage
-    - tx_signatures:
-        SEQ:
-          TYPENAME: GenericSignature
+    - intent:
+        TYPENAME: Intent
+    - transaction:
+        TYPENAME: Transaction
+    - signatures:
+        SEQ: BYTES
 SplitCoins:
   STRUCT:
     - coin:
@@ -1028,10 +1024,10 @@ VersionAssignment:
         TYPENAME: CheckpointSummary
     - auth_signature:
         TYPENAME: AuthorityQuorumSignInfo
-"iota_types::message_envelope::Envelope<iota_types::transaction::SenderSignedData, iota_types::crypto::EmptySignInfo>":
+"iota_types::message_envelope::Envelope<iota_sdk_types::transaction::SenderSignedTransaction, iota_types::crypto::EmptySignInfo>":
   STRUCT:
     - data:
-        TYPENAME: SenderSignedData
+        TYPENAME: SenderSignedTransaction
     - auth_signature:
         TYPENAME: EmptySignInfo
 

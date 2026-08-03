@@ -2,13 +2,12 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::BTreeMap, env, path::PathBuf, sync::Arc};
+use std::{collections::BTreeMap, env, num::NonZeroUsize, path::PathBuf, sync::Arc};
 
 use anyhow::Result;
 use clap::*;
 use fastcrypto::encoding::Encoding;
 use futures::{StreamExt, future::join_all};
-use iota_archival::{read_manifest_as_json, write_manifest_from_json};
 use iota_config::{
     Config,
     genesis::Genesis,
@@ -21,7 +20,7 @@ use iota_core::{
 use iota_protocol_config::Chain;
 use iota_replay::{ReplayToolCommand, execute_replay_command};
 use iota_sdk::{IotaClient, IotaClientBuilder, rpc_types::IotaTransactionBlockResponseOptions};
-use iota_sdk_types::{Address, ObjectId};
+use iota_sdk_types::{Address, ObjectId, TransactionDigest};
 use iota_types::{
     base_types::*,
     crypto::AuthorityPublicKeyBytes,
@@ -35,9 +34,8 @@ use crate::{
     ConciseObjectOutput, GroupedObjectOutput, SnapshotVerifyMode, VerboseObjectOutput,
     backfill_checkpoint_summaries, check_completed_snapshot,
     db_tool::{DbToolCommand, execute_db_tool_command, print_db_all_tables},
-    download_db_snapshot, download_formal_snapshot, dump_checkpoints_from_archive,
-    get_latest_available_epoch, get_object, get_transaction_block, make_clients,
-    restore_from_db_checkpoint, verify_archive, verify_archive_by_checksum,
+    download_db_snapshot, download_formal_snapshot, get_latest_available_epoch, get_object,
+    get_transaction_block, make_clients, restore_from_db_checkpoint,
 };
 
 #[derive(Parser, Clone, ValueEnum)]
@@ -123,49 +121,6 @@ pub enum ToolCommand {
         db_path: String,
         #[command(subcommand)]
         cmd: Option<DbToolCommand>,
-    },
-
-    /// Tool to verify the archive store
-    VerifyArchive {
-        #[arg(long)]
-        genesis: PathBuf,
-        #[command(flatten)]
-        object_store_config: ObjectStoreConfig,
-        #[arg(default_value_t = 5)]
-        download_concurrency: usize,
-    },
-
-    /// Tool to print the archive manifest
-    PrintArchiveManifest {
-        #[command(flatten)]
-        object_store_config: ObjectStoreConfig,
-    },
-    /// Tool to update the archive manifest
-    UpdateArchiveManifest {
-        #[command(flatten)]
-        object_store_config: ObjectStoreConfig,
-        #[arg(long = "archive-path")]
-        archive_json_path: PathBuf,
-    },
-    /// Tool to verify the archive store by comparing file checksums
-    #[command(name = "verify-archive-from-checksums")]
-    VerifyArchiveByChecksum {
-        #[command(flatten)]
-        object_store_config: ObjectStoreConfig,
-        #[arg(default_value_t = 5)]
-        download_concurrency: usize,
-    },
-
-    /// Tool to print archive contents in checkpoint range
-    #[command(name = "dump-archive")]
-    DumpArchiveByChecksum {
-        #[command(flatten)]
-        object_store_config: ObjectStoreConfig,
-        #[arg(default_value_t = 0)]
-        start: u64,
-        end: u64,
-        #[arg(default_value_t = 80)]
-        max_content_length: usize,
     },
 
     /// Download all packages to the local filesystem from a GraphQL service.
@@ -374,14 +329,19 @@ pub enum ToolCommand {
     /// summary source for syncing peers). Only historical summaries are added;
     /// no watermark is moved.
     ///
-    /// The network — and thus the archive bucket to read from — is derived
-    /// from the node's own genesis checkpoint (override the bucket via the
-    /// `CUSTOM_ARCHIVE_BUCKET` env vars).
+    /// Summaries are downloaded from the checkpoint archive at
+    /// `--ingestion-url` and inserted without chain verification, so the
+    /// checkpoint archive is trusted to serve this node's own chain.
     BackfillCheckpointSummaries {
         /// Path to the node's live database directory (the one containing
         /// `checkpoints/`, `store/`, and `epochs/`). The node must be stopped.
         #[arg(long)]
         path: PathBuf,
+        /// URL of the checkpoint archive to download summaries from (the same
+        /// store a node's state sync reads from, e.g. an S3/GCS bucket or HTTP
+        /// endpoint).
+        #[arg(long)]
+        ingestion_url: String,
         /// Number of parallel downloads to perform. Defaults to a reasonable
         /// value based on number of available logical cores.
         #[arg(long)]
@@ -823,6 +783,7 @@ impl ToolCommand {
             }
             ToolCommand::BackfillCheckpointSummaries {
                 path,
+                ingestion_url,
                 num_parallel_downloads,
                 verbose,
             } => {
@@ -831,12 +792,12 @@ impl ToolCommand {
                         .update_log("off")
                         .expect("Failed to update log level");
                 }
-                let num_parallel_downloads = num_parallel_downloads.unwrap_or_else(|| {
-                    num_cpus::get()
-                        .checked_sub(1)
-                        .expect("Failed to get number of CPUs")
-                });
-                backfill_checkpoint_summaries(&path, num_parallel_downloads).await?;
+                let num_parallel_downloads = NonZeroUsize::new(
+                    num_parallel_downloads
+                        .unwrap_or_else(|| num_cpus::get().saturating_sub(1).max(1)),
+                )
+                .expect("num-parallel-downloads must be non-zero");
+                backfill_checkpoint_summaries(&path, ingestion_url, num_parallel_downloads).await?;
             }
             ToolCommand::DownloadDBSnapshot {
                 epoch,
@@ -995,39 +956,6 @@ impl ToolCommand {
                 chain,
             } => {
                 execute_replay_command(rpc_url, safety_checks, use_authority, cfg_path, chain, cmd)
-                    .await?;
-            }
-            ToolCommand::VerifyArchive {
-                genesis,
-                object_store_config,
-                download_concurrency,
-            } => {
-                verify_archive(&genesis, object_store_config, download_concurrency, true).await?;
-            }
-            ToolCommand::PrintArchiveManifest {
-                object_store_config,
-            } => {
-                println!("{}", read_manifest_as_json(object_store_config).await?);
-            }
-            ToolCommand::UpdateArchiveManifest {
-                object_store_config,
-                archive_json_path,
-            } => {
-                write_manifest_from_json(object_store_config, archive_json_path).await?;
-            }
-            ToolCommand::VerifyArchiveByChecksum {
-                object_store_config,
-                download_concurrency,
-            } => {
-                verify_archive_by_checksum(object_store_config, download_concurrency).await?;
-            }
-            ToolCommand::DumpArchiveByChecksum {
-                object_store_config,
-                start,
-                end,
-                max_content_length,
-            } => {
-                dump_checkpoints_from_archive(object_store_config, start, end, max_content_length)
                     .await?;
             }
             ToolCommand::SignTransaction {

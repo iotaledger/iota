@@ -11,11 +11,10 @@
 //! and digest must match the store's current object); `DevInspect` skips
 //! them, like the node. Self-contained — uses only the built-in framework.
 
-use iota_sdk_types::{ObjectId, ObjectReference, Owner, Version};
+use iota_sdk_types::{MoveStruct, ObjectId, ObjectReference, Owner, TransactionDigest, Version};
 use iota_types::{
-    digests::TransactionDigest,
     error::{IotaError, UserInputError},
-    object::{MoveObject, MoveObjectExt, OBJECT_START_VERSION, Object},
+    object::{MoveStructExt, OBJECT_START_VERSION, Object},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{
         CallArg, TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, TransactionData,
@@ -43,12 +42,12 @@ fn vm_with_receivable_coin(
     parent: ObjectId,
 ) -> (LocalVm, Object, ObjectReference) {
     let gas = Object::new_move(
-        MoveObject::new_gas_coin(OBJECT_START_VERSION, ObjectId::random(), GAS_COIN_VALUE),
+        MoveStruct::new_gas_coin(OBJECT_START_VERSION, ObjectId::random(), GAS_COIN_VALUE),
         Owner::Address(sender),
         TransactionDigest::ZERO,
     );
     let receivable = Object::new_move(
-        MoveObject::new_gas_coin(Version::from(5), ObjectId::random(), 1),
+        MoveStruct::new_gas_coin(Version::from(5), ObjectId::random(), 1),
         Owner::Address(parent.into()),
         TransactionDigest::ZERO,
     );

@@ -32,8 +32,10 @@ use iota_config::{
 use iota_node_storage::{GrpcIndexes, GrpcStateReader};
 use iota_protocol_config::ProtocolVersion;
 use iota_sdk_types::{
-    Address, EndOfEpochTransactionKind, GasPayment, ObjectId, StructTag, SystemPackage,
+    Address, CheckpointContentsDigest, CheckpointDigest, ConsensusCommitDigest,
+    EndOfEpochTransactionKind, GasPayment, ObjectId, StructTag, SystemPackage, TransactionDigest,
     TransactionKind,
+    checkpoint::{CheckpointContents, EndOfEpochData},
 };
 use iota_storage::blob::{Blob, BlobEncoding};
 use iota_swarm_config::{
@@ -43,8 +45,7 @@ use iota_swarm_config::{
 use iota_types::{
     base_types::{AuthorityName, VersionNumber},
     committee::Committee,
-    crypto::{AuthoritySignature, KeypairTraits},
-    digests::{ConsensusCommitDigest, TransactionDigest},
+    crypto::AuthoritySignature,
     effects::TransactionEffects,
     error::ExecutionError,
     gas_coin::{GasCoin, NANOS_PER_IOTA},
@@ -52,10 +53,7 @@ use iota_types::{
     iota_system_state::{
         IotaSystemState, IotaSystemStateTrait, epoch_start_iota_system_state::EpochStartSystemState,
     },
-    messages_checkpoint::{
-        CheckpointContents, CheckpointContentsExt, CheckpointSequenceNumber, EndOfEpochData,
-        VerifiedCheckpoint,
-    },
+    messages_checkpoint::{CheckpointContentsExt, CheckpointSequenceNumber, VerifiedCheckpoint},
     mock_checkpoint_builder::{MockCheckpointBuilder, ValidatorKeypairProvider},
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
@@ -437,7 +435,7 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
                 .accounts()
                 .next()
                 .ok_or_else(|| anyhow!("no accounts available in keystore"))?;
-            Ok((*s, k.copy()))
+            Ok((*s, k.clone()))
         })?;
 
         let object = self
@@ -480,7 +478,7 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
             let checkpoint = inner.store.get_checkpoint_by_sequence_number(0).unwrap();
             let contents = inner
                 .store
-                .get_checkpoint_contents_by_digest(&checkpoint.content_digest);
+                .get_checkpoint_contents_by_digest(&checkpoint.contents_digest);
             (checkpoint, contents)
         };
         // Release lock before expensive data ingestion operation
@@ -601,7 +599,7 @@ impl<T, V: store::SimulatorStore> ReadStore for Simulacrum<T, V> {
 
     fn try_get_checkpoint_by_digest(
         &self,
-        digest: &iota_types::messages_checkpoint::CheckpointDigest,
+        digest: &CheckpointDigest,
     ) -> iota_types::storage::error::Result<Option<VerifiedCheckpoint>> {
         Ok(self.with_store(|store| store.get_checkpoint_by_digest(digest)))
     }
@@ -615,45 +613,41 @@ impl<T, V: store::SimulatorStore> ReadStore for Simulacrum<T, V> {
 
     fn try_get_checkpoint_contents_by_digest(
         &self,
-        digest: &iota_types::messages_checkpoint::CheckpointContentsDigest,
-    ) -> iota_types::storage::error::Result<
-        Option<iota_types::messages_checkpoint::CheckpointContents>,
-    > {
+        digest: &CheckpointContentsDigest,
+    ) -> iota_types::storage::error::Result<Option<CheckpointContents>> {
         Ok(self.with_store(|store| store.get_checkpoint_contents_by_digest(digest)))
     }
 
     fn try_get_checkpoint_contents_by_sequence_number(
         &self,
         sequence_number: iota_types::messages_checkpoint::CheckpointSequenceNumber,
-    ) -> iota_types::storage::error::Result<
-        Option<iota_types::messages_checkpoint::CheckpointContents>,
-    > {
+    ) -> iota_types::storage::error::Result<Option<CheckpointContents>> {
         Ok(self.with_store(|store| {
             store
                 .get_checkpoint_by_sequence_number(sequence_number)
                 .and_then(|checkpoint| {
-                    store.get_checkpoint_contents_by_digest(&checkpoint.content_digest)
+                    store.get_checkpoint_contents_by_digest(&checkpoint.contents_digest)
                 })
         }))
     }
 
     fn try_get_transaction(
         &self,
-        tx_digest: &iota_types::digests::TransactionDigest,
+        tx_digest: &TransactionDigest,
     ) -> iota_types::storage::error::Result<Option<Arc<VerifiedTransaction>>> {
         Ok(self.with_store(|store| store.get_transaction(tx_digest)))
     }
 
     fn try_get_transaction_effects(
         &self,
-        tx_digest: &iota_types::digests::TransactionDigest,
+        tx_digest: &TransactionDigest,
     ) -> iota_types::storage::error::Result<Option<TransactionEffects>> {
         Ok(self.with_store(|store| store.get_transaction_effects(tx_digest)))
     }
 
     fn try_get_events(
         &self,
-        digest: &iota_types::digests::TransactionDigest,
+        digest: &TransactionDigest,
     ) -> iota_types::storage::error::Result<Option<iota_types::effects::TransactionEvents>> {
         Ok(self.with_store(|store| store.get_events(digest)))
     }
@@ -667,7 +661,7 @@ impl<T, V: store::SimulatorStore> ReadStore for Simulacrum<T, V> {
         self.with_store(|store| {
             store
                 .try_get_checkpoint_by_sequence_number(sequence_number)?
-                .and_then(|chk| store.get_checkpoint_contents_by_digest(&chk.content_digest))
+                .and_then(|chk| store.get_checkpoint_contents_by_digest(&chk.contents_digest))
                 .map_or(Ok(None), |contents| {
                     iota_types::messages_checkpoint::FullCheckpointContents::try_from_checkpoint_contents(
                         store,
@@ -679,7 +673,7 @@ impl<T, V: store::SimulatorStore> ReadStore for Simulacrum<T, V> {
 
     fn try_get_full_checkpoint_contents(
         &self,
-        digest: &iota_types::messages_checkpoint::CheckpointContentsDigest,
+        digest: &CheckpointContentsDigest,
     ) -> iota_types::storage::error::Result<
         Option<iota_types::messages_checkpoint::FullCheckpointContents>,
     > {
@@ -795,7 +789,7 @@ impl<T: Send + Sync, V: store::SimulatorStore + Send + Sync> GrpcIndexes for Sim
             for seq in (0..=highest_seq).rev() {
                 if let Some(checkpoint) = store.get_checkpoint_by_sequence_number(seq) {
                     if let Some(contents) =
-                        store.get_checkpoint_contents_by_digest(&checkpoint.content_digest)
+                        store.get_checkpoint_contents_by_digest(&checkpoint.contents_digest)
                     {
                         if contents
                             .iter()
@@ -872,7 +866,7 @@ impl Simulacrum {
     pub fn transfer_txn(&self, recipient: Address) -> (Transaction, u64) {
         let (sender, key) = self.with_keystore(|keystore| {
             let (s, k) = keystore.accounts().next().unwrap();
-            (*s, k.copy())
+            (*s, k.clone())
         });
 
         let (object, gas_coin_value) = self.with_store(|store| {
@@ -989,7 +983,7 @@ mod tests {
         let recipient = Address::random();
         let (tx, transfer_amount) = sim.transfer_txn(recipient);
 
-        let gas_id = tx.data().transaction_data().gas_data().objects[0].object_id;
+        let gas_id = tx.data().transaction().gas_data().objects[0].object_id;
         let effects = sim.execute_transaction(tx).unwrap().0;
         let gas_summary = effects.gas_cost_summary();
         let gas_paid = gas_summary.net_gas_usage();

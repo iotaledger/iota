@@ -215,11 +215,8 @@ impl<F: ObjectFetcher> Store for CachingStore<F> {
 
 #[cfg(test)]
 mod tests {
-    use iota_sdk_types::{ObjectId, Owner, Version};
-    use iota_types::{
-        digests::TransactionDigest,
-        object::{MoveObject, MoveObjectExt, Object},
-    };
+    use iota_sdk_types::{MoveStruct, ObjectId, Owner, TransactionDigest, Version};
+    use iota_types::object::{MoveStructExt, Object};
 
     use super::{CachingStore, ObjectFetcher};
     use crate::{error::StoreError, store::Store};
@@ -247,7 +244,7 @@ mod tests {
     fn coin(id: ObjectId, version: Version) -> Object {
         // Owner is irrelevant for `get_object`; only the version matters here.
         Object::new_move(
-            MoveObject::new_gas_coin(version, id, 1),
+            MoveStruct::new_gas_coin(version, id, 1),
             Owner::Object(ObjectId::random()),
             TransactionDigest::ZERO,
         )
@@ -318,7 +315,7 @@ mod tests {
 
         // A locally committed child at v10, newer than the node's latest (v8).
         let child = Object::new_move(
-            MoveObject::new_gas_coin(Version::from(10), child_id, 1),
+            MoveStruct::new_gas_coin(Version::from(10), child_id, 1),
             Owner::Object(parent),
             TransactionDigest::ZERO,
         );

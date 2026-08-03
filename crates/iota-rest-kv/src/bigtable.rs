@@ -26,12 +26,11 @@ use iota_kvstore::{
         row_range::{EndKey, StartKey},
     },
 };
+use iota_sdk_types::TransactionDigest;
 use iota_storage::http_key_value_store::{ItemType, Key};
-use iota_types::{
-    digests::TransactionDigest, effects::TransactionEvents, sdk_types::Address, storage::ObjectKey,
-};
+use iota_types::{effects::TransactionEvents, sdk_types::Address, storage::ObjectKey};
 use serde::{Deserialize, Serialize};
-use tracing::error;
+use tracing::{debug, error, info, instrument};
 
 use crate::errors::{ApiError, RangeKeyBoundError};
 
@@ -71,9 +70,23 @@ impl KvStoreClient {
     /// Internally it instantiates a BigTableDB client.
     pub async fn new(config: KvStoreConfig) -> Result<Self> {
         let bigtable_client = if let Some(emulator_host) = config.emulator_host {
-            std::env::set_var("BIGTABLE_EMULATOR_HOST", &emulator_host);
-            BigTableClient::new_local(config.instance_id, config.column_family).await?
+            info!(
+                instance_id = %config.instance_id,
+                %emulator_host,
+                "connecting to BigTable emulator"
+            );
+            BigTableClient::new_local(
+                &emulator_host,
+                "iota-rest-kv",
+                config.instance_id,
+                config.column_family,
+            )?
         } else {
+            info!(
+                instance_id = %config.instance_id,
+                timeout_secs = config.timeout_secs,
+                "connecting to remote BigTable"
+            );
             BigTableClient::new_remote(
                 config.instance_id,
                 true,
@@ -90,6 +103,23 @@ impl KvStoreClient {
             bigtable_client,
             start_time: Instant::now(),
         })
+    }
+
+    /// Create a client pointed at a closed local port.
+    ///
+    /// The BigTable channel connects lazily, so the client can be constructed
+    /// and stored, but any request reaching it fails: tests use it to
+    /// exercise code paths that must answer before touching the store.
+    #[cfg(test)]
+    pub(crate) fn new_for_tests() -> Self {
+        let bigtable_client =
+            BigTableClient::new_local("localhost:1", "iota-rest-kv-tests", "test-instance", "iota")
+                .expect("local client construction does not connect");
+
+        Self {
+            bigtable_client,
+            start_time: Instant::now(),
+        }
     }
 
     /// Builds a [`RowFilter`] that matches only cells whose column qualifier
@@ -280,6 +310,11 @@ impl KvStoreClient {
     /// - `Some(value)` at index `i` means `key[i]` exists and has data
     /// - `None` at index `i` means `key[i]` was not found or has no matching
     ///   data
+    #[instrument(
+        level = "debug",
+        skip_all,
+        fields(table = table_name, column_qualifier = column_qualifier, num_keys = keys.len())
+    )]
     async fn fetch_from_bigtable(
         &self,
         table_name: &str,
@@ -297,6 +332,7 @@ impl KvStoreClient {
             .filter_map(|(index, key)| key.as_ref().map(|k| (k.clone(), index)))
             .collect::<HashMap<Vec<u8>, usize>>();
 
+        let start = Instant::now();
         for row in client
             .multi_get(
                 table_name,
@@ -316,6 +352,14 @@ impl KvStoreClient {
                 }
             }
         }
+
+        let found = results.iter().filter(|value| value.is_some()).count();
+        debug!(
+            found,
+            missing = results.len() - found,
+            elapsed_ms = start.elapsed().as_millis() as u64,
+            "fetched rows from BigTable"
+        );
 
         Ok(results)
     }
@@ -348,6 +392,7 @@ impl KvStoreClient {
     ///
     /// Returns `None` if no version below the requested one exists for that
     /// object (or if the object is not stored at all).
+    #[instrument(level = "debug", skip_all)]
     pub async fn object_before_version(
         &self,
         range: ObjectRangeKeyBound,
@@ -358,6 +403,7 @@ impl KvStoreClient {
 
         let mut client = self.bigtable_client.clone();
 
+        let start = Instant::now();
         let reversed = true;
         let rows_limit = 1;
         let rows = client
@@ -390,6 +436,12 @@ impl KvStoreClient {
                 error!("unexpected column {cell_name:?} in {OBJECTS_TABLE} table");
             }
         }
+
+        debug!(
+            found = value.is_some(),
+            elapsed_ms = start.elapsed().as_millis() as u64,
+            "range scanned object before version"
+        );
         Ok(value)
     }
 
@@ -401,11 +453,13 @@ impl KvStoreClient {
     /// from BigTableDB. Returns a vector of the same length and order as
     /// the input keys. Each entry is `Some(bytes)` if the key was found, or
     /// `None` if not found.
+    #[instrument(level = "debug", skip_all)]
     pub async fn objects_before_version(
         &self,
         req: ObjectsBeforeVersionRequest,
     ) -> Result<Vec<Option<Bytes>>, anyhow::Error> {
         let req = req.into_inner();
+        debug!(num_keys = req.len(), "fetching objects before version");
 
         // `multiget_max_items` bounds the size of an incoming request, but it is
         // an operator-configurable value. Concurrency is capped independently via
@@ -432,6 +486,7 @@ impl KvStoreClient {
     ///
     /// When `None`, the scan starts from the beginning of the requested
     /// `oldest_first` order.
+    #[instrument(level = "debug", skip(self))]
     pub async fn transactions_by_address(
         &self,
         address: Address,
@@ -446,9 +501,17 @@ impl KvStoreClient {
             false => TransactionsOrder::NewestFirst,
         };
 
-        client
+        let start = Instant::now();
+        let transactions = client
             .get_transaction_digests_by_address(address, cursor, limit, order)
-            .await
+            .await?;
+
+        debug!(
+            found = transactions.len(),
+            elapsed_ms = start.elapsed().as_millis() as u64,
+            "fetched transaction digests by address"
+        );
+        Ok(transactions)
     }
 }
 
@@ -547,5 +610,63 @@ impl TryFrom<Vec<Key>> for ObjectsBeforeVersionRequest {
         .collect();
 
         Ok(ObjectsBeforeVersionRequest(object_range_keys))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use iota_sdk_types::{ObjectId, Version};
+    use iota_types::storage::ObjectKey;
+
+    use super::*;
+
+    #[test]
+    fn object_range_scans_from_min_version_up_to_requested_version() {
+        let id = ObjectId::ZERO;
+        let key = ObjectKey(id, Version::from_u64(5));
+
+        let range = ObjectRangeKeyBound::from(key);
+
+        assert_eq!(
+            range.start_key,
+            StartKey::StartKeyClosed(raw_object_key(&ObjectKey::min_for_id(&id)))
+        );
+        assert_eq!(range.end_key, EndKey::EndKeyOpen(raw_object_key(&key)));
+        assert!(!range.is_empty());
+    }
+
+    #[test]
+    fn object_range_for_min_version_is_empty() {
+        let range = ObjectRangeKeyBound::from(ObjectKey::min_for_id(&ObjectId::ZERO));
+        assert!(range.is_empty());
+    }
+
+    #[test]
+    fn object_range_rejects_non_object_keys() {
+        assert!(
+            ObjectRangeKeyBound::try_from(Key::Transaction(TransactionDigest::random())).is_err()
+        );
+    }
+
+    #[test]
+    fn objects_before_version_request_rejects_mixed_key_types() {
+        let keys = vec![
+            Key::ObjectKey(ObjectKey::min_for_id(&ObjectId::ZERO)),
+            Key::Transaction(TransactionDigest::random()),
+        ];
+        assert!(ObjectsBeforeVersionRequest::try_from(keys).is_err());
+    }
+
+    #[test]
+    fn extract_keys_rejects_mixed_key_types() {
+        let keys = [
+            Key::Transaction(TransactionDigest::random()),
+            Key::TransactionEffects(TransactionDigest::random()),
+        ];
+        let result = extract_keys(&keys, |k| match k {
+            Key::Transaction(digest) => Some(*digest),
+            _ => None,
+        });
+        assert!(matches!(result, Err(ApiError::BadRequest(_))));
     }
 }

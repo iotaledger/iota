@@ -3,12 +3,13 @@
 
 use iota_core::checkpoints::CheckpointStore;
 use iota_macros::sim_test;
+use iota_sdk_types::{TransactionDigest, checkpoint::CheckpointContents};
 use iota_snapshot::{EpochInfo, EpochInfoV1};
 use iota_types::{
     committee::EpochId,
-    digests::{ChainIdentifier, TransactionDigest},
+    digests::ChainIdentifier,
     effects::{TransactionEffects, TransactionEffectsExtForTesting, TransactionEvents},
-    messages_checkpoint::{CheckpointContents, CheckpointContentsExt},
+    messages_checkpoint::CheckpointContentsExt,
     storage::EpochInfoV1Entry,
 };
 use test_cluster::TestClusterBuilder;
@@ -303,7 +304,7 @@ async fn epoch_info_proof_bundle_tampering_is_rejected() {
     let cases: Vec<(&str, &str, Box<dyn Fn(&mut EpochInfoV1Entry)>)> = vec![
         (
             "contents",
-            "does not hash to the signed content_digest",
+            "does not hash to the signed contents_digest",
             Box::new(|entry| {
                 entry.last_checkpoint_contents =
                     CheckpointContents::new_with_digests_only_for_tests(std::iter::empty());

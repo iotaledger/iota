@@ -32,15 +32,18 @@ use iota_json_rpc_types::{
     TransactionFilterV2,
 };
 use iota_package_resolver::{Package, PackageStore, PackageStoreWithLruCache, Resolver};
-use iota_sdk_types::{Address, ObjectId, StructTag, TypeTag, Version};
+use iota_sdk_types::{
+    Address, CheckpointDigest, ObjectId, StructTag, TransactionDigest, TypeTag, Version,
+};
 use iota_transaction_builder::DataReader;
 use iota_types::{
     balance::Supply,
     base_types::VersionNumber,
     coin::TreasuryCap,
     coin_manager::CoinManager,
+    collection_types::VecMap,
     committee::EpochId,
-    digests::{ChainIdentifier, TransactionDigest},
+    digests::ChainIdentifier,
     dynamic_field::{DynamicFieldInfo, DynamicFieldName, visitor as DFV},
     effects::TransactionEvents,
     error::IotaError,
@@ -50,7 +53,7 @@ use iota_types::{
         IotaSystemStateTrait,
         iota_system_state_summary::{IotaSystemStateSummary, IotaValidatorSummary},
     },
-    messages_checkpoint::{CheckpointDigest, CheckpointSequenceNumber},
+    messages_checkpoint::CheckpointSequenceNumber,
     object::{Object, ObjectRead, PastObjectRead, bounded_visitor::BoundedVisitor},
 };
 use itertools::Itertools;
@@ -2177,7 +2180,7 @@ impl IndexerReader {
         let object: Object = stored_object.try_into()?;
         let Some(move_object) = object.data.as_opt_struct().cloned() else {
             return Err(IndexerError::ResolveMoveStruct(
-                "Object is not a MoveObject".to_string(),
+                "Object is not a MoveStruct".to_string(),
             ));
         };
         let type_tag = move_object.type_tag();
@@ -2266,19 +2269,19 @@ impl IndexerReader {
         Ok(name_bcs_value)
     }
 
-    pub async fn get_display_object_by_type(
+    pub async fn get_display_fields_by_type(
         &self,
         object_type: &StructTag,
-    ) -> Result<Option<iota_types::display::DisplayVersionUpdatedEvent>, IndexerError> {
+    ) -> Result<Option<VecMap<String, String>>, IndexerError> {
         let object_type = object_type.to_canonical_string(/* with_prefix */ true);
-        self.spawn_blocking(move |this| this.get_display_update_event(object_type))
+        self.spawn_blocking(move |this| this.get_display_fields(object_type))
             .await
     }
 
-    fn get_display_update_event(
+    fn get_display_fields(
         &self,
         object_type: String,
-    ) -> Result<Option<iota_types::display::DisplayVersionUpdatedEvent>, IndexerError> {
+    ) -> Result<Option<VecMap<String, String>>, IndexerError> {
         let stored_display = run_query!(&self.pool, |conn| {
             display::table
                 .filter(display::object_type.eq(object_type))
@@ -2291,9 +2294,7 @@ impl IndexerReader {
             None => return Ok(None),
         };
 
-        let display_update = stored_display.to_display_update_event()?;
-
-        Ok(Some(display_update))
+        Ok(Some(stored_display.to_display_fields()?))
     }
 
     pub async fn get_owned_coins_in_blocking_task(
@@ -2513,7 +2514,7 @@ impl IndexerReader {
             .collect())
     }
 
-    pub(crate) async fn get_display_fields(
+    pub(crate) async fn get_rendered_display_fields(
         &self,
         original_object: &iota_types::object::Object,
         original_layout: &Option<MoveStructLayout>,
@@ -2530,8 +2531,8 @@ impl IndexerReader {
             });
         };
 
-        if let Some(display_object) = self.get_display_object_by_type(&object_type).await? {
-            return iota_json_rpc::read_api::get_rendered_fields(display_object.fields, &layout)
+        if let Some(display_fields) = self.get_display_fields_by_type(&object_type).await? {
+            return iota_json_rpc::read_api::get_rendered_fields(display_fields, &layout)
                 .map_err(|e| IndexerError::Generic(e.to_string()));
         }
         Ok(DisplayFieldsResponse {

@@ -18,21 +18,18 @@
 //! that logic. Newtype wrappers (e.g. `SequenceNumberString(u64)`) are only
 //! appropriate when the wrapper itself is the serialised value.
 
-use fastcrypto::{
-    encoding::{Base58 as FastCryptoBase58, Base64 as FastCryptoBase64},
-    traits::EncodeDecodeBase64,
-};
+use fastcrypto::encoding::{Base58 as FastCryptoBase58, Base64 as FastCryptoBase64};
 use iota_sdk_types::{
     Address as NativeAddress, CertificateDigest, CheckpointContentsDigest, CheckpointDigest,
     ConsensusCommitDigest, Digest, EffectsAuxDataDigest, Identifier as NativeIdentifier,
     MisbehaviorReportDigest, MoveAuthenticatorDigest, ObjectDigest, ObjectId as NativeObjectId,
     SenderSignedDataDigest, StructTag as NativeStructTag, TransactionDigest,
-    TransactionEffectsDigest, TransactionEventsDigest, TypeTag as NativeTypeTag, Version,
+    TransactionEffectsDigest, TransactionEventsDigest, TypeTag as NativeTypeTag,
+    UserSignature as NativeUserSignature, Version,
 };
 use iota_types::{
     iota_serde::{to_iota_struct_tag_string, to_iota_type_tag_string},
     parse_iota_struct_tag, parse_iota_type_tag,
-    signature::GenericSignature as NativeGenericSignature,
 };
 use schemars::{
     JsonSchema,
@@ -394,11 +391,11 @@ impl<'de> DeserializeAs<'de, Vec<u8>> for Base64 {
 
 /// A schema type that defines the JSON representation of a Base64 encoded
 /// signature.
-pub struct GenericSignature;
+pub struct UserSignature;
 
-impl JsonSchema for GenericSignature {
+impl JsonSchema for UserSignature {
     fn schema_name() -> String {
-        "GenericSignature".to_owned()
+        "UserSignature".to_owned()
     }
 
     fn json_schema(_: &mut schemars::r#gen::SchemaGenerator) -> schemars::schema::Schema {
@@ -415,22 +412,22 @@ impl JsonSchema for GenericSignature {
     }
 }
 
-impl SerializeAs<NativeGenericSignature> for GenericSignature {
-    fn serialize_as<S>(value: &NativeGenericSignature, serializer: S) -> Result<S::Ok, S::Error>
+impl SerializeAs<NativeUserSignature> for UserSignature {
+    fn serialize_as<S>(value: &NativeUserSignature, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
-        value.encode_base64().serialize(serializer)
+        value.to_base64().serialize(serializer)
     }
 }
 
-impl<'de> DeserializeAs<'de, NativeGenericSignature> for GenericSignature {
-    fn deserialize_as<D>(deserializer: D) -> Result<NativeGenericSignature, D::Error>
+impl<'de> DeserializeAs<'de, NativeUserSignature> for UserSignature {
+    fn deserialize_as<D>(deserializer: D) -> Result<NativeUserSignature, D::Error>
     where
         D: Deserializer<'de>,
     {
         let s = String::deserialize(deserializer)?;
-        NativeGenericSignature::decode_base64(&s).map_err(D::Error::custom)
+        NativeUserSignature::from_base64(&s).map_err(D::Error::custom)
     }
 }
 

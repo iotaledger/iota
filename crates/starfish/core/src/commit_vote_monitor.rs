@@ -5,6 +5,7 @@
 use std::sync::Arc;
 
 use parking_lot::Mutex;
+use starfish_config::AuthorityIndex;
 
 use crate::{
     CommitIndex,
@@ -37,6 +38,25 @@ impl CommitVoteMonitor {
                 highest_voted_commits[block.author()] = vote.index;
             }
         }
+    }
+
+    /// Whether `authority` has voted for a commit at `index` or later, meaning
+    /// it has solidified every commit up to `index` and can be expected to
+    /// serve them.
+    ///
+    /// Votes are only observed from blocks this node has received, so a peer we
+    /// have not heard from recently reads as behind even when it is not: a
+    /// `true` is evidence the peer holds the commits, a `false` is only the
+    /// absence of it.
+    pub(crate) fn has_voted_for_commit(
+        &self,
+        authority: AuthorityIndex,
+        index: CommitIndex,
+    ) -> bool {
+        self.highest_voted_commits
+            .lock()
+            .get(authority.value())
+            .is_some_and(|highest| *highest >= index)
     }
 
     // Finds the highest commit index certified by a quorum.

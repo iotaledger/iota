@@ -3,8 +3,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_sdk_crypto::{Verifier, passkey::PasskeyVerifier};
-pub use iota_sdk_types::crypto::PasskeyAuthenticator;
-use iota_sdk_types::{Address, crypto::IntentMessage};
+use iota_sdk_types::{
+    Address,
+    crypto::{IntentMessage, PasskeyAuthenticator},
+};
 use serde::Serialize;
 
 use crate::{

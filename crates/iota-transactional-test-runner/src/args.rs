@@ -1,5 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::path::PathBuf;
@@ -45,6 +45,8 @@ pub struct IotaPublishArgs {
     pub upgradeable: bool,
     #[arg(long, num_args(1..))]
     pub dependencies: Vec<String>,
+    #[arg(long = "view-functions", num_args(1..))]
+    pub view_functions: Vec<String>,
     #[arg(long)]
     pub gas_price: Option<u64>,
 }
@@ -83,6 +85,8 @@ pub struct IotaInitArgs {
     /// reader.
     #[clap(long)]
     pub grpc_api_url: Option<String>,
+    #[clap(long = "module-metadata-dynamic")]
+    pub package_metadata_with_dynamic_module_metadata: Option<bool>,
 }
 
 #[derive(Debug, clap::Parser)]

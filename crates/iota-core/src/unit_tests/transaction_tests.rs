@@ -9,11 +9,10 @@ use std::{
 
 use fastcrypto::traits::KeyPair;
 use iota_macros::sim_test;
-use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
+use iota_protocol_config::{Chain, OverrideGuard, ProtocolConfig, ProtocolVersion};
 use iota_sdk_types::{
     Address, ConsensusCommitPrologueV1, ConsensusDeterminedVersionAssignments, GenesisTransaction,
-    Identifier, SharedObjectReference, TransactionKind,
-    crypto::{Intent, IntentScope},
+    Identifier, SharedObjectReference, TransactionKind, crypto::IntentScope,
 };
 use iota_types::{
     base_types::{dbg_addr, random_object_ref},
@@ -50,8 +49,9 @@ macro_rules! assert_matches {
 }
 
 use fastcrypto::traits::AggregateAuthenticator;
+use iota_sdk_types::ConsensusCommitDigest;
 use iota_types::{
-    digests::ConsensusCommitDigest, messages_grpc::HandleCertificateRequestV1,
+    messages_grpc::HandleCertificateRequestV1,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
 };
 
@@ -71,8 +71,8 @@ async fn test_handle_transfer_transaction_bad_signature() {
         |mut_tx| {
             let (_unknown_address, unknown_key): (_, AccountKeyPair) = get_key_pair();
             let data = mut_tx.data_mut_for_testing();
-            *data.tx_signatures_mut_for_testing() =
-                vec![Signature::new_secure(data.intent_message(), &unknown_key).into()];
+            let signature = Signature::new_secure(&data.intent_message(), &unknown_key);
+            *data.tx_signatures_mut_for_testing() = vec![signature.into()];
         },
         |err| {
             assert_matches!(err, IotaError::SignerSignatureAbsent { .. });
@@ -344,6 +344,7 @@ async fn do_transaction_test_impl(
     err_check: impl Fn(&IotaError),
 ) {
     telemetry_subscribers::init_for_testing();
+    let _guard = disable_pcool_flow();
     let (sender1, sender_key1): (_, AccountKeyPair) = get_key_pair();
     let (sender2, sender_key2): (_, AccountKeyPair) = get_key_pair();
     let recipient = dbg_addr(2);
@@ -498,9 +499,20 @@ fn make_socket_addr() -> std::net::SocketAddr {
     SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 0)
 }
 
+/// The tests here drive the pre-consensus endpoints -- `handle_transaction`,
+/// `handle_certificate` and soft bundles -- which the P-COOL flow replaces
+/// with `submit_tx`, so they run against a protocol config with P-COOL off.
+fn disable_pcool_flow() -> OverrideGuard {
+    ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(false);
+        config
+    })
+}
+
 #[tokio::test]
 async fn test_oversized_txn() {
     telemetry_subscribers::init_for_testing();
+    let _guard = disable_pcool_flow();
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
     let recipient = dbg_addr(2);
     let object_id = ObjectId::random();
@@ -560,6 +572,7 @@ async fn test_oversized_txn() {
 #[tokio::test]
 async fn test_very_large_certificate() {
     telemetry_subscribers::init_for_testing();
+    let _guard = disable_pcool_flow();
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
     let recipient = dbg_addr(2);
     let object_id = ObjectId::random();
@@ -649,6 +662,7 @@ async fn test_very_large_certificate() {
 #[tokio::test]
 async fn test_handle_certificate_errors() {
     telemetry_subscribers::init_for_testing();
+    let _guard = disable_pcool_flow();
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
     let recipient = dbg_addr(2);
     let object_id = ObjectId::random();
@@ -787,8 +801,8 @@ async fn test_handle_certificate_errors() {
     let mut absent_sig_tx = transfer_transaction.clone();
     let (_unknown_address, unknown_key): (_, AccountKeyPair) = get_key_pair();
     let data = absent_sig_tx.data_mut_for_testing();
-    *data.tx_signatures_mut_for_testing() =
-        vec![Signature::new_secure(data.intent_message(), &unknown_key).into()];
+    let signature = Signature::new_secure(&data.intent_message(), &unknown_key);
+    *data.tx_signatures_mut_for_testing() = vec![signature.into()];
     let ct = CertifiedTransaction::new(
         data.clone(),
         vec![signed_transaction.auth_sig().clone()],
@@ -814,6 +828,7 @@ async fn test_handle_soft_bundle_certificates() {
     let mut protocol_config =
         ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
     protocol_config.set_max_soft_bundle_size_for_testing(10);
+    protocol_config.set_enable_pcool_flow_for_testing(false);
 
     let authority = TestAuthorityBuilder::new()
         .with_reference_gas_price(1000)
@@ -990,6 +1005,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
         ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
     protocol_config.set_max_soft_bundle_size_for_testing(3);
     protocol_config.set_consensus_max_transactions_in_block_bytes_for_testing(10_000);
+    protocol_config.set_enable_pcool_flow_for_testing(false);
     let authority = TestAuthorityBuilder::new()
         .with_reference_gas_price(1000)
         .with_protocol_config(protocol_config)
@@ -1408,7 +1424,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
 
 #[test]
 fn sender_signed_data_serialized_intent() {
-    let mut txn = SenderSignedData::new(
+    let txn = SenderSignedData::new(
         TransactionData::new_transfer(
             Address::ZERO,
             random_object_ref(),
@@ -1420,16 +1436,22 @@ fn sender_signed_data_serialized_intent() {
         vec![],
     );
 
-    assert_eq!(txn.intent_message().intent, Intent::iota_transaction());
+    let bytes = bcs::to_bytes(&txn).unwrap();
+    // The serialized form starts with the length-1 sequence marker followed by
+    // the transaction intent.
+    assert_eq!(
+        &bytes[..4],
+        [
+            1,
+            IntentScope::TransactionData as u8,
+            IntentVersion::V0 as u8,
+            IntentAppId::Iota as u8
+        ]
+    );
 
     // deser fails when intent is wrong
-    let mut bytes = bcs::to_bytes(txn.inner()).unwrap();
-    bytes[0] = 1; // set invalid intent
-    let e = bcs::from_bytes::<SenderSignedTransaction>(&bytes).unwrap_err();
-    assert!(e.to_string().contains("invalid Intent for Transaction"));
-
-    // ser fails when intent is wrong
-    txn.inner_mut().intent_message.intent.scope = IntentScope::TransactionEffects;
-    let e = bcs::to_bytes(txn.inner()).unwrap_err();
-    assert!(e.to_string().contains("invalid Intent for Transaction"));
+    let mut bytes = bytes;
+    bytes[1] = IntentScope::TransactionEffects as u8;
+    let e = bcs::from_bytes::<SenderSignedData>(&bytes).unwrap_err();
+    assert!(e.to_string().contains("invalid intent"));
 }

@@ -120,13 +120,7 @@ impl ObjectStore for InMemoryStorage {
         Ok(self
             .persistent
             .get(object_id)
-            .and_then(|obj| {
-                if obj.version() == version {
-                    Some(obj)
-                } else {
-                    None
-                }
-            })
+            .filter(|&obj| obj.version() == version)
             .cloned())
     }
 }
@@ -147,13 +141,7 @@ impl ObjectStore for &mut InMemoryStorage {
         Ok(self
             .persistent
             .get(object_id)
-            .and_then(|obj| {
-                if obj.version() == version {
-                    Some(obj)
-                } else {
-                    None
-                }
-            })
+            .filter(|&obj| obj.version() == version)
             .cloned())
     }
 }
@@ -178,7 +166,7 @@ impl InMemoryStorage {
 
     pub fn read_input_objects_for_transaction(&self, transaction: &Transaction) -> InputObjects {
         let mut input_objects = Vec::new();
-        for kind in transaction.transaction_data().input_objects().unwrap() {
+        for kind in transaction.transaction().input_objects().unwrap() {
             let id = match kind {
                 InputObjectKind::MovePackage(id) | InputObjectKind::SharedMoveObject { id, .. } => {
                     id
