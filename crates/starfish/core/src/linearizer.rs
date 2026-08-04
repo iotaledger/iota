@@ -634,7 +634,13 @@ mod tests {
     async fn test_handle_commit_with_schedule_update() {
         telemetry_subscribers::init_for_testing();
         let num_authorities = 4;
-        let context = Arc::new(Context::new_for_test(num_authorities).0);
+        // The expected scores come from V2 vote scoring, which is skipped
+        // when the sliding-window schedule is on; run with it off.
+        let mut context = Context::new_for_test(num_authorities).0;
+        context
+            .protocol_config
+            .set_consensus_enable_sliding_window_leader_schedule_for_testing(false);
+        let context = Arc::new(context);
         let dag_state = Arc::new(RwLock::new(DagState::new(
             context.clone(),
             Arc::new(MemStore::new()),

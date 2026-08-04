@@ -865,6 +865,7 @@ pub async fn split_coin_equal_tx(
         .into_inner()
         .into_iter()
         .next()
+        .expect("no result for the requested coin")
         .expect("coin not found")
         .object()
         .expect("invalid coin object");

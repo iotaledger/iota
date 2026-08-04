@@ -34,7 +34,7 @@ use iota_types::{
     transaction::SenderSignedTransactionAPI,
 };
 use jsonrpsee::{core::client::ClientT, rpc_params};
-use test_cluster::{TestCluster, TestClusterBuilder};
+use test_cluster::{TestCluster, TestClusterBuilder, override_pcool_flow};
 
 #[tokio::test]
 async fn test_validator_traffic_control_noop() -> Result<(), anyhow::Error> {
@@ -234,6 +234,9 @@ async fn test_fullnode_traffic_control_dry_run() -> Result<(), anyhow::Error> {
 #[tokio::test]
 async fn test_validator_traffic_control_error_blocked() -> Result<(), anyhow::Error> {
     telemetry_subscribers::init_for_testing();
+    // Under the P-COOL flow `handle_transaction` is rejected before signature
+    // verification, so the errors this policy counts never reach the tally.
+    let _pcool_guard = override_pcool_flow(false);
     let n = 5;
     let policy_config = PolicyConfig {
         connection_blocklist_ttl_sec: 1,
@@ -293,6 +296,9 @@ async fn test_validator_traffic_control_error_blocked() -> Result<(), anyhow::Er
 async fn test_validator_traffic_control_error_blocked_with_policy_reconfig()
 -> Result<(), anyhow::Error> {
     telemetry_subscribers::init_for_testing();
+    // Under the P-COOL flow `handle_transaction` is rejected before signature
+    // verification, so the errors this policy counts never reach the tally.
+    let _pcool_guard = override_pcool_flow(false);
     let n = 5;
     let policy_config = PolicyConfig {
         connection_blocklist_ttl_sec: 100,
@@ -510,6 +516,9 @@ async fn test_fullnode_traffic_control_error_blocked() -> Result<(), anyhow::Err
 #[tokio::test]
 async fn test_validator_traffic_control_error_delegated() -> Result<(), anyhow::Error> {
     telemetry_subscribers::init_for_testing();
+    // Under the P-COOL flow `handle_transaction` is rejected before signature
+    // verification, so the errors this policy counts never reach the tally.
+    let _pcool_guard = override_pcool_flow(false);
     let n = 5;
     let port = 65000;
     let policy_config = PolicyConfig {

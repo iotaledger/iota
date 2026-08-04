@@ -3143,7 +3143,14 @@ impl AuthorityPerEpochStore {
             .user_signatures_for_checkpoints
             .lock()
             .insert(digest, signatures);
-        let key = ConsensusTransactionKey::Certificate(digest);
+        // Match the key the checkpoint builder waits on: in the P-COOL flow
+        // user transactions are submitted as UserTransaction, not as
+        // Certificate.
+        let key = if self.protocol_config().enable_pcool_flow() {
+            ConsensusTransactionKey::UserTransaction(digest)
+        } else {
+            ConsensusTransactionKey::Certificate(digest)
+        };
         let key = SequencedConsensusTransactionKey::External(key);
 
         let mut output = ConsensusCommitOutput::default();

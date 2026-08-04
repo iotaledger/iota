@@ -20,7 +20,7 @@ pub struct StoredPackage {
 impl From<IndexedPackage> for StoredPackage {
     fn from(p: IndexedPackage) -> Self {
         Self {
-            package_id: p.package_id.as_bytes().to_vec(),
+            package_id: p.move_package.id().as_bytes().to_vec(),
             original_id: p.move_package.original_package_id().as_bytes().to_vec(),
             package_version: p.move_package.version().as_u64() as i64,
             move_package: bcs::to_bytes(&p.move_package).unwrap(),

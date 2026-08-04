@@ -427,6 +427,183 @@ async fn test_delete_range() {
     assert!(db.contains_key(&100).expect("Failed to query legal key"));
 }
 
+// `schedule_delete_all` is only compiled under the simulator, so its tests are
+// too. They use `msim::sim_test` directly rather than `iota_macros::sim_test`,
+// which expands to a path in `iota-simulator` — a crate typed-store cannot
+// depend on without a dependency cycle. A plain `#[tokio::test]` would not do:
+// under the simulator it expands to a test marked `#[ignore]`.
+#[cfg(msim)]
+mod delete_all {
+    use super::*;
+
+    #[msim::sim_test]
+    async fn deletes_every_entry() {
+        let tmp_dir = iota_common::tempdir();
+        let db: DBMap<i32, String> = open_map(tmp_dir.path(), None);
+
+        let mut batch = db.batch();
+        batch
+            .insert_batch(&db, (0..101).map(|i| (i, i.to_string())))
+            .expect("Failed to batch insert");
+        batch.write().expect("Failed to execute batch");
+
+        db.schedule_delete_all().expect("Failed to delete all");
+
+        assert!(db.is_empty());
+        assert_eq!(get_iter(&db).count(), 0);
+
+        // The tombstone must not shadow entries written after it, including one
+        // at the key it ended on.
+        db.insert(&100, &"100".to_owned())
+            .expect("Failed to insert");
+        assert_eq!(
+            vec![(100, "100".to_owned())],
+            get_iter(&db).collect::<Vec<_>>()
+        );
+    }
+
+    #[msim::sim_test]
+    async fn deletes_a_single_entry() {
+        let tmp_dir = iota_common::tempdir();
+        let db: DBMap<i32, String> = open_map(tmp_dir.path(), None);
+
+        db.insert(&1, &"1".to_owned()).expect("Failed to insert");
+
+        db.schedule_delete_all().expect("Failed to delete all");
+
+        assert!(db.is_empty());
+    }
+
+    #[msim::sim_test]
+    async fn deletes_an_all_ones_last_key() {
+        let tmp_dir = iota_common::tempdir();
+        let db: DBMap<u64, String> = open_map(tmp_dir.path(), None);
+
+        // The greatest key serializes to all ones, so no key of the same length
+        // sorts above it.
+        for k in [0, 1, u64::MAX] {
+            db.insert(&k, &k.to_string()).expect("Failed to insert");
+        }
+
+        db.schedule_delete_all().expect("Failed to delete all");
+
+        assert!(db.is_empty());
+    }
+
+    #[msim::sim_test]
+    async fn deletes_an_empty_key() {
+        let tmp_dir = iota_common::tempdir();
+        // A unit key serializes to no bytes at all, so the last key is the
+        // empty one.
+        let db: DBMap<(), String> = open_map(tmp_dir.path(), None);
+
+        db.insert(&(), &"value".to_owned())
+            .expect("Failed to insert");
+
+        db.schedule_delete_all().expect("Failed to delete all");
+
+        assert!(db.is_empty());
+    }
+
+    #[msim::sim_test]
+    async fn deletes_signed_keys() {
+        let tmp_dir = iota_common::tempdir();
+        let db: DBMap<i32, String> = open_map(tmp_dir.path(), None);
+
+        // Negative keys serialize above the positive ones, so the last key in
+        // the table is -1 rather than 7.
+        for k in [-5, -1, 0, 7] {
+            db.insert(&k, &k.to_string()).expect("Failed to insert");
+        }
+
+        db.schedule_delete_all().expect("Failed to delete all");
+
+        assert!(db.is_empty());
+    }
+
+    #[msim::sim_test]
+    async fn deletes_variable_length_keys() {
+        let tmp_dir = iota_common::tempdir();
+        let db: DBMap<String, String> = open_map(tmp_dir.path(), None);
+
+        for k in ["a", "bb", "ccc"] {
+            db.insert(&k.to_owned(), &k.to_uppercase())
+                .expect("Failed to insert");
+        }
+
+        db.schedule_delete_all().expect("Failed to delete all");
+
+        assert!(db.is_empty());
+    }
+
+    #[msim::sim_test]
+    async fn deletes_entries_already_on_disk() {
+        let tmp_dir = iota_common::tempdir();
+        let db: DBMap<i32, String> = open_map(tmp_dir.path(), None);
+
+        for i in 0..10 {
+            db.insert(&i, &i.to_string()).expect("Failed to insert");
+        }
+        // Move the entries out of the memtable, so the tombstone has to cover
+        // entries already written to SST files.
+        db.flush().expect("Failed to flush");
+
+        db.schedule_delete_all().expect("Failed to delete all");
+
+        assert!(db.is_empty());
+    }
+
+    #[msim::sim_test]
+    async fn succeeds_on_an_empty_map() {
+        let tmp_dir = iota_common::tempdir();
+        let db: DBMap<i32, String> = open_map(tmp_dir.path(), None);
+
+        db.schedule_delete_all().expect("Failed to delete all");
+
+        assert!(db.is_empty());
+    }
+
+    #[msim::sim_test]
+    async fn leaves_other_column_families_intact() {
+        let tmp_dir = iota_common::tempdir();
+        let rocks = open_rocksdb(tmp_dir.path(), &["First_CF", "Second_CF"]);
+        let options = ReadWriteOptions::default();
+        let db_cf_1: DBMap<i32, String> = DBMap::reopen(&rocks, Some("First_CF"), &options, false)
+            .expect("Failed to open storage");
+        let db_cf_2: DBMap<i32, String> = DBMap::reopen(&rocks, Some("Second_CF"), &options, false)
+            .expect("Failed to open storage");
+
+        let keys_vals_2 = (0..10).map(|i| (i, i.to_string())).collect::<Vec<_>>();
+        let mut batch = db_cf_1.batch();
+        batch
+            .insert_batch(&db_cf_1, (0..10).map(|i| (i, i.to_string())))
+            .expect("Failed to batch insert")
+            .insert_batch(&db_cf_2, keys_vals_2.clone())
+            .expect("Failed to batch insert");
+        batch.write().expect("Failed to execute batch");
+
+        db_cf_1.schedule_delete_all().expect("Failed to delete all");
+
+        assert!(db_cf_1.is_empty());
+        assert_eq!(keys_vals_2, get_iter(&db_cf_2).collect::<Vec<_>>());
+    }
+}
+
+#[tokio::test]
+async fn test_delete_range_across_databases_is_rejected() {
+    let first_dir = iota_common::tempdir();
+    let second_dir = iota_common::tempdir();
+    let first_db: DBMap<i32, String> = open_map(first_dir.path(), None);
+    let second_db: DBMap<i32, String> = open_map(second_dir.path(), None);
+
+    let mut batch = first_db.batch();
+    let err = batch
+        .schedule_delete_range(&second_db, &0, &10)
+        .expect_err("Deleting a range in another database should be rejected");
+
+    assert!(matches!(err, TypedStoreError::CrossDBBatch));
+}
+
 #[tokio::test]
 async fn test_iter_with_bounds() {
     let tmp_dir = iota_common::tempdir();

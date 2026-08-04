@@ -243,6 +243,11 @@ async fn test_transaction_orchestrator_reconfig() {
 #[sim_test]
 async fn test_tx_across_epoch_boundaries() {
     telemetry_subscribers::init_for_testing();
+    // Halting 2 of 4 validators only withholds certification quorum. Under the
+    // P-COOL flow a single accepting validator carries the transaction into
+    // consensus, so it can be sequenced before the epoch changes;
+    // `test_wait_for_local_execution_across_epoch_boundary` covers that flow.
+    let _pcool_guard = override_pcool_flow(false);
     let total_tx_cnt = 1;
     let (result_tx, mut result_rx) = tokio::sync::mpsc::channel::<FinalizedEffects>(total_tx_cnt);
 
