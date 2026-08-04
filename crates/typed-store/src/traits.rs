@@ -42,7 +42,11 @@ where
     /// Removes the entry for the given key from the map.
     fn remove(&self, key: &K) -> Result<(), Self::Error>;
 
-    /// Uses delete range on the entire key range
+    /// Removes every entry from the map.
+    ///
+    /// Not atomic with respect to concurrent writers: an entry inserted while
+    /// the call is in flight may survive it.
+    #[cfg(msim)]
     fn schedule_delete_all(&self) -> Result<(), TypedStoreError>;
 
     /// Returns true if the map is empty, otherwise false.

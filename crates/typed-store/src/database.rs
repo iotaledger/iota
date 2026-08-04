@@ -1070,19 +1070,25 @@ impl DBBatch {
         from: &K,
         to: &K,
     ) -> Result<(), TypedStoreError> {
+        self.schedule_delete_range_raw(db, be_fix_int_ser(from), be_fix_int_ser(to))
+    }
+
+    /// Same as [`Self::schedule_delete_range`], but takes the bounds as keys
+    /// already serialized with `be_fix_int_ser`. Use it for a bound that is
+    /// not the serialization of any key, e.g. an upper bound above the
+    /// greatest key in the map.
+    pub(crate) fn schedule_delete_range_raw<K, V>(
+        &mut self,
+        db: &DBMap<K, V>,
+        from: Vec<u8>,
+        to: Vec<u8>,
+    ) -> Result<(), TypedStoreError> {
         if !Arc::ptr_eq(&db.db, &self.database) {
             return Err(TypedStoreError::CrossDBBatch);
         }
 
-        let from_buf = be_fix_int_ser(from);
-        let to_buf = be_fix_int_ser(to);
-
         if let StorageWriteBatch::Rocks(b) = &mut self.batch {
-            b.delete_range_cf(
-                &rocks_cf_from_db(&self.database, db.cf_name())?,
-                from_buf,
-                to_buf,
-            );
+            b.delete_range_cf(&rocks_cf_from_db(&self.database, db.cf_name())?, from, to);
         }
         Ok(())
     }
@@ -1290,20 +1296,26 @@ where
     /// Writes a range delete tombstone to delete all entries in the db map.
     /// The effect of this write is visible immediately, i.e. you won't see
     /// old values when you do a lookup or scan.
+    #[cfg(msim)]
     #[instrument(level = "trace", skip_all, err)]
     fn schedule_delete_all(&self) -> Result<(), TypedStoreError> {
-        let first_key = self.safe_iter().next().transpose()?.map(|(k, _v)| k);
-        let last_key = self
+        let Some(last_key) = self
             .safe_range_iter_reversed(..)
             .next()
             .transpose()?
-            .map(|(k, _v)| k);
-        if let Some((first_key, last_key)) = first_key.zip(last_key) {
-            let mut batch = self.batch();
-            batch.schedule_delete_range(self, &first_key, &last_key)?;
-            batch.write()?;
-        }
-        Ok(())
+            .map(|(k, _v)| k)
+        else {
+            return Ok(());
+        };
+        // The tombstone excludes its upper bound, so it has to end past the last key:
+        // appending a zero byte gives the first key sorting above it.
+        let mut to = be_fix_int_ser(&last_key);
+        to.push(0);
+        // The empty key sorts below every key, so the range starts before the first
+        // entry.
+        let mut batch = self.batch();
+        batch.schedule_delete_range_raw(self, Vec::new(), to)?;
+        batch.write()
     }
 
     fn is_empty(&self) -> bool {
