@@ -25,13 +25,14 @@ use iota_types::{
     transaction::{SenderSignedData, TransactionData, TransactionDataAPI},
 };
 use iota_vm_sdk::{
-    Chain, ChainContext, DebugConfig, ExecuteOptions, InMemoryStore, LocalVm, ProfileOutput,
-    ProfileSink, ProtocolVersion, Store,
+    Chain, ChainContext, DebugConfig, ExecuteOptions, InMemoryStore, LocalVm, ProfileSink,
+    ProtocolVersion, Store,
 };
 use serde_json::Value;
 
 fn main() -> Result<()> {
     let out_path = PathBuf::from("authenticator_gas_profile.speedscope.json");
+    let trace_path = PathBuf::from("authenticator_gas_profile.trace.json");
 
     let signed = example_signed_transaction()?;
     let sender = signed.transaction().sender();
@@ -62,8 +63,11 @@ fn main() -> Result<()> {
     // carries one profile for the authenticator function and one for the PTB
     // body.
     let mut vm = LocalVm::new(ctx, store)?;
-    let opts = ExecuteOptions::dry_run()
-        .with_debug(DebugConfig::default().with_profiling(ProfileSink::Path(out_path)));
+    let opts = ExecuteOptions::dry_run().with_debug(
+        DebugConfig::default()
+            .with_profiling(ProfileSink::Path(out_path))
+            .with_tracing(),
+    );
     let result = vm.execute_signed(signed, opts)?;
 
     // Inspect the execution status, signature status, and the gas ledger.
@@ -71,16 +75,24 @@ fn main() -> Result<()> {
     println!("Signature status: {:?}", result.signature_status);
     println!("Gas cost summary: {:?}", result.gas_summary);
 
-    match result.debug.and_then(|d| d.profile) {
-        Some(ProfileOutput::Path(p)) => {
-            println!(
-                "Gas flamegraph (Speedscope JSON) written to: {}",
-                p.display()
-            );
-            println!("View it at https://www.speedscope.app or render it to an image.");
+    match result.debug.and_then(|d| d.trace) {
+        Some(trace) => {
+            println!("Trace: {}", trace.to_json());
+            std::fs::write(&trace_path, serde_json::to_string(&trace)?)?;
         }
-        _ => println!("No gas profile was produced (the run metered no computation)."),
+        _ => println!("No trace was produced."),
     }
+
+    // match result.debug.and_then(|d| d.profile) {
+    //     Some(ProfileOutput::Path(p)) => {
+    //         println!(
+    //             "Gas flamegraph (Speedscope JSON) written to: {}",
+    //             p.display()
+    //         );
+    //         println!("View it at https://www.speedscope.app or render it to an image.");
+    //     }
+    //     _ => println!("No gas profile was produced (the run metered no
+    // computation)."), }
 
     Ok(())
 }

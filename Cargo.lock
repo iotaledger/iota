@@ -8144,6 +8144,7 @@ dependencies = [
  "iota-config",
  "iota-execution",
  "iota-framework",
+ "iota-move-build",
  "iota-protocol-config",
  "iota-sdk-graphql-client",
  "iota-sdk-grpc-client",

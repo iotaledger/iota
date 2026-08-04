@@ -103,11 +103,17 @@ impl ExecutionEnv {
         // The profiler writes through the filesystem, which wasm32 lacks.
         #[cfg(target_arch = "wasm32")]
         let profile = None;
+        let trace = trace_builder.map(|b| match &self.debug.trace_path {
+            Some(path) => {
+                let trace = b.into_trace();
+                let _ = std::fs::write(path, serde_json::to_string(&trace).unwrap())
+                    .map_err(|e| VmError::new(format!("write trace to {}: {e}", path.display())));
+                trace
+            }
+            None => b.into_trace(),
+        });
 
-        Ok(Some(DebugArtifacts {
-            profile,
-            trace: trace_builder.map(|b| b.into_trace()),
-        }))
+        Ok(Some(DebugArtifacts { profile, trace }))
     }
 }
 

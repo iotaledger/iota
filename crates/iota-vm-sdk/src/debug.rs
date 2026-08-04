@@ -21,6 +21,7 @@ pub struct DebugConfig {
     /// Enable instruction-level execution tracing. Only captured on the
     /// `MoveAuthenticator` path; see [`with_tracing`](Self::with_tracing).
     pub trace: bool,
+    pub trace_path: Option<PathBuf>,
 }
 
 impl DebugConfig {
@@ -47,8 +48,9 @@ impl DebugConfig {
     /// [`DebugArtifacts::trace`] stays `None` even when tracing was
     /// requested.
     #[must_use]
-    pub fn with_tracing(mut self) -> Self {
+    pub fn with_tracing(mut self, trace_path: PathBuf) -> Self {
         self.trace = true;
+        self.trace_path = Some(trace_path);
         self
     }
 
