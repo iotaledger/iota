@@ -170,12 +170,6 @@ pub struct NodeConfig {
     #[serde(skip)]
     pub supported_protocol_versions: Option<SupportedProtocolVersions>,
 
-    /// Configuration to manage database checkpoints,
-    /// including whether to perform checkpoints at the end of an epoch,
-    /// the path for storing checkpoints, and other related settings.
-    #[serde(default)]
-    pub db_checkpoint_config: DBCheckpointConfig,
-
     /// Configuration for enabling/disabling expensive safety checks.
     #[serde(default)]
     pub expensive_safety_check_config: ExpensiveSafetyCheckConfig,
@@ -1115,21 +1109,6 @@ pub struct MetricsConfig {
     pub push_url: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub groups: Option<MetricGroups>,
-}
-
-#[derive(Default, Debug, Clone, Deserialize, Serialize)]
-#[serde(rename_all = "kebab-case")]
-pub struct DBCheckpointConfig {
-    #[serde(default)]
-    pub perform_db_checkpoints_at_epoch_end: bool,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub checkpoint_path: Option<PathBuf>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub object_store_config: Option<ObjectStoreConfig>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub perform_index_db_checkpoints_at_epoch_end: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub prune_and_compact_before_upload: Option<bool>,
 }
 
 fn default_checkpoint_archive_download_concurrency() -> usize {

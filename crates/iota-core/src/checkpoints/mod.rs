@@ -266,16 +266,6 @@ impl CheckpointStore {
         CheckpointStore::new(storage_dir.as_path())
     }
 
-    pub fn new_for_db_checkpoint_handler(path: &Path) -> Arc<Self> {
-        let tables = CheckpointStoreTables::new(path, "db_checkpoint");
-        Arc::new(Self {
-            tables,
-            full_checkpoint_contents_cache: FullCheckpointContentsCache::default(),
-            synced_checkpoint_notify_read: NotifyRead::new(),
-            executed_checkpoint_notify_read: NotifyRead::new(),
-        })
-    }
-
     pub fn open_readonly(path: &Path) -> CheckpointStoreTablesReadOnly {
         CheckpointStoreTables::open_readonly(path)
     }
@@ -948,29 +938,6 @@ impl CheckpointStore {
                 .epoch_rolling_gas_cost_summary
                 .computation_cost,
         })
-    }
-
-    pub fn checkpoint_db(&self, path: &Path) -> IotaResult {
-        // This checkpoints the entire db and not one column family
-        self.tables
-            .checkpoint_content
-            .checkpoint_db(path)
-            .map_err(Into::into)
-    }
-
-    pub fn delete_highest_executed_checkpoint_test_only(&self) -> Result<(), TypedStoreError> {
-        let mut wb = self.tables.watermarks.batch();
-        wb.delete_batch(
-            &self.tables.watermarks,
-            std::iter::once(CheckpointWatermark::HighestExecuted),
-        )?;
-        wb.write()?;
-        Ok(())
-    }
-
-    pub fn reset_db_for_execution_since_genesis(&self) -> IotaResult {
-        self.delete_highest_executed_checkpoint_test_only()?;
-        Ok(())
     }
 }
 
