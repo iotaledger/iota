@@ -40,18 +40,17 @@ use iota_storage::{
 };
 use iota_types::{digests::ChainIdentifier, global_state_hash::GlobalStateHash};
 use object_store::path::Path;
-use tokio::{
-    sync::Mutex,
-    task::JoinHandle,
-    time::{Duration, Instant},
-};
+use tokio::{sync::Mutex, task::JoinHandle, time::Duration};
 use tracing::{error, info};
 
 use crate::{
     EPOCH_INFO_FILE_MAGIC, EpochInfo, FileMetadata, FileType, MAGIC_BYTES, MANIFEST_FILE_MAGIC,
     Manifest, OBJECT_FILE_MAGIC, OBJECT_ID_BYTES, OBJECT_REF_BYTES, REFERENCE_FILE_MAGIC,
     SEQUENCE_NUM_BYTES, SHA3_BYTES,
-    progress::{DownloadProgressBar, copy_files_with_progress, fetch_total_bytes},
+    progress::{
+        DownloadProgressBar, ProgressTicker, ProgressUnit, copy_files_with_progress,
+        fetch_total_bytes,
+    },
     restore::Restore,
 };
 
@@ -192,24 +191,17 @@ impl StateSnapshotReaderV1 {
             })
             .collect();
         let num_files = (files_to_download.len() + object_file_paths.len()) as u64;
-        // The size sweep only feeds the progress display; skip its HEAD
-        // requests entirely when the bars can't be seen (e.g. non-TTY
-        // output).
-        let total_bytes = if multi_progress_bar.is_hidden() {
-            None
-        } else {
-            fetch_total_bytes(
-                &remote_object_store,
-                files_to_download
-                    .iter()
-                    .cloned()
-                    .chain(object_file_paths)
-                    .collect(),
-                download_concurrency.get(),
-                &multi_progress_bar,
-            )
-            .await
-        };
+        let total_bytes = fetch_total_bytes(
+            &remote_object_store,
+            files_to_download
+                .iter()
+                .cloned()
+                .chain(object_file_paths)
+                .collect(),
+            download_concurrency.get(),
+            &multi_progress_bar,
+        )
+        .await;
         let download_progress = Arc::new(DownloadProgressBar::new(
             &multi_progress_bar,
             "Downloading files",
@@ -372,14 +364,21 @@ impl StateSnapshotReaderV1 {
 
         info!("Computing checksums");
         // Creates a progress bar for checksumming
-        let checksum_progress_bar = self.multi_progress_bar.add(
-            ProgressBar::new(num_part_files as u64).with_style(
-                ProgressStyle::with_template(
-                    "[{elapsed_precise}] {wide_bar} {pos} out of {len} ref files checksummed (ETA {eta}) ({msg})",
-                )
-                .unwrap(),
+        let checksum_ticker = ProgressTicker::spawn(
+            self.multi_progress_bar.add(
+                ProgressBar::new(num_part_files as u64).with_style(
+                    ProgressStyle::with_template(
+                        "[{elapsed_precise}] {wide_bar} Checksumming ref files: {pos}/{len} \
+                         ({per_sec}, ETA {eta}) — {msg}",
+                    )
+                    .unwrap(),
+                ),
             ),
+            "Checksumming ref files",
+            ProgressUnit::Count("ref files"),
+            None,
         );
+        let checksum_progress_bar = checksum_ticker.bar().clone();
 
         // Iterates over all FileMetadata in the ref files by partition and build up the
         // sha3 digests mapping: (bucket, (partition, sha3_digest))
@@ -430,7 +429,7 @@ impl StateSnapshotReaderV1 {
             })
             .await?;
 
-        checksum_progress_bar.finish_with_message("Checksumming complete");
+        checksum_ticker.finish_with_message("Checksumming complete");
 
         let accum_handle =
             sender.map(|sender| self.spawn_accumulation_tasks(sender, num_part_files));
@@ -453,36 +452,24 @@ impl StateSnapshotReaderV1 {
         sender: tokio::sync::mpsc::Sender<(GlobalStateHash, u64)>,
         num_part_files: usize,
     ) -> JoinHandle<()> {
-        // Spawns accumulation progress bar
+        // Spawns accumulation progress bar, whose position the ticker takes
+        // from the counter the accumulation task below advances
         let concurrency = self.concurrency;
         let accum_counter = Arc::new(AtomicU64::new(0));
-        let cloned_accum_counter = accum_counter.clone();
-        let accum_progress_bar = self.multi_progress_bar.add(
-             ProgressBar::new(num_part_files as u64).with_style(
-                 ProgressStyle::with_template(
-                     "[{elapsed_precise}] {wide_bar} {pos} out of {len} ref files accumulated from snapshot (ETA {eta}) ({msg})",
-                 )
-                 .unwrap(),
-             ),
-         );
-        let cloned_accum_progress_bar = accum_progress_bar.clone();
-        // Spawns accumulation progress bar update task
-        tokio::spawn(async move {
-            let a_instant = Instant::now();
-            loop {
-                if cloned_accum_progress_bar.is_finished() {
-                    break;
-                }
-                let num_partitions = cloned_accum_counter.load(Ordering::Relaxed);
-                let total_partitions_per_sec =
-                    num_partitions as f64 / a_instant.elapsed().as_secs_f64();
-                cloned_accum_progress_bar.set_position(num_partitions);
-                cloned_accum_progress_bar.set_message(format!(
-                    "file partitions per sec: {total_partitions_per_sec}"
-                ));
-                tokio::time::sleep(Duration::from_secs(1)).await;
-            }
-        });
+        let accum_ticker = ProgressTicker::spawn(
+            self.multi_progress_bar.add(
+                ProgressBar::new(num_part_files as u64).with_style(
+                    ProgressStyle::with_template(
+                        "[{elapsed_precise}] {wide_bar} Accumulating ref files: {pos}/{len} \
+                         ({per_sec}, ETA {eta})",
+                    )
+                    .unwrap(),
+                ),
+            ),
+            "Accumulating ref files",
+            ProgressUnit::Count("ref files"),
+            Some(accum_counter.clone()),
+        );
 
         // spawns accumualation task
         let ref_files = self.ref_files.clone();
@@ -542,7 +529,7 @@ impl StateSnapshotReaderV1 {
                     })
                     .await;
             }
-            accum_progress_bar.finish_with_message("Accumulation complete");
+            accum_ticker.finish_with_message("Accumulation complete");
         })
     }
 
@@ -664,7 +651,7 @@ impl StateSnapshotReaderV1 {
             abort_registration,
         )
         .await?;
-        obj_progress.bar().finish_with_message("Download complete");
+        obj_progress.finish_with_message("Download complete");
         ret
     }
 

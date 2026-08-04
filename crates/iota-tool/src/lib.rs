@@ -23,7 +23,7 @@ use futures::{
     TryStreamExt,
     future::{AbortHandle, join_all},
 };
-use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
+use indicatif::{ProgressBar, ProgressStyle};
 use iota_config::{
     genesis::Genesis,
     object_storage_config::{ObjectStoreConfig, ObjectStoreType},
@@ -47,7 +47,10 @@ use iota_sdk_types::{
     checkpoint::CheckpointCommitment,
 };
 use iota_snapshot::{
-    VerifiedEpochInfo, reader::StateSnapshotReaderV1, restore::RestoreWithGrpcIndexes,
+    VerifiedEpochInfo,
+    progress::{ProgressTicker, ProgressUnit, make_multi_progress},
+    reader::StateSnapshotReaderV1,
+    restore::RestoreWithGrpcIndexes,
     setup_db_state,
 };
 use iota_storage::object_store::{
@@ -597,8 +600,9 @@ pub(crate) async fn backfill_checkpoint_summaries(
     node_db_path: &Path,
     ingestion_url: String,
     num_parallel_downloads: NonZeroUsize,
+    disable_progress_bar: bool,
 ) -> anyhow::Result<()> {
-    let m = &MultiProgress::new();
+    let m = &make_multi_progress(disable_progress_bar);
 
     // Open the stopped node's existing stores in place. The committee store
     // already holds the genesis committee (from restore/sync), so it is opened
@@ -654,11 +658,21 @@ pub(crate) async fn backfill_checkpoint_summaries(
     // This fills in the missing historical summaries below the node's watermarks
     // without moving any of them.
     let range = 1..target + 1;
-    let bar = m.add(ProgressBar::new(target).with_style(
-        ProgressStyle::with_template("[{elapsed_precise}] {wide_bar} {pos}/{len} ({msg})").unwrap(),
-    ));
     let counter = Arc::new(AtomicU64::new(0));
-    spawn_rate_ticker(bar.clone(), counter.clone(), "checkpoints per sec");
+    let ticker = ProgressTicker::spawn(
+        m.add(
+            ProgressBar::new(target).with_style(
+                ProgressStyle::with_template(
+                    "[{elapsed_precise}] {wide_bar} Backfilling checkpoint summaries: {pos}/{len} \
+                     ({per_sec}, ETA {eta})",
+                )
+                .unwrap(),
+            ),
+        ),
+        "Backfilling checkpoint summaries",
+        ProgressUnit::Count("checkpoints"),
+        Some(counter.clone()),
+    );
 
     let mut blobs = reader.stream_blobs_for_range(range.clone()).await?;
     while let Some(blob) = blobs.try_next().await? {
@@ -671,7 +685,7 @@ pub(crate) async fn backfill_checkpoint_summaries(
             counter.fetch_add(1, Ordering::Relaxed);
         }
     }
-    bar.finish_with_message("Checkpoint summary backfill is complete");
+    ticker.finish_with_message("Checkpoint summary backfill is complete");
     m.println(format!(
         "Successfully backfilled checkpoint summaries up to checkpoint {target}"
     ))?;
@@ -697,23 +711,6 @@ fn checkpoint_archive_object_store_config(url: &str) -> ObjectStoreConfig {
             ..Default::default()
         }
     }
-}
-
-/// Spawn a background task that, once per second until `bar` finishes, mirrors
-/// `counter` into the bar's position and reports `{unit}: {rate}`.
-fn spawn_rate_ticker(bar: ProgressBar, counter: Arc<AtomicU64>, unit: &'static str) {
-    let start = Instant::now();
-    tokio::spawn(async move {
-        while !bar.is_finished() {
-            let count = counter.load(Ordering::Relaxed);
-            bar.set_position(count);
-            bar.set_message(format!(
-                "{unit}: {}",
-                count as f64 / start.elapsed().as_secs_f64()
-            ));
-            tokio::time::sleep(Duration::from_secs(1)).await;
-        }
-    });
 }
 
 /// Seed the checkpoint store from the snapshot's chain-verified EPOCH_INFO —
@@ -800,8 +797,9 @@ pub async fn download_formal_snapshot(
     num_parallel_downloads: usize,
     verify: SnapshotVerifyMode,
     skip_grpc_indexes: bool,
+    disable_progress_bar: bool,
 ) -> Result<(), anyhow::Error> {
-    let m = MultiProgress::new();
+    let m = make_multi_progress(disable_progress_bar);
     m.println(format!(
         "Beginning formal snapshot restore to end of epoch {epoch}, verification mode: {verify:?}",
     ))?;
