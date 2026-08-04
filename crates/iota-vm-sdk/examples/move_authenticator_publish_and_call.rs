@@ -20,10 +20,31 @@
 //! transaction's effects are committed to the [`InMemoryStore`] and are visible
 //! to the next one.
 //!
+//! The `increment` run is traced, and everything the Move trace debugger needs
+//! is written next to this file, wherever the example is run from:
+//!
+//! ```text
+//! crates/iota-vm-sdk/examples/move_authenticator_trace/
+//!   trace.json   the traced run — open this file to start a debug session
+//!   source/      Move sources and debug info of every package in the trace
+//!   bytecode/    disassembled bytecode; empty, so no disassembly view
+//! ```
+//!
+//! This is the layout the debugger expects from the replay tool: it resolves
+//! sources and debug info relative to the trace file, so the packages are
+//! compiled straight into the bundle.
+//!
 //! Run with:
-//!   cargo run -p iota-vm-sdk --example move_authenticator_publish_and_call
+//!   cargo run -p iota-vm-sdk --features tracing \
+//!     --example move_authenticator_publish_and_call
+//!
+//! Then, with the Move Trace Debugger extension installed, open the printed
+//! `trace.json` in VS Code and start a debug session.
 
-use std::path::PathBuf;
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
 
 use anyhow::{Context, Result, bail};
 use iota_move_build::{BuildConfig, CompiledPackage};
@@ -51,11 +72,25 @@ const GAS_COIN_VALUE: u64 = 1_000_000_000_000;
 /// The `#[authenticator]` function `link_auth` attaches to the account.
 const AUTHENTICATE_FUNCTION: &str = "authenticate_no_args";
 
-const TRACE_PATH: &str = "authenticator_gas_profile.trace.json";
+/// Where the trace and the artifacts it is read against are written, as a
+/// directory next to this example rather than in the working directory, so a
+/// run always overwrites the same bundle.
+const TRACE_DIR: &str = "move_authenticator_trace";
 
 fn main() -> Result<()> {
     let protocol_version = ProtocolVersion::MAX;
     let protocol_config = ProtocolConfig::get_for_version(protocol_version, Chain::Unknown);
+
+    // The debugger resolves everything relative to the trace file: `source/`
+    // for sources and debug info, `bytecode/` for disassembly. It reads
+    // `bytecode/` unconditionally, so the directory has to exist even when
+    // nothing is disassembled into it.
+    let trace_dir: PathBuf = [env!("CARGO_MANIFEST_DIR"), "examples", TRACE_DIR]
+        .iter()
+        .collect();
+    let source_dir = trace_dir.join("source");
+    fs::create_dir_all(&source_dir)?;
+    fs::create_dir_all(trace_dir.join("bytecode"))?;
 
     let owner = Address::ZERO;
     let owner_gas = gas_coin(owner);
@@ -70,11 +105,13 @@ fn main() -> Result<()> {
 
     // --- Account setup: two unsigned runs paid for by `owner` --------------
 
-    let account_pkg = compile("examples/move/account", &protocol_config)?;
+    let (account_pkg, account_debug_info) =
+        compile("examples/move/account", &protocol_config, &source_dir)?;
     let tx = publish_tx(&vm, owner, owner_gas_id, &account_pkg)?;
     let result = run(&mut vm, tx)?;
     let account_pkg_id = published_package_id(&result)?;
     let (account_id, account_version) = created_shared(&result)?;
+    set_debug_info_address(&account_debug_info, account_pkg_id)?;
     println!("Account package:  {account_pkg_id}");
     println!("Account object:   {account_id}");
 
@@ -98,11 +135,16 @@ fn main() -> Result<()> {
     let sender_gas_id = sender_gas.id();
     vm.store_mut().insert(sender_gas);
 
-    let view_pkg = compile("examples/move/view_functions", &protocol_config)?;
+    let (view_pkg, view_debug_info) = compile(
+        "examples/move/view_functions",
+        &protocol_config,
+        &source_dir,
+    )?;
     let tx = publish_tx(&vm, sender, sender_gas_id, &view_pkg)?;
-    let result = run_signed(&mut vm, tx, account_id, account_version, true)?;
+    let result = run_signed(&mut vm, tx, account_id, account_version, None)?;
     let view_pkg_id = published_package_id(&result)?;
     let (counter_id, counter_version) = created_shared(&result)?;
+    set_debug_info_address(&view_debug_info, view_pkg_id)?;
     println!("\nview_functions:   {view_pkg_id}");
     println!("Counter object:   {counter_id}");
 
@@ -117,10 +159,28 @@ fn main() -> Result<()> {
         counter_id,
         counter_version,
     )?;
-    run_signed(&mut vm, tx, account_id, account_version, true)?;
+    let trace_path = trace_dir.join("trace.json");
+    let result = run_signed(
+        &mut vm,
+        tx,
+        account_id,
+        account_version,
+        Some(trace_path.as_path()),
+    )?;
 
     let value = counter_value(&mut vm, owner, view_pkg_id, counter_id, counter_version)?;
     println!("Counter value:    {value} (after increment)");
+
+    match result.debug.and_then(|debug| debug.trace) {
+        Some(trace) => println!(
+            "\nTraced {} events of the increment run — the authenticator function \
+             and the PTB body — to {}\nOpen it in VS Code to debug the run.",
+            trace.events.len(),
+            trace_path.display(),
+        ),
+        // Without the `tracing` feature the engine takes no trace builder.
+        None => println!("\nNo trace was produced; rebuild with --features tracing."),
+    }
 
     Ok(())
 }
@@ -242,12 +302,16 @@ fn run(vm: &mut LocalVm, tx: TransactionData) -> Result<ExecutionResult> {
 /// The authenticator names the account object to authenticate — the function to
 /// run is resolved from that object — plus the call arguments that function
 /// takes. `authenticate_no_args` takes none.
+///
+/// With `trace_path` set, the run is traced and the trace written there. The
+/// `MoveAuthenticator` path is the only one the engine takes a trace builder
+/// on, and it covers both the authenticator function and the PTB body.
 fn run_signed(
     vm: &mut LocalVm,
     tx: TransactionData,
     account_id: ObjectId,
     account_version: Version,
-    with_tracing: bool,
+    trace_path: Option<&Path>,
 ) -> Result<ExecutionResult> {
     let authenticator = MoveAuthenticatorV1::new_with_shared_account_object(
         vec![],
@@ -258,11 +322,10 @@ fn run_signed(
         tx,
         vec![UserSignature::MoveAuthenticator(authenticator.into())],
     );
-    let opts = if with_tracing {
-        ExecuteOptions::execute()
-            .with_debug(DebugConfig::default().with_tracing(PathBuf::from(TRACE_PATH)))
-    } else {
-        ExecuteOptions::execute()
+    let opts = match trace_path {
+        Some(path) => ExecuteOptions::execute()
+            .with_debug(DebugConfig::default().with_tracing(path.to_path_buf())),
+        None => ExecuteOptions::execute(),
     };
     let result = check(vm.execute_signed(signed, opts)?)?;
 
@@ -354,11 +417,60 @@ fn created_shared(result: &ExecutionResult) -> Result<(ObjectId, Version)> {
 
 /// Compile a Move package from the repository, for the same protocol config the
 /// VM runs.
-fn compile(relative_path: &str, protocol_config: &ProtocolConfig) -> Result<CompiledPackage> {
+///
+/// The build artifacts — the package's own sources and debug info as well as
+/// its dependencies' — are installed under `artifacts_dir`, where the debugger
+/// reads them from. It walks the directory, so the `build/<package>` tree each
+/// build writes there needs no flattening. Each package gets its own
+/// subdirectory: a build prunes everything outside its own dependency graph
+/// from the directory it installs into.
+/// Returns the compiled package and the directory holding the debug info of its
+/// own modules.
+fn compile(
+    relative_path: &str,
+    protocol_config: &ProtocolConfig,
+    artifacts_dir: &Path,
+) -> Result<(CompiledPackage, PathBuf)> {
     let path: PathBuf = [env!("CARGO_MANIFEST_DIR"), "..", "..", relative_path]
         .iter()
         .collect();
+    let dir = artifacts_dir.join(
+        path.file_name()
+            .context("package path has no last component")?,
+    );
+
     let mut config = BuildConfig::new_for_testing();
     config.protocol_build_config = ProtocolBuildConfig::from_protocol_config(protocol_config);
-    Ok(config.build(&path)?)
+    config.config.install_dir = Some(dir.clone());
+    let package = config.build(&path)?;
+
+    let name = package.package.compiled_package_info.package_name;
+    let debug_info = dir.join("build").join(name.as_str()).join("debug_info");
+    Ok((package, debug_info))
+}
+
+/// Point a package's debug info at the address it was published to.
+///
+/// The package is compiled against the `0x0` placeholder its `Move.toml`
+/// declares, so its debug info names the modules at `0x0`, while the trace
+/// records them at the address the publish assigned. The debugger matches the
+/// two by address, and reports a module it cannot match as a missing source
+/// map.
+fn set_debug_info_address(debug_info_dir: &Path, package_id: ObjectId) -> Result<()> {
+    let address = package_id.to_string();
+    let address = address.trim_start_matches("0x");
+
+    // Only the package's own modules move; the `dependencies` subdirectory
+    // holds packages that are already published, at the addresses the trace
+    // records for them.
+    for entry in fs::read_dir(debug_info_dir)? {
+        let path = entry?.path();
+        if path.extension().is_none_or(|ext| ext != "json") {
+            continue;
+        }
+        let mut debug_info: serde_json::Value = serde_json::from_slice(&fs::read(&path)?)?;
+        debug_info["module_name"][0] = address.into();
+        fs::write(&path, serde_json::to_vec(&debug_info)?)?;
+    }
+    Ok(())
 }

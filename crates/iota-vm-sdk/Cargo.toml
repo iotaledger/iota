@@ -89,6 +89,7 @@ required-features = ["tracing"]
 [[example]]
 name = "move_authenticator_publish_and_call"
 path = "examples/move_authenticator_publish_and_call.rs"
+required-features = ["tracing"]
 
 [[example]]
 name = "stake_grpc"
