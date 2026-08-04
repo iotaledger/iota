@@ -9,6 +9,7 @@ use fastcrypto::hash::{HashFunction, Sha3_256};
 use futures::stream::FuturesUnordered;
 use iota_common::sync::notify_read::NotifyRead;
 use iota_config::{migration_tx_data::MigrationTxData, node::AuthorityStorePruningConfig};
+use iota_genesis_common::MigrationTxDataExt;
 use iota_macros::fail_point_arg;
 use iota_sdk_types::Version;
 use iota_storage::mutex_table::{MutexGuard, MutexTable};
