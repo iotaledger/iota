@@ -352,6 +352,40 @@ fn dev_inspect_meters_against_a_declared_budget() {
     );
 }
 
+/// A gas coin that cannot back the budget is rejected up front, the same way
+/// the node rejects it, rather than reaching the engine — which smashes the
+/// budget off the coin before running any command and would hit an invariant
+/// violation.
+#[test]
+fn dev_inspect_rejects_a_gas_coin_that_cannot_back_the_budget() {
+    let sender = Address::ZERO;
+    let recipient = Address::from(ObjectId::random());
+
+    let underfunded_balance = GAS_PRICE;
+    let gas = Object::new_move(
+        MoveStruct::new_gas_coin(
+            OBJECT_START_VERSION,
+            ObjectId::random(),
+            underfunded_balance,
+        ),
+        Owner::Address(sender),
+        TransactionDigest::ZERO,
+    );
+    let mut store = InMemoryStore::with_framework();
+    store.insert(gas.clone());
+    let mut vm = LocalVm::new(chain_context(), store).expect("build LocalVm");
+
+    // Left at zero, so the budget is filled in with `max_tx_gas`, which the coin
+    // above cannot cover.
+    let mut tx = transfer_tx(sender, &gas, recipient, TRANSFER_AMOUNT);
+    tx.gas_data_mut().budget = 0;
+
+    let err = vm
+        .execute(tx, ExecuteOptions::dev_inspect())
+        .expect_err("a gas coin that cannot back the budget must be rejected");
+    assert!(matches!(err, VmSdkError::Validation(_)), "got {err:?}");
+}
+
 /// System transactions are rejected in every mode.
 #[test]
 fn system_transactions_are_rejected() {

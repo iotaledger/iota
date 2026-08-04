@@ -1015,6 +1015,14 @@ pub trait TransactionDataAPI {
     /// skipping gas-related checks.
     fn validity_check_no_gas_check(&self, config: &ProtocolConfig) -> UserInputResult;
 
+    /// Checks the gas payment against the protocol's cap on how many objects it
+    /// may name.
+    ///
+    /// Part of [`TransactionDataAPI::validity_check`]. Callers that relax the
+    /// gas checks, such as a simulation that may mock the gas payment, should
+    /// still apply this one.
+    fn check_gas_payment_size(&self, config: &ProtocolConfig) -> UserInputResult;
+
     /// Check if the transaction is compliant with sponsorship.
     fn check_sponsorship(&self) -> UserInputResult;
 
@@ -1342,13 +1350,7 @@ impl TransactionDataAPI for TransactionData {
 
     fn validity_check(&self, config: &ProtocolConfig) -> UserInputResult {
         fp_ensure!(!self.gas().is_empty(), UserInputError::MissingGasPayment);
-        fp_ensure!(
-            self.gas().len() < config.max_gas_payment_objects() as usize,
-            UserInputError::SizeLimitExceeded {
-                limit: "maximum number of gas payment objects".to_string(),
-                value: config.max_gas_payment_objects().to_string()
-            }
-        );
+        self.check_gas_payment_size(config)?;
         self.validity_check_no_gas_check(config)
     }
 
@@ -1356,6 +1358,17 @@ impl TransactionDataAPI for TransactionData {
     fn validity_check_no_gas_check(&self, config: &ProtocolConfig) -> UserInputResult {
         self.kind().validity_check(config)?;
         self.check_sponsorship()
+    }
+
+    fn check_gas_payment_size(&self, config: &ProtocolConfig) -> UserInputResult {
+        fp_ensure!(
+            self.gas().len() < config.max_gas_payment_objects() as usize,
+            UserInputError::SizeLimitExceeded {
+                limit: "maximum number of gas payment objects".to_string(),
+                value: config.max_gas_payment_objects().to_string()
+            }
+        );
+        Ok(())
     }
 
     fn is_sponsored_tx(&self) -> bool {

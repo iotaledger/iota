@@ -26,16 +26,28 @@ in every phase.
 `ExecutionMode` selects input-check relaxation, the gas budget, and whether
 effects are committed:
 
-| Mode         | Input check                                             | Gas budget                                                            | Mock gas coin if none supplied? | Commits to store? |
-| ------------ | ------------------------------------------------------- | --------------------------------------------------------------------- | ------------------------------- | ----------------- |
-| `DevInspect` | `check_simulation_input` (relaxed)                      | `max_tx_gas` (mock gas) or `min(max_tx_gas, coin balance)` (real gas) | yes                             | no                |
-| `DryRun`     | `check_transaction_input` (budget `0` → full tx budget) | transaction's declared budget                                         | yes                             | no                |
-| `Execute`    | `check_transaction_input` (budget `0` → full tx budget) | transaction's declared budget                                         | no — requires real gas          | yes, on success   |
+| Mode         | Input check                                                  | Gas price                                   | Gas budget                       | Mock gas coin if none supplied? | Commits to store? |
+| ------------ | ------------------------------------------------------------ | ------------------------------------------- | -------------------------------- | ------------------------------- | ----------------- |
+| `DevInspect` | `check_simulation_input` (relaxed), plus a gas balance check | declared, or the reference gas price if `0` | declared, or `max_tx_gas` if `0` | yes                             | no                |
+| `DryRun`     | `check_transaction_input` (budget `0` → full tx budget)      | declared, or the reference gas price if `0` | declared, or `max_tx_gas` if `0` | yes                             | no                |
+| `Execute`    | `check_transaction_input` (budget `0` → full tx budget)      | declared                                    | declared                         | no — requires real gas          | yes, on success   |
 
-Dev-inspect meters at `max_tx_gas` rather than the declared budget because a run
-before a budget is settled isn't limited by one; a real gas coin still caps it at
-the coin's balance. `DryRun` and `Execute` use the same preparation and budget;
-they differ only in the mock-gas rule and whether effects are committed.
+Both simulation modes fill in gas the caller left unset, the same way the node's
+simulation paths do: a zero price is below the reference gas price and a zero
+budget cannot cover any computation, so neither is a value to meter against, and
+a run whose gas is not yet settled is the common case. `Execute` commits its
+effects, so it holds a transaction to its own declared gas the way a validator
+would.
+
+Whatever the budget resolves to, the gas coins have to cover it — the engine
+smashes the whole budget off them before running any command. `DryRun` gets that
+check from `check_transaction_input`; `DevInspect` skips that check and so
+carries its own, rejecting an under-funded coin with `GasBalanceTooLow` rather
+than letting the engine hit an invariant violation. Note that this means
+estimating with a zero budget needs a gas coin holding at least `max_tx_gas`.
+
+`DryRun` and `Execute` are otherwise identical in preparation and budget; they
+differ only in the mock-gas rule and whether effects are committed.
 
 ## SDK entry points and the phase each mirrors
 

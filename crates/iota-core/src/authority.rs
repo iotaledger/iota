@@ -2118,6 +2118,16 @@ impl AuthorityState {
     /// price becomes the epoch's reference gas price; and a zero gas budget
     /// becomes the protocol maximum. Anything the transaction does declare is
     /// metered as given, so a dry run still rejects the gas a validator would.
+    ///
+    /// Whatever the budget resolves to, the gas coins have to cover it, since
+    /// execution reserves the whole budget from them before running any
+    /// command. Note what that means for a caller leaving the budget at zero to
+    /// have the cost estimated: the mock gas coin covers the protocol maximum,
+    /// but a real gas coin has to hold
+    /// [`max_tx_gas`](iota_protocol_config::ProtocolConfig::max_tx_gas) or the
+    /// simulation is rejected with
+    /// [`UserInputError::GasBalanceTooLow`]. Declaring a budget the coins do
+    /// cover avoids that.
     pub fn simulate_transaction(
         &self,
         transaction: TransactionData,
@@ -2189,16 +2199,7 @@ impl AuthorityState {
         // The full validity check caps the gas payment size alongside requiring a
         // gas payment at all, which a simulation relaxes so it can mock one. The cap
         // still applies, and is cheapest before any object is loaded.
-        let max_gas_payment_objects =
-            epoch_store.protocol_config().max_gas_payment_objects() as usize;
-        fp_ensure!(
-            transaction.gas().len() < max_gas_payment_objects,
-            UserInputError::SizeLimitExceeded {
-                limit: "maximum number of gas payment objects".to_string(),
-                value: max_gas_payment_objects.to_string(),
-            }
-            .into()
-        );
+        transaction.check_gas_payment_size(epoch_store.protocol_config())?;
 
         let input_object_kinds = transaction.input_objects()?;
         let receiving_object_refs = transaction.receiving_objects();

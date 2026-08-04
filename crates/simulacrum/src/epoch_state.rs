@@ -184,14 +184,7 @@ impl EpochState {
         // The full validity check caps the gas payment size alongside requiring a
         // gas payment at all, which a simulation relaxes so it can mock one. The cap
         // still applies, and is cheapest before any object is loaded.
-        let max_gas_payment_objects = self.protocol_config.max_gas_payment_objects() as usize;
-        if transaction.gas().len() >= max_gas_payment_objects {
-            return Err(UserInputError::SizeLimitExceeded {
-                limit: "maximum number of gas payment objects".to_string(),
-                value: max_gas_payment_objects.to_string(),
-            }
-            .into());
-        }
+        transaction.check_gas_payment_size(&self.protocol_config)?;
 
         let input_object_kinds = transaction.input_objects()?;
         let receiving_object_refs = transaction.receiving_objects();

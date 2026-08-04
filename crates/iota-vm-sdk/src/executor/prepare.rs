@@ -151,12 +151,6 @@ pub(super) fn prepare_transaction(
     // cannot cover any computation, so neither is a value to meter against.
     // `Execute` commits its effects, so it holds a transaction to its own gas the
     // way a validator would.
-
-    // Fill in the gas the caller left unset, the same way the node's simulation
-    // paths do: a zero price is below the reference gas price and a zero budget
-    // cannot cover any computation, so neither is a value to meter against.
-    // `Execute` commits its effects, so it holds a transaction to its own gas the
-    // way a validator would.
     if !matches!(mode, ExecutionMode::Execute) {
         if transaction.gas_price() == 0 {
             transaction.gas_data_mut().price = env.reference_gas_price;
@@ -187,11 +181,25 @@ pub(super) fn prepare_transaction(
 
         // Dev-inspect meters against the transaction's budget, which the fill-in
         // above resolves to `max_tx_gas` when the caller declares none, matching
-        // the node's dev-inspect entry point. The gas coins cap it at their total
-        // balance, since the engine smashes the budget off them up front.
-        let dev_inspect_gas_budget = transaction.gas_budget().min(gas_balance);
+        // the node's dev-inspect entry point.
+        //
+        // The engine smashes the whole budget off the gas coins before running any
+        // command, so they have to cover it even though the rest of the gas checks
+        // are skipped here. Rejecting up front is what the node does; letting it
+        // through would hit an invariant violation inside the engine instead.
+        let gas_budget = transaction.gas_budget();
+        if gas_balance < gas_budget {
+            return Err(ValidationError::new(
+                "gas balance check",
+                UserInputError::GasBalanceTooLow {
+                    gas_balance: gas_balance as u128,
+                    needed_gas_amount: gas_budget as u128,
+                },
+            )
+            .into());
+        }
         let gas_status = IotaGasStatus::new(
-            dev_inspect_gas_budget,
+            gas_budget,
             transaction.gas_price(),
             env.reference_gas_price,
             &env.protocol_config,

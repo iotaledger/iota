@@ -151,8 +151,11 @@ pub mod checked {
     /// Combined balance of the gas coins `gas` refers to.
     ///
     /// Anything `gas` names that `input_objects` does not hold, or that is not
-    /// a gas coin, contributes nothing, since the gas checks report those
-    /// cases themselves.
+    /// a gas coin, contributes nothing rather than being reported as the
+    /// missing or invalid gas object it is. A caller comparing the result
+    /// against a budget therefore reports those inputs as too low a balance.
+    /// This is only for callers that skip the full gas checks, which do tell
+    /// the cases apart; anything else should go through those instead.
     pub fn gas_coins_balance(input_objects: &InputObjects, gas: &[ObjectReference]) -> u128 {
         let gas_ids: HashSet<_> = gas.iter().map(|gas_ref| gas_ref.object_id).collect();
         input_objects
