@@ -41,7 +41,7 @@ mod checked {
     use move_binary_format::{
         CompiledModule,
         errors::{Location, PartialVMError, VMError, VMResult},
-        file_format::{CodeOffset, FunctionDefinitionIndex, TypeParameterIndex},
+        file_format::{AbilitySet, CodeOffset, FunctionDefinitionIndex, TypeParameterIndex},
     };
     use move_core_types::{
         account_address::AccountAddress, identifier::IdentStr, language_storage::ModuleId,
@@ -66,7 +66,7 @@ mod checked {
         execution_mode::ExecutionMode,
         execution_value::{
             CommandKind, ExecutionState, InputObjectMetadata, InputValue, ObjectContents,
-            ObjectValue, RawValueType, ResultValue, TryFromValue, UsageKind, Value,
+            ObjectValue, RawValueType, ResultValue, SizeBound, TryFromValue, UsageKind, Value,
         },
         gas_charger::GasCharger,
         gas_meter::IotaGasMeter,
@@ -344,6 +344,13 @@ mod checked {
                 &self.new_packages,
                 struct_tag,
             )
+        }
+
+        pub fn get_type_abilities(&self, t: &Type) -> Result<AbilitySet, ExecutionError> {
+            self.vm
+                .get_runtime()
+                .get_type_abilities(t)
+                .map_err(|e| self.convert_vm_error(e))
         }
 
         /// Takes the user events from the runtime and tags them with the Move
@@ -1246,6 +1253,22 @@ mod checked {
                 &mut data_store,
                 &mut IotaGasMeter(self.gas_charger.move_gas_status_mut()),
             )
+        }
+
+        pub fn size_bound_raw(&self, bound: u64) -> SizeBound {
+            if self.protocol_config.max_ptb_value_size_v2() {
+                SizeBound::Raw(bound)
+            } else {
+                SizeBound::Object(bound)
+            }
+        }
+
+        pub fn size_bound_vector_elem(&self, bound: u64) -> SizeBound {
+            if self.protocol_config.max_ptb_value_size_v2() {
+                SizeBound::VectorElem(bound)
+            } else {
+                SizeBound::Object(bound)
+            }
         }
     }
 
