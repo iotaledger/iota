@@ -13,11 +13,11 @@
 # The burst is off everywhere (OVERSHOOT_A=0, OVERSHOOT_B=0), so each run is
 # described by one number and no debt is carried between commits.
 #
-# The grid has two knobs. TARGET_QPS sets how many transactions are available
-# per commit, swept 250/500/1000/2000; a limit only binds when demand exceeds what
-# it admits, so each cell pairs a limit with a rate high enough to saturate it.
 # SLOW_N sets the cost per transaction, which converts a unit limit into a
-# transaction count.
+# transaction count. The grid is the same four limits (10k, 20k, 50k and 100k
+# units) at every cost point, all at TARGET_QPS=1000, so one limit sweeps the
+# cost and one cost point sweeps the limit. A limit binds only while it admits
+# less than the rate offers.
 #
 # Cost points from the h2 calibration (probe-test.md; size fixed at 100). "drains"
 # is 1 / execution time — how fast one object can execute that point, since
@@ -25,22 +25,32 @@
 #
 #   point    slow_n   units/tx   exec ms (WS / EPYC)   drains (WS / EPYC)
 #   cu1k          1      1,000     0.23 /  0.55        4400 / 1800 per s
+#   cu2k         70      2,000     not measured yet
+#   cu5k        120      5,000     not measured yet
+#   cu10k       160     10,000     not measured yet
+#   cu20k       217     20,000     not measured yet
 #   cu16k       200     16,000     4.27 / 18.78         234 /   53 per s
 #   cu491k     1000    491,000    18.81 / 74.62          53 /   13 per s
 #
-# The limits per point, as units and as the transactions per commit they admit:
+# units/tx for cu2k..cu20k is the attested cost measured with SLOW_SHARED=true,
+# which is the value the scheduler charges. Their execution times are still
+# missing: that probe ran with the default per-object limit of 10 units, so
+# every shared-input transaction was cancelled instead of executed. cu16k and
+# cu491k are kept for reference; no cell uses them.
 #
-#   point    limit    tx/commit   note
-#   cu1k     5k               5   tighter than Run A
-#   cu1k     10k             10   same as Run A
-#   cu1k     100k           100   needs 2000 qps to saturate
-#   cu16k    100k             6   tighter than Run A
-#   cu16k    160k            10   same as Run A
-#   cu16k    500k            31   more than either machine drains
-#   cu491k   491k             1   the floor: one transaction per commit
-#   cu491k   1m               2
-#   cu491k   4910k           10   same as Run A
-#   cu491k   50m            100   far more than either machine drains
+# Transactions per commit each limit admits, which is the limit divided by the
+# cost. Run A admits 10 in every cell, so the rung that matches it moves down
+# the table as the cost rises:
+#
+#   point   units/tx   lim10k   lim20k   lim50k   lim100k
+#   cu1k       1,000       10       20       50       100
+#   cu2k       2,000        5       10       25        50
+#   cu5k       5,000        2        4       10        20
+#   cu10k     10,000        1        2        5        10
+#   cu20k     20,000        0        1        2         5
+#
+# cu20k at lim10k is the zero above: the limit is below one transaction's cost,
+# so that cell admits nothing and every transaction is cancelled.
 #
 # A limit below one transaction's cost admits nothing at all: the scheduler needs
 # `start_time + cost <= limit` with a start time of at least 0, so every transaction
@@ -50,17 +60,16 @@
 # The `slow` workload publishes ONE `slow::Obj` and every transaction takes it as a
 # mutable input, so all of them contend on the same object.
 #
-# 19 configs total. Use the substring FILTER to run one cost point, one limit or one
-# rate at a time.
+# 20 configs total. Use the substring FILTER to run one cost point or one
+# limit at a time.
 #
 # Every cell runs on 4 validators; N=4 is not in the label since nothing else is
 # planned.
 #
 # Usage:
-#   ITERS=5 ./matrix.sh             # run all 19 configs
-#   ITERS=5 ./matrix.sh cu491k      # one cost point, every limit and rate
-#   ITERS=5 ./matrix.sh lim4910k    # one limit, its whole rate ladder
-#   ITERS=5 ./matrix.sh qps2000     # one rate, every cost point and limit
+#   ITERS=5 ./matrix.sh             # run all 20 configs
+#   ITERS=5 ./matrix.sh cu10k       # one cost point, its whole limit ladder
+#   ITERS=5 ./matrix.sh lim100k     # one limit, every cost point that uses it
 #
 # A failed config does not abort the matrix. Re-running appends iterations to an
 # existing label rather than overwriting (run.sh's config gate).
@@ -84,43 +93,52 @@ if [[ ! -t 1 ]]; then
 fi
 
 # The repeated env groups, named once so each config row shows what varies.
-SLOW1="WORKLOAD=slow SLOW_N=1 SLOW_SIZE=100 SLOW_SHARED=true"       # 1,000 units/tx
-SLOW200="WORKLOAD=slow SLOW_N=200 SLOW_SIZE=100 SLOW_SHARED=true"   # 16,000 units/tx
-SLOW1000="WORKLOAD=slow SLOW_N=1000 SLOW_SIZE=100 SLOW_SHARED=true" # 491,000 units/tx
+SLOW1="WORKLOAD=slow SLOW_N=1 SLOW_SIZE=100 SLOW_SHARED=true"     # 1,000 units/tx
+SLOW70="WORKLOAD=slow SLOW_N=70 SLOW_SIZE=100 SLOW_SHARED=true"   # 2,000 units/tx
+SLOW120="WORKLOAD=slow SLOW_N=120 SLOW_SIZE=100 SLOW_SHARED=true" # 5,000 units/tx
+SLOW160="WORKLOAD=slow SLOW_N=160 SLOW_SIZE=100 SLOW_SHARED=true" # 10,000 units/tx
+SLOW217="WORKLOAD=slow SLOW_N=217 SLOW_SIZE=100 SLOW_SHARED=true" # 20,000 units/tx
 # Run A's reference in every cell: production's count limit, burst off in both runs.
 # The duration is pinned: run.sh's own default is shorter, for ad-hoc test runs.
 REF="N=4 RUN_DURATION=60s LIMIT_A=10 OVERSHOOT_A=0 OVERSHOOT_B=0"
 
 # "LABEL | env assignments passed to run.sh"
 configs=(
-  # ---- cu1k, 1,000 units/tx. lim10k admits 10/commit, the same as Run A, and gets
-  #      the full rate ladder. lim5k halves that; lim100k needs the top rate to bind.
-  "cu1k-lim10k-qps250    | $SLOW1 $REF LIMIT_B=10000  TARGET_QPS=250"
-  "cu1k-lim10k-qps500    | $SLOW1 $REF LIMIT_B=10000  TARGET_QPS=500"
-  "cu1k-lim10k-qps1000   | $SLOW1 $REF LIMIT_B=10000  TARGET_QPS=1000"
-  "cu1k-lim10k-qps2000   | $SLOW1 $REF LIMIT_B=10000  TARGET_QPS=2000"
-  "cu1k-lim5k-qps250     | $SLOW1 $REF LIMIT_B=5000   TARGET_QPS=250"
-  "cu1k-lim100k-qps2000  | $SLOW1 $REF LIMIT_B=100000 TARGET_QPS=2000"
+  # ---- cu1k, 1,000 units/tx. A limit ladder at one rate (1000 qps), 10 to 100
+  #      transactions per commit. lim10k matches Run A; lim100k admits more than
+  #      the rate offers, so the ladder brackets where the limit stops capping
+  #      throughput.
+  "cu1k-lim10k-qps1000    | $SLOW1 $REF LIMIT_B=10000   TARGET_QPS=1000"
+  "cu1k-lim20k-qps1000    | $SLOW1 $REF LIMIT_B=20000   TARGET_QPS=1000"
+  "cu1k-lim50k-qps1000    | $SLOW1 $REF LIMIT_B=50000   TARGET_QPS=1000"
+  "cu1k-lim100k-qps1000   | $SLOW1 $REF LIMIT_B=100000  TARGET_QPS=1000"
   #
-  # ---- cu16k, 16,000 units/tx. lim160k is the same as Run A; lim100k is tighter,
-  #      lim500k admits more than either machine can execute.
-  "cu16k-lim160k-qps250  | $SLOW200 $REF LIMIT_B=160000 TARGET_QPS=250"
-  "cu16k-lim160k-qps500  | $SLOW200 $REF LIMIT_B=160000 TARGET_QPS=500"
-  "cu16k-lim160k-qps1000 | $SLOW200 $REF LIMIT_B=160000 TARGET_QPS=1000"
-  "cu16k-lim160k-qps2000 | $SLOW200 $REF LIMIT_B=160000 TARGET_QPS=2000"
-  "cu16k-lim100k-qps250  | $SLOW200 $REF LIMIT_B=100000 TARGET_QPS=250"
-  "cu16k-lim500k-qps1000 | $SLOW200 $REF LIMIT_B=500000 TARGET_QPS=1000"
+  # ---- cu2k, 2,000 units/tx (slow_n=70). Same limits, so each admits half as
+  #      many transactions per commit as at cu1k.
+  "cu2k-lim10k-qps1000    | $SLOW70 $REF LIMIT_B=10000   TARGET_QPS=1000"
+  "cu2k-lim20k-qps1000    | $SLOW70 $REF LIMIT_B=20000   TARGET_QPS=1000"
+  "cu2k-lim50k-qps1000    | $SLOW70 $REF LIMIT_B=50000   TARGET_QPS=1000"
+  "cu2k-lim100k-qps1000   | $SLOW70 $REF LIMIT_B=100000  TARGET_QPS=1000"
   #
-  # ---- cu491k, 491,000 units/tx. lim4910k is the same as Run A; lim491k is the
-  #      floor of one transaction per commit, and lim50m is far past what the
-  #      network can execute.
-  "cu491k-lim4910k-qps250  | $SLOW1000 $REF LIMIT_B=4910000  TARGET_QPS=250"
-  "cu491k-lim4910k-qps500  | $SLOW1000 $REF LIMIT_B=4910000  TARGET_QPS=500"
-  "cu491k-lim4910k-qps1000 | $SLOW1000 $REF LIMIT_B=4910000  TARGET_QPS=1000"
-  "cu491k-lim4910k-qps2000 | $SLOW1000 $REF LIMIT_B=4910000  TARGET_QPS=2000"
-  "cu491k-lim491k-qps250   | $SLOW1000 $REF LIMIT_B=491000   TARGET_QPS=250"
-  "cu491k-lim1m-qps250     | $SLOW1000 $REF LIMIT_B=1000000  TARGET_QPS=250"
-  "cu491k-lim50m-qps2000   | $SLOW1000 $REF LIMIT_B=50000000 TARGET_QPS=2000"
+  # ---- cu5k, 5,000 units/tx (slow_n=120).
+  "cu5k-lim10k-qps1000    | $SLOW120 $REF LIMIT_B=10000   TARGET_QPS=1000"
+  "cu5k-lim20k-qps1000    | $SLOW120 $REF LIMIT_B=20000   TARGET_QPS=1000"
+  "cu5k-lim50k-qps1000    | $SLOW120 $REF LIMIT_B=50000   TARGET_QPS=1000"
+  "cu5k-lim100k-qps1000   | $SLOW120 $REF LIMIT_B=100000  TARGET_QPS=1000"
+  #
+  # ---- cu10k, 10,000 units/tx (slow_n=160). lim10k is the floor here: one
+  #      transaction per commit.
+  "cu10k-lim10k-qps1000   | $SLOW160 $REF LIMIT_B=10000   TARGET_QPS=1000"
+  "cu10k-lim20k-qps1000   | $SLOW160 $REF LIMIT_B=20000   TARGET_QPS=1000"
+  "cu10k-lim50k-qps1000   | $SLOW160 $REF LIMIT_B=50000   TARGET_QPS=1000"
+  "cu10k-lim100k-qps1000  | $SLOW160 $REF LIMIT_B=100000  TARGET_QPS=1000"
+  #
+  # ---- cu20k, 20,000 units/tx (slow_n=217). lim10k is BELOW one transaction's
+  #      cost, so that cell admits nothing at all (see the note above).
+  "cu20k-lim10k-qps1000   | $SLOW217 $REF LIMIT_B=10000   TARGET_QPS=1000"
+  "cu20k-lim20k-qps1000   | $SLOW217 $REF LIMIT_B=20000   TARGET_QPS=1000"
+  "cu20k-lim50k-qps1000   | $SLOW217 $REF LIMIT_B=50000   TARGET_QPS=1000"
+  "cu20k-lim100k-qps1000  | $SLOW217 $REF LIMIT_B=100000  TARGET_QPS=1000"
 )
 
 # Cache sudo up front (run.sh uses sudo per iteration) and keep it alive for the
