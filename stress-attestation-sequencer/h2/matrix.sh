@@ -88,7 +88,8 @@ SLOW1="WORKLOAD=slow SLOW_N=1 SLOW_SIZE=100 SLOW_SHARED=true"       # 1,000 unit
 SLOW200="WORKLOAD=slow SLOW_N=200 SLOW_SIZE=100 SLOW_SHARED=true"   # 16,000 units/tx
 SLOW1000="WORKLOAD=slow SLOW_N=1000 SLOW_SIZE=100 SLOW_SHARED=true" # 491,000 units/tx
 # Run A's reference in every cell: production's count limit, burst off in both runs.
-REF="N=4 LIMIT_A=10 OVERSHOOT_A=0 OVERSHOOT_B=0"
+# The duration is pinned: run.sh's own default is shorter, for ad-hoc test runs.
+REF="N=4 RUN_DURATION=60s LIMIT_A=10 OVERSHOOT_A=0 OVERSHOOT_B=0"
 
 # "LABEL | env assignments passed to run.sh"
 configs=(

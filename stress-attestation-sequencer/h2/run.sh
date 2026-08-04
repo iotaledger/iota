@@ -85,8 +85,8 @@ N="${N:-4}"
 # epoch 0 — a long epoch keeps reconfiguration structurally out of both run
 # windows.
 EPOCH_DURATION_MS="${EPOCH_DURATION_MS:-3600000}"
-RUN_DURATION="${RUN_DURATION:-60s}"
-TARGET_QPS="${TARGET_QPS:-2000}"
+RUN_DURATION="${RUN_DURATION:-20s}"
+TARGET_QPS="${TARGET_QPS:-250}"
 NUM_WORKERS="${NUM_WORKERS:-24}"
 NUM_CLIENT_THREADS="${NUM_CLIENT_THREADS:-12}"      # tokio threads driving the client (raise for higher qps)
 NUM_TRANSFER_ACCOUNTS="${NUM_TRANSFER_ACCOUNTS:-4}" # pure multiplier on setup-phase gas-coin count
@@ -98,8 +98,8 @@ DIRECT="${DIRECT:-false}"                          # true => submit direct-to-va
 NUM_TARGET_VALIDATORS="${NUM_TARGET_VALIDATORS:-}" # DIRECT only: pin submission/attestation to first N validators (empty => all)
 WORKLOAD="${WORKLOAD:-slow}"                       # slow (slow::slow / slow::bimodal on a shared object) | shared (shared-counter) | owned (transfer; no congestion control)
 NUM_SHARED_COUNTERS="${NUM_SHARED_COUNTERS:-}"     # WORKLOAD=shared: fewer => more congestion (empty => benchmark default ~qps/2)
-SLOW_N="${SLOW_N:-}"                               # WORKLOAD=slow: slow::slow(n,size) — n vectors (empty + empty SLOW_SIZE => bimodal)
-SLOW_SIZE="${SLOW_SIZE:-}"                         # WORKLOAD=slow: each vector size in bytes
+SLOW_N="${SLOW_N-0}"                               # WORKLOAD=slow: slow::slow(n,size) — n vectors (empty BOTH knobs => bimodal)
+SLOW_SIZE="${SLOW_SIZE-0}"                         # WORKLOAD=slow: each vector size in bytes
 SLOW_SHARED="${SLOW_SHARED:-true}"                 # WORKLOAD=slow: true attaches the mutable shared input congestion control needs; false => owned-only pure compute
 # Per shared object per commit: LIMIT_* is the base budget, OVERSHOOT_* the burst a
 # single commit may exceed it by, carried as debt and repaid from later commits.
@@ -117,8 +117,8 @@ OVERSHOOT_A="${OVERSHOOT_A:-0}"
 MODE_B="${MODE_B:-TotalComputationUnits}"
 LIMIT_B="${LIMIT_B:?set LIMIT_B=<computation units per object per commit> (required)}"
 OVERSHOOT_B="${OVERSHOOT_B:-0}"
-MAX_DEFERRAL_ROUNDS="${MAX_DEFERRAL_ROUNDS:-}" # rounds a tx may stay deferred before it is CANCELLED (empty => protocol default 10); both arms
-ATTEST="${ATTEST:-true}"                       # validator attestation; both arms (see the header)
+MAX_DEFERRAL_ROUNDS="${MAX_DEFERRAL_ROUNDS:-10}" # rounds a tx may stay deferred before it is CANCELLED (the protocol default); both arms
+ATTEST="${ATTEST:-true}"                         # validator attestation; both arms (see the header)
 # Setup-phase gas coins prepped before spam = TARGET_QPS * IN_FLIGHT_RATIO *
 # (NUM_TRANSFER_ACCOUNTS + 1). That product drives warmup time, so keep
 # NUM_TRANSFER_ACCOUNTS / IN_FLIGHT_RATIO small — they don't gate throughput at
@@ -197,8 +197,9 @@ shared)
   ;;
 slow)
   # slow::slow(n, size) per transaction; bigger n/size costs more computation units
-  # (probe-test.md lists the points). With both knobs empty the workload runs
-  # slow::bimodal instead, alternating heavy and light every 10s.
+  # (probe-test.md lists the points). With both knobs explicitly emptied
+  # (SLOW_N= SLOW_SIZE=) the workload runs slow::bimodal instead, alternating
+  # heavy and light every 10s.
   # The workload publishes ONE slow::Obj and every payload takes it as a mutable
   # input, so all of them contend on the same object.
   WORKLOAD_ARGS=(--transfer-object 0 --slow 100)
