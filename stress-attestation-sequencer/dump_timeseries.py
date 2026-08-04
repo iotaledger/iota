@@ -121,6 +121,12 @@ metrics["transaction_overload_sources_by_source"] = "transaction_overload_source
 # rate is the commit rate — what a per-object per-commit limit is spent against, and
 # what turns a limit in units per commit into units per second.
 metrics["consensus_committed_subdags"] = "sum by (host) (consensus_committed_subdags)"
+# last leader round the consensus handler processed. A skipped leader round
+# advances it without producing a commit, so subtracting the committed-subdag
+# increase gives the number of skipped rounds. Deferral limits are a
+# commit-round difference, so a skipped round spends a transaction's deferral
+# budget without giving it a scheduling attempt.
+metrics["consensus_handler_leader_round"] = "consensus_handler_leader_round"
 # consensus in-flight transactions (num_inflight): the value graduated / max_pending
 # shedding compares against max_pending_transactions. sequencing_certificate_inflight
 # is an IntGaugeVec by tx_type; sum by host = num_inflight per validator. It's a GAUGE
