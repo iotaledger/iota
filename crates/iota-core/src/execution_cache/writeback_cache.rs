@@ -1845,14 +1845,14 @@ impl ObjectCacheRead for WritebackCache {
         &'a self,
         input_and_receiving_keys: &'a [InputKey],
         receiving_keys: &'a HashSet<InputKey>,
-        epoch: &'a EpochId,
+        epoch: EpochId,
     ) -> BoxFuture<'a, ()> {
         // Delegate to the production availability check (which consults markers)
         // rather than a separate code path, so an input that can never appear
         // (e.g. a received-then-deleted owned object) still resolves and the
         // waiting transaction proceeds to fail at execution instead of hanging.
         self.object_notify_read
-            .read::<std::convert::Infallible>(input_and_receiving_keys, |keys| {
+            .read::<std::convert::Infallible>(input_and_receiving_keys, move |keys| {
                 Ok(self
                     .multi_input_objects_available(keys, receiving_keys, epoch)
                     .into_iter()

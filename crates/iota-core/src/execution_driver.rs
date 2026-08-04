@@ -115,12 +115,9 @@ pub async fn execution_process(
         spawn_monitored_task!(epoch_store.within_alive_epoch(async move {
             let _scope = monitored_scope("ExecutionDriver::task");
             let _guard = permit;
-            // Held for the whole execution, not dropped right at dispatch:
-            // `num_pending_transactions` counts executing transactions as well
-            // as pending ones, so holding the guard until execution finishes
-            // keeps that count (and the overload-admission threshold it feeds)
-            // consistent across both schedulers. Dropped on completion or
-            // cancellation, decrementing the executing gauge.
+            // Held for the whole execution, not dropped at dispatch:
+            // `num_pending_transactions` counts executing transactions too, and
+            // overload admission reads that count.
             let _executing_guard = executing_guard;
             if let Ok(true) = authority.try_is_tx_already_executed(&digest) {
                 return;

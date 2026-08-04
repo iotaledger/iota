@@ -39,6 +39,7 @@ use crate::{
         test_authority_builder::TestAuthorityBuilder,
     },
     move_call,
+    test_utils::set_scheduler_env,
 };
 
 pub const TEST_ONLY_GAS_PRICE: u64 = 1000;
@@ -298,16 +299,9 @@ async fn test_congestion_control_execution_cancellation_execution_scheduler() {
 // in the scheduler instead of executing them to cancelled effects.
 async fn congestion_control_execution_cancellation(use_execution_scheduler: bool) {
     telemetry_subscribers::init_for_testing();
-    // Pin the scheduler before the authorities are built (the env vars are read
-    // by ExecutionSchedulerWrapper::new); process-per-test isolation keeps the
-    // two variants from leaking into each other.
-    if use_execution_scheduler {
-        std::env::set_var("ENABLE_EXECUTION_SCHEDULER", "1");
-        std::env::remove_var("ENABLE_TRANSACTION_MANAGER");
-    } else {
-        std::env::set_var("ENABLE_TRANSACTION_MANAGER", "1");
-        std::env::remove_var("ENABLE_EXECUTION_SCHEDULER");
-    }
+    // Select the scheduler before the authorities are built (the env vars are
+    // read by ExecutionSchedulerWrapper::new).
+    set_scheduler_env(use_execution_scheduler);
 
     // Creates a test setup with a protocol config such that the the congestion
     // limit is equal to one default transaction's gas budget, and the overshoot

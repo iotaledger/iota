@@ -32,37 +32,37 @@ pub(crate) mod transaction_manager;
 /// Tracks when a transaction was enqueued and when it became ready for
 /// execution; used for latency metrics.
 #[derive(Clone, Debug)]
-pub struct PendingTransactionStats {
+pub(crate) struct PendingTransactionStats {
     /// The time this transaction enters the execution scheduler.
     #[cfg(test)]
-    pub enqueue_time: Instant,
+    pub(crate) enqueue_time: Instant,
     /// The time this transaction becomes ready for execution.
-    pub ready_time: Option<Instant>,
+    pub(crate) ready_time: Option<Instant>,
 }
 
 /// A transaction that is waiting in the execution scheduler for its input
 /// objects to become available before it can be sent to the execution driver.
 #[derive(Debug)]
-pub struct PendingTransaction {
+pub(crate) struct PendingTransaction {
     /// The transaction to be executed.
-    pub transaction: VerifiedExecutableTransaction,
+    pub(crate) transaction: VerifiedExecutableTransaction,
     /// When executing from checkpoint, the certified effects digest is
     /// provided, so that forks can be detected prior to committing the
     /// transaction.
-    pub expected_effects_digest: Option<TransactionEffectsDigest>,
+    pub(crate) expected_effects_digest: Option<TransactionEffectsDigest>,
     /// The input objects this transaction is waiting for to become available in
     /// order to be executed. Only used by `TransactionManager`.
-    pub waiting_input_objects: BTreeSet<InputKey>,
+    pub(crate) waiting_input_objects: BTreeSet<InputKey>,
     /// Stats about this transaction.
-    pub stats: PendingTransactionStats,
+    pub(crate) stats: PendingTransactionStats,
     /// Held while the transaction is executing, to keep the
     /// executing-certificates gauge accurate. Only set by
     /// `ExecutionScheduler`.
-    pub executing_guard: Option<ExecutingGuard>,
+    pub(crate) executing_guard: Option<ExecutingGuard>,
 }
 
 #[derive(Debug)]
-pub struct ExecutingGuard {
+pub(crate) struct ExecutingGuard {
     num_executing_certificates: IntGauge,
 }
 
@@ -132,20 +132,18 @@ pub(crate) trait ExecutionSchedulerAPI {
 // unboxed layout and silence the lint rather than boxing `Inner`.
 #[allow(clippy::large_enum_variant)]
 #[enum_dispatch(ExecutionSchedulerAPI)]
-pub enum ExecutionSchedulerWrapper {
+pub(crate) enum ExecutionSchedulerWrapper {
     ExecutionScheduler(ExecutionScheduler),
     TransactionManager(TransactionManager),
 }
 
 /// Scheduler selected when neither `ENABLE_EXECUTION_SCHEDULER` nor
-/// `ENABLE_TRANSACTION_MANAGER` is set — the single source of truth for the
-/// default. Flip to `true` (and update the CI matrix) when promoting
-/// `ExecutionScheduler` to the default; the selector below and any test that
-/// asserts the default both follow it automatically.
+/// `ENABLE_TRANSACTION_MANAGER` is set. The selector below and the tests that
+/// assert the default both read it, so it is the only place to change.
 pub(crate) const DEFAULT_USE_EXECUTION_SCHEDULER: bool = false;
 
 impl ExecutionSchedulerWrapper {
-    pub fn new(
+    pub(crate) fn new(
         object_cache_read: Arc<dyn ObjectCacheRead>,
         transaction_cache_read: Arc<dyn TransactionCacheRead>,
         tx_ready_transactions: UnboundedSender<PendingTransaction>,
@@ -164,6 +162,14 @@ impl ExecutionSchedulerWrapper {
         } else {
             DEFAULT_USE_EXECUTION_SCHEDULER
         };
+        tracing::info!(
+            "Using {} for transaction execution",
+            if enable_execution_scheduler {
+                "ExecutionScheduler"
+            } else {
+                "TransactionManager"
+            }
+        );
         if enable_execution_scheduler {
             Self::ExecutionScheduler(ExecutionScheduler::new(
                 object_cache_read,
@@ -184,13 +190,13 @@ impl ExecutionSchedulerWrapper {
 
     /// Whether the new `ExecutionScheduler` is in use (vs
     /// `TransactionManager`).
-    pub fn uses_execution_scheduler(&self) -> bool {
+    pub(crate) fn uses_execution_scheduler(&self) -> bool {
         matches!(self, Self::ExecutionScheduler(_))
     }
 }
 
 impl ExecutingGuard {
-    pub fn new(num_executing_certificates: IntGauge) -> Self {
+    pub(crate) fn new(num_executing_certificates: IntGauge) -> Self {
         num_executing_certificates.inc();
         Self {
             num_executing_certificates,

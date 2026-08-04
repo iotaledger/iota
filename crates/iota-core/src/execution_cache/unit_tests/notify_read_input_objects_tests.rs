@@ -45,7 +45,7 @@ async fn test_writeback_immediate_return_canceled_shared() {
         version: Version::CANCELLED_READ,
     };
     let receiving_keys = HashSet::new();
-    let epoch = &0;
+    let epoch = 0;
 
     cache
         .notify_read_input_objects(&[canceled_key], &receiving_keys, epoch)
@@ -87,7 +87,7 @@ async fn test_writeback_immediate_return_cached_object() {
         version,
     }];
     let receiving_keys = HashSet::new();
-    let epoch = &0;
+    let epoch = 0;
 
     // Should return immediately since object is in cache/store
     cache
@@ -103,7 +103,7 @@ async fn test_writeback_immediate_return_cached_package() {
         id: IOTA_FRAMEWORK_PACKAGE_ID,
     }];
     let receiving_keys = HashSet::new();
-    let epoch = &0;
+    let epoch = 0;
 
     // Should return immediately since system package is available by default.
     cache
@@ -131,7 +131,7 @@ async fn test_writeback_immediate_return_shared_deleted() {
         version,
     }];
     let receiving_keys = HashSet::new();
-    let epoch = &epoch_id;
+    let epoch = epoch_id;
 
     // Should return immediately since the shared object was deleted
     cache
@@ -151,7 +151,7 @@ async fn test_writeback_wait_for_object() {
         version,
     }];
     let receiving_keys = HashSet::new();
-    let epoch = &0;
+    let epoch = 0;
 
     let result = timeout(
         Duration::from_secs(3),
@@ -219,7 +219,7 @@ async fn test_writeback_wait_for_package() {
 
     let input_keys = vec![InputKey::Package { id: package_id }];
     let receiving_keys = HashSet::new();
-    let epoch = &0;
+    let epoch = 0;
 
     // Start notification future
     let notification = cache.notify_read_input_objects(&input_keys, &receiving_keys, epoch);
@@ -249,7 +249,7 @@ async fn test_writeback_wait_for_shared_deleted() {
         version,
     }];
     let receiving_keys = HashSet::new();
-    let epoch = &epoch_id;
+    let epoch = epoch_id;
 
     // Start notification future
     let notification = cache.notify_read_input_objects(&input_keys, &receiving_keys, epoch);
@@ -278,14 +278,6 @@ async fn test_writeback_wait_for_shared_deleted() {
 /// resolution that `notify_read_resolves_received_then_deleted_owned_input`
 /// covers. Without `notify_marker_written` notifying on `OwnedDeleted`, the
 /// waiter is never woken and this times out.
-///
-/// This pins the cache-primitive contract (a marker that grants availability
-/// must wake waiters) in isolation. A live transaction cannot reach this state:
-/// a receiving reference is pinned at signing to a currently-live object
-/// version, whose object-write already notifies, and consensus ordering places
-/// that write before any later deletion marker. The direct
-/// `write_marker_for_testing` here deliberately bypasses those invariants to
-/// test the primitive.
 #[tokio::test]
 async fn test_writeback_wait_for_owned_deleted() {
     let cache = create_writeback_cache().await;
@@ -302,7 +294,7 @@ async fn test_writeback_wait_for_owned_deleted() {
     // input, so the key must be in the receiving set for the wait to resolve.
     let mut receiving_keys = HashSet::new();
     receiving_keys.insert(input_key);
-    let epoch = &epoch_id;
+    let epoch = epoch_id;
 
     // Start notification future while neither the object nor its marker exists,
     // so the waiter registers and blocks.
@@ -346,7 +338,7 @@ async fn test_writeback_receiving_object_higher_version() {
     }];
     let mut receiving_keys = HashSet::new();
     receiving_keys.insert(input_keys[0]);
-    let epoch = &0;
+    let epoch = 0;
 
     // Should return immediately since a higher version exists for receiving object
     cache
@@ -385,11 +377,11 @@ async fn notify_read_resolves_received_then_deleted_owned_input() {
     let mut receiving_keys = HashSet::new();
     receiving_keys.insert(input_key);
     assert_eq!(
-        cache.multi_input_objects_available(&[input_key], &receiving_keys, &epoch_id),
+        cache.multi_input_objects_available(&[input_key], &receiving_keys, epoch_id),
         vec![true],
     );
     cache
-        .notify_read_input_objects(&[input_key], &receiving_keys, &epoch_id)
+        .notify_read_input_objects(&[input_key], &receiving_keys, epoch_id)
         .now_or_never()
         .expect("received-then-deleted owned input must resolve, not hang");
 
@@ -398,12 +390,12 @@ async fn notify_read_resolves_received_then_deleted_owned_input() {
     // input; a plain owned input at a deleted version keeps waiting.
     let no_receiving = HashSet::new();
     assert_eq!(
-        cache.multi_input_objects_available(&[input_key], &no_receiving, &epoch_id),
+        cache.multi_input_objects_available(&[input_key], &no_receiving, epoch_id),
         vec![false],
     );
     assert!(
         cache
-            .notify_read_input_objects(&[input_key], &no_receiving, &epoch_id)
+            .notify_read_input_objects(&[input_key], &no_receiving, epoch_id)
             .now_or_never()
             .is_none(),
         "a non-receiving deleted-owned input must not resolve"
@@ -429,7 +421,7 @@ async fn cache_only_availability_ignores_store_but_full_path_falls_back() {
     store.bulk_insert_genesis_objects(&[store_only]).unwrap();
 
     let cache = Arc::new(WritebackCache::new_for_tests(store));
-    let epoch = &0;
+    let epoch = 0;
     let no_receiving = HashSet::new();
     let store_only_key = InputKey::VersionedObject {
         id: store_only_id,

@@ -301,3 +301,17 @@ pub fn make_cert_with_large_committee(
         .unwrap();
     cert
 }
+
+/// Selects which scheduler `ExecutionSchedulerWrapper::new` builds. Both
+/// selector variables are set explicitly, so the choice holds regardless of
+/// `DEFAULT_USE_EXECUTION_SCHEDULER`. Call this before building the authority.
+pub fn set_scheduler_env(use_execution_scheduler: bool) {
+    // SAFETY (edition 2021): plain env mutation, no other threads race here.
+    if use_execution_scheduler {
+        std::env::set_var("ENABLE_EXECUTION_SCHEDULER", "1");
+        std::env::remove_var("ENABLE_TRANSACTION_MANAGER");
+    } else {
+        std::env::set_var("ENABLE_TRANSACTION_MANAGER", "1");
+        std::env::remove_var("ENABLE_EXECUTION_SCHEDULER");
+    }
+}

@@ -70,20 +70,15 @@ fn notify_object_written(object_notify_read: &NotifyRead<InputKey, ()>, object: 
 }
 
 /// Notify waiters that a marker value has been written. Both `SharedDeleted`
-/// and `OwnedDeleted` markers need notification: each can satisfy an input
-/// object read (`SharedDeleted` for a deleted shared object; `OwnedDeleted` for
-/// a received-then-deleted owned object referenced as a receiving input), so a
-/// waiter that registered before the marker was written must be woken — a
+/// and `OwnedDeleted` markers can satisfy an input object read (the latter for
+/// a received-then-deleted owned object used as a receiving input), and the
 /// deleted object is never written at that version, so no object-write
-/// notification will arrive to release it.
+/// notification will arrive to release the waiter.
 ///
-/// `NotifyRead::notify` resolves every registration for the key without
-/// re-checking availability, so a marker also wakes a waiter holding the same
-/// `(id, version)` as a plain, non-receiving input — for which the marker does
-/// not mean available. Such a waiter proceeds to fail in the input loader
-/// rather than hang, which is the same trade-off `SharedDeleted` has always
-/// made here. It also requires a transaction whose input is an owned version
-/// that was never live, which input validation does not admit.
+/// `NotifyRead::notify` resolves registrations without re-checking, so this
+/// also wakes a waiter on the same `(id, version)` as a plain, non-receiving
+/// input; that transaction would then panic in the input loader. It requires an
+/// owned input version that was never live, which input validation rejects.
 fn notify_marker_written(
     object_notify_read: &NotifyRead<InputKey, ()>,
     object_key: &ObjectKey,
@@ -496,9 +491,9 @@ pub trait ObjectCacheRead: Send + Sync {
         &self,
         keys: &[InputKey],
         receiving_objects: &HashSet<InputKey>,
-        epoch: &EpochId,
+        epoch: EpochId,
     ) -> Vec<bool> {
-        self.try_multi_input_objects_available(keys, receiving_objects, *epoch)
+        self.try_multi_input_objects_available(keys, receiving_objects, epoch)
             .expect("storage access failed")
     }
 
@@ -730,7 +725,7 @@ pub trait ObjectCacheRead: Send + Sync {
         &'a self,
         input_and_receiving_keys: &'a [InputKey],
         receiving_keys: &'a HashSet<InputKey>,
-        epoch: &'a EpochId,
+        epoch: EpochId,
     ) -> BoxFuture<'a, ()>;
 }
 

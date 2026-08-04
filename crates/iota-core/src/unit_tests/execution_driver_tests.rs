@@ -43,7 +43,9 @@ use crate::{
     execution_scheduler::ExecutionSchedulerAPI,
     safe_client::SafeClient,
     test_authority_clients::LocalAuthorityClient,
-    test_utils::{make_transfer_object_move_transaction, make_transfer_object_transaction},
+    test_utils::{
+        make_transfer_object_move_transaction, make_transfer_object_transaction, set_scheduler_env,
+    },
     unit_test_utils::{init_local_authorities, init_local_authorities_with_overload_thresholds},
 };
 
@@ -310,16 +312,9 @@ async fn test_execution_with_dependencies_execution_scheduler() {
 
 async fn execution_with_dependencies(use_execution_scheduler: bool) {
     telemetry_subscribers::init_for_testing();
-    // Pin the scheduler before the authorities are built (the env vars are read
-    // by ExecutionSchedulerWrapper::new); process-per-test isolation keeps the
-    // two variants from leaking into each other.
-    if use_execution_scheduler {
-        std::env::set_var("ENABLE_EXECUTION_SCHEDULER", "1");
-        std::env::remove_var("ENABLE_TRANSACTION_MANAGER");
-    } else {
-        std::env::set_var("ENABLE_TRANSACTION_MANAGER", "1");
-        std::env::remove_var("ENABLE_EXECUTION_SCHEDULER");
-    }
+    // Select the scheduler before the authorities are built (the env vars are
+    // read by ExecutionSchedulerWrapper::new).
+    set_scheduler_env(use_execution_scheduler);
 
     // ---- Initialize a network with three accounts, each with 10 gas objects.
 

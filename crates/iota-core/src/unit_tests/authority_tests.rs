@@ -92,7 +92,9 @@ use crate::{
     consensus_handler::SequencedConsensusTransaction,
     execution_cache::ExecutionCacheCommit,
     execution_scheduler::ExecutionSchedulerAPI,
-    test_utils::{init_state_parameters_from_rng, make_transfer_object_transaction},
+    test_utils::{
+        init_state_parameters_from_rng, make_transfer_object_transaction, set_scheduler_env,
+    },
     transaction_input_loader::TransactionInputLoader,
 };
 
@@ -6861,18 +6863,9 @@ async fn survivor_executes(use_execution_scheduler: bool) {
     telemetry_subscribers::init_for_testing();
 
     // Select the scheduler before the authority is built (read by
-    // ExecutionSchedulerWrapper::new). Both env vars are set explicitly so the
-    // choice is pinned regardless of DEFAULT_USE_EXECUTION_SCHEDULER; the
-    // uses_execution_scheduler() assertion below double-checks it. Process-per-test
-    // isolation keeps the two variants from leaking into each other.
-    // SAFETY (edition 2021): plain env mutation, no other threads race here.
-    if use_execution_scheduler {
-        std::env::set_var("ENABLE_EXECUTION_SCHEDULER", "1");
-        std::env::remove_var("ENABLE_TRANSACTION_MANAGER");
-    } else {
-        std::env::set_var("ENABLE_TRANSACTION_MANAGER", "1");
-        std::env::remove_var("ENABLE_EXECUTION_SCHEDULER");
-    }
+    // ExecutionSchedulerWrapper::new); the uses_execution_scheduler() assertion
+    // below double-checks the choice took effect.
+    set_scheduler_env(use_execution_scheduler);
 
     // Enable P-COOL flow
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
@@ -7022,28 +7015,22 @@ async fn test_post_consensus_white_flag_survivor_executes_execution_scheduler() 
 /// exactly as the legacy `TransactionManager` counts it.
 ///
 /// This holds only if the scheduler's `ExecutingGuard` is kept alive for the
-/// whole execution. A scheduler that drops the guard at dispatch (as upstream
-/// SUI does) reports 0 here, silently under-counting in-flight work for
-/// overload control on the ExecutionScheduler path.
+/// whole execution; dropping it at dispatch reports 0 here, silently
+/// under-counting in-flight work for overload control.
 ///
 /// Simulator-only: it relies on the `transaction_execution_delay` fail point
 /// (a no-op outside `msim`) to freeze execution at a deterministic point, so
 /// the count can be observed mid-execution. Under the simulator the scheduling
 /// is deterministic, so the observation is race-free.
+// The fail point only fires under the simulator; outside it, execution would not
+// pause and this test could not observe the mid-execution window.
+#[cfg(msim)]
 #[sim_test]
 async fn execution_scheduler_counts_executing_transaction() {
     use iota_macros::{clear_fail_point, register_fail_point_async};
 
-    // The fail point only fires under the simulator; outside it, execution would
-    // not pause and this test could not observe the mid-execution window.
-    if !cfg!(msim) {
-        return;
-    }
-
-    // Pin the ExecutionScheduler; this invariant is about its accounting.
-    // SAFETY (edition 2021): plain env mutation, no other threads race here.
-    std::env::set_var("ENABLE_EXECUTION_SCHEDULER", "1");
-    std::env::remove_var("ENABLE_TRANSACTION_MANAGER");
+    // Select the ExecutionScheduler; this invariant is about its accounting.
+    set_scheduler_env(true);
 
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
     let recipient = dbg_addr(2);
@@ -7134,17 +7121,12 @@ async fn execution_scheduler_counts_executing_transaction() {
 ///
 /// Simulator-only: relies on the `transaction_execution_delay` fail point to
 /// freeze execution at a deterministic point.
+#[cfg(msim)]
 #[sim_test]
 async fn execution_scheduler_drops_executing_guard_on_epoch_termination() {
     use iota_macros::{clear_fail_point, register_fail_point_async};
 
-    if !cfg!(msim) {
-        return;
-    }
-
-    // SAFETY (edition 2021): plain env mutation, no other threads race here.
-    std::env::set_var("ENABLE_EXECUTION_SCHEDULER", "1");
-    std::env::remove_var("ENABLE_TRANSACTION_MANAGER");
+    set_scheduler_env(true);
 
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
     let recipient = dbg_addr(2);
@@ -7224,29 +7206,21 @@ async fn execution_scheduler_drops_executing_guard_on_epoch_termination() {
 ///
 /// Simulator-only: `#[sim_test]` gives deterministic scheduling of the two
 /// racing tasks.
+#[cfg(msim)]
 #[sim_test]
 async fn duplicate_enqueue_executes_once_transaction_manager() {
     duplicate_enqueue_executes_once(false).await;
 }
 
+#[cfg(msim)]
 #[sim_test]
 async fn duplicate_enqueue_executes_once_execution_scheduler() {
     duplicate_enqueue_executes_once(true).await;
 }
 
+#[cfg(msim)]
 async fn duplicate_enqueue_executes_once(use_execution_scheduler: bool) {
-    if !cfg!(msim) {
-        return;
-    }
-
-    // SAFETY (edition 2021): plain env mutation, no other threads race here.
-    if use_execution_scheduler {
-        std::env::set_var("ENABLE_EXECUTION_SCHEDULER", "1");
-        std::env::remove_var("ENABLE_TRANSACTION_MANAGER");
-    } else {
-        std::env::set_var("ENABLE_TRANSACTION_MANAGER", "1");
-        std::env::remove_var("ENABLE_EXECUTION_SCHEDULER");
-    }
+    set_scheduler_env(use_execution_scheduler);
 
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
     let recipient = dbg_addr(2);

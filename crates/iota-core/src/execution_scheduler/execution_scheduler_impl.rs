@@ -102,12 +102,17 @@ impl ExecutionScheduler {
         let input_object_kinds = tx
             .data()
             .collect_all_input_object_kind_for_reading()
+            // The transaction is already verified by the time it is scheduled, so
+            // its input objects are well-formed.
             .expect("collect_all_input_object_kind_for_reading() cannot fail");
         let input_object_keys: Vec<_> =
             match epoch_store.get_input_object_keys(&tx.key(), &input_object_kinds) {
                 Ok(keys) => keys,
                 Err(_) => {
-                    // This is possible if the transaction is already executed.
+                    // The assigned shared versions are only removed once the
+                    // transaction has executed, so this is expected for an
+                    // already-executed transaction and indicates inconsistent
+                    // state otherwise.
                     assert!(
                         self.transaction_cache_read
                             .is_tx_already_executed(tx.digest())
@@ -167,7 +172,7 @@ impl ExecutionScheduler {
             .inc();
         tokio::select! {
             _ = self.object_cache_read
-                .notify_read_input_objects(&missing_input_keys, &receiving_object_keys, &epoch) => {
+                .notify_read_input_objects(&missing_input_keys, &receiving_object_keys, epoch) => {
                     self.metrics
                         .transaction_manager_transaction_queue_age_s
                         .observe(enqueue_time.elapsed().as_secs_f64());
