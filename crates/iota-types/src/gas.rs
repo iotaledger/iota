@@ -175,26 +175,27 @@ pub mod checked {
 
     /// Reports the gas a simulation ran with in `reported`, in place of what
     /// the caller left unset — the mirror of
-    /// [`fill_in_unset_simulation_gas`], for the response rather than the
-    /// run.
+    /// [`fill_in_unset_simulation_gas`], for the response rather than the run.
+    ///
+    /// Everything the simulation resolved comes back: the price it charged at,
+    /// because only the computation half of the cost scales with the price and
+    /// the estimate cannot be read without it; and the gas payment, so that a
+    /// caller who sent none learns the mock gas coin the run actually charged
+    /// gas to, which the effects otherwise refer to without naming.
     ///
     /// A zero budget asks what the transaction costs, so it comes back as
     /// `gas_used` rather than as the caller's own zero, which would say
-    /// nothing. The price comes back too: only the computation half of the
-    /// cost scales with the price, so the estimate cannot be read without
-    /// it.
-    ///
-    /// The gas payment is left alone, because a mock gas coin is not reported
-    /// the same way by every API — the JSON-RPC response carries it in the
-    /// payment, while gRPC reports it separately — so that is the caller's
-    /// call.
+    /// nothing. Note what that costs: `gas_used` is not the budget the run
+    /// metered against, so a transaction reported this way does not hash to the
+    /// digest the effects are keyed by. Anything else leaves the caller no way
+    /// to read the estimate, and a simulated transaction is not submittable in
+    /// any case.
     pub fn report_simulation_gas(reported: &mut GasPayment, simulated: &GasPayment, gas_used: u64) {
-        reported.price = simulated.price;
-        reported.budget = if reported.budget == 0 {
-            gas_used
-        } else {
-            simulated.budget
-        };
+        let estimating = reported.budget == 0;
+        *reported = simulated.clone();
+        if estimating {
+            reported.budget = gas_used;
+        }
     }
 
     /// Checks that every object `gas` refers to is an address-owned gas coin

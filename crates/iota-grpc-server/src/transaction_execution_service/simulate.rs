@@ -231,8 +231,9 @@ async fn simulate_single_transaction(
     // Only include transaction if requested
     if let Some(tx_mask) = read_mask.subtree(SimulatedTransaction::EXECUTED_TRANSACTION_FIELD.name)
     {
-        // The gas payment is left as it was sent: a mock gas coin the simulation
-        // minted is reported separately, in `mocked_coin` below.
+        // Report the transaction the simulation ran, gas payment included, so it
+        // hashes to the digest the effects below are keyed by. Same rule as the
+        // JSON-RPC dry run, which shares the helper.
         iota_types::gas::report_simulation_gas(
             transaction_data.gas_data_mut(),
             &gas_data,

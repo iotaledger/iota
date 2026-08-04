@@ -354,7 +354,7 @@ impl TransactionExecutionApi {
             .map_err(Error::from)??
         };
 
-        Self::report_simulation_gas_and_payment(&mut txn_data, &simulation);
+        Self::report_simulation_gas(&mut txn_data, &simulation);
 
         let tx_digest = *simulation.effects.transaction_digest();
         // Resolve types against the objects the simulation wrote before falling back to
@@ -457,22 +457,17 @@ impl TransactionExecutionApi {
     }
 
     /// Report the gas the simulation ran with, in place of whatever the caller
-    /// left unset, gas payment included.
-    ///
-    /// The payment is reported here because that is where a JSON-RPC client
-    /// reads a mock gas coin the simulation minted; gRPC reports it separately
-    /// and so leaves the payment as it was sent. The price and budget are the
-    /// same rule for both, so they come from
-    /// [`iota_types::gas::report_simulation_gas`].
-    fn report_simulation_gas_and_payment(
+    /// left unset. Same rule as gRPC `simulate_transactions`, which shares the
+    /// helper.
+    fn report_simulation_gas(
         transaction: &mut TransactionData,
         simulation: &SimulateTransactionResult,
     ) {
-        let gas_used = simulation.effects.gas_cost_summary().gas_used();
-        let gas_data = transaction.gas_data_mut();
-        gas_data.objects = simulation.gas_data.objects.clone();
-        gas_data.owner = simulation.gas_data.owner;
-        iota_types::gas::report_simulation_gas(gas_data, &simulation.gas_data, gas_used);
+        iota_types::gas::report_simulation_gas(
+            transaction.gas_data_mut(),
+            &simulation.gas_data,
+            simulation.effects.gas_cost_summary().gas_used(),
+        );
     }
 
     fn dev_inspect_transaction_impl(
@@ -526,7 +521,7 @@ impl TransactionExecutionApi {
 
         let raw_txn_data = match reported_transaction.as_mut() {
             Some(transaction) => {
-                Self::report_simulation_gas_and_payment(transaction, &simulation);
+                Self::report_simulation_gas(transaction, &simulation);
                 bcs::to_bytes(transaction).map_err(|_| IotaError::TransactionSerialization {
                     error: "Failed to serialize transaction during dev inspect".to_string(),
                 })?
