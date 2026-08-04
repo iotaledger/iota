@@ -217,22 +217,11 @@ impl EpochState {
             None
         };
 
-        // Fill in the gas the caller left unset. Nobody submits a simulation to pay
-        // for it, and neither zero is a value the gas checks could accept anyway: a
-        // zero price is below the reference gas price, and a zero budget cannot cover
-        // any computation. Callers that do declare gas are metered against it, so a
-        // dry run still rejects the gas a validator would.
-        if transaction.gas_price() == 0 {
-            let reference_gas_price = self.epoch_start_state.reference_gas_price();
-            transaction.gas_data_mut().price = reference_gas_price;
-        }
-        if transaction.gas_budget() == 0 {
-            // The protocol maximum, rather than what the gas coins hold: a budget
-            // equal to the whole balance would leave nothing for a transaction that
-            // also pays out of its gas coin.
-            let max_tx_gas = self.protocol_config.max_tx_gas();
-            transaction.gas_data_mut().budget = max_tx_gas;
-        }
+        iota_types::gas::fill_in_unset_simulation_gas(
+            &mut transaction,
+            self.epoch_start_state.reference_gas_price(),
+            &self.protocol_config,
+        );
 
         // `MoveAuthenticator`s are not supported in Simulacrum, so we set the
         // `authenticator_gas_budget` to 0.

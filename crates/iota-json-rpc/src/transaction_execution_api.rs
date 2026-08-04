@@ -32,6 +32,7 @@ use iota_sdk_types::{
 use iota_transaction_builder::TransactionBuilder;
 use iota_types::{
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
+    error::IotaError,
     execution_config_utils::to_binary_config,
     inner_temporary_store::{PackageStoreWithFallback, TemporaryModuleResolver},
     iota_serde::BigInt,
@@ -374,10 +375,8 @@ impl TransactionExecutionApi {
                 &module_cache,
                 tx_digest,
             )
-            .map_err(|e| {
-                Error::Unexpected(format!(
-                    "Failed to convert transaction to IotaTransactionBlockData: {e}",
-                ))
+            .map_err(|e| IotaError::TransactionSerialization {
+                error: format!("Failed to convert transaction to IotaTransactionBlockData: {e}"),
             })?;
             let events = IotaTransactionBlockEvents::try_from(
                 simulation.events.unwrap_or_default(),
@@ -527,20 +526,16 @@ impl TransactionExecutionApi {
         let raw_txn_data = match reported_transaction.as_mut() {
             Some(transaction) => {
                 Self::report_effective_gas(transaction, &simulation);
-                bcs::to_bytes(transaction).map_err(|_| {
-                    Error::Unexpected(
-                        "Failed to serialize transaction during dev inspect".to_string(),
-                    )
+                bcs::to_bytes(transaction).map_err(|_| IotaError::TransactionSerialization {
+                    error: "Failed to serialize transaction during dev inspect".to_string(),
                 })?
             }
             None => vec![],
         };
 
         let raw_effects = if show_raw_txn_data_and_effects {
-            bcs::to_bytes(&simulation.effects).map_err(|_| {
-                Error::Unexpected(
-                    "Failed to serialize transaction effects during dev inspect".to_string(),
-                )
+            bcs::to_bytes(&simulation.effects).map_err(|_| IotaError::TransactionSerialization {
+                error: "Failed to serialize transaction effects during dev inspect".to_string(),
             })?
         } else {
             vec![]

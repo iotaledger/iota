@@ -19,7 +19,7 @@ pub mod checked {
         error::{ExecutionError, IotaResult, UserInputError, UserInputResult},
         gas_model::{gas_v1::IotaGasStatus as IotaGasStatusV1, tables::GasStatus},
         object::{MoveStructExt, Object},
-        transaction::{InputObjects, ObjectReadResult},
+        transaction::{InputObjects, ObjectReadResult, TransactionData, TransactionDataAPI},
     };
 
     #[enum_dispatch]
@@ -145,6 +145,31 @@ pub mod checked {
             Err(UserInputError::InvalidGasObject {
                 object_id: gas_object.id(),
             })
+        }
+    }
+
+    /// Fills in the gas a simulated transaction leaves unset: a zero price
+    /// becomes `reference_gas_price`, and a zero budget the protocol maximum.
+    ///
+    /// Nobody submits a simulation to pay for it, and neither zero is a value
+    /// the gas checks could accept anyway — a zero price is below the reference
+    /// gas price, and a zero budget cannot cover any computation. Gas the
+    /// caller does declare is left alone and metered as given, so a dry run
+    /// still rejects the gas a validator would.
+    ///
+    /// A zero budget becomes the protocol maximum rather than what the gas
+    /// coins hold: a budget equal to the whole balance would leave nothing
+    /// for a transaction that also pays out of its gas coin.
+    pub fn fill_in_unset_simulation_gas(
+        transaction: &mut TransactionData,
+        reference_gas_price: u64,
+        protocol_config: &ProtocolConfig,
+    ) {
+        if transaction.gas_price() == 0 {
+            transaction.gas_data_mut().price = reference_gas_price;
+        }
+        if transaction.gas_budget() == 0 {
+            transaction.gas_data_mut().budget = protocol_config.max_tx_gas();
         }
     }
 

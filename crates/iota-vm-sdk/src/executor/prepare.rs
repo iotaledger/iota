@@ -25,7 +25,9 @@ use iota_types::{
     auth_context::AuthContextData,
     effects::TransactionEffectsAPI,
     error::{IotaError, UserInputError},
-    gas::{IotaGasStatus, IotaGasStatusAPI, check_gas_coins_cover_budget},
+    gas::{
+        IotaGasStatus, IotaGasStatusAPI, check_gas_coins_cover_budget, fill_in_unset_simulation_gas,
+    },
     gas_coin::mock_simulation_gas_coin,
     inner_temporary_store::InnerTemporaryStore,
     layout_resolver::LayoutResolver,
@@ -139,18 +141,15 @@ pub(super) fn prepare_transaction(
         None
     };
 
-    // Fill in the gas the caller left unset, the same way the node's simulation
-    // paths do: a zero price is below the reference gas price and a zero budget
-    // cannot cover any computation, so neither is a value to meter against.
-    // `Execute` commits its effects, so it holds a transaction to its own gas the
-    // way a validator would.
+    // `Execute` commits its effects, so it holds a transaction to its own declared
+    // gas the way a validator would; the two simulation modes fill in what the
+    // caller left unset, the same way the node's simulation paths do.
     if !matches!(mode, ExecutionMode::Execute) {
-        if transaction.gas_price() == 0 {
-            transaction.gas_data_mut().price = env.reference_gas_price;
-        }
-        if transaction.gas_budget() == 0 {
-            transaction.gas_data_mut().budget = env.protocol_config.max_tx_gas();
-        }
+        fill_in_unset_simulation_gas(
+            &mut transaction,
+            env.reference_gas_price,
+            &env.protocol_config,
+        );
     }
 
     // Snapshot the received objects for the coin deny-list check below: the
