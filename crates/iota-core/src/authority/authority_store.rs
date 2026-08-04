@@ -1262,6 +1262,13 @@ impl AuthorityStore {
             .into_iter()
             .map(|(id, version)| ObjectKey(id, version));
 
+        // These versions no longer stopped being current in this epoch: the
+        // transaction that superseded them is being reverted.
+        write_batch.delete_batch(
+            &self.perpetual_tables.object_superseded_in_epoch,
+            modified_object_keys.clone(),
+        )?;
+
         macro_rules! get_objects_and_locks {
             ($object_keys: expr) => {
                 self.perpetual_tables

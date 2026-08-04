@@ -317,6 +317,21 @@ impl AuthorityStorePruner {
                 "Pruning object {:?} versions {:?} - {:?}",
                 object_id, min_version, max_version
             );
+
+            // `object_superseded_in_epoch` has no compaction filter of its own, and
+            // unlike `objects` it carries no tombstone rows that a compaction could
+            // leak past a deferred range delete. Range-deleting it directly is
+            // therefore safe even in pruner-tables mode, where `objects` itself is
+            // instead marked via `object_tombstones` for the compaction filter to
+            // remove later.
+            let start_range = ObjectKey(object_id, min_version);
+            let end_range = ObjectKey(object_id, max_version + 1);
+            wb.schedule_delete_range(
+                &perpetual_db.object_superseded_in_epoch,
+                &start_range,
+                &end_range,
+            )?;
+
             match pruner_db_wb {
                 Some(ref mut batch) => {
                     batch.insert_batch(
@@ -325,14 +340,7 @@ impl AuthorityStorePruner {
                     )?;
                 }
                 None => {
-                    let start_range = ObjectKey(object_id, min_version);
-                    let end_range = ObjectKey(object_id, max_version + 1);
                     wb.schedule_delete_range(&perpetual_db.objects, &start_range, &end_range)?;
-                    wb.schedule_delete_range(
-                        &perpetual_db.object_superseded_in_epoch,
-                        &start_range,
-                        &end_range,
-                    )?;
                 }
             }
         }
