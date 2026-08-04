@@ -46,8 +46,6 @@ Commands:
   fetch-checkpoint               Fetch authenticated checkpoint information at a specific sequence number. If sequence
                                  number is not specified, get the latest authenticated checkpoint
   anemo                          Network tools for interacting with Anemo servers
-  restore-db                     
-  download-db-snapshot           Downloads the legacy database snapshot via cloud object store, outputs to local disk
   download-formal-snapshot       Downloads formal database snapshot via cloud object store, outputs to local disk
   replay                         
   sign-transaction               Ask all validators to sign a transaction through AuthorityAggregator

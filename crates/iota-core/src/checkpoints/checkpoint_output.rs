@@ -205,7 +205,7 @@ impl CheckpointOutput for LogCheckpointOutput {
             summary.sequence_number,
             summary.previous_digest,
             contents.len(),
-            summary.content_digest,
+            summary.contents_digest,
             summary.end_of_epoch_data,
         );
 

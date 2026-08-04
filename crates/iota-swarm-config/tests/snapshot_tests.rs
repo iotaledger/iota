@@ -25,9 +25,7 @@ use iota_config::{
     genesis::{GenesisCeremonyParameters, TokenDistributionScheduleBuilder},
     node::{DEFAULT_COMMISSION_RATE, DEFAULT_VALIDATOR_GAS_PRICE},
 };
-use iota_genesis_builder::{
-    Builder, genesis_build_effects::GenesisBuildEffects, validator_info::ValidatorInfo,
-};
+use iota_genesis_builder::{Builder, validator_info::ValidatorInfo};
 use iota_swarm_config::genesis_config::GenesisConfig;
 use iota_types::{
     crypto::{
@@ -96,7 +94,7 @@ fn populated_genesis_snapshot_matches() {
         builder.build()
     };
 
-    let GenesisBuildEffects { genesis, .. } = Builder::new()
+    let genesis = Builder::new()
         .with_token_distribution_schedule(token_distribution_schedule)
         .add_validator(validator, pop)
         .with_parameters(GenesisCeremonyParameters {

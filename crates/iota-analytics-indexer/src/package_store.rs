@@ -110,10 +110,16 @@ impl LocalDBPackageStore {
                 .await
                 .map_err(grpc_err)?
                 .into_inner();
-            let proto_obj = objects
-                .into_iter()
-                .next()
-                .ok_or(PackageResolverError::PackageNotFound(id))?;
+            let proto_obj = match objects.into_iter().next() {
+                Some(Ok(proto_obj)) => proto_obj,
+                // The node reports a package it cannot serve against the ref
+                // that asked for it.
+                Some(Err(e)) if e.is_not_found() => {
+                    return Err(PackageResolverError::PackageNotFound(id));
+                }
+                Some(Err(e)) => return Err(grpc_err(e)),
+                None => return Err(PackageResolverError::PackageNotFound(id)),
+            };
             let object = proto_obj.object().map_err(grpc_err)?.into();
             self.update(&object)?;
             object

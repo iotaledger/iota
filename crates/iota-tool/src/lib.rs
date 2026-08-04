@@ -6,12 +6,12 @@
 use std::{
     collections::BTreeMap,
     fmt::Write,
-    fs, io,
+    fs,
     num::NonZeroUsize,
     path::{Path, PathBuf},
     sync::{
         Arc,
-        atomic::{AtomicU64, AtomicUsize, Ordering},
+        atomic::{AtomicU64, Ordering},
     },
     time::Duration,
 };
@@ -20,12 +20,11 @@ use anyhow::{Result, anyhow, bail};
 use clap::ValueEnum;
 use fastcrypto::{hash::MultisetHash, traits::ToFromBytes};
 use futures::{
-    StreamExt, TryStreamExt,
+    TryStreamExt,
     future::{AbortHandle, join_all},
 };
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use iota_config::{
-    NodeConfig,
     genesis::Genesis,
     object_storage_config::{ObjectStoreConfig, ObjectStoreType},
 };
@@ -54,7 +53,7 @@ use iota_snapshot::{
 use iota_storage::object_store::{
     ObjectStoreGetExt,
     http::HttpDownloaderBuilder,
-    util::{MANIFEST_FILENAME, PerEpochManifest, RootManifest, copy_file, get_path},
+    util::{SUCCESS_MARKER, get_path},
 };
 use iota_types::{
     base_types::*,
@@ -549,39 +548,6 @@ pub(crate) fn make_anemo_config() -> anemo_cli::Config {
         )
 }
 
-fn copy_dir_all(
-    src: impl AsRef<Path>,
-    dst: impl AsRef<Path>,
-    skip: Vec<PathBuf>,
-) -> io::Result<()> {
-    fs::create_dir_all(&dst)?;
-    for entry in fs::read_dir(src)? {
-        let entry = entry?;
-        let ty = entry.file_type()?;
-        if skip.contains(&entry.path()) {
-            continue;
-        }
-        if ty.is_dir() {
-            copy_dir_all(
-                entry.path(),
-                dst.as_ref().join(entry.file_name()),
-                skip.clone(),
-            )?;
-        } else {
-            fs::copy(entry.path(), dst.as_ref().join(entry.file_name()))?;
-        }
-    }
-    Ok(())
-}
-
-pub async fn restore_from_db_checkpoint(
-    config: &NodeConfig,
-    db_checkpoint_path: &Path,
-) -> Result<(), anyhow::Error> {
-    copy_dir_all(db_checkpoint_path, config.db_path(), vec![])?;
-    Ok(())
-}
-
 /// Insert the genesis checkpoint if the store doesn't hold it yet.
 fn insert_genesis_checkpoint(
     checkpoint_store: &CheckpointStore,
@@ -801,7 +767,7 @@ pub async fn check_completed_snapshot(
     snapshot_store_config: &ObjectStoreConfig,
     epoch: EpochId,
 ) -> Result<(), anyhow::Error> {
-    let success_marker = format!("epoch_{epoch}/_SUCCESS");
+    let success_marker = format!("epoch_{epoch}/{SUCCESS_MARKER}");
     let remote_object_store = if snapshot_store_config.no_sign_request {
         snapshot_store_config.make_http()?
     } else {
@@ -1055,113 +1021,5 @@ pub async fn download_formal_snapshot(
     fs::remove_dir_all(snapshot_dir.clone())?;
     println!("Successfully restored state from snapshot at end of epoch {epoch}");
 
-    Ok(())
-}
-
-pub async fn download_db_snapshot(
-    path: &Path,
-    epoch: u64,
-    snapshot_store_config: ObjectStoreConfig,
-    skip_indexes: bool,
-    num_parallel_downloads: usize,
-) -> Result<(), anyhow::Error> {
-    let remote_store = if snapshot_store_config.no_sign_request {
-        snapshot_store_config.make_http()?
-    } else {
-        snapshot_store_config.make().map(Arc::new)?
-    };
-
-    // We rely on the top level MANIFEST file which contains all valid epochs
-    let manifest_contents = remote_store.get_bytes(&get_path(MANIFEST_FILENAME)).await?;
-    let root_manifest = RootManifest::from_bytes(&manifest_contents)
-        .map_err(|err| anyhow!("Error parsing MANIFEST from bytes: {err}"))?;
-
-    if !root_manifest.epoch_exists(epoch) {
-        bail!("Epoch dir {epoch} doesn't exist on the remote store");
-    }
-
-    let epoch_path = format!("epoch_{epoch}");
-    let epoch_dir = get_path(&epoch_path);
-
-    let manifest_file = epoch_dir.child(MANIFEST_FILENAME);
-    let epoch_manifest_contents =
-        String::from_utf8(remote_store.get_bytes(&manifest_file).await?.to_vec())
-            .map_err(|err| anyhow!("Error parsing {epoch_path}/MANIFEST from bytes: {err}"))?;
-
-    let epoch_manifest =
-        PerEpochManifest::deserialize_from_newline_delimited(&epoch_manifest_contents);
-
-    let mut files: Vec<String> = vec![];
-    files.extend(epoch_manifest.filter_by_prefix("store/perpetual").lines);
-    files.extend(epoch_manifest.filter_by_prefix("epochs").lines);
-    files.extend(epoch_manifest.filter_by_prefix("checkpoints").lines);
-    if !skip_indexes {
-        files.extend(epoch_manifest.filter_by_prefix("indexes").lines);
-        files.extend(epoch_manifest.filter_by_prefix("grpc_indexes").lines);
-    }
-    let local_store = ObjectStoreConfig {
-        object_store: Some(ObjectStoreType::File),
-        directory: Some(path.to_path_buf()),
-        ..Default::default()
-    }
-    .make()?;
-    let m = MultiProgress::new();
-    let path = path.to_path_buf();
-    let snapshot_handle = tokio::spawn(async move {
-        let progress_bar = m.add(
-            ProgressBar::new(files.len() as u64).with_style(
-                ProgressStyle::with_template(
-                    "[{elapsed_precise}] {wide_bar} {pos} out of {len} files done ({msg})",
-                )
-                .unwrap(),
-            ),
-        );
-        let cloned_progress_bar = progress_bar.clone();
-        let file_counter = Arc::new(AtomicUsize::new(0));
-        futures::stream::iter(files.iter())
-            .map(|file| {
-                let local_store = local_store.clone();
-                let remote_store = remote_store.clone();
-                let counter_cloned = file_counter.clone();
-                async move {
-                    counter_cloned.fetch_add(1, Ordering::Relaxed);
-                    let file_path = get_path(format!("epoch_{epoch}/{file}").as_str());
-                    copy_file(&file_path, &file_path, &remote_store, &local_store).await?;
-                    Ok::<::object_store::path::Path, anyhow::Error>(file_path.clone())
-                }
-            })
-            .boxed()
-            .buffer_unordered(num_parallel_downloads)
-            .try_for_each(|path| {
-                file_counter.fetch_sub(1, Ordering::Relaxed);
-                cloned_progress_bar.inc(1);
-                cloned_progress_bar.set_message(format!(
-                    "Downloading file: {}, #downloads_in_progress: {}",
-                    path,
-                    file_counter.load(Ordering::Relaxed)
-                ));
-                futures::future::ready(Ok(()))
-            })
-            .await?;
-        progress_bar.finish_with_message("Snapshot file download is complete");
-        Ok::<(), anyhow::Error>(())
-    });
-
-    let tasks: Vec<_> = vec![Box::pin(snapshot_handle)];
-    join_all(tasks)
-        .await
-        .into_iter()
-        .collect::<Result<Vec<_>, _>>()?
-        .into_iter()
-        .for_each(|result| result.expect("Task failed"));
-
-    let store_dir = path.join("store");
-    if store_dir.exists() {
-        fs::remove_dir_all(&store_dir)?;
-    }
-    let epochs_dir = path.join("epochs");
-    if epochs_dir.exists() {
-        fs::remove_dir_all(&epochs_dir)?;
-    }
     Ok(())
 }

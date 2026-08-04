@@ -9,7 +9,6 @@ use std::{
     fmt,
     future::Future,
     num::NonZeroUsize,
-    path::PathBuf,
     sync::{Arc, Weak},
     time::Duration,
 };
@@ -25,9 +24,7 @@ use futures::future::BoxFuture;
 pub use handle::IotaNodeHandle;
 use iota_common::{debug_fatal, fatal};
 use iota_config::{
-    ConsensusConfig, NodeConfig,
-    node::{DBCheckpointConfig, RunWithRange},
-    node_config_metrics::NodeConfigMetrics,
+    ConsensusConfig, NodeConfig, node::RunWithRange, node_config_metrics::NodeConfigMetrics,
 };
 use iota_core::{
     authority::{
@@ -61,7 +58,6 @@ use iota_core::{
     consensus_handler::ConsensusHandlerInitializer,
     consensus_manager::{ConsensusManager, ConsensusManagerTrait, UpdatableConsensusClient},
     consensus_validator::{IotaTxValidator, IotaTxValidatorMetrics},
-    db_checkpoint_handler::DBCheckpointHandler,
     epoch::{
         committee_store::CommitteeStore, consensus_store_pruner::ConsensusStorePruner,
         epoch_metrics::EpochMetrics, randomness::RandomnessManager,
@@ -249,8 +245,6 @@ pub struct IotaNode {
     backpressure_manager: Arc<BackpressureManager>,
 
     checkpoint_progress_tracker: Arc<CheckpointProgressTracker>,
-
-    _db_checkpoint_handle: Option<tokio::sync::broadcast::Sender<()>>,
 
     #[cfg(msim)]
     sim_state: SimState,
@@ -672,15 +666,6 @@ impl IotaNode {
 
         let checkpoint_progress_tracker = Arc::new(CheckpointProgressTracker::new());
 
-        // Start uploading db checkpoints to remote store
-        info!("start db checkpoint");
-        let (db_checkpoint_config, db_checkpoint_handle) = Self::start_db_checkpoint(
-            &config,
-            &prometheus_registry,
-            state_snapshot_handle.is_some(),
-            Some(checkpoint_progress_tracker.clone()),
-        )?;
-
         let mut genesis_objects = genesis.objects().to_vec();
         if let Some(migration_tx_data) = migration_tx_data.as_ref() {
             genesis_objects.extend(migration_tx_data.get_objects());
@@ -710,7 +695,6 @@ impl IotaNode {
             checkpoint_store.clone(),
             &prometheus_registry,
             &genesis_objects,
-            &db_checkpoint_config,
             config.clone(),
             validator_tx_finalizer,
             chain_identifier,
@@ -925,8 +909,6 @@ impl IotaNode {
             backpressure_manager,
             checkpoint_progress_tracker: checkpoint_progress_tracker.clone(),
 
-            _db_checkpoint_handle: db_checkpoint_handle,
-
             #[cfg(msim)]
             sim_state: Default::default(),
 
@@ -966,10 +948,6 @@ impl IotaNode {
 
     pub fn current_epoch_for_testing(&self) -> EpochId {
         self.state.current_epoch_for_testing()
-    }
-
-    pub fn db_checkpoint_path(&self) -> PathBuf {
-        self.config.db_checkpoint_path()
     }
 
     // Init reconfig process by starting to reject user certs
@@ -1035,68 +1013,6 @@ impl IotaNode {
             Ok(Some(snapshot_uploader.start()))
         } else {
             Ok(None)
-        }
-    }
-
-    fn start_db_checkpoint(
-        config: &NodeConfig,
-        prometheus_registry: &Registry,
-        state_snapshot_enabled: bool,
-        checkpoint_progress_tracker: Option<Arc<CheckpointProgressTracker>>,
-    ) -> Result<(
-        DBCheckpointConfig,
-        Option<tokio::sync::broadcast::Sender<()>>,
-    )> {
-        let checkpoint_path = Some(
-            config
-                .db_checkpoint_config
-                .checkpoint_path
-                .clone()
-                .unwrap_or_else(|| config.db_checkpoint_path()),
-        );
-        let db_checkpoint_config = if config.db_checkpoint_config.checkpoint_path.is_none() {
-            DBCheckpointConfig {
-                checkpoint_path,
-                perform_db_checkpoints_at_epoch_end: if state_snapshot_enabled {
-                    true
-                } else {
-                    config
-                        .db_checkpoint_config
-                        .perform_db_checkpoints_at_epoch_end
-                },
-                ..config.db_checkpoint_config.clone()
-            }
-        } else {
-            config.db_checkpoint_config.clone()
-        };
-
-        match (
-            db_checkpoint_config.object_store_config.as_ref(),
-            state_snapshot_enabled,
-        ) {
-            // If db checkpoint config object store not specified but
-            // state snapshot object store is specified, create handler
-            // anyway for marking db checkpoints as completed so that they
-            // can be uploaded as state snapshots.
-            (None, false) => Ok((db_checkpoint_config, None)),
-            (_, _) => {
-                let handler = DBCheckpointHandler::new(
-                    &db_checkpoint_config.checkpoint_path.clone().unwrap(),
-                    db_checkpoint_config.object_store_config.as_ref(),
-                    60,
-                    db_checkpoint_config
-                        .prune_and_compact_before_upload
-                        .unwrap_or(true),
-                    config.authority_store_pruning_config.clone(),
-                    prometheus_registry,
-                    state_snapshot_enabled,
-                    checkpoint_progress_tracker,
-                )?;
-                Ok((
-                    db_checkpoint_config,
-                    Some(DBCheckpointHandler::start(handler)),
-                ))
-            }
         }
     }
 

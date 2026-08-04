@@ -250,6 +250,7 @@ where
         Ok(())
     }
 
+    #[cfg(msim)]
     fn schedule_delete_all(&self) -> Result<(), TypedStoreError> {
         let mut locked = self.rows.write().unwrap();
         locked.clear();

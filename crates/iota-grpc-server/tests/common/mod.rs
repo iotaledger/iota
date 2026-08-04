@@ -86,7 +86,7 @@ pub fn mock_summary(
         epoch: 0,
         sequence_number,
         network_total_transactions: 0,
-        content_digest: contents.digest(),
+        contents_digest: contents.digest(),
         previous_digest: None,
         epoch_rolling_gas_cost_summary: Default::default(),
         timestamp_ms: 0,

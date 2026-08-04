@@ -36,7 +36,7 @@ impl<S: WriteStore + Clone + Send + Sync + 'static> Worker for StateSyncWorker<S
             checkpoint.checkpoint_contents.clone(),
             checkpoint.transactions.iter().map(|t| t.execution_data()),
         );
-        full_contents.verify_digests(verified_checkpoint.content_digest)?;
+        full_contents.verify_digests(verified_checkpoint.contents_digest)?;
         let verified_contents = VerifiedCheckpointContents::new_unchecked(full_contents);
         self.0
             .insert_checkpoint_contents(&verified_checkpoint, verified_contents);

@@ -913,7 +913,7 @@ pub struct EpochInfoV1Entry {
     /// anchor every other field is proven against.
     pub last_checkpoint_summary: CertifiedCheckpointSummary,
     /// Contents of that closing checkpoint; `hash == last_checkpoint_summary`'s
-    /// `content_digest`.
+    /// `contents_digest`.
     pub last_checkpoint_contents: CheckpointContents,
     /// Effects of the epoch-change tx (the last tx of the closing checkpoint);
     /// its `(transaction, effects)` digest pair is the last entry of

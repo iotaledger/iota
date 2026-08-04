@@ -4719,11 +4719,12 @@ async fn test_consensus_commit_prologue_generation(#[values(false, true)] pcool:
 
     telemetry_subscribers::init_for_testing();
 
-    let _guard = pcool.then(|| {
-        ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-            config.set_enable_pcool_flow_for_testing(true);
-            config
-        })
+    // Pin the flag in both cases: the default for `Chain::Unknown` enables the
+    // P-COOL flow, so leaving it unset would run the certificate case against a
+    // protocol config that disagrees with the submission path under test.
+    let _guard = ProtocolConfig::apply_overrides_for_testing(move |_, mut config| {
+        config.set_enable_pcool_flow_for_testing(pcool);
+        config
     });
 
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();

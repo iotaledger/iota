@@ -42,6 +42,13 @@ runs:
       uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
       id: diff
       with:
+        # In the merge queue, diff against the target branch instead of the
+        # default merge_group.base_sha, which is the previous queue entry.
+        # The queue merges a whole group once its head entry goes green
+        # (HEADGREEN grouping), so the head entry's run must detect the
+        # changes of every entry in the group, not just its own increment.
+        # Empty (default behavior) for all other events.
+        base: ${{ github.event.merge_group.base_ref }}
         filters: |
           isRust:
             - "consensus/**"
@@ -132,3 +139,14 @@ runs:
             - "scripts/compatibility/split-cluster-sync-check.sh"
             - ".github/workflows/_split_cluster_sync_check.yml"
             - ".github/workflows/hierarchy.yml"
+    # Runs after the filter step because it relies on the history that
+    # paths-filter fetched to find the merge base.
+    - name: Log merge queue comparison
+      if: github.event_name == 'merge_group'
+      shell: bash
+      env:
+        BASE_REF: ${{ github.event.merge_group.base_ref }}
+        ENTRY_BASE_SHA: ${{ github.event.merge_group.base_sha }}
+      run: |
+        base="${BASE_REF#refs/heads/}"
+        echo "Compared $(git rev-parse HEAD) against merge-base with $base: $(git merge-base "origin/$base" HEAD 2>/dev/null || echo 'not found') (this queue entry's base_sha: $ENTRY_BASE_SHA)"

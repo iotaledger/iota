@@ -4,6 +4,9 @@ network-address: /ip4/0.0.0.0/tcp/8080/http
 json-rpc-address: "0.0.0.0:9000"
 metrics-address: "0.0.0.0:9184"
 admin-interface-address: "127.0.0.1:1337"
+enable-grpc-api: true
+grpc-api-config:
+  address: "0.0.0.0:50051"
 grpc-load-shed: ~
 grpc-concurrency-limit: ~
 p2p-config:
