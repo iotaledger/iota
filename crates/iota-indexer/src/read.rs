@@ -2020,13 +2020,16 @@ impl IndexerReader {
             .map(|iota_tx_event| iota_tx_event.data)
     }
 
-    async fn query_events_by_tx_digest_with_fallback(
+    /// Fetches events belonging to a transaction, paginated by an exclusive
+    /// `cursor`. Falls back to the historical storage (when configured) if the
+    /// transaction has been pruned from Postgres.
+    pub async fn query_stored_events_by_tx_digest_with_fallback(
         &self,
         tx_digest: TransactionDigest,
         cursor: Option<EventID>,
         limit: usize,
         descending_order: bool,
-    ) -> IndexerResult<Vec<IotaEvent>> {
+    ) -> IndexerResult<Vec<StoredEvent>> {
         let db_res = self
             .db()
             .query_events_by_tx_digest(tx_digest, cursor, limit, descending_order)
@@ -2035,27 +2038,45 @@ impl IndexerReader {
         if let (Err(IndexerError::DataPruned(err)), Some(kv_reader)) =
             (db_res.as_ref(), self.fallback_reader())
         {
-            kv_reader
+            return kv_reader
                 .events(tx_digest, cursor, limit, descending_order)
                 .await
-                .context(&format!("fallback triggered by {err}"))
-        } else {
-            let mut iota_event_futures = vec![];
-            for stored_event in db_res? {
-                iota_event_futures.push(tokio::task::spawn(
-                    stored_event.try_into_iota_event(self.package_resolver.clone()),
-                ));
-            }
-
-            futures::future::join_all(iota_event_futures)
-                .await
-                .into_iter()
-                .collect::<Result<Vec<_>, _>>()
-                .tap_err(|e| tracing::error!("failed to join iota event futures: {e}"))?
-                .into_iter()
-                .collect::<Result<Vec<_>, _>>()
-                .tap_err(|e| tracing::error!("failed to collect iota event futures: {e}"))
+                .context(&format!("fallback triggered by {err}"));
         }
+        db_res
+    }
+
+    async fn query_events_by_tx_digest_with_fallback(
+        &self,
+        tx_digest: TransactionDigest,
+        cursor: Option<EventID>,
+        limit: usize,
+        descending_order: bool,
+    ) -> IndexerResult<Vec<IotaEvent>> {
+        let stored_events = self
+            .query_stored_events_by_tx_digest_with_fallback(
+                tx_digest,
+                cursor,
+                limit,
+                descending_order,
+            )
+            .await?;
+
+        let mut iota_event_futures = vec![];
+        for stored_event in stored_events {
+            iota_event_futures.push(tokio::task::spawn(
+                stored_event.try_into_iota_event(self.package_resolver.clone()),
+            ));
+        }
+
+        futures::future::join_all(iota_event_futures)
+            .await
+            .into_iter()
+            .collect::<Result<Vec<_>, _>>()
+            .tap_err(|e| tracing::error!("failed to join iota event futures: {e}"))?
+            .into_iter()
+            .collect::<Result<Vec<_>, _>>()
+            .tap_err(|e| tracing::error!("failed to collect iota event futures: {e}"))
     }
 
     pub(crate) async fn query_only_checkpointed_events_in_blocking_task(
