@@ -1,0 +1,126 @@
+---
+source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
+---
+processed 6 tasks
+
+init:
+A: object(0,0), B: object(0,1), C: object(0,2)
+
+task 1, lines 10-12:
+//# programmable --sender A --inputs 1000000 @B
+//> SplitCoins(Gas, [Input(0)]);
+//> TransferObjects([Result(0)], Input(1))
+created: object(1,0)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 1960800, storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 2, lines 14-16:
+//# programmable --sender B --inputs 2000000 @C
+//> SplitCoins(Gas, [Input(0)]);
+//> TransferObjects([Result(0)], Input(1))
+created: object(2,0)
+mutated: object(0,1)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 1960800, storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 3, lines 18-20:
+//# programmable --sender B --inputs 3000000 @B
+//> SplitCoins(Gas, [Input(0)]);
+//> TransferObjects([Result(0)], Input(1))
+created: object(3,0)
+mutated: object(0,1)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 1960800, storage_rebate: 980400, non_refundable_storage_fee: 0
+
+task 4, line 22:
+//# create-checkpoint
+Checkpoint created: 1
+
+task 5, lines 24-49:
+//# run-graphql
+Response: {
+  "data": {
+    "affectedAsRecipient": {
+      "nodes": [
+        {
+          "digest": "6JMNrTEhpNEP9r9XGcHJxU8SNZidgXgx27KKmVGnT4gw"
+        },
+        {
+          "digest": "H1AZsRNmZifH1VCkD3x8afmewn151RZhhUi9XkfZBQ5N"
+        }
+      ]
+    },
+    "affectedAsSender": {
+      "nodes": [
+        {
+          "digest": "6JMNrTEhpNEP9r9XGcHJxU8SNZidgXgx27KKmVGnT4gw"
+        },
+        {
+          "digest": "H839zjkRueyvCZ7wAknEGDzVATF9iifpgrWdYxm8Fhmu"
+        }
+      ]
+    },
+    "affectedBoth": {
+      "nodes": [
+        {
+          "digest": "6JMNrTEhpNEP9r9XGcHJxU8SNZidgXgx27KKmVGnT4gw"
+        },
+        {
+          "digest": "H839zjkRueyvCZ7wAknEGDzVATF9iifpgrWdYxm8Fhmu"
+        },
+        {
+          "digest": "H1AZsRNmZifH1VCkD3x8afmewn151RZhhUi9XkfZBQ5N"
+        },
+        {
+          "digest": "7uTN8JCRtZNcEkLT2tr78sxYFT94cs5FHaXaTcb2zTxn"
+        }
+      ]
+    },
+    "affectedViaAddress": {
+      "transactionBlocks": {
+        "nodes": [
+          {
+            "digest": "6JMNrTEhpNEP9r9XGcHJxU8SNZidgXgx27KKmVGnT4gw"
+          },
+          {
+            "digest": "H839zjkRueyvCZ7wAknEGDzVATF9iifpgrWdYxm8Fhmu"
+          },
+          {
+            "digest": "H1AZsRNmZifH1VCkD3x8afmewn151RZhhUi9XkfZBQ5N"
+          },
+          {
+            "digest": "7uTN8JCRtZNcEkLT2tr78sxYFT94cs5FHaXaTcb2zTxn"
+          }
+        ]
+      }
+    },
+    "combinedWithKind": {
+      "nodes": [
+        {
+          "digest": "H839zjkRueyvCZ7wAknEGDzVATF9iifpgrWdYxm8Fhmu"
+        },
+        {
+          "digest": "H1AZsRNmZifH1VCkD3x8afmewn151RZhhUi9XkfZBQ5N"
+        },
+        {
+          "digest": "7uTN8JCRtZNcEkLT2tr78sxYFT94cs5FHaXaTcb2zTxn"
+        }
+      ]
+    },
+    "combinedWithOtherSent": {
+      "nodes": [
+        {
+          "digest": "H1AZsRNmZifH1VCkD3x8afmewn151RZhhUi9XkfZBQ5N"
+        }
+      ]
+    },
+    "combinedWithSent": {
+      "nodes": [
+        {
+          "digest": "H1AZsRNmZifH1VCkD3x8afmewn151RZhhUi9XkfZBQ5N"
+        },
+        {
+          "digest": "7uTN8JCRtZNcEkLT2tr78sxYFT94cs5FHaXaTcb2zTxn"
+        }
+      ]
+    }
+  }
+}
