@@ -27,7 +27,7 @@
 //! crates/iota-vm-sdk/examples/move_authenticator_trace/
 //!   trace.json   the traced run — open this file to start a debug session
 //!   source/      Move sources and debug info of every package in the trace
-//!   bytecode/    disassembled bytecode; empty, so no disassembly view
+//!   bytecode/    disassembled bytecode, for the debugger's disassembly view
 //! ```
 //!
 //! This is the layout the debugger expects from the replay tool: it resolves
@@ -89,8 +89,9 @@ fn main() -> Result<()> {
         .iter()
         .collect();
     let source_dir = trace_dir.join("source");
+    let bytecode_dir = trace_dir.join("bytecode");
     fs::create_dir_all(&source_dir)?;
-    fs::create_dir_all(trace_dir.join("bytecode"))?;
+    fs::create_dir_all(&bytecode_dir)?;
 
     let owner = Address::ZERO;
     let owner_gas = gas_coin(owner);
@@ -105,13 +106,14 @@ fn main() -> Result<()> {
 
     // --- Account setup: two unsigned runs paid for by `owner` --------------
 
-    let (account_pkg, account_debug_info) =
-        compile("examples/move/account", &protocol_config, &source_dir)?;
-    let tx = publish_tx(&vm, owner, owner_gas_id, &account_pkg)?;
+    let account_build = compile("examples/move/account", &protocol_config, &source_dir)?;
+    let tx = publish_tx(&vm, owner, owner_gas_id, &account_build.package)?;
     let result = run(&mut vm, tx)?;
     let account_pkg_id = published_package_id(&result)?;
     let (account_id, account_version) = created_shared(&result)?;
-    set_debug_info_address(&account_debug_info, account_pkg_id)?;
+    set_debug_info_address(&account_build.debug_info, account_pkg_id)?;
+    set_debug_info_address(&account_build.disassembly, account_pkg_id)?;
+    move_disassembly(&account_build.disassembly, &bytecode_dir)?;
     println!("Account package:  {account_pkg_id}");
     println!("Account object:   {account_id}");
 
@@ -135,16 +137,18 @@ fn main() -> Result<()> {
     let sender_gas_id = sender_gas.id();
     vm.store_mut().insert(sender_gas);
 
-    let (view_pkg, view_debug_info) = compile(
+    let view_build = compile(
         "examples/move/view_functions",
         &protocol_config,
         &source_dir,
     )?;
-    let tx = publish_tx(&vm, sender, sender_gas_id, &view_pkg)?;
+    let tx = publish_tx(&vm, sender, sender_gas_id, &view_build.package)?;
     let result = run_signed(&mut vm, tx, account_id, account_version, None)?;
     let view_pkg_id = published_package_id(&result)?;
     let (counter_id, counter_version) = created_shared(&result)?;
-    set_debug_info_address(&view_debug_info, view_pkg_id)?;
+    set_debug_info_address(&view_build.debug_info, view_pkg_id)?;
+    set_debug_info_address(&view_build.disassembly, view_pkg_id)?;
+    move_disassembly(&view_build.disassembly, &bytecode_dir)?;
     println!("\nview_functions:   {view_pkg_id}");
     println!("Counter object:   {counter_id}");
 
@@ -172,12 +176,15 @@ fn main() -> Result<()> {
     println!("Counter value:    {value} (after increment)");
 
     match result.debug.and_then(|debug| debug.trace) {
-        Some(trace) => println!(
-            "\nTraced {} events of the increment run — the authenticator function \
-             and the PTB body — to {}\nOpen it in VS Code to debug the run.",
-            trace.events.len(),
-            trace_path.display(),
-        ),
+        Some(trace) => {
+            start_trace_at_first_frame(&trace_path)?;
+            println!(
+                "\nTraced {} events of the increment run — the authenticator function \
+                 and the PTB body — to {}\nOpen it in VS Code to debug the run.",
+                trace.events.len(),
+                trace_path.display(),
+            );
+        }
         // Without the `tracing` feature the engine takes no trace builder.
         None => println!("\nNo trace was produced; rebuild with --features tracing."),
     }
@@ -415,6 +422,16 @@ fn created_shared(result: &ExecutionResult) -> Result<(ObjectId, Version)> {
 
 // === Compilation ===
 
+/// A compiled package and the directories its debug artifacts landed in.
+struct Build {
+    package: CompiledPackage,
+    /// Debug info of the package's own modules, mapping bytecode to source.
+    debug_info: PathBuf,
+    /// Disassembled bytecode of the package's own modules, with debug info of
+    /// its own mapping bytecode to the disassembly.
+    disassembly: PathBuf,
+}
+
 /// Compile a Move package from the repository, for the same protocol config the
 /// VM runs.
 ///
@@ -424,13 +441,11 @@ fn created_shared(result: &ExecutionResult) -> Result<(ObjectId, Version)> {
 /// build writes there needs no flattening. Each package gets its own
 /// subdirectory: a build prunes everything outside its own dependency graph
 /// from the directory it installs into.
-/// Returns the compiled package and the directory holding the debug info of its
-/// own modules.
 fn compile(
     relative_path: &str,
     protocol_config: &ProtocolConfig,
     artifacts_dir: &Path,
-) -> Result<(CompiledPackage, PathBuf)> {
+) -> Result<Build> {
     let path: PathBuf = [env!("CARGO_MANIFEST_DIR"), "..", "..", relative_path]
         .iter()
         .collect();
@@ -442,11 +457,65 @@ fn compile(
     let mut config = BuildConfig::new_for_testing();
     config.protocol_build_config = ProtocolBuildConfig::from_protocol_config(protocol_config);
     config.config.install_dir = Some(dir.clone());
+    // Disassemble as well, so the debugger can step through bytecode.
+    config.config.save_disassembly = true;
     let package = config.build(&path)?;
 
-    let name = package.package.compiled_package_info.package_name;
-    let debug_info = dir.join("build").join(name.as_str()).join("debug_info");
-    Ok((package, debug_info))
+    let build_dir = dir
+        .join("build")
+        .join(package.package.compiled_package_info.package_name.as_str());
+    Ok(Build {
+        package,
+        debug_info: build_dir.join("debug_info"),
+        disassembly: build_dir.join("disassembly"),
+    })
+}
+
+/// Move the events the trace opens with past its first instruction.
+///
+/// The run loads the authenticator function's arguments before opening its
+/// frame, so the trace starts with the `DataLoad` effects for them, while the
+/// debugger requires an `OpenFrame` first and an instruction directly after it,
+/// and refuses to start otherwise. Replaying those effects one instruction
+/// later satisfies both: they write to locations the frame only reads once it
+/// is running.
+fn start_trace_at_first_frame(trace_path: &Path) -> Result<()> {
+    let mut trace: serde_json::Value = serde_json::from_slice(&fs::read(trace_path)?)?;
+    let events = trace["events"]
+        .as_array_mut()
+        .context("trace holds no events")?;
+    let first_frame = events
+        .iter()
+        .position(|event| event.get("OpenFrame").is_some())
+        .context("trace opens no frame")?;
+    let first_instruction = events[first_frame..]
+        .iter()
+        .position(|event| event.get("Instruction").is_some())
+        .context("trace runs no instruction")?
+        + first_frame;
+
+    events[..=first_instruction].rotate_left(first_frame);
+    fs::write(trace_path, serde_json::to_vec(&trace)?)?;
+    Ok(())
+}
+
+/// Move a package's disassembled bytecode and the debug info that maps it into
+/// the bundle's `bytecode` directory, which is where the debugger reads the
+/// disassembly view from.
+///
+/// Only the package's own modules move — the trace opens no frame in a
+/// dependency — and what the build left behind goes, so the debugger does not
+/// walk a copy under `source` that it discards anyway.
+fn move_disassembly(disassembly_dir: &Path, bytecode_dir: &Path) -> Result<()> {
+    for entry in fs::read_dir(disassembly_dir)? {
+        let path = entry?.path();
+        if path.is_file() {
+            let name = path.file_name().context("directory entry has no name")?;
+            fs::rename(&path, bytecode_dir.join(name))?;
+        }
+    }
+    fs::remove_dir_all(disassembly_dir)?;
+    Ok(())
 }
 
 /// Point a package's debug info at the address it was published to.
