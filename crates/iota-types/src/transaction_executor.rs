@@ -86,6 +86,9 @@ pub struct SimulateTransactionResult {
     pub events: Option<TransactionEvents>,
     pub input_objects: BTreeMap<ObjectId, Object>,
     pub output_objects: BTreeMap<ObjectId, Object>,
+    /// The return values and mutable-reference outputs of every command, under
+    /// either [`VmChecks`] — both run through the executor's dev-inspect entry
+    /// point, which collects them regardless of which checks are in force.
     pub execution_result: Result<Vec<ExecutionResult>, ExecutionError>,
     pub mock_gas_id: Option<ObjectId>,
     pub suggested_gas_price: Option<u64>,
@@ -105,14 +108,12 @@ pub struct SimulateTransactionResult {
 pub enum VmChecks {
     /// Run the transaction as it would run on chain: the same input and gas
     /// checks a validator applies, and metering against the transaction's own
-    /// budget. Command return values are not reported.
+    /// budget.
     #[default]
     Enabled,
     /// Relax the rules around entry functions and argument values, so that any
-    /// Move function can be called and any value built from its bytes, and
-    /// report the return values of every command. Input checks are reduced to
-    /// the ones execution cannot proceed without, and a gas budget the caller
-    /// left at zero is resolved for them.
+    /// Move function can be called and any value built from its bytes. Input
+    /// checks are reduced to the ones execution cannot proceed without.
     Disabled,
 }
 
