@@ -414,7 +414,7 @@ mod checked {
 
                 trace_move_call_end(trace_builder_opt);
 
-                context.linkage_view.reset_linkage();
+                context.linkage_view.reset_linkage()?;
                 return_values?
             }
             Command::Publish(cmd) => execute_move_publish::<Mode>(
@@ -634,7 +634,7 @@ mod checked {
         let res = publish_and_verify_modules(context, runtime_id, &modules).and_then(|_| {
             init_modules::<Mode>(context, argument_updates, &modules, trace_builder_opt)
         });
-        context.linkage_view.reset_linkage();
+        context.linkage_view.reset_linkage()?;
         if res.is_err() {
             context.pop_package();
         }
@@ -758,7 +758,7 @@ mod checked {
 
         context.linkage_view.set_linkage(&package)?;
         let res = publish_and_verify_modules(context, runtime_id, &modules);
-        context.linkage_view.reset_linkage();
+        context.linkage_view.reset_linkage()?;
         res?;
 
         check_compatibility(

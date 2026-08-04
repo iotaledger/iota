@@ -58,8 +58,11 @@ impl<'state, 'a> IotaDataStore<'state, 'a> {
 //       Leaving this comment around until then as testament to better days to
 // come...
 impl DataStore for IotaDataStore<'_, '_> {
-    fn link_context(&self) -> AccountAddress {
-        self.linkage_view.link_context()
+    fn link_context(&self) -> PartialVMResult<AccountAddress> {
+        self.linkage_view.link_context().map_err(|e| {
+            PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR)
+                .with_message(e.to_string())
+        })
     }
 
     fn relocate(&self, module_id: &ModuleId) -> PartialVMResult<ModuleId> {
