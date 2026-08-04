@@ -35,10 +35,8 @@
 //! `metrics.groups` entirely, so an omitted and an empty section behave the
 //! same.
 //!
-//! The `hw` hardware metrics are one collector rather than macro-registered
-//! metrics, so the whole group shares a single level: the `hardware` group's
-//! level exposes the collector (`off` hides it, any other level exposes it),
-//! and — like the other groups — it can be changed at runtime.
+//! The `hardware` metrics are grouped together as one collector and
+//! registered with `warn` level, so the whole group shares a single level.
 
 use std::collections::BTreeMap;
 
@@ -174,7 +172,7 @@ impl Default for MetricGroups {
 impl MetricGroups {
     /// Returns the filter patterns a group covers — keyed
     /// by the group's config key. `None` for unknown groups.
-    pub fn modules_for_group(group: &str) -> Option<&'static [&'static str]> {
+    fn modules_for_group(group: &str) -> Option<&'static [&'static str]> {
         Some(match group {
             "runtime" => &["iota_metrics", "telemetry_subscribers"],
             "consensus" => &[
