@@ -456,7 +456,7 @@ impl TransactionBlock {
 
                     (prev, next, iter.collect())
                 } else {
-                    let subquery = subqueries(&filter, tx_bounds).unwrap();
+                    let subquery = subqueries(&filter, tx_bounds, &page).unwrap();
                     let (prev, next, results) =
                         page.paginate_raw_query::<TxLookup>(conn, checkpoint_viewed_at, subquery)?;
 

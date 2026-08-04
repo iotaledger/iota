@@ -323,8 +323,13 @@ fn min_option<T: Ord>(xs: impl IntoIterator<Item = Option<T>>) -> Option<T> {
 
 /// Constructs a `RawQuery` as a join over all relevant side tables, filtered on
 /// their own filter condition, plus optionally a sender, plus optionally tx/cp
-/// bounds.
-pub(crate) fn subqueries(filter: &TransactionBlockFilter, tx_bounds: TxBounds) -> Option<RawQuery> {
+/// bounds. An `affected_address` filter without a `sender` filter is a special
+/// case, handled by `select_affected`.
+pub(crate) fn subqueries(
+    filter: &TransactionBlockFilter,
+    tx_bounds: TxBounds,
+    page: &Page<Cursor>,
+) -> Option<RawQuery> {
     let sender = filter.sent_address;
 
     let mut subqueries = vec![];
@@ -371,6 +376,30 @@ pub(crate) fn subqueries(filter: &TransactionBlockFilter, tx_bounds: TxBounds) -
         subqueries.push(("tx_digests", select_ids(txs, tx_bounds)));
     }
 
+    if let Some(affected) = &filter.affected_address {
+        match sender {
+            // A `sender` filter equal to `affected` can only match transactions
+            // where `affected` is the sender.
+            Some(sender) if sender == *affected => {
+                subqueries.push(("tx_affected", select_sender(affected, tx_bounds)));
+            }
+            // A `sender` filter different from `affected` can only match
+            // transactions where `affected` is the recipient.
+            Some(_) => {
+                subqueries.push(("tx_affected", select_recipient(affected, sender, tx_bounds)));
+            }
+            // Otherwise `affected` can be either the sender or a recipient,
+            // so we query both.
+            None => return Some(select_affected(affected, subqueries, tx_bounds, page)),
+        }
+    }
+
+    join_subqueries(subqueries)
+}
+
+/// Joins `subqueries` on `tx_sequence_number` into a single query, or `None` if
+/// there are no subqueries.
+fn join_subqueries(mut subqueries: Vec<(&str, RawQuery)>) -> Option<RawQuery> {
     let (_, mut subquery) = subqueries.pop()?;
 
     if !subqueries.is_empty() {
@@ -480,6 +509,40 @@ fn select_recipient(recv: &IotaAddress, sender: Option<IotaAddress>, bound: TxBo
     filter!(
         select_tx(sender, bound, "tx_recipients"),
         format!("recipient = {}", bytea_literal(recv.as_slice()))
+    )
+}
+
+/// Selects transactions where `affected` is the sender or a recipient, as a
+/// `UNION` of the `tx_senders` and `tx_recipients` tables.
+///
+/// To avoid full table scans on `UNION` we apply order and limit on the
+/// subqueries before `UNION`. For the result to be correct we need to apply all
+/// other filters on the subquery level, by joining each subquery with all
+/// `other_subqueries`.
+fn select_affected(
+    affected: &IotaAddress,
+    other_subqueries: Vec<(&str, RawQuery)>,
+    bound: TxBounds,
+    page: &Page<Cursor>,
+) -> RawQuery {
+    let bounded_subquery = |from: RawQuery, other_subqueries: Vec<(&str, RawQuery)>| {
+        let mut all = vec![("tx_affected", from)];
+        all.extend(other_subqueries);
+        join_subqueries(all)
+            .expect("subqueries list is not empty")
+            .order_by(format!(
+                "tx_sequence_number {}",
+                if page.is_from_front() { "ASC" } else { "DESC" }
+            ))
+            // The same limit that `Page::apply` puts on the overall query: the
+            // page size plus the two rows pointed at by the page's cursors.
+            .limit(page.limit() as i64 + 2)
+    };
+
+    query!(
+        "SELECT tx_sequence_number FROM (({}) UNION ({})) AS affected",
+        bounded_subquery(select_sender(affected, bound), other_subqueries.clone()),
+        bounded_subquery(select_recipient(affected, None, bound), other_subqueries)
     )
 }
 
