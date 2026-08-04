@@ -48,7 +48,7 @@ use iota_sdk_types::{
 };
 use iota_snapshot::{
     VerifiedEpochInfo,
-    progress::{ProgressTicker, ProgressUnit, make_multi_progress},
+    progress::{ProgressTicker, ProgressUnit, make_multi_progress, println_or_log},
     reader::StateSnapshotReaderV1,
     restore::RestoreWithGrpcIndexes,
     setup_db_state,
@@ -626,7 +626,10 @@ pub(crate) async fn backfill_checkpoint_summaries(
         })?;
 
     if highest_synced == 0 {
-        m.println("Nothing to backfill: the node has only the genesis checkpoint.")?;
+        println_or_log(
+            m,
+            "Nothing to backfill: the node has only the genesis checkpoint.",
+        )?;
         return Ok(());
     }
 
@@ -643,13 +646,19 @@ pub(crate) async fn backfill_checkpoint_summaries(
     let archive_latest = reader.latest_available_checkpoint().await?;
     let target = highest_synced.min(archive_latest);
     if archive_latest < highest_synced {
-        m.println(format!(
-            "Checkpoint archive only reaches checkpoint {archive_latest}; filling summaries up to \
+        println_or_log(
+            m,
+            format!(
+                "Checkpoint archive only reaches checkpoint {archive_latest}; filling summaries up to \
              there (the node is synced to {highest_synced}). Re-run once the archive catches up."
-        ))?;
+            ),
+        )?;
     }
     if target == 0 {
-        m.println("Nothing to backfill: the checkpoint archive has nothing past genesis.")?;
+        println_or_log(
+            m,
+            "Nothing to backfill: the checkpoint archive has nothing past genesis.",
+        )?;
         return Ok(());
     }
 
@@ -686,9 +695,10 @@ pub(crate) async fn backfill_checkpoint_summaries(
         }
     }
     ticker.finish_with_message("Checkpoint summary backfill is complete");
-    m.println(format!(
-        "Successfully backfilled checkpoint summaries up to checkpoint {target}"
-    ))?;
+    println_or_log(
+        m,
+        format!("Successfully backfilled checkpoint summaries up to checkpoint {target}"),
+    )?;
     Ok(())
 }
 
@@ -800,14 +810,28 @@ pub async fn download_formal_snapshot(
     disable_progress_bar: bool,
 ) -> Result<(), anyhow::Error> {
     let m = make_multi_progress(disable_progress_bar);
-    m.println(format!(
-        "Beginning formal snapshot restore to end of epoch {epoch}, verification mode: {verify:?}",
-    ))?;
+    println_or_log(
+        &m,
+        format!(
+            "Beginning formal snapshot restore to end of epoch {epoch}, verification mode: \
+             {verify:?}",
+        ),
+    )?;
     let path = path.join("staging").to_path_buf();
     if path.exists() {
+        // A previous run's staging directory holds a whole restored database,
+        // so removing it can take a while.
+        println_or_log(
+            &m,
+            format!(
+                "Removing the previous staging directory at {}",
+                path.display()
+            ),
+        )?;
         fs::remove_dir_all(path.clone())?;
     }
     let perpetual_db = Arc::new(AuthorityPerpetualTables::open(&path.join("store"), None));
+    println_or_log(&m, format!("Loading genesis from {}", genesis.display()))?;
     let genesis = Genesis::load(genesis).unwrap();
     let genesis_committee = genesis.committee()?;
     let expected_chain_id = ChainIdentifier::from(*genesis.checkpoint().digest());
@@ -819,7 +843,16 @@ pub async fn download_formal_snapshot(
     // and rejects a wrong-network or tampered snapshot before anything large is
     // downloaded.
     let (snapshot_chain_id, epoch_info) =
-        StateSnapshotReaderV1::read_epoch_info(epoch, &snapshot_store_config).await?;
+        StateSnapshotReaderV1::read_epoch_info(epoch, &snapshot_store_config, &m).await?;
+    // One signature check and one boundary proof per epoch since genesis, all
+    // before any of the snapshot proper is downloaded.
+    println_or_log(
+        &m,
+        format!(
+            "Verifying the epoch chain from genesis to the end of epoch {epoch} ({} epochs)",
+            epoch_info.entries().len()
+        ),
+    )?;
     let verified_epoch_info = iota_snapshot::verify_epoch_info_chain(
         epoch_info,
         genesis_committee.clone(),
@@ -839,6 +872,13 @@ pub async fn download_formal_snapshot(
     // chain-verified EPOCH_INFO — the restore needs no checkpoint archive. A
     // node that additionally wants the full intermediate summary history can
     // run `iota-tool backfill-checkpoint-summaries` afterwards.
+    println_or_log(
+        &m,
+        format!(
+            "Seeding the checkpoint store with {} end-of-epoch summaries and committees",
+            verified_epoch_info.entries().len()
+        ),
+    )?;
     sync_summaries_from_epoch_info(
         &checkpoint_store,
         &committee_store,
@@ -969,7 +1009,8 @@ pub async fn download_formal_snapshot(
             _ => unimplemented!("a new CheckpointCommitment variant was added and must be handled"),
         };
     } else {
-        m.println(
+        println_or_log(
+            &m,
             "WARNING: Skipping snapshot verification! \
             This is highly discouraged unless you fully trust the source of this snapshot and its contents.
             If this was unintentional, rerun with `--verify` set to `normal` or `strict`.",

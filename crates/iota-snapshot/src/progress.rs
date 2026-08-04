@@ -40,6 +40,19 @@ use tracing::{error, info, warn};
 /// which otherwise silences its logs can keep them.
 pub const LOG_TARGET_PROGRESS: &str = module_path!();
 
+/// Report `msg` on the progress display, or log it when the display is hidden
+/// — [`MultiProgress::println`] writes nothing at all there, so the phase
+/// announcements around the bars would otherwise be lost in exactly the runs
+/// that depend on the status lines.
+pub fn println_or_log(m: &MultiProgress, msg: impl AsRef<str>) -> std::io::Result<()> {
+    if m.is_hidden() {
+        info!(target: PROGRESS_LOG_TARGET, "{}", msg.as_ref());
+        Ok(())
+    } else {
+        m.println(msg)
+    }
+}
+
 /// The progress display for a restore: one that draws its bars on the
 /// terminal, or a hidden one — whose bars report through periodic status logs
 /// instead — when `disable_progress_bar` is set.
@@ -308,19 +321,22 @@ impl DownloadProgressBar {
         num_files: u64,
         total_bytes: Option<u64>,
     ) -> Self {
+        // A single-file download has no file counts to carry alongside its
+        // bytes, so it leaves the bar's message out entirely.
+        let msg = if num_files > 1 { " — {msg}" } else { "" };
         let bar = match total_bytes {
             Some(total_bytes) => ProgressBar::new(total_bytes).with_style(
                 ProgressStyle::with_template(&format!(
                     "[{{elapsed_precise}}] {{wide_bar}} {phase}: \
                      {{binary_bytes}}/{{binary_total_bytes}} ({{binary_bytes_per_sec}}, \
-                     ETA {{eta}}) — {{msg}}"
+                     ETA {{eta}}){msg}"
                 ))
                 .unwrap(),
             ),
             None => ProgressBar::new(num_files).with_style(
                 ProgressStyle::with_template(&format!(
                     "[{{elapsed_precise}}] {{wide_bar}} {phase}: {{pos}}/{{len}} files \
-                     (ETA {{eta}}) — {{msg}}"
+                     (ETA {{eta}}){msg}"
                 ))
                 .unwrap(),
             ),
@@ -407,6 +423,24 @@ pub async fn get_with_progress<S: ObjectStoreGetExt>(
     .await
 }
 
+/// Download the single file `src` from `store` with retries, reporting the
+/// bytes as they arrive on a bar of its own under `phase` — for a file big
+/// enough that a restore shouldn't sit silent while it downloads.
+pub async fn get_single_file_with_progress<S: ObjectStoreGetExt>(
+    store: &S,
+    src: &Path,
+    phase: &'static str,
+    m: &MultiProgress,
+) -> Result<Bytes> {
+    // The size only feeds the bar's totals, so a failed lookup costs the size
+    // and ETA rather than the download.
+    let total_bytes = store.object_size(src).await.ok();
+    let progress = DownloadProgressBar::new(m, phase, 1, total_bytes);
+    let bytes = get_with_progress(store, src, &progress).await?;
+    progress.finish_with_message("Download complete");
+    Ok(bytes)
+}
+
 /// Copy `src[i]` to `dest[i]` for all `i` in parallel, recording downloaded
 /// chunks and each completed file on `progress` and failing on the first copy
 /// that fails.
@@ -455,7 +489,7 @@ mod tests {
 
     use super::{
         DownloadProgressBar, ProgressTicker, ProgressUnit, copy_files_with_progress,
-        fetch_total_bytes, get_with_progress, status_line,
+        fetch_total_bytes, get_with_progress, println_or_log, status_line,
     };
 
     fn hidden_multi_progress() -> MultiProgress {
@@ -586,6 +620,24 @@ mod tests {
         assert!(logs.contains("Downloading files: 8 B/8 B"), "{logs}");
         assert!(logs.ends_with("— Download complete\n"), "{logs}");
         assert!(!logs.contains("ETA"), "{logs}");
+    }
+
+    /// A hidden display drops everything handed to `MultiProgress::println`,
+    /// so the phase announcements around the bars are logged there instead.
+    #[tokio::test]
+    async fn test_phase_announcements_are_logged_when_the_display_is_hidden() {
+        let hidden = hidden_multi_progress();
+        let logs = captured_logs(|| {
+            println_or_log(&hidden, "Loading genesis from genesis.blob").expect("hidden println");
+        });
+        assert!(logs.contains("Loading genesis from genesis.blob"), "{logs}");
+
+        // A drawn display prints them itself, with no log line.
+        let drawn = drawn_multi_progress();
+        let logs = captured_logs(|| {
+            println_or_log(&drawn, "Loading genesis from genesis.blob").expect("drawn println");
+        });
+        assert!(logs.is_empty(), "{logs}");
     }
 
     /// A bar the terminal can draw reports through the display, so it logs no

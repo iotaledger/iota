@@ -49,7 +49,7 @@ use crate::{
     SEQUENCE_NUM_BYTES, SHA3_BYTES,
     progress::{
         DownloadProgressBar, ProgressTicker, ProgressUnit, copy_files_with_progress,
-        fetch_total_bytes,
+        fetch_total_bytes, get_single_file_with_progress, println_or_log,
     },
     restore::Restore,
 };
@@ -100,12 +100,22 @@ impl StateSnapshotReaderV1 {
         if !skip_reset_local_store {
             let local_epoch_dir_path = local_staging_dir_root.join(&epoch_dir);
             if local_epoch_dir_path.exists() {
+                // A previous run's staging files can be a whole snapshot's
+                // worth, so removing them is not always quick.
+                println_or_log(
+                    &multi_progress_bar,
+                    format!(
+                        "Removing the files a previous run staged in {}",
+                        local_epoch_dir_path.display()
+                    ),
+                )?;
                 fs::remove_dir_all(&local_epoch_dir_path)?;
             }
             fs::create_dir_all(&local_epoch_dir_path)?;
         }
         let epoch_dir_path = Path::from(epoch_dir);
         // Downloads MANIFEST from remote store
+        println_or_log(&multi_progress_bar, "Reading the snapshot MANIFEST")?;
         let manifest_file_path = epoch_dir_path.child("MANIFEST");
         copy_file(
             &manifest_file_path,
@@ -276,13 +286,18 @@ impl StateSnapshotReaderV1 {
 
     /// Downloads and decodes only the MANIFEST and `EPOCH_INFO` file for
     /// `epoch`, never the large reference/object files.
+    ///
+    /// `EPOCH_INFO` carries a proof bundle per epoch since genesis, so for a
+    /// late epoch it is large enough to report on `m` while it downloads.
     pub async fn read_epoch_info(
         epoch: u64,
         remote_store_config: &ObjectStoreConfig,
+        m: &MultiProgress,
     ) -> anyhow::Result<(ChainIdentifier, EpochInfo)> {
         let epoch_dir = Path::from(format!("epoch_{epoch}"));
         let remote_object_store = make_remote_store(remote_store_config)?;
 
+        println_or_log(m, "Downloading the snapshot MANIFEST")?;
         let manifest_bytes = remote_object_store
             .get_bytes(&epoch_dir.child("MANIFEST"))
             .await?;
@@ -297,7 +312,14 @@ impl StateSnapshotReaderV1 {
             .collect();
         let epoch_info_metadata = Self::single_epoch_info_metadata(epoch_info_files)?;
         let epoch_info_path = epoch_info_metadata.file_path(&epoch_dir);
-        let bytes = remote_object_store.get_bytes(&epoch_info_path).await?;
+        let bytes = get_single_file_with_progress(
+            &remote_object_store,
+            &epoch_info_path,
+            "Downloading EPOCH_INFO",
+            m,
+        )
+        .await?;
+        println_or_log(m, "Checking and decoding EPOCH_INFO")?;
         let epoch_info = Self::decode_epoch_info(bytes, &epoch_info_metadata)?;
         Ok((chain_id, epoch_info))
     }

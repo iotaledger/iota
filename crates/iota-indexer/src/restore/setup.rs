@@ -68,9 +68,10 @@ pub(crate) async fn setup_reader(
 
     // The chain id is read again from the same MANIFEST by the reader below,
     // which the caller uses.
-    let (_, epoch_info) = StateSnapshotReaderV1::read_epoch_info(epoch, &remote_store.config)
-        .await
-        .map_err(|e| IndexerError::Restore(format!("failed to read epoch info: {e}")))?;
+    let (_, epoch_info) =
+        StateSnapshotReaderV1::read_epoch_info(epoch, &remote_store.config, &MultiProgress::new())
+            .await
+            .map_err(|e| IndexerError::Restore(format!("failed to read epoch info: {e}")))?;
 
     info!(
         network = network.as_ref(),
