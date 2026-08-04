@@ -17,8 +17,7 @@ use std::{
 use futures::future;
 use iota_json_rpc_types::{CheckpointId, IotaEvent};
 use iota_sdk_types::{
-    Address, CheckpointDigest, ObjectId, TransactionDigest, Version,
-    checkpoint::CheckpointContents,
+    Address, CheckpointDigest, ObjectId, TransactionDigest, Version, checkpoint::CheckpointContents,
 };
 use iota_types::{
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
@@ -46,7 +45,8 @@ use crate::{
         metrics::HistoricalFallbackClientMetrics,
     },
     models::{
-        checkpoints::StoredCheckpoint, objects::StoredObject, transactions::StoredTransaction,
+        checkpoints::StoredCheckpoint, events::StoredEvent, objects::StoredObject,
+        transactions::StoredTransaction,
     },
     read::PackageResolver,
 };
@@ -332,31 +332,37 @@ impl HistoricalFallbackReader {
         &self,
         tx_digest: TransactionDigest,
     ) -> IndexerResult<Vec<IotaEvent>> {
+        self.fetch_events(tx_digest)
+            .await?
+            .into_iota_events(&self.package_resolver)
+            .await
+    }
+
+    /// Fetches the events of a transaction from the historical fallback
+    /// storage, together with the transaction and checkpoint data needed to
+    /// convert them to other formats.
+    async fn fetch_events(
+        &self,
+        tx_digest: TransactionDigest,
+    ) -> IndexerResult<HistoricalFallbackEvents> {
         let tx_digests = &[tx_digest];
-        let (events, checkpoint_summaries) = tokio::try_join!(
+        let (events, checkpoints) = tokio::try_join!(
             self.client.multi_get_events_by_tx_digests(tx_digests),
             self.resolve_checkpoints(tx_digests)
         )?;
 
         // check first if transaction exists, all valid transaction are part of a
         // checkpoint, if not found then the provided digest is invalid.
-        let (summary, _) = checkpoint_summaries
-            .get(&tx_digest)
-            .cloned()
-            .ok_or_else(|| {
-                IndexerError::HistoricalFallbackStorageError(format!(
-                    "transaction: {tx_digest} does not exist"
-                ))
-            })?;
+        let (summary, contents) = checkpoints.get(&tx_digest).cloned().ok_or_else(|| {
+            IndexerError::HistoricalFallbackStorageError(format!(
+                "transaction: {tx_digest} does not exist"
+            ))
+        })?;
 
-        let Some(Some(events)) = events.into_iter().next() else {
-            // transaction does not have associated events.
-            return Ok(vec![]);
-        };
+        // the transaction did not emit any events when `None`.
+        let events = events.into_iter().next().flatten().unwrap_or_default();
 
-        HistoricalFallbackEvents::new(events, summary)
-            .into_iota_events(&self.package_resolver, tx_digest)
-            .await
+        HistoricalFallbackEvents::new(events, tx_digest, &summary, &contents)
     }
 
     /// Fetches transactions from the provided transaction digests.
@@ -578,7 +584,7 @@ impl HistoricalFallbackReader {
         cursor: Option<EventID>,
         limit: usize,
         descending_order: bool,
-    ) -> IndexerResult<Vec<IotaEvent>> {
+    ) -> IndexerResult<Vec<StoredEvent>> {
         if limit == 0 {
             return Ok(vec![]);
         }
@@ -596,25 +602,25 @@ impl HistoricalFallbackReader {
             None
         };
 
-        let events = self.all_events(tx_digest).await?;
+        let events = self.fetch_events(tx_digest).await?.into_stored_events();
 
         // apply ordering, cursor, and limit
         let events = if descending_order {
             events
                 .into_iter()
-                .enumerate()
                 .rev() // reverse for descending
-                .filter(|(idx, _)| start_seq.is_none_or(|seq| (*idx as u64) < seq))
+                .filter(|event| {
+                    start_seq.is_none_or(|seq| (event.event_sequence_number as u64) < seq)
+                })
                 .take(limit)
-                .map(|(_, event)| event)
                 .collect()
         } else {
             events
                 .into_iter()
-                .enumerate()
-                .filter(|(idx, _)| start_seq.is_none_or(|seq| (*idx as u64) > seq))
+                .filter(|event| {
+                    start_seq.is_none_or(|seq| (event.event_sequence_number as u64) > seq)
+                })
                 .take(limit)
-                .map(|(_, event)| event)
                 .collect()
         };
 
