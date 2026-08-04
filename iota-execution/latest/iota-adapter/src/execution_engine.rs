@@ -492,7 +492,7 @@ mod checked {
 
         // Re-run authentication at the versions the attestor recorded. The issuer is
         // charged only if authentication provably succeeds; otherwise the attestor is
-        // accountable (`InvalidAttestation`). See
+        // accountable (`InvalidAttestation`).
         let authentication_execution_result = match (
             is_structural_failure,
             &authentication_execution_result,

@@ -231,6 +231,14 @@ mod move_authenticator_attestation_tests;
 #[path = "unit_tests/auth_unit_test_utils.rs"]
 pub mod auth_unit_test_utils;
 
+#[cfg(test)]
+#[path = "unit_tests/abstract_account_test_utils.rs"]
+pub mod abstract_account_test_utils;
+
+#[cfg(test)]
+#[path = "unit_tests/attestation_verdict_tests.rs"]
+mod attestation_verdict_tests;
+
 #[cfg(any(test, feature = "test-utils"))]
 pub mod authority_test_utils;
 
