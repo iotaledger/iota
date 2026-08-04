@@ -5,7 +5,7 @@ use std::{collections::BTreeMap, time::Duration};
 use diesel::{PgConnection, RunQueryDsl, result::DatabaseErrorKind, sql_query, sql_types};
 use downcast::Any;
 use fastcrypto::encoding::Base64;
-use iota_grpc_client::{Client as GrpcClient, ReadMask, read_mask_fields::TransactionField};
+use iota_grpc_client::{Client as GrpcClient, read_mask_fields::TransactionField};
 use iota_grpc_types::v1::transaction::ExecutedTransaction;
 use iota_sdk_types::{ObjectId, TransactionDigest, UserSignature, Version};
 use iota_types::{
@@ -40,7 +40,7 @@ use crate::{
 const WAIT_FOR_DEPS_MAX_ELAPSED_TIME: Duration = Duration::from_secs(3);
 
 // As an optimization, we're trying to request only the fields we actually need.
-const EXECUTE_TRANSACTION_READ_MASK: &[&str] = &[
+const EXECUTE_TRANSACTION_READ_MASK: &[TransactionField] = &[
     TransactionField::EFFECTS_BCS,
     TransactionField::EVENTS_EVENTS_BCS,
     TransactionField::INPUT_OBJECTS_BCS,
@@ -232,8 +232,8 @@ impl OptimisticTransactionExecutor {
             .rpc_client
             .execute_transaction(
                 signed_transaction.into(),
-                Some(ReadMask::from(EXECUTE_TRANSACTION_READ_MASK)),
                 None,
+                EXECUTE_TRANSACTION_READ_MASK,
             )
             .await;
 

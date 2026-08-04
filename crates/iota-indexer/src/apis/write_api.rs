@@ -8,8 +8,8 @@ use async_trait::async_trait;
 use fastcrypto::encoding::Base64;
 use futures::{FutureExt, TryFutureExt};
 use iota_grpc_client::{
-    Client as GrpcClient, ReadMask,
-    read_mask_fields::{EpochField, SimulateExecutedTransactionField, SimulateField},
+    Client as GrpcClient,
+    read_mask_fields::{EpochField, SimulateField},
 };
 use iota_json::IotaJsonValue;
 use iota_json_rpc::{
@@ -49,18 +49,18 @@ use crate::{
 };
 
 // As an optimization, we're trying to request only the fields we actually need.
-const DRY_RUN_TRANSACTION_READ_MASK: &[&str] = &[
-    SimulateExecutedTransactionField::SIGNATURES_BCS,
-    SimulateExecutedTransactionField::EFFECTS_BCS,
-    SimulateExecutedTransactionField::EVENTS_EVENTS_BCS,
-    SimulateExecutedTransactionField::INPUT_OBJECTS_BCS,
-    SimulateExecutedTransactionField::OUTPUT_OBJECTS_BCS,
+const DRY_RUN_TRANSACTION_READ_MASK: &[SimulateField] = &[
+    SimulateField::EXECUTED_TRANSACTION_SIGNATURES_BCS,
+    SimulateField::EXECUTED_TRANSACTION_EFFECTS_BCS,
+    SimulateField::EXECUTED_TRANSACTION_EVENTS_EVENTS_BCS,
+    SimulateField::EXECUTED_TRANSACTION_INPUT_OBJECTS_BCS,
+    SimulateField::EXECUTED_TRANSACTION_OUTPUT_OBJECTS_BCS,
     SimulateField::SUGGESTED_GAS_PRICE,
     SimulateField::EXECUTION_RESULT_EXECUTION_ERROR_SOURCE,
 ];
-const DEV_INSPECT_TRANSACTION_READ_MASK: &[&str] = &[
-    SimulateExecutedTransactionField::EFFECTS_BCS,
-    SimulateExecutedTransactionField::EVENTS_EVENTS_BCS,
+const DEV_INSPECT_TRANSACTION_READ_MASK: &[SimulateField] = &[
+    SimulateField::EXECUTED_TRANSACTION_EFFECTS_BCS,
+    SimulateField::EXECUTED_TRANSACTION_EVENTS_EVENTS_BCS,
     SimulateField::EXECUTION_RESULT_EXECUTION_ERROR_BCS_KIND,
     SimulateField::EXECUTION_RESULT_EXECUTION_ERROR_SOURCE,
     SimulateField::EXECUTION_RESULT_EXECUTION_ERROR_COMMAND_INDEX,
@@ -107,7 +107,7 @@ impl WriteApi {
             .simulate_transaction(
                 transaction_data.clone(),
                 false,
-                Some(ReadMask::from(DRY_RUN_TRANSACTION_READ_MASK)),
+                DRY_RUN_TRANSACTION_READ_MASK,
             )
             .await?
             .into_inner();
@@ -242,7 +242,7 @@ impl WriteApi {
             .simulate_transaction(
                 transaction_data,
                 skip_checks,
-                Some(ReadMask::from(DEV_INSPECT_TRANSACTION_READ_MASK)),
+                DEV_INSPECT_TRANSACTION_READ_MASK,
             )
             .await?
             .into_inner();
@@ -303,11 +303,10 @@ impl WriteApi {
             .get_epoch(
                 None, // we're requesting the information for the current epoch.
                 {
-                    let max_tx_gas = EpochField::attribute("max_tx_gas");
-                    Some(ReadMask::from(&[
+                    [
                         EpochField::REFERENCE_GAS_PRICE,
-                        &max_tx_gas,
-                    ]))
+                        EpochField::attribute("max_tx_gas"),
+                    ]
                 },
             )
             .await?
