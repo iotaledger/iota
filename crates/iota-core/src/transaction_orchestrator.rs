@@ -1113,8 +1113,11 @@ where
         let qd = quorum_driver.clone();
         Ok(async move {
             let digests = [tx_digest];
-            let effects_await = epoch_store
-                .within_alive_epoch(cache_reader.try_notify_read_executed_effects(&digests));
+            let effects_await =
+                epoch_store.within_alive_epoch(cache_reader.try_notify_read_executed_effects(
+                    "TransactionOrchestrator::notify_read_submit_with_qd",
+                    &digests,
+                ));
             // let-and-return necessary to satisfy borrow checker.
             let res = match select(ticket, effects_await.boxed()).await {
                 Either::Left((quorum_driver_response, _)) => Ok(quorum_driver_response),
@@ -1164,7 +1167,10 @@ where
             LOCAL_EXECUTION_TIMEOUT,
             validator_state
                 .get_transaction_cache_reader()
-                .try_notify_read_executed_effects_digests(&[tx_digest]),
+                .try_notify_read_executed_effects_digests(
+                    "TransactionOrchestrator::notify_read_wait_for_local_execution",
+                    &[tx_digest],
+                ),
         )
         .instrument(trace_span!("local_execution"))
         .await

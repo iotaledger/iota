@@ -67,7 +67,7 @@ async fn test_full_node_follows_txes() -> Result<(), anyhow::Error> {
     fullnode
         .state()
         .get_transaction_cache_reader()
-        .notify_read_executed_effects_for_testing(&[digest])
+        .notify_read_executed_effects_for_testing("", &[digest])
         .await;
 
     // A small delay is needed for post processing operations following the
@@ -113,7 +113,7 @@ async fn test_full_node_shared_objects() -> Result<(), anyhow::Error> {
         .iota_node
         .state()
         .get_transaction_cache_reader()
-        .notify_read_executed_effects_for_testing(&[digest])
+        .notify_read_executed_effects_for_testing("", &[digest])
         .await;
 
     Ok(())
@@ -486,7 +486,7 @@ async fn test_full_node_cold_sync() -> Result<(), anyhow::Error> {
     fullnode
         .state()
         .get_transaction_cache_reader()
-        .notify_read_executed_effects_for_testing(&[digest])
+        .notify_read_executed_effects_for_testing("", &[digest])
         .await;
 
     let info = fullnode
@@ -596,7 +596,7 @@ async fn do_test_full_node_sync_flood() {
     fullnode
         .state()
         .get_transaction_cache_reader()
-        .notify_read_executed_effects_for_testing(&digests)
+        .notify_read_executed_effects_for_testing("", &digests)
         .await;
 }
 
@@ -783,7 +783,7 @@ async fn test_full_node_transaction_orchestrator_basic() -> Result<(), anyhow::E
     fullnode
         .state()
         .get_transaction_cache_reader()
-        .notify_read_executed_effects_for_testing(&[digest])
+        .notify_read_executed_effects_for_testing("", &[digest])
         .await;
     fullnode.state().get_executed_transaction_and_effects(digest, kv_store).await
         .unwrap_or_else(|e| panic!("Fullnode does not know about the txn {digest:?} that was executed with WaitForEffectsCert: {e:?}"));

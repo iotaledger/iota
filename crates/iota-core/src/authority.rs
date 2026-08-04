@@ -1421,7 +1421,10 @@ impl AuthorityState {
         // tx could be reverted when epoch ends, so we must be careful not to return a
         // result here after the epoch ends.
         epoch_store
-            .within_alive_epoch(self.notify_read_effects(certificate))
+            .within_alive_epoch(self.notify_read_effects(
+                "AuthorityState::wait_for_certificate_execution",
+                certificate,
+            ))
             .await
             .map_err(|_| IotaError::EpochEnded(epoch_store.epoch()))
             .and_then(|r| r)
@@ -1551,10 +1554,11 @@ impl AuthorityState {
 
     pub async fn notify_read_effects(
         &self,
+        task_name: &'static str,
         certificate: &VerifiedCertificate,
     ) -> IotaResult<TransactionEffects> {
         self.get_transaction_cache_reader()
-            .try_notify_read_executed_effects(&[*certificate.digest()])
+            .try_notify_read_executed_effects(task_name, &[*certificate.digest()])
             .await
             .map(|mut r| r.pop().expect("must return correct number of effects"))
     }
@@ -6107,7 +6111,10 @@ impl RandomnessRoundReceiver {
                 RANDOMNESS_STATE_UPDATE_EXECUTION_TIMEOUT,
                 authority_state
                     .get_transaction_cache_reader()
-                    .try_notify_read_executed_effects(&[digest]),
+                    .try_notify_read_executed_effects(
+                        "RandomnessRoundReceiver::notify_read_executed_effects_first",
+                        &[digest],
+                    ),
             )
             .await;
             let result = match result {
@@ -6125,7 +6132,10 @@ impl RandomnessRoundReceiver {
                     // Continue waiting as long as necessary in non-debug builds.
                     authority_state
                         .get_transaction_cache_reader()
-                        .try_notify_read_executed_effects(&[digest])
+                        .try_notify_read_executed_effects(
+                            "RandomnessRoundReceiver::notify_read_executed_effects_second",
+                            &[digest],
+                        )
                         .await
                 }
             };
