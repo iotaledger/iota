@@ -78,6 +78,10 @@ pub struct AuthorityPerpetualTables {
     /// Object references of currently active objects that can be mutated.
     pub(crate) live_owned_object_markers: DBMap<ObjectReference, ()>,
 
+    /// The epoch in which an object version stopped being the current one,
+    /// written when a transaction consumes that version as an input.
+    pub(crate) object_superseded_in_epoch: DBMap<ObjectKey, EpochId>,
+
     /// This is a map between the transaction digest and the corresponding
     /// transaction that's known to be executable. This means that it may
     /// have been executed locally, or it may have been synced through
@@ -409,25 +413,16 @@ impl AuthorityPerpetualTables {
         Ok(self.executed_transactions_to_checkpoint.get(digest)?)
     }
 
-    /// First stored version of `object_id` greater than `version`, i.e. the
-    /// version that superseded it, if one has been written to the database.
-    pub fn get_next_object_key(
+    /// The epoch in which `version` of `object_id` stopped being the current
+    /// version, or `None` if it never did or the entry has been pruned.
+    pub fn get_object_superseded_in_epoch(
         &self,
         object_id: &ObjectId,
         version: Version,
-    ) -> IotaResult<Option<ObjectKey>> {
-        let Ok(next_version) = version.next() else {
-            return Ok(None);
-        };
-        match self
-            .objects
-            .safe_iter_with_prefix_from(object_id, &next_version)
-            .next()
-        {
-            Some(Ok((key, _))) => Ok(Some(key)),
-            Some(Err(e)) => Err(e.into()),
-            None => Ok(None),
-        }
+    ) -> IotaResult<Option<EpochId>> {
+        Ok(self
+            .object_superseded_in_epoch
+            .get(&ObjectKey(*object_id, version))?)
     }
 
     pub fn get_newer_object_keys(

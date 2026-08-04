@@ -161,7 +161,7 @@ use crate::{
         authority_per_epoch_store_pruner::AuthorityPerEpochStorePruner,
         authority_store::{ExecutionLockReadGuard, ObjectLockStatus},
         authority_store_pruner::{AuthorityStorePruner, EPOCH_DURATION_MS_FOR_TESTING},
-        authority_store_tables::{AuthorityPerpetualTables, AuthorityPrunerTables},
+        authority_store_tables::AuthorityPrunerTables,
         epoch_start_configuration::{EpochStartConfigTrait, EpochStartConfiguration},
     },
     authority_client::NetworkAuthorityClient,
@@ -874,9 +874,6 @@ pub struct AuthorityState {
 
     /// The database
     input_loader: TransactionInputLoader,
-    /// Object-version history, read when an attestation's recorded versions are
-    /// judged after a Move-authentication failure.
-    perpetual_tables: Arc<AuthorityPerpetualTables>,
     execution_cache_trait_pointers: ExecutionCacheTraitPointers,
 
     epoch_store: ArcSwap<AuthorityPerEpochStore>,
@@ -2260,8 +2257,6 @@ impl AuthorityState {
             let attested_object_versions =
                 transaction.attestation().map(|_| AttestedObjectVersions {
                     object_cache: self.get_object_cache_reader().as_ref(),
-                    transaction_cache: self.get_transaction_cache_reader().as_ref(),
-                    perpetual_tables: &self.perpetual_tables,
                     current_epoch: epoch_id,
                 });
             let attestation_verdict_context = transaction
@@ -3612,7 +3607,6 @@ impl AuthorityState {
             name,
             secret,
             execution_lock: RwLock::new(epoch),
-            perpetual_tables: store.perpetual_tables.clone(),
             epoch_store: ArcSwap::new(epoch_store.clone()),
             input_loader,
             execution_cache_trait_pointers,
@@ -6895,8 +6889,6 @@ impl NodeStateDump {
 /// A version is only re-run at when it was superseded during the current epoch.
 struct AttestedObjectVersions<'a> {
     object_cache: &'a dyn ObjectCacheRead,
-    transaction_cache: &'a dyn TransactionCacheRead,
-    perpetual_tables: &'a AuthorityPerpetualTables,
     current_epoch: EpochId,
 }
 
@@ -6913,32 +6905,16 @@ impl AttestedObjectVersionReader for AttestedObjectVersions<'_> {
             return AttestedObjectVersionState::Current;
         }
 
-        let successor = match self
-            .perpetual_tables
-            .get_next_object_key(object_id, version)
-        {
-            Ok(successor) => successor,
-            Err(_) => return AttestedObjectVersionState::Stale,
-        };
-        let Some(ObjectKey(_, successor_version)) = successor else {
-            // The object has moved on but no later version has reached the
-            // database yet, so it was superseded too recently to have been
-            // written back, which can only have happened in this epoch.
-            return AttestedObjectVersionState::SupersededInCurrentEpoch;
-        };
-
-        // The transaction that wrote the successor is the one that superseded
-        // this version, so its epoch is when the version stopped being current.
-        let superseded_by = self
+        // Only a version superseded during this epoch can be re-run at. Such an
+        // entry is written in this epoch, so retention guarantees every
+        // validator holds it and a missing one means the version is older,
+        // never that this validator pruned earlier than its peers.
+        let superseded_in_epoch = self
             .object_cache
-            .get_object_by_key(object_id, successor_version)
-            .map(|successor| successor.previous_transaction);
-        let superseded_in_epoch = superseded_by
-            .and_then(|digest| self.transaction_cache.get_executed_effects(&digest))
-            .map(|effects| effects.epoch());
+            .try_get_object_superseded_in_epoch(object_id, version);
 
         match superseded_in_epoch {
-            Some(epoch) if epoch == self.current_epoch => {
+            Ok(Some(epoch)) if epoch == self.current_epoch => {
                 AttestedObjectVersionState::SupersededInCurrentEpoch
             }
             // Superseded in an earlier epoch, or unresolvable: either way the

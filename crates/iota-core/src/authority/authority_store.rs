@@ -515,6 +515,15 @@ impl AuthorityStore {
             .get(&object_key)?)
     }
 
+    pub fn get_object_superseded_in_epoch(
+        &self,
+        object_id: &ObjectId,
+        version: Version,
+    ) -> IotaResult<Option<EpochId>> {
+        self.perpetual_tables
+            .get_object_superseded_in_epoch(object_id, version)
+    }
+
     pub fn get_latest_marker(
         &self,
         object_id: &ObjectId,
@@ -917,6 +926,17 @@ impl AuthorityStore {
         });
 
         write_batch.insert_batch(&self.perpetual_tables.objects, new_objects)?;
+
+        // The versions this transaction consumed stop being current here, which
+        // is what decides later whether an attestation recording them can still
+        // be re-run at.
+        write_batch.insert_batch(
+            &self.perpetual_tables.object_superseded_in_epoch,
+            effects
+                .modified_at_versions()
+                .into_iter()
+                .map(|(object_id, version)| (ObjectKey(object_id, version), epoch_id)),
+        )?;
 
         // Write events into the new table keyed off of transaction_digest
         if effects.events_digest().is_some() {

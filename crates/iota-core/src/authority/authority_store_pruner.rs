@@ -328,6 +328,11 @@ impl AuthorityStorePruner {
                     let start_range = ObjectKey(object_id, min_version);
                     let end_range = ObjectKey(object_id, max_version + 1);
                     wb.schedule_delete_range(&perpetual_db.objects, &start_range, &end_range)?;
+                    wb.schedule_delete_range(
+                        &perpetual_db.object_superseded_in_epoch,
+                        &start_range,
+                        &end_range,
+                    )?;
                 }
             }
         }
@@ -352,7 +357,11 @@ impl AuthorityStorePruner {
                 }
             }
 
-            wb.delete_batch(&perpetual_db.objects, object_keys_to_delete)?;
+            wb.delete_batch(&perpetual_db.objects, object_keys_to_delete.clone())?;
+            wb.delete_batch(
+                &perpetual_db.object_superseded_in_epoch,
+                object_keys_to_delete,
+            )?;
         }
 
         perpetual_db.set_highest_pruned_checkpoint(&mut wb, checkpoint_number)?;
