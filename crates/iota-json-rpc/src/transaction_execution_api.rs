@@ -34,7 +34,9 @@ use iota_types::{
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
     error::IotaError,
     execution_config_utils::to_binary_config,
-    inner_temporary_store::{PackageStoreWithFallback, TemporaryModuleResolver},
+    inner_temporary_store::{
+        ObjectMapPackageStore, PackageStoreWithFallback, TemporaryModuleResolver,
+    },
     iota_serde::BigInt,
     quorum_driver_types::{
         ExecuteTransactionRequestType, ExecuteTransactionRequestV1, ExecuteTransactionResponseV1,
@@ -352,7 +354,7 @@ impl TransactionExecutionApi {
             .map_err(Error::from)??
         };
 
-        Self::report_effective_gas(&mut txn_data, &simulation);
+        Self::report_simulation_gas_and_payment(&mut txn_data, &simulation);
 
         let tx_digest = *simulation.effects.transaction_digest();
         // Resolve types against the objects the simulation wrote before falling back to
@@ -360,7 +362,7 @@ impl TransactionExecutionApi {
         let (input, events) = {
             let mut layout_resolver = epoch_store.executor().type_layout_resolver(Box::new(
                 PackageStoreWithFallback::new(
-                    &simulation.output_objects,
+                    ObjectMapPackageStore(&simulation.output_objects),
                     self.state.get_backing_package_store(),
                 ),
             ));
@@ -455,23 +457,22 @@ impl TransactionExecutionApi {
     }
 
     /// Report the gas the simulation ran with, in place of whatever the caller
-    /// left unset.
+    /// left unset, gas payment included.
     ///
-    /// A zero budget asks what the transaction costs, so it comes back as the
-    /// gas charged rather than as the caller's own zero, which would say
-    /// nothing. The price it was charged at comes back too: only the
-    /// computation half of the cost scales with the price, so an estimate
-    /// cannot be read without it. gRPC `simulate_transactions` reports the
-    /// cost in the same field.
-    fn report_effective_gas(
+    /// The payment is reported here because that is where a JSON-RPC client
+    /// reads a mock gas coin the simulation minted; gRPC reports it separately
+    /// and so leaves the payment as it was sent. The price and budget are the
+    /// same rule for both, so they come from
+    /// [`iota_types::gas::report_simulation_gas`].
+    fn report_simulation_gas_and_payment(
         transaction: &mut TransactionData,
         simulation: &SimulateTransactionResult,
     ) {
-        let estimating = transaction.gas_budget() == 0;
-        *transaction.gas_data_mut() = simulation.gas_data.clone();
-        if estimating {
-            transaction.gas_data_mut().budget = simulation.effects.gas_cost_summary().gas_used();
-        }
+        let gas_used = simulation.effects.gas_cost_summary().gas_used();
+        let gas_data = transaction.gas_data_mut();
+        gas_data.objects = simulation.gas_data.objects.clone();
+        gas_data.owner = simulation.gas_data.owner;
+        iota_types::gas::report_simulation_gas(gas_data, &simulation.gas_data, gas_used);
     }
 
     fn dev_inspect_transaction_impl(
@@ -525,7 +526,7 @@ impl TransactionExecutionApi {
 
         let raw_txn_data = match reported_transaction.as_mut() {
             Some(transaction) => {
-                Self::report_effective_gas(transaction, &simulation);
+                Self::report_simulation_gas_and_payment(transaction, &simulation);
                 bcs::to_bytes(transaction).map_err(|_| IotaError::TransactionSerialization {
                     error: "Failed to serialize transaction during dev inspect".to_string(),
                 })?
@@ -547,7 +548,7 @@ impl TransactionExecutionApi {
             epoch_store
                 .executor()
                 .type_layout_resolver(Box::new(PackageStoreWithFallback::new(
-                    &simulation.output_objects,
+                    ObjectMapPackageStore(&simulation.output_objects),
                     self.state.get_backing_package_store(),
                 )));
 

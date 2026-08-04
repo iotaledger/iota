@@ -12,7 +12,7 @@ pub mod checked {
 
     use enum_dispatch::enum_dispatch;
     use iota_protocol_config::ProtocolConfig;
-    use iota_sdk_types::{ObjectReference, gas::GasCostSummary};
+    use iota_sdk_types::{GasPayment, ObjectReference, gas::GasCostSummary};
 
     use crate::{
         ObjectId,
@@ -171,6 +171,30 @@ pub mod checked {
         if transaction.gas_budget() == 0 {
             transaction.gas_data_mut().budget = protocol_config.max_tx_gas();
         }
+    }
+
+    /// Reports the gas a simulation ran with in `reported`, in place of what
+    /// the caller left unset — the mirror of
+    /// [`fill_in_unset_simulation_gas`], for the response rather than the
+    /// run.
+    ///
+    /// A zero budget asks what the transaction costs, so it comes back as
+    /// `gas_used` rather than as the caller's own zero, which would say
+    /// nothing. The price comes back too: only the computation half of the
+    /// cost scales with the price, so the estimate cannot be read without
+    /// it.
+    ///
+    /// The gas payment is left alone, because a mock gas coin is not reported
+    /// the same way by every API — the JSON-RPC response carries it in the
+    /// payment, while gRPC reports it separately — so that is the caller's
+    /// call.
+    pub fn report_simulation_gas(reported: &mut GasPayment, simulated: &GasPayment, gas_used: u64) {
+        reported.price = simulated.price;
+        reported.budget = if reported.budget == 0 {
+            gas_used
+        } else {
+            simulated.budget
+        };
     }
 
     /// Checks that every object `gas` refers to is an address-owned gas coin

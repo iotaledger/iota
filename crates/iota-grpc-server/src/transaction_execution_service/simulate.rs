@@ -195,11 +195,6 @@ async fn simulate_single_transaction(
         VmChecks::Enabled
     };
 
-    // A zero gas budget means "estimate the cost for me": the simulation meters
-    // against the protocol maximum gas budget, and the transaction in the response
-    // reports the cost it actually incurred rather than the zero that was sent.
-    let estimating_gas_budget = transaction_data.gas_data().budget == 0;
-
     let system_state = if read_mask.contains(SimulatedTransaction::SUGGESTED_GAS_PRICE_FIELD.name) {
         Some(reader.get_system_state_summary().map_err(|e| {
             RpcError::new(
@@ -236,13 +231,13 @@ async fn simulate_single_transaction(
     // Only include transaction if requested
     if let Some(tx_mask) = read_mask.subtree(SimulatedTransaction::EXECUTED_TRANSACTION_FIELD.name)
     {
-        // Report the price the simulation charged at, which it fills in for a caller
-        // that leaves it at zero. Only the computation half of the cost scales with
-        // the price, so an estimate cannot be read without it.
-        transaction_data.gas_data_mut().price = gas_data.price;
-        if estimating_gas_budget {
-            transaction_data.gas_data_mut().budget = effects.gas_cost_summary().gas_used();
-        }
+        // The gas payment is left as it was sent: a mock gas coin the simulation
+        // minted is reported separately, in `mocked_coin` below.
+        iota_types::gas::report_simulation_gas(
+            transaction_data.gas_data_mut(),
+            &gas_data,
+            effects.gas_cost_summary().gas_used(),
+        );
 
         // Create a source for the merge
         let source = TransactionReadSource {
