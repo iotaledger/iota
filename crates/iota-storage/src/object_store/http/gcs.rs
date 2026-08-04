@@ -7,6 +7,7 @@ use std::{fmt, sync::Arc};
 use anyhow::Result;
 use async_trait::async_trait;
 use bytes::Bytes;
+use iota_config::object_storage_config::{CONNECT_TIMEOUT, TRANSFER_STALL_TIMEOUT};
 use object_store::{GetResult, path::Path};
 use percent_encoding::{NON_ALPHANUMERIC, percent_encode, utf8_percent_encode};
 use reqwest::{Client, ClientBuilder};
@@ -25,7 +26,10 @@ struct GoogleCloudStorageClient {
 impl GoogleCloudStorageClient {
     pub fn new(bucket: &str) -> Result<Self> {
         let mut builder = ClientBuilder::new().pool_idle_timeout(None);
-        builder = builder.user_agent(DEFAULT_USER_AGENT);
+        builder = builder
+            .user_agent(DEFAULT_USER_AGENT)
+            .connect_timeout(CONNECT_TIMEOUT)
+            .read_timeout(TRANSFER_STALL_TIMEOUT);
         let client = builder.https_only(false).build()?;
         let bucket_name_encoded = percent_encode(bucket.as_bytes(), NON_ALPHANUMERIC).to_string();
 

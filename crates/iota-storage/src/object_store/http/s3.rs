@@ -7,6 +7,7 @@ use std::{fmt, sync::Arc};
 use anyhow::Result;
 use async_trait::async_trait;
 use bytes::Bytes;
+use iota_config::object_storage_config::{CONNECT_TIMEOUT, TRANSFER_STALL_TIMEOUT};
 use object_store::{GetResult, path::Path};
 use percent_encoding::{PercentEncode, utf8_percent_encode};
 use reqwest::{Client, ClientBuilder};
@@ -27,7 +28,9 @@ impl S3Client {
         let mut builder = ClientBuilder::new();
         builder = builder
             .user_agent(DEFAULT_USER_AGENT)
-            .pool_idle_timeout(None);
+            .pool_idle_timeout(None)
+            .connect_timeout(CONNECT_TIMEOUT)
+            .read_timeout(TRANSFER_STALL_TIMEOUT);
         let client = builder.https_only(false).build()?;
 
         Ok(Self {
