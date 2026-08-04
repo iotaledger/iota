@@ -50,3 +50,14 @@ pub(crate) struct EventFilter {
     // pub all
     // pub not
 }
+
+impl EventFilter {
+    /// Returns the transaction digest when `transaction_digest` is the only
+    /// filter set.
+    pub(crate) fn only_transaction_digest(&self) -> Option<Digest> {
+        if self.sender.is_some() || self.emitting_module.is_some() || self.event_type.is_some() {
+            return None;
+        }
+        self.transaction_digest
+    }
+}
