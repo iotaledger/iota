@@ -14,7 +14,7 @@ use iota_sdk_types::TransactionEffects;
 use iota_types::{
     committee::{Committee, EpochId},
     effects::TransactionEffectsAPI,
-    error::{IotaResult, UserInputError},
+    error::IotaResult,
     gas::IotaGasStatus,
     gas_coin::mock_simulation_gas_coin,
     inner_temporary_store::InnerTemporaryStore,
@@ -252,19 +252,16 @@ impl EpochState {
                 authenticator_gas_budget,
             )?
         } else {
-            // Execution reserves the whole gas budget from the gas coins before running
-            // any command, so they have to cover it even though the rest of the gas
-            // checks are skipped here. With the checks enabled,
-            // `check_transaction_input` covers this.
-            let gas_balance = iota_types::gas::gas_coins_balance(&input_objects, transaction.gas());
-            let gas_budget = transaction.gas_budget();
-            if gas_balance < gas_budget as u128 {
-                return Err(UserInputError::GasBalanceTooLow {
-                    gas_balance,
-                    needed_gas_amount: gas_budget as u128,
-                }
-                .into());
-            }
+            // Execution smashes the gas coins and reserves the whole budget from them
+            // before running any command, treating the input checks as having verified
+            // that they are gas coins at all — so with those checks skipped here, this
+            // has to stand in for them. With the checks enabled,
+            // `check_transaction_input` covers it.
+            iota_types::gas::check_gas_coins_cover_budget(
+                &input_objects,
+                transaction.gas(),
+                transaction.gas_budget(),
+            )?;
 
             let checked_input_objects = iota_transaction_checks::check_simulation_input(
                 &self.protocol_config,

@@ -2109,7 +2109,8 @@ impl AuthorityState {
     /// `checks` selects the Move VM semantics: `VmChecks::Enabled` runs the
     /// transaction as it would run on chain (a dry run), while
     /// `VmChecks::Disabled` relaxes the checks around entry functions and
-    /// argument values, and reports per-command return values (a dev inspect).
+    /// argument values (a dev inspect). Both report the per-command return
+    /// values in [`SimulateTransactionResult::execution_result`].
     ///
     /// Under either `checks`, the simulation fills in whatever gas the
     /// transaction leaves unset, so that a caller with no gas to declare can
@@ -2272,20 +2273,16 @@ impl AuthorityState {
                 authenticator_gas_budget,
             )?
         } else {
-            // Execution reserves the whole gas budget from the gas coins before running
-            // any command, so they have to cover it even though the rest of the gas
-            // checks are skipped here. With the checks enabled,
-            // `check_transaction_input` covers this.
-            let gas_balance = iota_types::gas::gas_coins_balance(&input_objects, transaction.gas());
-            let gas_budget = transaction.gas_budget();
-            fp_ensure!(
-                gas_balance >= gas_budget as u128,
-                UserInputError::GasBalanceTooLow {
-                    gas_balance,
-                    needed_gas_amount: gas_budget as u128,
-                }
-                .into()
-            );
+            // Execution smashes the gas coins and reserves the whole budget from them
+            // before running any command, treating the input checks as having verified
+            // that they are gas coins at all — so with those checks skipped here, this
+            // has to stand in for them. With the checks enabled,
+            // `check_transaction_input` covers it.
+            iota_types::gas::check_gas_coins_cover_budget(
+                &input_objects,
+                transaction.gas(),
+                transaction.gas_budget(),
+            )?;
 
             let checked_input_objects = iota_transaction_checks::check_simulation_input(
                 protocol_config,
@@ -2333,8 +2330,6 @@ impl AuthorityState {
             checks.disabled(),
         );
 
-        // `execution_result` carries the per-command return values only when the
-        // checks are disabled; with them enabled it is empty.
         Ok(SimulateTransactionResult {
             input_objects: inner_temp_store.input_objects,
             output_objects: inner_temp_store.written,

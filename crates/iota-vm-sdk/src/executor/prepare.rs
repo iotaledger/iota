@@ -25,7 +25,7 @@ use iota_types::{
     auth_context::AuthContextData,
     effects::TransactionEffectsAPI,
     error::{IotaError, UserInputError},
-    gas::{IotaGasStatus, IotaGasStatusAPI},
+    gas::{IotaGasStatus, IotaGasStatusAPI, check_gas_coins_cover_budget},
     gas_coin::mock_simulation_gas_coin,
     inner_temporary_store::InnerTemporaryStore,
     layout_resolver::LayoutResolver,
@@ -79,19 +79,14 @@ pub(super) fn prepare_transaction(
         .validity_check_no_gas_check(&env.protocol_config)
         .map_err(|e| ValidationError::new("transaction validity check", e))?;
 
-    // Update gas payment references to match actual object versions in the
-    // store, summing the coins' balance for the dev-inspect budget below.
-    let mut gas_balance: u64 = 0;
+    // Update gas payment references to match actual object versions in the store.
     let mut updated_gas = Vec::with_capacity(transaction.gas().len());
     for gas_ref in transaction.gas() {
         let obj = store
             .as_object_store()
             .try_get_object(&gas_ref.object_id)
             .map_err(|e| StoreError::new("load gas object", e))?;
-        updated_gas.push(obj.map_or(*gas_ref, |o| {
-            gas_balance = gas_balance.saturating_add(o.as_coin_maybe().map_or(0, |c| c.value()));
-            o.object_ref()
-        }));
+        updated_gas.push(obj.map_or(*gas_ref, |o| o.object_ref()));
     }
     transaction.gas_data_mut().objects = updated_gas;
 
@@ -138,8 +133,6 @@ pub(super) fn prepare_transaction(
         let mock_gas_object = mock_simulation_gas_coin(transaction.gas_data().owner);
         let mock_gas_object_ref = mock_gas_object.object_ref();
         transaction.gas_data_mut().objects = vec![mock_gas_object_ref];
-        gas_balance =
-            gas_balance.saturating_add(mock_gas_object.as_coin_maybe().map_or(0, |c| c.value()));
         input_objects.push(ObjectReadResult::new_from_gas_object(&mock_gas_object));
         Some(mock_gas_object.id())
     } else {
@@ -171,6 +164,18 @@ pub(super) fn prepare_transaction(
     });
 
     let (gas_status, checked_input_objects) = if matches!(mode, ExecutionMode::DevInspect) {
+        // Dev-inspect meters against the transaction's budget, which the fill-in
+        // above resolves to `max_tx_gas` when the caller declares none, matching
+        // the node's dev-inspect entry point.
+        //
+        // The engine smashes the gas coins and reserves the whole budget from them
+        // before running any command, treating the input checks as having verified
+        // that they are gas coins at all — so with those checks skipped here, this
+        // stands in for them, the same way the node's simulation does.
+        let gas_budget = transaction.gas_budget();
+        check_gas_coins_cover_budget(&input_objects, transaction.gas(), gas_budget)
+            .map_err(|e| ValidationError::new("gas balance check", e))?;
+
         let checked_input_objects = iota_transaction_checks::check_simulation_input(
             &env.protocol_config,
             transaction.kind(),
@@ -179,25 +184,6 @@ pub(super) fn prepare_transaction(
         )
         .map_err(|e| ValidationError::new("simulation input check", e))?;
 
-        // Dev-inspect meters against the transaction's budget, which the fill-in
-        // above resolves to `max_tx_gas` when the caller declares none, matching
-        // the node's dev-inspect entry point.
-        //
-        // The engine smashes the whole budget off the gas coins before running any
-        // command, so they have to cover it even though the rest of the gas checks
-        // are skipped here. Rejecting up front is what the node does; letting it
-        // through would hit an invariant violation inside the engine instead.
-        let gas_budget = transaction.gas_budget();
-        if gas_balance < gas_budget {
-            return Err(ValidationError::new(
-                "gas balance check",
-                UserInputError::GasBalanceTooLow {
-                    gas_balance: gas_balance as u128,
-                    needed_gas_amount: gas_budget as u128,
-                },
-            )
-            .into());
-        }
         let gas_status = IotaGasStatus::new(
             gas_budget,
             transaction.gas_price(),

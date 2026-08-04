@@ -1158,6 +1158,87 @@ async fn test_dry_run_dev_inspect_dynamic_field_too_new() {
     assert_eq!(execution_error_source(&result), Some("VMError with status ABORTED with sub status 1 at location Module ModuleId { address: 0000000000000000000000000000000000000000000000000000000000000002, name: Identifier(\"dynamic_field\") } at code offset 0 in function definition 13".to_string()));
 }
 
+/// A gas payment that names an object which is not a gas coin is rejected, in
+/// either check mode.
+///
+/// With the checks disabled nothing else verifies the gas coins:
+/// `GasCharger::smash_gas` treats the input checks as having done it and panics
+/// rather than returning an error, and it only inspects the coins when the
+/// payment names more than one — so a funded coin alongside a non-coin object
+/// passes any check that merely sums balances.
+#[tokio::test]
+async fn test_simulate_rejects_a_gas_payment_that_is_not_a_gas_coin() {
+    let sender = Address::random();
+    let recipient = Address::random();
+    let (validator, fullnode, _object_basics) =
+        init_state_with_ids_and_object_basics_with_fullnode(vec![]).await;
+
+    let max_tx_gas = validator
+        .epoch_store_for_testing()
+        .protocol_config()
+        .max_tx_gas();
+
+    // A funded gas coin, so the combined balance covers any budget.
+    let funded_coin = Object::new_gas_with_balance_and_owner_for_testing(max_tx_gas * 4, sender);
+    // An owned object of the same sender that is not a coin at all.
+    let not_a_coin_id = ObjectId::random();
+    let not_a_coin = Object::new_move(
+        MoveStruct::new(
+            StructTag::new(
+                Address::FRAMEWORK,
+                Identifier::from_static("object_basics"),
+                Identifier::from_static("Object"),
+                vec![],
+            )
+            .into(),
+            OBJECT_START_VERSION,
+            // A Move object's contents lead with its own id.
+            bcs::to_bytes(&(not_a_coin_id, 7u64)).unwrap(),
+        )
+        .unwrap(),
+        Owner::Address(sender),
+        TransactionDigest::GENESIS_MARKER,
+    );
+
+    for object in [funded_coin.clone(), not_a_coin.clone()] {
+        validator.insert_genesis_object(object.clone());
+        fullnode.insert_genesis_object(object);
+    }
+
+    let pt = {
+        let mut builder = ProgrammableTransactionBuilder::new();
+        builder.pay_iota(vec![recipient], vec![500]).unwrap();
+        builder.finish()
+    };
+
+    for checks in [VmChecks::Enabled, VmChecks::Disabled] {
+        let transaction = TransactionData::V1(TransactionV1 {
+            kind: TransactionKind::new_programmable(pt.clone()),
+            sender,
+            gas_payment: GasPayment {
+                objects: vec![funded_coin.object_ref(), not_a_coin.object_ref()],
+                owner: sender,
+                price: 0,
+                budget: 0,
+            },
+            expiration: TransactionExpiration::None,
+        });
+
+        let Err(error) = fullnode.simulate_transaction(transaction, checks) else {
+            panic!("{checks:?} should reject a gas payment that is not a gas coin");
+        };
+        assert!(
+            matches!(
+                error,
+                IotaError::UserInput {
+                    error: UserInputError::InvalidGasObject { object_id }
+                } if object_id == not_a_coin_id
+            ),
+            "unexpected error for {checks:?}: {error:?}"
+        );
+    }
+}
+
 // tests using a gas coin with version MAX - 1
 #[tokio::test]
 async fn test_dry_run_dev_inspect_max_gas_version() {

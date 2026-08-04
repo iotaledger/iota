@@ -8,7 +8,7 @@ pub use checked::*;
 #[iota_macros::with_checked_arithmetic]
 pub mod checked {
 
-    use std::collections::HashSet;
+    use std::collections::HashMap;
 
     use enum_dispatch::enum_dispatch;
     use iota_protocol_config::ProtocolConfig;
@@ -148,21 +148,53 @@ pub mod checked {
         }
     }
 
-    /// Combined balance of the gas coins `gas` refers to.
+    /// Checks that every object `gas` refers to is an address-owned gas coin
+    /// present in `input_objects`, and that their combined balance covers
+    /// `gas_budget`.
     ///
-    /// Anything `gas` names that `input_objects` does not hold, or that is not
-    /// a gas coin, contributes nothing rather than being reported as the
-    /// missing or invalid gas object it is. A caller comparing the result
-    /// against a budget therefore reports those inputs as too low a balance.
-    /// This is only for callers that skip the full gas checks, which do tell
-    /// the cases apart; anything else should go through those instead.
-    pub fn gas_coins_balance(input_objects: &InputObjects, gas: &[ObjectReference]) -> u128 {
-        let gas_ids: HashSet<_> = gas.iter().map(|gas_ref| gas_ref.object_id).collect();
-        input_objects
+    /// This is [`IotaGasStatus::check_gas_balance`] without the bounds on the
+    /// budget itself, for a simulation that skips the gas checks: it still has
+    /// to reject gas the engine cannot take the budget from, because
+    /// `GasCharger::smash_gas` treats the input checks as having guaranteed
+    /// that and panics rather than returning an error. It deliberately does not
+    /// bound the budget, which a simulation leaves to metering, so a caller
+    /// probing with a small budget runs out of gas instead of being rejected.
+    pub fn check_gas_coins_cover_budget(
+        input_objects: &InputObjects,
+        gas: &[ObjectReference],
+        gas_budget: u64,
+    ) -> UserInputResult {
+        let objects: HashMap<_, _> = input_objects
             .iter()
-            .filter(|object| gas_ids.contains(&object.id()))
-            .filter_map(|object| object.as_object())
-            .filter_map(|object| get_gas_balance(object).ok())
-            .fold(0u128, |total, balance| total + balance as u128)
+            .map(|object| (object.id(), object))
+            .collect();
+
+        let mut gas_balance = 0u128;
+        for gas_ref in gas {
+            let read = objects
+                .get(&gas_ref.object_id)
+                .ok_or(UserInputError::ObjectNotFound {
+                    object_id: gas_ref.object_id,
+                    version: Some(gas_ref.version),
+                })?;
+            // `as_object` returning `None` means the object was deleted, which makes
+            // it a shared one, and gas cannot be shared.
+            let object = read.as_object().ok_or(UserInputError::MissingGasPayment)?;
+            if !object.is_address_owned() {
+                return Err(UserInputError::GasObjectNotOwnedObject {
+                    owner: object.owner,
+                });
+            }
+            gas_balance += get_gas_balance(object)? as u128;
+        }
+
+        if gas_balance < gas_budget as u128 {
+            return Err(UserInputError::GasBalanceTooLow {
+                gas_balance,
+                needed_gas_amount: gas_budget as u128,
+            });
+        }
+
+        Ok(())
     }
 }

@@ -7,7 +7,7 @@
 //! only the built-in framework, no Move compiler.
 
 use iota_sdk_types::{
-    MoveStruct, ObjectId, Owner, TransactionDigest,
+    Identifier, MoveStruct, ObjectId, Owner, StructTag, TransactionDigest,
     transaction::{GenesisTransaction, TransactionKind},
 };
 use iota_types::{
@@ -383,6 +383,48 @@ fn dev_inspect_rejects_a_gas_coin_that_cannot_back_the_budget() {
     let err = vm
         .execute(tx, ExecuteOptions::dev_inspect())
         .expect_err("a gas coin that cannot back the budget must be rejected");
+    assert!(matches!(err, VmSdkError::Validation(_)), "got {err:?}");
+}
+
+/// A gas payment naming an object that is not a gas coin is rejected, even when
+/// another coin in the payment covers the budget on its own. The engine only
+/// inspects the coins when the payment names more than one, and panics there
+/// rather than returning an error.
+#[test]
+fn dev_inspect_rejects_a_gas_payment_that_is_not_a_gas_coin() {
+    let sender = Address::ZERO;
+    let recipient = Address::from(ObjectId::random());
+
+    let funded_coin = gas_coin(sender);
+    let not_a_coin = Object::new_move(
+        MoveStruct::new(
+            StructTag::new(
+                Address::FRAMEWORK,
+                Identifier::from_static("object_basics"),
+                Identifier::from_static("Object"),
+                vec![],
+            )
+            .into(),
+            OBJECT_START_VERSION,
+            // A Move object's contents lead with its own id.
+            bcs::to_bytes(&(ObjectId::random(), 7u64)).unwrap(),
+        )
+        .unwrap(),
+        Owner::Address(sender),
+        TransactionDigest::ZERO,
+    );
+
+    let mut store = InMemoryStore::with_framework();
+    store.insert(funded_coin.clone());
+    store.insert(not_a_coin.clone());
+    let mut vm = LocalVm::new(chain_context(), store).expect("build LocalVm");
+
+    let mut tx = transfer_tx(sender, &funded_coin, recipient, TRANSFER_AMOUNT);
+    tx.gas_data_mut().objects = vec![funded_coin.object_ref(), not_a_coin.object_ref()];
+
+    let err = vm
+        .execute(tx, ExecuteOptions::dev_inspect())
+        .expect_err("a gas payment that is not a gas coin must be rejected");
     assert!(matches!(err, VmSdkError::Validation(_)), "got {err:?}");
 }
 
