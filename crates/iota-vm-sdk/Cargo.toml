@@ -74,6 +74,7 @@ serde.workspace = true
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 
 # internal dependencies
+iota-move-build.workspace = true
 iota-sdk-transaction-builder.workspace = true
 
 [[example]]
@@ -83,6 +84,11 @@ path = "examples/offline_dev_inspect.rs"
 [[example]]
 name = "authenticator_gas_profile"
 path = "examples/authenticator_gas_profile.rs"
+required-features = ["tracing"]
+
+[[example]]
+name = "move_authenticator_publish_and_call"
+path = "examples/move_authenticator_publish_and_call.rs"
 required-features = ["tracing"]
 
 [[example]]
@@ -97,6 +103,7 @@ required-features = ["graphql"]
 
 [package.metadata.cargo-udeps.ignore]
 development = [
+  "iota-move-build",
   "iota-sdk-transaction-builder",
 ]
 

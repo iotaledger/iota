@@ -1,0 +1,67 @@
+// Move bytecode v6
+module 0.account {
+use 0000000000000000000000000000000000000000000000000000000000000002::account as 1account;
+use 0000000000000000000000000000000000000000000000000000000000000002::auth_context;
+use 0000000000000000000000000000000000000000000000000000000000000002::authenticator_function;
+use 0000000000000000000000000000000000000000000000000000000000000002::object;
+use 0000000000000000000000000000000000000000000000000000000000000002::package_metadata;
+use 0000000000000000000000000000000000000000000000000000000000000002::transfer;
+use 0000000000000000000000000000000000000000000000000000000000000002::tx_context;
+use 0000000000000000000000000000000000000000000000000000000000000001::ascii;
+
+struct Account has store, key {
+	id: UID
+}
+
+struct ACCOUNT has drop {
+	dummy_field: bool
+}
+
+init(_otw#0#0: ACCOUNT, ctx#0#0: &mut TxContext) {
+B0:
+	0: MoveLoc[1](ctx#0#0: &mut TxContext)
+	1: Call object::new(&mut TxContext): UID
+	2: Pack[0](Account)
+	3: Call transfer::public_share_object<Account>(Account)
+	4: Ret
+}
+
+public link_auth(account#0#0: Account, package#0#0: &PackageMetadataV1, module_name#0#0: String, function_name#0#0: String) {
+L4:	authenticator#1#0: AuthenticatorFunctionRefV1<Account>
+B0:
+	0: MoveLoc[1](package#0#0: &PackageMetadataV1)
+	1: MoveLoc[2](module_name#0#0: String)
+	2: MoveLoc[3](function_name#0#0: String)
+	3: Call authenticator_function::create_auth_function_ref_v1<Account>(&PackageMetadataV1, String, String): AuthenticatorFunctionRefV1<Account>
+	4: StLoc[4](authenticator#1#0: AuthenticatorFunctionRefV1<Account>)
+	5: MoveLoc[0](account#0#0: Account)
+	6: MoveLoc[4](authenticator#1#0: AuthenticatorFunctionRefV1<Account>)
+	7: Call 1account::create_account_v1<Account>(Account, AuthenticatorFunctionRefV1<Account>)
+	8: Ret
+}
+
+public authenticate(_account#0#0: &Account, msg#0#0: String, _auth_ctx#0#0: &AuthContext, _ctx#0#0: &TxContext) {
+B0:
+	0: MoveLoc[1](msg#0#0: String)
+	1: LdConst[0](vector<u8>: "hel..)
+	2: Call ascii::string(vector<u8>): String
+	3: Eq
+	4: BrFalse(6)
+B1:
+	5: Branch(8)
+B2:
+	6: LdU64(0)
+	7: Abort
+B3:
+	8: Ret
+}
+
+public authenticate_no_args(_account#0#0: &Account, _auth_ctx#0#0: &AuthContext, _ctx#0#0: &TxContext) {
+B0:
+	0: Ret
+}
+
+Constants [
+	0 => vector<u8>: "hello" // interpreted as UTF8 string
+]
+}

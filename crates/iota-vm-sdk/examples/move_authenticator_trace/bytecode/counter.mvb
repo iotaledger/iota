@@ -1,0 +1,43 @@
+// Move bytecode v6
+module 0.counter {
+use 0000000000000000000000000000000000000000000000000000000000000002::object;
+use 0000000000000000000000000000000000000000000000000000000000000002::transfer;
+use 0000000000000000000000000000000000000000000000000000000000000002::tx_context;
+
+struct Counter has key {
+	id: UID,
+	value: u64
+}
+
+init(ctx#0#0: &mut TxContext) {
+B0:
+	0: MoveLoc[0](ctx#0#0: &mut TxContext)
+	1: Call object::new(&mut TxContext): UID
+	2: LdU64(42)
+	3: Pack[0](Counter)
+	4: Call transfer::share_object<Counter>(Counter)
+	5: Ret
+}
+
+public increment(counter#0#0: &mut Counter) {
+B0:
+	0: CopyLoc[0](counter#0#0: &mut Counter)
+	1: ImmBorrowField[0](Counter.value: u64)
+	2: ReadRef
+	3: LdU64(1)
+	4: Add
+	5: MoveLoc[0](counter#0#0: &mut Counter)
+	6: MutBorrowField[0](Counter.value: u64)
+	7: WriteRef
+	8: Ret
+}
+
+public value(counter#0#0: &Counter): u64 {
+B0:
+	0: MoveLoc[0](counter#0#0: &Counter)
+	1: ImmBorrowField[0](Counter.value: u64)
+	2: ReadRef
+	3: Ret
+}
+
+}
