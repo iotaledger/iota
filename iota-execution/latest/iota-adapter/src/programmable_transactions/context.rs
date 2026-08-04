@@ -14,6 +14,7 @@ mod checked {
         sync::Arc,
     };
 
+    use indexmap::IndexSet;
     use iota_move_natives::object_runtime::{
         self, LoadedRuntimeObject, ObjectRuntime, RuntimeResults, get_all_uids, max_event_error,
     };
@@ -937,76 +938,19 @@ mod checked {
                 written_objects.insert(id, object);
             }
 
-            // Before finishing, ensure that any shared object taken by value by the
-            // transaction is either:
-            // 1. Mutated (and still has a shared ownership); or
-            // 2. Deleted.
-            // Otherwise, the shared object operation is not allowed and we fail the
-            // transaction.
-            for id in &by_value_shared_objects {
-                // If it's been written it must have been reshared so must still have an
-                // ownership of `Shared`.
-                if let Some(obj) = written_objects.get(id) {
-                    if !obj.is_shared() {
-                        return Err(ExecutionError::new(
-                            ExecutionErrorKind::SharedObjectOperationNotAllowed,
-                            Some(
-                                format!(
-                                    "Shared object operation on {id} not allowed: \
-                                     cannot be frozen, transferred, or wrapped"
-                                )
-                                .into(),
-                            ),
-                        ));
-                    }
-                } else {
-                    // If it's not in the written objects, the object must have been deleted.
-                    // Otherwise it's an error.
-                    if !deleted_object_ids.contains(id) {
-                        return Err(ExecutionError::new(
-                            ExecutionErrorKind::SharedObjectOperationNotAllowed,
-                            Some(
-                                format!("Shared object operation on {id} not allowed: \
-                                         shared objects used by value must be re-shared if not deleted").into(),
-                            ),
-                        ));
-                    }
-                }
-            }
-
-            let DenyListResult {
-                result,
-                num_non_gas_coin_owners,
-            } = state_view.check_coin_deny_list(&written_objects);
-            gas_charger.charge_coin_transfers(protocol_config, num_non_gas_coin_owners)?;
-            result?;
-
-            let user_events = user_events
-                .into_iter()
-                .map(|(module_id, tag, contents)| {
-                    let package_id = ObjectId::new(module_id.address().into_bytes());
-                    let module = identifier_core_to_sdk(module_id.name());
-                    let sender = ref_context.borrow().sender();
-                    Event {
-                        package_id,
-                        module,
-                        sender,
-                        type_: tag,
-                        contents,
-                    }
-                })
-                .collect();
-
-            Ok(ExecutionResults::V1(ExecutionResultsV1 {
+            let results = finish(
+                protocol_config,
+                state_view,
+                gas_charger,
+                &ref_context.borrow(),
+                &by_value_shared_objects,
+                loaded_runtime_objects,
                 written_objects,
-                modified_objects: loaded_runtime_objects
-                    .into_iter()
-                    .filter_map(|(id, loaded)| loaded.is_modified.then_some(id))
-                    .collect(),
-                created_object_ids: created_object_ids.into_iter().collect(),
-                deleted_object_ids: deleted_object_ids.into_iter().collect(),
+                created_object_ids,
+                deleted_object_ids,
                 user_events,
-            }))
+            );
+            results
         }
 
         /// Convert a VM Error to an execution one
@@ -1302,6 +1246,90 @@ mod checked {
     /// context to resolve the struct's module and verifies
     /// any type parameter constraints. If the struct has type parameters, they
     /// are recursively loaded and verified.
+    pub fn finish(
+        protocol_config: &ProtocolConfig,
+        state_view: &dyn ExecutionState,
+        gas_charger: &mut GasCharger,
+        tx_context: &TxContext,
+        by_value_shared_objects: &BTreeSet<ObjectId>,
+        loaded_runtime_objects: BTreeMap<ObjectId, LoadedRuntimeObject>,
+        written_objects: BTreeMap<ObjectId, Object>,
+        created_object_ids: IndexSet<ObjectId>,
+        deleted_object_ids: IndexSet<ObjectId>,
+        user_events: Vec<(ModuleId, StructTag, Vec<u8>)>,
+    ) -> Result<ExecutionResults, ExecutionError> {
+        // Before finishing, ensure that any shared object taken by value by the
+        // transaction is either:
+        // 1. Mutated (and still has a shared ownership); or
+        // 2. Deleted.
+        // Otherwise, the shared object operation is not allowed and we fail the
+        // transaction.
+        for id in by_value_shared_objects {
+            // If it's been written it must have been reshared so must still have an
+            // ownership of `Shared`.
+            if let Some(obj) = written_objects.get(id) {
+                if !obj.is_shared() {
+                    return Err(ExecutionError::new(
+                        ExecutionErrorKind::SharedObjectOperationNotAllowed,
+                        Some(
+                            format!(
+                                "Shared object operation on {id} not allowed: \
+                                 cannot be frozen, transferred, or wrapped"
+                            )
+                            .into(),
+                        ),
+                    ));
+                }
+            } else {
+                // If it's not in the written objects, the object must have been deleted.
+                // Otherwise it's an error.
+                if !deleted_object_ids.contains(id) {
+                    return Err(ExecutionError::new(
+                        ExecutionErrorKind::SharedObjectOperationNotAllowed,
+                        Some(
+                            format!("Shared object operation on {id} not allowed: \
+                                     shared objects used by value must be re-shared if not deleted").into(),
+                        ),
+                    ));
+                }
+            }
+        }
+
+        let DenyListResult {
+            result,
+            num_non_gas_coin_owners,
+        } = state_view.check_coin_deny_list(&written_objects);
+        gas_charger.charge_coin_transfers(protocol_config, num_non_gas_coin_owners)?;
+        result?;
+
+        let user_events = user_events
+            .into_iter()
+            .map(|(module_id, tag, contents)| {
+                let package_id = ObjectId::new(module_id.address().into_bytes());
+                let module = identifier_core_to_sdk(module_id.name());
+                let sender = tx_context.sender();
+                Event {
+                    package_id,
+                    module,
+                    sender,
+                    type_: tag,
+                    contents,
+                }
+            })
+            .collect();
+
+        Ok(ExecutionResults::V1(ExecutionResultsV1 {
+            written_objects,
+            modified_objects: loaded_runtime_objects
+                .into_iter()
+                .filter_map(|(id, loaded)| loaded.is_modified.then_some(id))
+                .collect(),
+            created_object_ids: created_object_ids.into_iter().collect(),
+            deleted_object_ids: deleted_object_ids.into_iter().collect(),
+            user_events,
+        }))
+    }
+
     pub fn load_type_from_struct(
         vm: &MoveVM,
         linkage_view: &LinkageView,
@@ -1712,7 +1740,7 @@ mod checked {
         )
     }
 
-    enum EitherError {
+    pub enum EitherError {
         CommandArgument(CommandArgumentError),
         Execution(ExecutionError),
     }
@@ -1730,7 +1758,7 @@ mod checked {
     }
 
     impl EitherError {
-        fn into_execution_error(self, command_index: usize) -> ExecutionError {
+        pub fn into_execution_error(self, command_index: usize) -> ExecutionError {
             match self {
                 EitherError::CommandArgument(e) => command_argument_error(e, command_index),
                 EitherError::Execution(e) => e,

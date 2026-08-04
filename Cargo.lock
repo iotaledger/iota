@@ -5501,6 +5501,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "bcs",
+ "indexmap 2.11.0",
  "iota-common",
  "iota-macros",
  "iota-metrics",
@@ -5514,6 +5515,7 @@ dependencies = [
  "move-bytecode-verifier",
  "move-bytecode-verifier-meter",
  "move-core-types",
+ "move-regex-borrow-graph",
  "move-trace-format",
  "move-vm-config",
  "move-vm-profiler",
