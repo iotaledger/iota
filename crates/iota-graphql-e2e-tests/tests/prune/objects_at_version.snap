@@ -74,15 +74,30 @@ task 15, line 60:
 //# create-checkpoint
 Checkpoint created: 10
 
-task 16, lines 62-70:
+task 16, lines 62-71:
 //# run-graphql --wait-for-checkpoint-pruned 6
 Response: {
-  "data": {
-    "object": null
-  }
+  "data": null,
+  "errors": [
+    {
+      "message": "Requested data has been pruned: data for object 0x843c5fd93fafc7cfca2e5650b9a80981090d17f139f52833326078623e814353 potentially pruned",
+      "locations": [
+        {
+          "line": 5,
+          "column": 3
+        }
+      ],
+      "path": [
+        "object"
+      ],
+      "extensions": {
+        "code": "DATA_PRUNED"
+      }
+    }
+  ]
 }
 
-task 17, lines 72-82:
+task 17, lines 73-83:
 //# run-graphql
 Response: {
   "data": {
@@ -101,7 +116,7 @@ Response: {
   }
 }
 
-task 18, lines 84-91:
+task 18, lines 85-92:
 //# run-graphql
 Response: {
   "data": {
@@ -109,17 +124,33 @@ Response: {
   }
 }
 
-task 19, lines 93-105:
+task 19, lines 94-106:
 //# run-graphql
 Response: {
   "data": {
-    "owner": {
-      "dynamicField": null
+    "owner": null
+  },
+  "errors": [
+    {
+      "message": "Requested data has been pruned: data for object 0xac52fe97efc94b3b3426355ae8545a236c90588040d60efe51e600aa08302bc5 potentially pruned",
+      "locations": [
+        {
+          "line": 6,
+          "column": 5
+        }
+      ],
+      "path": [
+        "owner",
+        "dynamicField"
+      ],
+      "extensions": {
+        "code": "DATA_PRUNED"
+      }
     }
-  }
+  ]
 }
 
-task 20, lines 107-117:
+task 20, lines 108-118:
 //# run-graphql
 Response: {
   "data": {

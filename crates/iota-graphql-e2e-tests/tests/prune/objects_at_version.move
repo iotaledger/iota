@@ -61,7 +61,8 @@ module P0::m {
 
 //# run-graphql --wait-for-checkpoint-pruned 6
 # A: Query.object at a version whose row content has been pruned — no
-# fallback. The version resolves as non-existent.
+# fallback. The version is known to `objects_version`, so the request errors
+# with DATA_PRUNED.
 {
   object(address: "@{obj_2_0}", version: 3) {
     version
@@ -92,8 +93,8 @@ module P0::m {
 
 //# run-graphql
 # D: a dynamic field looked up at a pruned parent version — the field
-# object's history at that version has been pruned, so the field resolves as
-# non-existent.
+# object's history at that version has been pruned, so the field errors with
+# DATA_PRUNED.
 {
   owner(address: "@{obj_2_0}", rootVersion: 3) {
     dynamicField(name: {type: "u64", bcs: "KgAAAAAAAAA="}) {
