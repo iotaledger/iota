@@ -35,7 +35,7 @@ iota-metrics.workspace = true
 # `wasm32-unknown-unknown` needs the `js` feature for a randomness source; that
 # feature is enabled on the workspace `getrandom` dependency.
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-getrandom.workspace = true
+getrandom = { version = "0.2", features = ["js"] }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["test-util", "macros"] }

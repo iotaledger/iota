@@ -14,6 +14,15 @@ clap.workspace = true
 derive_more = { workspace = true, features = ["debug"] }
 fastcrypto.workspace = true
 futures.workspace = true
+jsonrpsee.workspace = true
+rand.workspace = true
+regex.workspace = true
+reqwest.workspace = true
+serde_json.workspace = true
+tempfile.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "time"] }
+tracing.workspace = true
+uuid.workspace = true
 
 # internal dependencies
 iota-config.workspace = true
@@ -31,18 +40,9 @@ iota-swarm.workspace = true
 iota-swarm-config.workspace = true
 iota-test-transaction-builder.workspace = true
 iota-types.workspace = true
-jsonrpsee.workspace = true
 prometheus-filtered.workspace = true
-rand.workspace = true
-regex.workspace = true
-reqwest.workspace = true
-serde_json.workspace = true
 telemetry-subscribers.workspace = true
-tempfile.workspace = true
 test-cluster.workspace = true
-tokio = { workspace = true, features = ["rt-multi-thread", "macros", "time"] }
-tracing.workspace = true
-uuid.workspace = true
 
 [features]
 default = []

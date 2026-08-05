@@ -49,6 +49,10 @@ wasm-bindgen = { version = "0.2", optional = true }
 base64 = { workspace = true, optional = true }
 bcs.workspace = true
 chrono = { workspace = true, optional = true }
+serde_json.workspace = true
+thiserror.workspace = true
+tokio = { workspace = true, optional = true, features = ["macros", "rt", "rt-multi-thread"] }
+tonic = { workspace = true, optional = true }
 
 # internal dependencies
 iota-config.workspace = true
@@ -64,21 +68,17 @@ move-binary-format.workspace = true
 move-bytecode-utils.workspace = true
 move-core-types.workspace = true
 move-trace-format.workspace = true
-serde_json.workspace = true
-thiserror.workspace = true
-tokio = { workspace = true, optional = true, features = ["macros", "rt", "rt-multi-thread"] }
-tonic = { workspace = true, optional = true }
 
 [dev-dependencies]
 # external dependencies
 anyhow.workspace = true
 fastcrypto.workspace = true
-
-# internal dependencies
-iota-sdk-transaction-builder.workspace = true
 rand.workspace = true
 serde.workspace = true
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+
+# internal dependencies
+iota-sdk-transaction-builder.workspace = true
 
 [[example]]
 name = "offline_dev_inspect"
