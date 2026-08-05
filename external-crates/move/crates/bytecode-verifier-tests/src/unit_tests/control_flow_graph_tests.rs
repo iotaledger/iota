@@ -3,11 +3,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use itertools::Itertools;
+use move_abstract_interpreter::control_flow_graph::ControlFlowGraph;
 use move_binary_format::file_format::{
-    Bytecode, EnumDefinitionIndex, JumpTableInner, VariantJumpTable, VariantJumpTableIndex,
+    Bytecode, CodeOffset, EnumDefinitionIndex, JumpTableInner, VariantJumpTable,
+    VariantJumpTableIndex,
 };
-
-use crate::control_flow_graph::{BlockId, ControlFlowGraph, VMControlFlowGraph};
+use move_bytecode_verifier::absint::VMControlFlowGraph;
 
 #[test]
 fn traversal_no_loops() {
@@ -232,8 +233,8 @@ fn out_of_order_blocks_variant_switch() {
 /// Return a vector containing the `BlockId`s from `cfg` in the order suggested
 /// by successively calling `ControlFlowGraph::next_block` starting from the
 /// entry block.
-fn traversal(cfg: &dyn ControlFlowGraph) -> Vec<BlockId> {
-    let mut order = Vec::with_capacity(cfg.num_blocks() as usize);
+fn traversal(cfg: &VMControlFlowGraph) -> Vec<CodeOffset> {
+    let mut order = Vec::with_capacity(cfg.num_blocks());
     let mut next = Some(cfg.entry_block_id());
 
     while let Some(block) = next {
