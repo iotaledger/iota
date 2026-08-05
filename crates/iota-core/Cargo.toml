@@ -35,7 +35,6 @@ mockall.workspace = true
 moka.workspace = true
 nonempty.workspace = true
 num_cpus.workspace = true
-object_store.workspace = true
 once_cell.workspace = true
 parking_lot.workspace = true
 pin-project-lite.workspace = true

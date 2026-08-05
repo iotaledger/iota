@@ -17,7 +17,7 @@ use iota_config::{
     Config, ExecutionCacheConfig, IOTA_CLIENT_CONFIG, IOTA_KEYSTORE_FILENAME, IOTA_NETWORK_CONFIG,
     NodeConfig, PersistedConfig,
     genesis::Genesis,
-    node::{AuthorityOverloadConfig, DBCheckpointConfig, GrpcApiConfig, RunWithRange},
+    node::{AuthorityOverloadConfig, GrpcApiConfig, RunWithRange},
     transaction_deny_config::TransactionDenyConfig,
 };
 use iota_core::{
@@ -1072,8 +1072,6 @@ pub struct TestClusterBuilder {
     validator_supported_protocol_versions_config: ProtocolVersionsConfig,
     // Default to validator_supported_protocol_versions_config, but can be overridden.
     fullnode_supported_protocol_versions_config: Option<ProtocolVersionsConfig>,
-    db_checkpoint_config_validators: DBCheckpointConfig,
-    db_checkpoint_config_fullnodes: DBCheckpointConfig,
     num_unpruned_validators: Option<usize>,
     config_dir: Option<PathBuf>,
     authority_overload_config: Option<AuthorityOverloadConfig>,
@@ -1106,8 +1104,6 @@ impl TestClusterBuilder {
             disable_fullnode_pruning: false,
             validator_supported_protocol_versions_config: ProtocolVersionsConfig::Default,
             fullnode_supported_protocol_versions_config: None,
-            db_checkpoint_config_validators: DBCheckpointConfig::default(),
-            db_checkpoint_config_fullnodes: DBCheckpointConfig::default(),
             num_unpruned_validators: None,
             config_dir: None,
             authority_overload_config: None,
@@ -1197,28 +1193,6 @@ impl TestClusterBuilder {
 
     pub fn disable_fullnode_pruning(mut self) -> Self {
         self.disable_fullnode_pruning = true;
-        self
-    }
-
-    pub fn with_enable_db_checkpoints_validators(mut self) -> Self {
-        self.db_checkpoint_config_validators = DBCheckpointConfig {
-            perform_db_checkpoints_at_epoch_end: true,
-            checkpoint_path: None,
-            object_store_config: None,
-            perform_index_db_checkpoints_at_epoch_end: None,
-            prune_and_compact_before_upload: None,
-        };
-        self
-    }
-
-    pub fn with_enable_db_checkpoints_fullnodes(mut self) -> Self {
-        self.db_checkpoint_config_fullnodes = DBCheckpointConfig {
-            perform_db_checkpoints_at_epoch_end: true,
-            checkpoint_path: None,
-            object_store_config: None,
-            perform_index_db_checkpoints_at_epoch_end: None,
-            prune_and_compact_before_upload: Some(true),
-        };
         self
     }
 
@@ -1419,7 +1393,6 @@ impl TestClusterBuilder {
                 NonZeroUsize::new(self.num_validators.unwrap_or(NUM_VALIDATOR)).unwrap(),
             )
             .with_objects(self.additional_objects.clone())
-            .with_db_checkpoint_config(self.db_checkpoint_config_validators.clone())
             .with_supported_protocol_versions_config(
                 self.validator_supported_protocol_versions_config.clone(),
             )
@@ -1432,7 +1405,6 @@ impl TestClusterBuilder {
                     .clone()
                     .unwrap_or(self.validator_supported_protocol_versions_config.clone()),
             )
-            .with_db_checkpoint_config(self.db_checkpoint_config_fullnodes.clone())
             .with_fullnode_run_with_range(self.fullnode_run_with_range)
             .with_fullnode_policy_config(self.fullnode_policy_config.clone())
             .with_fullnode_fw_config(self.fullnode_fw_config.clone());
