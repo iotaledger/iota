@@ -542,11 +542,11 @@ for ((_iter = 1; _iter <= ITERS; _iter++)); do
   run_one_iteration
 done
 
-banner "== raw data collected — no aggregation step yet =="
+banner "== raw data collected =="
 n_iters=$(ls -1d "$EXP_DIR"/iter-*/ 2>/dev/null | wc -l | tr -d ' ')
 echo "experiment '$LABEL': $n_iters iteration(s) under $(rel "$EXP_DIR")"
 echo "Each iteration holds run-a/run-b timeseries JSONs + client benchmark reports."
-echo "Cross-run aggregation and plots are not written yet — see README.md."
+echo "Aggregate across labels: python3 aggregate.py results   (plots: see README.md)"
 
 echo
 echo "${CYAN}Grafana: http://localhost:3000/d/attestation-sequencer-stress${RESET}"

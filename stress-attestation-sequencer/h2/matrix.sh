@@ -203,4 +203,4 @@ mins=$((($(date +%s) - start) / 60))
 echo
 echo "matrix complete: $ok ok, $fail failed (of $n) in ${mins}m"
 echo "results -> results/<LABEL>/iter-NNN/  (run-a/run-b timeseries JSON + client reports)"
-echo "no aggregation step yet — see README.md"
+echo "aggregate: python3 aggregate.py results   (writes results/summary.md)"

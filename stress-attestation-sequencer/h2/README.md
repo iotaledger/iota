@@ -182,6 +182,12 @@ results/<LABEL>/
   Run B. Needs `LABEL` and `LIMIT_B`.
 - `matrix.sh` — runs `run.sh` over the config grid, one iteration of every
   config per round, `ITERS` rounds, with one log per config under `logs/`.
+- `aggregate.py` — pools every label's iterations into one A-vs-B table per
+  mode pair (`results/summary.md`): success tps (checkpoint-included minus
+  cancelled), cancelled rate, pooled checkpoint-lag quantiles, skipped leader
+  rounds, and the safety verdict (counters + validator crash scan). Standard
+  library only; the machinery shared with `../h1/aggregate.py` lives in
+  `../aggregate.py`.
 - `probe.sh` — run one `(SLOW_N, SLOW_SIZE)` point: start the network or reuse a
   running one, scrape metrics, append a CSV row, and optionally tear down
   the network (by default, it leaves the network up).
@@ -200,26 +206,19 @@ The results so far are written up in `probe-test.md`.
 
 ## Next steps
 
-The grid in `matrix.sh` is set up but has not been run yet. Still to do:
-
-- **Measure the computation units of the shared-object transactions.** The
-  calibration measured owned-object ones; the transactions in the grid carry a
-  mutable shared input as well. Run
-  `SLOW_N=<n> SLOW_SIZE=100 SLOW_SHARED=true ./probe.sh` for each cost point and
-  correct the table in `matrix.sh` if the numbers differ. The costs decide which
-  limits a point can be run at — a limit below one transaction's cost admits
-  nothing — and they are how the units admitted per commit get read back as a
-  number of transactions.
-- **Decide what to collect and write the aggregation.** Every run saves the full
-  metric set, but nothing reads it yet: H2 needs its own `aggregate.py` and
-  `plot.py`, adapted from `../h1/` for two modes instead of attestation off/on.
-  The numbers the plan asks for are throughput
-  (`transactions_included_in_checkpoint`), latency, and how much each mode
-  deferred or cancelled per object
-  (`consensus_handler_deferred_transactions`,
-  `consensus_handler_cancelled_transactions`,
-  `consensus_handler_transaction_deferral_rounds`,
-  `consensus_handler_scheduled_transactions_per_object_per_commit`).
+- **Re-measure the shared-object execution times.** The shared-object probe
+  runs measured the attested units (they are in `matrix.sh`'s cost table) but
+  not the execution times: the probe started its network with the default
+  per-object limit of 10 units, below any transaction's cost, so every
+  shared-input transaction was deferred and cancelled instead of executed.
+  `probe.sh` needs to start the network with a limit no probe transaction can
+  reach (e.g. `MAX_ACCUMULATED_TXN_COST=50000000`), then the sweep re-run and
+  the `drains` column in `matrix.sh` filled in.
+- **Write the plots.** `aggregate.py` covers the tables; H2 still has no
+  `plot.py` (adapt `../h1/plot.py` for two modes instead of attestation
+  off/on). Metrics worth curves beyond what the table reduces to scalars:
+  `consensus_handler_transaction_deferral_rounds` and
+  `consensus_handler_scheduled_transactions_per_object_per_commit`.
 - **Add a run whose transactions do not all cost the same.** The grid is all
   fixed-cost, which is the control; the modes can only differ when the cost
   varies, since that is when a count limit and a cost limit admit different
