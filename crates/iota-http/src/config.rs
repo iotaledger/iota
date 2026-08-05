@@ -5,6 +5,12 @@
 use std::time::Duration;
 
 const DEFAULT_HTTP2_KEEPALIVE_TIMEOUT_SECS: u64 = 20;
+/// Covers a round trip plus a few TCP retransmissions on a lossy link; an
+/// unloaded TLS 1.3 handshake completes in one round trip.
+const DEFAULT_HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(5);
+/// Concurrent handshakes only build up when peers are slow or silent, so this
+/// leaves ample room for a legitimate reconnect burst.
+const DEFAULT_MAX_PENDING_CONNECTIONS: usize = 512;
 
 #[derive(Debug, Clone)]
 pub struct Config {
@@ -23,6 +29,8 @@ pub struct Config {
     enable_connect_protocol: bool,
     pub(crate) max_connection_age: Option<Duration>,
     pub(crate) allow_insecure: bool,
+    pub(crate) handshake_timeout: Option<Duration>,
+    pub(crate) max_pending_connections: Option<usize>,
 }
 
 impl Default for Config {
@@ -43,6 +51,8 @@ impl Default for Config {
             enable_connect_protocol: true,
             max_connection_age: None,
             allow_insecure: false,
+            handshake_timeout: Some(DEFAULT_HANDSHAKE_TIMEOUT),
+            max_pending_connections: Some(DEFAULT_MAX_PENDING_CONNECTIONS),
         }
     }
 }
@@ -215,6 +225,32 @@ impl Config {
     pub fn allow_insecure(self, allow_insecure: bool) -> Self {
         Config {
             allow_insecure,
+            ..self
+        }
+    }
+
+    /// Sets how long an accepted connection may take to complete its TLS
+    /// handshake before it is closed. The peer is unauthenticated for the whole
+    /// handshake, so without this a silent peer holds a task and a file
+    /// descriptor indefinitely.
+    ///
+    /// Default is 5 seconds. `None` disables the deadline.
+    pub fn handshake_timeout(self, handshake_timeout: Option<Duration>) -> Self {
+        Self {
+            handshake_timeout,
+            ..self
+        }
+    }
+
+    /// Sets how many accepted connections may be handshaking at the same time.
+    /// While the limit is reached the server stops accepting, leaving new
+    /// connections in the kernel backlog instead of holding file descriptors
+    /// for them.
+    ///
+    /// Default is 512. `None` removes the limit.
+    pub fn max_pending_connections(self, max_pending_connections: Option<usize>) -> Self {
+        Self {
+            max_pending_connections,
             ..self
         }
     }
