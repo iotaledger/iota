@@ -548,6 +548,15 @@ pub struct TonicParameters {
     /// Per-peer, per-RPC admission caps for the inbound consensus server.
     #[serde(default)]
     pub admission: AdmissionParameters,
+
+    /// Deadline for receiving the request message that opens a block
+    /// subscription stream. A peer that opens the stream and withholds the
+    /// request is disconnected once it expires; the stream itself stays exempt
+    /// from `request_timeout`.
+    ///
+    /// A zero duration (the default) disables the deadline.
+    #[serde(default)]
+    pub subscribe_request_timeout: Duration,
 }
 
 impl TonicParameters {
@@ -587,6 +596,9 @@ impl TonicParameters {
         if self.admission.is_inert() {
             self.admission = AdmissionParameters::protective();
         }
+        if self.subscribe_request_timeout.is_zero() {
+            self.subscribe_request_timeout = Duration::from_secs(30);
+        }
     }
 
     /// The inert defaults with the protective bounds applied.
@@ -608,6 +620,7 @@ impl Default for TonicParameters {
             request_timeout: Duration::ZERO,
             max_inbound_message_size: 0,
             admission: AdmissionParameters::default(),
+            subscribe_request_timeout: Duration::ZERO,
         }
     }
 }
