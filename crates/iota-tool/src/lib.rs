@@ -836,16 +836,37 @@ pub async fn download_formal_snapshot(
     let genesis_committee = genesis.committee()?;
     let expected_chain_id = ChainIdentifier::from(*genesis.checkpoint().digest());
 
-    // Download and chain-verify the snapshot's EPOCH_INFO up front (one small
-    // file): every entry's certified closing summary is checked against the
-    // committee chain walked from the operator's genesis. It drives the
-    // default (archive-free) summary sync and the checkpoint store's epoch seeding,
-    // and rejects a wrong-network or tampered snapshot before anything large is
-    // downloaded.
-    let (snapshot_chain_id, epoch_info) =
-        StateSnapshotReaderV1::read_epoch_info(epoch, &snapshot_store_config, &m).await?;
-    // One signature check and one boundary proof per epoch since genesis, all
-    // before any of the snapshot proper is downloaded.
+    // The reader reads the snapshot's MANIFEST and nothing else, so the
+    // EPOCH_INFO check below happens before any of the snapshot proper is
+    // transferred; the reference and object files come down in `read` at the
+    // end of this function.
+    let snapshot_dir = path.parent().unwrap().join("snapshot");
+    if snapshot_dir.exists() {
+        fs::remove_dir_all(snapshot_dir.clone())?;
+    }
+    let local_store_config = ObjectStoreConfig {
+        object_store: Some(ObjectStoreType::File),
+        directory: Some(snapshot_dir.to_path_buf()),
+        ..Default::default()
+    };
+    let mut reader = StateSnapshotReaderV1::new(
+        epoch,
+        &snapshot_store_config,
+        &local_store_config,
+        NonZeroUsize::new(num_parallel_downloads).unwrap(),
+        m.clone(),
+        false, // skip_reset_local_store
+    )
+    .await?;
+
+    // Chain-verify the snapshot's EPOCH_INFO up front: every entry's certified
+    // closing summary is checked against the committee chain walked from the
+    // operator's genesis. It drives the default (archive-free) summary sync and
+    // the checkpoint store's epoch seeding, and rejects a wrong-network or
+    // tampered snapshot before anything large is downloaded.
+    let snapshot_chain_id = reader.chain_id();
+    let epoch_info = reader.read_epoch_info().await?;
+    // One signature check and one boundary proof per epoch since genesis.
     println_or_log(
         &m,
         format!(
@@ -904,34 +925,13 @@ pub async fn download_formal_snapshot(
 
     let (_abort_handle, abort_registration) = AbortHandle::new_pair();
     let perpetual_db_clone = perpetual_db.clone();
-    let snapshot_dir = path.parent().unwrap().join("snapshot");
-    if snapshot_dir.exists() {
-        fs::remove_dir_all(snapshot_dir.clone())?;
-    }
-    let snapshot_dir_clone = snapshot_dir.clone();
 
     // TODO if verify is false, we should skip generating these and
     // not pass in a channel to the reader
     let (sender, mut receiver) = mpsc::channel(num_parallel_downloads);
-    let m_clone = m.clone();
     let grpc_indexes_clone = grpc_indexes.clone();
 
     let snapshot_handle = tokio::spawn(async move {
-        let local_store_config = ObjectStoreConfig {
-            object_store: Some(ObjectStoreType::File),
-            directory: Some(snapshot_dir_clone.to_path_buf()),
-            ..Default::default()
-        };
-        let mut reader = StateSnapshotReaderV1::new(
-            epoch,
-            &snapshot_store_config,
-            &local_store_config,
-            NonZeroUsize::new(num_parallel_downloads).unwrap(),
-            m_clone,
-            false, // skip_reset_local_store
-        )
-        .await
-        .unwrap_or_else(|err| panic!("Failed to create reader: {err}"));
         if let Some(grpc_indexes) = &grpc_indexes_clone {
             let grpc_restorer =
                 grpc_indexes.live_object_restorer(bulk_ingestion_options().batch_size_limit);

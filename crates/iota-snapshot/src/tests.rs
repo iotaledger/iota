@@ -387,10 +387,10 @@ async fn snapshot_round_trip(
 
     // Snapshot is at epoch 0, so EPOCH_INFO has exactly one entry, which must
     // round-trip into an `EpochInfoV2`.
-    let (_, epoch_info) =
-        StateSnapshotReaderV1::read_epoch_info(0, &remote_store_config, &MultiProgress::new())
-            .await
-            .expect("read_epoch_info");
+    let epoch_info = snapshot_reader
+        .read_epoch_info()
+        .await
+        .expect("read_epoch_info");
     assert_eq!(
         epoch_info.entries().len(),
         1,
@@ -440,15 +440,25 @@ async fn epoch_info_round_trip(
         .await?;
 
     // 2. LOAD via `read_epoch_info` (the formal-snapshot restore's EPOCH_INFO-first
-    //    step): downloads only MANIFEST + EPOCH_INFO, verifies sha3 + magic.
-    let (chain_id, epoch_info) = StateSnapshotReaderV1::read_epoch_info(
+    //    step): the reader downloads only the MANIFEST, and `read_epoch_info` then
+    //    the one EPOCH_INFO file, verifying sha3 + magic.
+    let local_store_read_config = ObjectStoreConfig {
+        object_store: Some(ObjectStoreType::File),
+        directory: Some(tmp_dir.join("local_dir_read")),
+        ..Default::default()
+    };
+    let snapshot_reader = StateSnapshotReaderV1::new(
         snapshot_epoch,
         &remote_store_config,
-        &MultiProgress::new(),
+        &local_store_read_config,
+        NonZeroUsize::new(1).unwrap(),
+        MultiProgress::new(),
+        false, // skip_reset_local_store
     )
     .await?;
+    let epoch_info = snapshot_reader.read_epoch_info().await?;
     assert_eq!(
-        chain_id,
+        snapshot_reader.chain_id(),
         ChainIdentifier::default(),
         "manifest chain_id must round-trip through the snapshot"
     );

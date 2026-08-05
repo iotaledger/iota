@@ -46,7 +46,7 @@ pub const LOG_TARGET_PROGRESS: &str = module_path!();
 /// that depend on the status lines.
 pub fn println_or_log(m: &MultiProgress, msg: impl AsRef<str>) -> std::io::Result<()> {
     if m.is_hidden() {
-        info!(target: PROGRESS_LOG_TARGET, "{}", msg.as_ref());
+        info!(target: LOG_TARGET_PROGRESS, "{}", msg.as_ref());
         Ok(())
     } else {
         m.println(msg)

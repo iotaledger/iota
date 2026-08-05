@@ -63,21 +63,27 @@ pub struct StateSnapshotReaderV1 {
     local_staging_dir_root: PathBuf,
     remote_object_store: Arc<dyn ObjectStoreGetExt>,
     local_object_store: Arc<dyn ObjectStorePutExt>,
+    local_object_store_list: Arc<dyn ObjectStoreListExt>,
     ref_files: BTreeMap<u32, BTreeMap<u32, FileMetadata>>,
     object_files: BTreeMap<u32, BTreeMap<u32, FileMetadata>>,
+    epoch_info_metadata: FileMetadata,
     /// Chain identifier recorded in the snapshot's `ManifestV2`.
     chain_id: ChainIdentifier,
     multi_progress_bar: MultiProgress,
-    /// Single download bar spanning both phases: the reference files
-    /// downloaded during construction and the object files downloaded during
-    /// [`Self::read`]. Its totals cover both file sets combined.
-    download_progress: Arc<DownloadProgressBar>,
     concurrency: NonZeroUsize,
+    /// When set, the staging directory is left as it is and any reference
+    /// files already in it are not downloaded again.
+    skip_reset_local_store: bool,
 }
 
 impl StateSnapshotReaderV1 {
-    /// Downloads the MANIFEST, FileMetadata of objects and references from the
-    /// remote store, then creates a StateSnapshotReaderV1 instance.
+    /// Reads the snapshot's MANIFEST — the metadata of its reference, object
+    /// and `EPOCH_INFO` files — and prepares the local staging directory.
+    ///
+    /// Only the MANIFEST is downloaded here. The reference and object files
+    /// both come down in [`Self::read`], so a caller can read and check
+    /// [`Self::read_epoch_info`] first and reject the snapshot before any of
+    /// it is transferred.
     pub async fn new(
         epoch: u64,
         remote_store_config: &ObjectStoreConfig,
@@ -160,9 +166,31 @@ impl StateSnapshotReaderV1 {
                 FileType::EpochInfo => epoch_info_files.push(file_metadata.clone()),
             }
         }
-        Self::single_epoch_info_metadata(epoch_info_files)?;
-        // Collects the path of all reference files
-        let files: Vec<Path> = ref_files
+        let epoch_info_metadata = Self::single_epoch_info_metadata(epoch_info_files)?;
+        Ok(StateSnapshotReaderV1 {
+            epoch,
+            local_staging_dir_root,
+            remote_object_store,
+            local_object_store,
+            local_object_store_list,
+            ref_files,
+            object_files,
+            epoch_info_metadata,
+            chain_id,
+            multi_progress_bar,
+            concurrency: download_concurrency,
+            skip_reset_local_store,
+        })
+    }
+
+    /// Downloads every reference file into the local staging directory, where
+    /// [`Self::ref_iter`] reads them from, and returns the bar it advanced —
+    /// whose totals also cover the object files that
+    /// [`Self::sync_live_objects`] downloads onto the same bar.
+    async fn download_reference_files(&self) -> Result<Arc<DownloadProgressBar>> {
+        let epoch_dir_path = self.epoch_dir();
+        let ref_file_paths: Vec<Path> = self
+            .ref_files
             .values()
             .flat_map(|entry| {
                 entry
@@ -171,8 +199,9 @@ impl StateSnapshotReaderV1 {
             })
             .collect();
 
-        let files_to_download = if skip_reset_local_store {
-            let mut list_stream = local_object_store_list
+        let files_to_download = if self.skip_reset_local_store {
+            let mut list_stream = self
+                .local_object_store_list
                 .list_objects(Some(&epoch_dir_path))
                 .await;
             let mut existing_files = std::collections::HashSet::new();
@@ -180,19 +209,18 @@ impl StateSnapshotReaderV1 {
                 existing_files.insert(meta.location);
             }
             let mut missing_files = Vec::new();
-            for file in &files {
+            for file in &ref_file_paths {
                 if !existing_files.contains(file) {
                     missing_files.push(file.clone());
                 }
             }
             missing_files
         } else {
-            files
+            ref_file_paths
         };
 
-        // The bar covers both download phases combined: the reference files
-        // downloaded here and the object files downloaded later in `read`.
-        let object_file_paths: Vec<Path> = object_files
+        let object_file_paths: Vec<Path> = self
+            .object_files
             .values()
             .flat_map(|entry| {
                 entry
@@ -202,45 +230,36 @@ impl StateSnapshotReaderV1 {
             .collect();
         let num_files = (files_to_download.len() + object_file_paths.len()) as u64;
         let total_bytes = fetch_total_bytes(
-            &remote_object_store,
+            &self.remote_object_store,
             files_to_download
                 .iter()
                 .cloned()
                 .chain(object_file_paths)
                 .collect(),
-            download_concurrency.get(),
-            &multi_progress_bar,
+            self.concurrency.get(),
+            &self.multi_progress_bar,
         )
         .await;
+
         let download_progress = Arc::new(DownloadProgressBar::new(
-            &multi_progress_bar,
+            &self.multi_progress_bar,
             "Downloading files",
             num_files,
             total_bytes,
         ));
+
         // Downloads all reference files from remote store to local store in parallel
         // and updates the progress bar accordingly
         copy_files_with_progress(
             &files_to_download,
             &files_to_download,
-            &remote_object_store,
-            &local_object_store,
-            download_concurrency.get(),
+            &self.remote_object_store,
+            &self.local_object_store,
+            self.concurrency.get(),
             &download_progress,
         )
         .await?;
-        Ok(StateSnapshotReaderV1 {
-            epoch,
-            local_staging_dir_root,
-            remote_object_store,
-            local_object_store,
-            ref_files,
-            object_files,
-            chain_id,
-            multi_progress_bar,
-            download_progress,
-            concurrency: download_concurrency,
-        })
+        Ok(download_progress)
     }
 
     pub async fn read(
@@ -284,44 +303,20 @@ impl StateSnapshotReaderV1 {
         }
     }
 
-    /// Downloads and decodes only the MANIFEST and `EPOCH_INFO` file for
-    /// `epoch`, never the large reference/object files.
-    ///
-    /// `EPOCH_INFO` carries a proof bundle per epoch since genesis, so for a
-    /// late epoch it is large enough to report on `m` while it downloads.
-    pub async fn read_epoch_info(
-        epoch: u64,
-        remote_store_config: &ObjectStoreConfig,
-        m: &MultiProgress,
-    ) -> anyhow::Result<(ChainIdentifier, EpochInfo)> {
-        let epoch_dir = Path::from(format!("epoch_{epoch}"));
-        let remote_object_store = make_remote_store(remote_store_config)?;
-
-        println_or_log(m, "Downloading the snapshot MANIFEST")?;
-        let manifest_bytes = remote_object_store
-            .get_bytes(&epoch_dir.child("MANIFEST"))
-            .await?;
-        let manifest = Self::read_manifest_from_bytes(&manifest_bytes)?;
-        let chain_id = Self::validate_v2_manifest(&manifest, epoch)?;
-
-        let epoch_info_files = manifest
-            .file_metadata()
-            .iter()
-            .filter(|metadata| matches!(metadata.file_type, FileType::EpochInfo))
-            .cloned()
-            .collect();
-        let epoch_info_metadata = Self::single_epoch_info_metadata(epoch_info_files)?;
-        let epoch_info_path = epoch_info_metadata.file_path(&epoch_dir);
+    /// Reads, verifies and decodes the snapshot's `EPOCH_INFO` file from the
+    /// remote store — one file, independent of the live-object restore in
+    /// [`Self::read`] and cheap enough to check before starting it.
+    pub async fn read_epoch_info(&self) -> anyhow::Result<EpochInfo> {
+        let epoch_info_path = self.epoch_info_metadata.file_path(&self.epoch_dir());
         let bytes = get_single_file_with_progress(
-            &remote_object_store,
+            &self.remote_object_store,
             &epoch_info_path,
             "Downloading EPOCH_INFO",
-            m,
+            &self.multi_progress_bar,
         )
         .await?;
-        println_or_log(m, "Checking and decoding EPOCH_INFO")?;
-        let epoch_info = Self::decode_epoch_info(bytes, &epoch_info_metadata)?;
-        Ok((chain_id, epoch_info))
+        println_or_log(&self.multi_progress_bar, "Checking and decoding EPOCH_INFO")?;
+        Self::decode_epoch_info(bytes, &self.epoch_info_metadata)
     }
 
     /// Verifies the sha3 digest against the manifest, strips the 4-byte magic
@@ -354,12 +349,14 @@ impl StateSnapshotReaderV1 {
     ///
     /// This method encapsulates the logic for several operations:
     ///
-    /// 1. Computing the partition checksums of the respective `*.ref` files.
-    /// 2. Computing the partition elliptic-curve multiset hash (ECMH) in the
+    /// 1. Downloading the snapshot's `*.ref` files into the local staging
+    ///    directory.
+    /// 2. Computing the partition checksums of the respective `*.ref` files.
+    /// 3. Computing the partition elliptic-curve multiset hash (ECMH) in the
     ///    background, and sending the result through the given `sender` to the
     ///    caller. This allows to compute and verify the root hash of the live
     ///    objects encoded in the snapshot. See [`GlobalStateHash`].
-    /// 3. Reading, inserting, and verifying all encoded live objects to the
+    /// 4. Reading, inserting, and verifying all encoded live objects to the
     ///    given `database`.
     pub async fn read_to_db(
         &mut self,
@@ -367,6 +364,11 @@ impl StateSnapshotReaderV1 {
         abort_registration: AbortRegistration,
         sender: Option<tokio::sync::mpsc::Sender<(GlobalStateHash, u64)>>,
     ) -> Result<()> {
+        // The reference files have to be local before their checksums can be
+        // computed. Their download shares a bar with the object files, which
+        // `sync_live_objects` downloads onto it below.
+        let download_progress = self.download_reference_files().await?;
+
         // This computes and stores the sha3 digest of object references in REFERENCE
         // file for each bucket partition. When downloading objects, we will
         // compare sha3 digest of object references per *.obj file against this.
@@ -458,8 +460,13 @@ impl StateSnapshotReaderV1 {
 
         // Downloads all object files from remote in parallel and inserts the objects
         // into the database of choice
-        self.sync_live_objects(database, abort_registration, sha3_digests)
-            .await?;
+        self.sync_live_objects(
+            database,
+            abort_registration,
+            sha3_digests,
+            download_progress,
+        )
+        .await?;
 
         if let Some(handle) = accum_handle {
             handle.await?;
@@ -562,6 +569,7 @@ impl StateSnapshotReaderV1 {
         database: &impl Restore,
         abort_registration: AbortRegistration,
         sha3_digests: Arc<Mutex<DigestByBucketAndPartition>>,
+        download_progress: Arc<DownloadProgressBar>,
     ) -> Result<(), anyhow::Error> {
         let epoch_dir = self.epoch_dir();
         let concurrency = self.concurrency;
@@ -579,9 +587,9 @@ impl StateSnapshotReaderV1 {
                     .collect::<Vec<_>>()
             })
             .collect();
-        // Continues the shared download bar created in `new`, whose totals
-        // already include these object files.
-        let obj_progress = self.download_progress.clone();
+        // Continues the bar the reference files were downloaded on, whose
+        // totals already include these object files.
+        let obj_progress = download_progress;
         let obj_progress_clone = obj_progress.clone();
         let obj_progress_download = obj_progress.clone();
 
