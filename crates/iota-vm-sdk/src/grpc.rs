@@ -149,7 +149,7 @@ impl ObjectFetcher for GrpcFetcher {
     ) -> Result<Vec<Object>, StoreError> {
         let results = self
             .client
-            .get_objects_with_versions(refs.into_iter().copied(), ObjectReadMask::default())
+            .get_objects_with_versions(refs.iter().copied(), ObjectReadMask::default())
             .await
             .map_err(|e| StoreError::new("fetch objects via gRPC", e))?
             .into_inner();
