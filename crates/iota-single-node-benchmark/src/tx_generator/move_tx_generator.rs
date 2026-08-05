@@ -10,7 +10,7 @@ use iota_sdk_types::{
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{CallArg, DEFAULT_VALIDATOR_GAS_PRICE, Transaction},
+    transaction::{CallArg, DEFAULT_VALIDATOR_GAS_PRICE, TransactionEnvelope},
 };
 
 use crate::{mock_account::Account, tx_generator::TxGenerator};
@@ -54,7 +54,7 @@ impl MoveTxGenerator {
 }
 
 impl TxGenerator for MoveTxGenerator {
-    fn generate_tx(&self, account: Account) -> Transaction {
+    fn generate_tx(&self, account: Account) -> TransactionEnvelope {
         let pt = {
             let mut builder = ProgrammableTransactionBuilder::new();
             // Step 1: transfer `num_transfers` objects.

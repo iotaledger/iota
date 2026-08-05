@@ -29,7 +29,7 @@ use crate::{
     supported_protocol_versions::{
         Chain, SupportedProtocolVersions, SupportedProtocolVersionsWithHashes,
     },
-    transaction::{CertifiedTransaction, SenderSignedData, Transaction},
+    transaction::{CertifiedTransaction, SenderSignedData, TransactionEnvelope},
 };
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -297,7 +297,7 @@ pub enum ConsensusTransactionKind {
     /// P-COOL user transaction. Raw, uncertified transaction submitted
     /// directly to consensus without pre-consensus object locking.
     /// Conflicts are resolved post-consensus.
-    UserTransactionV1(Box<Transaction>),
+    UserTransactionV1(Box<TransactionEnvelope>),
     OverloadNotificationV1(
         AuthorityName,
         u64, // generation
@@ -321,7 +321,7 @@ impl ConsensusTransactionKind {
     fn map_cert_or_raw_user_tx<'a, R>(
         &'a self,
         certified: impl FnOnce(&'a CertifiedTransaction) -> R,
-        raw: impl FnOnce(&'a Transaction) -> R,
+        raw: impl FnOnce(&'a TransactionEnvelope) -> R,
     ) -> Option<R> {
         match self {
             Self::CertifiedTransaction(c) => Some(certified(c)),
@@ -355,7 +355,7 @@ impl ConsensusTransactionKind {
     /// Returns the raw, uncertified user transaction (`UserTransactionV1`)
     /// submitted directly to consensus, or `None` for any other kind. Certified
     /// user transactions are not included here.
-    pub fn as_user_transaction(&self) -> Option<&Transaction> {
+    pub fn as_user_transaction(&self) -> Option<&TransactionEnvelope> {
         match self {
             Self::UserTransactionV1(tx) => Some(tx),
             Self::CertifiedTransaction(_)
@@ -684,7 +684,7 @@ impl ConsensusTransaction {
         }
     }
 
-    pub fn new_user_transaction(transaction: Transaction) -> Self {
+    pub fn new_user_transaction(transaction: TransactionEnvelope) -> Self {
         let mut hasher = DefaultHasher::new();
         let tx_digest = transaction.digest();
         tx_digest.hash(&mut hasher);

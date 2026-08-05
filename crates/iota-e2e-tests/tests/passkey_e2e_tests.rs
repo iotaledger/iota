@@ -14,7 +14,7 @@ use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     crypto::PublicKey,
     error::{IotaError, IotaResult, UserInputError},
-    transaction::{Transaction, TransactionData},
+    transaction::{TransactionData, TransactionEnvelope},
 };
 use p256::pkcs8::DecodePublicKey;
 use passkey_authenticator::{Authenticator, UserCheck, UserValidationMethod};
@@ -69,7 +69,7 @@ pub struct PasskeyResponse<T> {
 }
 
 /// Submits a transaction to the test cluster and returns the result.
-async fn execute_tx(tx: Transaction, test_cluster: &TestCluster) -> IotaResult {
+async fn execute_tx(tx: TransactionEnvelope, test_cluster: &TestCluster) -> IotaResult {
     test_cluster
         .authority_aggregator()
         .authority_clients
@@ -213,7 +213,7 @@ async fn create_credential_and_sign_test_tx(
     }
 }
 
-fn make_good_passkey_tx(response: PasskeyResponse<TransactionData>) -> Transaction {
+fn make_good_passkey_tx(response: PasskeyResponse<TransactionData>) -> TransactionEnvelope {
     let sig = UserSignature::PasskeyAuthenticator(
         PasskeyAuthenticator::new(
             response.authenticator_data,
@@ -222,7 +222,7 @@ fn make_good_passkey_tx(response: PasskeyResponse<TransactionData>) -> Transacti
         )
         .unwrap(),
     );
-    Transaction::from_user_sig_data(response.intent_msg.value, vec![sig])
+    TransactionEnvelope::from_user_sig_data(response.intent_msg.value, vec![sig])
 }
 
 #[sim_test]
@@ -270,7 +270,7 @@ async fn test_passkey_fails_mismatched_challenge() {
         )
         .unwrap(),
     );
-    let tx = Transaction::from_user_sig_data(response.intent_msg.value, vec![sig]);
+    let tx = TransactionEnvelope::from_user_sig_data(response.intent_msg.value, vec![sig]);
     let res = execute_tx(tx, &test_cluster).await;
     let err = res.unwrap_err();
     assert_eq!(
@@ -290,7 +290,7 @@ async fn test_passkey_fails_mismatched_challenge() {
         )
         .unwrap(),
     );
-    let tx = Transaction::from_user_sig_data(response.intent_msg.value, vec![sig]);
+    let tx = TransactionEnvelope::from_user_sig_data(response.intent_msg.value, vec![sig]);
     let res = execute_tx(tx, &test_cluster).await;
     let err = res.unwrap_err();
     assert_eq!(
@@ -320,7 +320,7 @@ async fn test_passkey_fails_to_verify_sig() {
         )
         .unwrap(),
     );
-    let tx = Transaction::from_user_sig_data(response.intent_msg.value.clone(), vec![sig]);
+    let tx = TransactionEnvelope::from_user_sig_data(response.intent_msg.value.clone(), vec![sig]);
     let res = execute_tx(tx, &test_cluster).await;
     let err = res.unwrap_err();
     assert_eq!(
@@ -345,7 +345,7 @@ async fn test_passkey_fails_to_verify_sig() {
         )
         .unwrap(),
     );
-    let tx = Transaction::from_user_sig_data(response.intent_msg.value, vec![sig]);
+    let tx = TransactionEnvelope::from_user_sig_data(response.intent_msg.value, vec![sig]);
     let res = execute_tx(tx, &test_cluster).await;
     let err = res.unwrap_err();
     assert_eq!(
@@ -371,7 +371,7 @@ async fn test_passkey_fails_wrong_author() {
         )
         .unwrap(),
     );
-    let tx = Transaction::from_user_sig_data(response.intent_msg.value, vec![sig]);
+    let tx = TransactionEnvelope::from_user_sig_data(response.intent_msg.value, vec![sig]);
     let res = execute_tx(tx, &test_cluster).await;
     let err = res.unwrap_err();
     assert!(matches!(err, IotaError::SignerSignatureAbsent { .. }));

@@ -19,7 +19,7 @@ use iota_sdk_types::{
 };
 use iota_types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{CallArg, Transaction, TransactionData},
+    transaction::{CallArg, TransactionData, TransactionEnvelope},
     utils::MoveAuthenticatorV1,
 };
 
@@ -199,7 +199,7 @@ pub async fn create_test_transaction(
     iota_client: &IotaClient,
     recipient: Address,
     account_ref: &ObjectReference,
-) -> Result<Transaction> {
+) -> Result<TransactionEnvelope> {
     let account_address = account_ref.object_id.into();
 
     // Create a PTB that sends some IOTA from the abstract account to the recipient
@@ -223,14 +223,17 @@ pub async fn create_test_transaction(
         .into(),
     );
 
-    Ok(Transaction::from_user_sig_data(tx_data, vec![signature]))
+    Ok(TransactionEnvelope::from_user_sig_data(
+        tx_data,
+        vec![signature],
+    ))
 }
 
 /// Swaps the recipient in the transaction to an attacker-controlled address.
 pub fn swap_recipient_in_transaction(
-    mut transaction: Transaction,
+    mut transaction: TransactionEnvelope,
     attacker: Address,
-) -> Transaction {
+) -> TransactionEnvelope {
     match &mut transaction.0.transaction {
         TransactionData::V1(data) => match &mut data.kind {
             TransactionKind::Programmable(ptb) => {

@@ -17,11 +17,11 @@ use iota_keys::keypair_file::{
     read_authority_keypair_from_file, read_keypair_from_file, read_network_keypair_from_file,
 };
 use iota_protocol_config::MAX_PROTOCOL_VERSION;
-use iota_sdk_types::Address;
 use iota_types::{
     committee::ProtocolVersion,
     crypto::{
-        AuthorityKeyPair, IotaKeyPair, KeypairTraits, NetworkKeyPair, generate_proof_of_possession,
+        AuthorityKeyPair, KeypairTraits, NetworkKeyPair, SimpleKeypair,
+        generate_proof_of_possession,
     },
     multiaddr::Multiaddr,
 };
@@ -185,20 +185,20 @@ pub async fn run(cmd: Ceremony) -> Result<()> {
             let mut builder = Builder::load(&dir)?;
             let authority_keypair: AuthorityKeyPair =
                 read_authority_keypair_from_file(authority_key_file)?;
-            let account_keypair: IotaKeyPair = read_keypair_from_file(account_key_file)?;
+            let account_keypair: SimpleKeypair = read_keypair_from_file(account_key_file)?;
             let protocol_keypair: NetworkKeyPair =
                 read_network_keypair_from_file(protocol_key_file)?;
             let network_keypair: NetworkKeyPair = read_network_keypair_from_file(network_key_file)?;
             let pop = generate_proof_of_possession(
                 &authority_keypair,
-                (&account_keypair.public()).into(),
+                account_keypair.public_key().derive_address(),
             );
             builder = builder.add_validator(
                 iota_genesis_builder::validator_info::ValidatorInfo {
                     name,
                     authority_key: authority_keypair.public().into(),
                     protocol_key: protocol_keypair.public().clone(),
-                    account_address: Address::from(&account_keypair.public()),
+                    account_address: account_keypair.public_key().derive_address(),
                     network_key: network_keypair.public().clone(),
                     gas_price: iota_config::node::DEFAULT_VALIDATOR_GAS_PRICE,
                     commission_rate: iota_config::node::DEFAULT_COMMISSION_RATE,
@@ -338,7 +338,8 @@ mod test {
     use iota_keys::keypair_file::{write_authority_keypair_to_file, write_keypair_to_file};
     use iota_macros::nondeterministic;
     use iota_types::crypto::{
-        AccountKeyPair, AuthorityKeyPair, IotaKeyPair, get_key_pair_from_rng,
+        AccountKeyPair, AuthorityKeyPair, SimpleKeypair, get_key_pair_from_rng,
+        network_to_simple_keypair,
     };
 
     use super::*;
@@ -377,13 +378,21 @@ mod test {
                 write_authority_keypair_to_file(&authority_keypair, &authority_key_file).unwrap();
 
                 let protocol_key_file = dir.path().join(format!("{}.key", info.name));
-                write_keypair_to_file(&protocol_keypair.into(), &protocol_key_file).unwrap();
+                write_keypair_to_file(
+                    &network_to_simple_keypair(&protocol_keypair),
+                    &protocol_key_file,
+                )
+                .unwrap();
 
                 let network_key_file = dir.path().join(format!("{}-1.key", info.name));
-                write_keypair_to_file(&network_keypair.into(), &network_key_file).unwrap();
+                write_keypair_to_file(
+                    &network_to_simple_keypair(&network_keypair),
+                    &network_key_file,
+                )
+                .unwrap();
 
                 let account_key_file = dir.path().join(format!("{}-2.key", info.name));
-                write_keypair_to_file(&IotaKeyPair::Ed25519(account_keypair), &account_key_file)
+                write_keypair_to_file(&SimpleKeypair::from(account_keypair), &account_key_file)
                     .unwrap();
 
                 (

@@ -12,7 +12,7 @@ use iota_types::{
     base_types::AuthorityName,
     error::{ErrorCategory, IotaError},
     messages_grpc::TxStatusUpdate,
-    transaction::Transaction,
+    transaction::TransactionEnvelope,
 };
 use tokio::time::timeout;
 use tracing::instrument;
@@ -51,7 +51,7 @@ impl TransactionSubmitter {
         authority_aggregator: &AuthorityAggregator<A>,
         client_monitor: &ValidatorClientMonitor,
         amplification_factor: u64,
-        transaction: Option<Transaction>,
+        transaction: Option<TransactionEnvelope>,
         options: &SubmitTransactionOptions,
     ) -> Result<(AuthorityName, TxStatusUpdate), TransactionDriverError>
     where
@@ -179,7 +179,7 @@ impl TransactionSubmitter {
     pub(crate) async fn submit_transaction_once<A>(
         &self,
         client: Arc<SafeClient<A>>,
-        transaction: &Option<Transaction>,
+        transaction: &Option<TransactionEnvelope>,
         options: &SubmitTransactionOptions,
         client_monitor: &ValidatorClientMonitor,
         validator: AuthorityName,

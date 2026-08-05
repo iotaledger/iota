@@ -38,7 +38,7 @@ use iota_sdk_types::{
 use iota_types::{
     crypto::{
         AuthorityKeyPair, AuthorityPublicKey, AuthorityPublicKeyBytes, DEFAULT_EPOCH_ID,
-        IotaKeyPair, NetworkKeyPair, NetworkPublicKey, Signable, generate_proof_of_possession,
+        NetworkKeyPair, NetworkPublicKey, Signable, SimpleKeypair, generate_proof_of_possession,
         get_authority_key_pair,
     },
     dynamic_field::{DynamicFieldName, Field},
@@ -48,7 +48,7 @@ use iota_types::{
         iota_system_state_summary::{IotaSystemStateSummary, IotaValidatorSummary},
     },
     multiaddr::Multiaddr,
-    transaction::{CallArg, Transaction, TransactionData, TransactionDataAPI},
+    transaction::{CallArg, TransactionData, TransactionDataAPI, TransactionEnvelope},
 };
 use serde::Serialize;
 use tabled::{
@@ -167,7 +167,7 @@ pub enum IotaValidatorCommandResponse {
 fn make_key_files(
     file_name: PathBuf,
     is_authority_key: bool,
-    key: Option<IotaKeyPair>,
+    key: Option<SimpleKeypair>,
 ) -> Result<()> {
     if file_name.exists() {
         println!("Use existing {file_name:?} key file.");
@@ -600,7 +600,7 @@ async fn call_0x5(
     let iota_client = context.get_client().await?;
 
     let signature = sign_transaction(context, &tx_data, &tx_data.sender(), None).await?;
-    let transaction = Transaction::from_user_sig_data(tx_data, vec![signature]);
+    let transaction = TransactionEnvelope::from_user_sig_data(tx_data, vec![signature]);
 
     iota_client
         .quorum_driver_api()

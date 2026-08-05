@@ -22,7 +22,7 @@ use iota_types::{
     messages_checkpoint::{CertifiedCheckpointSummary, CheckpointSequenceNumber},
     object::Object,
     storage::ObjectKey,
-    transaction::Transaction,
+    transaction::TransactionEnvelope,
 };
 use serde::{Deserialize, Serialize};
 use tracing::error;
@@ -194,7 +194,7 @@ impl KeyValueStoreReader for BigTableClient {
             for Cell { name, value } in row.cells {
                 match std::str::from_utf8(&name)? {
                     TRANSACTION_COLUMN_QUALIFIER => {
-                        transaction = Some(bcs::from_bytes::<Transaction>(&value)?)
+                        transaction = Some(bcs::from_bytes::<TransactionEnvelope>(&value)?)
                     }
                     EFFECTS_COLUMN_QUALIFIER => {
                         effects = Some(bcs::from_bytes::<TransactionEffects>(&value)?)

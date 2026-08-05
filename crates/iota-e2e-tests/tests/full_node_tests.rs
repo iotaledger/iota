@@ -14,6 +14,7 @@ use iota_keys::keystore::AccountKeystore;
 use iota_macros::*;
 use iota_node::IotaNodeHandle;
 use iota_sdk::wallet_context::WalletContext;
+use iota_sdk_crypto::{ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey};
 use iota_sdk_types::{
     Address, GasPayment, Identifier, ObjectId, ObjectReference, Owner, TransactionDigest,
     TransactionKind, Version,
@@ -27,7 +28,7 @@ use iota_test_transaction_builder::{
     publish_nfts_package,
 };
 use iota_types::{
-    crypto::{IotaKeyPair, get_key_pair},
+    crypto::{SimpleKeypair, get_key_pair},
     error::{IotaError, UserInputError},
     messages_grpc::TransactionInfoRequest,
     object::{Object, ObjectRead, PastObjectRead},
@@ -67,7 +68,7 @@ async fn test_full_node_follows_txes() -> Result<(), anyhow::Error> {
     fullnode
         .state()
         .get_transaction_cache_reader()
-        .notify_read_executed_effects_for_testing(&[digest])
+        .notify_read_executed_effects_for_testing("", &[digest])
         .await;
 
     // A small delay is needed for post processing operations following the
@@ -113,7 +114,7 @@ async fn test_full_node_shared_objects() -> Result<(), anyhow::Error> {
         .iota_node
         .state()
         .get_transaction_cache_reader()
-        .notify_read_executed_effects_for_testing(&[digest])
+        .notify_read_executed_effects_for_testing("", &[digest])
         .await;
 
     Ok(())
@@ -486,7 +487,7 @@ async fn test_full_node_cold_sync() -> Result<(), anyhow::Error> {
     fullnode
         .state()
         .get_transaction_cache_reader()
-        .notify_read_executed_effects_for_testing(&[digest])
+        .notify_read_executed_effects_for_testing("", &[digest])
         .await;
 
     let info = fullnode
@@ -596,7 +597,7 @@ async fn do_test_full_node_sync_flood() {
     fullnode
         .state()
         .get_transaction_cache_reader()
-        .notify_read_executed_effects_for_testing(&digests)
+        .notify_read_executed_effects_for_testing("", &digests)
         .await;
 }
 
@@ -783,7 +784,7 @@ async fn test_full_node_transaction_orchestrator_basic() -> Result<(), anyhow::E
     fullnode
         .state()
         .get_transaction_cache_reader()
-        .notify_read_executed_effects_for_testing(&[digest])
+        .notify_read_executed_effects_for_testing("", &[digest])
         .await;
     fullnode.state().get_executed_transaction_and_effects(digest, kv_store).await
         .unwrap_or_else(|e| panic!("Fullnode does not know about the txn {digest:?} that was executed with WaitForEffectsCert: {e:?}"));
@@ -812,14 +813,14 @@ async fn test_validator_node_has_no_transaction_orchestrator() {
 async fn test_execute_tx_with_serialized_signature() -> Result<(), anyhow::Error> {
     let mut test_cluster = TestClusterBuilder::new().build().await;
     let context = &mut test_cluster.wallet;
-    context
-        .config_mut()
-        .keystore_mut()
-        .add_key(None, IotaKeyPair::Secp256k1(get_key_pair().1))?;
-    context
-        .config_mut()
-        .keystore_mut()
-        .add_key(None, IotaKeyPair::Ed25519(get_key_pair().1))?;
+    context.config_mut().keystore_mut().add_key(
+        None,
+        SimpleKeypair::from(get_key_pair::<Secp256k1PrivateKey>().1),
+    )?;
+    context.config_mut().keystore_mut().add_key(
+        None,
+        SimpleKeypair::from(get_key_pair::<Ed25519PrivateKey>().1),
+    )?;
 
     let jsonrpc_client = &test_cluster.fullnode_handle.rpc_client;
 

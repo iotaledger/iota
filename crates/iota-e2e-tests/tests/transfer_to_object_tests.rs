@@ -11,7 +11,7 @@ use iota_types::{
     effects::{
         TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt, TransactionEvents,
     },
-    transaction::{CallArg, Transaction},
+    transaction::{CallArg, TransactionEnvelope},
 };
 use test_cluster::{TestCluster, TestClusterBuilder, override_pcool_flow};
 
@@ -160,7 +160,7 @@ impl TestEnvironment {
         &self,
         function: &'static str,
         arguments: Vec<CallArg>,
-    ) -> Transaction {
+    ) -> TransactionEnvelope {
         let transaction = self
             .test_cluster
             .test_transaction_builder()

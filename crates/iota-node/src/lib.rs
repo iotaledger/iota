@@ -75,6 +75,7 @@ use iota_core::{
     transaction_orchestrator::TransactionOrchestrator,
     validator_tx_finalizer::ValidatorTxFinalizer,
 };
+use iota_genesis_common::MigrationTxDataExt;
 use iota_grpc_server::{GrpcReader, GrpcServerHandle, start_grpc_server};
 use iota_json_rpc::{
     JsonRpcServerBuilder, coin_api::CoinReadApi, governance_api::GovernanceReadApi,
@@ -130,7 +131,7 @@ use iota_types::{
     messages_grpc::HandleCapabilityNotificationRequestV1,
     quorum_driver_types::QuorumDriverEffectsQueueResult,
     supported_protocol_versions::SupportedProtocolVersions,
-    transaction::{SenderSignedTransactionAPI, Transaction, VerifiedCertificate},
+    transaction::{SenderSignedTransactionAPI, TransactionEnvelope, VerifiedCertificate},
 };
 use prometheus_filtered::Registry;
 #[cfg(msim)]
@@ -1678,7 +1679,10 @@ impl IotaNode {
             std::time::Duration::from_secs(timeout),
             state
                 .get_transaction_cache_reader()
-                .try_notify_read_executed_effects_digests(&digests),
+                .try_notify_read_executed_effects_digests(
+                    "IotaNode::notify_read_executed_effects_digests",
+                    &digests,
+                ),
         )
         .await
         .is_err()
@@ -2236,7 +2240,7 @@ impl IotaNode {
     async fn execute_transaction_immediately_at_zero_epoch(
         state: &Arc<AuthorityState>,
         epoch_store: &Arc<AuthorityPerEpochStore>,
-        tx: &Transaction,
+        tx: &TransactionEnvelope,
         span: tracing::Span,
     ) {
         let _guard = span.enter();
@@ -2254,6 +2258,12 @@ impl IotaNode {
 
     pub fn randomness_handle(&self) -> randomness::Handle {
         self.randomness_handle.clone()
+    }
+
+    /// Returns the registry service holding the node's Prometheus registries
+    /// and their shared exposure filter.
+    pub(crate) fn registry_service(&self) -> &RegistryService {
+        &self.registry_service
     }
 
     /// Sends signed capability notification to committee validators for

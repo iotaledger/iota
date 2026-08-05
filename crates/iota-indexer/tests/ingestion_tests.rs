@@ -39,7 +39,7 @@ mod ingestion_tests {
     use iota_types::{
         effects::{TransactionEffects, TransactionEffectsAPI},
         programmable_transaction_builder::ProgrammableTransactionBuilder,
-        transaction::{CallArg, Transaction, TransactionData, TransactionDataAPI},
+        transaction::{CallArg, TransactionData, TransactionDataAPI, TransactionEnvelope},
     };
     use simulacrum::Simulacrum;
     use tempfile::tempdir;
@@ -873,7 +873,7 @@ mod ingestion_tests {
             (*s, k.clone())
         });
         assert_eq!(tx_data.sender(), sender);
-        let tx = Transaction::from_data_and_signer(tx_data, vec![&key]);
+        let tx = TransactionEnvelope::from_data_and_signer(tx_data, vec![&key]);
         let (effects, err) = sim.execute_transaction(tx).unwrap();
         assert!(err.is_none(), "tx failed: {err:?}");
         effects
