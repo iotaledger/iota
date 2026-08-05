@@ -875,7 +875,7 @@ impl TransactionManager {
     pub(crate) fn check_execution_overload(
         &self,
         overload_config: &AuthorityOverloadConfig,
-        tx_data: &SenderSignedTransaction,
+        tx: &SenderSignedTransaction,
     ) -> IotaResult {
         // Too many transactions are pending execution.
         let inflight_queue_len = self.inflight_queue_len();
@@ -886,11 +886,10 @@ impl TransactionManager {
                 threshold: overload_config.max_transaction_manager_queue_length,
             }
         );
-        tx_data.digest();
+        tx.digest();
 
         for (object_id, queue_len, txn_age) in self.objects_queue_len_and_age(
-            tx_data
-                .shared_input_objects()
+            tx.shared_input_objects()
                 .into_iter()
                 .filter_map(|r| r.mutable.then_some(r.object_id))
                 .collect(),

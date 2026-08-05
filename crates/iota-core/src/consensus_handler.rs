@@ -1340,7 +1340,7 @@ mod tests {
 
     fn user_txn(gas_price: u64) -> VerifiedSequencedConsensusTransaction {
         let (committee, keypairs) = Committee::new_simple_test_committee();
-        let data = SenderSignedTransaction::new(
+        let tx = SenderSignedTransaction::new(
             TransactionData::new_transfer(
                 Address::ZERO,
                 random_object_ref(),
@@ -1352,7 +1352,7 @@ mod tests {
             vec![],
         );
         txn(ConsensusTransactionKind::CertifiedTransaction(Box::new(
-            CertifiedTransaction::new_from_keypairs_for_testing(data, &keypairs, &committee),
+            CertifiedTransaction::new_from_keypairs_for_testing(tx, &keypairs, &committee),
         )))
     }
 

@@ -135,7 +135,7 @@ impl WriteApi {
             .map(|s| -> IndexerResult<_> { Ok(s.signature()?) })
             .collect::<IndexerResult<Vec<UserSignature>>>()?;
 
-        let sender_signed_data =
+        let sender_signed_tx =
             SenderSignedTransaction::new(transaction_data.clone(), tx_signatures);
 
         let tx_events = executed_transaction.events()?.events()?;
@@ -156,7 +156,7 @@ impl WriteApi {
             });
 
         let fut2 = IotaTransactionBlock::try_from_with_package_resolver(
-            sender_signed_data,
+            sender_signed_tx,
             package_resolver,
             tx_digest,
         )

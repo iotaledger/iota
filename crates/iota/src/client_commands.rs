@@ -3503,14 +3503,14 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
             }
         }
 
-        let sender_signed_data = SenderSignedTransaction::new(tx_data, signatures);
+        let sender_signed_tx = SenderSignedTransaction::new(tx_data, signatures);
 
         if serialize_signed_transaction {
             Ok(IotaClientCommandResult::SerializedSignedTransaction(
-                sender_signed_data,
+                sender_signed_tx,
             ))
         } else {
-            let transaction = TransactionEnvelope::new(sender_signed_data);
+            let transaction = TransactionEnvelope::new(sender_signed_tx);
             debug!("Executing transaction: {:?}", transaction);
             let mut response = client
                 .quorum_driver_api()

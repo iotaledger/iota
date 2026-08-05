@@ -550,7 +550,7 @@ fn get_registry() -> Result<Registry> {
         .trace_type::<ConsensusDeterminedVersionAssignments>(&samples)
         .unwrap();
 
-    let sender_data = SenderSignedTransaction::new(
+    let sender_tx = SenderSignedTransaction::new(
         TransactionData::new_with_gas_coins(
             TransactionKind::EndOfEpoch(vec![EndOfEpochTransactionKind::ChangeEpoch(
                 ChangeEpoch {
@@ -575,7 +575,7 @@ fn get_registry() -> Result<Registry> {
         ),
         vec![UserSignature::Simple(sig1.clone())],
     );
-    tracer.trace_value(&mut samples, &sender_data).unwrap();
+    tracer.trace_value(&mut samples, &sender_tx).unwrap();
 
     let quorum_sig: AuthorityStrongQuorumSignInfo = AuthorityQuorumSignInfo {
         epoch: 0,
@@ -590,7 +590,7 @@ fn get_registry() -> Result<Registry> {
 
     // Trace FullCheckpointContents, CheckpointTransaction and CheckpointData
     // via trace_value (they transitively contain TypeTag).
-    let sample_transaction = TransactionEnvelope::new(sender_data.clone());
+    let sample_transaction = TransactionEnvelope::new(sender_tx.clone());
     let sample_effects = TransactionEffects::new_empty_v1_for_testing(TransactionDigest::default());
     let sample_exec_data = ExecutionData {
         transaction: sample_transaction.clone(),

@@ -742,11 +742,11 @@ impl ToolCommand {
                 sender_signed_data,
             } => {
                 let genesis = Genesis::load(genesis)?;
-                let sender_signed_data = bcs::from_bytes::<SenderSignedTransaction>(
+                let sender_signed_tx = bcs::from_bytes::<SenderSignedTransaction>(
                     &fastcrypto::encoding::Base64::decode(sender_signed_data.as_str()).unwrap(),
                 )
                 .unwrap();
-                let transaction = TransactionEnvelope::new(sender_signed_data);
+                let transaction = TransactionEnvelope::new(sender_signed_tx);
                 let (agg, _) =
                     AuthorityAggregatorBuilder::from_genesis(&genesis).build_network_clients();
                 let result = agg.process_transaction(transaction, None).await;

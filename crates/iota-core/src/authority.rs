@@ -1275,14 +1275,14 @@ impl AuthorityState {
     pub(crate) fn check_system_overload(
         &self,
         consensus_adapter: &Arc<ConsensusAdapter>,
-        tx_data: &SenderSignedTransaction,
+        tx: &SenderSignedTransaction,
         do_authority_overload_check: bool,
         pcool_flow_enabled: bool,
     ) -> IotaResult {
         if pcool_flow_enabled {
             // Graduated shedding: 0% to 100% as consensus queue fills from soft
             // to hard limit.
-            self.check_consensus_queue_graduated_limits(consensus_adapter, tx_data)
+            self.check_consensus_queue_graduated_limits(consensus_adapter, tx)
                 .tap_err(|_| {
                     self.update_overload_metrics("consensus");
                 })?;
@@ -1298,12 +1298,12 @@ impl AuthorityState {
             })?;
         } else {
             if do_authority_overload_check {
-                self.check_authority_overload(tx_data).tap_err(|_| {
+                self.check_authority_overload(tx).tap_err(|_| {
                     self.update_overload_metrics("execution_queue");
                 })?;
             }
             self.transaction_manager
-                .check_execution_overload(self.overload_config(), tx_data)
+                .check_execution_overload(self.overload_config(), tx)
                 .tap_err(|_| {
                     self.update_overload_metrics("execution_pending");
                 })?;
@@ -1340,7 +1340,7 @@ impl AuthorityState {
     fn check_consensus_queue_graduated_limits(
         &self,
         consensus_adapter: &Arc<ConsensusAdapter>,
-        tx_data: &SenderSignedTransaction,
+        tx: &SenderSignedTransaction,
     ) -> IotaResult {
         let num_inflight_txs = consensus_adapter.num_inflight_transactions() as usize;
 
@@ -1366,10 +1366,10 @@ impl AuthorityState {
             return Err(IotaError::TooManyTransactionsPendingConsensus);
         }
 
-        overload_monitor_accept_tx(shedding_pct, tx_data.digest())
+        overload_monitor_accept_tx(shedding_pct, tx.digest())
     }
 
-    fn check_authority_overload(&self, tx_data: &SenderSignedTransaction) -> IotaResult {
+    fn check_authority_overload(&self, tx: &SenderSignedTransaction) -> IotaResult {
         if !self.overload_info.is_overload.load(Ordering::Relaxed) {
             return Ok(());
         }
@@ -1378,7 +1378,7 @@ impl AuthorityState {
             .overload_info
             .local_load_shedding_percentage
             .load(Ordering::Relaxed);
-        overload_monitor_accept_tx(load_shedding_percentage, tx_data.digest())
+        overload_monitor_accept_tx(load_shedding_percentage, tx.digest())
     }
 
     fn update_overload_metrics(&self, source: &str) {
