@@ -65,65 +65,73 @@ fn notify_read_input_objects_impl<'a>(
 ) -> BoxFuture<'a, Vec<()>> {
     async move {
         object_notify_read
-            .read::<std::convert::Infallible>(input_and_receiving_keys, |keys| {
-                let mut results = vec![None; keys.len()];
+            .read::<std::convert::Infallible>(
+                "notify_read_input_objects",
+                input_and_receiving_keys,
+                |keys| {
+                    let mut results = vec![None; keys.len()];
 
-                let (keys_with_version, keys_without_version): (Vec<_>, Vec<_>) = keys
-                    .iter()
-                    .enumerate()
-                    .filter(|(idx, key)| {
-                        if key.is_cancelled() {
-                            // Shared objects in canceled transactions are always available.
-                            results[*idx] = Some(());
-                            false
-                        } else {
-                            true
-                        }
-                    })
-                    .partition(|(_, key)| key.version().is_some());
-                let versioned_object_keys: Vec<_> = keys_with_version
-                    .iter()
-                    .map(|(_, key)| ObjectKey(key.id(), key.version().unwrap()))
-                    .collect();
-                ObjectCacheRead::multi_get_objects_by_key(cache, &versioned_object_keys)
-                    .into_iter()
-                    .zip(keys_with_version.iter())
-                    .for_each(|(o, (idx, input_key))| match o {
-                        Some(_) => results[*idx] = Some(()),
-                        None => {
-                            if receiving_keys.contains(input_key) {
-                                // There could be a more recent version of this object, and the
-                                // object at the specified version could have already been pruned.
-                                // In such a case `has_key` will be false, but since this is a
-                                // receiving object we should mark it as available if we can
-                                // determine that an object with a version greater than or equal to
-                                // the specified version exists or was deleted. We will then let
-                                // mark it as available to let the transaction through so it can
-                                // fail at execution.
-                                let is_available =
-                                    ObjectCacheRead::get_object(cache, &input_key.id())
-                                        .map(|obj| obj.version() >= input_key.version().unwrap())
-                                        .unwrap_or(false);
-                                if is_available {
+                    let (keys_with_version, keys_without_version): (Vec<_>, Vec<_>) = keys
+                        .iter()
+                        .enumerate()
+                        .filter(|(idx, key)| {
+                            if key.is_cancelled() {
+                                // Shared objects in canceled transactions are always available.
+                                results[*idx] = Some(());
+                                false
+                            } else {
+                                true
+                            }
+                        })
+                        .partition(|(_, key)| key.version().is_some());
+                    let versioned_object_keys: Vec<_> = keys_with_version
+                        .iter()
+                        .map(|(_, key)| ObjectKey(key.id(), key.version().unwrap()))
+                        .collect();
+                    ObjectCacheRead::multi_get_objects_by_key(cache, &versioned_object_keys)
+                        .into_iter()
+                        .zip(keys_with_version.iter())
+                        .for_each(|(o, (idx, input_key))| match o {
+                            Some(_) => results[*idx] = Some(()),
+                            None => {
+                                if receiving_keys.contains(input_key) {
+                                    // There could be a more recent version of this object, and the
+                                    // object at the specified version could have already been
+                                    // pruned. In such a case
+                                    // `has_key` will be false, but since this is a
+                                    // receiving object we should mark it as available if we can
+                                    // determine that an object with a version greater than or equal
+                                    // to the specified version
+                                    // exists or was deleted. We will then let
+                                    // mark it as available to let the transaction through so it can
+                                    // fail at execution.
+                                    let is_available =
+                                        ObjectCacheRead::get_object(cache, &input_key.id())
+                                            .map(|obj| {
+                                                obj.version() >= input_key.version().unwrap()
+                                            })
+                                            .unwrap_or(false);
+                                    if is_available {
+                                        results[*idx] = Some(());
+                                    }
+                                } else if cache
+                                    .get_last_shared_object_deletion_info(&input_key.id(), *epoch)
+                                    .is_some()
+                                {
+                                    // If the shared object was deleted, mark it as
+                                    // available so the transaction can proceed.
                                     results[*idx] = Some(());
                                 }
-                            } else if cache
-                                .get_last_shared_object_deletion_info(&input_key.id(), *epoch)
-                                .is_some()
-                            {
-                                // If the shared object was deleted, mark it as
-                                // available so the transaction can proceed.
-                                results[*idx] = Some(());
                             }
+                        });
+                    keys_without_version.iter().for_each(|(idx, key)| {
+                        if cache.get_package_object(&key.id()).is_some() {
+                            results[*idx] = Some(());
                         }
                     });
-                keys_without_version.iter().for_each(|(idx, key)| {
-                    if cache.get_package_object(&key.id()).is_some() {
-                        results[*idx] = Some(());
-                    }
-                });
-                Ok(results)
-            })
+                    Ok(results)
+                },
+            )
             .await
             .unwrap()
     }
@@ -986,16 +994,18 @@ pub trait TransactionCacheRead: Send + Sync {
 
     fn try_notify_read_executed_effects_digests<'a>(
         &'a self,
+        task_name: &'static str,
         digests: &'a [TransactionDigest],
     ) -> BoxFuture<'a, IotaResult<Vec<TransactionEffectsDigest>>>;
 
     /// Non-fallible version of `try_notify_read_executed_effects_digests`.
     fn notify_read_executed_effects_digests<'a>(
         &'a self,
+        task_name: &'static str,
         digests: &'a [TransactionDigest],
     ) -> BoxFuture<'a, Vec<TransactionEffectsDigest>> {
         Box::pin(async move {
-            self.try_notify_read_executed_effects_digests(digests)
+            self.try_notify_read_executed_effects_digests(task_name, digests)
                 .await
                 .expect("storage access failed")
         })
@@ -1014,11 +1024,12 @@ pub trait TransactionCacheRead: Send + Sync {
     /// the database.
     fn try_notify_read_executed_effects<'a>(
         &'a self,
+        task_name: &'static str,
         digests: &'a [TransactionDigest],
     ) -> BoxFuture<'a, IotaResult<Vec<TransactionEffects>>> {
         async move {
             let effects_digests = self
-                .try_notify_read_executed_effects_digests(digests)
+                .try_notify_read_executed_effects_digests(task_name, digests)
                 .await?;
             self.try_multi_get_effects(&effects_digests)?
                 .into_iter()
@@ -1037,10 +1048,11 @@ pub trait TransactionCacheRead: Send + Sync {
     /// effects may have been pruned, use `try_notify_read_executed_effects`.
     fn notify_read_executed_effects_for_testing<'a>(
         &'a self,
+        task_name: &'static str,
         digests: &'a [TransactionDigest],
     ) -> BoxFuture<'a, Vec<TransactionEffects>> {
         Box::pin(async move {
-            self.try_notify_read_executed_effects(digests)
+            self.try_notify_read_executed_effects(task_name, digests)
                 .await
                 .unwrap_or_else(|e| panic!("effects must exist: {e}"))
         })

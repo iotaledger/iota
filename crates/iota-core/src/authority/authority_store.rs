@@ -212,6 +212,23 @@ impl AuthorityStore {
         }
     }
 
+    // NB: This must only be called at time of reconfiguration. We take the
+    // execution lock write guard as an argument to ensure that this is the
+    // case.
+    pub fn clear_object_per_epoch_marker_table(
+        &self,
+        _execution_guard: &ExecutionLockWriteGuard<'_>,
+    ) -> IotaResult<()> {
+        // We can safely delete all entries in the per epoch marker table since this is
+        // only called at epoch boundaries (during reconfiguration). Therefore
+        // any entries that currently exist can be removed. Because of this we
+        // can use the `schedule_delete_all` method.
+        Ok(self
+            .perpetual_tables
+            .object_per_epoch_marker_table
+            .schedule_delete_all()?)
+    }
+
     pub async fn open_with_committee_for_testing(
         perpetual_tables: Arc<AuthorityPerpetualTables>,
         committee: &Committee,

@@ -4615,7 +4615,10 @@ async fn test_shared_object_transaction_ok() {
     authority.execute_for_test(&certificate);
 
     // Ensure transaction effects are available.
-    authority.notify_read_effects(&certificate).await.unwrap();
+    authority
+        .notify_read_effects("", &certificate)
+        .await
+        .unwrap();
 
     // Ensure shared object sequence number increased.
     let shared_object_version = authority.get_object(&shared_object_id).unwrap().version();

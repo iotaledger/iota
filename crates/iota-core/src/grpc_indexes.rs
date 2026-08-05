@@ -317,6 +317,10 @@ fn make_owner_key(owner: Address, object: &Object) -> Option<(OwnerIndexKey, Own
     Some((key, info))
 }
 
+fn default_table_options() -> typed_store::rocks::DBOptions {
+    typed_store::rocks::default_db_options().disable_write_throttling()
+}
+
 /// RocksDB tables for the GrpcIndexesStore
 ///
 /// Anytime a new table is added, or an existing one has its schema changed,
@@ -343,6 +347,7 @@ struct IndexStoreTables {
     /// the event that the node was running with indexes enabled, then run
     /// for a period of time with indexes disabled, and then run with them
     /// enabled again so that the tables can be reinitialized.
+    #[default_options_override_fn = "default_table_options"]
     watermark: DBMap<Watermark, CheckpointSequenceNumber>,
 
     /// Deprecated: per-epoch metadata moved to the CheckpointStore's
@@ -356,6 +361,7 @@ struct IndexStoreTables {
     ///
     /// Only contains entries for transactions which have yet to be pruned from
     /// the main database.
+    #[default_options_override_fn = "default_table_options"]
     transaction_checkpoints: DBMap<TransactionDigest, CheckpointSequenceNumber>,
 
     /// An index of object ownership.
@@ -367,6 +373,7 @@ struct IndexStoreTables {
     /// Full `StructTag` stored in value for collision filtering & API
     /// responses. Bounded by the live object set (one entry per
     /// address-owned object).
+    #[default_options_override_fn = "default_table_options"]
     owner: DBMap<OwnerIndexKey, OwnerIndexInfo>,
 
     /// An index of dynamic fields (children objects).
@@ -374,10 +381,12 @@ struct IndexStoreTables {
     /// Allows an efficient iterator to list all of the dynamic fields owned by
     /// a particular ObjectId. Only the key is stored; field metadata is loaded
     /// on demand from the object store.
+    #[default_options_override_fn = "default_table_options"]
     dynamic_field: DBMap<DynamicFieldKey, ()>,
 
     /// Coin info with regulated coin metadata.
     /// Bounded by the live object set (one entry per coin type).
+    #[default_options_override_fn = "default_table_options"]
     coin: DBMap<CoinIndexKey, CoinIndexInfo>,
 
     /// An index of Package versions.
@@ -386,6 +395,7 @@ struct IndexStoreTables {
     /// Allows efficient listing of all versions of a package, including
     /// upgraded user packages that have different storage IDs.
     /// Bounded by the live object set (one entry per package version).
+    #[default_options_override_fn = "default_table_options"]
     package_version: DBMap<PackageVersionKey, PackageVersionInfo>,
     // NOTE: Authors and Reviewers before adding any new tables ensure that they are either:
     // - bounded in size by the live object set
