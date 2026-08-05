@@ -37,7 +37,7 @@ console_error_panic_hook = { version = "0.1", optional = true }
 # `getrandom` and `instant` are not imported by this crate: they pin the `js` /
 # `wasm-bindgen` features on so transitive users of randomness and time get a
 # browser-compatible source.
-getrandom.workspace = true
+getrandom = { version = "0.2", features = ["js"] }
 instant = { version = "0.1", features = ["wasm-bindgen"] }
 js-sys = { version = "0.3", optional = true }
 serde = { workspace = true, optional = true }
