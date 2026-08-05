@@ -1773,17 +1773,17 @@ pub struct IotaTransactionBlock {
 
 impl IotaTransactionBlock {
     pub fn try_from(
-        data: SenderSignedTransaction,
+        tx: SenderSignedTransaction,
         module_cache: &impl GetModule,
         tx_digest: TransactionDigest,
     ) -> Result<Self, anyhow::Error> {
         Ok(Self {
             data: IotaTransactionBlockData::try_from_with_module_cache(
-                data.transaction().clone(),
+                tx.transaction().clone(),
                 module_cache,
                 tx_digest,
             )?,
-            tx_signatures: data.signatures().to_vec(),
+            tx_signatures: tx.signatures().to_vec(),
         })
     }
 
@@ -1791,18 +1791,18 @@ impl IotaTransactionBlock {
     // indexer v1, so are the related `try_from` methods for nested structs like
     // IotaTransactionBlockData etc.
     pub async fn try_from_with_package_resolver(
-        data: SenderSignedTransaction,
+        tx: SenderSignedTransaction,
         package_resolver: &Resolver<impl PackageStore>,
         tx_digest: TransactionDigest,
     ) -> Result<Self, anyhow::Error> {
         Ok(Self {
             data: IotaTransactionBlockData::try_from_with_package_resolver(
-                data.transaction().clone(),
+                tx.transaction().clone(),
                 package_resolver,
                 tx_digest,
             )
             .await?,
-            tx_signatures: data.signatures().to_vec(),
+            tx_signatures: tx.signatures().to_vec(),
         })
     }
 }
