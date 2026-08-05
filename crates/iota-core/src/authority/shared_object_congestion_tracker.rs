@@ -651,10 +651,13 @@ impl SharedObjectCongestionTracker {
         // The transaction cannot be scheduled. Determine whether the shared
         // objects are the bottleneck (so we can report them as congested), or
         // whether the transaction fits the objects but is shed by the
-        // execution-worker pool (reported with an empty object list).
-        let objects_fit = self
-            .compute_tx_start_time(&shared_input_objects, tx_duration, false)
-            .is_some_and(|start_time| start_time + tx_duration <= congestion_limit);
+        // execution-worker pool. Without worker congestion control the attempt
+        // above already checked the objects alone, so they are known not to
+        // fit and this probe would only repeat that work.
+        let objects_fit = self.worker_slots.is_some()
+            && self
+                .compute_tx_start_time(&shared_input_objects, tx_duration, false)
+                .is_some_and(|start_time| start_time + tx_duration <= congestion_limit);
 
         let congested_objects: Vec<ObjectId> = if objects_fit {
             // The shared objects fit within the congestion limit; the

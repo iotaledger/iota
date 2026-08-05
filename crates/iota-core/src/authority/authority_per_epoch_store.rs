@@ -3930,6 +3930,16 @@ impl AuthorityPerEpochStore {
             &mut sequenced_randomness_transactions,
             self.protocol_config.consensus_transaction_ordering(),
         );
+        // Worker debt exists only when execution-worker congestion control
+        // is active; without it, the tracker ignores the debt, so skip the
+        // quarantine scan and DB read entirely.
+        let initial_worker_debt = if use_combined_congestion_tracker {
+            self.consensus_quarantine
+                .read()
+                .load_initial_worker_debt(self, consensus_commit_info.round)?
+        } else {
+            Vec::new()
+        };
         let shared_object_congestion_tracker = SharedObjectCongestionTracker::new(
             self.consensus_quarantine.read().load_initial_object_debts(
                 self,
@@ -3937,9 +3947,7 @@ impl AuthorityPerEpochStore {
                 false,
                 &sequenced_transactions,
             )?,
-            self.consensus_quarantine
-                .read()
-                .load_initial_worker_debt(self, consensus_commit_info.round)?,
+            initial_worker_debt,
             congestion_control_parameters.clone(),
         );
         let shared_object_using_randomness_congestion_tracker = if use_combined_congestion_tracker {
