@@ -41,7 +41,7 @@ use crate::{
     models::transactions::{StoredTransaction, tx_events_to_iota_tx_events},
     optimistic_indexing::{IngestionPath, OptimisticTransactionExecutor},
     read::IndexerReader,
-    store::package_resolver::IndexerStorePackageResolver,
+    store::package_resolver::{IndexerStorePackageResolver, SimulationPackageStore},
     types::grpc_conversion,
 };
 
@@ -60,6 +60,8 @@ const DRY_RUN_TRANSACTION_READ_MASK: &[SimulateField] = &[
 ];
 const DEV_INSPECT_TRANSACTION_READ_MASK: &[SimulateField] = &[
     SimulateField::EXECUTED_TRANSACTION_EFFECTS_BCS,
+    // Needed to resolve types against a package the simulated transaction published.
+    SimulateField::EXECUTED_TRANSACTION_OUTPUT_OBJECTS_BCS,
     SimulateField::EXECUTED_TRANSACTION_EVENTS_EVENTS_BCS,
     SimulateField::EXECUTION_RESULT_EXECUTION_ERROR_BCS_KIND,
     SimulateField::EXECUTION_RESULT_EXECUTION_ERROR_SOURCE,
@@ -97,7 +99,7 @@ impl WriteApi {
     async fn dry_run_transaction_block_impl(
         &self,
         tx_bytes: Base64,
-        package_resolver: &Arc<Resolver<impl PackageStore>>,
+        package_resolver: &Arc<Resolver<impl PackageStore + Clone>>,
     ) -> IndexerResult<DryRunTransactionBlockResponse> {
         let tx: Transaction = bcs::from_bytes::<Transaction>(&tx_bytes.to_vec()?)?;
 
@@ -145,6 +147,15 @@ impl WriteApi {
         let tx_events = executed_transaction.events()?.events()?;
 
         let in_mem_tx_changes = TxObjectResolver::new(&objects, self.reader.clone());
+
+        // Resolve types against the packages the simulation published before falling
+        // back to the database, so that a transaction publishing a package can decode
+        // the types it introduces — an event from its `init`, for one.
+        let package_resolver = Arc::new(Resolver::new(SimulationPackageStore::new(
+            &output_objects,
+            package_resolver.package_store().clone(),
+        )));
+        let package_resolver = &package_resolver;
 
         // A transaction that carries no gas payment is simulated against a mock gas
         // coin, which the response names in the payment it ran with. That coin is not
@@ -218,7 +229,7 @@ impl WriteApi {
         tx_bytes: Base64,
         gas_price: Option<BigInt<u64>>,
         additional_args: Option<DevInspectArgs>,
-        package_resolver: &Arc<Resolver<impl PackageStore>>,
+        package_resolver: &Arc<Resolver<impl PackageStore + Clone>>,
     ) -> IndexerResult<DevInspectResults> {
         let DevInspectArgs {
             gas_sponsor,
@@ -284,6 +295,16 @@ impl WriteApi {
             .unwrap_or_default();
 
         let tx_events = executed_transaction.events()?.events()?;
+
+        // Resolve types against the packages the simulation published before falling
+        // back to the database, so that a transaction publishing a package can decode
+        // the types it introduces — an event from its `init`, for one.
+        let output_objects = grpc_conversion::objects(executed_transaction.output_objects()?)?;
+        let package_resolver = Arc::new(Resolver::new(SimulationPackageStore::new(
+            &output_objects,
+            package_resolver.package_store().clone(),
+        )));
+        let package_resolver = &package_resolver;
 
         let tx_digest = *tx_effects.transaction_digest();
         // timestamp is None because it represent a checkpoint one, on a dev inspect
