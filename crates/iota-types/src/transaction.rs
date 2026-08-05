@@ -1840,10 +1840,9 @@ pub fn merge_authenticator_input_objects<'a>(
 /// API for accessing and constructing [`SenderSignedTransaction`].
 ///
 /// This trait provides node-internal methods on the SDK's
-/// [`SenderSignedTransaction`](iota_sdk_types::SenderSignedTransaction), which
-/// carries the transaction data together with the signatures of all
-/// transaction participants. A non-participant signature must not be present,
-/// and the signature order does not matter.
+/// [`SenderSignedTransaction`], which carries the transaction data together
+/// with the signatures of all transaction participants. A non-participant
+/// signature must not be present, and the signature order does not matter.
 pub trait SenderSignedTransactionAPI {
     /// Creates a new [`SenderSignedTransaction`] with a single sender
     /// signature.
