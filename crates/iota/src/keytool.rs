@@ -35,7 +35,9 @@ use iota_keys::{
     keystore::{AccountKeystore, Keystore, StoredKey},
 };
 use iota_ledger::Ledger;
-use iota_sdk_crypto::{Signer as _, ToFromBech32, ToFromBytes as _, ed25519::Ed25519PrivateKey};
+use iota_sdk_crypto::{
+    Signer as _, ToFromBase64, ToFromBech32, ToFromBytes as _, ed25519::Ed25519PrivateKey,
+};
 use iota_sdk_types::{
     Address, SenderSignedTransaction, SignatureScheme, Transaction,
     crypto::{
@@ -1199,12 +1201,9 @@ fn convert_private_key_to_bech32(value: String) -> Result<ConvertOutput, anyhow:
                 .and_then(|bytes| SimpleKeypair::from_bytes(&bytes).ok())
             {
                 Some(ikp) => ikp,
-                None => match Base64::decode(&value)
-                    .ok()
-                    .and_then(|bytes| Ed25519PrivateKey::from_bytes(&bytes).ok())
-                {
-                    Some(kp) => SimpleKeypair::from(kp),
-                    None => bail!("Invalid private key encoding"),
+                None => match Ed25519PrivateKey::from_base64(&value) {
+                    Ok(kp) => SimpleKeypair::from(kp),
+                    Err(_) => bail!("Invalid private key encoding"),
                 },
             },
         },
