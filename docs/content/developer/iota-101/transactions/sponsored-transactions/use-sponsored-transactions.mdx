@@ -117,7 +117,7 @@ The following code blocks describe the `TransactionData` structure for sponsored
 
 ```rust
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
-pub struct TransactionDataV1 {
+pub struct TransactionV1 {
 pub kind: TransactionKind,
 pub sender: IotaAddress,
 pub gas_data: GasData,

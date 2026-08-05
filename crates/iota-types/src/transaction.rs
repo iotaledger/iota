@@ -28,7 +28,6 @@ use iota_sdk_types::{
 };
 pub use iota_sdk_types::{
     SenderSignedTransaction as SenderSignedData, Transaction as TransactionData,
-    TransactionV1 as TransactionDataV1,
 };
 use itertools::Either;
 use nonempty::{NonEmpty, nonempty};
