@@ -24,12 +24,12 @@ grpc = ["dep:iota-grpc-client", "dep:tokio", "dep:tonic"]
 graphql = ["dep:chrono", "dep:iota-sdk-graphql-client", "dep:tokio"]
 tracing = ["iota-execution/tracing"]
 wasm-bindgen = [
-    "dep:base64",
-    "dep:console_error_panic_hook",
-    "dep:js-sys",
-    "dep:serde",
-    "dep:serde-wasm-bindgen",
-    "dep:wasm-bindgen",
+  "dep:base64",
+  "dep:console_error_panic_hook",
+  "dep:js-sys",
+  "dep:serde",
+  "dep:serde-wasm-bindgen",
+  "dep:wasm-bindgen",
 ]
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
