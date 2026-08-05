@@ -18,7 +18,9 @@ use iota_types::{
     executable_transaction::VerifiedExecutableTransaction,
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{CallArg, Transaction, TransactionData, TransactionDataAPI, VerifiedCertificate},
+    transaction::{
+        CallArg, TransactionData, TransactionDataAPI, TransactionEnvelope, VerifiedCertificate,
+    },
     utils::to_sender_signed_transaction,
 };
 use rand::seq::SliceRandom;
@@ -221,7 +223,7 @@ impl GasPriceFeedbackTester {
         &self,
         pt: ProgrammableTransaction,
         gas_data: GasDataForTests,
-    ) -> Transaction {
+    ) -> TransactionEnvelope {
         let gas_object_ref = self
             .authority_state
             .get_object(&gas_data.gas_object_id)
@@ -240,7 +242,7 @@ impl GasPriceFeedbackTester {
     }
 
     /// Certify a transaction signed by the user.
-    async fn certify_transaction(&self, transaction: Transaction) -> VerifiedCertificate {
+    async fn certify_transaction(&self, transaction: TransactionEnvelope) -> VerifiedCertificate {
         certify_transaction(&self.authority_state, transaction)
             .await
             .unwrap()
@@ -283,7 +285,7 @@ impl GasPriceFeedbackTester {
         gas_data: GasDataForTests,
         counter_1_mutable: bool,
         counter_2_mutable: bool,
-    ) -> Transaction {
+    ) -> TransactionEnvelope {
         let mut txn_builder = ProgrammableTransactionBuilder::new();
 
         let arg1 = txn_builder
@@ -338,7 +340,7 @@ impl GasPriceFeedbackTester {
         gas_data: GasDataForTests,
         mutable: bool,
         first: bool,
-    ) -> Transaction {
+    ) -> TransactionEnvelope {
         let mut txn_builder = ProgrammableTransactionBuilder::new();
 
         let counter = if first {

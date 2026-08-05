@@ -130,7 +130,7 @@ use iota_types::{
     messages_grpc::HandleCapabilityNotificationRequestV1,
     quorum_driver_types::QuorumDriverEffectsQueueResult,
     supported_protocol_versions::SupportedProtocolVersions,
-    transaction::{SenderSignedTransactionAPI, Transaction, VerifiedCertificate},
+    transaction::{SenderSignedTransactionAPI, TransactionEnvelope, VerifiedCertificate},
 };
 use prometheus_filtered::Registry;
 #[cfg(msim)]
@@ -2236,7 +2236,7 @@ impl IotaNode {
     async fn execute_transaction_immediately_at_zero_epoch(
         state: &Arc<AuthorityState>,
         epoch_store: &Arc<AuthorityPerEpochStore>,
-        tx: &Transaction,
+        tx: &TransactionEnvelope,
         span: tracing::Span,
     ) {
         let _guard = span.enter();

@@ -19,7 +19,9 @@ use iota_types::{
     error::{ExecutionError, IotaError},
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{CallArg, TEST_ONLY_GAS_UNIT_FOR_PUBLISH, Transaction, VerifiedCertificate},
+    transaction::{
+        CallArg, TEST_ONLY_GAS_UNIT_FOR_PUBLISH, TransactionEnvelope, VerifiedCertificate,
+    },
 };
 
 use crate::{
@@ -160,7 +162,7 @@ impl TestRunner {
         &mut self,
         shared_obj_id: ObjectId,
         initial_shared_version: Version,
-    ) -> Transaction {
+    ) -> TransactionEnvelope {
         let mut delete_object_transaction_builder = ProgrammableTransactionBuilder::new();
         let arg = delete_object_transaction_builder
             .obj(CallArg::Shared(SharedObjectReference::new(
@@ -183,7 +185,7 @@ impl TestRunner {
         &mut self,
         shared_obj_id: ObjectId,
         initial_shared_version: Version,
-    ) -> Transaction {
+    ) -> TransactionEnvelope {
         let mut delete_object_transaction_builder = ProgrammableTransactionBuilder::new();
         let arg = delete_object_transaction_builder
             .obj(CallArg::Shared(SharedObjectReference::new(
@@ -207,7 +209,7 @@ impl TestRunner {
         owned_obj: ObjectReference,
         shared_obj_id: ObjectId,
         initial_shared_version: Version,
-    ) -> Transaction {
+    ) -> TransactionEnvelope {
         let mut object_transaction_builder = ProgrammableTransactionBuilder::new();
         let arg_1 = object_transaction_builder
             .obj(CallArg::ImmutableOrOwned(owned_obj))
@@ -236,7 +238,7 @@ impl TestRunner {
         initial_shared_version: Version,
         shared_obj_id_2: ObjectId,
         initial_shared_version_2: Version,
-    ) -> Transaction {
+    ) -> TransactionEnvelope {
         let mut object_transaction_builder = ProgrammableTransactionBuilder::new();
         let arg_1 = object_transaction_builder
             .obj(CallArg::Shared(SharedObjectReference::new(
@@ -269,7 +271,7 @@ impl TestRunner {
         owned_obj: ObjectReference,
         shared_obj_id: ObjectId,
         initial_shared_version: Version,
-    ) -> Transaction {
+    ) -> TransactionEnvelope {
         let mut delete_object_transaction_builder = ProgrammableTransactionBuilder::new();
         let arg_1 = delete_object_transaction_builder
             .obj(CallArg::ImmutableOrOwned(owned_obj))
@@ -297,7 +299,7 @@ impl TestRunner {
         initial_shared_version: Version,
         shared_obj_id_2: ObjectId,
         initial_shared_version_2: Version,
-    ) -> Transaction {
+    ) -> TransactionEnvelope {
         let mut object_transaction_builder = ProgrammableTransactionBuilder::new();
         let arg_1 = object_transaction_builder
             .obj(CallArg::Shared(SharedObjectReference::new(
@@ -328,7 +330,7 @@ impl TestRunner {
         &mut self,
         shared_obj_id: ObjectId,
         initial_shared_version: Version,
-    ) -> Transaction {
+    ) -> TransactionEnvelope {
         let mut delete_object_transaction_builder = ProgrammableTransactionBuilder::new();
         let arg = delete_object_transaction_builder
             .make_obj_vec(vec![CallArg::Shared(SharedObjectReference::new(
@@ -351,7 +353,7 @@ impl TestRunner {
         &mut self,
         so1: (ObjectId, Version, bool),
         so2: (ObjectId, Version, bool),
-    ) -> Transaction {
+    ) -> TransactionEnvelope {
         let mut delete_object_transaction_builder = ProgrammableTransactionBuilder::new();
         let arg1 = delete_object_transaction_builder
             .obj(CallArg::Shared(SharedObjectReference::new(
@@ -395,7 +397,7 @@ impl TestRunner {
         &mut self,
         shared_obj_id: ObjectId,
         initial_shared_version: Version,
-    ) -> Transaction {
+    ) -> TransactionEnvelope {
         let mut delete_object_transaction_builder = ProgrammableTransactionBuilder::new();
         let arg = delete_object_transaction_builder
             .obj(CallArg::Shared(SharedObjectReference::new(
@@ -418,7 +420,7 @@ impl TestRunner {
         &mut self,
         shared_obj_id: ObjectId,
         initial_shared_version: Version,
-    ) -> Transaction {
+    ) -> TransactionEnvelope {
         let mut delete_object_transaction_builder = ProgrammableTransactionBuilder::new();
         let arg = delete_object_transaction_builder
             .obj(CallArg::Shared(SharedObjectReference::new(
@@ -441,7 +443,7 @@ impl TestRunner {
         &mut self,
         shared_obj_id: ObjectId,
         initial_shared_version: Version,
-    ) -> Transaction {
+    ) -> TransactionEnvelope {
         let mut delete_object_transaction_builder = ProgrammableTransactionBuilder::new();
         let arg = delete_object_transaction_builder
             .obj(CallArg::Shared(SharedObjectReference::new(
@@ -464,7 +466,7 @@ impl TestRunner {
         &mut self,
         shared_obj_id: ObjectId,
         initial_shared_version: Version,
-    ) -> Transaction {
+    ) -> TransactionEnvelope {
         let mut delete_object_transaction_builder = ProgrammableTransactionBuilder::new();
         let arg = delete_object_transaction_builder
             .obj(CallArg::Shared(SharedObjectReference::new(
@@ -487,7 +489,7 @@ impl TestRunner {
         &mut self,
         shared_obj_id: ObjectId,
         initial_shared_version: Version,
-    ) -> Transaction {
+    ) -> TransactionEnvelope {
         let mut delete_object_transaction_builder = ProgrammableTransactionBuilder::new();
         let arg = delete_object_transaction_builder
             .obj(CallArg::Shared(SharedObjectReference::new(
@@ -510,7 +512,7 @@ impl TestRunner {
         &mut self,
         pt: ProgrammableTransaction,
         account_id: ObjectId,
-    ) -> Transaction {
+    ) -> TransactionEnvelope {
         build_programmable_transaction(
             &self.authority_state,
             &account_id,
@@ -525,7 +527,7 @@ impl TestRunner {
 
     pub async fn certify_shared_obj_transaction(
         &mut self,
-        tx: Transaction,
+        tx: TransactionEnvelope,
     ) -> Result<VerifiedCertificate, IotaError> {
         certify_shared_obj_transaction_no_execution(&self.authority_state, tx).await
     }

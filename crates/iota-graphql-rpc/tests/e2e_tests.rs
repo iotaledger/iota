@@ -22,7 +22,7 @@ mod tests {
     use iota_types::{
         digests::ChainIdentifier,
         gas_coin::GAS,
-        transaction::{CallArg, Transaction, TransactionDataAPI},
+        transaction::{CallArg, TransactionDataAPI, TransactionEnvelope},
     };
     use rand::{SeedableRng, rngs::StdRng};
     use serde_json::json;
@@ -32,7 +32,7 @@ mod tests {
 
     async fn mutation_execute_transaction(
         client: &SimpleClient,
-        signed_tx: &Transaction,
+        signed_tx: &TransactionEnvelope,
         response_fields: &str,
     ) -> GraphqlResponse {
         let (tx_bytes, sigs) = signed_tx.to_tx_bytes_and_signatures();

@@ -18,7 +18,7 @@ use iota_sdk_types::{Address, ObjectId, ObjectReference, StructTag, crypto::Inte
 use iota_types::{
     crypto::IotaKeyPair,
     gas_coin::GasCoin,
-    transaction::{Transaction, TransactionData, TransactionDataAPI},
+    transaction::{TransactionData, TransactionDataAPI, TransactionEnvelope},
 };
 use tokio::sync::RwLock;
 use tracing::warn;
@@ -394,14 +394,14 @@ impl WalletContext {
     }
 
     /// Sign a transaction with a key currently managed by the WalletContext.
-    pub fn sign_transaction(&self, data: &TransactionData) -> Transaction {
+    pub fn sign_transaction(&self, data: &TransactionData) -> TransactionEnvelope {
         let sig = self
             .config
             .keystore
             .sign_secure(&data.sender(), data, Intent::iota_transaction())
             .unwrap();
         // TODO: To support sponsored transaction, we should also look at the gas owner.
-        Transaction::from_data(data.clone(), vec![sig])
+        TransactionEnvelope::from_data(data.clone(), vec![sig])
     }
 
     /// Execute a transaction and wait for it to be locally executed on the
@@ -409,7 +409,7 @@ impl WalletContext {
     /// ExecutionStatus::Success.
     pub async fn execute_transaction_must_succeed(
         &self,
-        tx: Transaction,
+        tx: TransactionEnvelope,
     ) -> IotaTransactionBlockResponse {
         tracing::debug!("Executing transaction: {:?}", tx);
         let response = self.execute_transaction_may_fail(tx).await.unwrap();
@@ -426,7 +426,7 @@ impl WalletContext {
     /// caller is explicitly testing some failure behavior.
     pub async fn execute_transaction_may_fail(
         &self,
-        tx: Transaction,
+        tx: TransactionEnvelope,
     ) -> anyhow::Result<IotaTransactionBlockResponse> {
         let client = self.get_client().await?;
         Ok(client

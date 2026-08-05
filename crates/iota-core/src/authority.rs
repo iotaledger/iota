@@ -4352,7 +4352,7 @@ impl AuthorityState {
         &self,
         digest: TransactionDigest,
         kv_store: Arc<TransactionKeyValueStore>,
-    ) -> IotaResult<(Transaction, TransactionEffects)> {
+    ) -> IotaResult<(TransactionEnvelope, TransactionEffects)> {
         let transaction = kv_store.get_tx(digest).await?;
         let effects = kv_store.get_fx_by_tx_digest(digest).await?;
         Ok((transaction, effects))
@@ -4954,7 +4954,7 @@ impl AuthorityState {
         Some((input_coin_objects, written_coin_objects))
     }
 
-    /// Get the TransactionEnvelope that currently locks the given object, if
+    /// Get the transaction envelope that currently locks the given object, if
     /// any. Since object locks are only valid for one epoch, we also need
     /// the epoch_id in the query. Returns UserInputError::ObjectNotFound if
     /// no lock records for the given object can be found.
