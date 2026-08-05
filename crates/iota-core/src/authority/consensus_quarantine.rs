@@ -29,7 +29,9 @@ use crate::{
         authority_per_epoch_store::{
             LockDetails, LockDetailsWrapper, report_aggregator::DBReceivedReportsStatePerAuthority,
         },
-        shared_object_congestion_tracker::{CongestionPerObjectDebt, CongestionWorkerDebt},
+        shared_object_congestion_tracker::{
+            CongestionPerObjectDebt, CongestionWorkerDebt, WorkerDebtSlots,
+        },
         shared_object_version_manager::AssignedTxAndVersions,
     },
     checkpoints::PendingCheckpoint,
@@ -63,7 +65,7 @@ pub(crate) struct ConsensusCommitOutput {
     // execution-worker debt carried over to the next commit (slots relative
     // to the next commit's start); covers all transactions, which one tracker
     // schedules. `None` when execution-worker congestion control is inactive.
-    congestion_control_worker_debt: Option<Vec<(u64, u64, u16)>>,
+    congestion_control_worker_debt: Option<WorkerDebtSlots>,
     // TODO: If we delay committing consensus output until after all deferrals have been loaded,
     // we can move deferred_txns to the ConsensusOutputCache and save disk bandwidth.
     deferred_txns: Vec<(DeferralKey, Vec<DeferredTransaction>)>,
@@ -241,7 +243,7 @@ impl ConsensusCommitOutput {
         self.congestion_control_randomness_object_debts = object_debts;
     }
 
-    pub fn set_congestion_control_worker_debt(&mut self, debt: Vec<(u64, u64, u16)>) {
+    pub fn set_congestion_control_worker_debt(&mut self, debt: WorkerDebtSlots) {
         self.congestion_control_worker_debt = Some(debt);
     }
 
@@ -1172,7 +1174,7 @@ impl ConsensusOutputQuarantine {
         &self,
         epoch_store: &AuthorityPerEpochStore,
         current_round: CommitRound,
-    ) -> IotaResult<Vec<(u64, u64, u16)>> {
+    ) -> IotaResult<WorkerDebtSlots> {
         let tables = epoch_store.tables()?;
         let per_commit_limit = epoch_store
             .protocol_config()

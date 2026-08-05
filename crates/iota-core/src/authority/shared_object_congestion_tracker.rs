@@ -344,7 +344,7 @@ impl WorkerSlots {
     /// slots). The input is assumed to already satisfy the invariant
     /// (sorted, disjoint, merged), as produced by [`Self::overshoot`] and
     /// [`Self::decay`].
-    fn from_debt(slots: Vec<(ExecutionTime, ExecutionTime, u16)>) -> Self {
+    fn from_debt(slots: WorkerDebtSlots) -> Self {
         Self(
             slots
                 .into_iter()
@@ -362,10 +362,7 @@ impl WorkerSlots {
     /// `max_execution_duration_per_commit` becomes time `0`. This is the
     /// worker work still "running" at the start of the next commit
     /// and is carried over as its initial worker slots.
-    fn overshoot(
-        &self,
-        max_execution_duration_per_commit: ExecutionTime,
-    ) -> Vec<(ExecutionTime, ExecutionTime, u16)> {
+    fn overshoot(&self, max_execution_duration_per_commit: ExecutionTime) -> WorkerDebtSlots {
         self.0
             .iter()
             .filter_map(|s| {
@@ -384,10 +381,7 @@ impl WorkerSlots {
     /// Shifts a debt left by `shift`, dropping the portion that falls below
     /// time `0`. Used to age a stored debt by the budget of the commits
     /// that elapsed since it was recorded.
-    fn decay(
-        slots: Vec<(ExecutionTime, ExecutionTime, u16)>,
-        shift: ExecutionTime,
-    ) -> Vec<(ExecutionTime, ExecutionTime, u16)> {
+    fn decay(slots: WorkerDebtSlots, shift: ExecutionTime) -> WorkerDebtSlots {
         slots
             .into_iter()
             .filter_map(|(start, end, count)| {
@@ -426,7 +420,7 @@ impl SharedObjectCongestionTracker {
     /// is ignored when execution-worker congestion control is inactive.
     pub(super) fn new(
         initial_object_debts: impl IntoIterator<Item = (ObjectId, u64)>,
-        initial_worker_debt: Vec<(ExecutionTime, ExecutionTime, u16)>,
+        initial_worker_debt: WorkerDebtSlots,
         congestion_control_parameters: CongestionControlParameters,
     ) -> Self {
         let object_execution_slots = initial_object_debts
@@ -811,7 +805,7 @@ impl SharedObjectCongestionTracker {
     pub(super) fn accumulated_worker_debt(
         &self,
         max_execution_duration_per_commit: u64,
-    ) -> Option<Vec<(ExecutionTime, ExecutionTime, u16)>> {
+    ) -> Option<WorkerDebtSlots> {
         self.worker_slots
             .as_ref()
             .map(|worker_slots| worker_slots.overshoot(max_execution_duration_per_commit))
@@ -836,21 +830,25 @@ impl CongestionPerObjectDebt {
     }
 }
 
+/// The worker concurrency profile as `(start, end, count)` slots, in the form
+/// it is carried between consensus commits.
+pub(super) type WorkerDebtSlots = Vec<(ExecutionTime, ExecutionTime, u16)>;
+
 /// The execution-worker debt carried over from a consensus commit: the
 /// worker concurrency profile that extends past the per-commit limit, stored
 /// as `(start, end, count)` slots together with the round in which it was
 /// recorded (so future commits can age it by their elapsed budget).
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub(crate) enum CongestionWorkerDebt {
-    V1(CommitRound, Vec<(ExecutionTime, ExecutionTime, u16)>),
+    V1(CommitRound, WorkerDebtSlots),
 }
 
 impl CongestionWorkerDebt {
-    pub(super) fn new(round: CommitRound, slots: Vec<(ExecutionTime, ExecutionTime, u16)>) -> Self {
+    pub(super) fn new(round: CommitRound, slots: WorkerDebtSlots) -> Self {
         Self::V1(round, slots)
     }
 
-    pub(super) fn into_v1(self) -> (CommitRound, Vec<(ExecutionTime, ExecutionTime, u16)>) {
+    pub(super) fn into_v1(self) -> (CommitRound, WorkerDebtSlots) {
         match self {
             Self::V1(round, slots) => (round, slots),
         }
@@ -863,7 +861,7 @@ impl CongestionWorkerDebt {
         self,
         current_round: CommitRound,
         max_execution_duration_per_commit: ExecutionTime,
-    ) -> Vec<(ExecutionTime, ExecutionTime, u16)> {
+    ) -> WorkerDebtSlots {
         let (stored_round, slots) = self.into_v1();
         // Mirrors the per-object debt aging: the stored debt already
         // accounts for the budget of its own round, so only fully-elapsed

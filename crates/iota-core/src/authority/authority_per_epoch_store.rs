@@ -329,7 +329,7 @@ impl CongestionControlParameters {
         self.congestion_control_min_free_execution_slot
     }
 
-    /// Check whether congestion control is enabled
+    /// Check whether congestion control is enabled.
     fn is_congestion_control_enabled(&self) -> bool {
         self.max_execution_duration_per_commit.is_some()
     }
@@ -3877,7 +3877,7 @@ impl AuthorityPerEpochStore {
                 sequenced_randomness_transactions = randomness;
             }
         }
-        // The combined tracker implies the PCOOL flow (enforced by the
+        // The combined tracker implies the P-COOL flow (enforced by the
         // protocol config), under which all user transactions are in
         // `sequenced_transactions` and the partition-back is skipped.
         debug_assert!(
