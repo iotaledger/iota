@@ -252,7 +252,6 @@ impl StateSnapshotReaderV1 {
         // and updates the progress bar accordingly
         copy_files_with_progress(
             &files_to_download,
-            &files_to_download,
             &self.remote_object_store,
             &self.local_object_store,
             self.concurrency.get(),

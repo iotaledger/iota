@@ -31,9 +31,7 @@ use indicatif::{
     FormattedDuration, HumanBytes, HumanCount, HumanDuration, MultiProgress, ProgressBar,
     ProgressDrawTarget, ProgressStyle,
 };
-use iota_storage::object_store::{
-    ObjectStoreGetExt, ObjectStorePutExt, util::put,
-};
+use iota_storage::object_store::{ObjectStoreGetExt, ObjectStorePutExt, util::put};
 use object_store::path::Path;
 use tokio::task::JoinHandle;
 use tracing::{error, info, warn};
@@ -464,21 +462,20 @@ pub async fn get_single_file_with_progress<S: ObjectStoreGetExt>(
     Ok(bytes)
 }
 
-/// Copy `src[i]` to `dest[i]` for all `i` in parallel, recording downloaded
-/// chunks and each completed file on `progress` and failing on the first copy
-/// that fails.
+/// Copy every path in `paths` from `src_store` to `dest_store` in parallel,
+/// recording downloaded chunks and each completed file on `progress` and
+/// failing on the first copy that fails.
 pub async fn copy_files_with_progress<S: ObjectStoreGetExt, D: ObjectStorePutExt>(
-    src: &[Path],
-    dest: &[Path],
+    paths: &[Path],
     src_store: &S,
     dest_store: &D,
     concurrency: usize,
     progress: &DownloadProgressBar,
 ) -> Result<()> {
-    futures::stream::iter(src.iter().zip(dest.iter()))
-        .map(|(path_in, path_out)| async move {
-            let bytes = get_with_progress(src_store, path_in, progress).await?;
-            put(dest_store, path_out, bytes).await?;
+    futures::stream::iter(paths)
+        .map(|path| async move {
+            let bytes = get_with_progress(src_store, path, progress).await?;
+            put(dest_store, path, bytes).await?;
             Ok::<_, anyhow::Error>(())
         })
         .boxed()
@@ -706,7 +703,7 @@ mod tests {
 
         let progress =
             DownloadProgressBar::new(&hidden_multi_progress(), "Downloading", 2, Some(8));
-        copy_files_with_progress(&paths, &paths, &src_store, &dest_store, 2, &progress).await?;
+        copy_files_with_progress(&paths, &src_store, &dest_store, 2, &progress).await?;
         assert_eq!(progress.bar().length(), Some(8));
         assert_eq!(progress.bar().position(), 8);
         assert_eq!(progress.bar().message(), "2/2 files");
@@ -731,7 +728,7 @@ mod tests {
 
         // An unknown total byte size means the bar counts files instead.
         let progress = DownloadProgressBar::new(&hidden_multi_progress(), "Downloading", 2, None);
-        copy_files_with_progress(&paths, &paths, &src_store, &dest_store, 2, &progress).await?;
+        copy_files_with_progress(&paths, &src_store, &dest_store, 2, &progress).await?;
         assert_eq!(progress.bar().length(), Some(2));
         assert_eq!(progress.bar().position(), 2);
         Ok(())
