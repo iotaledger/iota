@@ -25,7 +25,7 @@ use iota_sdk::{
     },
 };
 use iota_sdk_crypto::{
-    Signer as _, ToFromBech32, ToFromBytes as _, ed25519::Ed25519PrivateKey,
+    Signer as _, ToFromBase64, ToFromBech32, ToFromBytes as _, ed25519::Ed25519PrivateKey,
     secp256k1::Secp256k1PrivateKey, secp256r1::Secp256r1PrivateKey,
 };
 use iota_sdk_types::{Address, UserSignature};
@@ -58,18 +58,18 @@ async fn main() -> Result<(), anyhow::Error> {
 
     // import a keypair from a base64 encoded 32-byte `private key` assuming scheme
     // is Ed25519.
-    let _ikp_import_no_flag_0 = SimpleKeypair::from(Ed25519PrivateKey::from_bytes(
-        Base64::decode("1GPhHHkVlF6GrCty2IuBkM+tj/e0jn64ksJ1pc8KPoI=")
+    let _ikp_import_no_flag_0 = SimpleKeypair::from(
+        Ed25519PrivateKey::from_base64("1GPhHHkVlF6GrCty2IuBkM+tj/e0jn64ksJ1pc8KPoI=")
             .map_err(|_| anyhow!("Invalid base64"))?,
-    )?);
-    let _ikp_import_no_flag_1 = SimpleKeypair::from(Ed25519PrivateKey::from_bytes(
-        Base64::decode("1GPhHHkVlF6GrCty2IuBkM+tj/e0jn64ksJ1pc8KPoI=")
+    );
+    let _ikp_import_no_flag_1 = SimpleKeypair::from(
+        Ed25519PrivateKey::from_base64("1GPhHHkVlF6GrCty2IuBkM+tj/e0jn64ksJ1pc8KPoI=")
             .map_err(|_| anyhow!("Invalid base64"))?,
-    )?);
-    let _ikp_import_no_flag_2 = SimpleKeypair::from(Ed25519PrivateKey::from_bytes(
-        Base64::decode("1GPhHHkVlF6GrCty2IuBkM+tj/e0jn64ksJ1pc8KPoI=")
+    );
+    let _ikp_import_no_flag_2 = SimpleKeypair::from(
+        Ed25519PrivateKey::from_base64("1GPhHHkVlF6GrCty2IuBkM+tj/e0jn64ksJ1pc8KPoI=")
             .map_err(|_| anyhow!("Invalid base64"))?,
-    )?);
+    );
 
     // import a keypair from a base64 encoded 33-byte `flag || private key`.
     // The signature scheme is determined by the flag.
