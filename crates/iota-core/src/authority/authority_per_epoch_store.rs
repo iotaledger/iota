@@ -3062,6 +3062,19 @@ impl AuthorityPerEpochStore {
             .remove(authority)
     }
 
+    /// The total stake of committee members with a recorded deny rule
+    /// proposal this epoch, empty proposals included. Every committee member
+    /// announces its configuration each epoch, so this converges towards the
+    /// full committee stake as announcements arrive.
+    pub fn announced_deny_rule_stake(&self) -> StakeUnit {
+        self.consensus_quarantine
+            .read()
+            .current_deny_rule_proposals()
+            .keys()
+            .map(|authority| self.committee().weight(authority))
+            .sum()
+    }
+
     /// Whether `proposal` is newer than the recorded proposal (if any) from
     /// the same authority and should therefore be recorded.
     pub fn should_record_deny_rule_proposal(&self, proposal: &TransactionDenyRuleProposal) -> bool {
