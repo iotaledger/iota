@@ -262,6 +262,9 @@ pub async fn safe_drop_db(path: PathBuf, timeout: Duration) -> Result<(), rocksd
     }
 }
 
+/// Lists what is on disk and adds anything the caller did not declare, because
+/// rocksdb refuses to open a database unless every column family it has is
+/// named.
 fn populate_missing_cfs(
     input_cfs: &[(&str, rocksdb::Options)],
     path: &Path,
