@@ -13,10 +13,10 @@
 //!
 //! Writes `authenticator_gas_profile.speedscope.json`; view it at
 //! <https://www.speedscope.app>.
-//! Also captures an instruction-level execution trace:
-//! the run's events are printed from `ExecutionTrace::events`, and the
-//! whole trace is written to `authenticator_gas_profile.json.zst` for the Move
-//! trace debugger.
+//! Also captures an instruction-level execution trace: the first few events are
+//! printed by decoding them from `ExecutionTrace::events`, and the whole trace
+//! is written to `authenticator_gas_profile.json.zst` for the Move trace
+//! debugger.
 
 use std::path::PathBuf;
 
@@ -96,10 +96,13 @@ fn main() -> Result<()> {
         Some(trace) => {
             println!(
                 "Instruction-level execution trace captured (format version {}, {} events).",
-                trace.version,
-                trace.events.len()
+                trace.version(),
+                trace.event_count()
             );
-            std::fs::write(&trace_path, trace.trace_bytes())?;
+            for event in trace.events()?.take(5) {
+                println!("  {:?}", event?);
+            }
+            std::fs::write(&trace_path, trace.bytes())?;
             println!("Full trace written to: {}", trace_path.display());
         }
         _ => println!("No instruction-level execution trace was captured."),

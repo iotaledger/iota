@@ -7,7 +7,12 @@
 
 use std::path::PathBuf;
 
-use move_trace_format::format::{TraceEvent, TraceVersion};
+use move_trace_format::format::{MoveTraceBuilder, TraceVersion};
+#[cfg(not(target_arch = "wasm32"))]
+use move_trace_format::format::{MoveTraceReader, TraceEvent};
+
+#[cfg(not(target_arch = "wasm32"))]
+use crate::error::TraceError;
 
 /// Configuration for a single debug-enabled run.
 ///
@@ -83,24 +88,38 @@ pub enum ProfileOutput {
     Json(Vec<u8>),
 }
 
-/// An instruction-level execution trace: the events the Move VM emitted, in
-/// order, plus the same trace in the format the Move trace debugger reads.
-#[derive(Clone)]
+/// An instruction-level execution trace, in the format the Move trace debugger
+/// reads. Decode its events with [`events`](Self::events), or hand the encoded
+/// bytes to a file or another tool with [`bytes`](Self::bytes).
 pub struct ExecutionTrace {
-    /// Version of the trace format the events were captured with.
-    pub version: TraceVersion,
-    /// Events in the order the VM emitted them.
-    pub events: Vec<TraceEvent>,
+    version: TraceVersion,
+    event_count: usize,
     bytes: Vec<u8>,
 }
 
 impl ExecutionTrace {
-    pub(crate) fn new(version: TraceVersion, events: Vec<TraceEvent>, bytes: Vec<u8>) -> Self {
+    /// Build from a finished [`MoveTraceBuilder`]: reads the version and event
+    /// count while the builder is still alive (`into_trace` moves the trace
+    /// out, and encoding consumes it), then encodes.
+    pub(crate) fn from_builder(builder: MoveTraceBuilder) -> Self {
+        let version = builder.trace.version;
+        let event_count = builder.current_trace_offset();
         Self {
             version,
-            events,
-            bytes,
+            event_count,
+            bytes: builder.into_trace().into_compressed_json_bytes(),
         }
+    }
+
+    /// Version of the trace format the run was captured with.
+    pub fn version(&self) -> TraceVersion {
+        self.version
+    }
+
+    /// How many events the VM emitted. Counted during the run, so reading it
+    /// decodes nothing.
+    pub fn event_count(&self) -> usize {
+        self.event_count
     }
 
     /// The trace as the VM encoded it: a version header line followed by one
@@ -109,26 +128,66 @@ impl ExecutionTrace {
     ///
     /// (On wasm32 the Move trace format is not compressed, so these are plain
     /// line-delimited JSON bytes.)
-    pub fn trace_bytes(&self) -> &[u8] {
+    pub fn bytes(&self) -> &[u8] {
         &self.bytes
     }
 
-    /// Take the encoded trace, as described on
-    /// [`trace_bytes`](Self::trace_bytes).
-    pub fn into_trace_bytes(self) -> Vec<u8> {
+    /// Take the encoded trace, as described on [`bytes`](Self::bytes).
+    pub fn into_bytes(self) -> Vec<u8> {
         self.bytes
     }
 }
 
-// Summarised rather than derived: a trace of a real transaction runs to
-// hundreds of thousands of events, so printing them all buries whatever else
-// the caller was inspecting. Reach for `events` to see them.
+#[cfg(not(target_arch = "wasm32"))]
+impl ExecutionTrace {
+    /// The events the VM emitted, in order, decoded from the encoded trace.
+    ///
+    /// Each call decodes the trace again, so collect the events if you need
+    /// them more than once. Decoding a large trace costs many times what the
+    /// encoded bytes do (a run of ~15,000 events decodes from 66 KB of
+    /// compressed bytes to about 4 MB), which is why they are not decoded up
+    /// front.
+    ///
+    /// Not available on wasm32; see [`bytes`](Self::bytes).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`TraceError`] if the encoded trace cannot be opened; the
+    /// returned iterator yields one per event that cannot be decoded.
+    pub fn events(&self) -> Result<TraceEvents<'_>, TraceError> {
+        let reader = MoveTraceReader::new(std::io::Cursor::new(self.bytes.as_slice()))
+            .map_err(|source| TraceError { source })?;
+        Ok(TraceEvents(reader))
+    }
+}
+
+/// The events of an [`ExecutionTrace`], decoded as the iterator advances. See
+/// [`ExecutionTrace::events`].
+#[cfg(not(target_arch = "wasm32"))]
+pub struct TraceEvents<'a>(MoveTraceReader<'static, std::io::Cursor<&'a [u8]>>);
+
+#[cfg(not(target_arch = "wasm32"))]
+impl Iterator for TraceEvents<'_> {
+    type Item = Result<TraceEvent, TraceError>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.0.next_event() {
+            Ok(Some(event)) => Some(Ok(event)),
+            Ok(None) => None,
+            Err(source) => Some(Err(TraceError { source })),
+        }
+    }
+}
+
+// Summarised rather than derived: a derived impl would dump `bytes` as a flat
+// list of numbers, which is useless and can run to hundreds of kilobytes for a
+// real transaction. Reach for `events` to see the decoded events.
 impl std::fmt::Debug for ExecutionTrace {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ExecutionTrace")
             .field("version", &self.version)
-            .field("event_count", &self.events.len())
-            .field("trace_bytes_len", &self.bytes.len())
+            .field("event_count", &self.event_count)
+            .field("bytes_len", &self.bytes.len())
             .finish()
     }
 }

@@ -19,9 +19,10 @@ use iota_types::{
 };
 use move_bytecode_utils::{layout::TypeLayoutBuilder, module_cache::GetModule};
 use move_core_types::language_storage::ModuleId;
+use move_trace_format::format::MoveTraceBuilder;
 
 use crate::{
-    debug::{DebugArtifacts, DebugConfig},
+    debug::{DebugArtifacts, DebugConfig, ExecutionTrace},
     error::{ExecutionError, ValidationError, VmSdkError},
     executor::{
         env::{ExecutionEnv, build_executor, new_bytecode_verifier_metrics, new_limits_metrics},
@@ -29,7 +30,6 @@ use crate::{
             authenticate_only, build_auth_context_data, decode_one_event, execute_prepared,
             execute_with_move_authenticators, prepare_authenticators, prepare_transaction,
         },
-        trace::{CollectedEvents, collecting_trace_builder, finish_trace},
         types::{
             ChainContext, DecodedEvent, ExecuteOptions, ExecutionMode, ExecutionResult,
             SignatureStatus,
@@ -232,10 +232,7 @@ impl LocalVm {
             } else {
                 // Only the authenticator path threads a `MoveTraceBuilder`
                 // through the engine, so a trace is built only here.
-                let events = CollectedEvents::default();
-                let mut trace_builder = env
-                    .trace_enabled()
-                    .then(|| collecting_trace_builder(&events));
+                let mut trace_builder = env.trace_enabled().then(MoveTraceBuilder::new);
 
                 let (sim, authenticator_outcome) = execute_with_move_authenticators(
                     &env,
@@ -249,7 +246,7 @@ impl LocalVm {
                 (
                     sim,
                     SignatureStatus::from_authentication(authenticator_outcome),
-                    trace_builder.map(|b| finish_trace(b, &events)),
+                    trace_builder.map(ExecutionTrace::from_builder),
                 )
             }
         };
