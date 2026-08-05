@@ -1807,8 +1807,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "90dbd31c98227229239363921e60fcf5e558e43ec69094d46fc4996f08d1d5bc"
 dependencies = [
  "bitcoin_hashes",
- "rand 0.8.6",
- "rand_core 0.6.4",
+ "rand 0.7.3",
+ "rand_core 0.5.1",
  "serde",
  "unicode-normalization",
 ]
@@ -9760,7 +9760,7 @@ dependencies = [
 [[package]]
 name = "msim"
 version = "0.1.0"
-source = "git+https://github.com/iotaledger/iota-sim.git?branch=tokio-1.53.1#2d1ddbb6e2d07f2d3541c4ee5710c725819ec917"
+source = "git+https://github.com/iotaledger/iota-sim.git?branch=tokio-1.53.1#43089b776febc99172aa304962bb93ee9ecb90ca"
 dependencies = [
  "ahash 0.8.11",
  "async-task",
@@ -9779,7 +9779,7 @@ dependencies = [
  "serde",
  "socket2 0.5.7",
  "tap",
- "tokio-util 0.7.18 (git+https://github.com/iotaledger/tokio-madsim-fork.git?rev=2892d62df4a95d629aede23af941303566828b9f)",
+ "tokio-util 0.7.18 (git+https://github.com/iotaledger/tokio-madsim-fork.git?rev=dcb4e894d70cdf80ed7ec1d26dac71120a1050f0)",
  "toml 0.8.9",
  "tracing",
  "tracing-subscriber",
@@ -9788,7 +9788,7 @@ dependencies = [
 [[package]]
 name = "msim-macros"
 version = "0.1.0"
-source = "git+https://github.com/iotaledger/iota-sim.git?branch=tokio-1.53.1#2d1ddbb6e2d07f2d3541c4ee5710c725819ec917"
+source = "git+https://github.com/iotaledger/iota-sim.git?branch=tokio-1.53.1#43089b776febc99172aa304962bb93ee9ecb90ca"
 dependencies = [
  "darling 0.14.4",
  "proc-macro2",
@@ -10034,7 +10034,7 @@ version = "0.50.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7957b9740744892f114936ab4a57b3f487491bbeafaf8083688b16841a4240e5"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -11879,8 +11879,8 @@ dependencies = [
 
 [[package]]
 name = "real_tokio"
-version = "1.52.2"
-source = "git+https://github.com/iotaledger/tokio-madsim-fork.git?rev=2892d62df4a95d629aede23af941303566828b9f#2892d62df4a95d629aede23af941303566828b9f"
+version = "1.53.1"
+source = "git+https://github.com/iotaledger/tokio-madsim-fork.git?rev=dcb4e894d70cdf80ed7ec1d26dac71120a1050f0#dcb4e894d70cdf80ed7ec1d26dac71120a1050f0"
 dependencies = [
  "bytes",
  "libc",
@@ -14098,7 +14098,7 @@ dependencies = [
 [[package]]
 name = "tokio-util"
 version = "0.7.18"
-source = "git+https://github.com/iotaledger/tokio-madsim-fork.git?rev=2892d62df4a95d629aede23af941303566828b9f#2892d62df4a95d629aede23af941303566828b9f"
+source = "git+https://github.com/iotaledger/tokio-madsim-fork.git?rev=dcb4e894d70cdf80ed7ec1d26dac71120a1050f0#dcb4e894d70cdf80ed7ec1d26dac71120a1050f0"
 dependencies = [
  "bytes",
  "futures-core",
@@ -14106,6 +14106,7 @@ dependencies = [
  "futures-sink",
  "futures-util",
  "hashbrown 0.15.4",
+ "libc",
  "pin-project-lite",
  "real_tokio",
  "slab",
@@ -14672,7 +14673,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "97fee6b57c6a41524a810daee9286c02d7752c4253064d0b05472833a438f675"
 dependencies = [
  "cfg-if",
- "rand 0.8.6",
+ "rand 0.7.3",
  "static_assertions",
 ]
 
