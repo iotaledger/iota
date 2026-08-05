@@ -351,7 +351,7 @@ impl Filter {
     }
 
     /// Builds a filter whose startup directives are the env source merged
-    /// over the config source (see [`DirectiveSet::merged`]).
+    /// over the config source: env directives win on conflict.
     pub fn from_sources(config: FilterSource<'_>, env: Option<FilterSource<'_>>) -> Self {
         let startup = Arc::new(DirectiveSet::from_source(config).merged(
             &DirectiveSet::from_source(env.unwrap_or(FilterSource::new(""))),
@@ -382,7 +382,7 @@ impl Filter {
     }
 
     /// Replaces the directives in effect with the runtime override merged
-    /// over the startup directives (see [`DirectiveSet::merged`]) — each call
+    /// over the startup directives (the override wins on conflict) — each call
     /// starts from the startup directives again rather than stacking on the
     /// previous override; an override with a bare level replaces the startup
     /// directives entirely. Rejects the whole update if any directive is
@@ -439,7 +439,7 @@ impl<C: prometheus::core::Collector> prometheus::core::Collector for FilteredCol
 /// `register_*_with_registry!` macros can decide whether a metric is exposed.
 ///
 /// Metrics registered through the wrapper macros join the inner registry
-/// wrapped in [`FilteredCollector`], which consults the filter on every
+/// wrapped in a private collector type, which consults the filter on every
 /// `collect`.
 /// Exposure changes need no bookkeeping here: the next gather simply sees the
 /// new filter.
@@ -490,8 +490,8 @@ impl Registry {
         }
     }
 
-    /// Used by the wrapper macros: registers `collector` wrapped in
-    /// [`FilteredCollector`], so the filter in effect at each gather decides
+    /// Used by the wrapper macros: registers `collector` wrapped in a private
+    /// collector type, so the filter in effect at each gather decides
     /// whether the metric is exposed. Duplicate registrations are rejected by
     /// the inner registry's descriptor check, hidden or not.
     #[inline]
