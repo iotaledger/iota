@@ -14,6 +14,7 @@ use iota_keys::keystore::AccountKeystore;
 use iota_macros::*;
 use iota_node::IotaNodeHandle;
 use iota_sdk::wallet_context::WalletContext;
+use iota_sdk_crypto::{ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey};
 use iota_sdk_types::{
     Address, GasPayment, Identifier, ObjectId, ObjectReference, Owner, TransactionDigest,
     TransactionKind, Version,
@@ -27,7 +28,7 @@ use iota_test_transaction_builder::{
     publish_nfts_package,
 };
 use iota_types::{
-    crypto::{IotaKeyPair, get_key_pair},
+    crypto::{SimpleKeypair, get_key_pair},
     error::{IotaError, UserInputError},
     messages_grpc::TransactionInfoRequest,
     object::{Object, ObjectRead, PastObjectRead},
@@ -812,14 +813,14 @@ async fn test_validator_node_has_no_transaction_orchestrator() {
 async fn test_execute_tx_with_serialized_signature() -> Result<(), anyhow::Error> {
     let mut test_cluster = TestClusterBuilder::new().build().await;
     let context = &mut test_cluster.wallet;
-    context
-        .config_mut()
-        .keystore_mut()
-        .add_key(None, IotaKeyPair::Secp256k1(get_key_pair().1))?;
-    context
-        .config_mut()
-        .keystore_mut()
-        .add_key(None, IotaKeyPair::Ed25519(get_key_pair().1))?;
+    context.config_mut().keystore_mut().add_key(
+        None,
+        SimpleKeypair::from(get_key_pair::<Secp256k1PrivateKey>().1),
+    )?;
+    context.config_mut().keystore_mut().add_key(
+        None,
+        SimpleKeypair::from(get_key_pair::<Ed25519PrivateKey>().1),
+    )?;
 
     let jsonrpc_client = &test_cluster.fullnode_handle.rpc_client;
 

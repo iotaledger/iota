@@ -16,7 +16,7 @@ use iota_json_rpc_types::{
 use iota_keys::keystore::{AccountKeystore, Keystore};
 use iota_sdk_types::{Address, ObjectId, ObjectReference, StructTag, crypto::Intent};
 use iota_types::{
-    crypto::IotaKeyPair,
+    crypto::SimpleKeypair,
     gas_coin::GasCoin,
     transaction::{TransactionData, TransactionDataAPI, TransactionEnvelope},
 };
@@ -389,7 +389,7 @@ impl WalletContext {
     }
 
     /// Add an account.
-    pub fn add_account(&mut self, alias: impl Into<Option<String>>, keypair: IotaKeyPair) {
+    pub fn add_account(&mut self, alias: impl Into<Option<String>>, keypair: SimpleKeypair) {
         self.config.keystore.add_key(alias.into(), keypair).unwrap();
     }
 

@@ -18,7 +18,7 @@ use crate::{
     base_types::{dbg_addr, random_object_ref},
     committee::Committee,
     crypto::{
-        AccountKeyPair, AuthorityKeyPair, AuthorityPublicKeyBytes, IotaKeyPair, get_key_pair,
+        AccountKeyPair, AuthorityKeyPair, AuthorityPublicKeyBytes, get_key_pair,
         get_key_pair_from_rng,
     },
     multisig::{MultiSig, MultiSigPublicKey, MultisigMember},
@@ -120,8 +120,7 @@ pub fn make_sponsored_transaction_data(sender: Address, sponsor: Address) -> Tra
 /// is not verified or signed by authority.
 pub fn make_transaction(sender: Address, kp: &SimpleKeypair) -> TransactionEnvelope {
     let data = make_transaction_data(sender);
-    let digest = data.signing_digest();
-    TransactionEnvelope::from_data(data, vec![kp.sign(&digest)])
+    TransactionEnvelope::from_data_and_signer(data, vec![kp])
 }
 
 // This is used to sign transaction with signer using default Intent.
@@ -158,7 +157,7 @@ pub fn to_sender_signed_transaction_with_multi_signers(
     TransactionEnvelope::from_data_and_signer(data, signers)
 }
 
-pub fn keys() -> Vec<IotaKeyPair> {
+pub fn keys() -> Vec<SimpleKeypair> {
     let (kp1, kp2, kp3) = multisig_keys();
     vec![kp1.into(), kp2.into(), kp3.into()]
 }

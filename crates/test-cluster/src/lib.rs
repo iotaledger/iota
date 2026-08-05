@@ -54,7 +54,7 @@ use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     base_types::{AuthorityName, ConciseableName},
     committee::{Committee, CommitteeTrait, EpochId},
-    crypto::{AccountKeyPair, IotaKeyPair, get_key_pair},
+    crypto::{AccountKeyPair, SimpleKeypair, get_key_pair},
     effects::{TransactionEffects, TransactionEvents},
     error::IotaResult,
     iota_system_state::{
@@ -104,7 +104,7 @@ impl FullNodeHandle {
 
 struct Faucet {
     address: Address,
-    keypair: Arc<tokio::sync::Mutex<IotaKeyPair>>,
+    keypair: Arc<tokio::sync::Mutex<SimpleKeypair>>,
 }
 
 pub struct TestCluster {
@@ -1343,9 +1343,7 @@ impl TestClusterBuilder {
             });
             Faucet {
                 address: faucet_address,
-                keypair: Arc::new(tokio::sync::Mutex::new(IotaKeyPair::Ed25519(
-                    faucet_keypair,
-                ))),
+                keypair: Arc::new(tokio::sync::Mutex::new(SimpleKeypair::from(faucet_keypair))),
             }
         });
 

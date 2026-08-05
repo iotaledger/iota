@@ -7362,6 +7362,7 @@ dependencies = [
  "iota-json-rpc-types",
  "iota-keys",
  "iota-sdk",
+ "iota-sdk-crypto",
  "iota-sdk-types",
  "iota-types",
  "itertools 0.13.0",

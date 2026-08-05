@@ -12,8 +12,12 @@ use iota_keys::{
     key_derive::generate_new_key,
     keystore::{AccountKeystore, FileBasedKeystore, InMemKeystore, Keystore, LegacyAlias},
 };
+use iota_sdk_crypto::ToFromBech32;
 use iota_sdk_types::{Address, SignatureScheme};
-use iota_types::{base_types::IOTA_ADDRESS_LENGTH, crypto::DefaultHash};
+use iota_types::{
+    base_types::IOTA_ADDRESS_LENGTH,
+    crypto::{DefaultHash, PublicKey},
+};
 use tempfile::TempDir;
 
 #[test]
@@ -257,7 +261,7 @@ fn test_migrate_v1_to_v2_no_aliases() {
 
     let (_, keypair, _, _) = generate_new_key(SignatureScheme::Ed25519, None, None).unwrap();
     // Create a v1 keystore file with a single key
-    let private_keys = vec![keypair.encode().unwrap()];
+    let private_keys = vec![keypair.to_bech32().unwrap()];
     let keystore_data = serde_json::to_string_pretty(&private_keys).unwrap();
     fs::write(&keystore_path, keystore_data).unwrap();
 
@@ -265,12 +269,13 @@ fn test_migrate_v1_to_v2_no_aliases() {
     assert!(keystore_path.exists());
     assert_eq!(1, keystore.aliases().len());
     assert_eq!(
-        *keystore
-            .get_key(&Address::from(&keypair.public()))
+        keystore
+            .get_key(&Address::from(&PublicKey::from(&keypair)))
             .unwrap()
             .as_keypair()
-            .unwrap(),
-        keypair,
+            .unwrap()
+            .to_bytes(),
+        keypair.to_bytes(),
     );
 
     let mut backup_keystore_path = keystore_path.clone();
@@ -293,14 +298,14 @@ fn test_migrate_v1_to_v2_with_aliases() {
 
     let (_, keypair, _, _) = generate_new_key(SignatureScheme::Ed25519, None, None).unwrap();
     // Create a v1 keystore file with a single key
-    let private_keys = vec![keypair.encode().unwrap()];
+    let private_keys = vec![keypair.to_bech32().unwrap()];
     let keystore_data = serde_json::to_string_pretty(&private_keys).unwrap();
     fs::write(&keystore_path, keystore_data).unwrap();
 
     // Create an aliases file with a single alias
     let aliases = vec![LegacyAlias {
         alias: "test_alias".to_string(),
-        public_key_base64: keypair.public().encode_base64(),
+        public_key_base64: PublicKey::from(&keypair).encode_base64(),
     }];
     let aliases_data = serde_json::to_string_pretty(&aliases).unwrap();
     fs::write(&aliases_path, aliases_data).unwrap();
@@ -309,16 +314,17 @@ fn test_migrate_v1_to_v2_with_aliases() {
     assert!(keystore_path.exists());
     assert_eq!(1, keystore.aliases().len());
     assert_eq!(
-        *keystore
-            .get_key(&Address::from(&keypair.public()))
+        keystore
+            .get_key(&Address::from(&PublicKey::from(&keypair)))
             .unwrap()
             .as_keypair()
-            .unwrap(),
-        keypair,
+            .unwrap()
+            .to_bytes(),
+        keypair.to_bytes(),
     );
     assert_eq!(
         keystore
-            .get_alias_by_address(&Address::from(&keypair.public()))
+            .get_alias_by_address(&Address::from(&PublicKey::from(&keypair)))
             .unwrap(),
         "test_alias"
     );

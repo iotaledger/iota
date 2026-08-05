@@ -9,7 +9,10 @@ use std::{
 };
 
 use fastcrypto::traits::{AggregateAuthenticator, KeyPair};
-use iota_sdk_crypto::{ed25519::Ed25519PrivateKey, simple::SimpleKeypair};
+use iota_sdk_crypto::{
+    ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey, secp256r1::Secp256r1PrivateKey,
+    simple::SimpleKeypair,
+};
 use iota_sdk_types::{
     Address, ExecutionStatus, GasPayment, Owner, SharedObjectReference, SignatureScheme, StructTag,
     TransactionEventsDigest, gas::GasCostSummary,
@@ -22,7 +25,7 @@ use crate::{
     committee::Committee,
     crypto::{
         AccountKeyPair, AuthorityKeyPair, AuthorityPublicKeyBytes, AuthoritySignInfoTrait,
-        IotaAuthoritySignature, IotaKeyPair, IotaSignature, VerificationObligation,
+        IotaAuthoritySignature, IotaSignature, PublicKey, VerificationObligation,
         bcs_signable_test::{Foo, get_obligation_input},
         get_key_pair,
     },
@@ -721,10 +724,10 @@ fn signature_from_signer(
 
 #[test]
 fn test_sponsored_transaction_message() {
-    let sender_kp = IotaKeyPair::Ed25519(get_key_pair().1);
-    let sender = (&sender_kp.public()).into();
-    let sponsor_kp = IotaKeyPair::Ed25519(get_key_pair().1);
-    let sponsor = (&sponsor_kp.public()).into();
+    let sender_kp = SimpleKeypair::from(get_key_pair::<Ed25519PrivateKey>().1);
+    let sender = (&PublicKey::from(&sender_kp)).into();
+    let sponsor_kp = SimpleKeypair::from(get_key_pair::<Ed25519PrivateKey>().1);
+    let sponsor = (&PublicKey::from(&sponsor_kp)).into();
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
         builder
@@ -787,7 +790,7 @@ fn test_sponsored_transaction_message() {
     ));
 
     // Test incomplete signature lists (more sigs than expected)
-    let third_party_kp = IotaKeyPair::Ed25519(get_key_pair().1);
+    let third_party_kp = SimpleKeypair::from(get_key_pair::<Ed25519PrivateKey>().1);
     let third_party_sig: UserSignature =
         signature_from_signer(tx_data.clone(), intent, &third_party_kp).into();
     assert!(matches!(
@@ -817,10 +820,10 @@ fn test_sponsored_transaction_message() {
 
 #[test]
 fn test_sponsored_transaction_validity_check() {
-    let sender_kp = IotaKeyPair::Ed25519(get_key_pair().1);
-    let sender = (&sender_kp.public()).into();
-    let sponsor_kp = IotaKeyPair::Ed25519(get_key_pair().1);
-    let sponsor = (&sponsor_kp.public()).into();
+    let sender_kp = SimpleKeypair::from(get_key_pair::<Ed25519PrivateKey>().1);
+    let sender = (&PublicKey::from(&sender_kp)).into();
+    let sponsor_kp = SimpleKeypair::from(get_key_pair::<Ed25519PrivateKey>().1);
+    let sponsor = (&PublicKey::from(&sponsor_kp)).into();
 
     // This is a sponsored transaction
     let gas_price = 10;
@@ -934,32 +937,32 @@ fn verify_sender_signature_correctly_with_flag() {
     let committee = Committee::new_for_testing_with_normalized_voting_power(0, authorities);
 
     // create a receiver keypair with Secp256k1
-    let receiver_kp = IotaKeyPair::Secp256k1(get_key_pair().1);
-    let receiver_address = (&receiver_kp.public()).into();
+    let receiver_kp = SimpleKeypair::from(get_key_pair::<Secp256k1PrivateKey>().1);
+    let receiver_address = (&PublicKey::from(&receiver_kp)).into();
 
     // create a sender keypair with Secp256k1
-    let sender_kp = IotaKeyPair::Secp256k1(get_key_pair().1);
+    let sender_kp = SimpleKeypair::from(get_key_pair::<Secp256k1PrivateKey>().1);
     // and creates a corresponding transaction
     let gas_price = 10;
     let tx_data = TransactionData::new_transfer(
         receiver_address,
         random_object_ref(),
-        (&sender_kp.public()).into(),
+        (&PublicKey::from(&sender_kp)).into(),
         random_object_ref(),
         TEST_ONLY_GAS_UNIT_FOR_TRANSFER * gas_price,
         gas_price,
     );
 
     // create a sender keypair with Ed25519
-    let sender_kp_2 = IotaKeyPair::Ed25519(get_key_pair().1);
+    let sender_kp_2 = SimpleKeypair::from(get_key_pair::<Ed25519PrivateKey>().1);
     let mut tx_data_2 = tx_data.clone();
-    *tx_data_2.sender_mut_for_testing() = (&sender_kp_2.public()).into();
+    *tx_data_2.sender_mut_for_testing() = (&PublicKey::from(&sender_kp_2)).into();
     tx_data_2.gas_data_mut().owner = tx_data_2.sender();
 
     // create a sender keypair with Secp256r1
-    let sender_kp_3 = IotaKeyPair::Secp256r1(get_key_pair().1);
+    let sender_kp_3 = SimpleKeypair::from(get_key_pair::<Secp256r1PrivateKey>().1);
     let mut tx_data_3 = tx_data.clone();
-    *tx_data_3.sender_mut_for_testing() = (&sender_kp_3.public()).into();
+    *tx_data_3.sender_mut_for_testing() = (&PublicKey::from(&sender_kp_3)).into();
     tx_data_3.gas_data_mut().owner = tx_data_3.sender();
 
     let transaction = TransactionEnvelope::from_data_and_signer(tx_data, vec![&sender_kp])
@@ -1216,8 +1219,8 @@ fn test_unique_input_objects() {
             .unwrap(),
     ];
 
-    let sender_kp = IotaKeyPair::Ed25519(get_key_pair().1);
-    let sender = (&sender_kp.public()).into();
+    let sender_kp = SimpleKeypair::from(get_key_pair::<Ed25519PrivateKey>().1);
+    let sender = (&PublicKey::from(&sender_kp)).into();
     let gas_price = 10;
     let gas_object_ref = random_object_ref();
     let gas_data = GasPayment {
