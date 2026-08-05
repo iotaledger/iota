@@ -1984,11 +1984,28 @@ impl ProtocolConfig {
         report_move_authentication_error
     }
 
+    /// Named to avoid colliding with the derive-generated
+    /// `max_concurrent_execution_workers[_as_option]()`, which bypass the
+    /// checks below — always read the parameter through this getter.
     pub fn concurrent_execution_workers(&self) -> Option<u16> {
         let res = self.max_concurrent_execution_workers;
         assert!(
             res.is_none() || self.enable_pcool_flow(),
             "max_concurrent_execution_workers requires enable_pcool_flow to be enabled"
+        );
+        assert!(
+            res.is_none()
+                || self
+                    .max_accumulated_txn_cost_per_object_in_mysticeti_commit
+                    .is_some(),
+            "max_concurrent_execution_workers requires per-object congestion control \
+                (max_accumulated_txn_cost_per_object_in_mysticeti_commit) to be enabled"
+        );
+        assert!(
+            res.is_none() || !self.separate_gas_price_feedback_mechanism_for_randomness(),
+            "max_concurrent_execution_workers implies a single congestion tracker and suggested \
+                gas price calculator for all transactions, which is incompatible with \
+                separate_gas_price_feedback_mechanism_for_randomness"
         );
         assert!(
             res != Some(0),

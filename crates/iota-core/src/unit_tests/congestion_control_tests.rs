@@ -1000,6 +1000,10 @@ async fn test_combined_tracker_schedules_randomness_with_regular_transactions() 
         config.set_max_accumulated_txn_cost_per_object_in_mysticeti_commit_for_testing(1);
         config.set_max_congestion_limit_overshoot_per_commit_for_testing(0);
         config.set_max_concurrent_execution_workers_for_testing(1);
+        // The combined tracker schedules randomness-using transactions with the
+        // rest, so the separate randomness gas price mechanism is turned off
+        // alongside it.
+        config.set_separate_gas_price_feedback_mechanism_for_randomness_for_testing(false);
         config.set_max_deferral_rounds_for_congestion_control_for_testing(10);
         config
     });
@@ -1214,6 +1218,10 @@ async fn test_execution_worker_congestion_cancels_owned_object_only_tx() {
         config.set_max_accumulated_txn_cost_per_object_in_mysticeti_commit_for_testing(1);
         config.set_max_congestion_limit_overshoot_per_commit_for_testing(0);
         config.set_max_concurrent_execution_workers_for_testing(1);
+        // The combined tracker schedules randomness-using transactions with the
+        // rest, so the separate randomness gas price mechanism is turned off
+        // alongside it.
+        config.set_separate_gas_price_feedback_mechanism_for_randomness_for_testing(false);
         config.set_max_deferral_rounds_for_congestion_control_for_testing(0);
         config
     });
@@ -1370,6 +1378,12 @@ async fn test_execution_worker_congestion_cancels_shared_object_tx() {
     test_setup
         .protocol_config
         .set_max_concurrent_execution_workers_for_testing(1);
+    // The combined tracker schedules randomness-using transactions with the
+    // rest, so the separate randomness gas price mechanism is turned off
+    // alongside it.
+    test_setup
+        .protocol_config
+        .set_separate_gas_price_feedback_mechanism_for_randomness_for_testing(false);
 
     let shared_object_1 = test_setup.create_shared_object().await;
     let shared_object_2 = test_setup.create_shared_object().await;
@@ -1522,6 +1536,10 @@ async fn test_execution_worker_congestion_cancels_tx_with_multiple_gas_coins() {
         config.set_max_accumulated_txn_cost_per_object_in_mysticeti_commit_for_testing(1);
         config.set_max_congestion_limit_overshoot_per_commit_for_testing(0);
         config.set_max_concurrent_execution_workers_for_testing(1);
+        // The combined tracker schedules randomness-using transactions with the
+        // rest, so the separate randomness gas price mechanism is turned off
+        // alongside it.
+        config.set_separate_gas_price_feedback_mechanism_for_randomness_for_testing(false);
         config.set_max_deferral_rounds_for_congestion_control_for_testing(0);
         config
     });
