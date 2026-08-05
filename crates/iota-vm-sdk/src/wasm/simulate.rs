@@ -85,8 +85,8 @@ pub fn simulate(req: JsValue, fetch_object: js_sys::Function) -> Result<JsValue,
                 .map_err(|e| JsError::new(&format!("signature[{i}] decode: {e}")))?;
             sigs.push(sig);
         }
-        let signed_data = SenderSignedTransaction::new(tx, sigs);
-        vm.execute_signed(signed_data, opts).map_err(err_to_js)?
+        let signed_tx = SenderSignedTransaction::new(tx, sigs);
+        vm.execute_signed(signed_tx, opts).map_err(err_to_js)?
     } else {
         vm.execute(tx, opts).map_err(err_to_js)?
     };

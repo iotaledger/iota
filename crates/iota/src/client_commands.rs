@@ -1868,13 +1868,13 @@ impl IotaClientCommands {
                 IotaClientCommandResult::TransactionBlock(response)
             }
             IotaClientCommands::ExecuteCombinedSignedTx { signed_tx_bytes } => {
-                let data: SenderSignedTransaction = bcs::from_bytes(
+                let tx: SenderSignedTransaction = bcs::from_bytes(
                     &Base64::try_from(signed_tx_bytes)
                         .map_err(|_| anyhow!("Invalid Base64 encoding"))?
                         .to_vec()
                         .map_err(|_| anyhow!("Invalid Base64 encoding"))?
                 ).map_err(|_| anyhow!("Failed to parse SenderSignedTransaction bytes, check if it matches the output of iota client commands with --serialize-signed-transaction"))?;
-                let transaction = Envelope::<SenderSignedTransaction, EmptySignInfo>::new(data);
+                let transaction = Envelope::<SenderSignedTransaction, EmptySignInfo>::new(tx);
                 let response = context.execute_transaction_may_fail(transaction).await?;
                 IotaClientCommandResult::TransactionBlock(response)
             }

@@ -567,7 +567,7 @@ impl TestCheckpointDataBuilder {
             1,
             1,
         )
-        .pipe(|data| SenderSignedTransaction::new(data, vec![]))
+        .pipe(|tx| SenderSignedTransaction::new(tx, vec![]))
         .pipe(TransactionEnvelope::new);
 
         let events = if !safe_mode {
