@@ -2153,10 +2153,10 @@ impl SenderSignedTransactionAPI for SenderSignedTransaction {
 }
 
 fn check_user_signature_protocol_compatibility(
-    data: &SenderSignedTransaction,
+    signed_tx: &SenderSignedTransaction,
     config: &ProtocolConfig,
 ) -> IotaResult {
-    for sig in data.signatures() {
+    for sig in signed_tx.signatures() {
         match sig {
             UserSignature::PasskeyAuthenticator(_) => {
                 if !config.passkey_auth() {
@@ -2187,10 +2187,10 @@ fn check_user_signature_protocol_compatibility(
 }
 
 fn move_authenticators_validity_check(
-    data: &SenderSignedTransaction,
+    signed_tx: &SenderSignedTransaction,
     config: &ProtocolConfig,
 ) -> IotaResult {
-    let authenticators = data.move_authenticators();
+    let authenticators = signed_tx.move_authenticators();
 
     // Check each `MoveAuthenticator` validity.
     authenticators
@@ -2200,7 +2200,7 @@ fn move_authenticators_validity_check(
     // Additional checks when `MoveAuthenticators` are present.
     let authenticators_num = authenticators.len();
     if authenticators_num > 0 {
-        let tx = data.transaction();
+        let tx = signed_tx.transaction();
 
         fp_ensure!(
             tx.kind().is_programmable(),
@@ -2222,7 +2222,7 @@ fn move_authenticators_validity_check(
             );
 
             fp_ensure!(
-                data.sender_move_authenticator().is_some(),
+                signed_tx.sender_move_authenticator().is_some(),
                 UserInputError::Unsupported(
                     "SenderSignedTransaction can have MoveAuthenticator only for the sender"
                         .to_string(),
