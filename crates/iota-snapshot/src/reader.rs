@@ -40,8 +40,8 @@ use iota_storage::{
 };
 use iota_types::{digests::ChainIdentifier, global_state_hash::GlobalStateHash};
 use object_store::path::Path;
-use tokio::{sync::Mutex, task::JoinHandle, time::Duration};
-use tracing::{error, info};
+use tokio::{sync::Mutex, task::JoinHandle};
+use tracing::info;
 
 use crate::{
     EPOCH_INFO_FILE_MAGIC, EpochInfo, FileMetadata, FileType, MAGIC_BYTES, MANIFEST_FILE_MAGIC,
@@ -49,7 +49,7 @@ use crate::{
     SEQUENCE_NUM_BYTES, SHA3_BYTES,
     progress::{
         DownloadProgressBar, ProgressTicker, ProgressUnit, copy_files_with_progress,
-        fetch_total_bytes, get_single_file_with_progress, println_or_log,
+        fetch_total_bytes, get_single_file_with_progress, get_with_progress, println_or_log,
     },
     restore::Restore,
 };
@@ -606,47 +606,12 @@ impl StateSnapshotReaderV1 {
                         let obj_progress = obj_progress_download.clone();
                         async move {
                             // Downloads object file with retries
-                            let max_timeout = Duration::from_secs(60);
-                            let mut timeout = Duration::from_secs(2);
-                            timeout += timeout / 2;
-                            timeout = std::cmp::min(max_timeout, timeout);
-                            let mut attempts = 0usize;
-                            let bytes = loop {
-                                let attempt_bytes = AtomicU64::new(0);
-                                match remote_object_store
-                                    .get_bytes_with_progress(&file_path, &|n| {
-                                        attempt_bytes.fetch_add(n, Ordering::Relaxed);
-                                        obj_progress.add_bytes(n);
-                                    })
+                            let bytes =
+                                get_with_progress(&remote_object_store, &file_path, &obj_progress)
                                     .await
-                                {
-                                    Ok(bytes) => {
-                                        break bytes;
-                                    }
-                                    Err(err) => {
-                                        obj_progress
-                                            .remove_bytes(attempt_bytes.load(Ordering::Relaxed));
-                                        error!(
-                                            "Obj {} .get failed (attempt {}): {}",
-                                            file_metadata.file_path(&epoch_dir),
-                                            attempts,
-                                            err,
-                                        );
-                                        if timeout > max_timeout {
-                                            panic!(
-                                                "Failed to get obj file {} after {} attempts",
-                                                file_metadata.file_path(&epoch_dir),
-                                                attempts,
-                                            );
-                                        } else {
-                                            attempts += 1;
-                                            tokio::time::sleep(timeout).await;
-                                            timeout += timeout / 2;
-                                            continue;
-                                        }
-                                    }
-                                }
-                            };
+                                    .with_context(|| {
+                                        format!("Failed to download object file {file_path}")
+                                    })?;
 
                             // Gets the sha3 digest of the partition
                             let sha3_digest = sha3_digests_cloned.lock().await;
