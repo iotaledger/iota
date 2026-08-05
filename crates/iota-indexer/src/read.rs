@@ -1366,45 +1366,37 @@ impl IndexerReader {
 
     /// Fetches a paginated list of transactions that affect a given address,
     /// using the fallback storage if the database is pruned.
-    async fn query_transactions_by_affected_addresses_with_fallback(
+    pub async fn query_stored_transactions_by_affected_addresses_with_fallback(
         &self,
         address: Address,
-        cursor: Option<TransactionDigest>,
+        cursor_tx_seq: Option<u64>,
         limit: usize,
         is_descending: bool,
-        options: iota_json_rpc_types::IotaTransactionBlockResponseOptions,
-    ) -> IndexerResult<Vec<IotaTransactionBlockResponse>> {
+    ) -> IndexerResult<Vec<StoredTransaction>> {
         let watermark = self.affected_addresses_tx_watermark();
 
-        // fast path: cursor is known to KV (cached) and in pruned territory
-        // (below watermark). Serve directly from KV until pagination crosses
-        // into the unpruned DB range.
-        if let Some((cursor, kv_reader)) = cursor.zip(self.fallback_reader()).filter(|(c, kv)| {
-            kv.cursor_cache
-                .get(c)
-                .is_some_and(|s| (s as i64) < watermark)
-        }) {
-            let stored_txs = kv_reader
-                .transactions_by_address(address, Some(cursor), limit, !is_descending)
+        // fast path: the cursor is in pruned territory (below the watermark).
+        // Serve directly from KV until pagination crosses into the unpruned
+        // DB range.
+        if let Some((cursor_tx_seq, kv_reader)) = cursor_tx_seq
+            .zip(self.fallback_reader())
+            .filter(|(c, _)| (*c as i64) < watermark)
+        {
+            return Ok(kv_reader
+                .transactions_by_address(address, Some(cursor_tx_seq), limit, !is_descending)
                 .await?
                 .into_iter()
                 .flatten()
-                .collect();
-
-            return self
-                .stored_transaction_to_transaction_block(stored_txs, options)
-                .await;
+                .collect());
         };
 
         let db_res = self
             .db()
-            .query_transactions_by_affected_addresses(address, cursor, limit, is_descending)
+            .query_transactions_by_affected_addresses(address, cursor_tx_seq, limit, is_descending)
             .await;
 
         let Some(kv_reader) = self.fallback_reader() else {
-            return self
-                .stored_transaction_to_transaction_block(db_res?, options)
-                .await;
+            return db_res;
         };
 
         let (mut rows, id_db_pruned) = match db_res {
@@ -1419,20 +1411,9 @@ impl IndexerReader {
             // Continue pagination from the last DB row, or from the original
             // cursor if the DB returned nothing. Avoids restarting KV from the
             // top of history and re-fetching rows the user already saw.
-            let kv_cursor = if let Some(tx) = rows.last() {
-                let digest =
-                    TransactionDigest::from_bytes(&tx.transaction_digest).map_err(|e| {
-                        IndexerError::PersistentStorageDataCorruption(format!(
-                            "failed to decode transaction digest: {:?} with err: {e:?}",
-                            tx.transaction_digest
-                        ))
-                    })?;
-                kv_reader
-                    .cursor_cache
-                    .insert(digest, tx.tx_sequence_number as u64);
-                Some(digest)
-            } else {
-                cursor
+            let kv_cursor = match rows.last() {
+                Some(tx) => Some(tx.tx_sequence_number as u64),
+                None => cursor_tx_seq,
             };
 
             let kv_rows = kv_reader
@@ -1442,6 +1423,60 @@ impl IndexerReader {
                 .flatten();
             rows.extend(kv_rows);
         }
+
+        Ok(rows)
+    }
+
+    /// Fetches a paginated list of transactions that affect a given address,
+    /// using the fallback storage if the database is pruned.
+    async fn query_transactions_by_affected_addresses_with_fallback(
+        &self,
+        address: Address,
+        cursor: Option<TransactionDigest>,
+        limit: usize,
+        is_descending: bool,
+        options: iota_json_rpc_types::IotaTransactionBlockResponseOptions,
+    ) -> IndexerResult<Vec<IotaTransactionBlockResponse>> {
+        let cursor_tx_seq = match cursor {
+            None => None,
+            Some(digest) => {
+                Some(
+                    match self
+                        .db()
+                        .resolve_cursor_tx_digest_to_seq_num_maybe(digest)
+                        .await?
+                    {
+                        Some(tx_seq) => tx_seq as u64,
+                        // The digest is not in Postgres: resolve it through the
+                        // fallback (which checks its cursor cache first).
+                        None => match self.fallback_reader() {
+                            Some(kv_reader) => {
+                                kv_reader.resolve_cursor_tx_sequence_number(digest).await?
+                            }
+                            None if self.affected_addresses_tx_watermark() > 0 => {
+                                return Err(IndexerError::DataPruned(format!(
+                                    "unable to resolve cursor digest: {digest} potentially pruned"
+                                )));
+                            }
+                            None => {
+                                return Err(IndexerError::InvalidArgument(format!(
+                                    "cursor with digest {digest} not found"
+                                )));
+                            }
+                        },
+                    },
+                )
+            }
+        };
+
+        let rows = self
+            .query_stored_transactions_by_affected_addresses_with_fallback(
+                address,
+                cursor_tx_seq,
+                limit,
+                is_descending,
+            )
+            .await?;
 
         self.stored_transaction_to_transaction_block(rows, options)
             .await
@@ -3604,51 +3639,36 @@ impl<'a> DBReader<'a> {
     ///
     /// # Errors
     ///
-    /// * [`IndexerError::DataPruned`] — signals the caller to fall back to the
-    ///   historical store. Two triggers:
-    ///   * `cursor` resolves to a sequence number below the pruning
-    ///     min_available_tx.
-    ///   * `cursor = None && is_descending = false && min_available_tx > 0`:
-    ///     the DB cannot tell whether the address has pre-watermark history.
-    /// * [`IndexerError::InvalidArgument`]: the cursor is invalid (digest
-    ///   absent from `tx_digests` AND the database is not pruned).
+    /// [`IndexerError::DataPruned`] — signals the caller to fall back to the
+    /// historical store. Two triggers:
+    /// * the first transaction of the page is below the pruning
+    ///   min_available_tx.
+    /// * `cursor_tx_seq = None && is_descending = false && min_available_tx >
+    ///   0`: the DB cannot tell whether the address has pre-watermark history.
     async fn query_transactions_by_affected_addresses(
         &self,
         addr: Address,
-        cursor: Option<TransactionDigest>,
+        cursor_tx_seq: Option<u64>,
         limit: usize,
         is_descending: bool,
     ) -> IndexerResult<Vec<StoredTransaction>> {
         let min_available_tx = self.main_reader.affected_addresses_tx_watermark();
 
-        let cursor_tx_seq = if let Some(cursor) = cursor {
-            match self
-                .resolve_cursor_tx_digest_to_seq_num_maybe(cursor)
-                .await?
-            {
-                Some(tx_seq) => {
-                    self.main_reader.ensure_data_not_pruned_for_tx(
-                        tx_seq,
-                        IndexerReader::TRANSACTIONS_BY_ADDRESS_TABLES,
-                    )?;
-                    Some(tx_seq)
-                }
-                None if min_available_tx > 0 => {
-                    return Err(IndexerError::DataPruned(format!(
-                        "unable to resolve cursor digest: {cursor} potentially pruned"
-                    )));
-                }
-                None => {
-                    return Err(IndexerError::InvalidArgument(format!(
-                        "cursor with digest {cursor} not found"
-                    )));
-                }
-            }
-        } else {
-            None
-        };
+        if let Some(cursor_tx_seq) = cursor_tx_seq {
+            // The page starts right after/before cursor in the pagination direction.
+            // The cursor row itself is allowed to be pruned.
+            let page_start = if is_descending {
+                cursor_tx_seq.saturating_sub(1)
+            } else {
+                cursor_tx_seq.saturating_add(1)
+            };
+            self.main_reader.ensure_data_not_pruned_for_tx(
+                page_start as i64,
+                IndexerReader::TRANSACTIONS_BY_ADDRESS_TABLES,
+            )?;
+        }
 
-        if !is_descending && cursor.is_none() && min_available_tx > 0 {
+        if !is_descending && cursor_tx_seq.is_none() && min_available_tx > 0 {
             return Err(IndexerError::DataPruned(format!(
                 "DB may be missing earliest history for address {addr} due to pruning"
             )));

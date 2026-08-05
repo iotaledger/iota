@@ -16,7 +16,7 @@ use iota_indexer::{
     apis::ReadApi,
     models::transactions::{OptimisticTransaction, StoredTransaction},
     read::TransactionRead,
-    schema::transactions,
+    schema::{checkpoints, transactions},
 };
 use iota_json_rpc_api::ReadApiServer;
 use iota_sdk_types::{
@@ -416,6 +416,18 @@ impl TransactionBlock {
             .await;
         }
 
+        // For the only-`affectedAddress` case, we support fallback.
+        // `scan_limit` is ignored here
+        if let Some(address) = filter.only_affected_address() {
+            return Self::paginate_by_affected_address_with_fallback(
+                db,
+                page,
+                address,
+                checkpoint_viewed_at,
+            )
+            .await;
+        }
+
         use transactions::dsl as tx;
         let (prev, next, transactions, tx_bounds): (
             bool,
@@ -543,6 +555,83 @@ impl TransactionBlock {
         if !page.is_from_front() {
             results.reverse();
         }
+
+        let (prev, next, results) = page.paginate_results(
+            results.first().map(|f| f.cursor(checkpoint_viewed_at)),
+            results.last().map(|l| l.cursor(checkpoint_viewed_at)),
+            results,
+        );
+
+        let mut conn = ScanConnection::new(prev, next);
+        for stored in results {
+            let cursor = stored.cursor(checkpoint_viewed_at).encode_cursor();
+            let inner = TransactionBlockInner::try_from(stored)?;
+            conn.edges.push(Edge::new(
+                cursor,
+                TransactionBlock {
+                    inner,
+                    checkpoint_viewed_at,
+                },
+            ));
+        }
+        Ok(conn)
+    }
+
+    /// Paginates the transactions that affect `address`, with fallback
+    /// support when part of the history has been pruned from Postgres.
+    async fn paginate_by_affected_address_with_fallback(
+        db: &Db,
+        page: Page<Cursor>,
+        address: IotaAddress,
+        checkpoint_viewed_at: u64,
+    ) -> Result<ScanConnection<String, TransactionBlock>, Error> {
+        use checkpoints::dsl;
+        // Exclusive upperbound, we cannot return newer data than
+        // `checkpoint_viewed_at`.
+        let tx_hi: i64 = db
+            .execute(move |conn| {
+                conn.first(move || {
+                    dsl::checkpoints
+                        .select(dsl::network_total_transactions)
+                        .filter(dsl::sequence_number.eq(checkpoint_viewed_at as i64))
+                })
+            })
+            .await?;
+
+        // Page cursors are inclusive, we need to convert them to exclusive
+        let cursor = if page.is_from_front() {
+            // Cannot do -1 when cursor=0
+            page.after()
+                .and_then(|c| c.tx_sequence_number.checked_sub(1))
+        } else {
+            Some(match page.before() {
+                Some(c) => (tx_hi as u64).min(c.tx_sequence_number.saturating_add(1)),
+                None => tx_hi as u64,
+            })
+        };
+
+        let mut results = db
+            .inner
+            .query_stored_transactions_by_affected_addresses_with_fallback(
+                address.into(),
+                cursor,
+                page.limit() + 2,
+                !page.is_from_front(),
+            )
+            .await
+            .map_err(Error::from)?;
+        if !page.is_from_front() {
+            results.reverse();
+        }
+
+        // Initial fetch above honored only the start cursor. We filter the result to
+        // also honor the end cursor and the `tx_hi`
+        results.retain(|tx| {
+            let tx_seq = tx.tx_sequence_number as u64;
+            tx.tx_sequence_number < tx_hi
+                && page.after().is_none_or(|c| c.tx_sequence_number <= tx_seq)
+                && page.before().is_none_or(|c| tx_seq <= c.tx_sequence_number)
+        });
 
         let (prev, next, results) = page.paginate_results(
             results.first().map(|f| f.cursor(checkpoint_viewed_at)),
