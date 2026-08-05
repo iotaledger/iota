@@ -56,9 +56,16 @@ fn test_protocol_overrides_2() {
 #[cfg(msim)]
 mod sim_only_tests {
 
-    use std::{path::PathBuf, sync::Arc};
+    use std::{
+        path::PathBuf,
+        sync::{
+            Arc,
+            atomic::{AtomicUsize, Ordering},
+        },
+    };
 
     use fastcrypto::encoding::Base64;
+    use iota_common::register_debug_fatal_handler;
     use iota_core::authority::framework_injection;
     use iota_framework::BuiltInFramework;
     use iota_json_rpc_api::WriteApiClient;
@@ -697,6 +704,14 @@ mod sim_only_tests {
             .build()
             .await;
 
+        let framework_mismatch_counter = Arc::new(AtomicUsize::new(0));
+        register_debug_fatal_handler!("Framework mismatch -- ", {
+            let counter = framework_mismatch_counter.clone();
+            move || {
+                counter.fetch_add(1, Ordering::Relaxed);
+            }
+        });
+
         // We must stop the validators before overriding the system modules, otherwise
         // the validators may start running before the override and hence send
         // capabilities indicating that they only support the genesis system
@@ -732,6 +747,9 @@ mod sim_only_tests {
             );
             assert_eq!(committee.epoch, 2);
         });
+
+        // The debug_fatal was hit
+        assert_eq!(framework_mismatch_counter.load(Ordering::Relaxed), 1);
     }
 
     // Test that protocol version upgrade does not complete when there is no quorum

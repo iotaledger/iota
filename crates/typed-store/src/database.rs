@@ -1296,7 +1296,6 @@ where
     /// Writes a range delete tombstone to delete all entries in the db map.
     /// The effect of this write is visible immediately, i.e. you won't see
     /// old values when you do a lookup or scan.
-    #[cfg(msim)]
     #[instrument(level = "trace", skip_all, err)]
     fn schedule_delete_all(&self) -> Result<(), TypedStoreError> {
         let Some(last_key) = self

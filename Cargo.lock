@@ -5679,7 +5679,6 @@ dependencies = [
  "csv",
  "dirs",
  "fastcrypto",
- "iota-genesis-common",
  "iota-keys",
  "iota-metrics",
  "iota-names",
@@ -5732,6 +5731,7 @@ dependencies = [
  "iota-execution",
  "iota-framework",
  "iota-genesis-builder",
+ "iota-genesis-common",
  "iota-json-rpc-types",
  "iota-macros",
  "iota-metrics",
@@ -6138,6 +6138,7 @@ dependencies = [
 name = "iota-genesis-common"
 version = "1.30.0-alpha"
 dependencies = [
+ "iota-config",
  "iota-execution",
  "iota-protocol-config",
  "iota-sdk-types",
@@ -7044,6 +7045,7 @@ dependencies = [
  "iota-common",
  "iota-config",
  "iota-core",
+ "iota-genesis-common",
  "iota-grpc-server",
  "iota-http",
  "iota-json-rpc",

@@ -26,7 +26,7 @@ use iota_open_rpc::Module;
 use iota_package_resolver::{PackageStore, Resolver};
 use iota_sdk_types::{
     Address, GasPayment, ObjectId, TransactionDigest, TransactionExpiration, TransactionKind,
-    UserSignature, Version,
+    TransactionV1, UserSignature, Version,
 };
 use iota_transaction_builder::TransactionBuilder;
 use iota_types::{
@@ -34,7 +34,7 @@ use iota_types::{
     error::ExecutionError,
     iota_serde::BigInt,
     object::{Object, PastObjectRead},
-    transaction::{SenderSignedData, TransactionData, TransactionDataAPI, TransactionDataV1},
+    transaction::{SenderSignedData, TransactionData, TransactionDataAPI},
 };
 use jsonrpsee::{RpcModule, core::RpcResult};
 
@@ -220,7 +220,7 @@ impl WriteApi {
 
         let kind = bcs::from_bytes::<TransactionKind>(&tx_bytes.to_vec()?)?;
 
-        let transaction_data = TransactionData::V1(TransactionDataV1 {
+        let transaction_data = TransactionData::V1(TransactionV1 {
             kind,
             sender: sender_address,
             gas_payment: GasPayment {

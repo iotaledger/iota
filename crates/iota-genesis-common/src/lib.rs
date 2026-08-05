@@ -3,6 +3,8 @@
 
 use std::{collections::HashSet, sync::Arc};
 
+mod migration_tx_data_ext;
+
 use iota_execution::executor;
 use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
 use iota_sdk_types::TransactionKind;
@@ -17,6 +19,7 @@ use iota_types::{
     object::Object,
     transaction::{CheckedInputObjects, TransactionDataAPI, TransactionEnvelope},
 };
+pub use migration_tx_data_ext::MigrationTxDataExt;
 use prometheus_filtered::Registry;
 
 /// Gets a `ProtocolConfig` for genesis based on a `ProtocolVersion`.
