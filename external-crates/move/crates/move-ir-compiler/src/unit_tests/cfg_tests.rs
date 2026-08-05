@@ -3,8 +3,9 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use move_abstract_interpreter::control_flow_graph::{ControlFlowGraph, VMControlFlowGraph};
+use move_abstract_interpreter::control_flow_graph::ControlFlowGraph;
 use move_binary_format::file_format::{Bytecode, VariantJumpTable};
+use move_bytecode_verifier::absint::VMControlFlowGraph;
 
 use crate::unit_tests::testutils::compile_module_string;
 
@@ -277,7 +278,7 @@ fn cfg_compile_if_else_with_two_aborts() {
 #[test]
 fn cfg_compile_variant_switch_simple() {
     let text = "
-        module 0x42.m { 
+        module 0x42.m {
             enum X has drop { V1 { x: u64 }, V2 { } }
 
             entry foo(x: Self.X) {
@@ -291,7 +292,7 @@ fn cfg_compile_variant_switch_simple() {
                 return;
             label b1:
                 return;
-            } 
+            }
         }
         ";
     let (code, jump_tables) = compile_module_with_single_function(text);
@@ -304,7 +305,7 @@ fn cfg_compile_variant_switch_simple() {
 #[test]
 fn cfg_compile_variant_switch_simple_unconditional_jump() {
     let text = "
-        module 0x42.m { 
+        module 0x42.m {
             enum X has drop { V1 { x: u64 }, V2 { } }
 
             entry foo(x: Self.X) {
@@ -315,13 +316,13 @@ fn cfg_compile_variant_switch_simple_unconditional_jump() {
                     V2 : b1,
                 };
             // This block is unreachable because `variant_switch` is an unconditional jump.
-            label fallthrough: 
+            label fallthrough:
                 return;
             label b0:
                 return;
             label b1:
                 return;
-            } 
+            }
         }
         ";
     let (code, jump_tables) = compile_module_with_single_function(text);
@@ -334,7 +335,7 @@ fn cfg_compile_variant_switch_simple_unconditional_jump() {
 #[test]
 fn cfg_compile_variant_switch() {
     let text = "
-        module 0x42.m { 
+        module 0x42.m {
             enum X { V1 { x: u64 }, V2 { } }
 
             entry foo(x: Self.X) {
@@ -354,10 +355,10 @@ fn cfg_compile_variant_switch() {
                 jump b3;
             label b3:
                 return;
-            label b4: 
+            label b4:
                 X.V2 {} = move(x);
                 jump b3;
-            } 
+            }
         }
         ";
     let (code, jump_tables) = compile_module_with_single_function(text);
@@ -370,7 +371,7 @@ fn cfg_compile_variant_switch() {
 #[test]
 fn cfg_compile_variant_switch_with_two_aborts() {
     let text = "
-        module 0x42.m { 
+        module 0x42.m {
             enum X { V1 { x: u64 }, V2 { } }
 
             entry foo(x: Self.X) {
@@ -390,10 +391,10 @@ fn cfg_compile_variant_switch_with_two_aborts() {
                 jump b3;
             label b3:
                 return;
-            label b4: 
+            label b4:
                 X.V2 {} = move(x);
                 abort 0;
-            } 
+            }
         }
         ";
     let (code, jump_tables) = compile_module_with_single_function(text);
@@ -406,7 +407,7 @@ fn cfg_compile_variant_switch_with_two_aborts() {
 #[test]
 fn cfg_compile_variant_switch_with_return() {
     let text = "
-        module 0x42.m { 
+        module 0x42.m {
             enum X { V1 { x: u64 }, V2 { } }
 
             entry foo(x: Self.X) {
@@ -432,10 +433,10 @@ fn cfg_compile_variant_switch_with_return() {
                 jump b3;
             label b3:
                 return;
-            label b4: 
+            label b4:
                 X.V2 {} = move(x);
                 abort 0;
-            } 
+            }
         }
         ";
     let (code, jump_tables) = compile_module_with_single_function(text);

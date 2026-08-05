@@ -17,7 +17,6 @@ use std::{
 };
 
 use abstract_state::{AbstractState, AbstractValue};
-use move_abstract_interpreter::absint::{AbstractInterpreter, FunctionContext, TransferFunctions};
 use move_abstract_stack::AbstractStack;
 use move_binary_format::{
     CompiledModule,
@@ -33,7 +32,10 @@ use move_bytecode_verifier_meter::{Meter, Scope};
 use move_core_types::vm_status::StatusCode;
 use move_vm_config::verifier::VerifierConfig;
 
-use crate::reference_safety::abstract_state::STEP_BASE_COST;
+use crate::{
+    absint::{FunctionContext, TransferFunctions, analyze_function},
+    reference_safety::abstract_state::STEP_BASE_COST,
+};
 
 struct ReferenceSafetyAnalysis<'a> {
     config: &'a VerifierConfig,
@@ -80,7 +82,7 @@ pub(crate) fn verify<'a>(
     let initial_state = AbstractState::new(function_context);
 
     let mut verifier = ReferenceSafetyAnalysis::new(config, module, function_context, name_def_map);
-    verifier.analyze_function(initial_state, function_context, meter)
+    analyze_function(function_context, meter, &mut verifier, initial_state)
 }
 
 fn call(
@@ -567,14 +569,13 @@ fn execute_inner(
 
 impl TransferFunctions for ReferenceSafetyAnalysis<'_> {
     type State = AbstractState;
-    type Error = PartialVMError;
 
     fn execute(
         &mut self,
         state: &mut Self::State,
         bytecode: &Bytecode,
         index: CodeOffset,
-        last_index: CodeOffset,
+        (_first_index, last_index): (CodeOffset, CodeOffset),
         meter: &mut (impl Meter + ?Sized),
     ) -> PartialVMResult<()> {
         execute_inner(self, state, bytecode, index, meter)?;
@@ -585,5 +586,3 @@ impl TransferFunctions for ReferenceSafetyAnalysis<'_> {
         Ok(())
     }
 }
-
-impl AbstractInterpreter for ReferenceSafetyAnalysis<'_> {}
