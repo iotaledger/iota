@@ -100,7 +100,7 @@ fn main() -> Result<()> {
                 trace.event_count()
             );
             for event in trace.events()?.take(5) {
-                println!("  {event:?}");
+                println!("  {:?}", event?);
             }
             std::fs::write(&trace_path, trace.bytes())?;
             println!("Full trace written to: {}", trace_path.display());
