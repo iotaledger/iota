@@ -7,7 +7,8 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
     Address, EndOfEpochTransactionKind, Event, Identifier, MoveStruct, ObjectId, ObjectReference,
-    Owner, SharedObjectReference, StructTag, TransactionDigest, TransactionKind, TypeTag, Version,
+    Owner, SenderSignedTransaction, SharedObjectReference, StructTag, TransactionDigest,
+    TransactionKind, TypeTag, Version,
     checkpoint::{CheckpointContents, CheckpointSummary, EndOfEpochData},
 };
 use tap::Pipe;
@@ -27,9 +28,7 @@ use crate::{
     },
     object::{GAS_VALUE_FOR_TESTING, MoveStructExt, Object},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{
-        CallArg, SenderSignedData, TransactionData, TransactionDataAPI, TransactionEnvelope,
-    },
+    transaction::{CallArg, TransactionData, TransactionDataAPI, TransactionEnvelope},
 };
 
 /// A builder for creating test checkpoint data.
@@ -443,7 +442,7 @@ impl TestCheckpointDataBuilder {
 
         let pt = pt_builder.finish();
         let tx_data = TransactionData::new(TransactionKind::Programmable(pt), sender, gas, 1, 1);
-        let tx = TransactionEnvelope::new(SenderSignedData::new(tx_data, vec![]));
+        let tx = TransactionEnvelope::new(SenderSignedTransaction::new(tx_data, vec![]));
 
         let wrapped_objects: Vec<_> = wrapped_objects
             .into_iter()
@@ -568,7 +567,7 @@ impl TestCheckpointDataBuilder {
             1,
             1,
         )
-        .pipe(|data| SenderSignedData::new(data, vec![]))
+        .pipe(|data| SenderSignedTransaction::new(data, vec![]))
         .pipe(TransactionEnvelope::new);
 
         let events = if !safe_mode {

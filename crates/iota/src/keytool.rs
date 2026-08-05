@@ -51,7 +51,7 @@ use iota_types::{
     move_authenticator::MoveAuthenticatorExt,
     multisig::{MultiSig, MultiSigPublicKey, MultisigMember, ThresholdUnit, WeightUnit},
     signature::{AuthenticatorTrait, VerifyParams},
-    transaction::{SenderSignedData, TransactionData, TransactionDataAPI},
+    transaction::{TransactionData, TransactionDataAPI},
 };
 use json_to_table::{Orientation, json_to_table};
 use serde::Serialize;
@@ -481,16 +481,17 @@ impl KeyToolCommand {
             }
             KeyToolCommand::DecodeSig { sig } => {
                 // Try to decode as UserSignature first, then fallback to
-                // SenderSignedData (which contains a SenderSignedTransaction)
+                // SenderSignedTransaction (which contains a SenderSignedTransaction)
                 let signature = match UserSignature::from_base64(&sig) {
                     Ok(sig) => sig,
                     Err(_) => {
-                        // Try decoding as SenderSignedData
+                        // Try decoding as SenderSignedTransaction
                         let tx_bytes = Base64::decode(&sig)
                             .map_err(|e| anyhow!("Invalid base64 encoding: {e}"))?;
-                        let tx = bcs::from_bytes::<SenderSignedData>(&tx_bytes).map_err(|e| {
-                            anyhow!("Failed to decode as signature or transaction: {e}")
-                        })?;
+                        let tx =
+                            bcs::from_bytes::<SenderSignedTransaction>(&tx_bytes).map_err(|e| {
+                                anyhow!("Failed to decode as signature or transaction: {e}")
+                            })?;
                         tx.0.signatures
                             .into_iter()
                             .next()

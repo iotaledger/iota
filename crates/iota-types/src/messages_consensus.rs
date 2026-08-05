@@ -14,7 +14,8 @@ use byteorder::{BigEndian, ReadBytesExt};
 use fastcrypto::{error::FastCryptoResult, groups::bls12381, hash::HashFunction};
 use fastcrypto_tbls::dkg_v1;
 use iota_sdk_types::{
-    Digest, MisbehaviorReportDigest, ObjectReference, TransactionDigest, crypto::IntentScope,
+    Digest, MisbehaviorReportDigest, ObjectReference, SenderSignedTransaction, TransactionDigest,
+    crypto::IntentScope,
 };
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
@@ -29,7 +30,7 @@ use crate::{
     supported_protocol_versions::{
         Chain, SupportedProtocolVersions, SupportedProtocolVersionsWithHashes,
     },
-    transaction::{CertifiedTransaction, SenderSignedData, TransactionEnvelope},
+    transaction::{CertifiedTransaction, TransactionEnvelope},
 };
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -342,7 +343,7 @@ impl ConsensusTransactionKind {
 
     /// The signed data of the underlying certified or raw user transaction,
     /// or `None` for internal consensus messages.
-    pub fn as_sender_signed_data(&self) -> Option<&SenderSignedData> {
+    pub fn as_sender_signed_data(&self) -> Option<&SenderSignedTransaction> {
         self.map_cert_or_raw_user_tx(|c| c.data(), |t| t.data())
     }
 

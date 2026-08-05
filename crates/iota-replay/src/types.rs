@@ -8,13 +8,14 @@ use iota_json_rpc_types::{IotaEvent, IotaObjectResponseError, IotaTransactionBlo
 use iota_protocol_config::{Chain, ProtocolVersion};
 use iota_sdk::error::Error as IotaRpcError;
 use iota_sdk_types::{
-    Address, ObjectDigest, ObjectId, ObjectReference, TransactionDigest, TransactionKind, Version,
+    Address, ObjectDigest, ObjectId, ObjectReference, SenderSignedTransaction, TransactionDigest,
+    TransactionKind, Version,
 };
 use iota_types::{
     base_types::VersionNumber,
     error::{IotaError, IotaResult, UserInputError},
     object::Object,
-    transaction::{InputObjectKind, SenderSignedData},
+    transaction::InputObjectKind,
 };
 use jsonrpsee::core::ClientError as JsonRpseeError;
 use move_binary_format::CompiledModule;
@@ -41,11 +42,11 @@ pub(crate) const EPOCH_CHANGE_STRUCT_TAGS: [&str; 2] = [
 ];
 
 // TODO: A lot of the information in OnChainTransactionInfo is redundant from
-// what's already in SenderSignedData. We should consider removing them.
+// what's already in SenderSignedTransaction. We should consider removing them.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct OnChainTransactionInfo {
     pub tx_digest: TransactionDigest,
-    pub sender_signed_data: SenderSignedData,
+    pub sender_signed_data: SenderSignedTransaction,
     pub sender: Address,
     pub input_objects: Vec<InputObjectKind>,
     pub kind: TransactionKind,

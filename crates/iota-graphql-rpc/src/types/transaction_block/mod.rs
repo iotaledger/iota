@@ -15,14 +15,14 @@ use iota_indexer::{
     schema::{optimistic_transactions, transactions, tx_digests, tx_global_order},
 };
 use iota_json_rpc_api::ReadApiServer;
-use iota_sdk_types::{Address as NativeAddress, Event as NativeEvent, TransactionExpiration};
+use iota_sdk_types::{
+    Address as NativeAddress, Event as NativeEvent,
+    SenderSignedTransaction as NativeSenderSignedTransaction, TransactionExpiration,
+};
 use iota_types::{
     effects::TransactionEffects as NativeTransactionEffects,
     message_envelope::Message,
-    transaction::{
-        SenderSignedData as NativeSenderSignedData, TransactionData as NativeTransactionData,
-        TransactionDataAPI,
-    },
+    transaction::{TransactionData as NativeTransactionData, TransactionDataAPI},
 };
 use serde::{Deserialize, Serialize};
 
@@ -71,13 +71,13 @@ pub(crate) enum TransactionBlockInner {
     /// have, and more.
     Checkpointed {
         stored_tx: StoredTransaction,
-        native: NativeSenderSignedData,
+        native: NativeSenderSignedTransaction,
     },
     /// A transaction block that has been executed and indexed without
     /// checkpoint information.
     Executed {
         optimistic_tx: OptimisticTransaction,
-        native: NativeSenderSignedData,
+        native: NativeSenderSignedTransaction,
     },
 
     /// A transaction block that has been executed via dryRunTransactionBlock.
@@ -280,8 +280,8 @@ impl TransactionBlock {
             .extend()
     }
 
-    /// Serialized form of this transaction's `SenderSignedData`, BCS serialized
-    /// and Base64 encoded.
+    /// Serialized form of this transaction's `SenderSignedTransaction`, BCS
+    /// serialized and Base64 encoded.
     #[graphql(complexity = 0)]
     async fn bcs(&self) -> Option<Base64> {
         match &self.inner {
@@ -336,7 +336,7 @@ impl TransactionBlock {
         }
     }
 
-    fn native_signed_data(&self) -> Option<&NativeSenderSignedData> {
+    fn native_signed_data(&self) -> Option<&NativeSenderSignedTransaction> {
         match &self.inner {
             TransactionBlockInner::Checkpointed { native, .. } => Some(native),
             TransactionBlockInner::Executed { native, .. } => Some(native),
@@ -723,7 +723,7 @@ impl TryFrom<OptimisticTransaction> for TransactionBlockInner {
     fn try_from(optimistic_tx: OptimisticTransaction) -> Result<Self, Error> {
         let native = bcs::from_bytes(&optimistic_tx.raw_transaction).map_err(|e| {
             Error::Internal(format!(
-                "Failed to deserialize NativeSenderSignedData from optimistic transaction: {e}"
+                "Failed to deserialize NativeSenderSignedTransaction from optimistic transaction: {e}"
             ))
         })?;
 

@@ -56,7 +56,7 @@ CREATE TABLE optimistic_transactions (
     global_sequence_number BIGINT NOT NULL,
     optimistic_sequence_number             BIGINT NOT NULL,
     transaction_digest          bytea        NOT NULL,
-    -- bcs serialized SenderSignedData bytes
+    -- bcs serialized SenderSignedTransaction bytes
     raw_transaction             bytea        NOT NULL,
     -- bcs serialized TransactionEffects bytes
     raw_effects                 bytea        NOT NULL,

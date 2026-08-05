@@ -16,18 +16,17 @@ use std::{
 use anyhow::bail;
 use fastcrypto::{encoding::Base64, hash::HashFunction};
 use iota_protocol_config::ProtocolConfig;
+pub use iota_sdk_types::Transaction as TransactionData;
 use iota_sdk_types::{
     Address, Argument, CancelledTransaction, CertificateDigest, Command, ConsensusCommitDigest,
     ConsensusCommitPrologueV1, ConsensusDeterminedVersionAssignments, EndOfEpochTransactionKind,
     Event, GasPayment, GenesisObject, GenesisTransaction, Identifier, Input, MakeMoveVector,
     MergeCoins, MoveAuthenticator, MoveCall, MoveStruct, ObjectDigest, ObjectId, ObjectReference,
     Owner, ProgrammableTransaction, Publish, RandomnessRound, RandomnessStateUpdate,
-    SharedObjectReference, SplitCoins, TransactionDigest, TransactionExpiration, TransactionKind,
-    TransactionV1, TransferObjects, TypeTag, Upgrade, UserSignature, Version,
+    SenderSignedTransaction, SharedObjectReference, SplitCoins, TransactionDigest,
+    TransactionExpiration, TransactionKind, TransactionV1, TransferObjects, TypeTag, Upgrade,
+    UserSignature, Version,
     crypto::{Intent, IntentMessage, IntentScope},
-};
-pub use iota_sdk_types::{
-    SenderSignedTransaction as SenderSignedData, Transaction as TransactionData,
 };
 use itertools::Either;
 use nonempty::{NonEmpty, nonempty};
@@ -994,7 +993,7 @@ pub trait TransactionDataAPI {
     ///
     /// IMPORTANT: This function does not return shared objects associated with
     /// `MoveAuthenticator` signatures. To check those objects as well, use the
-    /// corresponding function from `SenderSignedData`.
+    /// corresponding function from `SenderSignedTransaction`.
     fn shared_input_objects(&self) -> Vec<SharedObjectReference>;
 
     /// Returns a list of Move calls as `(package_id, module_name,
@@ -1838,7 +1837,7 @@ pub fn merge_authenticator_input_objects<'a>(
     Ok(())
 }
 
-/// API for accessing and constructing [`SenderSignedData`].
+/// API for accessing and constructing [`SenderSignedTransaction`].
 ///
 /// This trait provides node-internal methods on the SDK's
 /// [`SenderSignedTransaction`](iota_sdk_types::SenderSignedTransaction), which
@@ -1846,11 +1845,12 @@ pub fn merge_authenticator_input_objects<'a>(
 /// transaction participants. A non-participant signature must not be present,
 /// and the signature order does not matter.
 pub trait SenderSignedTransactionAPI {
-    /// Creates a new [`SenderSignedData`] with a single sender signature.
+    /// Creates a new [`SenderSignedTransaction`] with a single sender
+    /// signature.
     fn new_from_sender_signature(
         tx_data: TransactionData,
         tx_signature: Signature,
-    ) -> SenderSignedData;
+    ) -> SenderSignedTransaction;
 
     /// Adds a signature. Does not check the validity of the signature or
     /// perform any de-dup checks.
@@ -1896,9 +1896,9 @@ pub trait SenderSignedTransactionAPI {
         input_objects: InputObjects,
     ) -> IotaResult<(InputObjects, Vec<(InputObjects, ObjectReadResult)>)>;
 
-    /// Checks if [`SenderSignedData`] contains at least one shared object.
-    /// This function checks shared objects from the `MoveAuthenticator`s if
-    /// any.
+    /// Checks if [`SenderSignedTransaction`] contains at least one shared
+    /// object. This function checks shared objects from the
+    /// `MoveAuthenticator`s if any.
     fn contains_shared_object(&self) -> bool;
 
     /// Returns an iterator over all shared input objects related to this
@@ -1924,18 +1924,18 @@ pub trait SenderSignedTransactionAPI {
     /// Shared objects with the same ID but different versions are not allowed.
     fn input_objects(&self) -> IotaResult<Vec<InputObjectKind>>;
 
-    /// Checks if [`SenderSignedData`] contains the `Random` object as an
+    /// Checks if [`SenderSignedTransaction`] contains the `Random` object as an
     /// input.
     /// This function checks shared objects from the `MoveAuthenticator`s if
     /// any.
     fn uses_randomness(&self) -> bool;
 }
 
-impl SenderSignedTransactionAPI for SenderSignedData {
+impl SenderSignedTransactionAPI for SenderSignedTransaction {
     fn new_from_sender_signature(
         tx_data: TransactionData,
         tx_signature: Signature,
-    ) -> SenderSignedData {
+    ) -> SenderSignedTransaction {
         Self::new(tx_data, vec![tx_signature.into()])
     }
 
@@ -1982,7 +1982,7 @@ impl SenderSignedTransactionAPI for SenderSignedData {
             !tx.is_system_tx(),
             IotaError::UserInput {
                 error: UserInputError::Unsupported(
-                    "SenderSignedData must not contain system transaction".to_string()
+                    "SenderSignedTransaction must not contain system transaction".to_string()
                 )
             }
         );
@@ -2153,7 +2153,7 @@ impl SenderSignedTransactionAPI for SenderSignedData {
 }
 
 fn check_user_signature_protocol_compatibility(
-    data: &SenderSignedData,
+    data: &SenderSignedTransaction,
     config: &ProtocolConfig,
 ) -> IotaResult {
     for sig in data.signatures() {
@@ -2187,7 +2187,7 @@ fn check_user_signature_protocol_compatibility(
 }
 
 fn move_authenticators_validity_check(
-    data: &SenderSignedData,
+    data: &SenderSignedTransaction,
     config: &ProtocolConfig,
 ) -> IotaResult {
     let authenticators = data.move_authenticators();
@@ -2205,7 +2205,7 @@ fn move_authenticators_validity_check(
         fp_ensure!(
             tx.kind().is_programmable(),
             UserInputError::Unsupported(
-                "SenderSignedData with MoveAuthenticator must be a programmable transaction"
+                "SenderSignedTransaction with MoveAuthenticator must be a programmable transaction"
                     .to_string(),
             )
             .into()
@@ -2215,7 +2215,7 @@ fn move_authenticators_validity_check(
             fp_ensure!(
                 authenticators_num == 1,
                 UserInputError::Unsupported(
-                    "SenderSignedData with more than one MoveAuthenticator is not supported"
+                    "SenderSignedTransaction with more than one MoveAuthenticator is not supported"
                         .to_string(),
                 )
                 .into()
@@ -2224,7 +2224,8 @@ fn move_authenticators_validity_check(
             fp_ensure!(
                 data.sender_move_authenticator().is_some(),
                 UserInputError::Unsupported(
-                    "SenderSignedData can have MoveAuthenticator only for the sender".to_string(),
+                    "SenderSignedTransaction can have MoveAuthenticator only for the sender"
+                        .to_string(),
                 )
                 .into()
             );
@@ -2267,7 +2268,7 @@ fn check_move_authenticators_input_consistency(
     })
 }
 
-impl Message for SenderSignedData {
+impl Message for SenderSignedTransaction {
     type DigestType = TransactionDigest;
     const SCOPE: IntentScope = IntentScope::SenderSignedTransaction;
 
@@ -2278,7 +2279,7 @@ impl Message for SenderSignedData {
     }
 }
 
-impl<S> Envelope<SenderSignedData, S> {
+impl<S> Envelope<SenderSignedTransaction, S> {
     pub fn sender_address(&self) -> Address {
         self.data().transaction().sender()
     }
@@ -2350,7 +2351,7 @@ impl TransactionEnvelope {
     }
 
     pub fn from_user_sig_data(data: TransactionData, signatures: Vec<UserSignature>) -> Self {
-        Self::new(SenderSignedData::new(data, signatures))
+        Self::new(SenderSignedTransaction::new(data, signatures))
     }
 
     /// Returns the Base64 encoded tx_bytes
@@ -2421,7 +2422,7 @@ impl VerifiedTransaction {
         system_transaction
             .pipe(TransactionData::new_system_transaction)
             .pipe(|data| {
-                SenderSignedData::new_from_sender_signature(data, zero_ed25519_signature())
+                SenderSignedTransaction::new_from_sender_signature(data, zero_ed25519_signature())
             })
             .pipe(TransactionEnvelope::new)
             .pipe(Self::new_from_verified)
@@ -2447,13 +2448,13 @@ impl VerifiedSignedTransaction {
 }
 
 /// A transaction that is signed by a sender but not yet by an authority.
-pub type TransactionEnvelope = Envelope<SenderSignedData, EmptySignInfo>;
-pub type VerifiedTransaction = VerifiedEnvelope<SenderSignedData, EmptySignInfo>;
-pub type TrustedTransaction = TrustedEnvelope<SenderSignedData, EmptySignInfo>;
+pub type TransactionEnvelope = Envelope<SenderSignedTransaction, EmptySignInfo>;
+pub type VerifiedTransaction = VerifiedEnvelope<SenderSignedTransaction, EmptySignInfo>;
+pub type TrustedTransaction = TrustedEnvelope<SenderSignedTransaction, EmptySignInfo>;
 
 /// A transaction that is signed by a sender and also by an authority.
-pub type SignedTransaction = Envelope<SenderSignedData, AuthoritySignInfo>;
-pub type VerifiedSignedTransaction = VerifiedEnvelope<SenderSignedData, AuthoritySignInfo>;
+pub type SignedTransaction = Envelope<SenderSignedTransaction, AuthoritySignInfo>;
+pub type VerifiedSignedTransaction = VerifiedEnvelope<SenderSignedTransaction, AuthoritySignInfo>;
 
 impl TransactionEnvelope {
     pub fn verify_signature_for_testing(&self, verify_params: &VerifyParams) -> IotaResult {
@@ -2498,7 +2499,7 @@ impl SignedTransaction {
     }
 }
 
-pub type CertifiedTransaction = Envelope<SenderSignedData, AuthorityStrongQuorumSignInfo>;
+pub type CertifiedTransaction = Envelope<SenderSignedTransaction, AuthorityStrongQuorumSignInfo>;
 
 impl CertifiedTransaction {
     pub fn certificate_digest(&self) -> CertificateDigest {
@@ -2546,8 +2547,10 @@ impl CertifiedTransaction {
     }
 }
 
-pub type VerifiedCertificate = VerifiedEnvelope<SenderSignedData, AuthorityStrongQuorumSignInfo>;
-pub type TrustedCertificate = TrustedEnvelope<SenderSignedData, AuthorityStrongQuorumSignInfo>;
+pub type VerifiedCertificate =
+    VerifiedEnvelope<SenderSignedTransaction, AuthorityStrongQuorumSignInfo>;
+pub type TrustedCertificate =
+    TrustedEnvelope<SenderSignedTransaction, AuthorityStrongQuorumSignInfo>;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, PartialOrd, Ord, Hash)]
 pub enum InputObjectKind {

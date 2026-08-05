@@ -17,7 +17,7 @@ DROP TABLE IF EXISTS optimistic_transactions;
 CREATE TABLE optimistic_transactions (
     insertion_order             BIGINT       PRIMARY KEY,
     transaction_digest          bytea        NOT NULL,
-    -- bcs serialized SenderSignedData bytes
+    -- bcs serialized SenderSignedTransaction bytes
     raw_transaction             bytea        NOT NULL,
     -- bcs serialized TransactionEffects bytes
     raw_effects                 bytea        NOT NULL,
