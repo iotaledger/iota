@@ -6,8 +6,19 @@ edition = "2021"
 license = "Apache-2.0"
 publish = false
 
-[lints]
-workspace = true
+[package.metadata.cargo-machete]
+ignored = [
+    # imported through a procedural macro
+    "eyre",
+]
+
+[target.'cfg(msim)'.dependencies]
+# external dependencies
+axum.workspace = true
+
+# internal dependencies
+iota-simulator.workspace = true
+rustls.workspace = true
 
 [dependencies]
 # external dependencies
@@ -25,23 +36,6 @@ fastcrypto.workspace = true
 futures.workspace = true
 hyper.workspace = true
 integer-encoding.workspace = true
-itertools.workspace = true
-lru.workspace = true
-moka.workspace = true
-num_enum.workspace = true
-object_store.workspace = true
-parking_lot.workspace = true
-percent-encoding = "2.3"
-reqwest.workspace = true
-serde.workspace = true
-serde_json.workspace = true
-strum.workspace = true
-tap.workspace = true
-tempfile.workspace = true
-tokio = { workspace = true, features = ["rt-multi-thread", "macros", "sync", "time", "tracing"] }
-tracing.workspace = true
-url.workspace = true
-zstd = "0.13"
 
 # internal dependencies
 iota-config.workspace = true
@@ -49,32 +43,39 @@ iota-metrics.workspace = true
 iota-protocol-config.workspace = true
 iota-sdk-types.workspace = true
 iota-types.workspace = true
+itertools.workspace = true
+lru.workspace = true
+moka.workspace = true
+num_enum.workspace = true
+object_store.workspace = true
+parking_lot.workspace = true
+percent-encoding = "2.3"
 prometheus-filtered.workspace = true
+reqwest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+strum.workspace = true
+tap.workspace = true
 telemetry-subscribers.workspace = true
+tempfile.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "sync", "time", "tracing"] }
+tracing.workspace = true
 typed-store.workspace = true
+url.workspace = true
+zstd = "0.13"
 
 [dev-dependencies]
 # external dependencies
 anyhow.workspace = true
-once_cell.workspace = true
-rand.workspace = true
-tempfile.workspace = true
-tokio = { workspace = true, features = ["test-util"] }
 
 # internal dependencies
 iota-common.workspace = true
 iota-macros.workspace = true
 iota-test-transaction-builder.workspace = true
+once_cell.workspace = true
+rand.workspace = true
+tempfile.workspace = true
+tokio = { workspace = true, features = ["test-util"] }
 
-[target.'cfg(msim)'.dependencies]
-# external dependencies
-axum.workspace = true
-rustls.workspace = true
-
-# internal dependencies
-iota-simulator.workspace = true
-
-[package.metadata.cargo-machete]
-ignored = [
-  "eyre", # imported through a procedural macro
-]
+[lints]
+workspace = true
