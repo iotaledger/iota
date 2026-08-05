@@ -2256,6 +2256,12 @@ impl IotaNode {
         self.randomness_handle.clone()
     }
 
+    /// Returns the registry service holding the node's Prometheus registries
+    /// and their shared exposure filter.
+    pub(crate) fn registry_service(&self) -> &RegistryService {
+        &self.registry_service
+    }
+
     /// Sends signed capability notification to committee validators for
     /// non-committee validators. This method implements retry logic to handle
     /// failed attempts to send the notification. It will retry sending the
