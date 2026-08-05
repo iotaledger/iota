@@ -16,8 +16,8 @@ use iota_macros::sim_test;
 use iota_move_build::BuildConfig;
 use iota_protocol_config::Chain::Unknown;
 use iota_sdk_types::{
-    Address, ExecutionError, ExecutionStatus, Identifier, ObjectId, ObjectReference, StakeUnit,
-    TransactionDigest,
+    Address, ExecutionError, ExecutionStatus, Identifier, ObjectId, ObjectReference,
+    SenderSignedTransaction, StakeUnit, TransactionDigest,
     crypto::{Intent, IntentMessage, IntentScope},
 };
 #[cfg(msim)]
@@ -46,7 +46,7 @@ use iota_types::{
     object::Object,
     supported_protocol_versions::SupportedProtocolVersions,
     transaction::{
-        CallArg, CertifiedTransaction, SenderSignedData, SignedTransaction,
+        CallArg, CertifiedTransaction, SignedTransaction,
         TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS,
         TransactionData, TransactionDataAPI, TransactionEnvelope, VerifiedTransaction,
     },
@@ -216,7 +216,7 @@ where
     A: AuthorityAPI + Send + Sync + Clone + 'static,
 {
     let mut votes = vec![];
-    let mut tx_data: Option<SenderSignedData> = None;
+    let mut tx: Option<SenderSignedTransaction> = None;
     for authority in authorities {
         let response = authority
             .handle_transaction_info_request(TransactionInfoRequest {
@@ -227,10 +227,10 @@ where
             Ok(PlainTransactionInfoResponse::Signed(signed)) => {
                 let (data, sig) = signed.into_data_and_sig();
                 votes.push(sig);
-                if let Some(inner_transaction) = tx_data {
+                if let Some(inner_transaction) = tx {
                     assert_eq!(inner_transaction.transaction(), data.transaction());
                 }
-                tx_data = Some(data);
+                tx = Some(data);
             }
             Ok(PlainTransactionInfoResponse::ExecutedWithCert(cert, _, _)) => {
                 return cert;
@@ -239,7 +239,7 @@ where
         }
     }
 
-    CertifiedTransaction::new(tx_data.unwrap(), votes, committee).unwrap()
+    CertifiedTransaction::new(tx.unwrap(), votes, committee).unwrap()
 }
 
 pub async fn do_cert<A>(

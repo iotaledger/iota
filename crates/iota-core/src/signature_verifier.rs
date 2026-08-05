@@ -8,7 +8,9 @@ use either::Either;
 use fastcrypto::traits::{AggregateAuthenticator, ToFromBytes};
 use futures::pin_mut;
 use iota_metrics::monitored_scope;
-use iota_sdk_types::{CertificateDigest, SenderSignedDataDigest, crypto::Intent};
+use iota_sdk_types::{
+    CertificateDigest, SenderSignedDataDigest, SenderSignedTransaction, crypto::Intent,
+};
 use iota_types::{
     base_types::AuthorityName,
     committee::Committee,
@@ -19,7 +21,7 @@ use iota_types::{
     messages_consensus::{AuthorityCapabilitiesDigest, SignedAuthorityCapabilitiesV1},
     signature::VerifyParams,
     signature_verification::{VerifiedDigestCache, verify_sender_signed_data_message_signatures},
-    transaction::{CertifiedTransaction, SenderSignedData, VerifiedCertificate},
+    transaction::{CertifiedTransaction, VerifiedCertificate},
 };
 use itertools::{Itertools as _, izip};
 use parking_lot::{Mutex, MutexGuard};
@@ -323,7 +325,7 @@ impl SignatureVerifier {
     }
 
     #[instrument(level = "trace", skip_all, fields(tx_digest = ?signed_tx.digest()))]
-    pub fn verify_tx(&self, signed_tx: &SenderSignedData) -> IotaResult {
+    pub fn verify_tx(&self, signed_tx: &SenderSignedTransaction) -> IotaResult {
         self.signed_data_cache.is_verified(
             signed_tx.full_message_digest(),
             || verify_sender_signed_data_message_signatures(signed_tx, &self.verify_params),

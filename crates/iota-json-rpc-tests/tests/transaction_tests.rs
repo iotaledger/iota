@@ -8,9 +8,8 @@ use iota_json_rpc_types::{
     IotaTransactionBlockResponseOptions, TransactionBlockBytes,
 };
 use iota_macros::sim_test;
-use iota_types::{
-    quorum_driver_types::ExecuteTransactionRequestType, transaction::SenderSignedData,
-};
+use iota_sdk_types::SenderSignedTransaction;
+use iota_types::quorum_driver_types::ExecuteTransactionRequestType;
 use test_cluster::TestClusterBuilder;
 
 #[sim_test]
@@ -91,9 +90,9 @@ async fn test_get_transaction_block() -> Result<(), anyhow::Error> {
     //     assert!(tx_responses.iter().any(
     //         |resp| matches!(resp, IotaTransactionBlockResponse {digest, ..} if *digest == response.digest)
     //     ));
-    //     let sender_signed_data: SenderSignedData =
+    //     let sender_signed_tx: SenderSignedTransaction =
     //         bcs::from_bytes(&response.raw_transaction).unwrap();
-    //     assert_eq!(sender_signed_data.digest(), tx_digest);
+    //     assert_eq!(sender_signed_tx.digest(), tx_digest);
     // }
 
     Ok(())
@@ -138,11 +137,11 @@ async fn test_get_raw_transaction() -> Result<(), anyhow::Error> {
         )
         .await?;
 
-    let decode_sender_signed_data: SenderSignedData =
+    let decode_sender_signed_tx: SenderSignedTransaction =
         bcs::from_bytes(&response.raw_transaction).unwrap();
     // verify that the raw transaction data returned by the response is the same
     // as the original transaction data
-    assert_eq!(decode_sender_signed_data, original_sender_signed_data);
+    assert_eq!(decode_sender_signed_tx, original_sender_signed_data);
 
     Ok(())
 }

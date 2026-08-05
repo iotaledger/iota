@@ -1640,7 +1640,7 @@ async fn test_two_move_authenticators_rejected_with_disabled_move_auth_for_spons
             &err,
             IotaError::UserInput {
                 error: UserInputError::Unsupported(msg)
-            } if msg == "SenderSignedData with more than one MoveAuthenticator is not supported"
+            } if msg == "SenderSignedTransaction with more than one MoveAuthenticator is not supported"
         ),
         "Expected Unsupported error for >1 MoveAuthenticator, got: {err:?}"
     );
@@ -1721,7 +1721,7 @@ async fn test_sponsor_only_move_auth_rejected_with_disabled_move_auth_for_sponso
             &err,
             IotaError::UserInput {
                 error: UserInputError::Unsupported(msg)
-            } if msg == "SenderSignedData can have MoveAuthenticator only for the sender"
+            } if msg == "SenderSignedTransaction can have MoveAuthenticator only for the sender"
         ),
         "Expected Unsupported error for sponsor-only MoveAuthenticator, got: {err:?}"
     );

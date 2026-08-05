@@ -42,9 +42,9 @@ use iota_metrics::{
 use iota_sdk_types::{
     Address, CheckpointContentsDigest, CheckpointDigest, Digest, EndOfEpochTransactionKind,
     ExecutionStatus, GasPayment, MoveAuthenticator, MoveStruct, ObjectDigest, ObjectId,
-    ObjectReference, Owner, RandomnessRound, StructTag, SystemPackage, TransactionDigest,
-    TransactionEffectsDigest, TransactionExpiration, TransactionKind, TransactionV1, TypeTag,
-    Version,
+    ObjectReference, Owner, RandomnessRound, SenderSignedTransaction, StructTag, SystemPackage,
+    TransactionDigest, TransactionEffectsDigest, TransactionExpiration, TransactionKind,
+    TransactionV1, TypeTag, Version,
     checkpoint::{CheckpointCommitment, CheckpointContents, CheckpointSummary},
     crypto::{Intent, IntentAppId, IntentMessage, IntentScope, IntentVersion},
     gas::GasCostSummary,
@@ -1110,7 +1110,7 @@ impl AuthorityState {
                 .collect();
 
             // It is supposed that `MoveAuthenticator` availability is checked in
-            // `SenderSignedData::validity_check`.
+            // `SenderSignedTransaction::validity_check`.
 
             // Serialize the TransactionData for the auth context before decomposing.
             let tx_data_bytes =
@@ -1275,14 +1275,14 @@ impl AuthorityState {
     pub(crate) fn check_system_overload(
         &self,
         consensus_adapter: &Arc<ConsensusAdapter>,
-        tx_data: &SenderSignedData,
+        tx: &SenderSignedTransaction,
         do_authority_overload_check: bool,
         pcool_flow_enabled: bool,
     ) -> IotaResult {
         if pcool_flow_enabled {
             // Graduated shedding: 0% to 100% as consensus queue fills from soft
             // to hard limit.
-            self.check_consensus_queue_graduated_limits(consensus_adapter, tx_data)
+            self.check_consensus_queue_graduated_limits(consensus_adapter, tx)
                 .tap_err(|_| {
                     self.update_overload_metrics("consensus");
                 })?;
@@ -1298,12 +1298,12 @@ impl AuthorityState {
             })?;
         } else {
             if do_authority_overload_check {
-                self.check_authority_overload(tx_data).tap_err(|_| {
+                self.check_authority_overload(tx).tap_err(|_| {
                     self.update_overload_metrics("execution_queue");
                 })?;
             }
             self.transaction_manager
-                .check_execution_overload(self.overload_config(), tx_data)
+                .check_execution_overload(self.overload_config(), tx)
                 .tap_err(|_| {
                     self.update_overload_metrics("execution_pending");
                 })?;
@@ -1340,7 +1340,7 @@ impl AuthorityState {
     fn check_consensus_queue_graduated_limits(
         &self,
         consensus_adapter: &Arc<ConsensusAdapter>,
-        tx_data: &SenderSignedData,
+        tx: &SenderSignedTransaction,
     ) -> IotaResult {
         let num_inflight_txs = consensus_adapter.num_inflight_transactions() as usize;
 
@@ -1366,10 +1366,10 @@ impl AuthorityState {
             return Err(IotaError::TooManyTransactionsPendingConsensus);
         }
 
-        overload_monitor_accept_tx(shedding_pct, tx_data.digest())
+        overload_monitor_accept_tx(shedding_pct, tx.digest())
     }
 
-    fn check_authority_overload(&self, tx_data: &SenderSignedData) -> IotaResult {
+    fn check_authority_overload(&self, tx: &SenderSignedTransaction) -> IotaResult {
         if !self.overload_info.is_overload.load(Ordering::Relaxed) {
             return Ok(());
         }
@@ -1378,7 +1378,7 @@ impl AuthorityState {
             .overload_info
             .local_load_shedding_percentage
             .load(Ordering::Relaxed);
-        overload_monitor_accept_tx(load_shedding_percentage, tx_data.digest())
+        overload_monitor_accept_tx(load_shedding_percentage, tx.digest())
     }
 
     fn update_overload_metrics(&self, source: &str) {
@@ -1932,7 +1932,7 @@ impl AuthorityState {
             // One or more `MoveAuthenticator` signatures present — authenticate each and
             // then execute the transaction.
             // It is supposed that `MoveAuthenticator` availability is checked in
-            // `SenderSignedData::validity_check`.
+            // `SenderSignedTransaction::validity_check`.
 
             debug_assert_eq!(
                 move_authenticators.len(),
@@ -4765,7 +4765,7 @@ impl AuthorityState {
         &self,
         transaction_digest: &TransactionDigest,
         epoch_store: &Arc<AuthorityPerEpochStore>,
-    ) -> IotaResult<Option<(SenderSignedData, TransactionStatus)>> {
+    ) -> IotaResult<Option<(SenderSignedTransaction, TransactionStatus)>> {
         // TODO: In the case of read path, we should not have to re-sign the effects.
         if let Some(effects) =
             self.get_signed_effects_and_maybe_resign(transaction_digest, epoch_store)?
@@ -6426,7 +6426,7 @@ impl ObjDumpFormat {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct NodeStateDump {
     pub tx_digest: TransactionDigest,
-    pub sender_signed_data: SenderSignedData,
+    pub sender_signed_data: SenderSignedTransaction,
     pub executed_epoch: u64,
     pub reference_gas_price: u64,
     pub protocol_version: u64,

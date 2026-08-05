@@ -15,9 +15,9 @@ use iota_sdk_types::{
     ChangeEpochV4, Command, ConsensusCommitDigest, ConsensusDeterminedVersionAssignments,
     EndOfEpochTransactionKind, ExecutionError as ExecutionFailureStatus, ExecutionStatus,
     GenesisObject, Identifier, MoveCall, ObjectDigest, ObjectId, ObjectReference, Owner,
-    ProgrammableTransaction, SharedObjectReference, TransactionDigest, TransactionEventsDigest,
-    TransactionKind, TransferObjects, TypeTag, UserSignature, Version, VersionAssignment,
-    gas::GasCostSummary,
+    ProgrammableTransaction, SenderSignedTransaction, SharedObjectReference, TransactionDigest,
+    TransactionEventsDigest, TransactionKind, TransferObjects, TypeTag, UserSignature, Version,
+    VersionAssignment, gas::GasCostSummary,
 };
 use iota_types::{
     base_types::EpochId,
@@ -32,9 +32,7 @@ use iota_types::{
     parse_iota_type_tag,
     quorum_driver_types::ExecuteTransactionRequestType as NativeExecuteTransactionRequestType,
     storage::{DeleteKind, WriteKind},
-    transaction::{
-        CallArg, InputObjectKind, SenderSignedData, TransactionData, TransactionDataAPI,
-    },
+    transaction::{CallArg, InputObjectKind, TransactionData, TransactionDataAPI},
 };
 use move_binary_format::CompiledModule;
 use move_bytecode_utils::module_cache::GetModule;
@@ -270,8 +268,8 @@ pub struct IotaTransactionBlockResponse {
     /// Transaction input data
     #[serde(skip_serializing_if = "Option::is_none")]
     pub transaction: Option<IotaTransactionBlock>,
-    /// BCS encoded [SenderSignedData] that includes input object references
-    /// returns empty array if `show_raw_transaction` is false
+    /// BCS encoded [SenderSignedTransaction] that includes input object
+    /// references returns empty array if `show_raw_transaction` is false
     #[serde_as(as = "Base64")]
     #[schemars(with = "Base64Schema")]
     #[serde(skip_serializing_if = "Vec::is_empty", default)]
@@ -1775,17 +1773,17 @@ pub struct IotaTransactionBlock {
 
 impl IotaTransactionBlock {
     pub fn try_from(
-        data: SenderSignedData,
+        tx: SenderSignedTransaction,
         module_cache: &impl GetModule,
         tx_digest: TransactionDigest,
     ) -> Result<Self, anyhow::Error> {
         Ok(Self {
             data: IotaTransactionBlockData::try_from_with_module_cache(
-                data.transaction().clone(),
+                tx.transaction().clone(),
                 module_cache,
                 tx_digest,
             )?,
-            tx_signatures: data.signatures().to_vec(),
+            tx_signatures: tx.signatures().to_vec(),
         })
     }
 
@@ -1793,18 +1791,18 @@ impl IotaTransactionBlock {
     // indexer v1, so are the related `try_from` methods for nested structs like
     // IotaTransactionBlockData etc.
     pub async fn try_from_with_package_resolver(
-        data: SenderSignedData,
+        tx: SenderSignedTransaction,
         package_resolver: &Resolver<impl PackageStore>,
         tx_digest: TransactionDigest,
     ) -> Result<Self, anyhow::Error> {
         Ok(Self {
             data: IotaTransactionBlockData::try_from_with_package_resolver(
-                data.transaction().clone(),
+                tx.transaction().clone(),
                 package_resolver,
                 tx_digest,
             )
             .await?,
-            tx_signatures: data.signatures().to_vec(),
+            tx_signatures: tx.signatures().to_vec(),
         })
     }
 }

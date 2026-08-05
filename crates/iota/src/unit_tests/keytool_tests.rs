@@ -885,9 +885,9 @@ async fn test_decode_sig() -> Result<(), anyhow::Error> {
         _ => panic!("Expected MoveAuthenticator variant"),
     }
 
-    // Test 3: Decode signature from a full SenderSignedData (transaction with
-    // signature) The fallback decodes the transaction and extracts the first
-    // signature
+    // Test 3: Decode signature from a full SenderSignedTransaction (transaction
+    // with signature) The fallback decodes the transaction and extracts the
+    // first signature
     let full_tx = "AQAAAAAAAgAIAMqaOwAAAAAAIBEREREVBOk1DmNdZc04zNLAKUNMajpIDYlHqbpqFbIVAgIAAQEAAAEBAwAAAAABAQARERERFQTpNQ5jXWXNOMzSwClDTGo6SA2JR6m6ahWyFQFODzG01xo0l0JIwq9SzbRyvRKR/9TvCUbh8lrerlLQWT9uOykAAAAAIBTjvmRbByY+0uGCBeTvSXQnUXonVSdJMuPOIwfGCZ/4ERERERUE6TUOY11lzTjM0sApQ0xqOkgNiUepumoVshXoAwAAAAAAAOBvPAAAAAAAAAFhAKFqV1NustAADKOOOfAZIA/9HrnmA9PqwAmOrqTs7OKjaEXylfywifj2XZyBmEJYodGE89xlkDOthe+bpBIrkwEoe8lptdiMUw3h3rcxQJf3bWp9zFLP4Eq3rpQOam52cw==";
     let output = KeyToolCommand::DecodeSig {
         sig: full_tx.to_string(),

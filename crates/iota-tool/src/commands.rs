@@ -19,14 +19,14 @@ use iota_core::{
 use iota_protocol_config::Chain;
 use iota_replay::{ReplayToolCommand, execute_replay_command};
 use iota_sdk::{IotaClient, IotaClientBuilder, rpc_types::IotaTransactionBlockResponseOptions};
-use iota_sdk_types::{Address, ObjectId, TransactionDigest};
+use iota_sdk_types::{Address, ObjectId, SenderSignedTransaction, TransactionDigest};
 use iota_snapshot::progress::LOG_TARGET_PROGRESS;
 use iota_types::{
     base_types::*,
     crypto::AuthorityPublicKeyBytes,
     messages_checkpoint::{CheckpointRequest, CheckpointResponse, CheckpointSequenceNumber},
     messages_grpc::TransactionInfoRequest,
-    transaction::{SenderSignedData, TransactionEnvelope},
+    transaction::TransactionEnvelope,
 };
 use telemetry_subscribers::TracingHandle;
 
@@ -333,7 +333,7 @@ pub enum ToolCommand {
 
         #[arg(
             long,
-            help = "The Base64-encoding of the bcs bytes of SenderSignedData"
+            help = "The Base64-encoding of the bcs bytes of SenderSignedTransaction"
         )]
         sender_signed_data: String,
     },
@@ -766,11 +766,11 @@ impl ToolCommand {
                 sender_signed_data,
             } => {
                 let genesis = Genesis::load(genesis)?;
-                let sender_signed_data = bcs::from_bytes::<SenderSignedData>(
+                let sender_signed_tx = bcs::from_bytes::<SenderSignedTransaction>(
                     &fastcrypto::encoding::Base64::decode(sender_signed_data.as_str()).unwrap(),
                 )
                 .unwrap();
-                let transaction = TransactionEnvelope::new(sender_signed_data);
+                let transaction = TransactionEnvelope::new(sender_signed_tx);
                 let (agg, _) =
                     AuthorityAggregatorBuilder::from_genesis(&genesis).build_network_clients();
                 let result = agg.process_transaction(transaction, None).await;
