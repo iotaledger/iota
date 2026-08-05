@@ -3,9 +3,6 @@ title: Creating an ERC-721-like NFT
 tags: [ solidity, nft, tutorial, erc721]
 ---
 
-import Quiz from '@site/src/components/Quiz';
-import quizData from '../../../site/static/json/developer/evm-to-move/creating-nft.json';
-
 ## How this works in Solidity / EVM
 
 NFTs (Non-Fungible-Tokens) are a popular building block commonly used in the EVM ecosystem. The most widely used standard on EVM-based chains is the ERC-721 standard, which allows a smart contract to mint and transfer NFTs with some basic metadata. These standard NFTs can be used on many different platforms in a common way to be viewed, traded, and used in other ways. 
@@ -67,6 +64,3 @@ To sum up the most important differences between the two approaches:
 | Non-enforced standard functionality (you can implement the ERC-721 functions as you please, including in for users' undesired ways) | Enforced standard functionality for objects with customizability where needed.                                                          |
 
 NFTs in Move are clearly a big improvement over the afterthought counterparts in the EVM/Solidity ecosystem. There are more assurances and better usability when it comes to asset management. 
-
-
-<Quiz questions={quizData.questions} />

@@ -16,7 +16,8 @@ use iota_adapter_latest::{
 use iota_move_natives_latest::all_natives;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    Address, GasPayment, ProgrammableTransaction, TransactionDigest, TransactionKind,
+    Address, GasPayment, MoveAuthenticator, ProgrammableTransaction, TransactionDigest,
+    TransactionKind,
 };
 use iota_types::{
     account_abstraction::authenticator_function::{
@@ -32,7 +33,6 @@ use iota_types::{
     inner_temporary_store::InnerTemporaryStore,
     layout_resolver::LayoutResolver,
     metrics::{BytecodeVerifierMetrics, LimitsMetrics},
-    move_authenticator::MoveAuthenticator,
     move_package::ProtocolBuildConfig,
     storage::BackingStore,
     transaction::CheckedInputObjects,

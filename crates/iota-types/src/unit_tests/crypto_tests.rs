@@ -8,7 +8,7 @@ use super::*;
 
 #[test]
 fn serde_keypair() {
-    let ikp = IotaKeyPair::Ed25519(Ed25519KeyPair::generate(&mut StdRng::from_seed([0; 32])));
+    let ikp = IotaKeyPair::Ed25519(Ed25519PrivateKey::generate(StdRng::from_seed([0; 32])));
     let encoded = ikp.encode().unwrap();
     assert_eq!(
         encoded,
@@ -108,7 +108,7 @@ proptest! {
     ){
         let _key_pair = get_key_pair_from_bytes::<AuthorityKeyPair>(&bytes);
         let _key_pair = get_key_pair_from_bytes::<NetworkKeyPair>(&bytes);
-        let _key_pair = get_key_pair_from_bytes::<AccountKeyPair>(&bytes);
+        let _key_pair = AccountKeyPair::from_bytes(&bytes);
     }
 
     #[test]
@@ -116,8 +116,8 @@ proptest! {
         bytes in collection::vec(any::<u8>(), 0..1024)
     ){
         let _apkb = AuthorityPublicKeyBytes::from_bytes(&bytes);
-        let _pk = PublicKey::try_from_bytes(SignatureScheme::BLS12381, &bytes);
-        let _pk = PublicKey::try_from_bytes(SignatureScheme::ED25519, &bytes);
+        let _pk = PublicKey::try_from_bytes(SignatureScheme::Bls12381, &bytes);
+        let _pk = PublicKey::try_from_bytes(SignatureScheme::Ed25519, &bytes);
         let _pk = PublicKey::try_from_bytes(SignatureScheme::Secp256k1, &bytes);
         let _sig = Signature::from_bytes(&bytes);
     }

@@ -37,7 +37,6 @@ mod ingestion_tests {
     };
     use iota_test_transaction_builder::TestTransactionBuilder;
     use iota_types::{
-        crypto::KeypairTraits,
         effects::{TransactionEffects, TransactionEffectsAPI},
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         transaction::{CallArg, Transaction, TransactionData, TransactionDataAPI},
@@ -871,7 +870,7 @@ mod ingestion_tests {
     fn execute_signed(sim: &Simulacrum, tx_data: TransactionData) -> TransactionEffects {
         let (sender, key) = sim.with_keystore(|ks| {
             let (s, k) = ks.accounts().next().unwrap();
-            (*s, k.copy())
+            (*s, k.clone())
         });
         assert_eq!(tx_data.sender(), sender);
         let tx = Transaction::from_data_and_signer(tx_data, vec![&key]);

@@ -48,14 +48,14 @@ use iota_types::{
     iota_system_state::{IotaSystemStateTrait, IotaSystemStateWrapper},
     messages_consensus::{AuthorityCapabilitiesV1, ConsensusTransaction, ConsensusTransactionKind},
     messages_grpc::{LayoutGenerationOption, ObjectInfoRequest, TransactionInfoRequest},
-    object::{GAS_VALUE_FOR_TESTING, MoveObjectExt, OBJECT_START_VERSION, Object},
+    object::{GAS_VALUE_FOR_TESTING, MoveStructExt, OBJECT_START_VERSION, Object},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     randomness_state::get_randomness_state_obj_initial_shared_version,
     supported_protocol_versions::{SupportedProtocolVersions, SupportedProtocolVersionsWithHashes},
     transaction::{
-        CallArg, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS, TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
-        TEST_ONLY_GAS_UNIT_FOR_TRANSFER, Transaction, TransactionData, TransactionDataAPI,
-        VerifiedCertificate, VerifiedTransaction,
+        CallArg, SenderSignedTransactionAPI, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS,
+        TEST_ONLY_GAS_UNIT_FOR_PUBLISH, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, Transaction,
+        TransactionData, TransactionDataAPI, VerifiedCertificate, VerifiedTransaction,
     },
     utils::{to_sender_signed_transaction, to_sender_signed_transaction_with_multi_signers},
 };
@@ -234,10 +234,7 @@ async fn test_dry_run_transaction_block() {
     let transaction_digest = *transaction.digest();
 
     let (response, _, _, _) = fullnode
-        .dry_exec_transaction(
-            transaction.data().intent_message().value.clone(),
-            transaction_digest,
-        )
+        .dry_exec_transaction(transaction.data().transaction().clone(), transaction_digest)
         .unwrap();
     assert_eq!(*response.effects.status(), IotaExecutionStatus::Success);
     let gas_usage = response.effects.gas_cost_summary();
@@ -248,13 +245,13 @@ async fn test_dry_run_transaction_block() {
     let shared_object_version = fullnode.get_object(&shared_object_id).unwrap().version();
     assert_eq!(shared_object_version, initial_shared_object_version);
 
-    let txn_data = &transaction.data().intent_message().value;
+    let tx = transaction.data().transaction();
     let txn_data = TransactionData::new_with_gas_coins(
-        txn_data.kind().clone(),
-        txn_data.sender(),
+        tx.kind().clone(),
+        tx.sender(),
         vec![],
-        txn_data.gas_budget(),
-        txn_data.gas_price(),
+        tx.gas_budget(),
+        tx.gas_price(),
     );
     let (response, _, _, _) = fullnode
         .dry_exec_transaction(txn_data, transaction_digest)
@@ -287,10 +284,7 @@ async fn test_dry_run_no_gas_big_transfer() {
     let signed = to_sender_signed_transaction(data, &sender_key);
 
     let (dry_run_res, _, _, _) = fullnode
-        .dry_exec_transaction(
-            signed.data().intent_message().value.clone(),
-            *signed.digest(),
-        )
+        .dry_exec_transaction(signed.data().transaction().clone(), *signed.digest())
         .unwrap();
     assert_eq!(*dry_run_res.effects.status(), IotaExecutionStatus::Success);
 }
@@ -969,10 +963,8 @@ async fn test_dry_run_on_validator() {
     let (validator, _fullnode, transaction, _gas_object_id, _shared_object_id) =
         construct_shared_object_transaction_with_version(None).await;
     let transaction_digest = *transaction.digest();
-    let response = validator.dry_exec_transaction(
-        transaction.data().intent_message().value.clone(),
-        transaction_digest,
-    );
+    let response = validator
+        .dry_exec_transaction(transaction.data().transaction().clone(), transaction_digest);
     assert!(response.is_err());
 }
 
@@ -1193,7 +1185,7 @@ async fn test_handle_transfer_transaction_bad_signature() {
     *bad_signature_transfer_transaction
         .data_mut_for_testing()
         .tx_signatures_mut_for_testing() = vec![
-        Signature::new_secure(transfer_transaction.data().intent_message(), &unknown_key).into(),
+        Signature::new_secure(&transfer_transaction.data().intent_message(), &unknown_key).into(),
     ];
 
     assert!(
@@ -1415,8 +1407,8 @@ async fn test_handle_transfer_transaction_ok() {
     };
 
     assert_eq!(
-        envelope.data().intent_message().value,
-        transfer_transaction.data().intent_message().value
+        envelope.data().transaction(),
+        transfer_transaction.data().transaction()
     );
 }
 
@@ -4646,11 +4638,12 @@ async fn test_consensus_commit_prologue_generation(#[values(false, true)] pcool:
 
     telemetry_subscribers::init_for_testing();
 
-    let _guard = pcool.then(|| {
-        ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-            config.set_enable_pcool_flow_for_testing(true);
-            config
-        })
+    // Pin the flag in both cases: the default for `Chain::Unknown` enables the
+    // P-COOL flow, so leaving it unset would run the certificate case against a
+    // protocol config that disagrees with the submission path under test.
+    let _guard = ProtocolConfig::apply_overrides_for_testing(move |_, mut config| {
+        config.set_enable_pcool_flow_for_testing(pcool);
+        config
     });
 
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
@@ -4754,7 +4747,7 @@ async fn test_consensus_commit_prologue_generation(#[values(false, true)] pcool:
     assert!(matches!(
         processed_consensus_transactions[0]
             .data()
-            .transaction_data()
+            .transaction()
             .kind(),
         TransactionKind::ConsensusCommitPrologueV1(..)
     ));
@@ -5709,10 +5702,7 @@ async fn test_for_inc_201_dry_run() {
         _,
         _,
     ) = fullnode
-        .dry_exec_transaction(
-            signed.data().intent_message().value.clone(),
-            *signed.digest(),
-        )
+        .dry_exec_transaction(signed.data().transaction().clone(), *signed.digest())
         .unwrap();
     assert_eq!(effects.status(), &IotaExecutionStatus::Success);
 
@@ -5763,10 +5753,7 @@ async fn test_function_not_found() {
         _,
         _,
     ) = fullnode
-        .dry_exec_transaction(
-            signed.data().intent_message().value.clone(),
-            *signed.digest(),
-        )
+        .dry_exec_transaction(signed.data().transaction().clone(), *signed.digest())
         .unwrap();
     assert_eq!(
         effects.status(),
@@ -5819,10 +5806,7 @@ async fn test_arity_mismatch() {
         _,
         _,
     ) = authority
-        .dry_exec_transaction(
-            signed.data().intent_message().value.clone(),
-            *signed.digest(),
-        )
+        .dry_exec_transaction(signed.data().transaction().clone(), *signed.digest())
         .unwrap();
     assert_eq!(
         effects.status(),
@@ -6312,7 +6296,7 @@ async fn test_consensus_handler_per_object_congestion_control(
     assert_eq!(scheduled_txns.len(), 2 + non_congested_tx_count as usize);
     for cert in scheduled_txns.iter() {
         assert!(
-            cert.data().transaction_data().gas_price() >= 4000
+            cert.data().transaction().gas_price() >= 4000
                 || cert
                     .shared_input_objects()
                     .into_iter()
@@ -6370,7 +6354,7 @@ async fn test_consensus_handler_per_object_congestion_control(
     assert_eq!(scheduled_txns.len(), 2 + non_congested_tx_count as usize);
     for cert in scheduled_txns.iter() {
         assert!(
-            cert.data().transaction_data().gas_price() >= 2000
+            cert.data().transaction().gas_price() >= 2000
                 || cert
                     .shared_input_objects()
                     .into_iter()
@@ -6535,22 +6519,18 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
     // Note that consensus handler also generates consensus commit prologue
     // transaction, and it must be the first one.
     assert!(matches!(
-        scheduled_txns[0].data().transaction_data().kind(),
+        scheduled_txns[0].data().transaction().kind(),
         TransactionKind::ConsensusCommitPrologueV1(..)
     ));
-    assert!(
-        scheduled_txns[1].data().transaction_data().gas_price() == gas_price_of_non_cancelled_txs
-    );
+    assert!(scheduled_txns[1].data().transaction().gas_price() == gas_price_of_non_cancelled_txs);
 
     let scheduled_txns = send_batch_consensus_no_execution(&authority, &[], false).await;
     assert_eq!(scheduled_txns.len(), 2);
     assert!(matches!(
-        scheduled_txns[0].data().transaction_data().kind(),
+        scheduled_txns[0].data().transaction().kind(),
         TransactionKind::ConsensusCommitPrologueV1(..)
     ));
-    assert!(
-        scheduled_txns[1].data().transaction_data().gas_price() == gas_price_of_non_cancelled_txs
-    );
+    assert!(scheduled_txns[1].data().transaction().gas_price() == gas_price_of_non_cancelled_txs);
 
     // Run consensus round 3. 2 user transactions will come out with 1 transaction
     // being cancelled.
@@ -6594,11 +6574,7 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
             &authority.epoch_store_for_testing(),
             &cancelled_txn.key(),
             &TxLockGuard::guard_for_tests(),
-            &cancelled_txn
-                .data()
-                .transaction_data()
-                .input_objects()
-                .unwrap(),
+            &cancelled_txn.data().transaction().input_objects().unwrap(),
             authority.epoch_store_for_testing().epoch(),
         )
         .unwrap();
@@ -6636,7 +6612,7 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
     // Consensus commit prologue contains cancelled txn shared object version
     // assignment.
     if let TransactionKind::ConsensusCommitPrologueV1(prologue_txn) =
-        scheduled_txns[0].data().transaction_data().kind()
+        scheduled_txns[0].data().transaction().kind()
     {
         assert!(matches!(
             &prologue_txn.consensus_determined_version_assignments,
@@ -6775,7 +6751,7 @@ async fn test_post_consensus_white_flag_simple_conflict() {
         "Only tx1 should be executable, tx2 dropped"
     );
     assert_eq!(
-        executable_txs[0].inner().transaction_data().digest(),
+        executable_txs[0].inner().transaction().digest(),
         *verified_tx1.digest(),
         "The executable transaction should be tx1"
     );
@@ -6889,7 +6865,7 @@ async fn test_post_consensus_white_flag_no_conflict() {
     );
     let executable_digests: std::collections::HashSet<_> = executable_txs
         .iter()
-        .map(|tx| tx.inner().transaction_data().digest())
+        .map(|tx| tx.inner().transaction().digest())
         .collect();
     assert!(executable_digests.contains(verified_tx1.digest()));
     assert!(executable_digests.contains(verified_tx2.digest()));
@@ -6975,7 +6951,7 @@ async fn test_post_consensus_white_flag_conflict_different_commits() {
     // Verify tx1 was executable
     assert_eq!(executable_txs.len(), 1);
     assert_eq!(
-        executable_txs[0].inner().transaction_data().digest(),
+        executable_txs[0].inner().transaction().digest(),
         *verified_tx1.digest()
     );
 
@@ -7320,4 +7296,163 @@ async fn test_consensus_queue_graduated_load_shedding() {
         result.is_ok(),
         "in certificate mode, no graduated shedding expected below/at hard limit",
     );
+}
+
+/// Builds an authority with the deny-rule-governance protocol flag toggled.
+async fn authority_with_deny_rule_governance(enabled: bool) -> Arc<AuthorityState> {
+    let mut protocol_config =
+        ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
+    if enabled {
+        protocol_config.set_deny_rule_governance_for_testing(true);
+    }
+    TestAuthorityBuilder::new()
+        .with_protocol_config(protocol_config)
+        .build()
+        .await
+}
+
+/// A `TransactionDenyRuleProposal` whose declared authority matches `author` is
+/// recorded through the consensus pipeline and its rules become active for the
+/// next commit; a proposal whose author does not match the consensus block
+/// author is dropped by `verify_consensus_transaction`.
+#[tokio::test]
+async fn deny_rule_proposal_through_consensus_updates_active_set() {
+    use iota_sdk_types::Address;
+    use iota_types::{
+        deny_rule_governance::{DenyRuleConfig, DenyRuleSet},
+        messages_consensus::TransactionDenyRuleProposal,
+    };
+
+    let authority = authority_with_deny_rule_governance(true).await;
+    let epoch_store = authority.epoch_store_for_testing();
+    // Single-validator test committee: this authority holds all stake and
+    // clears both the f+1 and 2f+1 thresholds alone.
+    let me = epoch_store.name;
+    let checkpoint_service = Arc::new(CheckpointServiceNoop {});
+
+    // Drive a proposal through consensus, authored by this validator.
+    let denied = Address::new([9u8; 32]);
+    let proposal = TransactionDenyRuleProposal {
+        authority: me,
+        generation: 1,
+        proposed_rules: DenyRuleSet {
+            denied_addresses: [denied].into(),
+            user_transaction_disabled: true,
+            ..Default::default()
+        },
+    };
+    let sequenced = SequencedConsensusTransaction {
+        certificate_author_index: 0,
+        certificate_author: me,
+        consensus_index: Default::default(),
+        transaction: crate::consensus_handler::SequencedConsensusTransactionKind::External(
+            ConsensusTransaction::new_transaction_deny_rule_proposal(proposal),
+        ),
+    };
+    epoch_store
+        .process_consensus_transactions_for_tests(
+            vec![sequenced],
+            &checkpoint_service,
+            authority.get_object_cache_reader().as_ref(),
+            authority.get_transaction_cache_reader().as_ref(),
+            &authority.metrics,
+            true,
+            authority.as_ref(),
+        )
+        .await
+        .unwrap();
+
+    // Recorded and aggregated: the rules are active for subsequent commits.
+    let active = epoch_store.get_active_transaction_deny_rules();
+    assert!(active.is_address_denied(&denied));
+    assert!(active.user_transaction_disabled());
+
+    // A proposal whose declared authority does not match the consensus block
+    // author is dropped before recording, leaving the active set unchanged.
+    let other = AuthorityName::ZERO;
+    let forged = TransactionDenyRuleProposal {
+        authority: other,
+        generation: 2,
+        proposed_rules: rules_denying(Address::new([1u8; 32])),
+    };
+    let sequenced = SequencedConsensusTransaction {
+        certificate_author_index: 0,
+        certificate_author: me, // author != forged.authority
+        consensus_index: Default::default(),
+        transaction: crate::consensus_handler::SequencedConsensusTransactionKind::External(
+            ConsensusTransaction::new_transaction_deny_rule_proposal(forged),
+        ),
+    };
+    epoch_store
+        .process_consensus_transactions_for_tests(
+            vec![sequenced],
+            &checkpoint_service,
+            authority.get_object_cache_reader().as_ref(),
+            authority.get_transaction_cache_reader().as_ref(),
+            &authority.metrics,
+            true,
+            authority.as_ref(),
+        )
+        .await
+        .unwrap();
+
+    let active = epoch_store.get_active_transaction_deny_rules();
+    assert!(!active.is_address_denied(&Address::new([1u8; 32])));
+    assert!(active.is_address_denied(&denied)); // original still in force
+}
+
+/// With the feature flag disabled, a well-formed proposal is ignored by the
+/// consensus handler and never affects the active set.
+#[tokio::test]
+async fn deny_rule_proposal_ignored_when_flag_disabled() {
+    use iota_sdk_types::Address;
+    use iota_types::{
+        deny_rule_governance::DenyRuleConfig, messages_consensus::TransactionDenyRuleProposal,
+    };
+
+    let authority = authority_with_deny_rule_governance(false).await;
+    let epoch_store = authority.epoch_store_for_testing();
+    let me = epoch_store.name;
+
+    let denied = Address::new([9u8; 32]);
+    let proposal = TransactionDenyRuleProposal {
+        authority: me,
+        generation: 1,
+        proposed_rules: rules_denying(denied),
+    };
+    let sequenced = SequencedConsensusTransaction {
+        certificate_author_index: 0,
+        certificate_author: me,
+        consensus_index: Default::default(),
+        transaction: crate::consensus_handler::SequencedConsensusTransactionKind::External(
+            ConsensusTransaction::new_transaction_deny_rule_proposal(proposal),
+        ),
+    };
+    epoch_store
+        .process_consensus_transactions_for_tests(
+            vec![sequenced],
+            &Arc::new(CheckpointServiceNoop {}),
+            authority.get_object_cache_reader().as_ref(),
+            authority.get_transaction_cache_reader().as_ref(),
+            &authority.metrics,
+            true,
+            authority.as_ref(),
+        )
+        .await
+        .unwrap();
+
+    assert!(
+        !epoch_store
+            .get_active_transaction_deny_rules()
+            .is_address_denied(&denied)
+    );
+}
+
+fn rules_denying(
+    address: iota_sdk_types::Address,
+) -> iota_types::deny_rule_governance::DenyRuleSet {
+    iota_types::deny_rule_governance::DenyRuleSet {
+        denied_addresses: [address].into(),
+        ..Default::default()
+    }
 }

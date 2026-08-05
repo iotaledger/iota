@@ -8,8 +8,9 @@ use iota_network::api::{
     GetTxStatusRequest, HealthCheckRequest, HealthCheckResponse, NotifyCapabilitiesRequest,
     NotifyCapabilitiesResponse, SubmitTxRequest, TxStatus, ValidatorV2,
 };
-use iota_sdk_types::TransactionDigest;
+use iota_sdk_types::{Address, ObjectId, TransactionDigest};
 use iota_types::{
+    deny_rule_governance::DenyRuleConfig,
     effects::{TransactionEffects, TransactionEffectsAPI},
     error::IotaError,
     fp_ensure,
@@ -20,7 +21,7 @@ use iota_types::{
         TxStatusUpdate, ValidatorHealthRequest, ValidatorHealthResponse,
     },
     traffic_control::Weight,
-    transaction::Transaction,
+    transaction::{SenderSignedTransactionAPI, Transaction},
 };
 use tokio_stream::wrappers::ReceiverStream;
 
@@ -37,6 +38,62 @@ const MAX_QUERIES_PER_GET_TX_STATUS: usize = 32;
 
 /// Timeout for waiting on transaction execution in `get_tx_status`.
 const GET_TX_STATUS_TIMEOUT_SECS: u64 = 30;
+
+/// The union of two deny rule sources: denies whatever either source denies.
+struct DenyRuleUnion<'a> {
+    first: &'a dyn DenyRuleConfig,
+    second: &'a dyn DenyRuleConfig,
+}
+
+impl DenyRuleConfig for DenyRuleUnion<'_> {
+    fn is_address_denied(&self, address: &Address) -> bool {
+        self.first.is_address_denied(address) || self.second.is_address_denied(address)
+    }
+
+    fn is_object_denied(&self, id: &ObjectId) -> bool {
+        self.first.is_object_denied(id) || self.second.is_object_denied(id)
+    }
+
+    fn is_package_denied(&self, id: &ObjectId) -> bool {
+        self.first.is_package_denied(id) || self.second.is_package_denied(id)
+    }
+
+    fn has_denied_addresses(&self) -> bool {
+        self.first.has_denied_addresses() || self.second.has_denied_addresses()
+    }
+
+    fn has_denied_objects(&self) -> bool {
+        self.first.has_denied_objects() || self.second.has_denied_objects()
+    }
+
+    fn has_denied_packages(&self) -> bool {
+        self.first.has_denied_packages() || self.second.has_denied_packages()
+    }
+
+    fn package_publish_disabled(&self) -> bool {
+        self.first.package_publish_disabled() || self.second.package_publish_disabled()
+    }
+
+    fn package_upgrade_disabled(&self) -> bool {
+        self.first.package_upgrade_disabled() || self.second.package_upgrade_disabled()
+    }
+
+    fn shared_object_disabled(&self) -> bool {
+        self.first.shared_object_disabled() || self.second.shared_object_disabled()
+    }
+
+    fn user_transaction_disabled(&self) -> bool {
+        self.first.user_transaction_disabled() || self.second.user_transaction_disabled()
+    }
+
+    fn receiving_objects_disabled(&self) -> bool {
+        self.first.receiving_objects_disabled() || self.second.receiving_objects_disabled()
+    }
+
+    fn move_authenticator_disabled(&self) -> bool {
+        self.first.move_authenticator_disabled() || self.second.move_authenticator_disabled()
+    }
+}
 
 /// Maximum number of `submit_single_tx` futures allowed to run concurrently
 /// per `submit_tx` request. Caps pre-consensus work (signature verification,
@@ -196,6 +253,18 @@ impl ValidatorService {
             return (build_executed(effects), Weight::one());
         }
 
+        // Suppress duplicate resubmissions of a transaction that is still in
+        // flight on this validator (its soft locks are held). Checked before
+        // signature verification so resubmission storms are short-circuited
+        // cheaply; the soft-lock acquisition below remains the authoritative,
+        // atomic gate for duplicates racing past this probe.
+        if soft_locks.check_in_flight(&tx_digest) {
+            metrics.num_rejected_tx_recently_resubmitted.inc();
+            let error = IotaError::RecentlyResubmitted { digest: tx_digest };
+            let weight = normalize(&error);
+            return (TxStatusUpdate::Rejected { error }, weight);
+        }
+
         // Verify user signature.
         let tx_verif_guard = metrics.tx_verification_latency.start_timer();
         let verified_tx = match epoch_store.verify_transaction(transaction) {
@@ -220,8 +289,35 @@ impl ValidatorService {
         }
 
         // Content validation: deny checks + owned object version validation.
+        // With governance enabled, admission checks the active governance
+        // rules on top of the local config, so transactions the network will
+        // deterministically drop post-consensus don't occupy consensus slots.
+        // The local config always applies.
+        let local_deny_config = &state.config.transaction_deny_config;
+        let governance_rules;
+        let combined_deny_config;
+        let deny_config: &dyn DenyRuleConfig =
+            if epoch_store.protocol_config().deny_rule_governance() {
+                governance_rules = epoch_store.get_active_transaction_deny_rules();
+                combined_deny_config = DenyRuleUnion {
+                    first: local_deny_config,
+                    second: governance_rules.as_ref(),
+                };
+                &combined_deny_config
+            } else {
+                local_deny_config
+            };
         let owned_objects = match state
-            .handle_transaction_validation_checks(&verified_tx, epoch_store)
+            .handle_transaction_validation_checks(
+                &verified_tx,
+                epoch_store,
+                deny_config,
+                // Latest-value coin deny-list read: admission is validator-local,
+                // and denials should take effect immediately. This deliberately
+                // differs from the epoch-gated post-consensus read; see the
+                // read-mode notes on `handle_transaction_validation_checks`.
+                false,
+            )
             .await
         {
             Ok(objs) => objs,
@@ -257,12 +353,16 @@ impl ValidatorService {
         }
 
         // Soft-lock owned objects to prevent conflicting transactions.
-        // Same-digest resubmission passes through (idempotent).
+        // Same-digest resubmission while in flight → rejected (duplicate).
         // Different-digest conflict on same objects → rejected.
         // Placed after the reconfig check so we never acquire locks that would
         // need releasing on the epoch-halt path.
         if let Err(error) = soft_locks.try_acquire(tx_digest, &owned_objects) {
-            metrics.num_rejected_tx_soft_lock_conflict.inc();
+            if matches!(error, IotaError::RecentlyResubmitted { .. }) {
+                metrics.num_rejected_tx_recently_resubmitted.inc();
+            } else {
+                metrics.num_rejected_tx_soft_lock_conflict.inc();
+            }
             let weight = normalize(&error);
             return (TxStatusUpdate::Rejected { error }, weight);
         }
@@ -651,5 +751,41 @@ impl ValidatorV2 for ValidatorService {
     ) -> Result<tonic::Response<HealthCheckResponse>, tonic::Status> {
         let (req, ip) = self.pre_handle(request).await?;
         self.post_handle_unary(ip, self.health_check_impl(req))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use iota_sdk_types::{Address, ObjectId};
+    use iota_types::deny_rule_governance::{DenyRuleConfig, DenyRuleSet};
+
+    use super::DenyRuleUnion;
+
+    /// The union denies whatever either source denies.
+    #[test]
+    fn deny_rule_union_denies_from_either_source() {
+        let first = DenyRuleSet {
+            denied_addresses: [Address::new([1u8; 32])].into(),
+            user_transaction_disabled: true,
+            ..Default::default()
+        };
+        let second = DenyRuleSet {
+            denied_objects: [ObjectId::new([2u8; 32])].into(),
+            shared_object_disabled: true,
+            ..Default::default()
+        };
+        let union = DenyRuleUnion {
+            first: &first,
+            second: &second,
+        };
+        assert!(union.is_address_denied(&Address::new([1u8; 32])));
+        assert!(union.is_object_denied(&ObjectId::new([2u8; 32])));
+        assert!(!union.is_package_denied(&ObjectId::new([3u8; 32])));
+        assert!(union.has_denied_addresses());
+        assert!(union.has_denied_objects());
+        assert!(!union.has_denied_packages());
+        assert!(union.user_transaction_disabled());
+        assert!(union.shared_object_disabled());
+        assert!(!union.package_publish_disabled());
     }
 }

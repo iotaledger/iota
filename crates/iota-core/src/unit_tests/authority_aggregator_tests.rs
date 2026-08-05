@@ -27,7 +27,7 @@ use iota_types::{
     committee::Committee,
     crypto::{
         AccountKeyPair, AuthorityKeyPair, AuthoritySignInfo, AuthoritySignature,
-        IotaAuthoritySignature, IotaKeyPair, KeypairTraits, Signer, get_key_pair,
+        IotaAuthoritySignature, KeypairTraits, Signature, Signer, get_key_pair,
         get_key_pair_from_rng,
     },
     effects::{
@@ -109,7 +109,7 @@ pub fn set_local_client_config(
 
 pub fn create_object_move_transaction(
     src: Address,
-    secret: impl Into<IotaKeyPair>,
+    secret: &impl iota_sdk_crypto::Signer<Signature>,
     dest: Address,
     value: u64,
     package_id: ObjectId,
@@ -142,7 +142,7 @@ pub fn create_object_move_transaction(
 
 pub fn delete_object_move_transaction(
     src: Address,
-    secret: impl Into<IotaKeyPair>,
+    secret: &impl iota_sdk_crypto::Signer<Signature>,
     object_ref: ObjectReference,
     framework_obj_id: ObjectId,
     gas_object_ref: ObjectReference,
@@ -167,7 +167,7 @@ pub fn delete_object_move_transaction(
 
 pub fn set_object_move_transaction(
     src: Address,
-    secret: impl Into<IotaKeyPair>,
+    secret: &impl iota_sdk_crypto::Signer<Signature>,
     object_ref: ObjectReference,
     value: u64,
     framework_obj_id: ObjectId,
@@ -228,10 +228,7 @@ where
                 let (data, sig) = signed.into_data_and_sig();
                 votes.push(sig);
                 if let Some(inner_transaction) = tx_data {
-                    assert_eq!(
-                        inner_transaction.intent_message().value,
-                        data.intent_message().value
-                    );
+                    assert_eq!(inner_transaction.transaction(), data.transaction());
                 }
                 tx_data = Some(data);
             }

@@ -13,7 +13,7 @@ path = "src/lib.rs"
 # external dependencies
 anyhow.workspace = true
 colored.workspace = true
-flate2.workspace = true
+flate2 = "1.0.28"
 futures.workspace = true
 tar = "0.4"
 tempfile.workspace = true

@@ -5,8 +5,6 @@ teams:
   - iotaledger/vm-language
 description: An overview of the One-Time Witness (OTW) type in Move, which ensures actions occur only once within a module.
 ---
-import Quiz from '@site/src/components/Quiz';
-import questions from '/json/developer/iota-101/move-overview/one-time-witness.json';
 
 # Understanding One-Time Witness in Move
 
@@ -21,14 +19,9 @@ The only instance of this type is automatically passed to the module’s `init` 
 To verify if a type can be used as a OTW,
 you can pass an instance of it to [`iota::types::is_one_time_witness`](../../references/framework/iota/types.mdx#iota_types_is_one_time_witness).
 
-
-
 ## Example
 
 The following example demonstrates how to implement and utilize a OTW in a Move module:
 
-
 ```move file=<rootDir>/docs/examples/move/move-overview/otw.move
 ```
-
-<Quiz questions={questions} />

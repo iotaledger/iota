@@ -10,13 +10,16 @@ use std::{
 
 use anyhow::{Context, Result};
 use iota_genesis_common::prepare_and_execute_genesis_transaction;
-use iota_sdk_types::{ObjectData, TransactionDigest};
+use iota_sdk_types::{
+    ObjectData, TransactionDigest,
+    checkpoint::{CheckpointContents, CheckpointSummary},
+};
 use iota_types::{
     balance::Balance,
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     gas_coin::GasCoin,
     message_envelope::Message,
-    messages_checkpoint::{CheckpointContents, CheckpointContentsExt, CheckpointSummary},
+    messages_checkpoint::CheckpointContentsExt,
     object::Object,
     stardust::output::{AliasOutput, BasicOutput, NftOutput},
     timelock::timelock::{TimeLock, is_timelocked_gas_balance},
@@ -94,8 +97,8 @@ impl MigrationTxData {
         genesis_tx_digest: TransactionDigest,
     ) -> anyhow::Result<()> {
         anyhow::ensure!(
-            checkpoint.content_digest == contents.digest(),
-            "checkpoint's content digest is corrupted"
+            checkpoint.contents_digest == contents.digest(),
+            "checkpoint contents digest is corrupted"
         );
         let mut validation_digests_queue: HashSet<TransactionDigest> =
             self.inner.keys().copied().collect();

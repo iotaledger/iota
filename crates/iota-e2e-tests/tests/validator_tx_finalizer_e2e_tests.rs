@@ -7,10 +7,11 @@ use std::time::Duration;
 use iota_macros::sim_test;
 use iota_test_transaction_builder::publish_basics_package_and_make_counter;
 use iota_types::base_types::dbg_addr;
-use test_cluster::TestClusterBuilder;
+use test_cluster::{TestClusterBuilder, override_pcool_flow};
 
 #[sim_test]
 async fn test_validator_tx_finalizer_fastpath_tx() {
+    let _pcool_guard = override_pcool_flow(false);
     let cluster = TestClusterBuilder::new()
         .with_num_validators(7)
         // Make epoch duration large enough so that reconfig is never triggered.
@@ -51,6 +52,7 @@ async fn test_validator_tx_finalizer_fastpath_tx() {
 
 #[sim_test]
 async fn test_validator_tx_finalizer_consensus_tx() {
+    let _pcool_guard = override_pcool_flow(false);
     let cluster = TestClusterBuilder::new()
         .with_num_validators(7)
         // Make epoch duration large enough so that reconfig is never triggered.
@@ -90,6 +92,7 @@ async fn test_validator_tx_finalizer_consensus_tx() {
 #[cfg(msim)]
 #[sim_test]
 async fn test_validator_tx_finalizer_equivocation() {
+    let _pcool_guard = override_pcool_flow(false);
     let cluster = TestClusterBuilder::new()
         .with_num_validators(7)
         // Make epoch duration large enough so that reconfig is never triggered.

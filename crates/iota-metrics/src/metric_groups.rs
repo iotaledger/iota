@@ -109,7 +109,7 @@ pub struct MetricGroups {
     /// not this one.
     ///
     /// Modules: `typed_store`, `iota_storage`,
-    /// `iota_core::db_checkpoint_handler`, `iota_archival`, `iota_snapshot`.
+    /// `iota_core::db_checkpoint_handler`, `iota_snapshot`.
     pub storage: MetricLevel,
     /// API servers and RPC-facing indexes.
     ///
@@ -124,8 +124,8 @@ pub struct MetricGroups {
     /// `authority` group's gRPC transport metrics.
     pub epoch: MetricLevel,
     /// Async-runtime and process health: monitored tokio tasks, channels, and
-    /// scopes, thread stalls, invariant violations, and tracing span
-    /// latencies.
+    /// scopes, per-runtime tokio scheduler metrics (`tokio_runtime_*`), thread
+    /// stalls, invariant violations, and tracing span latencies.
     ///
     /// Modules: `iota_metrics` (except the `hardware` and `p2p` group
     /// submodules), `telemetry_subscribers`.
@@ -210,7 +210,6 @@ impl MetricGroups {
                 "typed_store",
                 "iota_storage",
                 "iota_core::db_checkpoint_handler",
-                "iota_archival",
                 "iota_snapshot",
             ],
             "rpc" => &[

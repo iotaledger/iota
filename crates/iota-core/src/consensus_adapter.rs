@@ -632,12 +632,12 @@ impl ConsensusAdapter {
             // UserTransactionV1 (P-COOL flow). submit_and_wait_inner
             // assumes a single transaction kind across the batch.
             for transaction in transactions {
+                // Routed through the shared user-transaction helpers rather than an
+                // inline match, so a new user-transaction kind is classified in one
+                // place (`ConsensusTransactionKind::is_user_transaction`) and becomes
+                // soft-bundle eligible automatically.
                 fp_ensure!(
-                    matches!(
-                        transaction.kind,
-                        ConsensusTransactionKind::CertifiedTransaction(_)
-                            | ConsensusTransactionKind::UserTransactionV1(_)
-                    ),
+                    transaction.is_user_certificate() || transaction.kind.is_user_transaction(),
                     IotaError::InvalidTxKindInSoftBundle
                 );
             }
@@ -822,6 +822,7 @@ impl ConsensusAdapter {
                     | ConsensusTransactionKind::RandomnessDkgMessage(_, _)
                     | ConsensusTransactionKind::RandomnessDkgConfirmation(_, _)
                     | ConsensusTransactionKind::OverloadNotificationV1(_, _, _)
+                    | ConsensusTransactionKind::TransactionDenyRuleProposal(_)
             ) {
             let transaction_keys = transaction_keys.clone();
             Some(CancelOnDrop(spawn_monitored_task!(async {
@@ -939,18 +940,13 @@ impl ConsensusAdapter {
         let is_user_tx = is_soft_bundle
             || if epoch_store.protocol_config().enable_pcool_flow() {
                 // In the P-COOL flow, `UserTransactionV1` kind corresponds
-                // to user transactions.
-                matches!(
-                    transactions[0].kind,
-                    ConsensusTransactionKind::UserTransactionV1(_)
-                )
+                // to user transactions.  Routed through the shared predicate
+                // so a new user-transaction kind is classified in one place.
+                transactions[0].kind.is_user_transaction()
             } else {
                 // In the certificate mode, `CertifiedTransaction` kind corresponds
                 // to user transactions.
-                matches!(
-                    transactions[0].kind,
-                    ConsensusTransactionKind::CertifiedTransaction(_)
-                )
+                transactions[0].is_user_certificate()
             };
         let send_end_of_publish = if is_user_tx {
             if epoch_store.protocol_config().enable_pcool_flow() {

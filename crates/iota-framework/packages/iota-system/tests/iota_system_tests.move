@@ -25,9 +25,12 @@ use iota_system::governance_test_utils::{
 };
 use iota_system::iota_system::IotaSystemState;
 use iota_system::iota_system_state_inner;
+use iota_system::protocol_config;
 use iota_system::validator::{Self, ValidatorV1};
 use iota_system::validator_cap::UnverifiedValidatorOperationCap;
 use iota_system::validator_set;
+
+const NANOS_PER_IOTA: u64 = 1_000_000_000;
 
 #[test]
 fun test_report_validator() {
@@ -2141,5 +2144,39 @@ fun test_withdraw_inactive_stake() {
         test_scenario::return_shared(system_state);
     };
 
+    scenario_val.end();
+}
+
+#[test]
+fun test_advance_epoch_removes_validator_below_low_stake_threshold() {
+    // Both validators start with 100 IOTA.
+    set_up_iota_system_state(vector[@0x1, @0x2]);
+    let mut scenario_val = test_scenario::begin(@0x0);
+    let scenario = &mut scenario_val;
+
+    // @0x1 → 175 IOTA total, @0x2 → 300 IOTA total; process the pending stake.
+    stake_with(@0x1, @0x1, 75, scenario);
+    stake_with(@0x2, @0x2, 200, scenario);
+    advance_epoch(scenario);
+
+    // Override the protocol config: low = 200 IOTA, very low = 150 IOTA,
+    // grace period = 0. @0x1 (175 IOTA) sits strictly inside [very_low, low):
+    // it is at risk, and the zero grace period removes it at this epoch
+    // change. @0x2 (300 IOTA) is above the low threshold and stays.
+    protocol_config::set_attr_for_testing(
+        b"validator_low_stake_threshold",
+        200 * NANOS_PER_IOTA,
+    );
+    protocol_config::set_attr_for_testing(
+        b"validator_very_low_stake_threshold",
+        150 * NANOS_PER_IOTA,
+    );
+    protocol_config::set_attr_for_testing(b"validator_low_stake_grace_period", 0u64);
+    advance_epoch(scenario);
+
+    scenario.next_tx(@0x0);
+    let mut system_state = scenario.take_shared<IotaSystemState>();
+    assert!(system_state.active_validator_addresses() == vector[@0x2], 0);
+    test_scenario::return_shared(system_state);
     scenario_val.end();
 }

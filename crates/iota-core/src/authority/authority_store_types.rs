@@ -2,12 +2,14 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::{ObjectData, Owner, StructTag, TransactionDigest, move_package::MovePackage};
+use iota_sdk_types::{
+    MoveStruct, ObjectData, Owner, StructTag, TransactionDigest, move_package::MovePackage,
+};
 use iota_types::{
     coin::Coin,
     error::IotaError,
     messages_checkpoint::CheckpointSequenceNumber,
-    object::{MoveObject, MoveObjectExt, Object, ObjectInner},
+    object::{MoveStructExt, Object, ObjectInner},
     storage::ObjectKey,
 };
 use serde::{Deserialize, Serialize};
@@ -144,7 +146,7 @@ impl From<StoreObjectV1> for StoreObjectV2 {
 /// object stored separately
 #[derive(Eq, PartialEq, Debug, Clone, Deserialize, Serialize, Hash)]
 pub enum StoreData {
-    Move(MoveObject),
+    Move(MoveStruct),
     Package(MovePackage),
     IndirectObjectDeprecated,
     Coin(u64),
@@ -191,7 +193,7 @@ pub(crate) fn try_construct_object(
     let data = match store_object.data {
         StoreData::Move(object) => ObjectData::Struct(object),
         StoreData::Package(package) => ObjectData::Package(package),
-        StoreData::Coin(balance) => ObjectData::Struct(MoveObject::new_from_execution_with_limit(
+        StoreData::Coin(balance) => ObjectData::Struct(MoveStruct::new_from_execution_with_limit(
             StructTag::new_gas_coin(),
             object_key.1,
             bcs::to_bytes(&(object_key.0, balance)).expect("serialization failed"),

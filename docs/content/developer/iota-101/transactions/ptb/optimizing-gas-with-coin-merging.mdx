@@ -4,8 +4,6 @@ tags: [ move-sc,transaction]
 teams:
   - iotaledger/vm-language
 ---
-import Quiz from '@site/src/components/Quiz';
-import questions from '/json/developer/iota-101/transactions/ptb/optimizing-gas-with-coin-merging.json';
 
 # Optimizing Gas Fees with Coin Merging
 
@@ -63,5 +61,3 @@ After execution, the balance of coin `C1` would be calculated as:
 - Final balance: `15,000 - 5000 + 8000 = 18,000`
 
 In this case, even though the transaction failed due to insufficient gas, you receive a net refund of `3000` (since you end up with `18,000` in `C1`).
-
-<Quiz questions={questions} />

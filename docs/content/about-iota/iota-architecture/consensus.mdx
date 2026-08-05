@@ -5,12 +5,9 @@ description: Overview of the IOTA consensus.
 tags: [core-protocol]
 ---
 
-import Quiz from '@site/src/components/Quiz';
-import quizData from '../../../site/static/json/about-iota/iota-architecture/consensus.json';
 import ThemedImage from '@theme/ThemedImage';
 
 The primary goal of consensus in distributed systems is to establish a consistent order of transactions and ensure their availability. In IOTA, consensus is achieved through a combination of Delegated Proof-of-Stake (dPoS) and a Byzantine Fault Tolerant (BFT) protocol. All IOTA networks — Devnet, Testnet, and Mainnet — run the **Starfish** BFT consensus protocol.
-
 
 IOTA's consensus mechanism ensures:
 
@@ -76,5 +73,3 @@ Transactions are encoded into shards using Reed–Solomon erasure coding. Nodes 
 The protocol tolerates up to one-third of validators by stake being offline, crashed, or actively misbehaving, without substantially impacting commit latency.
 
 🔗 **Reference:** [Starfish Paper](https://eprint.iacr.org/2025/567)
-
-<Quiz questions={quizData.questions} />

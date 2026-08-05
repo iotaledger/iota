@@ -31,7 +31,6 @@ use iota_types::{
     effects::TransactionEffectsAPI,
     error::IotaError,
     execution_config_utils::to_binary_config,
-    governance::MIN_VALIDATOR_JOINING_STAKE_NANOS,
     iota_system_state::{
         IotaSystemStateTrait, get_validator_from_table,
         iota_system_state_summary::{IotaSystemStateSummary, get_validator_by_pool_id},
@@ -45,7 +44,7 @@ use rand::{
     SeedableRng,
     rngs::{OsRng, StdRng},
 };
-use test_cluster::{TestCluster, TestClusterBuilder};
+use test_cluster::{TestCluster, TestClusterBuilder, override_pcool_flow};
 use tokio::time::sleep;
 
 #[sim_test]
@@ -144,6 +143,7 @@ async fn test_transaction_expiration() {
 // code path may not always be tested.
 #[sim_test]
 async fn reconfig_with_revert_end_to_end_test() {
+    let _pcool_guard = override_pcool_flow(false);
     let test_cluster = TestClusterBuilder::new().build().await;
     let authorities = test_cluster.swarm.validator_node_handles();
     let rgp = test_cluster.get_reference_gas_price().await;
@@ -328,6 +328,7 @@ async fn do_test_passive_reconfig(chain: Option<Chain>) {
 // Test that transaction locks from previously epochs could be overridden.
 #[sim_test]
 async fn test_expired_locks() {
+    let _pcool_guard = override_pcool_flow(false);
     let test_cluster = TestClusterBuilder::new()
         .with_epoch_duration_ms(10000)
         .build()
@@ -498,6 +499,7 @@ async fn test_reconfig_with_failing_validator() {
 
 #[sim_test]
 async fn test_validator_resign_effects() {
+    let _pcool_guard = override_pcool_flow(false);
     // This test checks that validators are able to re-sign transaction effects that
     // were finalized in previous epochs. This allows authority aggregator to
     // form a new effects certificate in the new epoch.
@@ -781,10 +783,7 @@ async fn test_reconfig_with_committee_change_basic() {
 #[sim_test]
 async fn test_reconfig_with_same_validator() {
     use iota_swarm_config::genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT, GenesisConfig};
-    use iota_types::{
-        crypto::{AuthorityPublicKeyBytes, KeypairTraits},
-        governance::MIN_VALIDATOR_JOINING_STAKE_NANOS,
-    };
+    use iota_types::crypto::{AuthorityPublicKeyBytes, KeypairTraits};
     use rand::{SeedableRng, rngs::StdRng};
 
     // ValidatorGenesisConfig doesn't impl Clone
@@ -805,15 +804,18 @@ async fn test_reconfig_with_same_validator() {
 
     // add coins to the node at the genesis to avoid dealing with faucet
     let mut genesis_config = GenesisConfig::default();
+    let min_validator_joining_stake = genesis_config
+        .protocol_config()
+        .min_validator_joining_stake();
     genesis_config
         .accounts
         .extend(std::iter::once(AccountConfig {
             address: Some(node_address),
             gas_amounts: vec![
                 DEFAULT_GAS_AMOUNT,
-                MIN_VALIDATOR_JOINING_STAKE_NANOS,
+                min_validator_joining_stake,
                 DEFAULT_GAS_AMOUNT,
-                MIN_VALIDATOR_JOINING_STAKE_NANOS,
+                min_validator_joining_stake,
             ],
         }));
 
@@ -1414,13 +1416,10 @@ async fn execute_add_validator_transactions(
     add_validator_candidate(test_cluster, new_validator).await;
 
     let address = (&new_validator.account_key_pair.public()).into();
+    let min_validator_joining_stake = test_cluster.protocol_config().min_validator_joining_stake();
     let stake_coin = test_cluster
         .wallet
-        .gas_for_owner_budget(
-            address,
-            MIN_VALIDATOR_JOINING_STAKE_NANOS,
-            Default::default(),
-        )
+        .gas_for_owner_budget(address, min_validator_joining_stake, Default::default())
         .await
         .unwrap()
         .1

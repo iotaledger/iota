@@ -7,10 +7,6 @@ teams:
 ---
 import UpgradeSingleKeyRisk from "../../../../_snippets/upgrade-single-key-risk.mdx";
 
-import Quiz from '@site/src/components/Quiz';
-import questions from '/json/developer/iota-101/move-overview/package-upgrades/custom-policies.json';
-
-
 # Custom Policies
 
 Relying on a single key to manage on-chain package upgrades can introduce significant security vulnerabilities:
@@ -445,7 +441,6 @@ Array [
 
 </details>
 
-
 You should use the IOTA Client CLI to call [`iota::package::make_immutable`](../../../references/framework/iota/package.mdx#iota_package_make_immutable) on the
 `UpgradeCap` to make the policy immutable.
 
@@ -590,7 +585,6 @@ const POLICY_PACKAGE_ID = '<POLICY-PACKAGE>';
 
 Add boilerplate code to retrieve the signer key pair for the currently active address in the IOTA Client CLI:
 
-
 ```js
 import { execSync } from 'child_process';
 import { readFileSync } from 'fs';
@@ -698,7 +692,6 @@ console.log(result)
   <summary>
   Toggle complete script
   </summary>
-
 
 The complete `publish.js` script follows:
 
@@ -851,7 +844,6 @@ BUILDING example
 
 </details>
 
-
 :::tip Node.js Version
 
 If you receive a `ReferenceError: fetch is not defined` error, use Node.js version 18 or greater.
@@ -867,12 +859,10 @@ iota client call \
     --function 'nudge' \
 ```
 
-
 <details>
   <summary>
   Toggle output
   </summary>
-
 
 A successful call responds with the following:
 
@@ -1220,5 +1210,3 @@ status: {
       },
 ...
 ```
-
-<Quiz questions={questions} />

@@ -569,11 +569,12 @@ impl CommitteeChainVerifier {
 #[cfg(test)]
 mod test {
     use fastcrypto::traits::KeyPair;
+    use iota_sdk_types::checkpoint::{CheckpointSummary, EndOfEpochData};
 
     use super::*;
     use crate::{
         crypto::{AuthorityKeyPair, get_key_pair},
-        messages_checkpoint::{CheckpointSummary, EndOfEpochData, SignedCheckpointSummary},
+        messages_checkpoint::SignedCheckpointSummary,
         utils::make_committee_key,
     };
 
@@ -646,7 +647,7 @@ mod test {
                 epoch,
                 sequence_number: epoch,
                 network_total_transactions: 0,
-                content_digest: Default::default(),
+                contents_digest: Default::default(),
                 previous_digest: None,
                 epoch_rolling_gas_cost_summary: Default::default(),
                 end_of_epoch_data,
@@ -693,7 +694,7 @@ mod test {
                 epoch: 0,
                 sequence_number: 0,
                 network_total_transactions: 0,
-                content_digest: Default::default(),
+                contents_digest: Default::default(),
                 previous_digest: None,
                 epoch_rolling_gas_cost_summary: Default::default(),
                 end_of_epoch_data: None,

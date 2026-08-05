@@ -26,8 +26,7 @@ use iota_sdk::{
     iota_client_config::{IotaClientConfig, IotaEnv},
     wallet_context::WalletContext,
 };
-use iota_sdk_types::Address;
-use iota_types::crypto::SignatureScheme;
+use iota_sdk_types::{Address, SignatureScheme};
 use move_analyzer::analyzer;
 use move_package::BuildConfig;
 use serde_json::json;
@@ -74,7 +73,7 @@ pub enum IotaCommand {
         #[clap(flatten)]
         config: IotaEnvConfig,
         #[command(subcommand)]
-        cmd: Option<IotaClientCommands>,
+        cmd: Option<Box<IotaClientCommands>>,
         /// Return command outputs in json format.
         #[arg(long, global = true)]
         json: bool,
@@ -157,15 +156,15 @@ impl IotaCommand {
                 prompt_if_no_config(
                     &config_path,
                     accept_defaults,
-                    !matches!(cmd, Some(IotaClientCommands::NewEnv { .. })),
-                    !matches!(cmd, Some(IotaClientCommands::NewAddress { .. })),
+                    !matches!(cmd.as_deref(), Some(IotaClientCommands::NewEnv { .. })),
+                    !matches!(cmd.as_deref(), Some(IotaClientCommands::NewAddress { .. })),
                 )?;
                 if let Some(cmd) = cmd {
                     let mut context = WalletContext::new(&config_path)?;
                     if let Some(env_override) = config.env {
                         context = context.with_env_override(env_override);
                     }
-                    cmd.execute(&mut context).await?.print(!json);
+                    (*cmd).execute(&mut context).await?.print(!json);
                 } else {
                     // Print help
                     let mut app: Command = IotaCommand::command();
@@ -441,12 +440,16 @@ fn prompt_if_no_config(
             config = config.with_active_address(*existing_address);
         } else if generate_address {
             let key_scheme = if accept_defaults {
-                SignatureScheme::ED25519
+                SignatureScheme::Ed25519
             } else {
                 print!(
                     "Select key scheme to generate keypair (0 for ed25519, 1 for secp256k1, 2: for secp256r1): "
                 );
-                match SignatureScheme::from_flag(read_line()?.trim()) {
+                let flag = match read_line()?.trim().parse::<u8>() {
+                    Ok(flag) => flag,
+                    Err(e) => bail!("Invalid key scheme: {e}"),
+                };
+                match SignatureScheme::from_byte(flag) {
                     Ok(s) => s,
                     Err(e) => bail!("{e}"),
                 }

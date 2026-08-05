@@ -24,7 +24,6 @@ use fastcrypto::{
     encoding::{Base58, Encoding},
     hash::MultisetHash,
 };
-use iota_archival::reader::ArchiveReaderBalancer;
 use iota_common::{debug_fatal, fatal};
 use iota_config::{
     NodeConfig,
@@ -45,10 +44,11 @@ use iota_metrics::{
     TX_TYPE_SHARED_OBJ_TX, TX_TYPE_SINGLE_WRITER_TX, monitored_scope, spawn_monitored_task,
 };
 use iota_sdk_types::{
-    Address, CheckpointContentsDigest, CheckpointDigest, Digest, EndOfEpochTransactionKind, Event,
-    ExecutionStatus, GasPayment, ObjectDigest, ObjectId, ObjectReference, Owner, RandomnessRound,
-    StructTag, SystemPackage, TransactionDigest, TransactionEffectsDigest, TransactionExpiration,
-    TransactionKind, TypeTag, Version,
+    Address, CheckpointContentsDigest, CheckpointDigest, Digest, EndOfEpochTransactionKind,
+    ExecutionStatus, GasPayment, MoveAuthenticator, MoveStruct, ObjectDigest, ObjectId,
+    ObjectReference, Owner, RandomnessRound, StructTag, SystemPackage, TransactionDigest,
+    TransactionEffectsDigest, TransactionExpiration, TransactionKind, TypeTag, Version,
+    checkpoint::{CheckpointCommitment, CheckpointContents, CheckpointSummary},
     crypto::{Intent, IntentAppId, IntentMessage, IntentScope, IntentVersion},
     gas::GasCostSummary,
 };
@@ -71,6 +71,7 @@ use iota_types::{
     committee::{Committee, EpochId, ProtocolVersion},
     crypto::{AuthorityPublicKey, AuthoritySignInfo, AuthoritySignature, Signer},
     deny_list_v1::check_coin_deny_list_v1,
+    deny_rule_governance::DenyRuleConfig,
     digests::ChainIdentifier,
     dynamic_field::{DynamicFieldInfo, DynamicFieldName, visitor as DFV},
     effects::{
@@ -96,10 +97,9 @@ use iota_types::{
     layout_resolver::{LayoutResolver, into_struct_layout},
     message_envelope::Message,
     messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointCommitment, CheckpointContents,
-        CheckpointContentsExt, CheckpointRequest, CheckpointResponse, CheckpointSequenceNumber,
-        CheckpointSummary, CheckpointSummaryResponse, CheckpointTimestamp, ECMHLiveObjectSetDigest,
-        VerifiedCheckpoint,
+        CertifiedCheckpointSummary, CheckpointContentsExt, CheckpointRequest, CheckpointResponse,
+        CheckpointSequenceNumber, CheckpointSummaryResponse, CheckpointTimestamp,
+        ECMHLiveObjectSetDigest, VerifiedCheckpoint,
     },
     messages_consensus::AuthorityCapabilitiesV1,
     messages_grpc::{
@@ -108,9 +108,9 @@ use iota_types::{
         TransactionStatus,
     },
     metrics::{BytecodeVerifierMetrics, LimitsMetrics},
-    move_authenticator::{MoveAuthenticator, MoveAuthenticatorExt},
+    move_authenticator::MoveAuthenticatorExt,
     object::{
-        MoveObject, MoveObjectExt, OBJECT_START_VERSION, Object, ObjectRead, PastObjectRead,
+        MoveStructExt, OBJECT_START_VERSION, Object, ObjectRead, PastObjectRead,
         bounded_visitor::BoundedVisitor,
     },
     storage::{
@@ -223,12 +223,12 @@ mod coin_deny_list_tests;
 #[path = "unit_tests/auth_unit_test_utils.rs"]
 pub mod auth_unit_test_utils;
 
+#[cfg(any(test, feature = "test-utils"))]
 pub mod authority_test_utils;
 
 pub mod authority_per_epoch_store;
 pub mod authority_per_epoch_store_pruner;
 
-mod authority_store_migrations;
 pub mod authority_store_pruner;
 pub mod authority_store_tables;
 pub mod authority_store_types;
@@ -236,6 +236,7 @@ pub mod epoch_start_configuration;
 pub mod shared_object_congestion_tracker;
 pub mod shared_object_version_manager;
 pub mod suggested_gas_price_calculator;
+#[cfg(any(test, feature = "test-utils"))]
 pub mod test_authority_builder;
 pub mod transaction_deferral;
 
@@ -955,28 +956,59 @@ impl AuthorityState {
     /// Runs deny list, input object validation, gas checks, coin deny list, and
     /// MoveAuthenticator checks. Returns the owned object refs for optional
     /// version validation. Does NOT acquire locks or sign the transaction.
+    ///
+    /// `deny_config` is the deny rule source to enforce, chosen per caller:
+    /// the local config alone, the local config combined with the governance
+    /// rules (admission), or the governance-derived active set alone
+    /// (post-consensus) — the latter two when `deny_rule_governance` is
+    /// enabled.
+    ///
+    /// `epoch_gated_coin_deny_list` selects how the coin deny list is read:
+    /// `false` reads the latest value, so denials apply immediately - for
+    /// validator-local admission (signing); `true` reads the value settled
+    /// before the current epoch, which is deterministic across validators
+    /// regardless of each validator's execution progress - required
+    /// post-consensus, where the verdict decides whether the transaction
+    /// stays in the committed set. The two read modes intentionally disagree
+    /// about deny-list changes made in the current epoch, in both directions:
+    /// - An entry added this epoch is enforced at admission right away, while
+    ///   the epoch-gated layers enforce it only from the next epoch. Since
+    ///   execution and post-consensus must read epoch-gated to stay
+    ///   deterministic, admission is the only layer that can react to a new
+    ///   denial or global pause before the epoch boundary.
+    /// - An entry removed this epoch is admitted right away but still denied by
+    ///   the epoch-gated post-consensus read, so such transactions are
+    ///   sequenced by consensus and then deterministically dropped (no
+    ///   execution, no gas charged) until the removal settles at the next epoch
+    ///   boundary. The wasted consensus slot is accepted: post-consensus must
+    ///   handle deterministic drops regardless (owned-object double-spend
+    ///   losers, for example), and validators that skip admission can put such
+    ///   transactions into their blocks anyway, so no admission policy can
+    ///   limit how many deterministically-dropped transactions reach consensus.
     #[instrument(level = "trace", skip_all, fields(tx_digest = ?transaction.digest()))]
     pub(crate) async fn handle_transaction_validation_checks(
         &self,
         transaction: &VerifiedTransaction,
         epoch_store: &Arc<AuthorityPerEpochStore>,
+        deny_config: &dyn DenyRuleConfig,
+        epoch_gated_coin_deny_list: bool,
     ) -> IotaResult<Vec<ObjectReference>> {
         let protocol_config = epoch_store.protocol_config();
         let reference_gas_price = epoch_store.reference_gas_price();
 
         let epoch = epoch_store.epoch();
 
-        let tx_data = transaction.data().transaction_data();
+        let tx = transaction.data().transaction();
 
         // Note: the deny checks may do redundant package loads but:
         // - they only load packages when there is an active package deny map
         // - the loads are cached anyway
         iota_transaction_checks::deny::check_transaction_for_validation(
-            tx_data,
-            transaction.tx_signatures(),
+            tx,
+            transaction.signatures(),
             &transaction.input_objects()?,
-            &tx_data.receiving_objects(),
-            &self.config.transaction_deny_config,
+            &tx.receiving_objects(),
+            deny_config,
             self.get_backing_package_store().as_ref(),
         )?;
 
@@ -998,7 +1030,7 @@ impl AuthorityState {
             .check_transaction_inputs_for_validation(
                 protocol_config,
                 reference_gas_price,
-                tx_data,
+                tx,
                 tx_input_objects,
                 &tx_receiving_objects,
                 &move_authenticators,
@@ -1016,14 +1048,15 @@ impl AuthorityState {
         // objects and the authenticator input objects are in the coin deny
         // list, which would prevent the transaction from being signed.
         check_coin_deny_list_v1(
-            tx_data.sender(),
+            tx.sender(),
             &tx_checked_input_objects,
             &tx_receiving_objects,
             &per_authenticator_checked_input_objects,
             &self.get_object_store(),
+            epoch_gated_coin_deny_list.then_some(epoch),
         )?;
 
-        let (kind, signer, gas_data) = tx_data.execution_parts();
+        let (kind, signer, gas_data) = tx.execution_parts();
 
         let (sender_authenticator_function_ref, sponsor_authenticator_function_ref) =
             extract_auth_fun_refs(signer, gas_data.owner, |address| {
@@ -1087,7 +1120,7 @@ impl AuthorityState {
 
             // Serialize the TransactionData for the auth context before decomposing.
             let tx_data_bytes =
-                bcs::to_bytes(&tx_data).expect("TransactionData serialization cannot fail");
+                bcs::to_bytes(tx).expect("TransactionData serialization cannot fail");
 
             let (sender_auth_digest, sponsor_auth_digest) =
                 transaction.data().compute_auth_digests()?;
@@ -1143,7 +1176,16 @@ impl AuthorityState {
         let _execution_lock = self.execution_lock_for_signing()?;
 
         let owned_objects = self
-            .handle_transaction_validation_checks(&transaction, epoch_store)
+            .handle_transaction_validation_checks(
+                &transaction,
+                epoch_store,
+                &self.config.transaction_deny_config,
+                // Latest-value coin deny-list read: admission is validator-local,
+                // and denials should take effect immediately. Unlike the P-COOL
+                // submission path, no post-consensus re-check follows - this is
+                // the only sender-side coin deny check in the certificate flow.
+                false,
+            )
             .await?;
 
         let epoch = epoch_store.epoch();
@@ -1164,7 +1206,7 @@ impl AuthorityState {
     }
 
     /// Initiate a new transaction.
-    #[instrument(name = "handle_transaction", level = "trace", skip_all, fields(tx_digest = ?transaction.digest(), sender = transaction.data().transaction_data().gas_owner().to_string()
+    #[instrument(name = "handle_transaction", level = "trace", skip_all, fields(tx_digest = ?transaction.digest(), sender = transaction.data().transaction().gas_owner().to_string()
     ))]
     pub async fn handle_transaction(
         &self,
@@ -1564,7 +1606,7 @@ impl AuthorityState {
         .map_err(|e| IotaError::FileIO(e.to_string()))
     }
 
-    #[instrument(name = "process_certificate", level = "trace", skip_all, fields(tx_digest = ?transaction.digest(), sender = ?transaction.data().transaction_data().gas_owner().to_string()))]
+    #[instrument(name = "process_certificate", level = "trace", skip_all, fields(tx_digest = ?transaction.digest(), sender = ?transaction.data().transaction().gas_owner().to_string()))]
     pub(crate) fn process_transaction(
         &self,
         tx_guard: TxGuard,
@@ -1745,7 +1787,7 @@ impl AuthorityState {
         self.get_cache_writer()
             .try_write_transaction_outputs(epoch_store.epoch(), transaction_outputs.into())?;
 
-        if transaction.transaction_data().is_end_of_epoch_tx() {
+        if transaction.transaction().is_end_of_epoch_tx() {
             // At the end of epoch, since system packages may have been upgraded, force
             // reload them in the cache.
             self.get_object_cache_reader()
@@ -1773,7 +1815,7 @@ impl AuthorityState {
         shared_object_count: usize,
     ) {
         // count signature by scheme, for multisig
-        if transaction.has_upgraded_multisig() {
+        if transaction.has_multisig() {
             self.metrics.multisig_sig_count.inc();
         }
 
@@ -1794,14 +1836,9 @@ impl AuthorityState {
         self.metrics
             .num_shared_objects
             .observe(shared_object_count as f64);
-        self.metrics.batch_size.observe(
-            transaction
-                .data()
-                .intent_message()
-                .value
-                .kind()
-                .num_commands() as f64,
-        );
+        self.metrics
+            .batch_size
+            .observe(transaction.data().transaction().kind().num_commands() as f64);
     }
 
     /// `execute_transaction()` validates the transaction input, and executes
@@ -1848,10 +1885,10 @@ impl AuthorityState {
 
         // TODO: We need to move this to a more appropriate place to avoid redundant
         // checks.
-        let tx_data = transaction.data().transaction_data();
-        tx_data.validity_check(protocol_config)?;
+        let tx = transaction.data().transaction();
+        tx.validity_check(protocol_config)?;
 
-        let (kind, signer, gas_data) = tx_data.execution_parts();
+        let (kind, signer, gas_data) = tx.execution_parts();
 
         let move_authenticators = transaction.move_authenticators();
 
@@ -1946,7 +1983,7 @@ impl AuthorityState {
 
             // Serialize the TransactionData for the auth context.
             let tx_data_bytes =
-                bcs::to_bytes(tx_data).expect("TransactionData serialization cannot fail");
+                bcs::to_bytes(tx).expect("TransactionData serialization cannot fail");
 
             let (sender_auth_digest, sponsor_auth_digest) =
                 transaction.data().compute_auth_digests()?;
@@ -2163,7 +2200,7 @@ impl AuthorityState {
             let sender = transaction.gas_owner();
             let gas_object_id = ObjectId::random();
             let gas_object = Object::new_move(
-                MoveObject::new_gas_coin(
+                MoveStruct::new_gas_coin(
                     OBJECT_START_VERSION,
                     gas_object_id,
                     SIMULATION_GAS_COIN_VALUE,
@@ -2706,11 +2743,10 @@ impl AuthorityState {
             .tap_err(|e| warn!(tx_digest=?digest, "Failed to process object index, index_tx is skipped: {e}"))?;
 
         indexes.index_tx(
-            transaction.data().intent_message().value.sender(),
+            transaction.data().transaction().sender(),
             transaction
                 .data()
-                .intent_message()
-                .value
+                .transaction()
                 .input_objects()?
                 .iter()
                 .map(|o| o.object_id()),
@@ -2720,8 +2756,7 @@ impl AuthorityState {
                 .map(|(obj_ref, owner, _kind)| (obj_ref, owner)),
             transaction
                 .data()
-                .intent_message()
-                .value
+                .transaction()
                 .move_calls()
                 .into_iter()
                 .map(|(package, module, function)| {
@@ -2748,7 +2783,7 @@ impl AuthorityState {
         thread_local! {
             static FAIL_STATE: RefCell<(u64, HashSet<AuthorityName>)> = RefCell::new((0, HashSet::new()));
         }
-        if !transaction.data().intent_message().value.is_system_tx() {
+        if !transaction.data().transaction().is_system_tx() {
             let committee = epoch_store.committee();
             let cur_stake = (**committee).weight(&self.name);
             if cur_stake > 0 {
@@ -3074,7 +3109,7 @@ impl AuthorityState {
             )?;
             // Emit events
             self.subscription_handler
-                .process_tx(transaction.data().transaction_data(), &effects, &events)
+                .process_tx(transaction.data().transaction(), &effects, &events)
                 .tap_ok(|_| {
                     self.metrics
                         .post_processing_total_tx_had_event_processed
@@ -3227,7 +3262,7 @@ impl AuthorityState {
         let contents = match &summary {
             Some(s) => self
                 .checkpoint_store
-                .get_checkpoint_contents(&s.content_digest())?,
+                .get_checkpoint_contents(&s.contents_digest())?,
             None => None,
         };
         Ok(CheckpointResponse {
@@ -3259,7 +3294,6 @@ impl AuthorityState {
     }
 
     #[expect(clippy::disallowed_methods)] // allow unbounded_channel()
-    #[expect(clippy::too_many_arguments)]
     pub async fn new(
         name: AuthorityName,
         secret: StableSyncAuthoritySigner,
@@ -3275,7 +3309,6 @@ impl AuthorityState {
         genesis_objects: &[Object],
         db_checkpoint_config: &DBCheckpointConfig,
         config: NodeConfig,
-        archive_readers: ArchiveReaderBalancer,
         validator_tx_finalizer: Option<Arc<ValidatorTxFinalizer<NetworkAuthorityClient>>>,
         chain_identifier: ChainIdentifier,
         pruner_db: Option<Arc<AuthorityPrunerTables>>,
@@ -3314,7 +3347,6 @@ impl AuthorityState {
             epoch_store.committee().authority_exists(&name),
             epoch_store.epoch_start_state().epoch_duration_ms(),
             prometheus_registry,
-            archive_readers,
             pruner_db,
             checkpoint_progress_tracker.clone(),
         );
@@ -3370,8 +3402,6 @@ impl AuthorityState {
             rx_ready_transactions,
             rx_execution_shutdown,
         ));
-        spawn_monitored_task!(authority_store_migrations::migrate_events(store));
-
         // TODO: This doesn't belong to the constructor of AuthorityState.
         state
             .create_owner_index_if_empty(genesis_objects, &epoch_store)
@@ -3440,8 +3470,6 @@ impl AuthorityState {
         config: NodeConfig,
         metrics: Arc<AuthorityStorePruningMetrics>,
     ) -> anyhow::Result<()> {
-        let archive_readers =
-            ArchiveReaderBalancer::new(config.archive_reader_config(), &Registry::default())?;
         AuthorityStorePruner::prune_checkpoints_for_eligible_epochs(
             &self.database_for_testing().perpetual_tables,
             &self.checkpoint_store,
@@ -3449,7 +3477,6 @@ impl AuthorityState {
             None,
             config.authority_store_pruning_config,
             metrics,
-            archive_readers,
             EPOCH_DURATION_MS_FOR_TESTING,
             self.checkpoint_progress_tracker.as_ref(),
         )
@@ -3932,35 +3959,122 @@ impl AuthorityState {
     /// `(checkpoint_sequence_number, checkpoint_timestamp_ms)`.
     /// On timeout, returns partial results for any transactions that were
     /// already checkpointed.
+    ///
+    /// The wait survives epoch boundaries: a transaction in flight at a
+    /// boundary may only be checkpointed in the next epoch, and still resolves
+    /// here under the original deadline.
     pub async fn wait_for_checkpoint_inclusion(
         &self,
         digests: &[TransactionDigest],
         timeout: Duration,
     ) -> IotaResult<BTreeMap<TransactionDigest, (CheckpointSequenceNumber, u64)>> {
-        let epoch_store = self.load_epoch_store_one_call_per_task();
-
-        // Local cache so multiple transactions in the same checkpoint only
-        // trigger a single checkpoint summary lookup.
+        let deadline = tokio::time::Instant::now() + timeout;
         let mut checkpoint_timestamp_cache = HashMap::<CheckpointSequenceNumber, u64>::new();
+        let mut results = BTreeMap::new();
+        let mut remaining = digests.to_vec();
+        let mut epoch_store = self.load_epoch_store_one_call_per_task().clone();
 
-        let results = epoch_store
-            .wait_for_transactions_in_checkpoint_with_timeout(digests, timeout, |seq| {
-                *checkpoint_timestamp_cache.entry(seq).or_insert_with(|| {
-                    self.get_checkpoint_by_sequence_number(seq)
-                        .ok()
-                        .flatten()
-                        .map(|c| c.timestamp_ms)
-                        .unwrap_or(0)
-                })
-            })
-            .await?;
+        loop {
+            let wait = epoch_store.wait_for_transactions_in_checkpoint_with_timeout(
+                &remaining,
+                deadline.saturating_duration_since(tokio::time::Instant::now()),
+                |seq| self.checkpoint_timestamp_ms_cached(seq, &mut checkpoint_timestamp_cache),
+            );
+            tokio::select! {
+                wait_results = wait => {
+                    for (digest, seq_and_ts) in remaining.iter().zip(wait_results?) {
+                        if let Some(seq_and_ts) = seq_and_ts {
+                            results.insert(*digest, seq_and_ts);
+                        }
+                    }
+                    return Ok(results);
+                }
+                _ = epoch_store.wait_epoch_terminated() => {}
+            }
 
-        Ok(digests
-            .iter()
-            .copied()
-            .zip(results)
-            .filter_map(|(digest, opt)| opt.map(|seq_and_ts| (digest, seq_and_ts)))
-            .collect())
+            // The epoch ended mid-wait, and this epoch store's notifications
+            // can no longer fire: whatever is still uncheckpointed here is
+            // checkpointed in the next epoch, on the next store. Cancelling
+            // the wait may also have dropped notifications it had already
+            // received, but the table write precedes each notification, so
+            // re-reading the table recovers them.
+            let found = match epoch_store.multi_get_transaction_checkpoint(&remaining) {
+                Ok(found) => found,
+                // The table handles were already released. They are released
+                // long after the epoch's checkpoints are executed, so nothing
+                // waited on here can still be checkpointed in the old epoch;
+                // move on to the next store.
+                Err(IotaError::EpochEnded(_)) => vec![None; remaining.len()],
+                Err(err) => return Err(err),
+            };
+            let mut still_uncheckpointed = Vec::new();
+            for (digest, found_seq) in remaining.iter().zip(found) {
+                match found_seq {
+                    Some(seq) => {
+                        let ts = self
+                            .checkpoint_timestamp_ms_cached(seq, &mut checkpoint_timestamp_cache);
+                        results.insert(*digest, (seq, ts));
+                    }
+                    None => still_uncheckpointed.push(*digest),
+                }
+            }
+            remaining = still_uncheckpointed;
+            if remaining.is_empty() {
+                return Ok(results);
+            }
+
+            match self
+                .wait_for_next_epoch_store(epoch_store.epoch(), deadline)
+                .await
+            {
+                Some(next) => epoch_store = next,
+                None => return Ok(results),
+            }
+        }
+    }
+
+    /// Wait for the epoch store to be swapped to an epoch later than
+    /// `prev_epoch`, returning `None` if `deadline` passes first.
+    async fn wait_for_next_epoch_store(
+        &self,
+        prev_epoch: EpochId,
+        deadline: tokio::time::Instant,
+    ) -> Option<Arc<AuthorityPerEpochStore>> {
+        // There is no notification for the epoch-store swap, and termination
+        // and swap can come in either order (`reconfigure` terminates the old
+        // epoch first, `reconfigure_for_testing` swaps first), so the swap is
+        // polled at this interval.
+        const EPOCH_STORE_SWAP_POLL_INTERVAL: Duration = Duration::from_millis(100);
+
+        loop {
+            // Deliberately re-loaded on each poll; the one-call-per-task rule
+            // guards against *unaware* mixing of epoch stores within a task.
+            let current = self.load_epoch_store_one_call_per_task().clone();
+            if current.epoch() > prev_epoch {
+                return Some(current);
+            }
+            if tokio::time::Instant::now() >= deadline {
+                return None;
+            }
+            tokio::time::sleep(EPOCH_STORE_SWAP_POLL_INTERVAL).await;
+        }
+    }
+
+    /// Resolve a checkpoint's timestamp, memoizing lookups in `cache` so
+    /// multiple transactions in the same checkpoint trigger a single
+    /// checkpoint summary lookup.
+    fn checkpoint_timestamp_ms_cached(
+        &self,
+        seq: CheckpointSequenceNumber,
+        cache: &mut HashMap<CheckpointSequenceNumber, u64>,
+    ) -> u64 {
+        *cache.entry(seq).or_insert_with(|| {
+            self.get_checkpoint_by_sequence_number(seq)
+                .ok()
+                .flatten()
+                .map(|c| c.timestamp_ms)
+                .unwrap_or(0)
+        })
     }
 
     #[instrument(level = "trace", skip_all)]
@@ -4438,7 +4552,7 @@ impl AuthorityState {
         let summary = self
             .get_verified_checkpoint_by_sequence_number(0)?
             .into_message();
-        let content = self.get_checkpoint_contents(summary.content_digest)?;
+        let content = self.get_checkpoint_contents(summary.contents_digest)?;
         let genesis_transaction = content.enumerate_transactions(&summary).next();
         Ok(genesis_transaction
             .ok_or(IotaError::UserInput {
@@ -4502,8 +4616,8 @@ impl AuthorityState {
             .get_checkpoint_by_sequence_number(sequence_number)?;
         match verified_checkpoint {
             Some(verified_checkpoint) => {
-                let content_digest = verified_checkpoint.into_inner().content_digest;
-                self.get_checkpoint_contents(content_digest)
+                let contents_digest = verified_checkpoint.into_inner().contents_digest;
+                self.get_checkpoint_contents(contents_digest)
             }
             None => Err(IotaError::UserInput {
                 error: UserInputError::VerifiedCheckpointNotFound(sequence_number),
@@ -5812,7 +5926,7 @@ impl AuthorityState {
         let (input_objects, tx_receiving_objects) = self.input_loader.read_objects_for_signing(
             Some(transaction.digest()),
             &transaction.collect_all_input_object_kind_for_reading()?,
-            &transaction.data().transaction_data().receiving_objects(),
+            &transaction.data().transaction().receiving_objects(),
             epoch,
         )?;
 
@@ -6126,7 +6240,7 @@ impl TransactionKeyValueStoreTrait for AuthorityState {
                 .get_checkpoint_by_sequence_number(*seq)?
                 .and_then(|summary| {
                     store
-                        .get_checkpoint_contents(&summary.content_digest)
+                        .get_checkpoint_contents(&summary.contents_digest)
                         .expect("db read cannot fail")
                 });
             contents.push(checkpoint);
@@ -6499,7 +6613,7 @@ fn pre_consensus_move_authenticators<'a>(
     protocol_config: &ProtocolConfig,
 ) -> Vec<&'a MoveAuthenticator> {
     if protocol_config.pre_consensus_sponsor_only_move_authentication() {
-        if tx.transaction_data().is_sponsored_tx() {
+        if tx.transaction().is_sponsored_tx() {
             if let Some(sponsor_move_authenticator) = tx.sponsor_move_authenticator() {
                 vec![sponsor_move_authenticator]
             } else {

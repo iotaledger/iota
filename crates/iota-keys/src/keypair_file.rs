@@ -6,10 +6,10 @@ use std::path::PathBuf;
 
 use anyhow::{anyhow, bail};
 use fastcrypto::{
-    encoding::{Encoding, Hex},
-    secp256k1::Secp256k1KeyPair,
+    encoding::{Base64, Encoding, Hex},
     traits::EncodeDecodeBase64,
 };
+use iota_sdk_crypto::{ToFromBytes as _, secp256k1::Secp256k1PrivateKey};
 use iota_types::crypto::{AuthorityKeyPair, IotaKeyPair, NetworkKeyPair, ToFromBytes};
 
 /// Write Bech32 encoded `flag || privkey` to file.
@@ -53,7 +53,7 @@ pub fn read_network_keypair_from_file<P: AsRef<std::path::Path>>(
 ) -> anyhow::Result<NetworkKeyPair> {
     let kp = read_keypair_from_file(path)?;
     if let IotaKeyPair::Ed25519(kp) = kp {
-        Ok(kp)
+        NetworkKeyPair::from_bytes(&kp.to_bytes()).map_err(|e| anyhow!(e))
     } else {
         Err(anyhow!("Invalid scheme for network keypair"))
     }
@@ -83,8 +83,10 @@ pub fn read_key(path: &PathBuf, require_secp256k1: bool) -> Result<IotaKeyPair, 
     }
 
     // Try base64 encoded Raw Secp256k1 key `privkey`
-    if let Ok(key) = Secp256k1KeyPair::decode_base64(contents) {
-        return Ok(IotaKeyPair::Secp256k1(key));
+    if let Ok(bytes) = Base64::decode(contents) {
+        if let Ok(key) = Secp256k1PrivateKey::from_bytes(&bytes) {
+            return Ok(IotaKeyPair::Secp256k1(key));
+        }
     }
 
     // Try Bech32 encoded 33-byte `flag || private key` starting with `iotaprivkey`A
@@ -99,7 +101,7 @@ pub fn read_key(path: &PathBuf, require_secp256k1: bool) -> Result<IotaKeyPair, 
 
     // Try hex encoded Raw key `privkey`
     if let Ok(bytes) = Hex::decode(contents).map_err(|e| anyhow!("Error decoding hex: {e:?}")) {
-        if let Ok(key) = Secp256k1KeyPair::from_bytes(&bytes) {
+        if let Ok(key) = Secp256k1PrivateKey::from_bytes(&bytes) {
             return Ok(IotaKeyPair::Secp256k1(key));
         }
     }

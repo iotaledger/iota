@@ -11,11 +11,11 @@ use std::{
 
 use fastcrypto::traits::KeyPair;
 use iota_config::{
-    ExecutionCacheConfig, IOTA_GENESIS_MIGRATION_TX_DATA_FILENAME,
+    ExecutionCacheConfig,
     genesis::{TokenAllocation, TokenDistributionScheduleBuilder},
     node::AuthorityOverloadConfig,
+    transaction_deny_config::TransactionDenyConfig,
 };
-use iota_genesis_builder::genesis_build_effects::GenesisBuildEffects;
 use iota_protocol_config::Chain;
 use iota_sdk_types::Address;
 use iota_types::{
@@ -87,6 +87,7 @@ pub struct ConfigBuilder<R = OsRng> {
     additional_objects: Vec<Object>,
     num_unpruned_validators: Option<usize>,
     authority_overload_config: Option<AuthorityOverloadConfig>,
+    transaction_deny_config: Option<TransactionDenyConfig>,
     execution_cache_config: Option<ExecutionCacheConfig>,
     data_ingestion_dir: Option<PathBuf>,
     policy_config: Option<PolicyConfig>,
@@ -113,6 +114,7 @@ impl ConfigBuilder {
             additional_objects: vec![],
             num_unpruned_validators: None,
             authority_overload_config: None,
+            transaction_deny_config: None,
             execution_cache_config: None,
             data_ingestion_dir: None,
             policy_config: None,
@@ -262,6 +264,11 @@ impl<R> ConfigBuilder<R> {
         self
     }
 
+    pub fn with_transaction_deny_config(mut self, c: TransactionDenyConfig) -> Self {
+        self.transaction_deny_config = Some(c);
+        self
+    }
+
     pub fn with_execution_cache_config(mut self, c: ExecutionCacheConfig) -> Self {
         self.execution_cache_config = Some(c);
         self
@@ -307,6 +314,7 @@ impl<R> ConfigBuilder<R> {
             additional_objects: self.additional_objects,
             num_unpruned_validators: self.num_unpruned_validators,
             authority_overload_config: self.authority_overload_config,
+            transaction_deny_config: self.transaction_deny_config,
             execution_cache_config: self.execution_cache_config,
             data_ingestion_dir: self.data_ingestion_dir,
             policy_config: self.policy_config,
@@ -405,7 +413,7 @@ impl<R: rand::RngCore + rand::CryptoRng> ConfigBuilder<R> {
             }
         };
 
-        let mut genesis_config = self
+        let genesis_config = self
             .genesis_config
             .unwrap_or_else(GenesisConfig::for_local_testing);
 
@@ -439,16 +447,10 @@ impl<R: rand::RngCore + rand::CryptoRng> ConfigBuilder<R> {
             builder.build()
         };
 
-        let GenesisBuildEffects {
-            genesis,
-            migration_tx_data,
-        } = {
+        let genesis = {
             let mut builder = iota_genesis_builder::Builder::new()
                 .with_parameters(genesis_config.parameters)
                 .add_objects(self.additional_objects);
-            for source in std::mem::take(&mut genesis_config.migration_sources) {
-                builder = builder.add_migration_source(source);
-            }
 
             for (i, validator) in validators.iter().enumerate() {
                 let name = validator
@@ -462,26 +464,12 @@ impl<R: rand::RngCore + rand::CryptoRng> ConfigBuilder<R> {
 
             builder = builder.with_token_distribution_schedule(token_distribution_schedule);
 
-            // Add delegator to genesis builder.
-            if let Some(delegator) = genesis_config.delegator {
-                builder = builder.with_delegator(delegator);
-            }
-
             for validator in &validators {
                 builder = builder.add_validator_signature(&validator.authority_key_pair);
             }
 
             builder.build()
         };
-
-        if let Some(migration_tx_data) = migration_tx_data {
-            migration_tx_data
-                .save(
-                    self.config_directory
-                        .join(IOTA_GENESIS_MIGRATION_TX_DATA_FILENAME),
-                )
-                .expect("Should be able to save the migration data");
-        }
 
         let validator_configs = validators
             .into_iter()
@@ -510,6 +498,10 @@ impl<R: rand::RngCore + rand::CryptoRng> ConfigBuilder<R> {
                 if let Some(authority_overload_config) = &self.authority_overload_config {
                     builder =
                         builder.with_authority_overload_config(authority_overload_config.clone());
+                }
+
+                if let Some(transaction_deny_config) = &self.transaction_deny_config {
+                    builder = builder.with_transaction_deny_config(transaction_deny_config.clone());
                 }
 
                 if let Some(execution_cache_config) = &self.execution_cache_config {
@@ -654,8 +646,8 @@ mod test {
         let expensive_checks = false;
         let certificate_deny_set = HashSet::new();
         let epoch = EpochData::new_test();
-        let transaction_data = &genesis_transaction.data().intent_message().value;
-        let (kind, signer, mut gas_data) = transaction_data.execution_parts();
+        let transaction = genesis_transaction.data().transaction();
+        let (kind, signer, mut gas_data) = transaction.execution_parts();
         gas_data.objects = vec![];
         let input_objects = CheckedInputObjects::new_for_genesis(vec![]);
 

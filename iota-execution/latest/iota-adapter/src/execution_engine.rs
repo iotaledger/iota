@@ -19,8 +19,9 @@ mod checked {
     use iota_sdk_types::{
         Address, Argument, ChangeEpoch, ChangeEpochV2, ChangeEpochV3, ChangeEpochV4, Command,
         EndOfEpochTransactionKind, ExecutionStatus, GasPayment, GenesisTransaction, Identifier,
-        ObjectId, ProgrammableTransaction, RandomnessStateUpdate, SharedObjectReference,
-        SystemPackage, TransactionDigest, TransactionKind, Version, gas::GasCostSummary,
+        MoveAuthenticator, ObjectId, ProgrammableTransaction, RandomnessStateUpdate,
+        SharedObjectReference, SystemPackage, TransactionDigest, TransactionKind, Version,
+        gas::GasCostSummary,
     };
     #[cfg(msim)]
     use iota_types::iota_system_state::advance_epoch_result_injection::maybe_modify_result;
@@ -44,7 +45,7 @@ mod checked {
         iota_system_state::{ADVANCE_EPOCH_FUNCTION_NAME, AdvanceEpochParams},
         messages_checkpoint::CheckpointTimestamp,
         metrics::LimitsMetrics,
-        move_authenticator::{MoveAuthenticator, MoveAuthenticatorExt},
+        move_authenticator::MoveAuthenticatorExt,
         object::{OBJECT_START_VERSION, Object, ObjectInner},
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         randomness_state::RANDOMNESS_STATE_UPDATE_FUNCTION_NAME,

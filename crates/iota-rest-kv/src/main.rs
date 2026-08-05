@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use server::Server;
 use tokio_util::sync::CancellationToken;
 use tracing::Level;
-use tracing_subscriber::FmtSubscriber;
+use tracing_subscriber::{EnvFilter, FmtSubscriber};
 
 /// This module contains the DynamoDb and S3 implementation of the KV store
 /// client.
@@ -75,8 +75,16 @@ async fn main() -> Result<()> {
 }
 
 /// Initialize the tracing with custom subscribers.
+///
+/// The default level can be overridden with per-module directives (e.g.
+/// `RUST_LOG=iota_rest_kv=debug,info`).
 fn init_tracing(log_level: Level) {
-    let subscriber = FmtSubscriber::builder().with_max_level(log_level).finish();
+    let env_filter =
+        EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(log_level.to_string()));
+    let subscriber = FmtSubscriber::builder()
+        .with_env_filter(env_filter)
+        .finish();
+
     tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
 }
 

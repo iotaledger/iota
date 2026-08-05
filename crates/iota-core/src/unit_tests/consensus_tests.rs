@@ -7,14 +7,17 @@ use std::{collections::HashSet, time::Duration};
 use fastcrypto::traits::KeyPair;
 use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{Identifier, ObjectId, SharedObjectReference, gas::GasCostSummary};
+use iota_sdk_types::{
+    Identifier, ObjectId, SharedObjectReference,
+    checkpoint::{CheckpointContents, CheckpointSummary},
+    gas::GasCostSummary,
+};
 use iota_types::{
     base_types::ExecutionDigests,
     crypto::deterministic_random_account_key,
     messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointContents, CheckpointContentsExt,
-        CheckpointSignatureMessage, CheckpointSummary, CheckpointSummaryExt,
-        SignedCheckpointSummary,
+        CertifiedCheckpointSummary, CheckpointContentsExt, CheckpointSignatureMessage,
+        CheckpointSummaryExt, SignedCheckpointSummary,
     },
     object::Object,
     transaction::{

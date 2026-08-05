@@ -6,14 +6,12 @@ use std::collections::BTreeSet;
 use iota_sdk_types::{Address, ObjectId};
 use serde::{Deserialize, Serialize};
 
-use crate::base_types::AuthorityName;
-
 /// Read access to a set of transaction deny rules.
 ///
 /// Implemented by both a validator's local `TransactionDenyConfig` and the
 /// consensus-governed [`DenyRuleSet`], so the deny checks can run against
 /// either source without knowing which one is in effect.
-pub trait DenyRuleConfig {
+pub trait DenyRuleConfig: Send + Sync {
     /// Whether `address` is denied as a transaction sender or gas sponsor.
     fn is_address_denied(&self, address: &Address) -> bool;
     /// Whether the object `id` is denied as an input or receiving object.
@@ -115,31 +113,11 @@ impl DenyRuleConfig for DenyRuleSet {
     }
 }
 
-/// A validator's full-state proposal for the network deny rules, announced
-/// through consensus.
-///
-/// Each proposal carries the authority's complete proposed rule set; the latest
-/// generation per authority supersedes earlier ones. The active rule set the
-/// network enforces is the stake-weighted aggregate of all current proposals.
-#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct DenyRuleProposal {
-    /// The authority announcing this proposal.
-    pub authority: AuthorityName,
-    /// Per-authority counter used to deduplicate proposals; a higher generation
-    /// supersedes earlier proposals from the same authority.
-    pub generation: u64,
-    /// The complete set of rules this authority proposes.
-    pub proposed_rules: DenyRuleSet,
-}
-
 #[cfg(test)]
 mod tests {
     use iota_sdk_types::{Address, ObjectId};
 
-    use crate::{
-        crypto::AuthorityPublicKeyBytes,
-        deny_rule_governance::{DenyRuleConfig, DenyRuleProposal, DenyRuleSet},
-    };
+    use crate::deny_rule_governance::{DenyRuleConfig, DenyRuleSet};
 
     fn sample_rule_set() -> DenyRuleSet {
         DenyRuleSet {
@@ -162,17 +140,6 @@ mod tests {
         let rules = sample_rule_set();
         let bytes = bcs::to_bytes(&rules).unwrap();
         assert_eq!(rules, bcs::from_bytes(&bytes).unwrap());
-    }
-
-    #[test]
-    fn deny_rule_proposal_bcs_round_trip() {
-        let proposal = DenyRuleProposal {
-            authority: AuthorityPublicKeyBytes::ZERO,
-            generation: 42,
-            proposed_rules: sample_rule_set(),
-        };
-        let bytes = bcs::to_bytes(&proposal).unwrap();
-        assert_eq!(proposal, bcs::from_bytes(&bytes).unwrap());
     }
 
     #[test]

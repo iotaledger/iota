@@ -5,8 +5,6 @@ teams:
 title: Object and Package Versioning
 description: Versioning provides the ability to upgrade packages and objects on the IOTA network.
 ---
-import Quiz from '@site/src/components/Quiz';
-import questions from '/json/developer/iota-101/objects/versioning.json';
 
 In IOTA, every object stored on-chain is referenced by an ID and a version.
 When a transaction modifies an object,
@@ -146,7 +144,6 @@ This leads to the following chain of inequalities for the version of `I` before 
 
 So, the version of `I` before wrapping is always less than its version after unwrapping.
 
-
 #### Dynamic Fields
 
 From a versioning standpoint, dynamic fields behave similarly to wrapped objects:
@@ -212,7 +209,6 @@ The network can upgrade these packages while keeping their IDs stable through a 
 but this process can only occur at epoch boundaries since framework packages are considered immutable.
 New versions of framework packages share the same ID as their predecessors, but their version increments by one:
 
-
 ```
 (0x1, 1) => MoveStdlib v1
 (0x1, 2) => MoveStdlib v2
@@ -250,5 +246,3 @@ these are treated as different packages rather than versions of the same package
 Consequently, you cannot use one package as a dependency override for the other.
 While you can specify such an override during the build process,
 it will result in an error during publishing or upgrading on-chain.
-
-<Quiz questions={questions} />

@@ -12,7 +12,9 @@
 use std::collections::HashSet;
 
 use iota_config::transaction_deny_config::TransactionDenyConfig;
-use iota_sdk_types::{Address, Digest, Event, ObjectId, ObjectReference};
+use iota_sdk_types::{
+    Address, Digest, Event, MoveAuthenticator, ObjectId, ObjectReference, UserSignature,
+};
 use iota_types::{
     account_abstraction::authenticator_function::{
         AuthenticatorFunctionRefForExecution,
@@ -26,9 +28,8 @@ use iota_types::{
     gas_coin::mock_simulation_gas_coin,
     inner_temporary_store::InnerTemporaryStore,
     layout_resolver::LayoutResolver,
-    move_authenticator::{MoveAuthenticator, MoveAuthenticatorExt},
+    move_authenticator::MoveAuthenticatorExt,
     object::bounded_visitor::BoundedVisitor,
-    signature::GenericSignature,
     storage::BackingStore,
     transaction::{
         CheckedInputObjects, InputObjectKind, InputObjects, ObjectReadResult,
@@ -60,7 +61,7 @@ pub(super) fn prepare_transaction(
     mut transaction: TransactionData,
     mode: ExecutionMode,
     deny_config: &TransactionDenyConfig,
-    tx_signatures: &[GenericSignature],
+    tx_signatures: &[UserSignature],
     move_authenticators: &[MoveAuthenticator],
     check_coin_deny_list: bool,
 ) -> Result<PreparedTransaction, VmSdkError> {
@@ -570,6 +571,9 @@ fn run_coin_deny_list_check(
         receiving_objects,
         &per_authenticator_input_objects.to_vec(),
         store.as_object_store(),
+        // `None`: read the latest deny-list value. This offline check has no
+        // cross-validator determinism requirement.
+        None,
     )
     .map_err(|e| ValidationError::new("coin deny-list check", e).into())
 }

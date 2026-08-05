@@ -16,7 +16,8 @@ use iota_sdk_types::{
     EndOfEpochTransactionKind, ExecutionError as ExecutionFailureStatus, ExecutionStatus,
     GenesisObject, Identifier, MoveCall, ObjectDigest, ObjectId, ObjectReference, Owner,
     ProgrammableTransaction, SharedObjectReference, TransactionDigest, TransactionEventsDigest,
-    TransactionKind, TransferObjects, TypeTag, Version, VersionAssignment, gas::GasCostSummary,
+    TransactionKind, TransferObjects, TypeTag, UserSignature, Version, VersionAssignment,
+    gas::GasCostSummary,
 };
 use iota_types::{
     base_types::EpochId,
@@ -30,7 +31,6 @@ use iota_types::{
     object::bounded_visitor::BoundedVisitor,
     parse_iota_type_tag,
     quorum_driver_types::ExecuteTransactionRequestType as NativeExecuteTransactionRequestType,
-    signature::GenericSignature,
     storage::{DeleteKind, WriteKind},
     transaction::{
         CallArg, InputObjectKind, SenderSignedData, TransactionData, TransactionDataAPI,
@@ -57,9 +57,8 @@ use crate::{
     iota_owner::OwnerSchema,
     iota_primitives::{
         Address as AddressSchema, Base58 as Base58Schema, Base64 as Base64Schema,
-        GenericSignature as GenericSignatureSchema, ObjectId as ObjectIdSchema,
-        SequenceNumberString as SequenceNumberStringSchema, SequenceNumberU64,
-        TypeTag as TypeTagSchema,
+        ObjectId as ObjectIdSchema, SequenceNumberString as SequenceNumberStringSchema,
+        SequenceNumberU64, TypeTag as TypeTagSchema, UserSignature as UserSignatureSchema,
     },
     object_changes::ObjectChange,
 };
@@ -1769,9 +1768,9 @@ impl Display for IotaTransactionBlockData {
 #[serde(rename = "TransactionBlock", rename_all = "camelCase")]
 pub struct IotaTransactionBlock {
     pub data: IotaTransactionBlockData,
-    #[serde_as(as = "Vec<GenericSignatureSchema>")]
-    #[schemars(with = "Vec<GenericSignatureSchema>")]
-    pub tx_signatures: Vec<GenericSignature>,
+    #[serde_as(as = "Vec<UserSignatureSchema>")]
+    #[schemars(with = "Vec<UserSignatureSchema>")]
+    pub tx_signatures: Vec<UserSignature>,
 }
 
 impl IotaTransactionBlock {
@@ -1782,11 +1781,11 @@ impl IotaTransactionBlock {
     ) -> Result<Self, anyhow::Error> {
         Ok(Self {
             data: IotaTransactionBlockData::try_from_with_module_cache(
-                data.intent_message().value.clone(),
+                data.transaction().clone(),
                 module_cache,
                 tx_digest,
             )?,
-            tx_signatures: data.tx_signatures().to_vec(),
+            tx_signatures: data.signatures().to_vec(),
         })
     }
 
@@ -1800,12 +1799,12 @@ impl IotaTransactionBlock {
     ) -> Result<Self, anyhow::Error> {
         Ok(Self {
             data: IotaTransactionBlockData::try_from_with_package_resolver(
-                data.intent_message().value.clone(),
+                data.transaction().clone(),
                 package_resolver,
                 tx_digest,
             )
             .await?,
-            tx_signatures: data.tx_signatures().to_vec(),
+            tx_signatures: data.signatures().to_vec(),
         })
     }
 }
@@ -1820,7 +1819,7 @@ impl Display for IotaTransactionBlock {
             builder.push_record(vec![format!(
                 "   {}\n",
                 match tx_sig {
-                    GenericSignature::Signature(sig) =>
+                    UserSignature::Simple(sig) =>
                         Base64::from_bytes(sig.signature_bytes()).encoded(),
                     // the signatures for multisig and zklogin
                     // are not suited to be parsed out. they

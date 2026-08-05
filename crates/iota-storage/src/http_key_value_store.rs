@@ -8,13 +8,13 @@ use anyhow;
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures::stream::{self, StreamExt};
-use iota_sdk_types::{Address, CheckpointDigest, ObjectId, TransactionDigest, Version};
+use iota_sdk_types::{
+    Address, CheckpointDigest, ObjectId, TransactionDigest, Version, checkpoint::CheckpointContents,
+};
 use iota_types::{
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     error::{IotaError, IotaResult},
-    messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointContents, CheckpointSequenceNumber,
-    },
+    messages_checkpoint::{CertifiedCheckpointSummary, CheckpointSequenceNumber},
     object::Object,
     storage::ObjectKey,
     transaction::Transaction,

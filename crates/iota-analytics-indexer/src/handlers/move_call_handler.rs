@@ -38,7 +38,7 @@ impl Worker for MoveCallHandler {
         for checkpoint_transaction in checkpoint_transactions {
             let move_calls = checkpoint_transaction
                 .transaction
-                .transaction_data()
+                .transaction()
                 .move_calls();
             self.process_move_calls(
                 checkpoint_summary.epoch,

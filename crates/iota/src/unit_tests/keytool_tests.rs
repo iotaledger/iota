@@ -5,20 +5,21 @@
 use std::str::FromStr;
 
 use anyhow::Ok;
-use fastcrypto::{
-    ed25519::{Ed25519KeyPair, Ed25519PublicKey, Ed25519Signature},
-    encoding::{Base64, Encoding, Hex},
-    traits::{ToFromBytes, VerifyingKey},
-};
+use fastcrypto::encoding::{Base64, Encoding, Hex};
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore, InMemKeystore, Keystore, StoredKey};
+use iota_sdk_crypto::{
+    ToFromBytes as _, Verifier as _,
+    ed25519::{Ed25519PrivateKey, Ed25519VerifyingKey},
+};
 use iota_sdk_types::{
-    Address, ObjectDigest, ObjectId, ObjectReference, Version,
-    crypto::{Intent, IntentScope, PublicKey, UserSignature},
+    Address, Ed25519PublicKey, Ed25519Signature, ObjectDigest, ObjectId, ObjectReference,
+    SignatureScheme, Version,
+    crypto::{Intent, IntentScope, PublicKey, PublicKeyExt as _, UserSignature},
 };
 use iota_types::{
     crypto::{
-        AuthorityKeyPair, EncodeDecodeBase64, IotaKeyPair, Signature, SignatureScheme,
-        get_key_pair, get_key_pair_from_rng,
+        AuthorityKeyPair, EncodeDecodeBase64, IotaKeyPair, Signature, get_key_pair,
+        get_key_pair_from_rng,
     },
     transaction::{TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionData, TransactionDataAPI},
 };
@@ -79,24 +80,24 @@ async fn test_flag_in_signature_and_keypair() -> Result<(), anyhow::Error> {
                 // signature contains corresponding flag
                 assert_eq!(
                     *sig.to_bytes().first().unwrap(),
-                    SignatureScheme::ED25519.flag()
+                    SignatureScheme::Ed25519.to_u8()
                 );
                 // keystore stores pubkey with corresponding flag
-                assert!(pk.flag() == SignatureScheme::ED25519.flag())
+                assert!(pk.flag() == SignatureScheme::Ed25519.to_u8())
             }
             Signature::Secp256k1 { .. } => {
                 assert_eq!(
                     *sig.to_bytes().first().unwrap(),
-                    SignatureScheme::Secp256k1.flag()
+                    SignatureScheme::Secp256k1.to_u8()
                 );
-                assert!(pk.flag() == SignatureScheme::Secp256k1.flag())
+                assert!(pk.flag() == SignatureScheme::Secp256k1.to_u8())
             }
             Signature::Secp256r1 { .. } => {
                 assert_eq!(
                     *sig.to_bytes().first().unwrap(),
-                    SignatureScheme::Secp256r1.flag()
+                    SignatureScheme::Secp256r1.to_u8()
                 );
-                assert!(pk.flag() == SignatureScheme::Secp256r1.flag())
+                assert!(pk.flag() == SignatureScheme::Secp256r1.to_u8())
             }
             _ => panic!("unexpected signature scheme"),
         }
@@ -203,14 +204,14 @@ async fn test_private_keys_import_export() -> Result<(), anyhow::Error> {
         KeyToolCommand::Import {
             alias: None,
             input_string: private_key.to_string(),
-            key_scheme: SignatureScheme::ED25519,
+            key_scheme: SignatureScheme::Ed25519,
             derivation_path: None,
         }
         .execute(&mut keystore)
         .await?;
         let kp = IotaKeyPair::decode(private_key).unwrap();
         let kp_from_hex = IotaKeyPair::Ed25519(
-            Ed25519KeyPair::from_bytes(&Hex::decode(private_key_hex).unwrap()).unwrap(),
+            Ed25519PrivateKey::from_bytes(Hex::decode(private_key_hex).unwrap()).unwrap(),
         );
         assert_eq!(kp, kp_from_hex);
 
@@ -241,7 +242,7 @@ async fn test_private_keys_import_export() -> Result<(), anyhow::Error> {
         let output = KeyToolCommand::Import {
             alias: None,
             input_string: private_key[1..].to_string(),
-            key_scheme: SignatureScheme::ED25519,
+            key_scheme: SignatureScheme::Ed25519,
             derivation_path: None,
         }
         .execute(&mut keystore)
@@ -252,7 +253,7 @@ async fn test_private_keys_import_export() -> Result<(), anyhow::Error> {
         let output = KeyToolCommand::Import {
             alias: None,
             input_string: addr.to_string(),
-            key_scheme: SignatureScheme::ED25519,
+            key_scheme: SignatureScheme::Ed25519,
             derivation_path: None,
         }
         .execute(&mut keystore)
@@ -291,7 +292,7 @@ async fn test_mnemonics_ed25519() -> Result<(), anyhow::Error> {
         KeyToolCommand::Import {
             alias: None,
             input_string: t[0].to_string(),
-            key_scheme: SignatureScheme::ED25519,
+            key_scheme: SignatureScheme::Ed25519,
             derivation_path: None,
         }
         .execute(&mut keystore)
@@ -395,7 +396,7 @@ async fn test_invalid_derivation_path() -> Result<(), anyhow::Error> {
         KeyToolCommand::Import {
             alias: None,
             input_string: TEST_MNEMONIC.to_string(),
-            key_scheme: SignatureScheme::ED25519,
+            key_scheme: SignatureScheme::Ed25519,
             derivation_path: Some("m/44'/1'/0'/0/0".parse().unwrap()),
         }
         .execute(&mut keystore)
@@ -407,7 +408,7 @@ async fn test_invalid_derivation_path() -> Result<(), anyhow::Error> {
         KeyToolCommand::Import {
             alias: None,
             input_string: TEST_MNEMONIC.to_string(),
-            key_scheme: SignatureScheme::ED25519,
+            key_scheme: SignatureScheme::Ed25519,
             derivation_path: Some("m/0'/4218'/0'/0/0".parse().unwrap()),
         }
         .execute(&mut keystore)
@@ -419,7 +420,7 @@ async fn test_invalid_derivation_path() -> Result<(), anyhow::Error> {
         KeyToolCommand::Import {
             alias: None,
             input_string: TEST_MNEMONIC.to_string(),
-            key_scheme: SignatureScheme::ED25519,
+            key_scheme: SignatureScheme::Ed25519,
             derivation_path: Some("m/54'/4218'/0'/0/0".parse().unwrap()),
         }
         .execute(&mut keystore)
@@ -461,7 +462,7 @@ async fn test_valid_derivation_path() -> Result<(), anyhow::Error> {
         KeyToolCommand::Import {
             alias: None,
             input_string: TEST_MNEMONIC.to_string(),
-            key_scheme: SignatureScheme::ED25519,
+            key_scheme: SignatureScheme::Ed25519,
             derivation_path: Some("m/44'/4218'/0'/0'/0'".parse().unwrap()),
         }
         .execute(&mut keystore)
@@ -473,7 +474,7 @@ async fn test_valid_derivation_path() -> Result<(), anyhow::Error> {
         KeyToolCommand::Import {
             alias: None,
             input_string: TEST_MNEMONIC.to_string(),
-            key_scheme: SignatureScheme::ED25519,
+            key_scheme: SignatureScheme::Ed25519,
             derivation_path: Some("m/44'/4218'/0'/0'/1'".parse().unwrap()),
         }
         .execute(&mut keystore)
@@ -485,7 +486,7 @@ async fn test_valid_derivation_path() -> Result<(), anyhow::Error> {
         KeyToolCommand::Import {
             alias: None,
             input_string: TEST_MNEMONIC.to_string(),
-            key_scheme: SignatureScheme::ED25519,
+            key_scheme: SignatureScheme::Ed25519,
             derivation_path: Some("m/44'/4218'/1'/0'/1'".parse().unwrap()),
         }
         .execute(&mut keystore)
@@ -523,7 +524,7 @@ async fn test_valid_derivation_path() -> Result<(), anyhow::Error> {
 async fn test_keytool_bls12381() -> Result<(), anyhow::Error> {
     let mut keystore = Keystore::from(InMemKeystore::new_insecure_for_tests(0));
     KeyToolCommand::Generate {
-        key_scheme: SignatureScheme::BLS12381,
+        key_scheme: SignatureScheme::Bls12381,
         derivation_path: None,
         word_length: None,
     }
@@ -609,13 +610,14 @@ async fn test_sign_raw_command() -> Result<(), anyhow::Error> {
             assert_eq!(sign_raw_data.raw_data, expected_data);
             // Verify the signature with actual Ed25519 verification
             let ed_sig =
-                Ed25519Signature::from_bytes(&Hex::decode(&sign_raw_data.signature_hex).unwrap())
+                Ed25519Signature::from_bytes(Hex::decode(&sign_raw_data.signature_hex).unwrap())
                     .expect("Invalid Ed25519 signature bytes");
             let ed_pk =
-                Ed25519PublicKey::from_bytes(&Hex::decode(&sign_raw_data.public_key_hex).unwrap())
+                Ed25519PublicKey::from_bytes(Hex::decode(&sign_raw_data.public_key_hex).unwrap())
                     .expect("Invalid Ed25519 public key bytes");
             let data_bytes = Hex::decode(&sign_raw_data.raw_data).unwrap();
-            ed_pk
+            Ed25519VerifyingKey::new(&ed_pk)
+                .unwrap()
                 .verify(&data_bytes, &ed_sig)
                 .expect("Ed25519 signature verification failed");
         };

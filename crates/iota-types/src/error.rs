@@ -517,6 +517,8 @@ pub enum IotaError {
         new_epoch: EpochId,
         locked_by_tx: TransactionDigest,
     },
+    #[error("Transaction {digest:?} was recently submitted; duplicate resubmission suppressed")]
+    RecentlyResubmitted { digest: TransactionDigest },
     #[error("{TRANSACTION_NOT_FOUND_MSG_PREFIX} [{digest}]")]
     TransactionNotFound { digest: TransactionDigest },
     #[error("{TRANSACTIONS_NOT_FOUND_MSG_PREFIX} [{digests:?}]")]
@@ -734,6 +736,14 @@ impl From<ExecutionError> for IotaError {
     }
 }
 
+impl From<iota_sdk_types::hash::MissingSignatureError> for IotaError {
+    fn from(error: iota_sdk_types::hash::MissingSignatureError) -> Self {
+        IotaError::InvalidSignature {
+            error: error.to_string(),
+        }
+    }
+}
+
 #[cfg(not(target_arch = "wasm32"))]
 impl From<Status> for IotaError {
     fn from(status: Status) -> Self {
@@ -852,6 +862,10 @@ impl IotaError {
 
             // Transient consensus failure — other validators likely unaffected
             IotaError::FailedToSubmitToConsensus(..) => true,
+
+            // Same digest already in flight — client should wait for the
+            // original to land or retry once the soft locks are released.
+            IotaError::RecentlyResubmitted { .. } => true,
 
             // Non retryable error
             IotaError::Execution(..) => false,

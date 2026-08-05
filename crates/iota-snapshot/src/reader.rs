@@ -71,7 +71,7 @@ pub struct StateSnapshotReaderV1 {
     /// Chain identifier recorded in the snapshot's `ManifestV2`.
     chain_id: ChainIdentifier,
     multi_progress_bar: MultiProgress,
-    concurrency: usize,
+    concurrency: NonZeroUsize,
 }
 
 impl StateSnapshotReaderV1 {
@@ -215,7 +215,7 @@ impl StateSnapshotReaderV1 {
             epoch_info_path,
             chain_id,
             multi_progress_bar,
-            concurrency: download_concurrency.get(),
+            concurrency: download_concurrency,
         })
     }
 
@@ -380,7 +380,7 @@ impl StateSnapshotReaderV1 {
                         .map(move |(part, part_file)| (bucket, part, part_file)),
                 )
             })
-            .try_for_each_spawned(self.concurrency, |(bucket, part, _part_file)| {
+            .try_for_each_spawned(self.concurrency.get(), |(bucket, part, _part_file)| {
                 let sha3_digests = sha3_digests.clone();
                 let object_files = self.object_files.clone();
                 let bar = checksum_progress_bar.clone();
@@ -521,7 +521,7 @@ impl StateSnapshotReaderV1 {
                         })
                     })
                     .boxed()
-                    .buffer_unordered(concurrency)
+                    .buffer_unordered(concurrency.into())
                     .for_each(|result| {
                         // Update the progress bar
                         result.expect("Failed to generate partial accumulator");
@@ -633,7 +633,7 @@ impl StateSnapshotReaderV1 {
                         }
                     })
                     .boxed()
-                    .buffer_unordered(concurrency)
+                    .buffer_unordered(concurrency.into())
                     .try_for_each(|(bytes, file_metadata, sha3_digest)| {
                         let downloaded_bytes = &downloaded_bytes;
                         let obj_progress_bar = &obj_progress_bar_clone;

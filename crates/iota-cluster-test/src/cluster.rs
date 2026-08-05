@@ -9,7 +9,6 @@ use iota_config::{
     Config, IOTA_GENESIS_FILENAME, IOTA_KEYSTORE_FILENAME, IOTA_NETWORK_CONFIG, PersistedConfig,
     genesis::Genesis,
 };
-use iota_genesis_builder::SnapshotSource;
 use iota_graphql_rpc::{
     config::ConnectionConfig, test_infra::cluster::start_graphql_server_with_fn_rpc,
 };
@@ -24,10 +23,7 @@ use iota_swarm_config::{
     genesis_config::GenesisConfig,
     network_config::{NetworkConfig, NetworkConfigLight},
 };
-use iota_types::{
-    base_types::address_from_iota_pub_key,
-    crypto::{AccountKeyPair, IotaKeyPair, KeypairTraits, get_key_pair},
-};
+use iota_types::crypto::{AccountKeyPair, get_key_pair};
 use tempfile::tempdir;
 use test_cluster::{TestCluster, TestClusterBuilder};
 use tracing::info;
@@ -216,19 +212,7 @@ impl Cluster for LocalNewCluster {
             cluster_builder = cluster_builder.with_config_dir(config_dir);
         } else {
             // Let the faucet account hold 1000 gas objects on genesis
-            let mut genesis_config = GenesisConfig::custom_genesis(1, 100);
-            // Add any migration sources
-            let local_snapshots = options
-                .local_migration_snapshots
-                .iter()
-                .cloned()
-                .map(SnapshotSource::Local);
-            let remote_snapshots = options
-                .remote_migration_snapshots
-                .iter()
-                .cloned()
-                .map(SnapshotSource::S3);
-            genesis_config.migration_sources = local_snapshots.chain(remote_snapshots).collect();
+            let genesis_config = GenesisConfig::custom_genesis(1, 100);
             // Custom genesis should be build here where we add the extra accounts
             cluster_builder = cluster_builder.set_genesis_config(genesis_config);
 
@@ -245,7 +229,7 @@ impl Cluster for LocalNewCluster {
 
         // Use the wealthy account for faucet
         let faucet_key = test_cluster.swarm.config_mut().account_keys.swap_remove(0);
-        let faucet_address = address_from_iota_pub_key(faucet_key.public());
+        let faucet_address = faucet_key.public_key().derive_address();
         info!(?faucet_address, "faucet_address");
 
         // This cluster has fullnode handle, safe to unwrap
@@ -391,10 +375,8 @@ pub fn new_wallet_context_from_cluster(
     info!("Use RPC: {fullnode_url}");
     let keystore_path = config_dir.join(IOTA_KEYSTORE_FILENAME);
     let mut keystore = Keystore::from(FileBasedKeystore::new(&keystore_path).unwrap());
-    let address = address_from_iota_pub_key(key_pair.public());
-    keystore
-        .add_key(None, IotaKeyPair::Ed25519(key_pair))
-        .unwrap();
+    let address = key_pair.public_key().derive_address();
+    keystore.add_key(None, key_pair).unwrap();
     IotaClientConfig::new(keystore)
         .with_envs([IotaEnv::new("localnet", fullnode_url)])
         .with_active_address(address)

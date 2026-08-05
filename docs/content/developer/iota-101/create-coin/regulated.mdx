@@ -4,8 +4,6 @@ tags: [ move-sc, tutorial]
 teams:
   - iotaledger/vm-language
 ---
-import Quiz from '@site/src/components/Quiz';
-import questions from '/json/developer/iota-101/create-coin/regulated.json';
 
 # Creating Regulated Coins with Deny Lists on IOTA
 
@@ -71,7 +69,6 @@ Created Objects:
    ObjectType: 0x2::coin::DenyCap<<PACKAGE-ID>::regcoin::REGCOIN>
    Version: <VERSION-NUMBER>
    Digest: <DIGEST-HASH>
-
 
    ObjectID: <OBJECT-ID>
    Sender: <SENDER-ADDR>
@@ -146,5 +143,3 @@ MutatedObjects:
 ```
 
 For a complete list of available `Coin` functions, refer to the IOTA framework [`coin` module documentation](../../references/framework/iota/coin.mdx).
-
-<Quiz questions={questions} />

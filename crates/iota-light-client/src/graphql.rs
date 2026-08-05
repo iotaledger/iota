@@ -44,7 +44,9 @@ pub async fn query_last_checkpoint_of_epoch(config: &Config, epoch_id: u64) -> R
     // Parse the JSON response to get the last checkpoint of the epoch
     let checkpoint_number = data["epoch"]["checkpoints"]["nodes"][0]["sequenceNumber"]
         .as_u64()
-        .expect("invalid sequence number");
+        .ok_or_else(|| {
+            anyhow!("GraphQL returned no last checkpoint for epoch {epoch_id}: {data}")
+        })?;
 
     Ok(checkpoint_number)
 }
