@@ -10,9 +10,7 @@ use std::{
     io::{self, Write},
 };
 
-use move_abstract_interpreter::control_flow_graph::{
-    BlockId, ControlFlowGraph, VMControlFlowGraph,
-};
+use move_abstract_interpreter::control_flow_graph::{ControlFlowGraph, VMControlFlowGraph};
 use move_binary_format::{
     CompiledModule,
     file_format::{Bytecode, CodeOffset},
@@ -24,6 +22,8 @@ use serde::{Deserialize, Serialize};
 use crate::coverage_map::{
     ExecCoverageMap, ExecCoverageMapWithModules, ModuleCoverageMap, TraceMap,
 };
+
+type BlockId = CodeOffset;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ModuleSummary {
