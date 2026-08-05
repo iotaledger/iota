@@ -124,10 +124,7 @@ pub struct AuthorityStorePruner {
 /// flow: Move authentication is re-run at the object versions an attestation
 /// recorded, which are versions the transaction has since superseded, and the
 /// resulting verdict goes into the transaction's effects. Retaining whole
-/// epochs makes the retained set identical across validators, because the epoch
-/// guard in `prune_for_eligible_epochs` is expressed in consensus-agreed epoch
-/// numbers. `u64::MAX` disables object pruning and so already retains more than
-/// the floor requires.
+/// epochs makes the retained set identical across validators.
 fn object_retention_epochs(
     configured: u64,
     is_validator: bool,

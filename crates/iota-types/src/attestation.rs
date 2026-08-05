@@ -123,23 +123,14 @@ pub trait AttestedObjectVersionReader: Send + Sync {
 /// transaction fails Move authentication at execution.
 pub struct AttestationVerdictContext<'a> {
     pub object_versions: Vec<ObjectReference>,
-    /// Consulted only on the authentication-failure path. `None` leaves every
-    /// failure to re-run, for callers with no object-version history to read.
     pub version_age_reader: Option<&'a dyn AttestedObjectVersionReader>,
 }
 
 impl AttestationVerdictContext<'_> {
     /// Whether authentication should be re-run at the recorded versions.
     ///
-    /// False when nothing drifted, because authentication just failed against
-    /// exactly the recorded state and a re-run would reproduce it, proving the
-    /// attestor's claim false. Also false when a drifted version is too old to
+    /// False when nothing drifted or when a drifted version is too old to
     /// judge. Both cases are `InvalidAttestation`.
-    ///
-    /// Only the versions the re-run reloads are considered, given by
-    /// `reauthenticated_object_ids`: an attestation also records the versions
-    /// the transaction body read, and those cannot decide whether
-    /// authentication would have succeeded.
     pub fn should_reauthenticate(&self, reauthenticated_object_ids: &BTreeSet<ObjectId>) -> bool {
         let Some(version_age_reader) = self.version_age_reader else {
             return true;

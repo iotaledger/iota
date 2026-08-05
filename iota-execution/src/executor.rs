@@ -114,9 +114,7 @@ pub trait Executor {
         transaction_digest: TransactionDigest,
         // BCS-serialized `TransactionData` bytes for the auth context.
         auth_context_data: AuthContextData,
-        // A structural Move-authentication failure resolved before execution. When
-        // set, authentication is skipped and this error becomes the transaction's
-        // failure effect.
+        // A structural Move-authentication failure resolved before execution.
         pre_authentication_error: Option<ExecutionError>,
         // Present for attested transactions. When the authenticator function
         // aborts at execution, authentication is re-run at the attestor's

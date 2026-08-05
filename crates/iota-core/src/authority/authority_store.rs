@@ -927,9 +927,7 @@ impl AuthorityStore {
 
         write_batch.insert_batch(&self.perpetual_tables.objects, new_objects)?;
 
-        // The versions this transaction consumed stop being current here, which
-        // is what decides later whether an attestation recording them can still
-        // be re-run at.
+        // The versions this transaction consumed stop being current here
         write_batch.insert_batch(
             &self.perpetual_tables.object_superseded_in_epoch,
             effects
@@ -1262,8 +1260,7 @@ impl AuthorityStore {
             .into_iter()
             .map(|(id, version)| ObjectKey(id, version));
 
-        // These versions no longer stopped being current in this epoch: the
-        // transaction that superseded them is being reverted.
+        // These versions no longer stopped being current in this epoch
         write_batch.delete_batch(
             &self.perpetual_tables.object_superseded_in_epoch,
             modified_object_keys.clone(),

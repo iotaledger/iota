@@ -620,10 +620,6 @@ pub trait ObjectCacheRead: Send + Sync {
 
     /// The epoch in which `version` of `object_id` stopped being the current
     /// version, or `None` if it never did or the entry has been pruned.
-    ///
-    /// Reads through the same cache as the object writes it accompanies, so the
-    /// answer does not depend on whether this node has flushed to the database
-    /// yet.
     fn try_get_object_superseded_in_epoch(
         &self,
         object_id: &ObjectId,

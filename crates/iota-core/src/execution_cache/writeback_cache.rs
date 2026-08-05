@@ -231,10 +231,7 @@ struct UncommittedData {
     // marker_cache.
     markers: DashMap<MarkerKey, CachedVersionMap<MarkerValue>>,
 
-    // The epoch in which each consumed object version stopped being current. Committed to the db
-    // at the same time as other transaction data, then moved to `superseded_version_cache`.
-    // Cached like the rest so the verdict on an attested transaction does not depend on whether
-    // this node has flushed yet.
+    // The epoch in which each consumed object version stopped being current.
     superseded_versions: DashMap<ObjectId, CachedVersionMap<EpochId>>,
 
     transaction_effects: DashMap<TransactionEffectsDigest, TransactionEffects>,

@@ -2114,12 +2114,7 @@ impl AuthorityState {
                 "Move authenticators amount must match the number of authenticator inputs"
             );
 
-            // Resolve each authenticator's account function ref. Generalizing #12375:
-            // a structural failure here (bad signer / account / version, or a missing
-            // authenticator ref) used to `.expect()` and halt the validator during
-            // execution. Under the attestation flow it is now surfaced as a
-            // pre-authentication error, so the transaction resolves to an
-            // `InvalidAttestation` failure effect instead of panicking.
+            // Resolve each authenticator's account function ref.
             let (per_authenticator_input_objects, resolved_function_refs): (Vec<_>, Vec<_>) =
                 move_authenticators
                     .iter()
@@ -6905,10 +6900,7 @@ impl AttestedObjectVersionReader for AttestedObjectVersions<'_> {
             return AttestedObjectVersionState::Current;
         }
 
-        // Only a version superseded during this epoch can be re-run at. Such an
-        // entry is written in this epoch, so retention guarantees every
-        // validator holds it and a missing one means the version is older,
-        // never that this validator pruned earlier than its peers.
+        // Only a version superseded during this epoch can be re-run at.
         let superseded_in_epoch = self
             .object_cache
             .try_get_object_superseded_in_epoch(object_id, version);
