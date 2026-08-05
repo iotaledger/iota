@@ -18,11 +18,15 @@ jobs:
     runs-on: [self-hosted-x64]
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - run: cargo deny --manifest-path ${{ inputs.manifest-path || './Cargo.toml' }} check bans licenses sources --hide-inclusion-graph
+      - env:
+          MANIFEST_PATH: ${{ inputs.manifest-path || './Cargo.toml' }}
+        run: cargo deny --manifest-path "$MANIFEST_PATH" check bans licenses sources --hide-inclusion-graph
 
   advisories:
     name: cargo deny (advisories)
     runs-on: [self-hosted-x64]
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - run: cargo deny --manifest-path ${{ inputs.manifest-path || './Cargo.toml' }} check advisories --hide-inclusion-graph
+      - env:
+          MANIFEST_PATH: ${{ inputs.manifest-path || './Cargo.toml' }}
+        run: cargo deny --manifest-path "$MANIFEST_PATH" check advisories --hide-inclusion-graph

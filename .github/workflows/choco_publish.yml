@@ -21,14 +21,19 @@ jobs:
       - name: Set artifact name
         id: artifact
         shell: bash
-        run: echo "artifact_name=iota-${{ inputs.iota_tag }}-windows-x86_64" >> $GITHUB_OUTPUT
+        env:
+          IOTA_TAG: ${{ inputs.iota_tag }}
+        run: echo "artifact_name=iota-${IOTA_TAG}-windows-x86_64" >> $GITHUB_OUTPUT
 
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Download Windows artifact
         shell: bash
+        env:
+          IOTA_TAG: ${{ inputs.iota_tag }}
+          ARTIFACT_NAME: ${{ steps.artifact.outputs.artifact_name }}
         run: |
           mkdir ./tmp
-          curl -L -o ./tmp/${{ steps.artifact.outputs.artifact_name }}.tgz https://github.com/iotaledger/iota/releases/download/${{ inputs.iota_tag }}/${{ steps.artifact.outputs.artifact_name }}.tgz
+          curl -L -o "./tmp/${ARTIFACT_NAME}.tgz" "https://github.com/iotaledger/iota/releases/download/${IOTA_TAG}/${ARTIFACT_NAME}.tgz"
 
       - name: Extract Windows artifact
         shell: bash
@@ -43,16 +48,20 @@ jobs:
 
       - name: Publish Windows iota binary to Chocolatey
         shell: bash
+        env:
+          IOTA_TAG: ${{ inputs.iota_tag }}
+          ARTIFACT_NAME: ${{ steps.artifact.outputs.artifact_name }}
+          TMP_BUILD_DIR: ${{ env.TMP_BUILD_DIR }}
         run: |
           choco install checksum
-          export iota_sha=$(checksum -t sha256 ${{ env.TMP_BUILD_DIR }}/iota.exe)
+          export iota_sha=$(checksum -t sha256 "${TMP_BUILD_DIR}/iota.exe")
           # It is not allowed to have a 'v' in the choco version
-          export choco_version=$(echo "${{ inputs.iota_tag }}" | sed s/'^v'//)
+          export choco_version=$(echo "${IOTA_TAG}" | sed s/'^v'//)
           cd chocolatey
 
           cat <<EOF >>VERIFICATION.txt
           IOTA Binary verification steps
-          1. Download https://github.com/iotaledger/iota/releases/download/${{ inputs.iota_tag }}/${{ steps.artifact.outputs.artifact_name }}.tgz
+          1. Download https://github.com/iotaledger/iota/releases/download/${IOTA_TAG}/${ARTIFACT_NAME}.tgz
           2. Extract iota.exe
           3. Verify binary: checksum.exe -t sha256 iota.exe: ${iota_sha}
           4. Verify file 'LICENSE.txt': https://github.com/iotaledger/iota/blob/develop/LICENSE

@@ -45,7 +45,10 @@ jobs:
           git checkout ${{ github.sha }} -- scripts/bump_version.sh
 
       - name: Run bump_version.sh
-        run: scripts/bump_version.sh "${{ inputs.bump }}" "${{ inputs.prerelease }}"
+        env:
+          BUMP: ${{ inputs.bump }}
+          PRERELEASE: ${{ inputs.prerelease }}
+        run: scripts/bump_version.sh "$BUMP" "$PRERELEASE"
 
       - name: Revert bump_version.sh to base branch version
         run: git checkout HEAD -- scripts/bump_version.sh 2>/dev/null || git rm -f scripts/bump_version.sh
