@@ -1652,6 +1652,9 @@ where
 
     /// Deletes every entry of the map with a single range tombstone over the
     /// tag's key range, leaving the other tags of the column family untouched.
+    ///
+    /// The entries stay on disk until compaction, and until then iteration
+    /// is slowed because of them.
     #[instrument(level = "trace", skip_all, err)]
     fn schedule_delete_all(&self) -> Result<(), TypedStoreError> {
         let from = be_fix_int_ser(&self.tag);
