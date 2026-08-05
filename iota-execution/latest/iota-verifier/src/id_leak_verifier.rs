@@ -19,9 +19,6 @@ use iota_types::{
     GENESIS_BRIDGE_ADDRESS, IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS,
     error::{ExecutionError, VMMVerifierErrorSubStatusCode},
 };
-use move_abstract_interpreter::absint::{
-    AbstractDomain, AbstractInterpreter, FunctionContext, JoinResult, TransferFunctions,
-};
 use move_abstract_stack::AbstractStack;
 use move_binary_format::{
     errors::PartialVMError,
@@ -29,6 +26,9 @@ use move_binary_format::{
         Bytecode, CodeOffset, CompiledModule, FunctionDefinitionIndex, FunctionHandle, LocalIndex,
         StructDefinition, StructFieldInformation,
     },
+};
+use move_bytecode_verifier::absint::{
+    AbstractDomain, FunctionContext, JoinResult, TransferFunctions, analyze_function,
 };
 use move_bytecode_verifier_meter::{Meter, Scope};
 use move_core_types::{
@@ -133,17 +133,16 @@ fn verify_id_leak(
             None => continue,
         };
         let handle = module.function_handle_at(func_def.function);
-        let func_view =
+        let function_context =
             FunctionContext::new(module, FunctionDefinitionIndex(index as u16), code, handle);
-        let initial_state = AbstractState::new(&func_view);
-        let mut verifier = IDLeakAnalysis::new(module, &func_view);
+        let initial_state = AbstractState::new(&function_context);
+        let mut verifier = IDLeakAnalysis::new(module, &function_context);
         let function_to_verify = verifier.cur_function();
         if FUNCTIONS_TO_SKIP.contains(&function_to_verify) {
             continue;
         }
-        verifier
-            .analyze_function(initial_state, &func_view, meter)
-            .map_err(|err| {
+        analyze_function(&function_context, meter, &mut verifier, initial_state).map_err(
+            |err| {
                 // Handle verification timeout specially
                 if check_for_verifier_timeout(&err.major_status()) {
                     to_verification_timeout_error(err.to_string())
@@ -157,7 +156,8 @@ fn verify_id_leak(
                 } else {
                     verification_failure(err.to_string())
                 }
-            })?;
+            },
+        )?;
     }
 
     Ok(())
@@ -266,7 +266,6 @@ impl<'a> IDLeakAnalysis<'a> {
 }
 
 impl TransferFunctions for IDLeakAnalysis<'_> {
-    type Error = ExecutionError;
     type State = AbstractState;
 
     fn execute(
@@ -274,7 +273,7 @@ impl TransferFunctions for IDLeakAnalysis<'_> {
         state: &mut Self::State,
         bytecode: &Bytecode,
         index: CodeOffset,
-        last_index: CodeOffset,
+        (_first_index, last_index): (u16, u16),
         meter: &mut (impl Meter + ?Sized),
     ) -> Result<(), PartialVMError> {
         execute_inner(self, state, bytecode, index, meter)?;
@@ -292,8 +291,6 @@ impl TransferFunctions for IDLeakAnalysis<'_> {
         Ok(())
     }
 }
-
-impl AbstractInterpreter for IDLeakAnalysis<'_> {}
 
 fn call(
     verifier: &mut IDLeakAnalysis,
