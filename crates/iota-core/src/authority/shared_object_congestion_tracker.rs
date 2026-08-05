@@ -489,17 +489,6 @@ impl SharedObjectCongestionTracker {
         tx_duration: ExecutionTime,
         check_worker_limit: bool,
     ) -> Option<ExecutionTime> {
-        // Collect the free-list of every resource the transaction must fit in:
-        // one per shared input object, plus the execution-worker pool when
-        // worker congestion control is active and `check_worker_limit` is set.
-        let mut resources: Vec<&ObjectExecutionSlots> = shared_input_objects
-            .iter()
-            .map(|obj| {
-                self.object_execution_slots
-                    .get(&obj.object_id)
-                    .expect("object should have been inserted at the start of this function.")
-            })
-            .collect();
         let worker_free_slots = if check_worker_limit {
             self.worker_slots
                 .as_ref()
@@ -511,9 +500,19 @@ impl SharedObjectCongestionTracker {
         } else {
             None
         };
-        if let Some(worker_free_slots) = &worker_free_slots {
-            resources.push(worker_free_slots);
-        }
+        // Collect the free-list of every resource the transaction must fit in:
+        // one per shared input object, plus the execution-worker pool when
+        // worker congestion control is active and `check_worker_limit` is set.
+        let resources: Vec<&ObjectExecutionSlots> = shared_input_objects
+            .iter()
+            .map(|obj| {
+                self.object_execution_slots
+                    .get(&obj.object_id)
+                    .expect("object should have been inserted at the start of this function.")
+            })
+            .chain(&worker_free_slots)
+            .collect();
+
         if resources.is_empty() {
             // No constraining resources (e.g. an owned-object-only transaction
             // when worker congestion control is disabled): schedule at time 0.
@@ -538,11 +537,13 @@ impl SharedObjectCongestionTracker {
             let _span = tracing::trace_span!("max_object_free_slot_start_time").entered();
             resources
                 .iter()
-                .map(|slots| slots.max_object_free_slot_start_time(tx_duration))
                 // If any `start_time` is `None` (i.e., the corresponding resource
-                // does not have a free slot), the collect will return `None`
-                .collect::<Option<Vec<_>>>()
-                .and_then(|resource_start_times| resource_start_times.into_iter().max())
+                // does not have a free slot), the result is `None`.
+                .try_fold(0, |latest_start_time, slots| {
+                    slots
+                        .max_object_free_slot_start_time(tx_duration)
+                        .map(|start_time| latest_start_time.max(start_time))
+                })
         }
     }
 

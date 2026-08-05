@@ -365,11 +365,15 @@ impl SuggestedGasPriceCalculator {
             })
             .collect();
 
+        // Besides the fewer-than-N case, this guard keeps `n - 1` in bounds
+        // for the selection below, which panics on an out-of-bounds index
+        // rather than returning `None`, so this guard must stay here.
         if gas_prices.len() < n {
             return None;
         }
-        gas_prices.sort_unstable_by(|a, b| b.cmp(a));
-        gas_prices.get(n - 1).copied()
+        // N-th largest via partition instead of a full sort.
+        let (_, nth_largest, _) = gas_prices.select_nth_unstable_by(n - 1, |a, b| b.cmp(a));
+        Some(*nth_largest)
     }
 }
 
