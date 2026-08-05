@@ -19,7 +19,7 @@ use iota_sdk_types::{
     crypto::{Intent, IntentScope, PublicKey, PublicKeyExt as _, SimpleSignature, UserSignature},
 };
 use iota_types::{
-    crypto::{AuthorityKeyPair, EncodeDecodeBase64, get_key_pair, get_key_pair_from_rng},
+    crypto::{AuthorityKeyPair, EncodeDecodeBase64, get_key_pair_from_rng},
     transaction::{TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI},
 };
 use rand::{SeedableRng, rngs::StdRng};
@@ -44,7 +44,7 @@ async fn test_addresses_command() -> Result<(), anyhow::Error> {
     for _ in 0..3 {
         keystore.add_key(
             None,
-            SimpleKeypair::from(get_key_pair::<Secp256k1PrivateKey>().1),
+            SimpleKeypair::from(Secp256k1PrivateKey::generate(rand::thread_rng())),
         )?;
     }
 
@@ -64,11 +64,11 @@ async fn test_flag_in_signature_and_keypair() -> Result<(), anyhow::Error> {
 
     keystore.add_key(
         None,
-        SimpleKeypair::from(get_key_pair::<Secp256k1PrivateKey>().1),
+        SimpleKeypair::from(Secp256k1PrivateKey::generate(rand::thread_rng())),
     )?;
     keystore.add_key(
         None,
-        SimpleKeypair::from(get_key_pair::<Ed25519PrivateKey>().1),
+        SimpleKeypair::from(Ed25519PrivateKey::generate(rand::thread_rng())),
     )?;
 
     for key in keystore
@@ -118,7 +118,7 @@ async fn test_read_write_keystore_with_flag() {
     let dir = tempfile::TempDir::new().unwrap();
 
     // create Secp256k1 keypair
-    let kp_secp = SimpleKeypair::from(get_key_pair::<Secp256k1PrivateKey>().1);
+    let kp_secp = SimpleKeypair::from(Secp256k1PrivateKey::generate(rand::thread_rng()));
     let addr_secp: Address = kp_secp.public_key().derive_address();
     let fp_secp = dir.path().join(format!("{addr_secp}.key"));
     let fp_secp_2 = fp_secp.clone();
@@ -139,7 +139,7 @@ async fn test_read_write_keystore_with_flag() {
     assert!(kp_secp_read.is_err());
 
     // create Ed25519 keypair
-    let kp_ed = SimpleKeypair::from(get_key_pair::<Ed25519PrivateKey>().1);
+    let kp_ed = SimpleKeypair::from(Ed25519PrivateKey::generate(rand::thread_rng()));
     let addr_ed: Address = kp_ed.public_key().derive_address();
     let fp_ed = dir.path().join(format!("{addr_ed}.key"));
     let fp_ed_2 = fp_ed.clone();

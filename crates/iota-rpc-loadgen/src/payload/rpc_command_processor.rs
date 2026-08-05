@@ -25,7 +25,7 @@ use iota_sdk_types::{
     Address, ObjectId, ObjectReference, Transaction, TransactionDigest, crypto::SimpleSignature,
 };
 use iota_types::{
-    crypto::{AccountKeyPair, IotaSignature, get_key_pair},
+    crypto::{AccountKeyPair, IotaSignature},
     quorum_driver_types::ExecuteTransactionRequestType,
     transaction::TransactionEnvelope,
 };
@@ -595,7 +595,8 @@ async fn prepare_new_signer_and_coins(
     // having a million coin objects in our address. We can also fetch directly
     // from the faucet, but in some environment that might not be possible when
     // faucet resource is scarce
-    let (burner_address, burner_keypair): (_, AccountKeyPair) = get_key_pair();
+    let burner_keypair = AccountKeyPair::generate(rand::thread_rng());
+    let burner_address = burner_keypair.public_key().derive_address();
     let burner_keypair = SimpleKeypair::from(burner_keypair);
     let pay_amounts = split_amounts
         .iter()

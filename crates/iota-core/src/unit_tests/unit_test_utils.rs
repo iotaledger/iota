@@ -56,7 +56,7 @@ async fn init_genesis(
         let authority_pubkey_bytes = authority_key_pair.public().into();
         let protocol_key_pair: NetworkKeyPair = get_key_pair().1;
         let protocol_pubkey = protocol_key_pair.public().clone();
-        let account_key_pair: SimpleKeypair = get_key_pair::<AccountKeyPair>().1.into();
+        let account_key_pair: SimpleKeypair = AccountKeyPair::generate(rand::thread_rng()).into();
         let network_key_pair: NetworkKeyPair = get_key_pair().1;
         let validator_info = ValidatorInfo {
             name: format!("validator-{i}"),

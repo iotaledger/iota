@@ -20,7 +20,7 @@ use iota_sdk_types::{
 };
 use iota_types::{
     balance::Supply,
-    crypto::{AccountKeyPair, get_key_pair},
+    crypto::AccountKeyPair,
     parse_iota_struct_tag,
     quorum_driver_types::ExecuteTransactionRequestType,
     utils::to_sender_signed_transaction,
@@ -44,7 +44,8 @@ async fn create_addr_and_custom_coins(
     cluster: &TestCluster,
     indexer_client: &HttpClient,
 ) -> (Address, SimpleKeypair, String) {
-    let (address, keypair): (_, AccountKeyPair) = get_key_pair();
+    let keypair = AccountKeyPair::generate(rand::thread_rng());
+    let address = keypair.public_key().derive_address();
     let keypair = SimpleKeypair::from(keypair);
 
     for _ in 0..5 {

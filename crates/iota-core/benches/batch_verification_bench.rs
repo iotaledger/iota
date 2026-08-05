@@ -12,7 +12,7 @@ use iota_core::{
 };
 use iota_types::{
     committee::Committee,
-    crypto::{AccountKeyPair, AuthorityKeyPair, get_key_pair},
+    crypto::{AccountKeyPair, AuthorityKeyPair},
     transaction::CertifiedTransaction,
 };
 use itertools::Itertools as _;
@@ -24,10 +24,15 @@ fn gen_certs(
     key_pairs: &[AuthorityKeyPair],
     count: u64,
 ) -> Vec<CertifiedTransaction> {
-    let (receiver, _): (_, AccountKeyPair) = get_key_pair();
+    let receiver = AccountKeyPair::generate(rand::thread_rng())
+        .public_key()
+        .derive_address();
 
     let senders: Vec<_> = (0..count)
-        .map(|_| get_key_pair::<AccountKeyPair>())
+        .map(|_| {
+            let key = AccountKeyPair::generate(rand::thread_rng());
+            (key.public_key().derive_address(), key)
+        })
         .collect();
 
     let txns: Vec<_> = senders
@@ -116,8 +121,11 @@ fn batch_verification_bench(c: &mut Criterion) {
         for num_errors in [0, 1] {
             let mut certs = gen_certs(&committee, &key_pairs, batch_size);
 
-            let (receiver, _): (_, AccountKeyPair) = get_key_pair();
-            let (other_sender, other_sender_sec): (_, AccountKeyPair) = get_key_pair();
+            let receiver = AccountKeyPair::generate(rand::thread_rng())
+                .public_key()
+                .derive_address();
+            let other_sender_sec = AccountKeyPair::generate(rand::thread_rng());
+            let other_sender = other_sender_sec.public_key().derive_address();
             let other_tx = make_dummy_tx(receiver, other_sender, &other_sender_sec);
             let other_cert = make_cert_with_large_committee(&committee, &key_pairs, &other_tx);
 

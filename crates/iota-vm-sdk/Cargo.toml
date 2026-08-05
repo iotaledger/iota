@@ -70,6 +70,7 @@ wasm-bindgen = { version = "0.2", optional = true }
 # external dependencies
 anyhow.workspace = true
 fastcrypto.workspace = true
+rand.workspace = true
 serde.workspace = true
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 

@@ -14,7 +14,7 @@ use iota_sdk_types::{
     VersionAssignment,
 };
 use iota_types::{
-    crypto::{AccountKeyPair, get_key_pair},
+    crypto::AccountKeyPair,
     effects::TransactionEffectsAPI,
     executable_transaction::VerifiedExecutableTransaction,
     object::Object,
@@ -86,7 +86,8 @@ impl GasPriceFeedbackTester {
         enable_gas_price_feedback_mechanism: bool,
         num_gas_objects: usize,
     ) -> Self {
-        let (sender, sender_key): (Address, AccountKeyPair) = get_key_pair();
+        let sender_key = AccountKeyPair::generate(rand::thread_rng());
+        let sender = sender_key.public_key().derive_address();
 
         let mut protocol_config =
             ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);

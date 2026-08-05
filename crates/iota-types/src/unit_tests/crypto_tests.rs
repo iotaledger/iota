@@ -22,7 +22,7 @@ fn serde_keypair() {
 
 #[test]
 fn serde_pubkey() {
-    let ikp = SimpleKeypair::from(get_key_pair::<Ed25519PrivateKey>().1);
+    let ikp = SimpleKeypair::from(Ed25519PrivateKey::generate(rand::thread_rng()));
     let ser = serde_json::to_string(&PublicKey::from(&ikp)).unwrap();
     assert_eq!(
         ser,
@@ -50,10 +50,10 @@ fn serde_round_trip_authority_quorum_sign_info() {
 
 #[test]
 fn public_key_equality() {
-    let ed_kp1 = SimpleKeypair::from(get_key_pair::<Ed25519PrivateKey>().1);
-    let ed_kp2 = SimpleKeypair::from(get_key_pair::<Ed25519PrivateKey>().1);
-    let k1_kp1 = SimpleKeypair::from(get_key_pair::<Secp256k1PrivateKey>().1);
-    let k1_kp2 = SimpleKeypair::from(get_key_pair::<Secp256k1PrivateKey>().1);
+    let ed_kp1 = SimpleKeypair::from(Ed25519PrivateKey::generate(rand::thread_rng()));
+    let ed_kp2 = SimpleKeypair::from(Ed25519PrivateKey::generate(rand::thread_rng()));
+    let k1_kp1 = SimpleKeypair::from(Secp256k1PrivateKey::generate(rand::thread_rng()));
+    let k1_kp2 = SimpleKeypair::from(Secp256k1PrivateKey::generate(rand::thread_rng()));
 
     let ed_pk1 = PublicKey::from(&ed_kp1);
     let ed_pk2 = PublicKey::from(&ed_kp2);

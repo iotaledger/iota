@@ -7,7 +7,7 @@
 
 use iota_sdk_types::{MoveStruct, ObjectId, Owner, Transaction, TransactionDigest, Version};
 use iota_types::{
-    crypto::{AccountKeyPair, get_key_pair},
+    crypto::AccountKeyPair,
     object::{MoveStructExt, Object},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, TransactionAPI},
@@ -50,7 +50,8 @@ fn transfer_tx(sender: Address, gas: &Object, recipient: Address, amount: u64) -
 
 #[test]
 fn standard_signature_is_verified_on_success() {
-    let (sender, key): (Address, AccountKeyPair) = get_key_pair();
+    let key = AccountKeyPair::generate(rand::thread_rng());
+    let sender = key.public_key().derive_address();
     let gas = gas_coin(sender);
     let recipient = Address::from(ObjectId::random());
 
@@ -76,8 +77,10 @@ fn standard_signature_is_verified_on_success() {
 /// front with [`VmSdkError::SignatureVerification`], never run as if valid.
 #[test]
 fn invalid_standard_signature_is_rejected() {
-    let (sender, _key): (Address, AccountKeyPair) = get_key_pair();
-    let (_other, wrong_key): (Address, AccountKeyPair) = get_key_pair();
+    let sender = AccountKeyPair::generate(rand::thread_rng())
+        .public_key()
+        .derive_address();
+    let wrong_key = AccountKeyPair::generate(rand::thread_rng());
     let gas = gas_coin(sender);
     let recipient = Address::from(ObjectId::random());
 
@@ -103,7 +106,8 @@ fn invalid_standard_signature_is_rejected() {
 /// failure: the ed25519 signature verified fine.
 #[test]
 fn standard_signature_stays_verified_when_body_aborts() {
-    let (sender, key): (Address, AccountKeyPair) = get_key_pair();
+    let key = AccountKeyPair::generate(rand::thread_rng());
+    let sender = key.public_key().derive_address();
     let gas = gas_coin(sender);
     let recipient = Address::from(ObjectId::random());
 

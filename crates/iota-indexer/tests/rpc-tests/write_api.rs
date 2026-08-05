@@ -27,7 +27,7 @@ use iota_sdk_types::{
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    crypto::{AccountKeyPair, get_key_pair},
+    crypto::AccountKeyPair,
     gas_coin::NANOS_PER_IOTA,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::ExecuteTransactionRequestType,
@@ -118,8 +118,11 @@ fn dry_run_transaction_block() {
 
     runtime.block_on(async {
         indexer_wait_for_checkpoint(store, 1).await;
-        let (sender, key_pair): (_, AccountKeyPair) = get_key_pair();
-        let (receiver, _): (_, AccountKeyPair) = get_key_pair();
+        let key_pair = AccountKeyPair::generate(rand::thread_rng());
+        let sender = key_pair.public_key().derive_address();
+        let receiver = AccountKeyPair::generate(rand::thread_rng())
+            .public_key()
+            .derive_address();
 
         let gas_ref = cluster
             .fund_address_and_return_gas(
@@ -221,8 +224,12 @@ fn dev_inspect_transaction_block() {
     runtime.block_on(async {
         indexer_wait_for_checkpoint(store, 1).await;
 
-        let (sender, _): (_, AccountKeyPair) = get_key_pair();
-        let (receiver, _): (_, AccountKeyPair) = get_key_pair();
+        let sender = AccountKeyPair::generate(rand::thread_rng())
+            .public_key()
+            .derive_address();
+        let receiver = AccountKeyPair::generate(rand::thread_rng())
+            .public_key()
+            .derive_address();
 
         let gas_ref = cluster
             .fund_address_and_return_gas(
@@ -317,8 +324,11 @@ fn execute_transaction_block() {
 
     runtime.block_on(async {
         indexer_wait_for_checkpoint(store, 1).await;
-        let (sender, key_pair): (_, AccountKeyPair) = get_key_pair();
-        let (receiver, _): (_, AccountKeyPair) = get_key_pair();
+        let key_pair = AccountKeyPair::generate(rand::thread_rng());
+        let sender = key_pair.public_key().derive_address();
+        let receiver = AccountKeyPair::generate(rand::thread_rng())
+            .public_key()
+            .derive_address();
 
         let gas_ref = cluster
             .fund_address_and_return_gas(
@@ -406,8 +416,11 @@ fn optimistic_objects_are_finalized() {
     runtime.block_on(async {
         indexer_wait_for_checkpoint(store, 1).await;
 
-        let (sender, key_pair): (_, AccountKeyPair) = get_key_pair();
-        let (receiver, _): (_, AccountKeyPair) = get_key_pair();
+        let key_pair = AccountKeyPair::generate(rand::thread_rng());
+        let sender = key_pair.public_key().derive_address();
+        let receiver = AccountKeyPair::generate(rand::thread_rng())
+            .public_key()
+            .derive_address();
 
         let gas_ref = cluster
             .fund_address_and_return_gas(
@@ -502,7 +515,8 @@ fn test_consecutive_modifications_of_owned_object() -> Result<(), anyhow::Error>
         ..
     } = ApiTestSetup::get_or_init();
     runtime.block_on(async move {
-        let (address, keypair): (_, AccountKeyPair) = get_key_pair();
+        let keypair = AccountKeyPair::generate(rand::thread_rng());
+        let address = keypair.public_key().derive_address();
 
         let gas_ref = cluster
             .fund_address_and_return_gas(
@@ -567,7 +581,8 @@ fn test_consecutive_wrap_unwrap() -> Result<(), anyhow::Error> {
     } = ApiTestSetup::get_or_init();
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, 1).await;
-        let (sender, sender_kp): (_, AccountKeyPair) = get_key_pair();
+        let sender_kp = AccountKeyPair::generate(rand::thread_rng());
+        let sender = sender_kp.public_key().derive_address();
 
         let gas_ref = cluster
             .fund_address_and_return_gas(
@@ -654,7 +669,8 @@ fn test_execute_transactions_with_shared_objects() {
     runtime.block_on(async {
         indexer_wait_for_checkpoint(store, 1).await;
 
-        let (sender, sender_kp): (_, AccountKeyPair) = get_key_pair();
+        let sender_kp = AccountKeyPair::generate(rand::thread_rng());
+        let sender = sender_kp.public_key().derive_address();
 
         let gas_ref = cluster
             .fund_address_and_return_gas(
@@ -699,7 +715,8 @@ fn test_parallel_shared_object_updates() {
         .block_on(async {
             indexer_wait_for_checkpoint(store, 1).await;
 
-            let (sender, sender_kp): (_, AccountKeyPair) = get_key_pair();
+            let sender_kp = AccountKeyPair::generate(rand::thread_rng());
+            let sender = sender_kp.public_key().derive_address();
             let rgp = cluster.get_reference_gas_price().await;
             let range = 0..NON_DETERMINISTIC_TESTS_REPETITIONS;
             let gas_objs: Vec<_> = range
@@ -766,7 +783,8 @@ fn test_repeated_tx_execution() {
         .block_on(async {
             indexer_wait_for_checkpoint(store, 1).await;
 
-            let (sender, sender_kp): (_, AccountKeyPair) = get_key_pair();
+            let sender_kp = AccountKeyPair::generate(rand::thread_rng());
+            let sender = sender_kp.public_key().derive_address();
 
             let gas_ref = cluster
                 .fund_address_and_return_gas(
@@ -844,7 +862,8 @@ fn test_parallel_repeated_tx_execution() {
         .block_on(async {
             indexer_wait_for_checkpoint(store, 1).await;
 
-            let (sender, sender_kp): (_, AccountKeyPair) = get_key_pair();
+            let sender_kp = AccountKeyPair::generate(rand::thread_rng());
+            let sender = sender_kp.public_key().derive_address();
 
             let gas_ref = cluster
                 .fund_address_and_return_gas(
@@ -925,7 +944,8 @@ fn test_repeatedly_update_display() {
     runtime.block_on(async {
         indexer_wait_for_checkpoint(store, 1).await;
 
-        let (sender, sender_kp): (_, AccountKeyPair) = get_key_pair();
+        let sender_kp = AccountKeyPair::generate(rand::thread_rng());
+        let sender = sender_kp.public_key().derive_address();
 
         let gas_ref = cluster
             .fund_address_and_return_gas(
@@ -1011,7 +1031,8 @@ fn test_display_indexed_without_version_update() {
     runtime.block_on(async {
         indexer_wait_for_checkpoint(store, 1).await;
 
-        let (sender, sender_kp): (_, AccountKeyPair) = get_key_pair();
+        let sender_kp = AccountKeyPair::generate(rand::thread_rng());
+        let sender = sender_kp.public_key().derive_address();
 
         let gas_ref = cluster
             .fund_address_and_return_gas(
@@ -1052,7 +1073,8 @@ fn test_version_update_overrides_display_indexed_from_object() {
     runtime.block_on(async {
         indexer_wait_for_checkpoint(store, 1).await;
 
-        let (sender, sender_kp): (_, AccountKeyPair) = get_key_pair();
+        let sender_kp = AccountKeyPair::generate(rand::thread_rng());
+        let sender = sender_kp.public_key().derive_address();
 
         let gas_ref = cluster
             .fund_address_and_return_gas(
@@ -1117,7 +1139,8 @@ async fn test_optimistic_tables_pruning() -> IndexerResult<()> {
 
     let txs_per_epoch = [16u64, 22, 18];
 
-    let (sender, sender_kp): (_, AccountKeyPair) = get_key_pair();
+    let sender_kp = AccountKeyPair::generate(rand::thread_rng());
+    let sender = sender_kp.public_key().derive_address();
 
     let gas = cluster
         .fund_address_and_return_gas(
@@ -1562,7 +1585,8 @@ fn move_view_function_call() {
 
     runtime.block_on(async {
         indexer_wait_for_checkpoint(store, 1).await;
-        let (address, keypair): (_, AccountKeyPair) = get_key_pair();
+        let keypair = AccountKeyPair::generate(rand::thread_rng());
+        let address = keypair.public_key().derive_address();
         let keypair = SimpleKeypair::from(keypair);
         let gas_ref = cluster
             .fund_address_and_return_gas(
@@ -1683,7 +1707,8 @@ fn clever_errors() {
 
     runtime.block_on(async {
         indexer_wait_for_checkpoint(store, 1).await;
-        let (address, keypair): (_, AccountKeyPair) = get_key_pair();
+        let keypair = AccountKeyPair::generate(rand::thread_rng());
+        let address = keypair.public_key().derive_address();
         let keypair = SimpleKeypair::from(keypair);
         let gas_ref = cluster
             .fund_address_and_return_gas(
@@ -1759,7 +1784,9 @@ fn dry_run_request_add_stake() {
 
     runtime.block_on(async {
         indexer_wait_for_checkpoint(store, 1).await;
-        let (sender, _key_pair): (_, AccountKeyPair) = get_key_pair();
+        let sender = AccountKeyPair::generate(rand::thread_rng())
+            .public_key()
+            .derive_address();
 
         let gas_ref = cluster
             .fund_address_and_return_gas(

@@ -57,6 +57,7 @@ typed-store.workspace = true
 # external dependencies
 anyhow.workspace = true
 once_cell.workspace = true
+rand.workspace = true
 tempfile.workspace = true
 tokio = { workspace = true, features = ["test-util"] }
 

@@ -5,7 +5,7 @@
 use async_trait::async_trait;
 use iota_json_rpc_types::IotaTransactionBlockResponse;
 use iota_sdk_types::{Address, ObjectId, Owner};
-use iota_types::crypto::{AccountKeyPair, get_key_pair};
+use iota_types::crypto::AccountKeyPair;
 use jsonrpsee::rpc_params;
 use tracing::info;
 
@@ -32,7 +32,9 @@ impl TestCaseImpl for NativeTransferTest {
         let gas_obj = ctx.get_iota_from_faucet(Some(1)).await.swap_remove(0);
 
         let signer = ctx.get_wallet_address();
-        let (recipient_addr, _): (_, AccountKeyPair) = get_key_pair();
+        let recipient_addr = AccountKeyPair::generate(rand::thread_rng())
+            .public_key()
+            .derive_address();
         // Test transfer object
         let obj_to_transfer: ObjectId = *iota_objs.swap_remove(0).id();
         let params = rpc_params![

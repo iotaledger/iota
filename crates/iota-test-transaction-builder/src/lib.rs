@@ -23,7 +23,7 @@ use iota_sdk_types::{
     crypto::{BitmapUnit, MultisigAggregatedSignature, MultisigCommittee, SimpleSignature},
 };
 use iota_types::{
-    crypto::{AccountKeyPair, get_key_pair},
+    crypto::AccountKeyPair,
     transaction::{
         CallArg, DEFAULT_VALIDATOR_GAS_PRICE, TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE,
         TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI, TransactionEnvelope,
@@ -491,7 +491,9 @@ pub async fn batch_make_transfer_transactions(
     context: &WalletContext,
     max_txn_num: usize,
 ) -> Vec<TransactionEnvelope> {
-    let recipient = get_key_pair::<AccountKeyPair>().0;
+    let recipient = AccountKeyPair::generate(rand::thread_rng())
+        .public_key()
+        .derive_address();
     let result = context.get_all_accounts_and_gas_objects().await;
     let accounts_and_objs = result.unwrap();
     let mut res = Vec::with_capacity(max_txn_num);

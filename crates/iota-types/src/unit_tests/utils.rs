@@ -19,10 +19,7 @@ use rand::{SeedableRng, rngs::StdRng};
 use crate::{
     base_types::{dbg_addr, random_object_ref},
     committee::Committee,
-    crypto::{
-        AccountKeyPair, AuthorityKeyPair, AuthorityPublicKeyBytes, get_key_pair,
-        get_key_pair_from_rng,
-    },
+    crypto::{AccountKeyPair, AuthorityKeyPair, AuthorityPublicKeyBytes, get_key_pair_from_rng},
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI, TransactionEnvelope},
@@ -60,7 +57,8 @@ where
 // Creates a fake sender-signed transaction for testing. This transaction will
 // not actually work.
 pub fn create_fake_transaction() -> TransactionEnvelope {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender = sender_key.public_key().derive_address();
     let recipient = dbg_addr(2);
     let object_id = ObjectId::random();
     let object = Object::immutable_with_id_for_testing(object_id);
@@ -206,8 +204,10 @@ pub fn make_upgraded_multisig_tx() -> TransactionEnvelope {
 /// Returns the transaction together with the sender's and sponsor's addresses
 /// so callers can locate each signature within the transaction.
 pub fn make_sponsored_regular_sig_tx() -> (TransactionEnvelope, Address, Address) {
-    let (sender, sender_kp): (_, AccountKeyPair) = get_key_pair();
-    let (sponsor, sponsor_kp): (_, AccountKeyPair) = get_key_pair();
+    let sender_kp = AccountKeyPair::generate(rand::thread_rng());
+    let sender = sender_kp.public_key().derive_address();
+    let sponsor_kp = AccountKeyPair::generate(rand::thread_rng());
+    let sponsor = sponsor_kp.public_key().derive_address();
     let tx_data = make_sponsored_transaction_data(sender, sponsor);
     let sender_sig: UserSignature = TransactionEnvelope::signature_from_signer(
         tx_data.clone(),

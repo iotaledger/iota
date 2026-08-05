@@ -689,11 +689,7 @@ fn default_authority_key_pair() -> AuthorityKeyPairWithPath {
 }
 
 fn default_key_pair() -> KeyPairWithPath {
-    KeyPairWithPath::new(
-        get_key_pair_from_rng::<AccountKeyPair, _>(&mut OsRng)
-            .1
-            .into(),
-    )
+    KeyPairWithPath::new(AccountKeyPair::generate(OsRng).into())
 }
 
 fn default_metrics_address() -> SocketAddr {

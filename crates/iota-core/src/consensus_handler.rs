@@ -925,7 +925,7 @@ mod tests {
     use iota_types::{
         base_types::{AuthorityName, random_object_ref},
         committee::Committee,
-        crypto::{AccountKeyPair, get_key_pair},
+        crypto::AccountKeyPair,
         messages_consensus::{
             AuthorityCapabilitiesV1, ConsensusTransaction, ConsensusTransactionKind,
         },
@@ -1097,7 +1097,8 @@ mod tests {
             config
         });
 
-        let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+        let sender_key = AccountKeyPair::generate(rand::thread_rng());
+        let sender = sender_key.public_key().derive_address();
         let num_txns: usize = 3;
 
         // Create owned objects and gas objects for the UserTransactionV1 transactions
@@ -1143,7 +1144,9 @@ mod tests {
         );
 
         // AND build one block per UserTransactionV1 transaction
-        let (recipient, _): (Address, AccountKeyPair) = get_key_pair();
+        let recipient = AccountKeyPair::generate(rand::thread_rng())
+            .public_key()
+            .derive_address();
         let mut headers = Vec::new();
         let mut subdag_transactions = Vec::new();
 

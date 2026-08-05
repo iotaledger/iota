@@ -6,10 +6,7 @@ use iota_keys::keystore::AccountKeystore;
 use iota_macros::sim_test;
 use iota_swarm_config::genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT, GenesisConfig};
 use iota_test_transaction_builder::TestTransactionBuilder;
-use iota_types::{
-    crypto::{AccountKeyPair, get_key_pair_from_rng},
-    gas_coin::NANOS_PER_IOTA,
-};
+use iota_types::{crypto::AccountKeyPair, gas_coin::NANOS_PER_IOTA};
 use test_cluster::TestClusterBuilder;
 
 /// This e2e test ensures that the tokenomics implementation gives an ~6% APY
@@ -62,7 +59,8 @@ async fn test_apy() {
     let pool_stake = 3_500_000_000 * NANOS_PER_IOTA / 4;
     let mut rng = rand::thread_rng();
     let mut genesis_config = GenesisConfig::for_local_testing();
-    let (address, keypair): (_, AccountKeyPair) = get_key_pair_from_rng(&mut rng);
+    let keypair = AccountKeyPair::generate(&mut rng);
+    let address = keypair.public_key().derive_address();
     genesis_config.accounts.extend([AccountConfig {
         address: Some(address),
         gas_amounts: vec![DEFAULT_GAS_AMOUNT, pool_stake],

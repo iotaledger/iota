@@ -33,7 +33,7 @@ use crate::{
     committee::{Committee, EpochId},
     crypto::{
         AccountKeyPair, AggregateAuthoritySignature, AuthoritySignInfo, AuthoritySignInfoTrait,
-        AuthorityStrongQuorumSignInfo, default_hash, get_key_pair,
+        AuthorityStrongQuorumSignInfo, default_hash,
     },
     effects::{TestEffectsBuilder, TransactionEffectsAPI},
     error::{IotaError, IotaResult},
@@ -583,7 +583,8 @@ impl FullCheckpointContents {
     }
 
     pub fn random_for_testing() -> Self {
-        let (a, key): (_, AccountKeyPair) = get_key_pair();
+        let key = AccountKeyPair::generate(rand::thread_rng());
+        let a = key.public_key().derive_address();
         let transaction = TransactionEnvelope::from_data_and_signer(
             Transaction::new_transfer(
                 a,

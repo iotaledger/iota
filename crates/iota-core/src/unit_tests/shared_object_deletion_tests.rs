@@ -14,7 +14,7 @@ use iota_sdk_types::{
 };
 use iota_types::{
     committee::EpochId,
-    crypto::{AccountKeyPair, get_key_pair},
+    crypto::AccountKeyPair,
     effects::TransactionEffectsAPI,
     error::{ExecutionError, IotaError},
     object::Object,
@@ -49,7 +49,8 @@ pub struct TestRunner {
 impl TestRunner {
     pub async fn new(base_package_name: &str) -> Self {
         telemetry_subscribers::init_for_testing();
-        let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+        let sender_key = AccountKeyPair::generate(rand::thread_rng());
+        let sender = sender_key.public_key().derive_address();
 
         let protocol_config =
             ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);

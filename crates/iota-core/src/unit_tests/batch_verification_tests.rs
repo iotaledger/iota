@@ -14,7 +14,7 @@ use iota_sdk_types::{
 };
 use iota_types::{
     committee::Committee,
-    crypto::{AccountKeyPair, AuthorityKeyPair, get_key_pair},
+    crypto::{AccountKeyPair, AuthorityKeyPair},
     messages_checkpoint::{CheckpointContentsExt, CheckpointSummaryExt, SignedCheckpointSummary},
     transaction::CertifiedTransaction,
 };
@@ -33,10 +33,15 @@ fn gen_certs(
     key_pairs: &[AuthorityKeyPair],
     count: usize,
 ) -> Vec<CertifiedTransaction> {
-    let (receiver, _): (_, AccountKeyPair) = get_key_pair();
+    let receiver = AccountKeyPair::generate(rand::thread_rng())
+        .public_key()
+        .derive_address();
 
     let senders: Vec<_> = (0..count)
-        .map(|_| get_key_pair::<AccountKeyPair>())
+        .map(|_| {
+            let key = AccountKeyPair::generate(rand::thread_rng());
+            (key.public_key().derive_address(), key)
+        })
         .collect();
 
     let txns: Vec<_> = senders
@@ -107,11 +112,14 @@ async fn test_batch_verify() {
         .unwrap_err();
     }
 
-    let (other_sender, other_sender_sec): (_, AccountKeyPair) = get_key_pair();
+    let other_sender_sec = AccountKeyPair::generate(rand::thread_rng());
+    let other_sender = other_sender_sec.public_key().derive_address();
     // this test is a bit much for the current implementation - it was originally
     // written to verify a bisecting fall back approach.
     for i in 0..16 {
-        let (receiver, _): (_, AccountKeyPair) = get_key_pair();
+        let receiver = AccountKeyPair::generate(rand::thread_rng())
+            .public_key()
+            .derive_address();
         let mut certs = certs.clone();
         let other_tx = make_dummy_tx(receiver, other_sender, &other_sender_sec);
         let other_cert = make_cert_with_large_committee(&committee, &key_pairs, &other_tx);
@@ -155,8 +163,11 @@ async fn test_async_verifier() {
             tokio::task::spawn(async move {
                 let certs = gen_certs(&committee, &key_pairs, 100);
 
-                let (receiver, _): (_, AccountKeyPair) = get_key_pair();
-                let (other_sender, other_sender_sec): (_, AccountKeyPair) = get_key_pair();
+                let receiver = AccountKeyPair::generate(rand::thread_rng())
+                    .public_key()
+                    .derive_address();
+                let other_sender_sec = AccountKeyPair::generate(rand::thread_rng());
+                let other_sender = other_sender_sec.public_key().derive_address();
                 let other_tx = make_dummy_tx(receiver, other_sender, &other_sender_sec);
                 let other_cert = make_cert_with_large_committee(&committee, &key_pairs, &other_tx);
 

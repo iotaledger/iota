@@ -9,7 +9,7 @@ use iota_sdk_types::{
     Owner, ProgrammableTransaction, SharedObjectReference, TransactionEffects, Version,
 };
 use iota_types::{
-    crypto::{AccountKeyPair, get_key_pair},
+    crypto::AccountKeyPair,
     effects::TransactionEffectsAPI,
     error::{IotaError, UserInputError},
     object::Object,
@@ -77,7 +77,8 @@ impl TestRunner {
         aggressive_pruning_enabled: bool,
     ) -> Self {
         telemetry_subscribers::init_for_testing();
-        let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+        let sender_key = AccountKeyPair::generate(rand::thread_rng());
+        let sender = sender_key.public_key().derive_address();
 
         let authority_state = TestAuthorityBuilder::new().build().await;
         let rgp = authority_state.reference_gas_price_for_testing().unwrap();

@@ -388,7 +388,9 @@ mod tests {
 
         let rgp = state.epoch_store_for_testing().reference_gas_price();
         let gas_ref = state.get_object(&gas_object_id).unwrap().object_ref();
-        let recipient = iota_types::crypto::get_key_pair::<AccountKeyPair>().0;
+        let recipient = iota_types::crypto::AccountKeyPair::generate(rand::thread_rng())
+            .public_key()
+            .derive_address();
         let signed_tx =
             make_transfer_iota_transaction(gas_ref, recipient, None, sender, &sender_key, rgp);
 

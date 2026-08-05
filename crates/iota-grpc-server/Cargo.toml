@@ -45,6 +45,8 @@ prometheus-filtered.workspace = true
 # external dependencies
 async-trait.workspace = true
 
+rand.workspace = true
+
 # internal dependencies
 iota-grpc-client.workspace = true
 iota-test-transaction-builder.workspace = true

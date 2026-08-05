@@ -30,7 +30,7 @@ use iota_test_transaction_builder::{
     publish_simple_warrior_package,
 };
 use iota_types::{
-    crypto::{AccountKeyPair, get_key_pair},
+    crypto::AccountKeyPair,
     digests::ChainIdentifier,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::CallArg,
@@ -942,7 +942,8 @@ fn get_newly_indexed_optimistic_transaction() -> Result<(), anyhow::Error> {
     } = ApiTestSetup::get_or_init();
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, 1).await;
-        let (sender, sender_kp): (_, AccountKeyPair) = get_key_pair();
+        let sender_kp = AccountKeyPair::generate(rand::thread_rng());
+        let sender = sender_kp.public_key().derive_address();
 
         let gas_ref = cluster
             .fund_address_and_return_gas(
@@ -1032,7 +1033,8 @@ fn get_newly_created_optimistically_indexed_event() -> Result<(), anyhow::Error>
     } = ApiTestSetup::get_or_init();
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, 1).await;
-        let (sender, sender_kp): (_, AccountKeyPair) = get_key_pair();
+        let sender_kp = AccountKeyPair::generate(rand::thread_rng());
+        let sender = sender_kp.public_key().derive_address();
 
         let gas_ref = cluster
             .fund_address_and_return_gas(
@@ -1516,7 +1518,9 @@ fn try_get_past_object_version_found() {
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, 1).await;
 
-        let (sender, _): (_, AccountKeyPair) = get_key_pair();
+        let sender = AccountKeyPair::generate(rand::thread_rng())
+            .public_key()
+            .derive_address();
 
         let (gas_ref, tx_digest) = cluster
             .fund_address_and_return_gas_and_tx(
@@ -1558,7 +1562,9 @@ fn try_get_past_object_version_not_found() {
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, 1).await;
 
-        let (sender, _): (_, AccountKeyPair) = get_key_pair();
+        let sender = AccountKeyPair::generate(rand::thread_rng())
+            .public_key()
+            .derive_address();
 
         let (gas_ref, tx_digest) = cluster
             .fund_address_and_return_gas_and_tx(
@@ -1597,7 +1603,9 @@ fn try_get_past_object_version_too_high() {
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, 1).await;
 
-        let (sender, _): (_, AccountKeyPair) = get_key_pair();
+        let sender = AccountKeyPair::generate(rand::thread_rng())
+            .public_key()
+            .derive_address();
 
         let (gas_ref, tx_digest) = cluster
             .fund_address_and_return_gas_and_tx(
@@ -1763,7 +1771,9 @@ fn try_multi_get_past_objects() {
         );
 
         // Create valid objects
-        let (sender, _): (_, AccountKeyPair) = get_key_pair();
+        let sender = AccountKeyPair::generate(rand::thread_rng())
+            .public_key()
+            .derive_address();
         let (gas_ref_1, tx_digest_1) = cluster
             .fund_address_and_return_gas_and_tx(
                 cluster.get_reference_gas_price().await,
@@ -1860,8 +1870,11 @@ fn try_get_object_before_version() {
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, 1).await;
 
-        let (sender, keypair): (_, AccountKeyPair) = get_key_pair();
-        let (receiver, _): (_, AccountKeyPair) = get_key_pair();
+        let keypair = AccountKeyPair::generate(rand::thread_rng());
+        let sender = keypair.public_key().derive_address();
+        let receiver = AccountKeyPair::generate(rand::thread_rng())
+            .public_key()
+            .derive_address();
 
         let gas_ref = cluster
             .fund_address_and_return_gas(
@@ -2030,7 +2043,8 @@ fn find_transaction_for_wrapped_or_deleted_object() -> Result<(), anyhow::Error>
 
     runtime.block_on(async move {
         // 1) Set up wallet and fund it
-        let (address, keypair): (_, AccountKeyPair) = get_key_pair();
+        let keypair = AccountKeyPair::generate(rand::thread_rng());
+        let address = keypair.public_key().derive_address();
         let gas = cluster
             .fund_address_and_return_gas(
                 cluster.get_reference_gas_price().await,
@@ -2358,7 +2372,8 @@ fn find_transaction_for_create_and_wrap_same_ptb() -> Result<(), anyhow::Error> 
 
     runtime.block_on(async move {
         // 1) Set up the wallet and fund it with gas
-        let (address, keypair): (_, AccountKeyPair) = get_key_pair();
+        let keypair = AccountKeyPair::generate(rand::thread_rng());
+        let address = keypair.public_key().derive_address();
         let gas = cluster
             .fund_address_and_return_gas(
                 cluster.get_reference_gas_price().await,
@@ -2585,7 +2600,8 @@ fn get_transaction_block_with_unwrapped_object_changes() -> Result<(), anyhow::E
     } = ApiTestSetup::get_or_init();
 
     runtime.block_on(async move {
-        let (address, keypair): (_, AccountKeyPair) = get_key_pair();
+        let keypair = AccountKeyPair::generate(rand::thread_rng());
+        let address = keypair.public_key().derive_address();
         let keypair = SimpleKeypair::from(keypair);
         let gas = cluster
             .fund_address_and_return_gas(
