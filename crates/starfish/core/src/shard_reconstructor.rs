@@ -222,7 +222,7 @@ fn record_reconstruction_verification_failure(
         .filter_map(|i| context.committee.to_authority_index(i))
         .collect();
     misbehavior_store.record_faulty_transactions(author, authored, relayers);
-    warn!(
+    error!(
         "Reconstructed transactions for {:?} failed verification: {:?}",
         tx_ref, err
     );
