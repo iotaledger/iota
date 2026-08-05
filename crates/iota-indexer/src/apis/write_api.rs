@@ -7,10 +7,7 @@ use std::{sync::Arc, time::Duration};
 use async_trait::async_trait;
 use fastcrypto::encoding::Base64;
 use futures::{FutureExt, TryFutureExt};
-use iota_grpc_client::{
-    Client as GrpcClient,
-    read_mask_fields::{EpochField, SimulateField},
-};
+use iota_grpc_client::{Client as GrpcClient, read_mask_fields::SimulateField};
 use iota_json::IotaJsonValue;
 use iota_json_rpc::{
     IotaRpcModule, ObjectProvider, get_balance_changes_from_effect, get_object_changes,
@@ -25,9 +22,8 @@ use iota_json_rpc_types::{
 use iota_open_rpc::Module;
 use iota_package_resolver::{PackageStore, Resolver};
 use iota_sdk_types::{
-    Address, GasPayment, ObjectId, SenderSignedTransaction, Transaction, TransactionDigest,
-    TransactionEffects, TransactionExpiration, TransactionKind, TransactionV1, UserSignature,
-    Version,
+    Address, GasPayment, ObjectId, SenderSignedTransaction, Transaction, TransactionEffects,
+    TransactionExpiration, TransactionKind, TransactionV1, UserSignature, Version,
 };
 use iota_transaction_builder::TransactionBuilder;
 use iota_types::{
@@ -46,11 +42,14 @@ use crate::{
     optimistic_indexing::{IngestionPath, OptimisticTransactionExecutor},
     read::IndexerReader,
     store::package_resolver::IndexerStorePackageResolver,
-    types::{IndexedObjectChange, grpc_conversion},
+    types::grpc_conversion,
 };
 
 // As an optimization, we're trying to request only the fields we actually need.
 const DRY_RUN_TRANSACTION_READ_MASK: &[SimulateField] = &[
+    // The transaction the simulation ran, rather than the one that was sent: the node fills
+    // in gas the caller left unset, and that is what the response reports back.
+    SimulateField::EXECUTED_TRANSACTION_TRANSACTION_BCS,
     SimulateField::EXECUTED_TRANSACTION_SIGNATURES_BCS,
     SimulateField::EXECUTED_TRANSACTION_EFFECTS_BCS,
     SimulateField::EXECUTED_TRANSACTION_EVENTS_EVENTS_BCS,
@@ -100,8 +99,7 @@ impl WriteApi {
         tx_bytes: Base64,
         package_resolver: &Arc<Resolver<impl PackageStore>>,
     ) -> IndexerResult<DryRunTransactionBlockResponse> {
-        let tx = bcs::from_bytes::<Transaction>(&tx_bytes.to_vec()?)?;
-        let tx_digest = tx.digest();
+        let tx: Transaction = bcs::from_bytes::<Transaction>(&tx_bytes.to_vec()?)?;
 
         let simulate_tx_response = self
             .fullnode_grpc_client
@@ -125,6 +123,12 @@ impl WriteApi {
 
         let tx_effects: TransactionEffects = executed_transaction.effects()?.effects()?;
 
+        // The digest of what actually ran, which is the one the effects and the events
+        // are keyed by. It differs from the digest of the transaction as sent whenever
+        // the simulation filled gas in — a mock gas coin changes the transaction it is
+        // taken over.
+        let tx_digest = *tx_effects.transaction_digest();
+
         let tx_signatures = executed_transaction
             .signatures()?
             .signatures
@@ -132,24 +136,50 @@ impl WriteApi {
             .map(|s| -> IndexerResult<_> { Ok(s.signature()?) })
             .collect::<IndexerResult<Vec<UserSignature>>>()?;
 
-        let sender_signed_tx = SenderSignedTransaction::new(tx.clone(), tx_signatures);
+        // Report the transaction the simulation ran, not the one that was sent: the
+        // node fills in the gas the caller left unset and reports what it charged in
+        // its place, which is how a caller reads back an estimate.
+        let simulated_transaction = executed_transaction.transaction()?.transaction()?;
+        let sender_signed_tx = SenderSignedTransaction::new(simulated_transaction, tx_signatures);
 
         let tx_events = executed_transaction.events()?.events()?;
 
         let in_mem_tx_changes = TxObjectResolver::new(&objects, self.reader.clone());
 
-        // as a minor optimization we will run concurrently the following four futures
-        let fut1 = in_mem_tx_changes
-            .get_changes(&tx, &tx_effects, &tx_digest)
-            .map_ok(|(balance_changes, object_changes)| {
-                (
-                    balance_changes,
-                    object_changes
-                        .into_iter()
-                        .map(iota_json_rpc_types::ObjectChange::from)
-                        .collect::<Vec<_>>(),
-                )
-            });
+        // A transaction that carries no gas payment is simulated against a mock gas
+        // coin, which the response names in the payment it ran with. That coin is not
+        // the caller's, so neither is the balance change of paying gas out of it —
+        // exclude it, the way the node's own JSON-RPC dry run does.
+        let mocked_coin = tx
+            .gas()
+            .is_empty()
+            .then(|| sender_signed_tx.transaction().gas().first())
+            .flatten()
+            .map(|gas_ref| gas_ref.object_id);
+
+        // Derived from the transaction as sent, whose inputs are the ones the caller
+        // is asking about; a mock gas coin is not among them. Object changes do keep
+        // the mock coin, which is what the node and gRPC both report.
+        let input_objs = tx.input_objects()?;
+        let sender = tx.sender();
+
+        // as a minor optimization we will run concurrently the following five futures
+        let fut1 = get_balance_changes_from_effect(
+            &in_mem_tx_changes,
+            &tx_effects,
+            input_objs,
+            mocked_coin,
+        )
+        .map_err(Into::into);
+
+        let fut5 = get_object_changes(
+            &in_mem_tx_changes,
+            sender,
+            tx_effects.modified_at_versions(),
+            tx_effects.all_changed_objects(),
+            tx_effects.all_removed_objects(),
+        )
+        .map_err(Into::<IndexerError>::into);
 
         let fut2 = IotaTransactionBlock::try_from_with_package_resolver(
             sender_signed_tx,
@@ -168,8 +198,8 @@ impl WriteApi {
         )
         .map(Ok);
 
-        let ((balance_changes, object_changes), transaction_block, events, effects) =
-            futures::future::try_join4(fut1, fut2, fut3, fut4).await?;
+        let (balance_changes, transaction_block, events, effects, object_changes) =
+            futures::future::try_join5(fut1, fut2, fut3, fut4, fut5).await?;
 
         Ok(DryRunTransactionBlockResponse {
             effects,
@@ -201,48 +231,52 @@ impl WriteApi {
         let show_raw_txn_data_and_effects = show_raw_txn_data_and_effects.unwrap_or(false);
         let skip_checks = skip_checks.unwrap_or(true);
 
-        let (price, budget) = match (gas_price, gas_budget) {
-            (Some(price), Some(budget)) => (price.into_inner(), budget),
-            (price, budget) => {
-                let (ref_price, max_gas) = self.reference_gas_price_and_max_tx_gas().await?;
-                (
-                    price.map(BigInt::into_inner).unwrap_or(ref_price),
-                    budget.unwrap_or(max_gas),
-                )
-            }
-        };
-
-        let owner = gas_sponsor.unwrap_or(sender_address);
-        let payment = gas_objects.unwrap_or_default();
-
         let kind = bcs::from_bytes::<TransactionKind>(&tx_bytes.to_vec()?)?;
 
         let tx = Transaction::V1(TransactionV1 {
             kind,
             sender: sender_address,
             gas_payment: GasPayment {
-                objects: payment,
-                owner,
-                price,
-                budget,
+                // Any of these the caller leaves out is filled in by the simulation on
+                // the node: an empty payment gets a mock gas coin, a zero price gets the
+                // epoch's reference gas price, and a zero budget gets the protocol
+                // maximum.
+                objects: gas_objects.unwrap_or_default(),
+                owner: gas_sponsor.unwrap_or(sender_address),
+                price: gas_price.map(BigInt::into_inner).unwrap_or_default(),
+                budget: gas_budget.unwrap_or_default(),
             },
             expiration: TransactionExpiration::None,
         });
 
-        let raw_txn_data = show_raw_txn_data_and_effects
-            .then(|| bcs::to_bytes(&tx))
-            .transpose()?
-            .unwrap_or_default();
+        // The transaction is only read back when it is going to be reported, since it
+        // costs bytes on the wire.
+        let mut read_mask = DEV_INSPECT_TRANSACTION_READ_MASK.to_vec();
+        if show_raw_txn_data_and_effects {
+            read_mask.push(SimulateField::EXECUTED_TRANSACTION_TRANSACTION_BCS);
+        }
 
         let simulate_tx_response = self
             .fullnode_grpc_client
-            .simulate_transaction(tx, skip_checks, DEV_INSPECT_TRANSACTION_READ_MASK)
+            .simulate_transaction(tx, skip_checks, read_mask)
             .await?
             .into_inner();
 
         let executed_transaction = simulate_tx_response.executed_transaction()?;
 
         let tx_effects: TransactionEffects = executed_transaction.effects()?.effects()?;
+
+        // Report the transaction the simulation ran, not the one that was sent: the
+        // node fills in the gas the caller left unset and reports what it charged in
+        // its place, which is how a caller reads back an estimate.
+        let raw_txn_data = show_raw_txn_data_and_effects
+            .then(|| -> IndexerResult<_> {
+                Ok(bcs::to_bytes(
+                    &executed_transaction.transaction()?.transaction()?,
+                )?)
+            })
+            .transpose()?
+            .unwrap_or_default();
 
         let raw_effects = show_raw_txn_data_and_effects
             .then(|| bcs::to_bytes(&tx_effects))
@@ -287,35 +321,6 @@ impl WriteApi {
             raw_txn_data,
             raw_effects,
         })
-    }
-
-    /// Gets the reference gas price and max transaction gas from the gRPC API.
-    async fn reference_gas_price_and_max_tx_gas(&self) -> IndexerResult<(u64, u64)> {
-        let epoch = self
-            .fullnode_grpc_client
-            .get_epoch(
-                None, // we're requesting the information for the current epoch.
-                {
-                    [
-                        EpochField::REFERENCE_GAS_PRICE,
-                        EpochField::attribute("max_tx_gas"),
-                    ]
-                },
-            )
-            .await?
-            .into_inner();
-
-        let max_tx_gas = epoch
-            .protocol_config()?
-            .attributes()?
-            .get("max_tx_gas")
-            .ok_or_else(|| {
-                IndexerError::Grpc("protocol_config's `max_tx_gas` should be available".into())
-            })?
-            .parse::<u64>()
-            .map_err(|e| IndexerError::Grpc(e.to_string()))?;
-
-        Ok((epoch.reference_gas_price(), max_tx_gas))
     }
 }
 
@@ -542,38 +547,6 @@ impl TxObjectResolver {
                 .map_err(backoff::Error::transient)
         })
         .await
-    }
-
-    pub(crate) async fn get_changes(
-        &self,
-        tx: &Transaction,
-        effects: &TransactionEffects,
-        tx_digest: &TransactionDigest,
-    ) -> IndexerResult<(
-        Vec<iota_json_rpc_types::BalanceChange>,
-        Vec<IndexedObjectChange>,
-    )> {
-        let object_changes: Vec<_> = get_object_changes(
-            self,
-            tx.sender(),
-            effects.modified_at_versions(),
-            effects.all_changed_objects(),
-            effects.all_removed_objects(),
-        )
-        .await?
-        .into_iter()
-        .map(IndexedObjectChange::from)
-        .collect();
-        let balance_changes = get_balance_changes_from_effect(
-            self,
-            effects,
-            tx.input_objects().unwrap_or_else(|e| {
-                panic!("checkpointed tx {tx_digest} has invalid input objects: {e}")
-            }),
-            None,
-        )
-        .await?;
-        Ok((balance_changes, object_changes))
     }
 }
 
