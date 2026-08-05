@@ -4650,6 +4650,15 @@ impl AuthorityPerEpochStore {
                 .consensus_handler_max_object_costs
                 .with_label_values(&["randomness_commit"])
                 .set(randomness_tracker.max_occupied_slot_end_time() as i64);
+        } else {
+            // The combined tracker schedules randomness-using transactions
+            // together with the rest, so there is no separate randomness
+            // tracker to report. Report zero rather than leaving the last
+            // value from before the combined tracker was enabled.
+            authority_metrics
+                .consensus_handler_max_object_costs
+                .with_label_values(&["randomness_commit"])
+                .set(0);
         }
 
         // Record accumulated debts from this consensus commit following sequencing.

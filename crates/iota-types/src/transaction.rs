@@ -2907,7 +2907,14 @@ pub struct InputObjects {
 
 impl std::fmt::Debug for InputObjects {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_list().entries(self.objects.iter()).finish()
+        match &self.gas_object_cancellation {
+            None => f.debug_list().entries(self.objects.iter()).finish(),
+            Some(gas_object_cancellation) => f
+                .debug_struct("InputObjects")
+                .field("objects", &self.objects)
+                .field("gas_object_cancellation", gas_object_cancellation)
+                .finish(),
+        }
     }
 }
 

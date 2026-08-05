@@ -281,6 +281,13 @@ impl WorkerSlots {
         ObjectExecutionSlots(free_slots)
     }
 
+    /// Returns the end time of the last slot in which a worker is occupied, or
+    /// `0` if no transaction has been scheduled. The slots are sorted and
+    /// zero-count slots are never stored, so this is the last slot's end time.
+    fn max_occupied_end_time(&self) -> ExecutionTime {
+        self.0.last().map_or(0, |slot| slot.end_time)
+    }
+
     /// Increments the worker count over `[start_time, start_time + duration)`,
     /// maintaining the invariant (sorted, disjoint, adjacent-equal-count
     /// slots merged, no zero-count slots).
@@ -756,13 +763,21 @@ impl SharedObjectCongestionTracker {
         ))
     }
 
-    /// Returns the maximum occupied slot end time over all shared objects.
+    /// Returns the maximum occupied slot end time over all shared objects and,
+    /// when execution-worker congestion control is active, the execution-worker
+    /// pool. The pool must be included because a commit of owned-object-only
+    /// transactions occupies workers without occupying any object slot.
     pub(super) fn max_occupied_slot_end_time(&self) -> ExecutionTime {
         self.object_execution_slots
             .values()
             .map(|slots| slots.max_object_occupied_slot_end_time())
             .max()
             .unwrap_or(0)
+            .max(
+                self.worker_slots
+                    .as_ref()
+                    .map_or(0, WorkerSlots::max_occupied_end_time),
+            )
     }
 
     /// Returns accumulated debts for objects whose budgets have been exceeded
@@ -2384,6 +2399,49 @@ mod object_cost_tests {
             SequencingResult::Schedule(_) => {
                 panic!("expected the second owned-object-only tx to be shed")
             }
+        }
+    }
+
+    // Owned-object-only transactions occupy execution workers without
+    // occupying any object slot, so the maximum occupied slot end time has to
+    // come from the worker pool rather than being reported as zero.
+    #[test]
+    fn test_max_occupied_slot_end_time_covers_worker_slots() {
+        let mut congestion_control_parameters = CongestionControlParameters::new_for_test(
+            PerObjectCongestionControlMode::TotalTxCount,
+            true,    // congestion_control_min_free_execution_slot
+            Some(3), // max_execution_duration_per_commit (also the congestion limit)
+            None,    // max_congestion_limit_overshoot_per_commit
+            TEST_ONLY_GAS_PRICE,
+            false,
+            false,
+        );
+        // A single execution worker, which serializes execution.
+        congestion_control_parameters.set_max_concurrent_execution_workers_for_test(1);
+        let mut tracker = SharedObjectCongestionTracker::new(
+            Vec::new(),
+            Vec::new(),
+            congestion_control_parameters,
+        );
+        let previously_deferred = PreviouslyDeferredTransactions::new();
+
+        assert_eq!(tracker.max_occupied_slot_end_time(), 0);
+
+        // Three owned-object-only transactions run back-to-back on the single
+        // worker, so each starts when the previous one ends.
+        for expected_start_time in 0..3 {
+            let tx = build_transaction(&[], 0, TEST_ONLY_GAS_PRICE);
+            let SequencingResult::Schedule(start_time) =
+                tracker.try_schedule(&tx, &previously_deferred, 0)
+            else {
+                panic!("owned-object-only tx {expected_start_time} should be scheduled");
+            };
+            assert_eq!(start_time, expected_start_time);
+            tracker.bump_object_execution_slots(&tx, start_time);
+            assert_eq!(
+                tracker.max_occupied_slot_end_time(),
+                expected_start_time + 1
+            );
         }
     }
 
