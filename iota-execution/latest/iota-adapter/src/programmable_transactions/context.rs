@@ -1287,8 +1287,11 @@ mod checked {
                     return Err(ExecutionError::new(
                         ExecutionErrorKind::SharedObjectOperationNotAllowed,
                         Some(
-                            format!("Shared object operation on {id} not allowed: \
-                                     shared objects used by value must be re-shared if not deleted").into(),
+                            format!(
+                                "Shared object operation on {id} not allowed: \
+                                     shared objects used by value must be re-shared if not deleted"
+                            )
+                            .into(),
                         ),
                     ));
                 }
