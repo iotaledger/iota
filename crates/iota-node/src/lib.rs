@@ -8,7 +8,7 @@ use std::{
     collections::HashMap,
     fmt,
     future::Future,
-    path::PathBuf,
+    num::NonZeroUsize,
     sync::{Arc, Weak},
     time::Duration,
 };
@@ -24,9 +24,7 @@ use futures::future::BoxFuture;
 pub use handle::IotaNodeHandle;
 use iota_common::{debug_fatal, fatal};
 use iota_config::{
-    ConsensusConfig, NodeConfig,
-    node::{DBCheckpointConfig, RunWithRange},
-    node_config_metrics::NodeConfigMetrics,
+    ConsensusConfig, NodeConfig, node::RunWithRange, node_config_metrics::NodeConfigMetrics,
 };
 use iota_core::{
     authority::{
@@ -60,7 +58,6 @@ use iota_core::{
     consensus_handler::ConsensusHandlerInitializer,
     consensus_manager::{ConsensusManager, ConsensusManagerTrait, UpdatableConsensusClient},
     consensus_validator::{IotaTxValidator, IotaTxValidatorMetrics},
-    db_checkpoint_handler::DBCheckpointHandler,
     epoch::{
         committee_store::CommitteeStore, consensus_store_pruner::ConsensusStorePruner,
         epoch_metrics::EpochMetrics, randomness::RandomnessManager,
@@ -115,6 +112,7 @@ use iota_types::{
     base_types::{AuthorityName, ConciseableName, EpochId},
     committee::Committee,
     crypto::{AuthoritySignature, IotaAuthoritySignature, KeypairTraits},
+    deny_rule_governance::DenyRuleSet,
     digests::ChainIdentifier,
     error::{IotaError, IotaResult},
     executable_transaction::VerifiedExecutableTransaction,
@@ -127,12 +125,12 @@ use iota_types::{
     messages_checkpoint::CheckpointSummaryExt,
     messages_consensus::{
         AuthorityCapabilitiesV1, ConsensusTransaction, ConsensusTransactionKind,
-        SignedAuthorityCapabilitiesV1,
+        SignedAuthorityCapabilitiesV1, TransactionDenyRuleProposal,
     },
     messages_grpc::HandleCapabilityNotificationRequestV1,
     quorum_driver_types::QuorumDriverEffectsQueueResult,
     supported_protocol_versions::SupportedProtocolVersions,
-    transaction::{SenderSignedTransactionAPI, Transaction, VerifiedCertificate},
+    transaction::{SenderSignedTransactionAPI, TransactionEnvelope, VerifiedCertificate},
 };
 use prometheus_filtered::Registry;
 #[cfg(msim)]
@@ -248,8 +246,6 @@ pub struct IotaNode {
 
     checkpoint_progress_tracker: Arc<CheckpointProgressTracker>,
 
-    _db_checkpoint_handle: Option<tokio::sync::broadcast::Sender<()>>,
-
     #[cfg(msim)]
     sim_state: SimState,
 
@@ -266,6 +262,10 @@ pub struct IotaNode {
     // TODO: Eventually we can make this auth aggregator a shared reference so that this
     // update will automatically propagate to other uses.
     auth_agg: Arc<ArcSwap<AuthorityAggregator<NetworkAuthorityClient>>>,
+
+    /// Runtime that hosts the client-facing servers and their per-request
+    /// handlers, isolating external request load from the node core.
+    serving_rt_handle: tokio::runtime::Handle,
 }
 
 impl fmt::Debug for IotaNode {
@@ -277,6 +277,16 @@ impl fmt::Debug for IotaNode {
 }
 
 impl IotaNode {
+    /// Starts a node that hosts the client-facing servers on the caller's
+    /// runtime, alongside everything else.
+    ///
+    /// This is intentional: this entry point serves the in-process nodes of
+    /// iota-swarm, where a separate serving runtime is either impossible
+    /// (simtests must keep every task on the simulator's deterministic
+    /// scheduler) or not worth the threads (thread-mode swarm runs many nodes
+    /// per process). Only the `iota-node` binary isolates client-facing
+    /// request handling on the dedicated serving runtime of `IotaRuntimes`,
+    /// via [`IotaNode::start_async`].
     pub async fn start(
         config: NodeConfig,
         registry_service: RegistryService,
@@ -285,6 +295,7 @@ impl IotaNode {
             config,
             registry_service,
             ServerVersion::new("iota-node", "unknown"),
+            tokio::runtime::Handle::current(),
         )
         .await
     }
@@ -338,6 +349,7 @@ impl IotaNode {
         config: NodeConfig,
         registry_service: RegistryService,
         server_version: ServerVersion,
+        serving_rt_handle: tokio::runtime::Handle,
     ) -> Result<Arc<IotaNode>> {
         NodeConfigMetrics::new(&registry_service.default_registry()).record_metrics(&config);
         let mut config = config.clone();
@@ -378,6 +390,25 @@ impl IotaNode {
         // simtests.
         #[cfg(not(msim))]
         iota_metrics::thread_stall_monitor::start_thread_stall_monitor();
+
+        // Monitor the node-core and serving runtimes so that worker-thread
+        // starvation between them is observable. Gated out of simtests, where
+        // tokio runs under the deterministic simulator.
+        #[cfg(not(msim))]
+        {
+            let runtime_monitor_metrics =
+                iota_metrics::runtime_metrics::RuntimeMonitorMetrics::new(&prometheus_registry);
+            iota_metrics::runtime_metrics::start_runtime_monitor(
+                "iota_node",
+                &tokio::runtime::Handle::current(),
+                runtime_monitor_metrics.clone(),
+            );
+            iota_metrics::runtime_metrics::start_runtime_monitor(
+                "serving",
+                &serving_rt_handle,
+                runtime_monitor_metrics,
+            );
+        }
 
         // Register uptime metric
         prometheus_registry
@@ -635,15 +666,6 @@ impl IotaNode {
 
         let checkpoint_progress_tracker = Arc::new(CheckpointProgressTracker::new());
 
-        // Start uploading db checkpoints to remote store
-        info!("start db checkpoint");
-        let (db_checkpoint_config, db_checkpoint_handle) = Self::start_db_checkpoint(
-            &config,
-            &prometheus_registry,
-            state_snapshot_handle.is_some(),
-            Some(checkpoint_progress_tracker.clone()),
-        )?;
-
         let mut genesis_objects = genesis.objects().to_vec();
         if let Some(migration_tx_data) = migration_tx_data.as_ref() {
             genesis_objects.extend(migration_tx_data.get_objects());
@@ -673,7 +695,6 @@ impl IotaNode {
             checkpoint_store.clone(),
             &prometheus_registry,
             &genesis_objects,
-            &db_checkpoint_config,
             config.clone(),
             validator_tx_finalizer,
             chain_identifier,
@@ -745,13 +766,27 @@ impl IotaNode {
             None
         };
 
-        let http_server = build_http_server(
-            state.clone(),
-            &transaction_orchestrator.clone(),
-            &config,
-            &prometheus_registry,
-        )
-        .await?;
+        // Run the JSON-RPC server (and its per-request handlers) on the serving
+        // runtime. `iota_http::Builder::serve` spawns the accept loop via
+        // `Handle::current()`, so the builder must execute on the serving runtime.
+        let http_server = serving_rt_handle
+            .spawn({
+                let state = state.clone();
+                let transaction_orchestrator = transaction_orchestrator.clone();
+                let config = config.clone();
+                let prometheus_registry = prometheus_registry.clone();
+                async move {
+                    build_http_server(
+                        state,
+                        &transaction_orchestrator,
+                        &config,
+                        &prometheus_registry,
+                    )
+                    .await
+                }
+            })
+            .await
+            .expect("Failed to join JSON-RPC server startup task")?;
 
         let global_state_hasher = Arc::new(GlobalStateHasher::new(
             cache_traits.global_state_hash_store.clone(),
@@ -798,15 +833,28 @@ impl IotaNode {
                 .clone()
                 .map(|o| o as Arc<dyn iota_types::transaction_executor::TransactionExecutor>);
 
-        let grpc_server_handle = build_grpc_server(
-            &config,
-            state.clone(),
-            state_sync_store.clone(),
-            executor,
-            &prometheus_registry,
-            server_version,
-        )
-        .await?;
+        // Run the gRPC read API server (and its per-request handlers) on the
+        // serving runtime, for the same reason as the JSON-RPC server above.
+        let grpc_server_handle = serving_rt_handle
+            .spawn({
+                let config = config.clone();
+                let state = state.clone();
+                let state_sync_store = state_sync_store.clone();
+                let prometheus_registry = prometheus_registry.clone();
+                async move {
+                    build_grpc_server(
+                        &config,
+                        state,
+                        state_sync_store,
+                        executor,
+                        &prometheus_registry,
+                        server_version,
+                    )
+                    .await
+                }
+            })
+            .await
+            .expect("Failed to join gRPC server startup task")?;
 
         let validator_components = if state.is_committee_validator(&epoch_store) {
             let (components, _) = futures::join!(
@@ -822,6 +870,7 @@ impl IotaNode {
                     backpressure_manager.clone(),
                     connection_monitor_status.clone(),
                     &registry_service,
+                    serving_rt_handle.clone(),
                 ),
                 Self::reexecute_pending_consensus_certs(&epoch_store, &state,)
             );
@@ -860,8 +909,6 @@ impl IotaNode {
             backpressure_manager,
             checkpoint_progress_tracker: checkpoint_progress_tracker.clone(),
 
-            _db_checkpoint_handle: db_checkpoint_handle,
-
             #[cfg(msim)]
             sim_state: Default::default(),
 
@@ -871,6 +918,8 @@ impl IotaNode {
             grpc_server_handle: Mutex::new(grpc_server_handle),
 
             auth_agg,
+
+            serving_rt_handle,
         };
 
         info!("IotaNode started!");
@@ -899,10 +948,6 @@ impl IotaNode {
 
     pub fn current_epoch_for_testing(&self) -> EpochId {
         self.state.current_epoch_for_testing()
-    }
-
-    pub fn db_checkpoint_path(&self) -> PathBuf {
-        self.config.db_checkpoint_path()
     }
 
     // Init reconfig process by starting to reject user certs
@@ -968,68 +1013,6 @@ impl IotaNode {
             Ok(Some(snapshot_uploader.start()))
         } else {
             Ok(None)
-        }
-    }
-
-    fn start_db_checkpoint(
-        config: &NodeConfig,
-        prometheus_registry: &Registry,
-        state_snapshot_enabled: bool,
-        checkpoint_progress_tracker: Option<Arc<CheckpointProgressTracker>>,
-    ) -> Result<(
-        DBCheckpointConfig,
-        Option<tokio::sync::broadcast::Sender<()>>,
-    )> {
-        let checkpoint_path = Some(
-            config
-                .db_checkpoint_config
-                .checkpoint_path
-                .clone()
-                .unwrap_or_else(|| config.db_checkpoint_path()),
-        );
-        let db_checkpoint_config = if config.db_checkpoint_config.checkpoint_path.is_none() {
-            DBCheckpointConfig {
-                checkpoint_path,
-                perform_db_checkpoints_at_epoch_end: if state_snapshot_enabled {
-                    true
-                } else {
-                    config
-                        .db_checkpoint_config
-                        .perform_db_checkpoints_at_epoch_end
-                },
-                ..config.db_checkpoint_config.clone()
-            }
-        } else {
-            config.db_checkpoint_config.clone()
-        };
-
-        match (
-            db_checkpoint_config.object_store_config.as_ref(),
-            state_snapshot_enabled,
-        ) {
-            // If db checkpoint config object store not specified but
-            // state snapshot object store is specified, create handler
-            // anyway for marking db checkpoints as completed so that they
-            // can be uploaded as state snapshots.
-            (None, false) => Ok((db_checkpoint_config, None)),
-            (_, _) => {
-                let handler = DBCheckpointHandler::new(
-                    &db_checkpoint_config.checkpoint_path.clone().unwrap(),
-                    db_checkpoint_config.object_store_config.as_ref(),
-                    60,
-                    db_checkpoint_config
-                        .prune_and_compact_before_upload
-                        .unwrap_or(true),
-                    config.authority_store_pruning_config.clone(),
-                    prometheus_registry,
-                    state_snapshot_enabled,
-                    checkpoint_progress_tracker,
-                )?;
-                Ok((
-                    db_checkpoint_config,
-                    Some(DBCheckpointHandler::start(handler)),
-                ))
-            }
         }
     }
 
@@ -1185,6 +1168,7 @@ impl IotaNode {
         backpressure_manager: Arc<BackpressureManager>,
         connection_monitor_status: Arc<ConnectionMonitorStatus>,
         registry_service: &RegistryService,
+        serving_rt_handle: tokio::runtime::Handle,
     ) -> Result<ValidatorComponents> {
         let mut config_clone = config.clone();
         let consensus_config = config_clone
@@ -1254,6 +1238,7 @@ impl IotaNode {
             &validator_registry,
             soft_locks.clone(),
             validator_service_metrics.clone(),
+            serving_rt_handle,
         )
         .await?;
 
@@ -1547,6 +1532,7 @@ impl IotaNode {
         prometheus_registry: &Registry,
         soft_locks: Arc<PreConsensusSoftLocks>,
         validator_service_metrics: Arc<ValidatorServiceMetrics>,
+        serving_rt_handle: tokio::runtime::Handle,
     ) -> Result<SpawnOnce> {
         let validator_service = ValidatorService::new(
             state,
@@ -1556,14 +1542,36 @@ impl IotaNode {
             soft_locks,
         );
 
-        let mut server_conf = iota_network_stack::config::Config::new();
-        server_conf.global_concurrency_limit = config.grpc_concurrency_limit;
-        server_conf.load_shed = config.grpc_load_shed;
+        // Each service gets its own concurrency limit so that a flood of client
+        // transaction submissions (Validator / ValidatorV2) cannot crowd the
+        // validator-peer RPCs sharing this listener out of admission slots.
+        // The config value is per core, so the same config scales with the
+        // hardware; the effective limit is computed on the machine the server
+        // actually runs on.
+        let concurrency_limit = config.grpc_concurrency_limit_per_core.saturating_mul(
+            NonZeroUsize::new(iota_core::runtime::available_cpu_cores())
+                .unwrap_or(NonZeroUsize::MIN),
+        );
+        let load_shed = config.grpc_load_shed.unwrap_or_default();
+
+        let server_conf = iota_network_stack::config::Config::new();
         let server_builder =
             ServerBuilder::from_config(&server_conf, GrpcMetrics::new(prometheus_registry))
-                .add_service(ValidatorServer::new(validator_service.clone()))
-                .add_service(ValidatorV2Server::new(validator_service.clone()))
-                .add_service(ValidatorPeerServer::new(validator_service));
+                .add_service_with_concurrency_limit(
+                    ValidatorServer::new(validator_service.clone()),
+                    concurrency_limit,
+                    load_shed,
+                )
+                .add_service_with_concurrency_limit(
+                    ValidatorV2Server::new(validator_service.clone()),
+                    concurrency_limit,
+                    load_shed,
+                )
+                .add_service_with_concurrency_limit(
+                    ValidatorPeerServer::new(validator_service),
+                    concurrency_limit,
+                    load_shed,
+                );
 
         let tls_config = iota_tls::create_rustls_server_config(
             config.network_key_pair().copy().private(),
@@ -1584,7 +1592,7 @@ impl IotaNode {
             Ok(server)
         };
 
-        Ok(SpawnOnce::new(bind_future))
+        Ok(SpawnOnce::new(bind_future, serving_rt_handle))
     }
 
     /// Re-executes pending consensus certificates, which may not have been
@@ -1754,8 +1762,8 @@ impl IotaNode {
     /// This function awaits the completion of checkpoint execution of the
     /// current epoch, after which it initiates reconfiguration of the
     /// entire system. This function also handles role changes for the node when
-    /// epoch changes and advertises capabilities to the committee if the node
-    /// is a validator.
+    /// epoch changes and, if the node is a validator, advertises capabilities
+    /// and submits the local deny rule proposal to consensus.
     pub async fn monitor_reconfiguration(
         self: Arc<Self>,
         mut epoch_store: Arc<AuthorityPerEpochStore>,
@@ -1829,6 +1837,37 @@ impl IotaNode {
                 components
                     .consensus_adapter
                     .submit(transaction, None, &cur_epoch_store)?;
+
+                // Announce the local deny rules. Recorded proposals are
+                // epoch-scoped, so this re-announces on every epoch change.
+                // An empty set is still submitted when a non-empty proposal
+                // is recorded this epoch: in the full-state model that
+                // withdraws the earlier rules after an operator cleared the
+                // local config and restarted.
+                if config.deny_rule_governance() {
+                    let proposed_rules = self.config.transaction_deny_config.to_deny_rule_set();
+                    let recorded = cur_epoch_store.recorded_deny_rule_proposal(&self.state.name);
+                    let should_submit = proposed_rules != DenyRuleSet::default()
+                        || recorded
+                            .as_ref()
+                            .is_some_and(|p| p.proposed_rules != DenyRuleSet::default());
+                    if should_submit {
+                        let transaction = ConsensusTransaction::new_transaction_deny_rule_proposal(
+                            TransactionDenyRuleProposal::new(
+                                self.state.name,
+                                proposed_rules,
+                                recorded.map(|p| p.generation),
+                            ),
+                        );
+                        info!(
+                            tracking_id = ?transaction.get_tracking_id(),
+                            "submitting deny rule proposal to consensus"
+                        );
+                        components
+                            .consensus_adapter
+                            .submit(transaction, None, &cur_epoch_store)?;
+                    }
+                }
             } else if self.state.is_active_validator(&cur_epoch_store)
                 && cur_epoch_store
                     .protocol_config()
@@ -2061,6 +2100,7 @@ impl IotaNode {
                         self.backpressure_manager.clone(),
                         self.connection_monitor_status.clone(),
                         &self.registry_service,
+                        self.serving_rt_handle.clone(),
                     )
                     .await?;
 
@@ -2196,7 +2236,7 @@ impl IotaNode {
     async fn execute_transaction_immediately_at_zero_epoch(
         state: &Arc<AuthorityState>,
         epoch_store: &Arc<AuthorityPerEpochStore>,
-        tx: &Transaction,
+        tx: &TransactionEnvelope,
         span: tracing::Span,
     ) {
         let _guard = span.enter();
@@ -2214,6 +2254,12 @@ impl IotaNode {
 
     pub fn randomness_handle(&self) -> randomness::Handle {
         self.randomness_handle.clone()
+    }
+
+    /// Returns the registry service holding the node's Prometheus registries
+    /// and their shared exposure filter.
+    pub(crate) fn registry_service(&self) -> &RegistryService {
+        &self.registry_service
     }
 
     /// Sends signed capability notification to committee validators for
@@ -2323,7 +2369,10 @@ impl IotaNode {
 
 enum SpawnOnce {
     // Mutex is only needed to make SpawnOnce Sync
-    Unstarted(Mutex<BoxFuture<'static, Result<iota_network_stack::server::Server>>>),
+    Unstarted(
+        Mutex<BoxFuture<'static, Result<iota_network_stack::server::Server>>>,
+        tokio::runtime::Handle,
+    ),
     #[allow(unused)]
     Started(iota_http::ServerHandle),
 }
@@ -2331,24 +2380,33 @@ enum SpawnOnce {
 impl SpawnOnce {
     pub fn new(
         future: impl Future<Output = Result<iota_network_stack::server::Server>> + Send + 'static,
+        serving_rt_handle: tokio::runtime::Handle,
     ) -> Self {
-        Self::Unstarted(Mutex::new(Box::pin(future)))
+        Self::Unstarted(Mutex::new(Box::pin(future)), serving_rt_handle)
     }
 
     pub async fn start(self) -> Self {
         match self {
-            Self::Unstarted(future) => {
-                let server = future
-                    .into_inner()
-                    .await
-                    .unwrap_or_else(|err| panic!("Failed to start validator gRPC server: {err}"));
-                let handle = server.handle().clone();
-                tokio::spawn(async move {
+            Self::Unstarted(future, serving_rt_handle) => {
+                // bind() and serve() must execute on the serving runtime:
+                // iota_http::Builder::serve captures Handle::current() there for
+                // the accept loop and every request handler.
+                let (handle_tx, handle_rx) = tokio::sync::oneshot::channel();
+                serving_rt_handle.spawn(async move {
+                    let server = future.into_inner().await.unwrap_or_else(|err| {
+                        panic!("Failed to start validator gRPC server: {err}")
+                    });
+                    if handle_tx.send(server.handle().clone()).is_err() {
+                        return;
+                    }
                     if let Err(err) = server.serve().await {
                         info!("Server stopped: {err}");
                     }
                     info!("Server stopped");
                 });
+                let handle = handle_rx
+                    .await
+                    .expect("validator gRPC server exited before returning its handle");
                 Self::Started(handle)
             }
             Self::Started(_) => self,
@@ -2645,4 +2703,104 @@ fn max_tx_per_checkpoint(protocol_config: &ProtocolConfig) -> usize {
 #[cfg(test)]
 fn max_tx_per_checkpoint(_: &ProtocolConfig) -> usize {
     2
+}
+
+// Not msim: this test asserts routing across real OS worker-thread pools by
+// name, which the deterministic simulator collapses onto a single thread.
+#[cfg(all(test, not(msim)))]
+mod runtime_split_tests {
+    use std::{
+        sync::mpsc,
+        time::{Duration, Instant},
+    };
+
+    use anyhow::anyhow;
+
+    use super::SpawnOnce;
+
+    /// A single-worker-thread runtime whose worker thread carries `name`, so a
+    /// task can tell which runtime it is running on via `current_pool()`.
+    fn runtime(name: &'static str) -> tokio::runtime::Runtime {
+        tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(1)
+            .thread_name(name)
+            .enable_all()
+            .build()
+            .unwrap()
+    }
+
+    /// Name of the runtime whose worker thread is executing this code.
+    fn current_pool() -> String {
+        std::thread::current()
+            .name()
+            .unwrap_or("<unnamed>")
+            .to_string()
+    }
+
+    /// Regression guard for the runtime split. `SpawnOnce::start()` is invoked
+    /// on the node-core runtime (as `IotaNode::start_async` does), but it
+    /// must run the server *bind* on the serving runtime:
+    /// `iota_http::Builder::serve` captures `Handle::current()` there for
+    /// the accept loop and every request handler.
+    ///
+    /// The test records the runtime `start()` runs on and the runtime the bind
+    /// runs on, and asserts the former is node-core and the latter is
+    /// serving (so they differ). With the pre-fix inline bind the bind ran
+    /// on the caller (node-core) runtime, and this test fails.
+    #[test]
+    fn spawn_once_binds_on_serving_not_the_core_runtime() {
+        let node = runtime("node-core");
+        let serving = runtime("serving");
+        let (tx, rx) = mpsc::channel::<(&'static str, String)>();
+
+        // The "bind" future records where it runs, then binds a minimal real
+        // server (health service only) on an ephemeral port.
+        let bind_tx = tx.clone();
+        let bind_future = async move {
+            let _ = bind_tx.send(("bind", current_pool()));
+            let addr = "/ip4/127.0.0.1/tcp/0/http".parse().unwrap();
+            let server = iota_network_stack::config::Config::new()
+                .server_builder()
+                .bind(&addr, None)
+                .await
+                .map_err(|e| anyhow!("bind failed: {e}"))?;
+            Ok(server)
+        };
+        let once = SpawnOnce::new(bind_future, serving.handle().clone());
+
+        // Drive start() ON the node-core runtime and record the runtime it runs on.
+        let caller_tx = tx.clone();
+        node.spawn(async move {
+            let _ = caller_tx.send(("caller", current_pool()));
+            let _ = once.start().await;
+        });
+
+        // Collect both readings.
+        let (mut caller_pool, mut bind_pool) = (None, None);
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while (caller_pool.is_none() || bind_pool.is_none()) && Instant::now() < deadline {
+            if let Ok((which, pool)) = rx.recv_timeout(Duration::from_millis(200)) {
+                match which {
+                    "caller" => caller_pool = Some(pool),
+                    "bind" => bind_pool = Some(pool),
+                    _ => {}
+                }
+            }
+        }
+        let caller_pool = caller_pool.expect("start() never ran");
+        let bind_pool = bind_pool.expect("bind future never ran");
+
+        assert!(
+            caller_pool.starts_with("node-core"),
+            "start() should run on the node-core runtime, ran on: {caller_pool}"
+        );
+        assert!(
+            bind_pool.starts_with("serving"),
+            "server bind must run on the serving runtime, ran on: {bind_pool}"
+        );
+        assert_ne!(
+            caller_pool, bind_pool,
+            "the fix must move the bind off the caller (node-core) runtime onto serving"
+        );
+    }
 }

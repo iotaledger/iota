@@ -12,7 +12,7 @@
       "name": "Apache-2.0",
       "url": "https://raw.githubusercontent.com/iotaledger/iota/main/LICENSE"
     },
-    "version": "1.29.0-alpha"
+    "version": "1.30.0-alpha"
   },
   "methods": [
     {
@@ -1310,6 +1310,8 @@
                 "consensus_block_restrictions": true,
                 "consensus_commit_transactions_only_for_traversed_headers": true,
                 "consensus_distributed_vote_scoring_strategy": true,
+                "consensus_enable_absolute_score_leader_schedule": true,
+                "consensus_enable_sliding_window_leader_schedule": true,
                 "consensus_fast_commit_sync": true,
                 "consensus_linearize_subdag_v2": true,
                 "consensus_median_timestamp_with_checkpoint_enforcement": true,
@@ -1326,7 +1328,7 @@
                 "enable_group_ops_native_function_msm": true,
                 "enable_move_authentication": true,
                 "enable_move_authentication_for_sponsor": true,
-                "enable_pcool_flow": false,
+                "enable_pcool_flow": true,
                 "enable_poseidon": true,
                 "enable_vdf": true,
                 "hardened_otw_check": true,
@@ -1502,6 +1504,7 @@
                 "consensus_gc_depth": {
                   "u32": "60"
                 },
+                "consensus_leader_schedule_window_size": null,
                 "consensus_max_acknowledgments_per_block": null,
                 "consensus_max_num_transactions_in_block": {
                   "u64": "512"

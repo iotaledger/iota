@@ -23,7 +23,7 @@ use iota_types::{
     object::Object,
     stardust::output::{AliasOutput, BasicOutput, NftOutput},
     timelock::timelock::{TimeLock, is_timelocked_gas_balance},
-    transaction::Transaction,
+    transaction::TransactionEnvelope,
 };
 use serde::{Deserialize, Serialize};
 use tracing::trace;
@@ -31,7 +31,7 @@ use tracing::trace;
 use crate::genesis::{Genesis, GenesisCeremonyParameters, UnsignedGenesis};
 
 pub type TransactionsData =
-    BTreeMap<TransactionDigest, (Transaction, TransactionEffects, TransactionEvents)>;
+    BTreeMap<TransactionDigest, (TransactionEnvelope, TransactionEffects, TransactionEvents)>;
 
 // Migration data from the Stardust network is loaded separately after genesis
 // to reduce the size of the genesis transaction.
@@ -97,8 +97,8 @@ impl MigrationTxData {
         genesis_tx_digest: TransactionDigest,
     ) -> anyhow::Result<()> {
         anyhow::ensure!(
-            checkpoint.content_digest == contents.digest(),
-            "checkpoint's content digest is corrupted"
+            checkpoint.contents_digest == contents.digest(),
+            "checkpoint contents digest is corrupted"
         );
         let mut validation_digests_queue: HashSet<TransactionDigest> =
             self.inner.keys().copied().collect();

@@ -11,19 +11,39 @@ use iota_types::{
     effects::{
         TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt, TransactionEvents,
     },
-    transaction::{CallArg, Transaction},
+    transaction::{CallArg, TransactionEnvelope},
 };
-use test_cluster::{TestCluster, TestClusterBuilder};
+use test_cluster::{TestCluster, TestClusterBuilder, override_pcool_flow};
 
 #[sim_test]
-async fn receive_of_object() {
+async fn receive_of_object_pre_consensus_flow() {
+    receive_of_object(false).await;
+}
+
+#[sim_test]
+async fn receive_of_object_pcool_flow() {
+    receive_of_object(true).await;
+}
+
+async fn receive_of_object(pcool: bool) {
+    let _pcool_guard = override_pcool_flow(pcool);
     let env = TestEnvironment::new().await;
     let (parent, child) = env.start().await;
     env.receive(parent, child).await.unwrap();
 }
 
 #[sim_test]
-async fn receive_of_object_with_reconfiguration() {
+async fn receive_of_object_with_reconfiguration_pre_consensus_flow() {
+    receive_of_object_with_reconfiguration(false).await;
+}
+
+#[sim_test]
+async fn receive_of_object_with_reconfiguration_pcool_flow() {
+    receive_of_object_with_reconfiguration(true).await;
+}
+
+async fn receive_of_object_with_reconfiguration(pcool: bool) {
+    let _pcool_guard = override_pcool_flow(pcool);
     let env = TestEnvironment::new().await;
     let (parent, child) = env.start().await;
     env.receive(parent, child).await.unwrap();
@@ -140,7 +160,7 @@ impl TestEnvironment {
         &self,
         function: &'static str,
         arguments: Vec<CallArg>,
-    ) -> Transaction {
+    ) -> TransactionEnvelope {
         let transaction = self
             .test_cluster
             .test_transaction_builder()

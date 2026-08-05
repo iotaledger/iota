@@ -15,15 +15,16 @@ use iota_sdk::{
     },
     types::{
         coin_manager::CoinManagerTreasuryCap,
-        crypto::SignatureScheme,
         dynamic_field::DynamicFieldName,
         gas_coin::GAS,
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         quorum_driver_types::ExecuteTransactionRequestType,
-        transaction::{CallArg, Transaction, TransactionData},
+        transaction::{CallArg, TransactionData, TransactionEnvelope},
     },
 };
-use iota_sdk_types::{Argument, Identifier, ObjectId, StructTag, TypeTag, crypto::Intent};
+use iota_sdk_types::{
+    Argument, Identifier, ObjectId, SignatureScheme, StructTag, TypeTag, crypto::Intent,
+};
 use iota_types::transaction::TransactionDataAPI;
 
 /// Got from iota-genesis-builder/src/stardust/test_outputs/alias_ownership.rs
@@ -236,7 +237,7 @@ async fn main() -> Result<(), anyhow::Error> {
     let transaction_response = iota_client
         .quorum_driver_api()
         .execute_transaction_block(
-            Transaction::from_data(tx_data, vec![signature]),
+            TransactionEnvelope::from_data(tx_data, vec![signature]),
             IotaTransactionBlockResponseOptions::full_content(),
             Some(ExecuteTransactionRequestType::WaitForLocalExecution),
         )

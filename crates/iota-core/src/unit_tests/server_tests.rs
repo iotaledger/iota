@@ -7,7 +7,7 @@ use iota_network::api::{
     GetCheckpointRequest, GetTxStatusRequest, NotifyCapabilitiesRequest, SubmitTxRequest,
     TxStatusQuery, ValidatorPeer, ValidatorV2,
 };
-use iota_protocol_config::{Chain, ProtocolConfig};
+use iota_protocol_config::{Chain, OverrideGuard, ProtocolConfig};
 // Additional imports for P-COOL tests
 use iota_sdk_types::{
     Address, Argument, Command, Identifier, ObjectId, SplitCoins,
@@ -295,7 +295,7 @@ async fn build_shared_object_transaction(
     sender_key: &AccountKeyPair,
     gas_object_id: ObjectId,
     pkg_ref: iota_sdk_types::ObjectReference,
-) -> Transaction {
+) -> TransactionEnvelope {
     let rgp = state.reference_gas_price_for_testing().unwrap();
     let gas = state.get_object(&gas_object_id).unwrap();
     let tx_data = TransactionData::new_move_call(
@@ -315,9 +315,11 @@ async fn build_shared_object_transaction(
 
 // ── ValidatorV2 submit_tx (streaming) tests ──────────────────────────────────
 
-/// Helper: convert a `Vec<Transaction>` into the proto `SubmitTxRequest` and
-/// wrap it in a tonic request.
-fn make_v2_submit_request(transactions: Vec<Transaction>) -> tonic::Request<SubmitTxRequest> {
+/// Helper: convert a `Vec<TransactionEnvelope>` into the proto
+/// `SubmitTxRequest` and wrap it in a tonic request.
+fn make_v2_submit_request(
+    transactions: Vec<TransactionEnvelope>,
+) -> tonic::Request<SubmitTxRequest> {
     let proto: SubmitTxRequest = transactions.try_into().expect("BCS serialization failed");
     make_tonic_request_for_testing(proto)
 }
@@ -388,11 +390,19 @@ async fn collect_v2_stream(
         .collect()
 }
 
-#[tokio::test(flavor = "current_thread", start_paused = true)]
-async fn test_v2_submit_tx_success() {
+/// Builds a P-COOL-enabled validator service backed by a single owned object
+/// and a gas coin, plus a signed transfer transaction spending them. The
+/// returned [`OverrideGuard`] enables the P-COOL flow and must be kept alive
+/// for the duration of the test.
+async fn setup_v2_transfer_tx() -> (
+    OverrideGuard,
+    Arc<ValidatorService>,
+    TransactionEnvelope,
+    TransactionDigest,
+) {
     telemetry_subscribers::init_for_testing();
 
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+    let guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
         config.set_enable_pcool_flow_for_testing(true);
         config
     });
@@ -422,10 +432,9 @@ async fn test_v2_submit_tx_success() {
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
     let object = authority_state.get_object(&object_id).unwrap();
     let gas = authority_state.get_object(&gas_id).unwrap();
-    let recipient = dbg_addr(2);
 
     let tx_data = TransactionData::new_transfer(
-        recipient,
+        dbg_addr(2),
         object.object_ref(),
         sender,
         gas.object_ref(),
@@ -434,6 +443,13 @@ async fn test_v2_submit_tx_success() {
     );
     let tx = to_sender_signed_transaction(tx_data, &sender_key);
     let expected_digest = *tx.digest();
+
+    (guard, validator_service, tx, expected_digest)
+}
+
+#[tokio::test(flavor = "current_thread", start_paused = true)]
+async fn test_v2_submit_tx_success() {
+    let (_guard, validator_service, tx, expected_digest) = setup_v2_transfer_tx().await;
 
     let response = validator_service
         .submit_tx(make_v2_submit_request(vec![tx]))
@@ -448,6 +464,45 @@ async fn test_v2_submit_tx_success() {
         matches!(result, TxStatusUpdate::Submitted),
         "Expected Submitted, got {result:?}"
     );
+}
+
+#[tokio::test(flavor = "current_thread", start_paused = true)]
+async fn test_v2_submit_tx_resubmission_suppressed() {
+    let (_guard, validator_service, tx, expected_digest) = setup_v2_transfer_tx().await;
+
+    // First submission goes through.
+    let response = validator_service
+        .submit_tx(make_v2_submit_request(vec![tx.clone()]))
+        .await
+        .expect("submit_tx stream should open successfully");
+    let results = collect_v2_stream(response).await;
+    assert_eq!(results.len(), 1);
+    assert!(
+        matches!(results[0].1, TxStatusUpdate::Submitted),
+        "Expected Submitted, got {:?}",
+        results[0].1
+    );
+
+    // Resubmitting the same digest while it is still in flight (soft locks
+    // held, not yet processed by consensus) must be suppressed.
+    let response = validator_service
+        .submit_tx(make_v2_submit_request(vec![tx]))
+        .await
+        .expect("submit_tx stream should open successfully");
+    let results = collect_v2_stream(response).await;
+    assert_eq!(results.len(), 1);
+    match &results[0].1 {
+        TxStatusUpdate::Rejected { error } => {
+            assert!(
+                matches!(
+                    error,
+                    IotaError::RecentlyResubmitted { digest } if *digest == expected_digest
+                ),
+                "Expected RecentlyResubmitted, got {error:?}"
+            );
+        }
+        other => panic!("Expected Rejected, got {other:?}"),
+    }
 }
 
 #[tokio::test(flavor = "current_thread", start_paused = true)]
@@ -519,6 +574,11 @@ async fn test_v2_submit_tx_invalid_signature() {
 #[tokio::test(flavor = "current_thread", start_paused = true)]
 async fn test_v2_submit_tx_feature_flag_disabled() {
     telemetry_subscribers::init_for_testing();
+
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(false);
+        config
+    });
 
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
     let object_id = ObjectId::random();

@@ -5,7 +5,7 @@
 use std::{
     collections::{BTreeMap, HashMap},
     hash::Hasher,
-    path::{Path, PathBuf},
+    path::PathBuf,
     sync::{Arc, Mutex},
     time::{Duration, Instant},
 };
@@ -16,7 +16,6 @@ use iota_sdk_types::{
 };
 use iota_types::{
     committee::EpochId,
-    error::IotaResult,
     full_checkpoint_content::CheckpointData,
     messages_checkpoint::{CheckpointContentsExt, CheckpointSequenceNumber},
     move_package::MovePackageExt,
@@ -557,7 +556,7 @@ impl IndexStoreTables {
                     ))
                 })?;
             let contents = checkpoint_store
-                .get_checkpoint_contents(&summary.content_digest)?
+                .get_checkpoint_contents(&summary.contents_digest)?
                 .ok_or_else(|| {
                     StorageError::missing(format!(
                         "missing checkpoint {checkpoint_sequence_number}"
@@ -952,11 +951,6 @@ impl GrpcIndexesStore {
             tables,
             pending_updates: Default::default(),
         }
-    }
-
-    pub fn checkpoint_db(&self, path: &Path) -> IotaResult {
-        // We are checkpointing the whole db
-        self.tables.meta.checkpoint_db(path).map_err(Into::into)
     }
 
     pub fn prune(
@@ -1391,7 +1385,7 @@ mod tests {
             epoch,
             sequence_number,
             network_total_transactions: 0,
-            content_digest: Default::default(),
+            contents_digest: Default::default(),
             previous_digest: None,
             epoch_rolling_gas_cost_summary: GasCostSummary::default(),
             end_of_epoch_data: None,

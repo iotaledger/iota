@@ -37,7 +37,7 @@ use iota_types::{
     messages_checkpoint::VerifiedCheckpoint,
     object::Object,
     storage::{ObjectStore, ReadStore},
-    transaction::{InputObjects, SenderSignedTransactionAPI, Transaction, TransactionData},
+    transaction::{InputObjects, SenderSignedTransactionAPI, TransactionData, TransactionEnvelope},
 };
 pub use move_transactional_test_runner::framework::{
     create_adapter, run_tasks_with_adapter, run_test_impl,
@@ -68,14 +68,17 @@ pub struct ValidatorWithFullnode {
 pub trait TransactionalAdapter: Send + Sync + ReadStore {
     async fn execute_txn(
         &mut self,
-        transaction: Transaction,
+        transaction: TransactionEnvelope,
     ) -> anyhow::Result<(TransactionEffects, Option<ExecutionError>)>;
 
-    async fn read_input_objects(&self, transaction: Transaction) -> IotaResult<InputObjects>;
+    async fn read_input_objects(
+        &self,
+        transaction: TransactionEnvelope,
+    ) -> IotaResult<InputObjects>;
 
     fn prepare_txn(
         &self,
-        transaction: Transaction,
+        transaction: TransactionEnvelope,
         input_objects: InputObjects,
     ) -> anyhow::Result<(TransactionEffects, Option<ExecutionError>)>;
 
@@ -120,7 +123,7 @@ pub trait TransactionalAdapter: Send + Sync + ReadStore {
 impl TransactionalAdapter for ValidatorWithFullnode {
     async fn execute_txn(
         &mut self,
-        transaction: Transaction,
+        transaction: TransactionEnvelope,
     ) -> anyhow::Result<(TransactionEffects, Option<ExecutionError>)> {
         let with_shared = transaction.contains_shared_object();
         let (_, effects, execution_error) = send_and_confirm_transaction_with_execution_error(
@@ -134,7 +137,10 @@ impl TransactionalAdapter for ValidatorWithFullnode {
         Ok((effects.into_data(), execution_error))
     }
 
-    async fn read_input_objects(&self, transaction: Transaction) -> IotaResult<InputObjects> {
+    async fn read_input_objects(
+        &self,
+        transaction: TransactionEnvelope,
+    ) -> IotaResult<InputObjects> {
         let tx = VerifiedExecutableTransaction::new_unchecked(
             ExecutableTransaction::new_from_data_and_sig(
                 transaction.data().clone(),
@@ -150,7 +156,7 @@ impl TransactionalAdapter for ValidatorWithFullnode {
 
     fn prepare_txn(
         &self,
-        transaction: Transaction,
+        transaction: TransactionEnvelope,
         input_objects: InputObjects,
     ) -> anyhow::Result<(TransactionEffects, Option<ExecutionError>)> {
         let tx = VerifiedExecutableTransaction::new_unchecked(
@@ -415,18 +421,21 @@ impl ObjectStore for ValidatorWithFullnode {
 impl TransactionalAdapter for Simulacrum<StdRng, PersistedStore> {
     async fn execute_txn(
         &mut self,
-        transaction: Transaction,
+        transaction: TransactionEnvelope,
     ) -> anyhow::Result<(TransactionEffects, Option<ExecutionError>)> {
         Ok(self.execute_transaction(transaction)?)
     }
 
-    async fn read_input_objects(&self, _transaction: Transaction) -> IotaResult<InputObjects> {
+    async fn read_input_objects(
+        &self,
+        _transaction: TransactionEnvelope,
+    ) -> IotaResult<InputObjects> {
         unimplemented!("read_input_objects not supported in simulator mode")
     }
 
     fn prepare_txn(
         &self,
-        _transaction: Transaction,
+        _transaction: TransactionEnvelope,
         _input_objects: InputObjects,
     ) -> anyhow::Result<(TransactionEffects, Option<ExecutionError>)> {
         unimplemented!("prepare_txn not supported in simulator mode")

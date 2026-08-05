@@ -18,13 +18,16 @@ use iota_types::{
     messages_checkpoint::{CertifiedCheckpointSummary, CheckpointSequenceNumber},
     object::Object,
     storage::ObjectKey,
-    transaction::Transaction,
+    transaction::TransactionEnvelope,
 };
 use tracing::instrument;
 
 use crate::key_value_store_metrics::KeyValueStoreMetrics;
 
-pub type KVStoreTransactionData = (Vec<Option<Transaction>>, Vec<Option<TransactionEffects>>);
+pub type KVStoreTransactionData = (
+    Vec<Option<TransactionEnvelope>>,
+    Vec<Option<TransactionEffects>>,
+);
 
 pub type KVStoreCheckpointData = (
     Vec<Option<CertifiedCheckpointSummary>>,
@@ -230,7 +233,7 @@ impl TransactionKeyValueStore {
     pub async fn multi_get_tx(
         &self,
         keys: &[TransactionDigest],
-    ) -> IotaResult<Vec<Option<Transaction>>> {
+    ) -> IotaResult<Vec<Option<TransactionEnvelope>>> {
         self.multi_get(keys, &[]).await.map(|(txns, _)| txns)
     }
 
@@ -243,7 +246,7 @@ impl TransactionKeyValueStore {
 
     /// Convenience method for fetching single digest, and returning an error if
     /// it's not found. Prefer using multi_get_tx whenever possible.
-    pub async fn get_tx(&self, digest: TransactionDigest) -> IotaResult<Transaction> {
+    pub async fn get_tx(&self, digest: TransactionDigest) -> IotaResult<TransactionEnvelope> {
         self.multi_get_tx(&[digest])
             .await?
             .into_iter()

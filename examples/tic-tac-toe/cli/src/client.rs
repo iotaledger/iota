@@ -27,7 +27,7 @@ use iota_types::{
     multisig::{MultiSig, MultiSigPublicKey},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{
-        CallArg, InputObjectKind, Transaction, TransactionData, TransactionDataAPI,
+        CallArg, InputObjectKind, TransactionData, TransactionDataAPI, TransactionEnvelope,
         TransactionKindExt,
     },
 };
@@ -711,7 +711,7 @@ impl Client {
         sender: Address,
         admin_key: MultiSigPublicKey,
         data: TransactionData,
-    ) -> Result<Transaction> {
+    ) -> Result<TransactionEnvelope> {
         let sponsor_sig: UserSignature = self
             .wallet
             .config()
@@ -724,7 +724,7 @@ impl Client {
             .context("Signing as admin")?
             .into();
 
-        Ok(Transaction::from_user_sig_data(
+        Ok(TransactionEnvelope::from_user_sig_data(
             data,
             vec![multi_sig, sponsor_sig],
         ))
@@ -732,7 +732,10 @@ impl Client {
 
     /// Execute the transaction, and check whether it succeeded or failed.
     /// Transaction execution failure is treated as an error.
-    async fn execute_transaction(&self, tx: Transaction) -> Result<IotaTransactionBlockResponse> {
+    async fn execute_transaction(
+        &self,
+        tx: TransactionEnvelope,
+    ) -> Result<IotaTransactionBlockResponse> {
         let response = self
             .wallet
             .execute_transaction_may_fail(tx)

@@ -245,6 +245,7 @@ mod tests {
             &module,
             &ProtocolBuildConfig {
                 allow_view_function: true,
+                max_move_package_size: None,
             },
         )
         .unwrap();
@@ -262,6 +263,7 @@ mod tests {
             "View function 'view' must be public",
             &ProtocolBuildConfig {
                 allow_view_function: true,
+                max_move_package_size: None,
             },
         );
     }
@@ -282,6 +284,7 @@ mod tests {
             &module,
             &ProtocolBuildConfig {
                 allow_view_function: false,
+                max_move_package_size: None,
             },
         )
         .unwrap_err();

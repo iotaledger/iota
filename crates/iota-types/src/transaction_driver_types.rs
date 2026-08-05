@@ -21,13 +21,13 @@ use crate::{
     error::{ErrorCategory, IotaError},
     messages_checkpoint::CheckpointSequenceNumber,
     object::Object,
-    transaction::{Transaction, VerifiedTransaction},
+    transaction::{TransactionEnvelope, VerifiedTransaction},
 };
 
 pub type TransactionDriverResult = Result<TransactionDriverResponse, TransactionSubmissionError>;
 
 pub type TransactionDriverEffectsQueueResult = Result<
-    (Transaction, TransactionDriverResponse),
+    (TransactionEnvelope, TransactionDriverResponse),
     (TransactionDigest, TransactionSubmissionError),
 >;
 

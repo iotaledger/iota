@@ -37,7 +37,7 @@ use crate::name_commands;
 use crate::{
     PrintableResult,
     client_commands::{IotaClientCommands, implicit_deps_for_protocol_version, pkg_tree_shake},
-    keytool::KeyToolCommand,
+    keytool::{KeyToolCommand, lowercase_key_scheme},
     validator_commands::IotaValidatorCommand,
 };
 
@@ -73,7 +73,7 @@ pub enum IotaCommand {
         #[clap(flatten)]
         config: IotaEnvConfig,
         #[command(subcommand)]
-        cmd: Option<IotaClientCommands>,
+        cmd: Option<Box<IotaClientCommands>>,
         /// Return command outputs in json format.
         #[arg(long, global = true)]
         json: bool,
@@ -156,15 +156,15 @@ impl IotaCommand {
                 prompt_if_no_config(
                     &config_path,
                     accept_defaults,
-                    !matches!(cmd, Some(IotaClientCommands::NewEnv { .. })),
-                    !matches!(cmd, Some(IotaClientCommands::NewAddress { .. })),
+                    !matches!(cmd.as_deref(), Some(IotaClientCommands::NewEnv { .. })),
+                    !matches!(cmd.as_deref(), Some(IotaClientCommands::NewAddress { .. })),
                 )?;
                 if let Some(cmd) = cmd {
                     let mut context = WalletContext::new(&config_path)?;
                     if let Some(env_override) = config.env {
                         context = context.with_env_override(env_override);
                     }
-                    cmd.execute(&mut context).await?.print(!json);
+                    (*cmd).execute(&mut context).await?.print(!json);
                 } else {
                     // Print help
                     let mut app: Command = IotaCommand::command();
@@ -460,7 +460,7 @@ fn prompt_if_no_config(
             let alias = config.keystore().get_alias_by_address(&new_address)?;
             println!(
                 "Generated new keypair and alias for address with scheme {:?}:\n[{alias}: {new_address}]",
-                scheme.to_string()
+                lowercase_key_scheme(scheme)
             );
             println!("Secret Recovery Phrase:\n[{phrase}]");
             config = config.with_active_address(new_address);

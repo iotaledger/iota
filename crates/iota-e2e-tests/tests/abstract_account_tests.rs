@@ -43,12 +43,12 @@ use iota_types::{
     quorum_driver_types::QuorumDriverResponse,
     storage::WriteKind,
     transaction::{
-        CallArg, TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, Transaction, TransactionData,
-        TransactionDataAPI,
+        CallArg, TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, TransactionData,
+        TransactionDataAPI, TransactionEnvelope,
     },
 };
 use move_command_line_common::error_bitset::ErrorBitset;
-use test_cluster::{TestCluster, TestClusterBuilder};
+use test_cluster::{TestCluster, TestClusterBuilder, override_pcool_flow};
 
 const AA_PACKAGE_PATH: &str = "tests/abstract_account/abstract_account";
 const AA_MODULE_NAME: &str = "abstract_account";
@@ -75,7 +75,18 @@ const AA_RECEIVE_OBJECT_FN_NAME_NO_SENDER_CHECK: &str = "receive_object_without_
 /// Test the creation of an Abstract Account and the issuance of a simple
 /// transaction from it using the Move-based Ed25519 signature authenticator.
 #[sim_test]
-async fn test_abstract_account_creation_and_issue_tx() -> Result<(), anyhow::Error> {
+async fn test_abstract_account_creation_and_issue_tx_pre_consensus_flow()
+-> Result<(), anyhow::Error> {
+    test_abstract_account_creation_and_issue_tx(false).await
+}
+
+#[sim_test]
+async fn test_abstract_account_creation_and_issue_tx_pcool_flow() -> Result<(), anyhow::Error> {
+    test_abstract_account_creation_and_issue_tx(true).await
+}
+
+async fn test_abstract_account_creation_and_issue_tx(pcool: bool) -> Result<(), anyhow::Error> {
+    let _pcool_guard = override_pcool_flow(pcool);
     telemetry_subscribers::init_for_testing();
 
     // Build a test environment and create an abstract account
@@ -108,7 +119,7 @@ async fn test_abstract_account_creation_and_issue_tx() -> Result<(), anyhow::Err
     let signatures = vec![test_env.create_move_authenticator_for_ed25519(&tx_digest)?];
 
     // Create the TX envelope and execute it
-    let aa_simple_tx = Transaction::from_user_sig_data(tx_data, signatures);
+    let aa_simple_tx = TransactionEnvelope::from_user_sig_data(tx_data, signatures);
     test_env
         .execute_and_check_tx_correctness(aa_simple_tx)
         .await
@@ -154,7 +165,7 @@ async fn test_auth_context_tx_bytes_and_signature() -> Result<(), anyhow::Error>
 
     // Execute — the Move authenticator asserts all structural invariants
     // and verifies the ed25519 signature against signing_digest.
-    let tx = Transaction::from_user_sig_data(tx_data, signatures);
+    let tx = TransactionEnvelope::from_user_sig_data(tx_data, signatures);
     test_env.execute_and_check_tx_correctness(tx).await
 }
 
@@ -202,7 +213,7 @@ async fn test_abstract_account_issues_sponsored_tx() -> Result<(), anyhow::Error
 
     // Create the TX envelope and execute it
     let aa_sponsored_tx =
-        Transaction::from_user_sig_data(tx_data, vec![aa_signature, sponsor_signature]);
+        TransactionEnvelope::from_user_sig_data(tx_data, vec![aa_signature, sponsor_signature]);
     test_env
         .execute_and_check_tx_correctness(aa_sponsored_tx)
         .await
@@ -270,7 +281,7 @@ async fn test_abstract_account_delayed_creation() -> Result<(), anyhow::Error> {
 
     // Create the MoveAuthenticator (free access - no signature needed)
     let aa_sig = test_env.create_move_authenticator_for_free_access()?;
-    let tx = Transaction::from_user_sig_data(tx_data, vec![aa_sig]);
+    let tx = TransactionEnvelope::from_user_sig_data(tx_data, vec![aa_sig]);
 
     // Execute and verify the transaction succeeds
     test_env.execute_and_check_tx_correctness(tx).await
@@ -313,7 +324,7 @@ async fn test_receive_object_in_main_tx_succeeds() -> Result<(), anyhow::Error> 
 
     // Authenticator: free-access (no object args)
     let aa_sig = test_env.create_move_authenticator_for_free_access()?;
-    let tx = Transaction::from_user_sig_data(tx_data, vec![aa_sig]);
+    let tx = TransactionEnvelope::from_user_sig_data(tx_data, vec![aa_sig]);
 
     // Should fail
     let tx_result = test_env
@@ -355,6 +366,7 @@ async fn test_receive_object_in_main_tx_succeeds() -> Result<(), anyhow::Error> 
 /// underlying abort and carries no command index.
 #[sim_test]
 async fn test_abstract_account_post_consensus_failure() -> Result<(), anyhow::Error> {
+    let _pcool_guard = override_pcool_flow(false);
     telemetry_subscribers::init_for_testing();
     let client_ip = SocketAddr::new([127, 0, 0, 1].into(), 0);
 
@@ -398,7 +410,7 @@ async fn test_abstract_account_post_consensus_failure() -> Result<(), anyhow::Er
     // Create the MoveAuthenticator for the Ed25519 signature authenticator
     let signatures = vec![test_env.create_move_authenticator_for_ed25519(&tx_digest)?];
     // Create the TX envelope and send it for validators signing
-    let aa_simple_tx = Transaction::from_user_sig_data(tx_data, signatures);
+    let aa_simple_tx = TransactionEnvelope::from_user_sig_data(tx_data, signatures);
     let cert = test_env
         .test_cluster
         .create_certificate(aa_simple_tx, Some(client_ip))
@@ -421,7 +433,7 @@ async fn test_abstract_account_post_consensus_failure() -> Result<(), anyhow::Er
     // Create the MoveAuthenticator for the Ed25519 signature authenticator
     let signatures2 = vec![test_env.create_move_authenticator_for_ed25519(&tx_digest2)?];
     // Create the TX envelope and send it for validators signing
-    let aa_rotate_tx = Transaction::from_user_sig_data(tx_data2, signatures2);
+    let aa_rotate_tx = TransactionEnvelope::from_user_sig_data(tx_data2, signatures2);
     // Should succeed
     test_env
         .execute_and_check_tx_correctness(aa_rotate_tx)
@@ -491,11 +503,14 @@ async fn test_abstract_account_post_consensus_failure() -> Result<(), anyhow::Er
 ///    and it passed
 #[sim_test]
 async fn test_abstract_account_post_consensus_deletion_failure() -> Result<(), anyhow::Error> {
+    let _pcool_guard = override_pcool_flow(false);
     telemetry_subscribers::init_for_testing();
     let client_ip = SocketAddr::new([127, 0, 0, 1].into(), 0);
 
-    // Build a test environment and create an abstract account
-    let mut test_env = TestEnvironment::new().await;
+    // Build a test environment and create an abstract account. Step 2 below
+    // reads the response of the transaction that deletes the abstract account,
+    // so the fullnode has to keep the deleted object's previous version.
+    let mut test_env = TestEnvironment::new_with_unpruned_fullnode().await;
     test_env
         .setup_abstract_account(AA_AUTHENTICATE_FN_NAME_ED25519)
         .await?;
@@ -519,7 +534,7 @@ async fn test_abstract_account_post_consensus_deletion_failure() -> Result<(), a
     // Create the MoveAuthenticator for the Ed25519 signature authenticator
     let signatures = vec![test_env.create_move_authenticator_for_ed25519(&tx_digest)?];
     // Create the TX envelope and send it for validators signing
-    let aa_simple_tx = Transaction::from_user_sig_data(tx_data, signatures);
+    let aa_simple_tx = TransactionEnvelope::from_user_sig_data(tx_data, signatures);
     let cert = test_env
         .test_cluster
         .create_certificate(aa_simple_tx, Some(client_ip))
@@ -542,7 +557,7 @@ async fn test_abstract_account_post_consensus_deletion_failure() -> Result<(), a
     // Create the MoveAuthenticator for the Ed25519 signature authenticator
     let signatures2 = vec![test_env.create_move_authenticator_for_ed25519(&tx_digest2)?];
     // Create the TX envelope and send it for validators signing
-    let aa_delete_tx = Transaction::from_user_sig_data(tx_data2, signatures2);
+    let aa_delete_tx = TransactionEnvelope::from_user_sig_data(tx_data2, signatures2);
     // Should succeed
     test_env
         .execute_and_check_tx_correctness(aa_delete_tx)
@@ -600,6 +615,7 @@ async fn test_abstract_account_post_consensus_deletion_failure() -> Result<(), a
 #[sim_test]
 async fn test_abstract_account_shared_object_congestion_cancellation() -> Result<(), anyhow::Error>
 {
+    let _pcool_guard = override_pcool_flow(false);
     telemetry_subscribers::init_for_testing();
     let client_ip = SocketAddr::new([127, 0, 0, 1].into(), 0);
 
@@ -643,7 +659,7 @@ async fn test_abstract_account_shared_object_congestion_cancellation() -> Result
     // Create the MoveAuthenticator for the Ed25519 signature authenticator
     let signatures = vec![test_env.create_move_authenticator_for_ed25519(&tx_digest)?];
     // Create the TX envelope and send it for validators signing
-    let aa_simple_tx = Transaction::from_user_sig_data(tx_data, signatures);
+    let aa_simple_tx = TransactionEnvelope::from_user_sig_data(tx_data, signatures);
     let cert = test_env
         .test_cluster
         .create_certificate(aa_simple_tx, Some(client_ip))
@@ -695,6 +711,7 @@ async fn test_abstract_account_shared_object_congestion_cancellation() -> Result
 #[sim_test]
 async fn test_abstract_account_post_consensus_failure_without_report_flag()
 -> Result<(), anyhow::Error> {
+    let _pcool_guard = override_pcool_flow(false);
     telemetry_subscribers::init_for_testing();
     let client_ip = SocketAddr::new([127, 0, 0, 1].into(), 0);
 
@@ -744,7 +761,7 @@ async fn test_abstract_account_post_consensus_failure_without_report_flag()
     // Create the MoveAuthenticator for the Ed25519 signature authenticator
     let signatures = vec![test_env.create_move_authenticator_for_ed25519(&tx_digest)?];
     // Create the TX envelope and send it for validators signing
-    let aa_simple_tx = Transaction::from_user_sig_data(tx_data, signatures);
+    let aa_simple_tx = TransactionEnvelope::from_user_sig_data(tx_data, signatures);
     let cert = test_env
         .test_cluster
         .create_certificate(aa_simple_tx, Some(client_ip))
@@ -767,7 +784,7 @@ async fn test_abstract_account_post_consensus_failure_without_report_flag()
     // Create the MoveAuthenticator for the Ed25519 signature authenticator
     let signatures2 = vec![test_env.create_move_authenticator_for_ed25519(&tx_digest2)?];
     // Create the TX envelope and send it for validators signing
-    let aa_rotate_tx = Transaction::from_user_sig_data(tx_data2, signatures2);
+    let aa_rotate_tx = TransactionEnvelope::from_user_sig_data(tx_data2, signatures2);
     // Should succeed
     test_env
         .execute_and_check_tx_correctness(aa_rotate_tx)
@@ -829,6 +846,7 @@ async fn test_abstract_account_post_consensus_failure_without_report_flag()
 /// authentication failure and carries no command index.
 #[sim_test]
 async fn test_pre_consensus_authentication_failure() -> Result<(), anyhow::Error> {
+    let _pcool_guard = override_pcool_flow(false);
     telemetry_subscribers::init_for_testing();
 
     let mut test_env = TestEnvironment::new().await;
@@ -853,7 +871,7 @@ async fn test_pre_consensus_authentication_failure() -> Result<(), anyhow::Error
     // Sign the authenticator over a digest that does not match the transaction,
     // so `authenticate_ed25519` aborts while the validator signs (pre-consensus).
     let signatures = vec![test_env.create_move_authenticator_for_ed25519(&[0u8; 32])?];
-    let tx = Transaction::from_user_sig_data(tx_data, signatures);
+    let tx = TransactionEnvelope::from_user_sig_data(tx_data, signatures);
 
     let err = test_env.handle_tx(tx).await.unwrap_err();
     let IotaError::MoveAuthenticatorExecutionFailure { error } = &err else {
@@ -878,6 +896,7 @@ async fn test_pre_consensus_authentication_failure() -> Result<(), anyhow::Error
 #[sim_test]
 async fn test_pre_consensus_authentication_failure_without_report_flag() -> Result<(), anyhow::Error>
 {
+    let _pcool_guard = override_pcool_flow(false);
     telemetry_subscribers::init_for_testing();
 
     // Disable reporting the authentication failure as a distinct error.
@@ -908,7 +927,7 @@ async fn test_pre_consensus_authentication_failure_without_report_flag() -> Resu
     // Sign the authenticator over a digest that does not match the transaction,
     // so `authenticate_ed25519` aborts while the validator signs (pre-consensus).
     let signatures = vec![test_env.create_move_authenticator_for_ed25519(&[0u8; 32])?];
-    let tx = Transaction::from_user_sig_data(tx_data, signatures);
+    let tx = TransactionEnvelope::from_user_sig_data(tx_data, signatures);
 
     let err = test_env.handle_tx(tx).await.unwrap_err();
     let IotaError::MoveAuthenticatorExecutionFailure { error } = &err else {
@@ -940,6 +959,7 @@ async fn test_pre_consensus_authentication_failure_without_report_flag() -> Resu
 ///   receiving object
 #[sim_test]
 async fn test_receiving_gas_executing_aa_tx_first() -> Result<(), anyhow::Error> {
+    let _pcool_guard = override_pcool_flow(false);
     telemetry_subscribers::init_for_testing();
     let client_ip = SocketAddr::new([127, 0, 0, 1].into(), 0);
 
@@ -983,7 +1003,7 @@ async fn test_receiving_gas_executing_aa_tx_first() -> Result<(), anyhow::Error>
     // Create the MoveAuthenticator for the free access authenticator
     let signatures = vec![test_env.create_move_authenticator_for_free_access()?];
     // Create the TX envelope and send it for validators signing
-    let tx1 = Transaction::from_user_sig_data(tx1_data, signatures);
+    let tx1 = TransactionEnvelope::from_user_sig_data(tx1_data, signatures);
     let tx1_cert = test_env
         .test_cluster
         .create_certificate(tx1, Some(client_ip))
@@ -1048,6 +1068,7 @@ async fn test_receiving_gas_executing_aa_tx_first() -> Result<(), anyhow::Error>
 /// 4) Submit the original TX2 certificate. This should now succeed.
 #[sim_test]
 async fn test_receiving_gas_executing_aa_tx_later() -> Result<(), anyhow::Error> {
+    let _pcool_guard = override_pcool_flow(false);
     telemetry_subscribers::init_for_testing();
     let client_ip = SocketAddr::new([127, 0, 0, 1].into(), 0);
 
@@ -1115,7 +1136,7 @@ async fn test_receiving_gas_executing_aa_tx_later() -> Result<(), anyhow::Error>
     // Create the MoveAuthenticator for the free access authenticator
     let signatures = vec![test_env.create_move_authenticator_for_free_access()?];
     // Create the TX envelope and send it for validators signing
-    let tx2 = Transaction::from_user_sig_data(tx2_data, signatures);
+    let tx2 = TransactionEnvelope::from_user_sig_data(tx2_data, signatures);
     let tx2_cert = test_env
         .test_cluster
         .create_certificate(tx2, Some(client_ip))
@@ -1170,6 +1191,7 @@ async fn test_receiving_gas_executing_aa_tx_later() -> Result<(), anyhow::Error>
 /// 5) Submit the original TX2 certificate. This should now succeed.
 #[sim_test]
 async fn test_failing_receiving_gas_then_create_account() -> Result<(), anyhow::Error> {
+    let _pcool_guard = override_pcool_flow(false);
     telemetry_subscribers::init_for_testing();
     let client_ip = SocketAddr::new([127, 0, 0, 1].into(), 0);
 
@@ -1245,7 +1267,7 @@ async fn test_failing_receiving_gas_then_create_account() -> Result<(), anyhow::
     // Create the MoveAuthenticator for the free access authenticator
     let signatures = vec![test_env.create_move_authenticator_for_free_access()?];
     // Create the TX envelope and send it for validators signing
-    let tx2 = Transaction::from_user_sig_data(tx2_data, signatures);
+    let tx2 = TransactionEnvelope::from_user_sig_data(tx2_data, signatures);
     let tx2_cert = test_env
         .test_cluster
         .create_certificate(tx2, Some(client_ip))
@@ -1301,6 +1323,7 @@ async fn test_failing_receiving_gas_then_create_account() -> Result<(), anyhow::
 ///    coin using the latest reference, this should now succeed.
 #[sim_test]
 async fn test_successful_receiving_gas_then_create_account() -> Result<(), anyhow::Error> {
+    let _pcool_guard = override_pcool_flow(false);
     telemetry_subscribers::init_for_testing();
     let client_ip = SocketAddr::new([127, 0, 0, 1].into(), 0);
 
@@ -1399,7 +1422,7 @@ async fn test_successful_receiving_gas_then_create_account() -> Result<(), anyho
     // Create the MoveAuthenticator for the free access authenticator
     let signatures = vec![test_env.create_move_authenticator_for_free_access()?];
     // Create the TX envelope and send it for validators signing
-    let tx2 = Transaction::from_user_sig_data(tx2_data, signatures);
+    let tx2 = TransactionEnvelope::from_user_sig_data(tx2_data, signatures);
     // Submit TX2 for execution and expect success
     test_env.execute_and_check_tx_correctness(tx2).await
 }
@@ -1414,6 +1437,7 @@ async fn test_successful_receiving_gas_then_create_account() -> Result<(), anyho
 #[sim_test]
 async fn test_aa_sender_and_aa_sponsor_succeeded_with_enabled_move_auth_for_sponsor()
 -> Result<(), anyhow::Error> {
+    let _pcool_guard = override_pcool_flow(false);
     telemetry_subscribers::init_for_testing();
 
     // Build the test environment and create the sender AA.
@@ -1446,7 +1470,7 @@ async fn test_aa_sender_and_aa_sponsor_succeeded_with_enabled_move_auth_for_spon
     let sender_aa_sig = test_env.create_move_authenticator_for_ed25519(&tx_digest)?;
     let sponsor_aa_sig =
         test_env.create_move_authenticator_for_ed25519_for_ref(sponsor_aa_ref, &tx_digest)?;
-    let tx = Transaction::from_user_sig_data(tx_data, vec![sender_aa_sig, sponsor_aa_sig]);
+    let tx = TransactionEnvelope::from_user_sig_data(tx_data, vec![sender_aa_sig, sponsor_aa_sig]);
 
     // The TX must succeed with both AA sender and AA sponsor.
     test_env.execute_and_check_tx_correctness(tx).await
@@ -1506,7 +1530,7 @@ async fn test_sponsor_only_move_auth_succeeded_with_enabled_move_auth_for_sponso
     );
     let sponsor_aa_sig =
         test_env.create_move_authenticator_for_free_access_for_ref(sponsor_aa_ref)?;
-    let tx = Transaction::from_user_sig_data(tx_data, vec![sender_sig, sponsor_aa_sig]);
+    let tx = TransactionEnvelope::from_user_sig_data(tx_data, vec![sender_sig, sponsor_aa_sig]);
 
     // The TX must succeed when the sender is a regular account and AA sponsor.
     test_env.execute_and_check_tx_correctness(tx).await
@@ -1518,6 +1542,7 @@ async fn test_sponsor_only_move_auth_succeeded_with_enabled_move_auth_for_sponso
 #[sim_test]
 async fn test_aa_sender_and_aa_sponsor_use_the_same_shared_object_succeeded_with_enabled_move_auth_for_sponsor()
 -> Result<(), anyhow::Error> {
+    let _pcool_guard = override_pcool_flow(false);
     telemetry_subscribers::init_for_testing();
 
     // Build the test environment and create the sender AA.
@@ -1553,7 +1578,7 @@ async fn test_aa_sender_and_aa_sponsor_use_the_same_shared_object_succeeded_with
     // The sender object is used in both MoveAuthenticators.
     let sponsor_aa_sig =
         test_env.create_move_authenticator_with_sponsor_and_sender(sponsor_aa_ref)?;
-    let tx = Transaction::from_user_sig_data(tx_data, vec![sender_aa_sig, sponsor_aa_sig]);
+    let tx = TransactionEnvelope::from_user_sig_data(tx_data, vec![sender_aa_sig, sponsor_aa_sig]);
 
     // The TX must succeed with both AA sender and AA sponsor.
     test_env.execute_and_check_tx_correctness(tx).await
@@ -1566,6 +1591,7 @@ async fn test_aa_sender_and_aa_sponsor_use_the_same_shared_object_succeeded_with
 #[sim_test]
 async fn test_two_move_authenticators_rejected_with_disabled_move_auth_for_sponsor()
 -> Result<(), anyhow::Error> {
+    let _pcool_guard = override_pcool_flow(false);
     telemetry_subscribers::init_for_testing();
 
     // Disable Move authentication for the sponsor.
@@ -1604,7 +1630,7 @@ async fn test_two_move_authenticators_rejected_with_disabled_move_auth_for_spons
     let sender_aa_sig = test_env.create_move_authenticator_for_free_access()?;
     let sponsor_aa_sig =
         test_env.create_move_authenticator_for_free_access_for_ref(sponsor_aa_ref)?;
-    let tx = Transaction::from_user_sig_data(tx_data, vec![sender_aa_sig, sponsor_aa_sig]);
+    let tx = TransactionEnvelope::from_user_sig_data(tx_data, vec![sender_aa_sig, sponsor_aa_sig]);
 
     // The TX must be rejected: >1 MoveAuthenticator is not allowed.
     let err = test_env.handle_tx(tx).await.unwrap_err();
@@ -1628,6 +1654,7 @@ async fn test_two_move_authenticators_rejected_with_disabled_move_auth_for_spons
 #[sim_test]
 async fn test_sponsor_only_move_auth_rejected_with_disabled_move_auth_for_sponsor()
 -> Result<(), anyhow::Error> {
+    let _pcool_guard = override_pcool_flow(false);
     telemetry_subscribers::init_for_testing();
 
     // Disable Move authentication for the sponsor.
@@ -1683,7 +1710,7 @@ async fn test_sponsor_only_move_auth_rejected_with_disabled_move_auth_for_sponso
     );
     let sponsor_aa_sig =
         test_env.create_move_authenticator_for_free_access_for_ref(sponsor_aa_ref)?;
-    let tx = Transaction::from_user_sig_data(tx_data, vec![sender_sig, sponsor_aa_sig]);
+    let tx = TransactionEnvelope::from_user_sig_data(tx_data, vec![sender_sig, sponsor_aa_sig]);
 
     // The TX must be rejected: the single MoveAuthenticator belongs to the
     // sponsor, not the sender, which is not allowed.
@@ -1708,6 +1735,7 @@ async fn test_sponsor_only_move_auth_rejected_with_disabled_move_auth_for_sponso
 #[sim_test]
 async fn test_wrong_signer_move_auth_rejected_with_enabled_move_auth_for_sponsor()
 -> Result<(), anyhow::Error> {
+    let _pcool_guard = override_pcool_flow(false);
     telemetry_subscribers::init_for_testing();
 
     // Build the test environment and create the sender AA.
@@ -1743,7 +1771,8 @@ async fn test_wrong_signer_move_auth_rejected_with_enabled_move_auth_for_sponsor
     let sender_aa_sig = test_env.create_move_authenticator_for_free_access()?;
     let unrelated_aa_sig =
         test_env.create_move_authenticator_for_free_access_for_ref(unrelated_aa_ref)?;
-    let tx = Transaction::from_user_sig_data(tx_data, vec![sender_aa_sig, unrelated_aa_sig]);
+    let tx =
+        TransactionEnvelope::from_user_sig_data(tx_data, vec![sender_aa_sig, unrelated_aa_sig]);
 
     // The TX must be rejected: the sponsor's signature is absent.
     let err = test_env.handle_tx(tx).await.unwrap_err();
@@ -1762,6 +1791,7 @@ async fn test_wrong_signer_move_auth_rejected_with_enabled_move_auth_for_sponsor
 #[sim_test]
 async fn test_aa_sender_and_aa_sponsor_rejected_when_sponsor_aa_fails_with_enabled_move_auth_for_sponsor()
 -> Result<(), anyhow::Error> {
+    let _pcool_guard = override_pcool_flow(false);
     telemetry_subscribers::init_for_testing();
 
     // Build the test environment and create the sender AA.
@@ -1796,7 +1826,7 @@ async fn test_aa_sender_and_aa_sponsor_rejected_when_sponsor_aa_fails_with_enabl
     // match the sponsor AA's actual free access authenticator.
     let sponsor_aa_sig =
         test_env.create_move_authenticator_for_ed25519_for_ref(sponsor_aa_ref, &tx_digest)?;
-    let tx = Transaction::from_user_sig_data(tx_data, vec![sender_aa_sig, sponsor_aa_sig]);
+    let tx = TransactionEnvelope::from_user_sig_data(tx_data, vec![sender_aa_sig, sponsor_aa_sig]);
 
     // The TX must be rejected: the sponsor's signature is incorrect.
     let err = test_env.handle_tx(tx).await.unwrap_err();
@@ -1821,6 +1851,7 @@ async fn test_aa_sender_and_aa_sponsor_rejected_when_sponsor_aa_fails_with_enabl
 #[sim_test]
 async fn test_sponsored_tx_sender_aa_fails_post_consensus_when_only_sponsor_runs_pre_consensus()
 -> Result<(), anyhow::Error> {
+    let _pcool_guard = override_pcool_flow(false);
     telemetry_subscribers::init_for_testing();
     let client_ip = SocketAddr::new([127, 0, 0, 1].into(), 0);
 
@@ -1854,7 +1885,7 @@ async fn test_sponsored_tx_sender_aa_fails_post_consensus_when_only_sponsor_runs
     let sender_aa_sig = test_env.create_move_authenticator_for_ed25519(&wrong_digest)?;
     let sponsor_aa_sig =
         test_env.create_move_authenticator_for_free_access_for_ref(sponsor_aa_ref)?;
-    let tx = Transaction::from_user_sig_data(tx_data, vec![sender_aa_sig, sponsor_aa_sig]);
+    let tx = TransactionEnvelope::from_user_sig_data(tx_data, vec![sender_aa_sig, sponsor_aa_sig]);
 
     // Pre-consensus: only the sponsor's MA is executed (free-access → passes).
     // The validator must sign the TX, producing a certificate.
@@ -1910,6 +1941,7 @@ async fn test_sponsored_tx_sender_aa_fails_post_consensus_when_only_sponsor_runs
 #[sim_test]
 async fn test_sponsored_tx_sender_aa_rejected_pre_consensus_without_sponsor_only_flag()
 -> Result<(), anyhow::Error> {
+    let _pcool_guard = override_pcool_flow(false);
     telemetry_subscribers::init_for_testing();
 
     // Disable the flag so ALL MAs run pre-consensus.
@@ -1945,7 +1977,7 @@ async fn test_sponsored_tx_sender_aa_rejected_pre_consensus_without_sponsor_only
     let sender_aa_sig = test_env.create_move_authenticator_for_ed25519(&wrong_digest)?;
     let sponsor_aa_sig =
         test_env.create_move_authenticator_for_free_access_for_ref(sponsor_aa_ref)?;
-    let tx = Transaction::from_user_sig_data(tx_data, vec![sender_aa_sig, sponsor_aa_sig]);
+    let tx = TransactionEnvelope::from_user_sig_data(tx_data, vec![sender_aa_sig, sponsor_aa_sig]);
 
     // Pre-consensus: both MAs are executed → sender's MA fails → rejected
     // immediately.
@@ -1966,6 +1998,7 @@ async fn test_sponsored_tx_sender_aa_rejected_pre_consensus_without_sponsor_only
 #[sim_test]
 async fn test_non_sponsored_tx_sender_aa_rejected_pre_consensus_with_sponsor_only_flag()
 -> Result<(), anyhow::Error> {
+    let _pcool_guard = override_pcool_flow(false);
     telemetry_subscribers::init_for_testing();
 
     let mut test_env = TestEnvironment::new().await;
@@ -1990,7 +2023,7 @@ async fn test_non_sponsored_tx_sender_aa_rejected_pre_consensus_with_sponsor_onl
     // Sender's MA is signed over the wrong digest.
     let wrong_digest = [0u8; 32];
     let sender_aa_sig = test_env.create_move_authenticator_for_ed25519(&wrong_digest)?;
-    let tx = Transaction::from_user_sig_data(tx_data, vec![sender_aa_sig]);
+    let tx = TransactionEnvelope::from_user_sig_data(tx_data, vec![sender_aa_sig]);
 
     // Pre-consensus: non-sponsored TX → sender's MA always runs pre-consensus even
     // with the sponsor-only flag → sender's MA fails → rejected immediately.
@@ -2016,13 +2049,30 @@ struct TestEnvironment {
     aa_package_id: Option<ObjectId>,
     aa_package_metadata_ref: Option<ObjectReference>,
     aa_ref: Option<ObjectReference>,
-    aa_create_transaction: Option<Transaction>,
+    aa_create_transaction: Option<TransactionEnvelope>,
 }
 
 impl TestEnvironment {
     async fn new() -> Self {
-        let test_cluster = TestClusterBuilder::new().build().await;
+        Self::with_cluster(TestClusterBuilder::new().build().await)
+    }
 
+    /// Builds the environment on a cluster whose fullnode keeps every object
+    /// version.
+    ///
+    /// Reading a transaction response that carries balance or object changes
+    /// resolves the transaction's input objects at their previous version, and
+    /// the fullnode prunes those versions once their checkpoint is executed.
+    async fn new_with_unpruned_fullnode() -> Self {
+        Self::with_cluster(
+            TestClusterBuilder::new()
+                .disable_fullnode_pruning()
+                .build()
+                .await,
+        )
+    }
+
+    fn with_cluster(test_cluster: TestCluster) -> Self {
         Self {
             test_cluster,
             owner: None,
@@ -2323,7 +2373,7 @@ impl TestEnvironment {
     /// it does not alter the ledger.
     async fn create_abstract_account_dry_run(
         &self,
-    ) -> anyhow::Result<(DryRunTransactionBlockResponse, Transaction)> {
+    ) -> anyhow::Result<(DryRunTransactionBlockResponse, TransactionEnvelope)> {
         let (
             Some(owner),
             Some(authenticate_fn_name),
@@ -2567,7 +2617,7 @@ impl TestEnvironment {
         authenticate_fn_name: &str,
         aa_package_id: ObjectId,
         aa_package_metadata_ref: ObjectReference,
-    ) -> anyhow::Result<Transaction> {
+    ) -> anyhow::Result<TransactionEnvelope> {
         let aa_owner_pk = self
             .test_cluster
             .wallet
@@ -2805,7 +2855,10 @@ impl TestEnvironment {
         ))
     }
 
-    async fn execute_and_check_tx_correctness(&self, tx: Transaction) -> anyhow::Result<()> {
+    async fn execute_and_check_tx_correctness(
+        &self,
+        tx: TransactionEnvelope,
+    ) -> anyhow::Result<()> {
         let transaction_response = self.test_cluster.execute_transaction(tx).await;
 
         // Check correctness
@@ -2817,11 +2870,14 @@ impl TestEnvironment {
 
         // The transaction must be successful
         assert!(confirmed_local_execution.unwrap());
-        assert!(errors.is_empty());
+        assert!(errors.is_empty(), "unexpected errors: {errors:?}");
         Ok(())
     }
 
-    async fn handle_tx(&self, tx: Transaction) -> Result<HandleTransactionResponse, IotaError> {
+    async fn handle_tx(
+        &self,
+        tx: TransactionEnvelope,
+    ) -> Result<HandleTransactionResponse, IotaError> {
         let aggregator = self.test_cluster.authority_aggregator();
         aggregator
             .authority_clients

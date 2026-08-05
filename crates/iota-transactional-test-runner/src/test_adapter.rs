@@ -18,11 +18,7 @@ use anyhow::{Context, anyhow, bail};
 use async_trait::async_trait;
 use bimap::btree::BiBTreeMap;
 use criterion::Criterion;
-use fastcrypto::{
-    ed25519::Ed25519KeyPair,
-    encoding::{Base64, Encoding},
-    traits::ToFromBytes,
-};
+use fastcrypto::encoding::{Base64, Encoding};
 use iota_core::authority::{AuthorityState, test_authority_builder::TestAuthorityBuilder};
 use iota_framework::DEFAULT_FRAMEWORK_PATH;
 use iota_json_rpc_api::QUERY_MAX_RESULT_LIMIT;
@@ -58,8 +54,8 @@ use iota_types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     storage::{ObjectStore, ReadStore},
     transaction::{
-        CallArg, SenderSignedTransactionAPI, Transaction, TransactionData, TransactionDataAPI,
-        VerifiedTransaction,
+        CallArg, SenderSignedTransactionAPI, TransactionData, TransactionDataAPI,
+        TransactionEnvelope, VerifiedTransaction,
     },
     utils::{
         to_sender_signed_transaction, to_sender_signed_transaction_with_multi_signers,
@@ -1689,7 +1685,7 @@ impl IotaTestAdapter {
             // gas
             Vec<ObjectReference>,
         ) -> TransactionData,
-    ) -> Transaction {
+    ) -> TransactionEnvelope {
         let sender = self.get_sender(sender);
         self.sign_sponsor_txn(sender, None, vec![], None, move |sender, _, gas| {
             txn_data(sender, gas)
@@ -1729,7 +1725,7 @@ impl IotaTestAdapter {
             // gas
             Vec<ObjectReference>,
         ) -> TransactionData,
-    ) -> Transaction {
+    ) -> TransactionEnvelope {
         let sponsor = sponsor.map_or(sender, |a| self.get_sender(Some(a)));
 
         let payment_refs = self.get_payments(sponsor, payment);
@@ -1774,7 +1770,7 @@ impl IotaTestAdapter {
         args: Vec<IotaValue>,
         gas_budget: Option<u64>,
         extra: IotaRunArgs,
-    ) -> anyhow::Result<Transaction> {
+    ) -> anyhow::Result<TransactionEnvelope> {
         assert!(signers.is_empty(), "signers are not used");
         let IotaRunArgs {
             sender, gas_price, ..
@@ -1802,7 +1798,10 @@ impl IotaTestAdapter {
         Ok(self.sign_txn(sender, data))
     }
 
-    async fn execute_txn(&mut self, transaction: Transaction) -> anyhow::Result<TxnSummary> {
+    async fn execute_txn(
+        &mut self,
+        transaction: TransactionEnvelope,
+    ) -> anyhow::Result<TxnSummary> {
         let with_shared = transaction.contains_shared_object();
         let (effects, error_opt) = self.executor.execute_txn(transaction).await?;
         let digest = effects.transaction_digest();
@@ -2681,12 +2680,9 @@ async fn init_sim_executor(
     let (mut validator_addr, mut validator_key, mut key_copy) = (None, None, None);
     if custom_validator_account {
         // Make a validator account with a gas object
-        let (a, b): (Address, Ed25519KeyPair) = get_key_pair_from_rng(&mut rng);
+        let (a, b): (Address, AccountKeyPair) = get_key_pair_from_rng(&mut rng);
 
-        key_copy = Some(
-            Ed25519KeyPair::from_bytes(b.as_bytes())
-                .expect("FATAL: recovering key from bytes failed"),
-        );
+        key_copy = Some(b.clone());
         validator_addr = Some(a);
         validator_key = Some(b);
     }

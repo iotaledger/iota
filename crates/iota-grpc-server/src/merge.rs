@@ -7,7 +7,7 @@ use iota_grpc_types::{
     v1::{
         bcs::BcsData,
         checkpoint::{Checkpoint, CheckpointContents, CheckpointSummary},
-        epoch::{ProtocolAttributes, ProtocolConfig, ProtocolFeatureFlags},
+        epoch::{EpochCloseProof, ProtocolAttributes, ProtocolConfig, ProtocolFeatureFlags},
         event::{Event, Events},
         object::{Object, Objects},
         signatures::{UserSignature, UserSignatures},
@@ -99,16 +99,16 @@ fn protocol_config_value_to_string(v: ProtocolConfigValue) -> String {
 }
 
 // Signature implementations
-impl Merge<iota_sdk_types::UserSignature> for UserSignature {
+impl Merge<&iota_sdk_types::UserSignature> for UserSignature {
     type Error = RpcError;
 
     fn merge(
         &mut self,
-        source: iota_sdk_types::UserSignature,
+        source: &iota_sdk_types::UserSignature,
         mask: &FieldMaskTree,
     ) -> Result<(), Self::Error> {
         if mask.contains(Self::BCS_FIELD.name) {
-            self.bcs = Some(BcsData::serialize(&source)?);
+            self.bcs = Some(BcsData::serialize(source)?);
         }
 
         Ok(())
@@ -129,12 +129,12 @@ impl Merge<&UserSignature> for UserSignature {
     }
 }
 
-impl Merge<iota_types::transaction::Transaction> for UserSignatures {
+impl Merge<&iota_types::transaction::TransactionEnvelope> for UserSignatures {
     type Error = RpcError;
 
     fn merge(
         &mut self,
-        source: iota_types::transaction::Transaction,
+        source: &iota_types::transaction::TransactionEnvelope,
         mask: &FieldMaskTree,
     ) -> Result<(), Self::Error> {
         // Get signatures directly from transaction without converting the whole
@@ -143,7 +143,7 @@ impl Merge<iota_types::transaction::Transaction> for UserSignatures {
 
         self.signatures = tx_signatures
             .iter()
-            .map(|sig| UserSignature::merge_from(sig.clone(), mask))
+            .map(|sig| UserSignature::merge_from(sig, mask))
             .collect::<Result<Vec<_>, _>>()?;
 
         Ok(())
@@ -162,7 +162,7 @@ impl Merge<&iota_sdk_types::SignedTransaction> for UserSignatures {
         self.signatures = source
             .signatures
             .iter()
-            .map(|sig| UserSignature::merge_from(sig.clone(), mask))
+            .map(|sig| UserSignature::merge_from(sig, mask))
             .collect::<Result<Vec<_>, _>>()?;
 
         Ok(())
@@ -368,12 +368,12 @@ impl Merge<&Objects> for Objects {
 }
 
 // Checkpoint implementations
-impl Merge<iota_sdk_types::CheckpointSummary> for CheckpointSummary {
+impl Merge<&iota_sdk_types::CheckpointSummary> for CheckpointSummary {
     type Error = RpcError;
 
     fn merge(
         &mut self,
-        source: iota_sdk_types::CheckpointSummary,
+        source: &iota_sdk_types::CheckpointSummary,
         mask: &FieldMaskTree,
     ) -> Result<(), Self::Error> {
         if mask.contains(Self::BCS_FIELD.name) {
@@ -412,18 +412,18 @@ impl Merge<&CheckpointSummary> for CheckpointSummary {
     }
 }
 
-impl Merge<iota_sdk_types::CheckpointContents> for CheckpointContents {
+impl Merge<&iota_sdk_types::CheckpointContents> for CheckpointContents {
     type Error = RpcError;
 
     fn merge(
         &mut self,
-        source: iota_sdk_types::CheckpointContents,
+        source: &iota_sdk_types::CheckpointContents,
         mask: &FieldMaskTree,
     ) -> Result<(), Self::Error> {
         if mask.contains(Self::BCS_FIELD.name) {
             // CheckpointContents has a custom Serialize impl that embeds
             // a BCS enum discriminant byte, so no versioned wrapper needed.
-            self.bcs = Some(BcsData::serialize(&source)?);
+            self.bcs = Some(BcsData::serialize(source)?);
         }
 
         if mask.contains(Self::DIGEST_FIELD.name) {
@@ -465,35 +465,36 @@ impl Merge<&iota_sdk_types::CheckpointSummary> for Checkpoint {
         mask: &FieldMaskTree,
     ) -> Result<(), Self::Error> {
         if let Some(submask) = mask.subtree(Self::SUMMARY_FIELD.name) {
-            self.summary = Some(CheckpointSummary::merge_from(source.clone(), &submask)?);
+            self.summary = Some(CheckpointSummary::merge_from(source, &submask)?);
         }
 
         Ok(())
     }
 }
 
-impl Merge<iota_sdk_types::ValidatorAggregatedSignature> for Checkpoint {
+impl Merge<&iota_types::crypto::AuthorityStrongQuorumSignInfo> for Checkpoint {
     type Error = RpcError;
 
     fn merge(
         &mut self,
-        source: iota_sdk_types::ValidatorAggregatedSignature,
+        source: &iota_types::crypto::AuthorityStrongQuorumSignInfo,
         mask: &FieldMaskTree,
     ) -> Result<(), Self::Error> {
         if mask.contains(Self::SIGNATURE_FIELD.name) {
-            self.signature = Some(source.into());
+            let signature = iota_sdk_types::ValidatorAggregatedSignature::from(source.clone());
+            self.signature = Some(signature.into());
         }
 
         Ok(())
     }
 }
 
-impl Merge<iota_sdk_types::CheckpointContents> for Checkpoint {
+impl Merge<&iota_sdk_types::CheckpointContents> for Checkpoint {
     type Error = RpcError;
 
     fn merge(
         &mut self,
-        source: iota_sdk_types::CheckpointContents,
+        source: &iota_sdk_types::CheckpointContents,
         mask: &FieldMaskTree,
     ) -> Result<(), Self::Error> {
         if let Some(submask) = mask.subtree(Self::CONTENTS_FIELD.name) {
@@ -543,18 +544,6 @@ impl Merge<&Checkpoint> for Checkpoint {
 }
 
 // Transaction implementations
-impl Merge<iota_types::effects::TransactionEffects> for TransactionEffects {
-    type Error = RpcError;
-
-    fn merge(
-        &mut self,
-        source: iota_types::effects::TransactionEffects,
-        mask: &FieldMaskTree,
-    ) -> Result<(), Self::Error> {
-        Merge::merge(self, &source, mask)
-    }
-}
-
 impl Merge<&iota_types::effects::TransactionEffects> for TransactionEffects {
     type Error = RpcError;
 
@@ -706,12 +695,12 @@ impl Merge<&ExecutedTransaction> for ExecutedTransaction {
     }
 }
 
-impl Merge<iota_types::transaction::Transaction> for Transaction {
+impl Merge<&iota_types::transaction::TransactionEnvelope> for Transaction {
     type Error = RpcError;
 
     fn merge(
         &mut self,
-        source: iota_types::transaction::Transaction,
+        source: &iota_types::transaction::TransactionEnvelope,
         mask: &FieldMaskTree,
     ) -> Result<(), Self::Error> {
         if !mask.contains(Self::DIGEST_FIELD.name) && !mask.contains(Self::BCS_FIELD.name) {
@@ -755,6 +744,64 @@ impl Merge<&Transaction> for Transaction {
 
         if mask.contains(Self::BCS_FIELD.name) {
             self.bcs = bcs.clone();
+        }
+
+        Ok(())
+    }
+}
+
+// EpochCloseProof implementation
+impl Merge<&iota_types::storage::EpochInfoV1Entry> for EpochCloseProof {
+    type Error = RpcError;
+
+    fn merge(
+        &mut self,
+        source: &iota_types::storage::EpochInfoV1Entry,
+        mask: &FieldMaskTree,
+    ) -> Result<(), Self::Error> {
+        if let Some(submask) = mask.subtree(Self::CHECKPOINT_FIELD.name) {
+            let summary = &source.last_checkpoint_summary;
+
+            let mut checkpoint_proto =
+                Checkpoint::default().with_sequence_number(summary.data().sequence_number());
+
+            Merge::merge(&mut checkpoint_proto, summary.data(), &submask)
+                .map_err(|e| e.with_context("failed to merge checkpoint summary"))?;
+            Merge::merge(
+                &mut checkpoint_proto,
+                &source.last_checkpoint_contents,
+                &submask,
+            )
+            .map_err(|e| e.with_context("failed to merge checkpoint contents"))?;
+            Merge::merge(&mut checkpoint_proto, summary.auth_sig(), &submask)
+                .map_err(|e| e.with_context("failed to merge checkpoint signature"))?;
+
+            self.checkpoint = Some(checkpoint_proto);
+        }
+
+        if let Some(submask) = mask.subtree(Self::END_OF_EPOCH_TRANSACTION_EFFECTS_FIELD.name) {
+            self.end_of_epoch_transaction_effects = Some(TransactionEffects::merge_from(
+                &source.end_of_epoch_tx_effects,
+                &submask,
+            )?);
+        }
+
+        if let Some(submask) = mask.subtree(Self::END_OF_EPOCH_TRANSACTION_EVENTS_FIELD.name) {
+            self.end_of_epoch_transaction_events = Some(TransactionEvents::merge_from(
+                &source.end_of_epoch_tx_events,
+                &submask,
+            )?);
+        }
+
+        if mask.contains(Self::BCS_NEXT_EPOCH_SYSTEM_STATE_OBJECTS_FIELD.name) {
+            // Raw bytes as originally stored, not re-serialized — unlike the
+            // generic `Object` conversion, this preserves the exact bytes a
+            // caller's `ObjectDigest`s commit to.
+            self.bcs_next_epoch_system_state_objects = source
+                .next_epoch_start_system_state_objects
+                .iter()
+                .map(|raw_bytes| BcsData::from(raw_bytes.clone()))
+                .collect();
         }
 
         Ok(())

@@ -25,7 +25,7 @@ use tokio::{
     time::timeout,
 };
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, error, info};
+use tracing::{debug, error};
 
 #[cfg(not(target_os = "macos"))]
 use crate::reader::fetch::init_watcher;
@@ -408,7 +408,7 @@ impl CheckpointReaderActor {
                 Ok(_) => break,
                 Err(IngestionError::MaxCheckpointsCapacityReached) => break,
                 Err(IngestionError::CheckpointNotAvailableYet) => {
-                    break info!("historical reader does not have the requested checkpoint yet");
+                    break debug!("historical reader does not have the requested checkpoint yet");
                 }
                 Err(err) => match backoff.next_backoff() {
                     Some(duration) => {
@@ -510,7 +510,7 @@ impl CheckpointReaderActor {
             self.send_local_checkpoints_to_channel(checkpoints).await?;
         }
 
-        info!(
+        debug!(
             "Read from {remote_source}. Current checkpoint number: {}, pruning watermark: {}",
             self.current_checkpoint_number, self.last_pruned_watermark,
         );

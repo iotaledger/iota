@@ -26,7 +26,7 @@ validator_configs:
     enable-index-processing: true
     jsonrpc-server-type: ~
     grpc-load-shed: ~
-    grpc-concurrency-limit: 20000000000
+    grpc-concurrency-limit-per-core: 500000000
     p2p-config:
       listen-address: "0.0.0.0:1"
       state-sync:
@@ -41,8 +41,6 @@ validator_configs:
     checkpoint-executor-config:
       checkpoint-execution-max-concurrency: 4
       local-execution-timeout-sec: 30
-    db-checkpoint-config:
-      perform-db-checkpoints-at-epoch-end: false
     expensive-safety-check-config:
       enable-epoch-iota-conservation-check: false
       enable-deep-per-tx-iota-conservation-check: false
@@ -122,7 +120,7 @@ validator_configs:
     enable-index-processing: true
     jsonrpc-server-type: ~
     grpc-load-shed: ~
-    grpc-concurrency-limit: 20000000000
+    grpc-concurrency-limit-per-core: 500000000
     p2p-config:
       listen-address: "0.0.0.0:1"
       state-sync:
@@ -137,8 +135,6 @@ validator_configs:
     checkpoint-executor-config:
       checkpoint-execution-max-concurrency: 4
       local-execution-timeout-sec: 30
-    db-checkpoint-config:
-      perform-db-checkpoints-at-epoch-end: false
     expensive-safety-check-config:
       enable-epoch-iota-conservation-check: false
       enable-deep-per-tx-iota-conservation-check: false
@@ -218,7 +214,7 @@ validator_configs:
     enable-index-processing: true
     jsonrpc-server-type: ~
     grpc-load-shed: ~
-    grpc-concurrency-limit: 20000000000
+    grpc-concurrency-limit-per-core: 500000000
     p2p-config:
       listen-address: "0.0.0.0:1"
       state-sync:
@@ -233,8 +229,6 @@ validator_configs:
     checkpoint-executor-config:
       checkpoint-execution-max-concurrency: 4
       local-execution-timeout-sec: 30
-    db-checkpoint-config:
-      perform-db-checkpoints-at-epoch-end: false
     expensive-safety-check-config:
       enable-epoch-iota-conservation-check: false
       enable-deep-per-tx-iota-conservation-check: false
@@ -314,7 +308,7 @@ validator_configs:
     enable-index-processing: true
     jsonrpc-server-type: ~
     grpc-load-shed: ~
-    grpc-concurrency-limit: 20000000000
+    grpc-concurrency-limit-per-core: 500000000
     p2p-config:
       listen-address: "0.0.0.0:1"
       state-sync:
@@ -329,8 +323,6 @@ validator_configs:
     checkpoint-executor-config:
       checkpoint-execution-max-concurrency: 4
       local-execution-timeout-sec: 30
-    db-checkpoint-config:
-      perform-db-checkpoints-at-epoch-end: false
     expensive-safety-check-config:
       enable-epoch-iota-conservation-check: false
       enable-deep-per-tx-iota-conservation-check: false
@@ -410,7 +402,7 @@ validator_configs:
     enable-index-processing: true
     jsonrpc-server-type: ~
     grpc-load-shed: ~
-    grpc-concurrency-limit: 20000000000
+    grpc-concurrency-limit-per-core: 500000000
     p2p-config:
       listen-address: "0.0.0.0:1"
       state-sync:
@@ -425,8 +417,6 @@ validator_configs:
     checkpoint-executor-config:
       checkpoint-execution-max-concurrency: 4
       local-execution-timeout-sec: 30
-    db-checkpoint-config:
-      perform-db-checkpoints-at-epoch-end: false
     expensive-safety-check-config:
       enable-epoch-iota-conservation-check: false
       enable-deep-per-tx-iota-conservation-check: false
@@ -506,7 +496,7 @@ validator_configs:
     enable-index-processing: true
     jsonrpc-server-type: ~
     grpc-load-shed: ~
-    grpc-concurrency-limit: 20000000000
+    grpc-concurrency-limit-per-core: 500000000
     p2p-config:
       listen-address: "0.0.0.0:1"
       state-sync:
@@ -521,8 +511,6 @@ validator_configs:
     checkpoint-executor-config:
       checkpoint-execution-max-concurrency: 4
       local-execution-timeout-sec: 30
-    db-checkpoint-config:
-      perform-db-checkpoints-at-epoch-end: false
     expensive-safety-check-config:
       enable-epoch-iota-conservation-check: false
       enable-deep-per-tx-iota-conservation-check: false
@@ -602,7 +590,7 @@ validator_configs:
     enable-index-processing: true
     jsonrpc-server-type: ~
     grpc-load-shed: ~
-    grpc-concurrency-limit: 20000000000
+    grpc-concurrency-limit-per-core: 500000000
     p2p-config:
       listen-address: "0.0.0.0:1"
       state-sync:
@@ -617,8 +605,6 @@ validator_configs:
     checkpoint-executor-config:
       checkpoint-execution-max-concurrency: 4
       local-execution-timeout-sec: 30
-    db-checkpoint-config:
-      perform-db-checkpoints-at-epoch-end: false
     expensive-safety-check-config:
       enable-epoch-iota-conservation-check: false
       enable-deep-per-tx-iota-conservation-check: false

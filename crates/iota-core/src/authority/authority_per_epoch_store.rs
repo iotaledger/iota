@@ -64,7 +64,7 @@ use iota_types::{
     storage::{BackingPackageStore, InputKey},
     transaction::{
         CertifiedTransaction, InputObjectKind, SenderSignedData, SenderSignedTransactionAPI,
-        Transaction, TransactionDataAPI, TransactionKey, TxValidityCheckContext,
+        TransactionDataAPI, TransactionEnvelope, TransactionKey, TxValidityCheckContext,
         VerifiedCertificate, VerifiedSignedTransaction, VerifiedTransaction,
     },
 };
@@ -2986,6 +2986,17 @@ impl AuthorityPerEpochStore {
             .current_deny_rule_proposals())
     }
 
+    /// The proposal recorded from `authority` this epoch, if any.
+    pub fn recorded_deny_rule_proposal(
+        &self,
+        authority: &AuthorityName,
+    ) -> Option<TransactionDenyRuleProposal> {
+        self.consensus_quarantine
+            .read()
+            .current_deny_rule_proposals()
+            .remove(authority)
+    }
+
     /// Whether `proposal` is newer than the recorded proposal (if any) from
     /// the same authority and should therefore be recorded.
     pub fn should_record_deny_rule_proposal(&self, proposal: &TransactionDenyRuleProposal) -> bool {
@@ -3132,7 +3143,14 @@ impl AuthorityPerEpochStore {
             .user_signatures_for_checkpoints
             .lock()
             .insert(digest, signatures);
-        let key = ConsensusTransactionKey::Certificate(digest);
+        // Match the key the checkpoint builder waits on: in the P-COOL flow
+        // user transactions are submitted as UserTransaction, not as
+        // Certificate.
+        let key = if self.protocol_config().enable_pcool_flow() {
+            ConsensusTransactionKey::UserTransaction(digest)
+        } else {
+            ConsensusTransactionKey::Certificate(digest)
+        };
         let key = SequencedConsensusTransactionKey::External(key);
 
         let mut output = ConsensusCommitOutput::default();
@@ -3275,7 +3293,7 @@ impl AuthorityPerEpochStore {
     }
 
     #[instrument(level = "trace", skip_all)]
-    pub fn verify_transaction(&self, tx: Transaction) -> IotaResult<VerifiedTransaction> {
+    pub fn verify_transaction(&self, tx: TransactionEnvelope) -> IotaResult<VerifiedTransaction> {
         self.signature_verifier
             .verify_tx(tx.data())
             .map(|_| VerifiedTransaction::new_from_verified(tx))

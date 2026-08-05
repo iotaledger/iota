@@ -19,7 +19,7 @@ use iota_grpc_types::{
         transaction_execution_service::{
             self as grpc_tx_service, ExecuteTransactionItem, ExecuteTransactionResult,
             ExecuteTransactionsRequest, ExecuteTransactionsResponse, SimulateTransactionsRequest,
-            SimulateTransactionsResponse, execute_transaction_result,
+            SimulateTransactionsResponse, execute_transaction_result, simulate_transaction_result,
         },
     },
 };
@@ -33,7 +33,7 @@ use prost_types::FieldMask;
 use tonic::{Request, Response};
 pub use transaction::{CommandResultsReadSource, TransactionReadSource};
 
-use crate::{error::RpcError, merge::Merge, types::GrpcReader};
+use crate::{error::RpcError, merge::Merge, traffic_control::TallyHandle, types::GrpcReader};
 
 pub struct TransactionExecutionGrpcService {
     pub config: iota_config::node::GrpcApiConfig,
@@ -63,6 +63,7 @@ impl grpc_tx_service::transaction_execution_service_server::TransactionExecution
         &self,
         request: Request<ExecuteTransactionsRequest>,
     ) -> Result<Response<ExecuteTransactionsResponse>, tonic::Status> {
+        let tally_handle = request.extensions().get::<TallyHandle>().cloned();
         let response = execute_transactions(
             &self.reader,
             &self.executor,
@@ -72,6 +73,19 @@ impl grpc_tx_service::transaction_execution_service_server::TransactionExecution
         .await
         .map(Response::new)
         .map_err(tonic::Status::from)?;
+        // Each batch item is invisible to the transport-level traffic control:
+        // account for every item so a batch is charged per item, and its
+        // embedded per-item errors feed the error policy.
+        if let Some(tally_handle) = &tally_handle {
+            tally_handle.tally_items(response.get_ref().transaction_results.iter().map(|result| {
+                match &result.result {
+                    Some(execute_transaction_result::Result::Error(error)) => {
+                        tonic::Code::from(error.code)
+                    }
+                    _ => tonic::Code::Ok,
+                }
+            }));
+        }
         Ok(append_info_headers!(response, self.reader.clone()))
     }
 
@@ -79,6 +93,7 @@ impl grpc_tx_service::transaction_execution_service_server::TransactionExecution
         &self,
         request: Request<SimulateTransactionsRequest>,
     ) -> Result<Response<SimulateTransactionsResponse>, tonic::Status> {
+        let tally_handle = request.extensions().get::<TallyHandle>().cloned();
         let response = simulate::simulate_transactions(
             &self.reader,
             &self.executor,
@@ -88,6 +103,19 @@ impl grpc_tx_service::transaction_execution_service_server::TransactionExecution
         .await
         .map(Response::new)
         .map_err(tonic::Status::from)?;
+        // Each batch item is invisible to the transport-level traffic control:
+        // account for every item so a batch is charged per item, and its
+        // embedded per-item errors feed the error policy.
+        if let Some(tally_handle) = &tally_handle {
+            tally_handle.tally_items(response.get_ref().transaction_results.iter().map(|result| {
+                match &result.result {
+                    Some(simulate_transaction_result::Result::Error(error)) => {
+                        tonic::Code::from(error.code)
+                    }
+                    _ => tonic::Code::Ok,
+                }
+            }));
+        }
         Ok(append_info_headers!(response, self.reader.clone()))
     }
 }
@@ -648,7 +676,7 @@ async fn execute_single_transaction(
         signatures: sdk_signatures,
     };
 
-    let transaction = iota_types::transaction::Transaction::from(sdk_signed_transaction);
+    let transaction = iota_types::transaction::TransactionEnvelope::from(sdk_signed_transaction);
 
     // Determine what to include in the request based on read mask.
     // Balance/object changes are derived from the input/output objects, so the

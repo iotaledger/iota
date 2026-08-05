@@ -29,7 +29,7 @@ use crate::{
     supported_protocol_versions::{
         Chain, SupportedProtocolVersions, SupportedProtocolVersionsWithHashes,
     },
-    transaction::{CertifiedTransaction, SenderSignedData, Transaction},
+    transaction::{CertifiedTransaction, SenderSignedData, TransactionEnvelope},
 };
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -249,6 +249,30 @@ pub struct TransactionDenyRuleProposal {
     pub proposed_rules: DenyRuleSet,
 }
 
+impl TransactionDenyRuleProposal {
+    /// Creates a proposal with a wall-clock generation, so a resubmission
+    /// supersedes this authority's earlier proposals. Pass the generation of
+    /// this authority's currently recorded proposal (if any) so the new one
+    /// stays newer even after a backward wall-clock step.
+    pub fn new(
+        authority: AuthorityName,
+        proposed_rules: DenyRuleSet,
+        last_generation: Option<u64>,
+    ) -> Self {
+        let now: u64 = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("IOTA did not exist prior to 1970")
+            .as_millis()
+            .try_into()
+            .expect("This build of iota is not supported in the year 500,000,000");
+        Self {
+            authority,
+            generation: now.max(last_generation.map_or(0, |g| g.saturating_add(1))),
+            proposed_rules,
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum ConsensusTransactionKind {
     CertifiedTransaction(Box<CertifiedTransaction>),
@@ -273,7 +297,7 @@ pub enum ConsensusTransactionKind {
     /// P-COOL user transaction. Raw, uncertified transaction submitted
     /// directly to consensus without pre-consensus object locking.
     /// Conflicts are resolved post-consensus.
-    UserTransactionV1(Box<Transaction>),
+    UserTransactionV1(Box<TransactionEnvelope>),
     OverloadNotificationV1(
         AuthorityName,
         u64, // generation
@@ -297,7 +321,7 @@ impl ConsensusTransactionKind {
     fn map_cert_or_raw_user_tx<'a, R>(
         &'a self,
         certified: impl FnOnce(&'a CertifiedTransaction) -> R,
-        raw: impl FnOnce(&'a Transaction) -> R,
+        raw: impl FnOnce(&'a TransactionEnvelope) -> R,
     ) -> Option<R> {
         match self {
             Self::CertifiedTransaction(c) => Some(certified(c)),
@@ -331,7 +355,7 @@ impl ConsensusTransactionKind {
     /// Returns the raw, uncertified user transaction (`UserTransactionV1`)
     /// submitted directly to consensus, or `None` for any other kind. Certified
     /// user transactions are not included here.
-    pub fn as_user_transaction(&self) -> Option<&Transaction> {
+    pub fn as_user_transaction(&self) -> Option<&TransactionEnvelope> {
         match self {
             Self::UserTransactionV1(tx) => Some(tx),
             Self::CertifiedTransaction(_)
@@ -660,7 +684,7 @@ impl ConsensusTransaction {
         }
     }
 
-    pub fn new_user_transaction(transaction: Transaction) -> Self {
+    pub fn new_user_transaction(transaction: TransactionEnvelope) -> Self {
         let mut hasher = DefaultHasher::new();
         let tx_digest = transaction.digest();
         tx_digest.hash(&mut hasher);
@@ -968,5 +992,21 @@ mod tests {
         };
         let bytes = bcs::to_bytes(&proposal).unwrap();
         assert_eq!(proposal, bcs::from_bytes(&bytes).unwrap());
+    }
+
+    /// The generation is wall-clock time, but never regresses below a
+    /// recorded proposal's generation even if the clock stepped backward.
+    #[test]
+    fn proposal_generation_supersedes_last_generation() {
+        use crate::deny_rule_governance::DenyRuleSet;
+
+        let authority = AuthorityName::default();
+        let fresh = TransactionDenyRuleProposal::new(authority, DenyRuleSet::default(), None);
+        assert!(fresh.generation > 0);
+
+        let far_future = fresh.generation + 1_000_000_000;
+        let successor =
+            TransactionDenyRuleProposal::new(authority, DenyRuleSet::default(), Some(far_future));
+        assert_eq!(successor.generation, far_future + 1);
     }
 }

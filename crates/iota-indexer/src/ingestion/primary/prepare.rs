@@ -17,7 +17,6 @@ use iota_types::{
     effects::{
         TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt, TransactionEvents,
     },
-    event::{SystemEpochInfoEvent, SystemEpochInfoEventV1, SystemEpochInfoEventV2},
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     iota_system_state::{IotaSystemStateTrait, get_iota_system_state},
     messages_checkpoint::{
@@ -38,16 +37,18 @@ use crate::{
     },
     metrics::IndexerMetrics,
     models::{
-        display::StoredDisplay,
-        epoch::{EndOfEpochUpdate, StartOfEpochUpdate},
+        display::{
+            StoredDisplay, display_id_from_created_event, displayed_type_from_created_event,
+        },
+        epoch::{EndOfEpochUpdate, StartOfEpochUpdate, extract_epoch_info_event},
         obj_indices::StoredObjectVersion,
         objects::StoredBackwardHistoryObject,
     },
     store::{IndexerStore, PgIndexerStore},
     types::{
-        EventIndex, IndexedBalanceChange, IndexedCheckpoint, IndexedEpochInfoEvent, IndexedEvent,
-        IndexedObject, IndexedObjectChange, IndexedPackage, IndexedTransaction, IndexerResult,
-        ObjectStatus, TxIndex,
+        EventIndex, IndexedBalanceChange, IndexedCheckpoint, IndexedEvent, IndexedObject,
+        IndexedObjectChange, IndexedPackage, IndexedTransaction, IndexerResult, ObjectStatus,
+        TxIndex,
     },
 };
 
@@ -157,24 +158,7 @@ impl PrimaryWorker {
 
         let event = transactions
             .iter()
-            .flat_map(|t| t.events.as_ref().map(|events| events.iter()))
-            .flatten()
-            .find(|ev| ev.is_system_epoch_info_event_v1() || ev.is_system_epoch_info_event_v2())
-            .map(|ev| {
-                if ev.is_system_epoch_info_event_v2() {
-                    SystemEpochInfoEvent::V2(
-                        bcs::from_bytes::<SystemEpochInfoEventV2>(&ev.contents).expect(
-                            "event deserialization should succeed as type was pre-validated",
-                        ),
-                    )
-                } else {
-                    SystemEpochInfoEvent::V1(
-                        bcs::from_bytes::<SystemEpochInfoEventV1>(&ev.contents).expect(
-                            "event deserialization should succeed as type was pre-validated",
-                        ),
-                    )
-                }
-            });
+            .find_map(|t| t.events.as_ref().and_then(extract_epoch_info_event));
 
         let system_state = get_iota_system_state(&checkpoint_object_store)?;
         if event.is_none() {
@@ -189,9 +173,7 @@ impl PrimaryWorker {
             );
         }
 
-        let event = event
-            .as_ref()
-            .map_or_else(Default::default, IndexedEpochInfoEvent::from);
+        let event = event.unwrap_or_default();
         let new_epoch_first_checkpoint_id = checkpoint_summary.sequence_number + 1;
         let new_epoch_first_tx_sequence_number = checkpoint_summary.network_total_transactions;
         Ok(Some(EpochToCommit {
@@ -297,7 +279,7 @@ impl PrimaryWorker {
             events: db_events,
             tx_indices: db_tx_indices,
             event_indices: db_event_indices,
-            display_updates: db_displays,
+            displays: db_displays,
             object_changes,
             backward_history_changes,
             object_versions,
@@ -392,6 +374,7 @@ impl PrimaryWorker {
             transaction: sender_signed_data,
             effects: fx,
             events,
+            output_objects,
             ..
         } = tx;
 
@@ -422,11 +405,35 @@ impl PrimaryWorker {
             .map(|(idx, event)| EventIndex::from_event(tx_sequence_number, idx as u64, event))
             .collect();
 
-        let db_displays = events
+        let mut db_displays: BTreeMap<String, StoredDisplay> = events
             .iter()
             .flat_map(StoredDisplay::try_from_event)
             .map(|display| (display.object_type.clone(), display))
             .collect();
+
+        // `display::new` only emits a `DisplayCreated` event with no fields. If an
+        // author creates a `Display<T>` but never calls `update_version`, it wouldn't
+        // get indexed normally. To prevent this, we fall back to the contents of the
+        // created object itself for types with no `VersionUpdated` event in this
+        // transaction.
+        for event in events.iter() {
+            let Some(object_type) = displayed_type_from_created_event(event) else {
+                continue;
+            };
+            if db_displays.contains_key(&object_type) {
+                continue;
+            }
+            if let Some(display) = display_id_from_created_event(event)
+                .and_then(|display_id| {
+                    output_objects
+                        .iter()
+                        .find(|object| object.id() == display_id)
+                })
+                .and_then(StoredDisplay::try_from_object)
+            {
+                db_displays.insert(object_type, display);
+            }
+        }
 
         // Input Objects
         let input_objects = tx
@@ -651,16 +658,14 @@ impl PrimaryWorker {
                 data.transactions
                     .iter()
                     .flat_map(|tx| &tx.output_objects)
-                    .filter_map(|o| {
-                        if let iota_sdk_types::ObjectData::Package(p) = &o.data {
-                            Some(IndexedPackage {
-                                package_id: o.id(),
-                                move_package: p.clone(),
-                                checkpoint_sequence_number,
-                            })
-                        } else {
-                            None
-                        }
+                    .filter_map(|object| {
+                        let iota_sdk_types::ObjectData::Package(package) = object.data() else {
+                            return None;
+                        };
+                        Some(IndexedPackage::new(
+                            package.clone(),
+                            checkpoint_sequence_number,
+                        ))
                     })
                     .collect::<Vec<_>>()
             })

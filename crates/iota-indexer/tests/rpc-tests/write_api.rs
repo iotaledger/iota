@@ -26,7 +26,7 @@ use iota_sdk_types::{
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    crypto::{AccountKeyPair, IotaKeyPair, get_key_pair},
+    crypto::{AccountKeyPair, SimpleKeypair, get_key_pair},
     gas_coin::NANOS_PER_IOTA,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::ExecuteTransactionRequestType,
@@ -994,6 +994,116 @@ fn test_repeatedly_update_display() {
     });
 }
 
+/// The display info of an object type must be indexed even when the package
+/// author never calls `display::update_version`, in which case no
+/// `VersionUpdated` event exists and the fields can only be read from the
+/// `Display` object created on publish.
+#[test]
+fn test_display_indexed_without_version_update() {
+    let ApiTestSetup {
+        runtime,
+        cluster,
+        store,
+        client,
+    } = ApiTestSetup::get_or_init();
+
+    runtime.block_on(async {
+        indexer_wait_for_checkpoint(store, 1).await;
+
+        let (sender, sender_kp): (_, AccountKeyPair) = get_key_pair();
+
+        let gas_ref = cluster
+            .fund_address_and_return_gas(
+                cluster.get_reference_gas_price().await,
+                Some(10_000_000_000),
+                sender,
+            )
+            .await;
+        indexer_wait_for_object(client, gas_ref.object_id, gas_ref.version).await;
+
+        let (_, _, nft_id) =
+            deploy_display_no_version_update_pkg_and_mint_nft(sender, &sender_kp, client, "gift")
+                .await
+                .unwrap();
+
+        let res = client
+            .get_object(nft_id, Some(IotaObjectDataOptions::new().with_display()))
+            .await
+            .unwrap();
+        let display_fields = res.data.unwrap().display.unwrap().data.unwrap();
+
+        assert_eq!(display_fields["name"], "gift");
+        assert_eq!(display_fields["description"], "An NFT with display");
+    });
+}
+
+/// A later `VersionUpdated` event must take precedence over the display info
+/// previously indexed from the `Display` object.
+#[test]
+fn test_version_update_overrides_display_indexed_from_object() {
+    let ApiTestSetup {
+        runtime,
+        cluster,
+        store,
+        client,
+    } = ApiTestSetup::get_or_init();
+
+    runtime.block_on(async {
+        indexer_wait_for_checkpoint(store, 1).await;
+
+        let (sender, sender_kp): (_, AccountKeyPair) = get_key_pair();
+
+        let gas_ref = cluster
+            .fund_address_and_return_gas(
+                cluster.get_reference_gas_price().await,
+                Some(10_000_000_000),
+                sender,
+            )
+            .await;
+        indexer_wait_for_object(client, gas_ref.object_id, gas_ref.version).await;
+
+        let (package_id, display_obj_id, nft_id) =
+            deploy_display_no_version_update_pkg_and_mint_nft(sender, &sender_kp, client, "gift")
+                .await
+                .unwrap();
+
+        let nft_type_tag = TypeTag::Struct(Box::new(StructTag::new(
+            package_id,
+            Identifier::from_static("display_no_version_update"),
+            Identifier::from_static("Nft"),
+            Vec::new(),
+        )));
+
+        let res = update_display_object(
+            sender,
+            &sender_kp,
+            client,
+            &display_obj_id,
+            nft_type_tag.clone(),
+            "description",
+            "An updated NFT with display",
+        )
+        .await
+        .unwrap();
+        assert_transaction_success(&res);
+
+        let res =
+            bump_display_object_version(sender, &sender_kp, client, &display_obj_id, nft_type_tag)
+                .await
+                .unwrap();
+        assert_transaction_success(&res);
+
+        let res = client
+            .get_object(nft_id, Some(IotaObjectDataOptions::new().with_display()))
+            .await
+            .unwrap();
+        let display_fields = res.data.unwrap().display.unwrap().data.unwrap();
+
+        assert_eq!(display_fields["description"], "An updated NFT with display");
+        assert_eq!(display_fields["name"], "gift");
+    });
+}
+
 #[tokio::test]
 async fn test_optimistic_tables_pruning() -> IndexerResult<()> {
     let (cluster, store, client) = &start_test_cluster_with_read_write_indexer(
@@ -1329,6 +1439,64 @@ async fn deploy_bear_pkg(
     .await
 }
 
+/// Deploys the test package under `tests/data/display_no_version_update`,
+/// whose `init` creates a `Display<Nft>` with fields but never calls
+/// `display::update_version`, and mints an `Nft` with the given `name`.
+///
+/// Returns the package id, the `Display<Nft>` object id and the `Nft` id.
+async fn deploy_display_no_version_update_pkg_and_mint_nft(
+    address: Address,
+    address_kp: &AccountKeyPair,
+    client: &HttpClient,
+    name: &str,
+) -> Result<(ObjectId, ObjectId, ObjectId), anyhow::Error> {
+    let (publish_res, package_id) = deploy_package(
+        address,
+        address_kp,
+        client,
+        "tests/data/display_no_version_update",
+    )
+    .await;
+
+    // The only event emitted by the publish transaction is `DisplayCreated`,
+    // which carries the id of the created `Display<Nft>` object.
+    let display_obj_id = ObjectId::from_prefixed_short_hex(
+        publish_res.events.unwrap().data[0]
+            .parsed_json
+            .as_object()
+            .unwrap()["id"]
+            .as_str()
+            .unwrap(),
+    )
+    .unwrap();
+
+    let res = execute_move_call(
+        client,
+        address,
+        address_kp,
+        package_id,
+        "display_no_version_update".to_string(),
+        "mint".to_string(),
+        type_args![]?,
+        call_args!(name.to_string())?,
+        None,
+    )
+    .await?;
+    assert_transaction_success(&res);
+
+    let nft_id = res
+        .effects
+        .as_ref()
+        .unwrap()
+        .created()
+        .iter()
+        .exactly_one()
+        .unwrap()
+        .object_id();
+
+    Ok((package_id, display_obj_id, nft_id))
+}
+
 async fn deploy_package(
     address: Address,
     address_kp: &AccountKeyPair,
@@ -1393,8 +1561,8 @@ fn move_view_function_call() {
 
     runtime.block_on(async {
         indexer_wait_for_checkpoint(store, 1).await;
-        let (address, keypair) = get_key_pair();
-        let keypair = IotaKeyPair::Ed25519(keypair);
+        let (address, keypair): (_, AccountKeyPair) = get_key_pair();
+        let keypair = SimpleKeypair::from(keypair);
         let gas_ref = cluster
             .fund_address_and_return_gas(
                 cluster.get_reference_gas_price().await,
@@ -1514,8 +1682,8 @@ fn clever_errors() {
 
     runtime.block_on(async {
         indexer_wait_for_checkpoint(store, 1).await;
-        let (address, keypair) = get_key_pair();
-        let keypair = IotaKeyPair::Ed25519(keypair);
+        let (address, keypair): (_, AccountKeyPair) = get_key_pair();
+        let keypair = SimpleKeypair::from(keypair);
         let gas_ref = cluster
             .fund_address_and_return_gas(
                 cluster.get_reference_gas_price().await,

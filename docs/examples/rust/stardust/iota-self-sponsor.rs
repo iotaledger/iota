@@ -15,14 +15,13 @@ use iota_sdk::{
     IotaClientBuilder,
     rpc_types::{IotaObjectDataOptions, IotaTransactionBlockResponseOptions},
     types::{
-        crypto::SignatureScheme,
         gas_coin::GAS,
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         quorum_driver_types::ExecuteTransactionRequestType,
-        transaction::{CallArg, Transaction, TransactionData},
+        transaction::{CallArg, TransactionData, TransactionEnvelope},
     },
 };
-use iota_sdk_types::{Argument, Identifier, ObjectId, crypto::Intent};
+use iota_sdk_types::{Argument, Identifier, ObjectId, SignatureScheme, crypto::Intent};
 use iota_types::transaction::TransactionDataAPI;
 
 pub const IOTA_COIN_TYPE: u32 = 4218;
@@ -167,7 +166,7 @@ async fn main() -> Result<(), anyhow::Error> {
     let transaction_response = iota_client
         .quorum_driver_api()
         .execute_transaction_block(
-            Transaction::from_data(tx_data, vec![sender_signature, sponsor_signature]),
+            TransactionEnvelope::from_data(tx_data, vec![sender_signature, sponsor_signature]),
             IotaTransactionBlockResponseOptions::full_content(),
             Some(ExecuteTransactionRequestType::WaitForLocalExecution),
         )

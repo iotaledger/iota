@@ -26,7 +26,7 @@ use serde::{Deserialize, Serialize, ser::Error};
 pub use crate::committee::EpochId;
 use crate::{
     MOVE_STDLIB_ADDRESS,
-    crypto::{AuthorityPublicKeyBytes, DefaultHash, IotaPublicKey, PublicKey},
+    crypto::{AuthorityPublicKeyBytes, DefaultHash, PublicKey},
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
     epoch_data::EpochData,
     error::{ExecutionError, ExecutionErrorKind},
@@ -36,7 +36,7 @@ use crate::{
     messages_checkpoint::CheckpointTimestamp,
     object::Object,
     parse_iota_struct_tag,
-    transaction::{Transaction, VerifiedTransaction},
+    transaction::{TransactionEnvelope, VerifiedTransaction},
 };
 
 #[cfg(test)]
@@ -218,14 +218,6 @@ fn update_hasher_with_flag(hasher: &mut DefaultHash, scheme: SignatureScheme) {
     }
 }
 
-pub fn address_from_iota_pub_key<T: IotaPublicKey>(pk: &T) -> Address {
-    let mut hasher = DefaultHash::default();
-    update_hasher_with_flag(&mut hasher, T::SIGNATURE_SCHEME);
-    hasher.update(pk);
-    let g_arr = hasher.finalize();
-    Address::new(g_arr.digest)
-}
-
 impl From<&PublicKey> for Address {
     fn from(pk: &PublicKey) -> Self {
         let mut hasher = DefaultHash::default();
@@ -266,12 +258,12 @@ impl ExecutionDigests {
 
 #[derive(Clone, Eq, PartialEq, Serialize, Deserialize, Debug)]
 pub struct ExecutionData {
-    pub transaction: Transaction,
+    pub transaction: TransactionEnvelope,
     pub effects: TransactionEffects,
 }
 
 impl ExecutionData {
-    pub fn new(transaction: Transaction, effects: TransactionEffects) -> ExecutionData {
+    pub fn new(transaction: TransactionEnvelope, effects: TransactionEffects) -> ExecutionData {
         debug_assert_eq!(transaction.digest(), effects.transaction_digest());
         Self {
             transaction,

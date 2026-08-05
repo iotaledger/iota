@@ -2,31 +2,32 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use iota_sdk_crypto::{ToFromBech32, ToFromBytes as _};
 use proptest::{collection, prelude::*};
 
 use super::*;
 
 #[test]
 fn serde_keypair() {
-    let ikp = IotaKeyPair::Ed25519(Ed25519KeyPair::generate(&mut StdRng::from_seed([0; 32])));
-    let encoded = ikp.encode().unwrap();
+    let ikp = SimpleKeypair::from(Ed25519PrivateKey::generate(StdRng::from_seed([0; 32])));
+    let encoded = ikp.to_bech32().unwrap();
     assert_eq!(
         encoded,
         "iotaprivkey1qzdlfxn2qa2lj5uprl8pyhexs02sg2wrhdy7qaq50cqgnffw4c247zslwv6"
     );
-    let decoded = IotaKeyPair::decode(&encoded).unwrap();
-    assert_eq!(ikp, decoded);
+    let decoded = SimpleKeypair::from_bech32(&encoded).unwrap();
+    assert_eq!(ikp.to_bytes(), decoded.to_bytes());
 }
 
 #[test]
 fn serde_pubkey() {
-    let ikp = IotaKeyPair::Ed25519(get_key_pair().1);
-    let ser = serde_json::to_string(&ikp.public()).unwrap();
+    let ikp = SimpleKeypair::from(get_key_pair::<Ed25519PrivateKey>().1);
+    let ser = serde_json::to_string(&PublicKey::from(&ikp)).unwrap();
     assert_eq!(
         ser,
         format!(
             "{{\"Ed25519\":\"{}\"}}",
-            Base64::encode(ikp.public().as_ref())
+            Base64::encode(PublicKey::from(&ikp).as_ref())
         )
     );
 }
@@ -48,15 +49,15 @@ fn serde_round_trip_authority_quorum_sign_info() {
 
 #[test]
 fn public_key_equality() {
-    let ed_kp1: IotaKeyPair = IotaKeyPair::Ed25519(get_key_pair().1);
-    let ed_kp2: IotaKeyPair = IotaKeyPair::Ed25519(get_key_pair().1);
-    let k1_kp1: IotaKeyPair = IotaKeyPair::Secp256k1(get_key_pair().1);
-    let k1_kp2: IotaKeyPair = IotaKeyPair::Secp256k1(get_key_pair().1);
+    let ed_kp1 = SimpleKeypair::from(get_key_pair::<Ed25519PrivateKey>().1);
+    let ed_kp2 = SimpleKeypair::from(get_key_pair::<Ed25519PrivateKey>().1);
+    let k1_kp1 = SimpleKeypair::from(get_key_pair::<Secp256k1PrivateKey>().1);
+    let k1_kp2 = SimpleKeypair::from(get_key_pair::<Secp256k1PrivateKey>().1);
 
-    let ed_pk1 = ed_kp1.public();
-    let ed_pk2 = ed_kp2.public();
-    let k1_pk1 = k1_kp1.public();
-    let k1_pk2 = k1_kp2.public();
+    let ed_pk1 = PublicKey::from(&ed_kp1);
+    let ed_pk2 = PublicKey::from(&ed_kp2);
+    let k1_pk1 = PublicKey::from(&k1_kp1);
+    let k1_pk2 = PublicKey::from(&k1_kp2);
 
     // reflexivity
     assert_eq!(ed_pk1, ed_pk1);
@@ -108,7 +109,7 @@ proptest! {
     ){
         let _key_pair = get_key_pair_from_bytes::<AuthorityKeyPair>(&bytes);
         let _key_pair = get_key_pair_from_bytes::<NetworkKeyPair>(&bytes);
-        let _key_pair = get_key_pair_from_bytes::<AccountKeyPair>(&bytes);
+        let _key_pair = AccountKeyPair::from_bytes(&bytes);
     }
 
     #[test]
@@ -126,8 +127,8 @@ proptest! {
     fn test_deserialize_keypair(
         bytes in collection::vec(any::<u8>(), 0..1024)
     ){
-        let _ikp: Result<IotaKeyPair, _> = bcs::from_bytes(&bytes);
         let _pk: Result<PublicKey, _> = bcs::from_bytes(&bytes);
+        let _kp = SimpleKeypair::from_bytes(&bytes);
     }
 
 

@@ -20,13 +20,14 @@ use iota_sdk::{
         IotaTransactionBlockResponseOptions, ObjectChange,
     },
     types::{
-        crypto::SignatureScheme,
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         quorum_driver_types::ExecuteTransactionRequestType,
-        transaction::{Transaction, TransactionData},
+        transaction::{TransactionData, TransactionEnvelope},
     },
 };
-use iota_sdk_types::{Address, ObjectId, ObjectReference, ProgrammableTransaction, crypto::Intent};
+use iota_sdk_types::{
+    Address, ObjectId, ObjectReference, ProgrammableTransaction, SignatureScheme, crypto::Intent,
+};
 use iota_types::{move_package, transaction::TransactionDataAPI};
 use reqwest::Client;
 use serde::Deserialize;
@@ -104,7 +105,7 @@ pub async fn fund_address(
     let transaction_response = iota_client
         .quorum_driver_api()
         .execute_transaction_block(
-            Transaction::from_data(tx_data, vec![signature]),
+            TransactionEnvelope::from_data(tx_data, vec![signature]),
             IotaTransactionBlockResponseOptions::full_content(),
             Some(ExecuteTransactionRequestType::WaitForLocalExecution),
         )
@@ -228,7 +229,7 @@ pub async fn publish_package<Keystore: AccountKeystore>(
     let transaction_response = iota_client
         .quorum_driver_api()
         .execute_transaction_block(
-            Transaction::from_data(tx_data, vec![signature]),
+            TransactionEnvelope::from_data(tx_data, vec![signature]),
             IotaTransactionBlockResponseOptions::full_content(),
             Some(ExecuteTransactionRequestType::WaitForLocalExecution),
         )
@@ -359,18 +360,18 @@ pub async fn create_and_sign_transaction<Keystore: AccountKeystore>(
     keystore: &mut Keystore,
     sender: Address,
     pt: ProgrammableTransaction,
-) -> Result<Transaction> {
+) -> Result<TransactionEnvelope> {
     let tx_data = create_transaction_data(iota_client, sender, pt).await?;
 
     let signature = keystore.sign_secure(&sender, &tx_data, Intent::iota_transaction())?;
 
-    Ok(Transaction::from_data(tx_data, vec![signature]))
+    Ok(TransactionEnvelope::from_data(tx_data, vec![signature]))
 }
 
 /// Utility function to execute a transaction.
 pub async fn execute_transaction(
     iota_client: &IotaClient,
-    transaction: Transaction,
+    transaction: TransactionEnvelope,
 ) -> Result<IotaTransactionBlockResponse> {
     Ok(iota_client
         .quorum_driver_api()

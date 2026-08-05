@@ -5,19 +5,21 @@
 use std::str::FromStr;
 
 use anyhow::Ok;
-use fastcrypto::{
-    ed25519::{Ed25519KeyPair, Ed25519PublicKey, Ed25519Signature},
-    encoding::{Base64, Encoding, Hex},
-    traits::{ToFromBytes, VerifyingKey},
-};
+use fastcrypto::encoding::{Base64, Encoding, Hex};
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore, InMemKeystore, Keystore, StoredKey};
+use iota_sdk_crypto::{
+    ToFromBech32, ToFromBytes as _, Verifier as _,
+    ed25519::{Ed25519PrivateKey, Ed25519VerifyingKey},
+    secp256k1::Secp256k1PrivateKey,
+};
 use iota_sdk_types::{
-    Address, ObjectDigest, ObjectId, ObjectReference, SignatureScheme, Version,
-    crypto::{Intent, IntentScope, PublicKey, UserSignature},
+    Address, Ed25519PublicKey, Ed25519Signature, ObjectDigest, ObjectId, ObjectReference,
+    SignatureScheme, Version,
+    crypto::{Intent, IntentScope, PublicKey, PublicKeyExt as _, UserSignature},
 };
 use iota_types::{
     crypto::{
-        AuthorityKeyPair, EncodeDecodeBase64, IotaKeyPair, Signature, get_key_pair,
+        AuthorityKeyPair, EncodeDecodeBase64, Signature, SimpleKeypair, get_key_pair,
         get_key_pair_from_rng,
     },
     transaction::{TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionData, TransactionDataAPI},
@@ -42,7 +44,10 @@ async fn test_addresses_command() -> Result<(), anyhow::Error> {
 
     // Add another 3 Secp256k1 KeyPairs
     for _ in 0..3 {
-        keystore.add_key(None, IotaKeyPair::Secp256k1(get_key_pair().1))?;
+        keystore.add_key(
+            None,
+            SimpleKeypair::from(get_key_pair::<Secp256k1PrivateKey>().1),
+        )?;
     }
 
     // List all addresses with flag
@@ -59,8 +64,14 @@ async fn test_addresses_command() -> Result<(), anyhow::Error> {
 async fn test_flag_in_signature_and_keypair() -> Result<(), anyhow::Error> {
     let mut keystore = Keystore::from(InMemKeystore::new_insecure_for_tests(0));
 
-    keystore.add_key(None, IotaKeyPair::Secp256k1(get_key_pair().1))?;
-    keystore.add_key(None, IotaKeyPair::Ed25519(get_key_pair().1))?;
+    keystore.add_key(
+        None,
+        SimpleKeypair::from(get_key_pair::<Secp256k1PrivateKey>().1),
+    )?;
+    keystore.add_key(
+        None,
+        SimpleKeypair::from(get_key_pair::<Ed25519PrivateKey>().1),
+    )?;
 
     for key in keystore
         .keys()
@@ -109,8 +120,8 @@ async fn test_read_write_keystore_with_flag() {
     let dir = tempfile::TempDir::new().unwrap();
 
     // create Secp256k1 keypair
-    let kp_secp = IotaKeyPair::Secp256k1(get_key_pair().1);
-    let addr_secp: Address = (&kp_secp.public()).into();
+    let kp_secp = SimpleKeypair::from(get_key_pair::<Secp256k1PrivateKey>().1);
+    let addr_secp: Address = kp_secp.public_key().derive_address();
     let fp_secp = dir.path().join(format!("{addr_secp}.key"));
     let fp_secp_2 = fp_secp.clone();
 
@@ -123,18 +134,15 @@ async fn test_read_write_keystore_with_flag() {
     assert!(kp_secp_read.is_ok());
 
     // KeyPair wrote into file is the same as read
-    assert_eq!(
-        kp_secp_read.unwrap().public().as_ref(),
-        kp_secp.public().as_ref()
-    );
+    assert_eq!(kp_secp_read.unwrap().to_bytes(), kp_secp.to_bytes());
 
     // read as AuthorityKeyPair fails
     let kp_secp_read = read_authority_keypair_from_file(fp_secp_2);
     assert!(kp_secp_read.is_err());
 
     // create Ed25519 keypair
-    let kp_ed = IotaKeyPair::Ed25519(get_key_pair().1);
-    let addr_ed: Address = (&kp_ed.public()).into();
+    let kp_ed = SimpleKeypair::from(get_key_pair::<Ed25519PrivateKey>().1);
+    let addr_ed: Address = kp_ed.public_key().derive_address();
     let fp_ed = dir.path().join(format!("{addr_ed}.key"));
     let fp_ed_2 = fp_ed.clone();
 
@@ -147,10 +155,7 @@ async fn test_read_write_keystore_with_flag() {
     assert!(kp_ed_read.is_ok());
 
     // KeyPair wrote into file is the same as read
-    assert_eq!(
-        kp_ed_read.unwrap().public().as_ref(),
-        kp_ed.public().as_ref()
-    );
+    assert_eq!(kp_ed_read.unwrap().to_bytes(), kp_ed.to_bytes());
 
     // read from file as AuthorityKeyPair success
     let kp_ed_read = read_authority_keypair_from_file(fp_ed_2);
@@ -208,17 +213,18 @@ async fn test_private_keys_import_export() -> Result<(), anyhow::Error> {
         }
         .execute(&mut keystore)
         .await?;
-        let kp = IotaKeyPair::decode(private_key).unwrap();
-        let kp_from_hex = IotaKeyPair::Ed25519(
-            Ed25519KeyPair::from_bytes(&Hex::decode(private_key_hex).unwrap()).unwrap(),
+        let kp = SimpleKeypair::from_bech32(private_key).unwrap();
+        let kp_from_hex = SimpleKeypair::from(
+            Ed25519PrivateKey::from_bytes(Hex::decode(private_key_hex).unwrap()).unwrap(),
         );
-        assert_eq!(kp, kp_from_hex);
+        assert_eq!(kp.to_bytes(), kp_from_hex.to_bytes());
 
-        let kp_from_base64 = IotaKeyPair::decode_base64(private_key_base64).unwrap();
-        assert_eq!(kp, kp_from_base64);
+        let kp_from_base64 =
+            SimpleKeypair::from_bytes(Base64::decode(private_key_base64).unwrap()).unwrap();
+        assert_eq!(kp.to_bytes(), kp_from_base64.to_bytes());
 
         let addr = Address::from_str(address).unwrap();
-        assert_eq!(Address::from(&kp.public()), addr);
+        assert_eq!(kp.public_key().derive_address(), addr);
         assert!(keystore.addresses().contains(&addr));
 
         // Export output shows the private key in Bech32
@@ -296,9 +302,9 @@ async fn test_mnemonics_ed25519() -> Result<(), anyhow::Error> {
         }
         .execute(&mut keystore)
         .await?;
-        let kp = IotaKeyPair::decode(t[1]).unwrap();
+        let kp = SimpleKeypair::from_bech32(t[1]).unwrap();
         let addr = Address::from_str(t[2]).unwrap();
-        assert_eq!(Address::from(&kp.public()), addr);
+        assert_eq!(kp.public_key().derive_address(), addr);
         assert!(keystore.addresses().contains(&addr));
     }
     Ok(())
@@ -337,9 +343,9 @@ async fn test_mnemonics_secp256k1() -> Result<(), anyhow::Error> {
         }
         .execute(&mut keystore)
         .await?;
-        let kp = IotaKeyPair::decode(t[1]).unwrap();
+        let kp = SimpleKeypair::from_bech32(t[1]).unwrap();
         let addr = Address::from_str(t[2]).unwrap();
-        assert_eq!(Address::from(&kp.public()), addr);
+        assert_eq!(kp.public_key().derive_address(), addr);
         assert!(keystore.addresses().contains(&addr));
     }
     Ok(())
@@ -379,9 +385,9 @@ async fn test_mnemonics_secp256r1() -> Result<(), anyhow::Error> {
         .execute(&mut keystore)
         .await?;
 
-        let kp = IotaKeyPair::decode(sk).unwrap();
+        let kp = SimpleKeypair::from_bech32(sk).unwrap();
         let addr = Address::from_str(address).unwrap();
-        assert_eq!(Address::from(&kp.public()), addr);
+        assert_eq!(kp.public_key().derive_address(), addr);
         assert!(keystore.addresses().contains(&addr));
     }
 
@@ -609,13 +615,14 @@ async fn test_sign_raw_command() -> Result<(), anyhow::Error> {
             assert_eq!(sign_raw_data.raw_data, expected_data);
             // Verify the signature with actual Ed25519 verification
             let ed_sig =
-                Ed25519Signature::from_bytes(&Hex::decode(&sign_raw_data.signature_hex).unwrap())
+                Ed25519Signature::from_bytes(Hex::decode(&sign_raw_data.signature_hex).unwrap())
                     .expect("Invalid Ed25519 signature bytes");
             let ed_pk =
-                Ed25519PublicKey::from_bytes(&Hex::decode(&sign_raw_data.public_key_hex).unwrap())
+                Ed25519PublicKey::from_bytes(Hex::decode(&sign_raw_data.public_key_hex).unwrap())
                     .expect("Invalid Ed25519 public key bytes");
             let data_bytes = Hex::decode(&sign_raw_data.raw_data).unwrap();
-            ed_pk
+            Ed25519VerifyingKey::new(&ed_pk)
+                .unwrap()
                 .verify(&data_bytes, &ed_sig)
                 .expect("Ed25519 signature verification failed");
         };

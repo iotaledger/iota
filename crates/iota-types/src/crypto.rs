@@ -24,21 +24,18 @@ use fastcrypto::{
         BLS12381AggregateSignature, BLS12381AggregateSignatureAsBytes, BLS12381KeyPair,
         BLS12381PrivateKey, BLS12381PublicKey, BLS12381Signature,
     },
-    ed25519::{
-        Ed25519KeyPair, Ed25519PrivateKey, Ed25519PublicKey, Ed25519PublicKeyAsBytes,
-        Ed25519Signature,
-    },
-    encoding::{Base64, Bech32, Encoding, Hex},
+    ed25519::{Ed25519KeyPair, Ed25519PublicKey, Ed25519PublicKeyAsBytes, Ed25519Signature},
+    encoding::{Base64, Encoding, Hex},
     error::{FastCryptoError, FastCryptoResult},
     hash::{Blake2b256, HashFunction},
-    secp256k1::{
-        Secp256k1KeyPair, Secp256k1PublicKey, Secp256k1PublicKeyAsBytes, Secp256k1Signature,
-    },
-    secp256r1::{
-        Secp256r1KeyPair, Secp256r1PublicKey, Secp256r1PublicKeyAsBytes, Secp256r1Signature,
-    },
+    secp256k1::{Secp256k1PublicKey, Secp256k1PublicKeyAsBytes},
+    secp256r1::{Secp256r1PublicKey, Secp256r1PublicKeyAsBytes},
+    serde_helpers::BytesRepresentation,
 };
-use iota_sdk_crypto::{Verifier, simple::SimpleVerifier};
+use iota_sdk_crypto::{
+    Verifier, ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey,
+    secp256r1::Secp256r1PrivateKey, simple::SimpleVerifier,
+};
 use iota_sdk_types::{
     Address, SignatureScheme,
     crypto::{Intent, IntentMessage, IntentScope},
@@ -48,12 +45,12 @@ use rand::{
     rngs::{OsRng, StdRng},
 };
 use roaring::RoaringBitmap;
-use serde::{Deserialize, Deserializer, Serialize, ser::Serializer};
+use serde::{Deserialize, Serialize};
 use serde_with::{Bytes, serde_as};
 use tracing::{instrument, warn};
 
 use crate::{
-    base_types::{AuthorityName, ConciseableName, address_from_iota_pub_key},
+    base_types::{AuthorityName, ConciseableName},
     committee::{Committee, CommitteeTrait, EpochId, StakeUnit},
     error::{IotaError, IotaResult},
     iota_serde::{IotaBitmap, Readable},
@@ -90,10 +87,7 @@ pub type AuthoritySignature = BLS12381Signature;
 pub type AggregateAuthoritySignature = BLS12381AggregateSignature;
 pub type AggregateAuthoritySignatureAsBytes = BLS12381AggregateSignatureAsBytes;
 
-// TODO(joyqvq): prefix these types with Default, DefaultAccountKeyPair etc
-pub type AccountKeyPair = Ed25519KeyPair;
-pub type AccountPublicKey = Ed25519PublicKey;
-pub type AccountPrivateKey = Ed25519PrivateKey;
+pub type AccountKeyPair = Ed25519PrivateKey;
 
 pub type NetworkKeyPair = Ed25519KeyPair;
 pub type NetworkPublicKey = Ed25519PublicKey;
@@ -151,173 +145,45 @@ pub fn verify_proof_of_possession(
 // * accounts to interact with Iota.
 // * Currently we support eddsa and ecdsa on Iota.
 
-#[expect(clippy::large_enum_variant)]
-#[derive(Debug, From, PartialEq, Eq)]
-pub enum IotaKeyPair {
-    Ed25519(Ed25519KeyPair),
-    Secp256k1(Secp256k1KeyPair),
-    Secp256r1(Secp256r1KeyPair),
+pub use iota_sdk_crypto::simple::SimpleKeypair;
+
+/// The validator network stacks keep using the fastcrypto ed25519 keypair
+/// type; this conversion lets those keys be stored in configs as
+/// [`SimpleKeypair`].
+pub fn network_to_simple_keypair(kp: &NetworkKeyPair) -> SimpleKeypair {
+    use iota_sdk_crypto::ToFromBytes as _;
+
+    SimpleKeypair::from(
+        Ed25519PrivateKey::from_bytes(kp.as_bytes()).expect("valid ed25519 private key bytes"),
+    )
 }
 
-impl IotaKeyPair {
-    pub fn public(&self) -> PublicKey {
-        match self {
-            IotaKeyPair::Ed25519(kp) => PublicKey::Ed25519(kp.public().into()),
-            IotaKeyPair::Secp256k1(kp) => PublicKey::Secp256k1(kp.public().into()),
-            IotaKeyPair::Secp256r1(kp) => PublicKey::Secp256r1(kp.public().into()),
+/// Convert a stored [`SimpleKeypair`] back into the fastcrypto ed25519 keypair
+/// consumed by the validator network stacks. Fails if the key is not ed25519.
+pub fn simple_to_network_keypair(kp: &SimpleKeypair) -> Result<NetworkKeyPair, Error> {
+    if kp.scheme() != SignatureScheme::Ed25519 {
+        return Err(anyhow!(
+            "invalid scheme for network keypair: {}",
+            kp.scheme()
+        ));
+    }
+    NetworkKeyPair::from_bytes(&kp.to_bytes()[1..]).map_err(|e| anyhow!(e))
+}
+
+impl From<&SimpleKeypair> for PublicKey {
+    fn from(kp: &SimpleKeypair) -> Self {
+        match kp.public_key() {
+            iota_sdk_types::PublicKey::Ed25519(pk) => {
+                PublicKey::Ed25519(BytesRepresentation(pk.into_inner()))
+            }
+            iota_sdk_types::PublicKey::Secp256k1(pk) => {
+                PublicKey::Secp256k1(BytesRepresentation(pk.into_inner()))
+            }
+            iota_sdk_types::PublicKey::Secp256r1(pk) => {
+                PublicKey::Secp256r1(BytesRepresentation(pk.into_inner()))
+            }
+            _ => unreachable!("SimpleKeypair keys use the three simple signature schemes"),
         }
-    }
-}
-
-impl Clone for IotaKeyPair {
-    fn clone(&self) -> Self {
-        match self {
-            IotaKeyPair::Ed25519(kp) => kp.copy().into(),
-            IotaKeyPair::Secp256k1(kp) => kp.copy().into(),
-            IotaKeyPair::Secp256r1(kp) => kp.copy().into(),
-        }
-    }
-}
-
-impl Signer<Signature> for IotaKeyPair {
-    fn sign(&self, msg: &[u8]) -> Signature {
-        // Assemble `flag || signature || public_key` and parse it back into the
-        // SDK signature type, which uses the same byte layout.
-        let mut bytes = vec![self.public().flag()];
-        match self {
-            IotaKeyPair::Ed25519(kp) => {
-                let sig: Ed25519Signature = kp.sign(msg);
-                bytes.extend_from_slice(sig.as_ref());
-            }
-            IotaKeyPair::Secp256k1(kp) => {
-                let sig: Secp256k1Signature = kp.sign(msg);
-                bytes.extend_from_slice(sig.as_ref());
-            }
-            IotaKeyPair::Secp256r1(kp) => {
-                let sig: Secp256r1Signature = kp.sign(msg);
-                bytes.extend_from_slice(sig.as_ref());
-            }
-        }
-        bytes.extend_from_slice(self.public().as_ref());
-        Signature::from_bytes(&bytes).expect("Serialized signature did not have expected size")
-    }
-}
-
-// By-reference conversions into [`IotaKeyPair`], so the per-scheme keypairs
-// (and `IotaKeyPair` itself) can be passed to the signing helpers, which are
-// generic over `impl Into<IotaKeyPair>`.
-impl From<&Ed25519KeyPair> for IotaKeyPair {
-    fn from(kp: &Ed25519KeyPair) -> Self {
-        IotaKeyPair::Ed25519(kp.copy())
-    }
-}
-
-impl From<&Secp256k1KeyPair> for IotaKeyPair {
-    fn from(kp: &Secp256k1KeyPair) -> Self {
-        IotaKeyPair::Secp256k1(kp.copy())
-    }
-}
-
-impl From<&Secp256r1KeyPair> for IotaKeyPair {
-    fn from(kp: &Secp256r1KeyPair) -> Self {
-        IotaKeyPair::Secp256r1(kp.copy())
-    }
-}
-
-impl From<&IotaKeyPair> for IotaKeyPair {
-    fn from(kp: &IotaKeyPair) -> Self {
-        kp.clone()
-    }
-}
-
-impl EncodeDecodeBase64 for IotaKeyPair {
-    fn encode_base64(&self) -> String {
-        Base64::encode(self.to_bytes())
-    }
-
-    fn decode_base64(value: &str) -> FastCryptoResult<Self> {
-        let bytes = Base64::decode(value)?;
-        Self::from_bytes(&bytes).map_err(|_| FastCryptoError::InvalidInput)
-    }
-}
-
-impl IotaKeyPair {
-    pub fn to_bytes(&self) -> Vec<u8> {
-        let mut bytes: Vec<u8> = Vec::new();
-        bytes.push(self.public().flag());
-
-        match self {
-            IotaKeyPair::Ed25519(kp) => {
-                bytes.extend_from_slice(kp.as_bytes());
-            }
-            IotaKeyPair::Secp256k1(kp) => {
-                bytes.extend_from_slice(kp.as_bytes());
-            }
-            IotaKeyPair::Secp256r1(kp) => {
-                bytes.extend_from_slice(kp.as_bytes());
-            }
-        }
-        bytes
-    }
-
-    pub fn from_bytes(bytes: &[u8]) -> Result<Self, eyre::Report> {
-        let (flag, key_bytes) = bytes.split_first().ok_or_else(|| eyre!("Invalid length"))?;
-        match SignatureScheme::from_byte(*flag) {
-            Ok(SignatureScheme::Ed25519) => {
-                Ok(IotaKeyPair::Ed25519(Ed25519KeyPair::from_bytes(key_bytes)?))
-            }
-            Ok(SignatureScheme::Secp256k1) => Ok(IotaKeyPair::Secp256k1(
-                Secp256k1KeyPair::from_bytes(key_bytes)?,
-            )),
-            Ok(SignatureScheme::Secp256r1) => Ok(IotaKeyPair::Secp256r1(
-                Secp256r1KeyPair::from_bytes(key_bytes)?,
-            )),
-            Ok(_) => Err(eyre!("Invalid flag byte")),
-            Err(_) => Err(eyre!("Invalid bytes")),
-        }
-    }
-
-    pub fn to_bytes_no_flag(&self) -> Vec<u8> {
-        match self {
-            IotaKeyPair::Ed25519(kp) => kp.as_bytes().to_vec(),
-            IotaKeyPair::Secp256k1(kp) => kp.as_bytes().to_vec(),
-            IotaKeyPair::Secp256r1(kp) => kp.as_bytes().to_vec(),
-        }
-    }
-
-    /// Encode a IotaKeyPair as `flag || privkey` in Bech32 starting with
-    /// "iotaprivkey" to a string. Note that the pubkey is not encoded.
-    pub fn encode(&self) -> Result<String, eyre::Report> {
-        Bech32::encode(self.to_bytes(), IOTA_PRIV_KEY_PREFIX).map_err(|e| eyre!(e))
-    }
-
-    /// Decode a IotaKeyPair from `flag || privkey` in Bech32 starting with
-    /// "iotaprivkey" to IotaKeyPair. The public key is computed directly from
-    /// the private key bytes.
-    pub fn decode(value: &str) -> Result<Self, eyre::Report> {
-        let bytes = Bech32::decode(value, IOTA_PRIV_KEY_PREFIX)?;
-        Self::from_bytes(&bytes)
-    }
-}
-
-impl Serialize for IotaKeyPair {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        let s = self.encode_base64();
-        serializer.serialize_str(&s)
-    }
-}
-
-impl<'de> Deserialize<'de> for IotaKeyPair {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        use serde::de::Error;
-        let s = String::deserialize(deserializer)?;
-        IotaKeyPair::decode_base64(&s).map_err(|e| Error::custom(e.to_string()))
     }
 }
 
@@ -611,12 +477,56 @@ impl IotaAuthoritySignature for AuthoritySignature {
     }
 }
 
-// TODO: get_key_pair() and get_key_pair_from_bytes() should return KeyPair
-// only. TODO: rename to random_key_pair
-pub fn get_key_pair<KP: KeypairTraits>() -> (Address, KP)
-where
-    <KP as KeypairTraits>::PubKey: IotaPublicKey,
-{
+/// Random key-pair generation for the `get_key_pair` helpers, implemented for
+/// the fastcrypto authority/network keypairs and the SDK account keys.
+pub trait RandomKeyPair: Sized {
+    fn generate_with_address(rng: &mut StdRng) -> (Address, Self);
+}
+
+impl RandomKeyPair for BLS12381KeyPair {
+    fn generate_with_address(rng: &mut StdRng) -> (Address, Self) {
+        let kp = <BLS12381KeyPair as KeypairTraits>::generate(rng);
+        // Authority keys have no on-chain account; this address only labels
+        // key files and `keytool` output.
+        let mut hasher = DefaultHash::default();
+        hasher.update([SignatureScheme::Bls12381.to_u8()]);
+        hasher.update(kp.public().as_ref());
+        (Address::new(hasher.finalize().digest), kp)
+    }
+}
+
+impl RandomKeyPair for Ed25519KeyPair {
+    fn generate_with_address(rng: &mut StdRng) -> (Address, Self) {
+        let kp = <Ed25519KeyPair as KeypairTraits>::generate(rng);
+        let public = PublicKey::Ed25519(BytesRepresentation(
+            kp.public()
+                .as_ref()
+                .try_into()
+                .expect("ed25519 public keys are 32 bytes"),
+        ));
+        (Address::from(&public), kp)
+    }
+}
+
+macro_rules! random_key_pair_from_sdk {
+    ($private_key:ty, $variant:ident) => {
+        impl RandomKeyPair for $private_key {
+            fn generate_with_address(rng: &mut StdRng) -> (Address, Self) {
+                let kp = <$private_key>::generate(rng);
+                let public = PublicKey::$variant(BytesRepresentation(kp.public_key().into_inner()));
+                (Address::from(&public), kp)
+            }
+        }
+    };
+}
+
+random_key_pair_from_sdk!(Ed25519PrivateKey, Ed25519);
+random_key_pair_from_sdk!(Secp256k1PrivateKey, Secp256k1);
+random_key_pair_from_sdk!(Secp256r1PrivateKey, Secp256r1);
+
+// TODO: get_key_pair() should return KeyPair only.
+// TODO: rename to random_key_pair
+pub fn get_key_pair<KP: RandomKeyPair>() -> (Address, KP) {
     get_key_pair_from_rng(&mut OsRng)
 }
 
@@ -654,20 +564,15 @@ pub fn get_authority_key_pair() -> (Address, AuthorityKeyPair) {
 
 /// Generate a keypair from the specified RNG (useful for testing with seedable
 /// rngs).
-pub fn get_key_pair_from_rng<KP: KeypairTraits, R>(csprng: &mut R) -> (Address, KP)
+pub fn get_key_pair_from_rng<KP: RandomKeyPair, R>(csprng: &mut R) -> (Address, KP)
 where
     R: rand::CryptoRng + rand::RngCore,
-    <KP as KeypairTraits>::PubKey: IotaPublicKey,
 {
-    let kp = KP::generate(&mut StdRng::from_rng(csprng).unwrap());
-    (address_from_iota_pub_key(kp.public()), kp)
+    KP::generate_with_address(&mut StdRng::from_rng(csprng).unwrap())
 }
 
 // TODO: C-GETTER
-pub fn get_key_pair_from_bytes<KP: KeypairTraits>(bytes: &[u8]) -> IotaResult<(Address, KP)>
-where
-    <KP as KeypairTraits>::PubKey: IotaPublicKey,
-{
+pub fn get_key_pair_from_bytes<KP: KeypairTraits>(bytes: &[u8]) -> IotaResult<KP> {
     let priv_length = <KP as KeypairTraits>::PrivKey::LENGTH;
     let pub_key_length = <KP as KeypairTraits>::PubKey::LENGTH;
     if bytes.len() != priv_length + pub_key_length {
@@ -683,8 +588,7 @@ where
             .ok_or(IotaError::InvalidPrivateKey)?,
     )
     .map_err(|_| IotaError::InvalidPrivateKey)?;
-    let kp: KP = sk.into();
-    Ok((address_from_iota_pub_key(kp.public()), kp))
+    Ok(sk.into())
 }
 
 // Account Signatures
@@ -734,13 +638,19 @@ pub trait IotaPublicKey: VerifyingKey {
 /// intent-message verification.
 pub trait IotaSignature: Sized {
     /// Signs a message that is already in hashed form.
-    fn new_hashed(hashed_msg: &[u8], secret: impl Into<IotaKeyPair>) -> Signature {
-        Signer::sign(&secret.into(), hashed_msg)
+    fn new_hashed(
+        hashed_msg: &[u8],
+        secret: &impl iota_sdk_crypto::Signer<Signature>,
+    ) -> Signature {
+        secret.sign(hashed_msg)
     }
 
     /// Signs the BCS hash of the value wrapped in the intent message.
     #[instrument(level = "trace", skip_all)]
-    fn new_secure<T>(value: &IntentMessage<T>, secret: impl Into<IotaKeyPair>) -> Signature
+    fn new_secure<T>(
+        value: &IntentMessage<T>,
+        secret: &impl iota_sdk_crypto::Signer<Signature>,
+    ) -> Signature
     where
         T: Serialize,
     {
@@ -752,7 +662,7 @@ pub trait IotaSignature: Sized {
         let mut hasher = DefaultHash::default();
         hasher.update(bcs::to_bytes(&value).expect("Message serialization should not fail"));
 
-        Signer::sign(&secret.into(), &hasher.finalize().digest)
+        secret.sign(&hasher.finalize().digest)
     }
 
     fn verify_secure<T>(&self, value: &IntentMessage<T>, author: Address) -> IotaResult<()>

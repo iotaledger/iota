@@ -55,4 +55,7 @@ checkpoint-archive-config:
 #     rpc: warn
 #     epoch: warn
 #     runtime: warn
-#     hardware: warn # set to `off` to disable hardware metrics; takes effect at startup only
+#     hardware: warn
+#     # free-form overrides for modules/metrics:
+#     overrides:
+#       "iota_core::checkpoints": trace

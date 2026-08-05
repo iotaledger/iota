@@ -28,10 +28,7 @@ use iota_common::{debug_fatal, fatal};
 use iota_config::{
     NodeConfig,
     genesis::Genesis,
-    node::{
-        AuthorityOverloadConfig, DBCheckpointConfig, ExpensiveSafetyCheckConfig,
-        StateDebugDumpConfig,
-    },
+    node::{AuthorityOverloadConfig, ExpensiveSafetyCheckConfig, StateDebugDumpConfig},
 };
 use iota_framework::{BuiltInFramework, SystemPackage as FrameworkSystemPackage};
 use iota_json_rpc_types::{
@@ -44,7 +41,7 @@ use iota_metrics::{
     TX_TYPE_SHARED_OBJ_TX, TX_TYPE_SINGLE_WRITER_TX, monitored_scope, spawn_monitored_task,
 };
 use iota_sdk_types::{
-    Address, CheckpointContentsDigest, CheckpointDigest, Digest, EndOfEpochTransactionKind, Event,
+    Address, CheckpointContentsDigest, CheckpointDigest, Digest, EndOfEpochTransactionKind,
     ExecutionStatus, GasPayment, MoveAuthenticator, MoveStruct, ObjectDigest, ObjectId,
     ObjectReference, Owner, RandomnessRound, StructTag, SystemPackage, TransactionDigest,
     TransactionEffectsDigest, TransactionExpiration, TransactionKind, TypeTag, Version,
@@ -173,7 +170,7 @@ use crate::{
     },
     execution_driver::execution_process,
     global_state_hasher::{GlobalStateHashStore, GlobalStateHasher},
-    grpc_indexes::{GRPC_INDEXES_DIR, GrpcIndexesStore},
+    grpc_indexes::GrpcIndexesStore,
     jsonrpc_index::{CoinInfo, IndexStore, ObjectIndexChanges},
     metrics::{LatencyObserver, RateTracker},
     module_cache_metrics::ResolverMetrics,
@@ -229,7 +226,6 @@ pub mod authority_test_utils;
 pub mod authority_per_epoch_store;
 pub mod authority_per_epoch_store_pruner;
 
-mod authority_store_migrations;
 pub mod authority_store_pruner;
 pub mod authority_store_tables;
 pub mod authority_store_types;
@@ -519,7 +515,7 @@ impl AuthorityMetrics {
                 .unwrap(),
             db_checkpoint_latency: register_histogram_with_registry!(
                 "db_checkpoint_latency",
-                "Latency of checkpointing dbs",
+                "Latency of checkpointing the perpetual store at epoch end",
                 LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             ).unwrap(),
@@ -890,9 +886,6 @@ pub struct AuthorityState {
     pruner: AuthorityStorePruner,
     authority_per_epoch_pruner: AuthorityPerEpochStorePruner,
     checkpoint_progress_tracker: Option<Arc<CheckpointProgressTracker>>,
-
-    /// Take db checkpoints of different dbs
-    db_checkpoint_config: DBCheckpointConfig,
 
     pub config: NodeConfig,
 
@@ -3263,7 +3256,7 @@ impl AuthorityState {
         let contents = match &summary {
             Some(s) => self
                 .checkpoint_store
-                .get_checkpoint_contents(&s.content_digest())?,
+                .get_checkpoint_contents(&s.contents_digest())?,
             None => None,
         };
         Ok(CheckpointResponse {
@@ -3308,7 +3301,6 @@ impl AuthorityState {
         checkpoint_store: Arc<CheckpointStore>,
         prometheus_registry: &Registry,
         genesis_objects: &[Object],
-        db_checkpoint_config: &DBCheckpointConfig,
         config: NodeConfig,
         validator_tx_finalizer: Option<Arc<ValidatorTxFinalizer<NetworkAuthorityClient>>>,
         chain_identifier: ChainIdentifier,
@@ -3387,7 +3379,6 @@ impl AuthorityState {
             pruner,
             authority_per_epoch_pruner,
             checkpoint_progress_tracker,
-            db_checkpoint_config: db_checkpoint_config.clone(),
             config,
             overload_info: AuthorityOverloadInfo::default(),
             validator_tx_finalizer,
@@ -3403,8 +3394,6 @@ impl AuthorityState {
             rx_ready_transactions,
             rx_execution_shutdown,
         ));
-        spawn_monitored_task!(authority_store_migrations::migrate_events(store));
-
         // TODO: This doesn't belong to the constructor of AuthorityState.
         state
             .create_owner_index_if_empty(genesis_objects, &epoch_store)
@@ -3694,23 +3683,21 @@ impl AuthorityState {
         )?;
         self.get_reconfig_api()
             .try_set_epoch_start_configuration(&epoch_start_configuration)?;
-        if let Some(checkpoint_path) = &self.db_checkpoint_config.checkpoint_path {
-            if self
-                .db_checkpoint_config
-                .perform_db_checkpoints_at_epoch_end
-            {
-                let checkpoint_indexes = self
-                    .db_checkpoint_config
-                    .perform_index_db_checkpoints_at_epoch_end
-                    .unwrap_or(false);
-                let current_epoch = cur_epoch_store.epoch();
-                let epoch_checkpoint_path = checkpoint_path.join(format!("epoch_{current_epoch}"));
-                self.checkpoint_all_dbs(
-                    &epoch_checkpoint_path,
-                    cur_epoch_store,
-                    checkpoint_indexes,
-                )?;
-            }
+        // When state snapshots are published, a RocksDB checkpoint of the
+        // perpetual store taken at epoch end serves as the snapshot creation
+        // input.
+        if self
+            .config
+            .state_snapshot_write_config
+            .object_store_config
+            .is_some()
+        {
+            let current_epoch = cur_epoch_store.epoch();
+            let epoch_checkpoint_path = self
+                .config
+                .db_checkpoint_path()
+                .join(format!("epoch_{current_epoch}"));
+            self.checkpoint_perpetual_db(&epoch_checkpoint_path, cur_epoch_store)?;
         }
 
         let new_epoch = new_committee.epoch;
@@ -3850,12 +3837,14 @@ impl AuthorityState {
         self.epoch_store_for_testing().epoch()
     }
 
+    /// Takes a RocksDB checkpoint of the perpetual store under
+    /// `<checkpoint_path>/store/perpetual`, the layout the state snapshot
+    /// uploader reads.
     #[instrument(level = "error", skip_all)]
-    pub fn checkpoint_all_dbs(
+    fn checkpoint_perpetual_db(
         &self,
         checkpoint_path: &Path,
         cur_epoch_store: &AuthorityPerEpochStore,
-        checkpoint_indexes: bool,
     ) -> IotaResult {
         let _metrics_guard = self.metrics.db_checkpoint_latency.start_timer();
         let current_epoch = cur_epoch_store.epoch();
@@ -3876,25 +3865,8 @@ impl AuthorityState {
         fs::create_dir_all(&checkpoint_path_tmp).map_err(|e| IotaError::FileIO(e.to_string()))?;
         fs::create_dir(&store_checkpoint_path_tmp).map_err(|e| IotaError::FileIO(e.to_string()))?;
 
-        // NOTE: Do not change the order of invoking these checkpoint calls
-        // We want to snapshot checkpoint db first to not race with state sync
-        self.checkpoint_store
-            .checkpoint_db(&checkpoint_path_tmp.join("checkpoints"))?;
-
         self.get_reconfig_api()
             .try_checkpoint_db(&store_checkpoint_path_tmp.join("perpetual"))?;
-
-        self.committee_store
-            .checkpoint_db(&checkpoint_path_tmp.join("epochs"))?;
-
-        if checkpoint_indexes {
-            if let Some(indexes) = self.indexes.as_ref() {
-                indexes.checkpoint_db(&checkpoint_path_tmp.join("indexes"))?;
-            }
-            if let Some(grpc_indexes_store) = self.grpc_indexes_store.as_ref() {
-                grpc_indexes_store.checkpoint_db(&checkpoint_path_tmp.join(GRPC_INDEXES_DIR))?;
-            }
-        }
 
         fs::rename(checkpoint_path_tmp, checkpoint_path)
             .map_err(|e| IotaError::FileIO(e.to_string()))?;
@@ -3962,35 +3934,122 @@ impl AuthorityState {
     /// `(checkpoint_sequence_number, checkpoint_timestamp_ms)`.
     /// On timeout, returns partial results for any transactions that were
     /// already checkpointed.
+    ///
+    /// The wait survives epoch boundaries: a transaction in flight at a
+    /// boundary may only be checkpointed in the next epoch, and still resolves
+    /// here under the original deadline.
     pub async fn wait_for_checkpoint_inclusion(
         &self,
         digests: &[TransactionDigest],
         timeout: Duration,
     ) -> IotaResult<BTreeMap<TransactionDigest, (CheckpointSequenceNumber, u64)>> {
-        let epoch_store = self.load_epoch_store_one_call_per_task();
-
-        // Local cache so multiple transactions in the same checkpoint only
-        // trigger a single checkpoint summary lookup.
+        let deadline = tokio::time::Instant::now() + timeout;
         let mut checkpoint_timestamp_cache = HashMap::<CheckpointSequenceNumber, u64>::new();
+        let mut results = BTreeMap::new();
+        let mut remaining = digests.to_vec();
+        let mut epoch_store = self.load_epoch_store_one_call_per_task().clone();
 
-        let results = epoch_store
-            .wait_for_transactions_in_checkpoint_with_timeout(digests, timeout, |seq| {
-                *checkpoint_timestamp_cache.entry(seq).or_insert_with(|| {
-                    self.get_checkpoint_by_sequence_number(seq)
-                        .ok()
-                        .flatten()
-                        .map(|c| c.timestamp_ms)
-                        .unwrap_or(0)
-                })
-            })
-            .await?;
+        loop {
+            let wait = epoch_store.wait_for_transactions_in_checkpoint_with_timeout(
+                &remaining,
+                deadline.saturating_duration_since(tokio::time::Instant::now()),
+                |seq| self.checkpoint_timestamp_ms_cached(seq, &mut checkpoint_timestamp_cache),
+            );
+            tokio::select! {
+                wait_results = wait => {
+                    for (digest, seq_and_ts) in remaining.iter().zip(wait_results?) {
+                        if let Some(seq_and_ts) = seq_and_ts {
+                            results.insert(*digest, seq_and_ts);
+                        }
+                    }
+                    return Ok(results);
+                }
+                _ = epoch_store.wait_epoch_terminated() => {}
+            }
 
-        Ok(digests
-            .iter()
-            .copied()
-            .zip(results)
-            .filter_map(|(digest, opt)| opt.map(|seq_and_ts| (digest, seq_and_ts)))
-            .collect())
+            // The epoch ended mid-wait, and this epoch store's notifications
+            // can no longer fire: whatever is still uncheckpointed here is
+            // checkpointed in the next epoch, on the next store. Cancelling
+            // the wait may also have dropped notifications it had already
+            // received, but the table write precedes each notification, so
+            // re-reading the table recovers them.
+            let found = match epoch_store.multi_get_transaction_checkpoint(&remaining) {
+                Ok(found) => found,
+                // The table handles were already released. They are released
+                // long after the epoch's checkpoints are executed, so nothing
+                // waited on here can still be checkpointed in the old epoch;
+                // move on to the next store.
+                Err(IotaError::EpochEnded(_)) => vec![None; remaining.len()],
+                Err(err) => return Err(err),
+            };
+            let mut still_uncheckpointed = Vec::new();
+            for (digest, found_seq) in remaining.iter().zip(found) {
+                match found_seq {
+                    Some(seq) => {
+                        let ts = self
+                            .checkpoint_timestamp_ms_cached(seq, &mut checkpoint_timestamp_cache);
+                        results.insert(*digest, (seq, ts));
+                    }
+                    None => still_uncheckpointed.push(*digest),
+                }
+            }
+            remaining = still_uncheckpointed;
+            if remaining.is_empty() {
+                return Ok(results);
+            }
+
+            match self
+                .wait_for_next_epoch_store(epoch_store.epoch(), deadline)
+                .await
+            {
+                Some(next) => epoch_store = next,
+                None => return Ok(results),
+            }
+        }
+    }
+
+    /// Wait for the epoch store to be swapped to an epoch later than
+    /// `prev_epoch`, returning `None` if `deadline` passes first.
+    async fn wait_for_next_epoch_store(
+        &self,
+        prev_epoch: EpochId,
+        deadline: tokio::time::Instant,
+    ) -> Option<Arc<AuthorityPerEpochStore>> {
+        // There is no notification for the epoch-store swap, and termination
+        // and swap can come in either order (`reconfigure` terminates the old
+        // epoch first, `reconfigure_for_testing` swaps first), so the swap is
+        // polled at this interval.
+        const EPOCH_STORE_SWAP_POLL_INTERVAL: Duration = Duration::from_millis(100);
+
+        loop {
+            // Deliberately re-loaded on each poll; the one-call-per-task rule
+            // guards against *unaware* mixing of epoch stores within a task.
+            let current = self.load_epoch_store_one_call_per_task().clone();
+            if current.epoch() > prev_epoch {
+                return Some(current);
+            }
+            if tokio::time::Instant::now() >= deadline {
+                return None;
+            }
+            tokio::time::sleep(EPOCH_STORE_SWAP_POLL_INTERVAL).await;
+        }
+    }
+
+    /// Resolve a checkpoint's timestamp, memoizing lookups in `cache` so
+    /// multiple transactions in the same checkpoint trigger a single
+    /// checkpoint summary lookup.
+    fn checkpoint_timestamp_ms_cached(
+        &self,
+        seq: CheckpointSequenceNumber,
+        cache: &mut HashMap<CheckpointSequenceNumber, u64>,
+    ) -> u64 {
+        *cache.entry(seq).or_insert_with(|| {
+            self.get_checkpoint_by_sequence_number(seq)
+                .ok()
+                .flatten()
+                .map(|c| c.timestamp_ms)
+                .unwrap_or(0)
+        })
     }
 
     #[instrument(level = "trace", skip_all)]
@@ -4293,7 +4352,7 @@ impl AuthorityState {
         &self,
         digest: TransactionDigest,
         kv_store: Arc<TransactionKeyValueStore>,
-    ) -> IotaResult<(Transaction, TransactionEffects)> {
+    ) -> IotaResult<(TransactionEnvelope, TransactionEffects)> {
         let transaction = kv_store.get_tx(digest).await?;
         let effects = kv_store.get_fx_by_tx_digest(digest).await?;
         Ok((transaction, effects))
@@ -4468,7 +4527,7 @@ impl AuthorityState {
         let summary = self
             .get_verified_checkpoint_by_sequence_number(0)?
             .into_message();
-        let content = self.get_checkpoint_contents(summary.content_digest)?;
+        let content = self.get_checkpoint_contents(summary.contents_digest)?;
         let genesis_transaction = content.enumerate_transactions(&summary).next();
         Ok(genesis_transaction
             .ok_or(IotaError::UserInput {
@@ -4532,8 +4591,8 @@ impl AuthorityState {
             .get_checkpoint_by_sequence_number(sequence_number)?;
         match verified_checkpoint {
             Some(verified_checkpoint) => {
-                let content_digest = verified_checkpoint.into_inner().content_digest;
-                self.get_checkpoint_contents(content_digest)
+                let contents_digest = verified_checkpoint.into_inner().contents_digest;
+                self.get_checkpoint_contents(contents_digest)
             }
             None => Err(IotaError::UserInput {
                 error: UserInputError::VerifiedCheckpointNotFound(sequence_number),
@@ -4895,7 +4954,7 @@ impl AuthorityState {
         Some((input_coin_objects, written_coin_objects))
     }
 
-    /// Get the TransactionEnvelope that currently locks the given object, if
+    /// Get the transaction envelope that currently locks the given object, if
     /// any. Since object locks are only valid for one epoch, we also need
     /// the epoch_id in the query. Returns UserInputError::ObjectNotFound if
     /// no lock records for the given object can be found.
@@ -6156,7 +6215,7 @@ impl TransactionKeyValueStoreTrait for AuthorityState {
                 .get_checkpoint_by_sequence_number(*seq)?
                 .and_then(|summary| {
                     store
-                        .get_checkpoint_contents(&summary.content_digest)
+                        .get_checkpoint_contents(&summary.contents_digest)
                         .expect("db read cannot fail")
                 });
             contents.push(checkpoint);

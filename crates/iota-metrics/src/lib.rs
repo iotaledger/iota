@@ -42,6 +42,10 @@ pub mod metered_channel;
 pub mod metric_groups;
 pub mod metrics_network;
 pub mod monitored_mpsc;
+// Relies on tokio's `RuntimeMetrics`, which the deterministic simulator's tokio
+// fork does not provide; the node only starts these monitors outside simtests.
+#[cfg(not(msim))]
+pub mod runtime_metrics;
 pub mod thread_stall_monitor;
 pub use guards::*;
 pub use metric_groups::{MetricGroups, MetricLevel};
@@ -575,6 +579,11 @@ impl RegistryService {
         self.default_registry.clone()
     }
 
+    /// Returns the metrics filter shared by the service's registries.
+    pub fn filter(&self) -> Arc<Filter> {
+        self.filter.clone()
+    }
+
     // Creates a new registry that shares the service's metric filter. Prefer
     // this over `Registry::new()`/`Registry::new_custom()` for registries added
     // via `add`, so that the configured filter applies to their metrics too.
@@ -625,6 +634,25 @@ impl RegistryService {
     // Returns all the metric families from the registries that a service holds.
     pub fn gather_all(&self) -> Vec<prometheus_filtered::proto::MetricFamily> {
         self.get_all().iter().flat_map(|r| r.gather()).collect()
+    }
+
+    /// Sets the runtime override on the shared filter; every registry's next
+    /// gather exposes metrics per the new directives. `filter` may use
+    /// [`MetricGroups`] names, which are expanded for matching while the
+    /// string is echoed back as given. Rejects the whole update if any
+    /// directive is invalid.
+    pub fn set_runtime_filter(&self, filter: &str) -> std::result::Result<(), String> {
+        let expanded = MetricGroups::expand_directives(filter)?;
+        self.filter
+            .set_runtime_filter(prometheus_filtered::FilterSource::with_display(
+                &expanded, filter,
+            ))
+    }
+
+    /// Drops the runtime override on the shared filter, restoring every
+    /// registry to its startup exposure.
+    pub fn reset_runtime_filter(&self) {
+        self.filter.reset_runtime_filter();
     }
 }
 
@@ -681,7 +709,7 @@ pub const METRICS_ROUTE: &str = "/metrics";
 // A RegistryService is returned that can be used to get access in prometheus
 // Registries.
 pub fn start_prometheus_server(addr: SocketAddr) -> RegistryService {
-    start_prometheus_server_with_filter(addr, Filter::resolve(None))
+    start_prometheus_server_with_filter(addr, Filter::from_env())
 }
 
 pub fn start_prometheus_server_with_filter(addr: SocketAddr, filter: Filter) -> RegistryService {
@@ -822,5 +850,68 @@ mod tests {
         let metric_1 = metrics.remove(0);
         assert_eq!(metric_1.name(), "iota_counter_2");
         assert_eq!(metric_1.help(), "counter_2_desc");
+    }
+
+    #[test]
+    fn set_runtime_filter_applies_to_all_registries() {
+        use std::sync::Arc;
+
+        use prometheus_filtered::{Filter, MetricLevel};
+
+        fn gathered_names(service: &RegistryService) -> Vec<String> {
+            let mut names: Vec<_> = service
+                .gather_all()
+                .iter()
+                .map(|f| f.name().to_owned())
+                .collect();
+            names.sort();
+            names
+        }
+
+        // Both registries share the service's filter, which starts at `warn`
+        // for this module, hiding the default-level (`debug`) gauges.
+        let filter = Arc::new(Filter::parse("iota_metrics=warn"));
+        let default_registry =
+            Registry::new_custom(Some("default".to_string()), None, Some(filter)).unwrap();
+        let registry_service = RegistryService::new(default_registry.clone());
+        let second_registry = registry_service
+            .new_registry_custom(Some("second".to_string()), None)
+            .unwrap();
+        registry_service.add(second_registry.clone());
+
+        for registry in [&default_registry, &second_registry] {
+            prometheus_filtered::register_int_gauge_with_registry!(
+                "g_warn", "h", registry; MetricLevel::Warn
+            )
+            .unwrap();
+            prometheus_filtered::register_int_gauge_with_registry!("g_debug", "h", registry)
+                .unwrap();
+        }
+        assert_eq!(
+            gathered_names(&registry_service),
+            ["default_g_warn", "second_g_warn"]
+        );
+
+        // One runtime update changes the exposure of every registry in the
+        // service.
+        registry_service
+            .set_runtime_filter("runtime=debug")
+            .unwrap();
+        assert_eq!(
+            gathered_names(&registry_service),
+            [
+                "default_g_debug",
+                "default_g_warn",
+                "second_g_debug",
+                "second_g_warn"
+            ]
+        );
+
+        // Reset restores the startup exposure across all registries.
+        registry_service.reset_runtime_filter();
+        assert_eq!(
+            gathered_names(&registry_service),
+            ["default_g_warn", "second_g_warn"]
+        );
     }
 }

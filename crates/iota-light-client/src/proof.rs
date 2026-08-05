@@ -15,7 +15,7 @@ use iota_types::{
     event::EventID,
     messages_checkpoint::{CertifiedCheckpointSummary, CheckpointContentsExt},
     object::Object,
-    transaction::Transaction,
+    transaction::TransactionEnvelope,
 };
 use serde::{Deserialize, Serialize};
 
@@ -86,7 +86,7 @@ pub struct TransactionProof {
     pub checkpoint_contents: CheckpointContents,
 
     /// The transaction being certified.
-    pub transaction: Transaction,
+    pub transaction: TransactionEnvelope,
 
     /// The effects of the transaction being certified.
     pub effects: TransactionEffects,

@@ -42,8 +42,8 @@ use crate::{
     committee::{Committee, EpochId},
     crypto::{
         AuthoritySignInfo, AuthoritySignInfoTrait, AuthoritySignature,
-        AuthorityStrongQuorumSignInfo, DefaultHash, EmptySignInfo, IotaKeyPair, IotaSignature,
-        Signature, Signer, zero_ed25519_signature,
+        AuthorityStrongQuorumSignInfo, DefaultHash, EmptySignInfo, IotaSignature, Signature,
+        Signer, zero_ed25519_signature,
     },
     execution::SharedInput,
     message_envelope::{Envelope, Message, TrustedEnvelope, VerifiedEnvelope},
@@ -952,8 +952,9 @@ impl TransactionKindExt for TransactionKind {
 /// - **Constructors**: building new transactions (transfers, Move calls,
 ///   programmable txs, etc.)
 ///
-/// Note: The `iota-rust-sdk` crate (`iota-sdk-types`) defines its own
-/// [`Transaction`] type with additional client-facing methods.
+/// Note: The `iota-rust-sdk` crate (`iota-sdk-types`) defines additional
+/// client-facing methods on this type (its `Transaction`, re-exported
+/// here as [`TransactionData`]).
 pub trait TransactionDataAPI {
     /// Returns the address of the transaction sender.
     fn sender(&self) -> Address;
@@ -2320,10 +2321,10 @@ impl<S> Envelope<SenderSignedData, S> {
     }
 }
 
-impl Transaction {
+impl TransactionEnvelope {
     pub fn from_data_and_signer(
         data: TransactionData,
-        signers: Vec<impl Into<IotaKeyPair>>,
+        signers: Vec<&impl iota_sdk_crypto::Signer<Signature>>,
     ) -> Self {
         let signatures = {
             let intent_msg = data.intent_message();
@@ -2343,7 +2344,7 @@ impl Transaction {
     pub fn signature_from_signer(
         data: TransactionData,
         intent: Intent,
-        signer: impl Into<IotaKeyPair>,
+        signer: &impl iota_sdk_crypto::Signer<Signature>,
     ) -> Signature {
         let intent_msg = IntentMessage::new(intent, data);
         Signature::new_secure(&intent_msg, signer)
@@ -2423,7 +2424,7 @@ impl VerifiedTransaction {
             .pipe(|data| {
                 SenderSignedData::new_from_sender_signature(data, zero_ed25519_signature())
             })
-            .pipe(Transaction::new)
+            .pipe(TransactionEnvelope::new)
             .pipe(Self::new_from_verified)
     }
 }
@@ -2447,7 +2448,7 @@ impl VerifiedSignedTransaction {
 }
 
 /// A transaction that is signed by a sender but not yet by an authority.
-pub type Transaction = Envelope<SenderSignedData, EmptySignInfo>;
+pub type TransactionEnvelope = Envelope<SenderSignedData, EmptySignInfo>;
 pub type VerifiedTransaction = VerifiedEnvelope<SenderSignedData, EmptySignInfo>;
 pub type TrustedTransaction = TrustedEnvelope<SenderSignedData, EmptySignInfo>;
 
@@ -2455,7 +2456,7 @@ pub type TrustedTransaction = TrustedEnvelope<SenderSignedData, EmptySignInfo>;
 pub type SignedTransaction = Envelope<SenderSignedData, AuthoritySignInfo>;
 pub type VerifiedSignedTransaction = VerifiedEnvelope<SenderSignedData, AuthoritySignInfo>;
 
-impl Transaction {
+impl TransactionEnvelope {
     pub fn verify_signature_for_testing(&self, verify_params: &VerifyParams) -> IotaResult {
         verify_sender_signed_data_message_signatures(self.data(), verify_params)
     }

@@ -52,7 +52,7 @@ static PERIODIC_PRUNING_TABLES: Lazy<BTreeSet<String>> = Lazy::new(|| {
         "objects",
         "effects",
         "transactions",
-        "events",
+        "events_2",
         "executed_effects",
         "executed_transactions_to_checkpoint",
     ]
@@ -354,27 +354,20 @@ impl AuthorityStorePruner {
             debug!("Pruning effects {:?}", effects_digest);
             effect_digests.push(effects_digest);
 
-            if let Some(event_digest) = effects.events_digest() {
+            if effects.events_digest().is_some() {
                 perpetual_batch
                     .delete_batch(&perpetual_db.events_2, [effects.transaction_digest()])?;
-                if let Some(next_digest) = event_digest.next_lexicographical_opt() {
-                    perpetual_batch.schedule_delete_range(
-                        &perpetual_db.events,
-                        &(*event_digest, 0),
-                        &(next_digest, 0),
-                    )?;
-                }
             }
         }
         perpetual_batch.delete_batch(&perpetual_db.effects, effect_digests)?;
 
         let mut checkpoints_batch = checkpoint_db.tables.certified_checkpoints.batch();
 
-        let checkpoint_content_digests =
+        let checkpoint_contents_digests =
             checkpoint_content_to_prune.iter().map(|ckpt| ckpt.digest());
         checkpoints_batch.delete_batch(
             &checkpoint_db.tables.checkpoint_content,
-            checkpoint_content_digests,
+            checkpoint_contents_digests,
         )?;
 
         checkpoints_batch.delete_batch(
@@ -557,7 +550,7 @@ impl AuthorityStorePruner {
             last_pruned_timestamp_ms = checkpoint.timestamp_ms;
 
             let content = checkpoint_store
-                .get_checkpoint_contents(&checkpoint.content_digest)?
+                .get_checkpoint_contents(&checkpoint.contents_digest)?
                 .ok_or_else(|| {
                     anyhow::anyhow!(
                         "checkpoint content data is missing: {}",

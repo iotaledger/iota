@@ -3,11 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use core::result::Result::Ok;
-use std::{
-    any::Any as StdAny,
-    collections::{BTreeMap, HashMap},
-    time::Duration,
-};
+use std::{any::Any as StdAny, collections::HashMap, time::Duration};
 
 use async_trait::async_trait;
 use diesel::{
@@ -74,7 +70,7 @@ use crate::{
     transactional_blocking_with_retry,
     types::{
         EventIndex, IndexedCheckpoint, IndexedDeletedObject, IndexedEvent, IndexedObject,
-        IndexedPackage, IndexedTransaction, TxIndex,
+        IndexedTransaction, TxIndex,
     },
 };
 
@@ -130,7 +126,7 @@ pub struct PgIndexerStore {
     blocking_cp: ConnectionPool,
     metrics: IndexerMetrics,
     partition_manager: PgPartitionManager,
-    config: PgIndexerStoreConfig,
+    pub(crate) config: PgIndexerStoreConfig,
 }
 
 impl Clone for PgIndexerStore {
@@ -253,23 +249,20 @@ impl PgIndexerStore {
         .context("Failed reading min and max epoch numbers from PostgresDB")
     }
 
-    fn persist_display_updates(
-        &self,
-        display_updates: BTreeMap<String, StoredDisplay>,
-    ) -> Result<(), IndexerError> {
+    fn persist_displays_chunk(&self, displays: Vec<StoredDisplay>) -> Result<(), IndexerError> {
         transactional_blocking_with_retry!(
             &self.blocking_cp,
-            {
-                let value = display_updates.values().collect::<Vec<_>>();
-                |conn| self.persist_displays_in_existing_transaction(conn, value)
-            },
+            |conn| self.persist_displays_chunk_in_existing_transaction(conn, &displays),
             PG_DB_COMMIT_SLEEP_DURATION
         )?;
 
         Ok(())
     }
 
-    fn persist_changed_objects(&self, objects: Vec<LiveObject>) -> Result<(), IndexerError> {
+    pub(crate) fn persist_live_objects(
+        &self,
+        objects: Vec<LiveObject>,
+    ) -> Result<(), IndexerError> {
         let guard = self
             .metrics
             .checkpoint_db_commit_latency_objects_chunks
@@ -590,6 +583,20 @@ impl PgIndexerStore {
         })
     }
 
+    pub(crate) fn persist_chain_identifier(
+        &self,
+        chain_identifier: StoredChainIdentifier,
+    ) -> Result<(), IndexerError> {
+        transactional_blocking_with_retry!(
+            &self.blocking_cp,
+            |conn| {
+                insert_or_ignore_into!(chain_identifier::table, &chain_identifier, conn);
+                Ok::<(), IndexerError>(())
+            },
+            PG_DB_COMMIT_SLEEP_DURATION
+        )
+    }
+
     fn persist_checkpoints(&self, checkpoints: Vec<IndexedCheckpoint>) -> Result<(), IndexerError> {
         let Some(first_checkpoint) = checkpoints.first() else {
             return Ok(());
@@ -599,21 +606,8 @@ impl PgIndexerStore {
         // as chain identifier.
         if first_checkpoint.sequence_number == 0 {
             let checkpoint_digest = first_checkpoint.checkpoint_digest.into_inner().to_vec();
-            self.persist_protocol_configs_and_feature_flags(checkpoint_digest)?;
-            transactional_blocking_with_retry!(
-                &self.blocking_cp,
-                |conn| {
-                    let checkpoint_digest =
-                        first_checkpoint.checkpoint_digest.into_inner().to_vec();
-                    insert_or_ignore_into!(
-                        chain_identifier::table,
-                        StoredChainIdentifier { checkpoint_digest },
-                        conn
-                    );
-                    Ok::<(), IndexerError>(())
-                },
-                PG_DB_COMMIT_SLEEP_DURATION
-            )?;
+            self.persist_protocol_configs_and_feature_flags(checkpoint_digest.clone())?;
+            self.persist_chain_identifier(StoredChainIdentifier { checkpoint_digest })?;
         }
         let guard = self
             .metrics
@@ -799,18 +793,22 @@ impl PgIndexerStore {
         })
     }
 
-    fn persist_packages(&self, packages: Vec<IndexedPackage>) -> Result<(), IndexerError> {
-        if packages.is_empty() {
-            return Ok(());
-        }
-        let guard = self
-            .metrics
-            .checkpoint_db_commit_latency_packages
-            .start_timer();
-        let packages = packages
+    async fn persist_packages_in_chunks(
+        &self,
+        packages: Vec<StoredPackage>,
+    ) -> Result<(), IndexerError> {
+        let chunks = chunk!(packages, self.config.parallel_objects_chunk_size);
+        let persist_tasks = chunks
             .into_iter()
-            .map(StoredPackage::from)
-            .collect::<Vec<_>>();
+            .map(|c| self.spawn_blocking_task(move |this| this.persist_packages(&c)));
+        futures::future::try_join_all(persist_tasks)
+            .await
+            .inspect_err(|e| tracing::error!("failed to join persist_packages futures: {e}"))?
+            .into_iter()
+            .collect()
+    }
+
+    fn persist_packages(&self, packages: &[StoredPackage]) -> Result<(), IndexerError> {
         transactional_blocking_with_retry!(
             &self.blocking_cp,
             |conn| {
@@ -830,13 +828,6 @@ impl PgIndexerStore {
             },
             PG_DB_COMMIT_SLEEP_DURATION
         )
-        .tap_ok(|_| {
-            let elapsed = guard.stop_and_record();
-            info!(elapsed, "Persisted {} packages", packages.len());
-        })
-        .tap_err(|e| {
-            tracing::error!("failed to persist packages with error: {e}");
-        })
     }
 
     async fn persist_event_indices_chunk(
@@ -1058,6 +1049,27 @@ impl PgIndexerStore {
         Ok(())
     }
 
+    pub(crate) fn persist_epochs(&self, epochs: Vec<EpochToCommit>) -> Result<(), IndexerError> {
+        transactional_blocking_with_retry!(
+            &self.blocking_cp,
+            |conn| {
+                for epoch in &epochs {
+                    if let Some(last_epoch) = &epoch.last_epoch {
+                        info!(last_epoch.epoch, "Persisting epoch end data.");
+                        diesel::update(epochs::table.filter(epochs::epoch.eq(last_epoch.epoch)))
+                            .set(last_epoch)
+                            .execute(conn)?;
+                    }
+
+                    info!(epoch.new_epoch.epoch, "Persisting epoch beginning info");
+                    insert_or_ignore_into!(epochs::table, &epoch.new_epoch, conn);
+                }
+                Ok::<(), IndexerError>(())
+            },
+            PG_DB_COMMIT_SLEEP_DURATION
+        )
+    }
+
     fn persist_epoch(&self, epoch: EpochToCommit) -> Result<(), IndexerError> {
         let guard = self
             .metrics
@@ -1065,29 +1077,14 @@ impl PgIndexerStore {
             .start_timer();
         let epoch_id = epoch.new_epoch.epoch;
 
-        transactional_blocking_with_retry!(
-            &self.blocking_cp,
-            |conn| {
-                if let Some(last_epoch) = &epoch.last_epoch {
-                    info!(last_epoch.epoch, "Persisting epoch end data.");
-                    diesel::update(epochs::table.filter(epochs::epoch.eq(last_epoch.epoch)))
-                        .set(last_epoch)
-                        .execute(conn)?;
-                }
-
-                info!(epoch.new_epoch.epoch, "Persisting epoch beginning info");
-                insert_or_ignore_into!(epochs::table, &epoch.new_epoch, conn);
-                Ok::<(), IndexerError>(())
-            },
-            PG_DB_COMMIT_SLEEP_DURATION
-        )
-        .tap_ok(|_| {
-            let elapsed = guard.stop_and_record();
-            info!(elapsed, epoch_id, "Persisted epoch beginning info");
-        })
-        .tap_err(|e| {
-            tracing::error!("failed to persist epoch with error: {e}");
-        })
+        self.persist_epochs(vec![epoch])
+            .tap_ok(|_| {
+                let elapsed = guard.stop_and_record();
+                info!(elapsed, epoch_id, "Persisted epoch beginning info");
+            })
+            .tap_err(|e| {
+                tracing::error!("failed to persist epoch with error: {e}");
+            })
     }
 
     fn advance_epoch(&self, epoch_to_commit: EpochToCommit) -> Result<(), IndexerError> {
@@ -1595,9 +1592,9 @@ impl PgIndexerStore {
             .collect())
     }
 
-    fn update_watermarks_lower_bound(
+    fn update_watermarks_lower_bound<Table: AsRef<str>>(
         &self,
-        watermarks: Vec<(PrunableTable, u64)>,
+        watermarks: Vec<(Table, u64)>,
     ) -> Result<(), IndexerError> {
         use diesel::query_dsl::methods::FilterDsl;
 
@@ -1690,19 +1687,20 @@ impl PgIndexerStore {
         )
     }
 
-    fn update_watermark_lowest_unpruned_key(
+    fn update_watermark_lowest_unpruned_keys<Table: AsRef<str>>(
         &self,
-        table: &PrunableTable,
-        lowest_unpruned_key: u64,
+        unpruned_keys: &[(Table, u64)],
     ) -> Result<(), IndexerError> {
         transactional_blocking_with_retry!(
             &self.blocking_cp,
             |conn| {
-                diesel::update(watermarks::table.filter(watermarks::entity.eq(table.as_ref())))
-                    .set(watermarks::lowest_unpruned_key.eq(lowest_unpruned_key as i64))
-                    .execute(conn)
-                    .map_err(IndexerError::from)
-                    .context("failed to update watermark lowest_unpruned_key")?;
+                for (table, lowest_unpruned_key) in unpruned_keys {
+                    diesel::update(watermarks::table.filter(watermarks::entity.eq(table.as_ref())))
+                        .set(watermarks::lowest_unpruned_key.eq(*lowest_unpruned_key as i64))
+                        .execute(conn)
+                        .map_err(IndexerError::from)
+                        .context("failed to update watermark lowest_unpruned_key")?;
+                }
                 Ok::<(), IndexerError>(())
             },
             PG_DB_COMMIT_SLEEP_DURATION
@@ -1727,7 +1725,7 @@ impl PgIndexerStore {
         )
     }
 
-    async fn execute_in_blocking_worker<F, R>(&self, f: F) -> Result<R, IndexerError>
+    pub(crate) async fn execute_in_blocking_worker<F, R>(&self, f: F) -> Result<R, IndexerError>
     where
         F: FnOnce(Self) -> Result<R, IndexerError> + Send + 'static,
         R: Send + 'static,
@@ -1744,7 +1742,7 @@ impl PgIndexerStore {
         .and_then(std::convert::identity)
     }
 
-    fn spawn_blocking_task<F, R>(
+    pub(crate) fn spawn_blocking_task<F, R>(
         &self,
         f: F,
     ) -> tokio::task::JoinHandle<std::result::Result<R, IndexerError>>
@@ -1940,35 +1938,54 @@ impl IndexerStore for PgIndexerStore {
         Ok(())
     }
 
-    async fn persist_displays(
-        &self,
-        display_updates: BTreeMap<String, StoredDisplay>,
-    ) -> Result<(), IndexerError> {
-        if display_updates.is_empty() {
+    async fn persist_displays(&self, displays: Vec<StoredDisplay>) -> Result<(), IndexerError> {
+        if displays.is_empty() {
             return Ok(());
         }
 
-        self.spawn_blocking_task(move |this| this.persist_display_updates(display_updates))
-            .await?
+        if displays.len() < self.config.parallel_objects_chunk_size {
+            self.spawn_blocking_task(move |this| this.persist_displays_chunk(displays))
+                .await??;
+            return Ok(());
+        }
+        let chunks = chunk!(displays, self.config.parallel_objects_chunk_size);
+        let persist_tasks = chunks
+            .into_iter()
+            .map(|c| self.spawn_blocking_task(move |this| this.persist_displays_chunk(c)));
+        futures::future::try_join_all(persist_tasks)
+            .await
+            .map_err(|e| {
+                tracing::error!("failed to join futures for persisting displays: {e}");
+                IndexerError::from(e)
+            })?
+            .into_iter()
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| {
+                IndexerError::PostgresWrite(
+                    format!("Failed to persist all displays chunks: {e:?}",),
+                )
+            })?;
+        Ok(())
     }
 
-    fn persist_displays_in_existing_transaction(
+    fn persist_displays_chunk_in_existing_transaction(
         &self,
         conn: &mut PgConnection,
-        display_updates: Vec<&StoredDisplay>,
+        displays: &[StoredDisplay],
     ) -> Result<(), IndexerError> {
-        if display_updates.is_empty() {
+        if displays.is_empty() {
             return Ok(());
         }
 
         on_conflict_do_update_with_condition!(
             display::table,
-            display_updates,
+            displays,
             display::object_type,
             (
                 display::id.eq(excluded(display::id)),
                 display::version.eq(excluded(display::version)),
                 display::bcs.eq(excluded(display::bcs)),
+                display::bcs_kind.eq(excluded(display::bcs_kind)),
             ),
             excluded(display::version).gt(display::version),
             conn
@@ -1977,12 +1994,35 @@ impl IndexerStore for PgIndexerStore {
         Ok(())
     }
 
-    async fn persist_packages(&self, packages: Vec<IndexedPackage>) -> Result<(), IndexerError> {
+    async fn persist_packages(&self, packages: Vec<StoredPackage>) -> Result<(), IndexerError> {
         if packages.is_empty() {
             return Ok(());
         }
-        self.execute_in_blocking_worker(move |this| this.persist_packages(packages))
-            .await
+        let len = packages.len();
+        let guard = self
+            .metrics
+            .checkpoint_db_commit_latency_packages
+            .start_timer();
+        let persist_result = if len <= self.config.parallel_objects_chunk_size {
+            self.execute_in_blocking_worker(move |this| this.persist_packages(&packages))
+                .await
+        } else {
+            self.persist_packages_in_chunks(packages)
+                .await
+                .map_err(|e| {
+                    IndexerError::PostgresWrite(format!(
+                        "Failed to persist all packages chunks: {e:?}"
+                    ))
+                })
+        };
+        persist_result
+            .tap_ok(|_| {
+                let elapsed = guard.stop_and_record();
+                info!(elapsed, "Persisted {len} packages");
+            })
+            .tap_err(|e| {
+                tracing::error!("failed to persist packages with error: {e}");
+            })
     }
 
     async fn persist_event_indices(&self, indices: Vec<EventIndex>) -> Result<(), IndexerError> {
@@ -2188,7 +2228,7 @@ impl IndexerStore for PgIndexerStore {
         let deletion_chunks = chunk!(deletions, self.config.parallel_objects_chunk_size);
         let mutation_futures = mutation_chunks
             .into_iter()
-            .map(|c| self.spawn_blocking_task(move |this| this.persist_changed_objects(c)));
+            .map(|c| self.spawn_blocking_task(move |this| this.persist_live_objects(c)));
         let deletion_futures = deletion_chunks
             .into_iter()
             .map(|c| self.spawn_blocking_task(move |this| this.persist_removed_objects(c)));
@@ -2332,9 +2372,9 @@ impl IndexerStore for PgIndexerStore {
         Ok(())
     }
 
-    async fn update_watermarks_lower_bound(
+    async fn update_watermarks_lower_bound<Table: AsRef<str> + Send + 'static>(
         &self,
-        watermarks: Vec<(PrunableTable, u64)>,
+        watermarks: Vec<(Table, u64)>,
     ) -> Result<(), IndexerError> {
         self.execute_in_blocking_worker(move |this| this.update_watermarks_lower_bound(watermarks))
             .await
@@ -2420,9 +2460,19 @@ impl IndexerStore for PgIndexerStore {
         table: &PrunableTable,
         lowest_unpruned_key: u64,
     ) -> Result<(), IndexerError> {
-        let table = *table;
+        <Self as IndexerStore>::update_watermarks_lowest_unpruned_key(
+            &self,
+            vec![(*table, lowest_unpruned_key)],
+        )
+        .await
+    }
+
+    async fn update_watermarks_lowest_unpruned_key<Table: AsRef<str> + Send + 'static>(
+        &self,
+        unpruned_keys: Vec<(Table, u64)>,
+    ) -> Result<(), IndexerError> {
         self.execute_in_blocking_worker(move |this| {
-            this.update_watermark_lowest_unpruned_key(&table, lowest_unpruned_key)
+            this.update_watermark_lowest_unpruned_keys(&unpruned_keys)
         })
         .await
     }

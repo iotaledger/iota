@@ -386,10 +386,9 @@ impl BlockSuspender {
             .metrics
             .node_metrics
             .suspended_block_header_time
-            .with_label_values(&[self
-                .context
-                .authority_hostname(unsuspended_block.block_header.author())])
             .observe(
+                self.context
+                    .authority_hostname(unsuspended_block.block_header.author()),
                 now.saturating_duration_since(unsuspended_block.timestamp)
                     .as_secs_f64(),
             );

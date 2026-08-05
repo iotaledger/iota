@@ -20,6 +20,7 @@ use iota_core::{
     global_state_hasher::GlobalStateHasher,
     mock_consensus::{ConsensusMode, MockConsensusClient},
 };
+use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{Address, ObjectReference, TransactionDigest};
 use iota_test_transaction_builder::{PublishData, TestTransactionBuilder};
 use iota_types::{
@@ -33,8 +34,8 @@ use iota_types::{
     mock_checkpoint_builder::{MockCheckpointBuilder, ValidatorKeypairProvider},
     object::Object,
     transaction::{
-        CertifiedTransaction, DEFAULT_VALIDATOR_GAS_PRICE, SenderSignedTransactionAPI, Transaction,
-        TransactionDataAPI, VerifiedCertificate, VerifiedTransaction,
+        CertifiedTransaction, DEFAULT_VALIDATOR_GAS_PRICE, SenderSignedTransactionAPI,
+        TransactionDataAPI, TransactionEnvelope, VerifiedCertificate, VerifiedTransaction,
     },
 };
 
@@ -48,7 +49,14 @@ pub struct SingleValidator {
 
 impl SingleValidator {
     pub(crate) async fn new(genesis_objects: &[Object], component: Component) -> Self {
+        // Every component certifies its transactions first, and the validator
+        // entry points measured here (`handle_transaction`,
+        // `handle_certificate_v1`) reject requests once the P-COOL flow is on,
+        // so the benchmark runs the certified flow.
+        let mut protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
+        protocol_config.set_enable_pcool_flow_for_testing(false);
         let validator = TestAuthorityBuilder::new()
+            .with_protocol_config(protocol_config)
             .disable_indexer()
             .with_starting_objects(genesis_objects)
             // This is needed to properly run checkpoint executor.
@@ -120,7 +128,10 @@ impl SingleValidator {
         (package, updated_gas)
     }
 
-    pub async fn execute_raw_transaction(&self, transaction: Transaction) -> TransactionEffects {
+    pub async fn execute_raw_transaction(
+        &self,
+        transaction: TransactionEnvelope,
+    ) -> TransactionEffects {
         let executable = VerifiedExecutableTransaction::new_from_quorum_execution(
             VerifiedTransaction::new_unchecked(transaction),
             0,
@@ -134,7 +145,7 @@ impl SingleValidator {
         effects
     }
 
-    pub async fn execute_dry_run(&self, transaction: Transaction) -> TransactionEffects {
+    pub async fn execute_dry_run(&self, transaction: TransactionEnvelope) -> TransactionEffects {
         let effects = self
             .get_validator()
             .dry_exec_transaction_for_benchmark(
@@ -236,7 +247,10 @@ impl SingleValidator {
         effects
     }
 
-    pub async fn sign_transaction(&self, transaction: Transaction) -> HandleTransactionResponse {
+    pub async fn sign_transaction(
+        &self,
+        transaction: TransactionEnvelope,
+    ) -> HandleTransactionResponse {
         self.validator_service
             .handle_transaction_for_benchmarking(transaction)
             .await

@@ -95,7 +95,7 @@ impl IndexedCheckpoint {
             timestamp_ms: checkpoint.timestamp_ms,
             validator_signature: auth_sig.clone(),
             checkpoint_commitments: checkpoint.checkpoint_commitments.clone(),
-            content_digest: checkpoint.content_digest,
+            content_digest: checkpoint.contents_digest,
             version_specific_data: checkpoint.version_specific_data.clone(),
             min_tx_sequence_number,
             max_tx_sequence_number,
@@ -395,9 +395,17 @@ impl IndexedDeletedObject {
 
 #[derive(Debug)]
 pub struct IndexedPackage {
-    pub package_id: ObjectId,
     pub move_package: MovePackage,
     pub checkpoint_sequence_number: u64,
+}
+
+impl IndexedPackage {
+    pub(crate) fn new(move_package: MovePackage, checkpoint_sequence_number: u64) -> Self {
+        Self {
+            move_package,
+            checkpoint_sequence_number,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]

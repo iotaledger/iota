@@ -36,7 +36,7 @@ use iota_types::{
         ExecuteTransactionRequestType, ExecuteTransactionRequestV1, ExecuteTransactionResponseV1,
     },
     storage::PostExecutionPackageResolver,
-    transaction::{InputObjectKind, Transaction, TransactionData, TransactionDataAPI},
+    transaction::{InputObjectKind, TransactionData, TransactionDataAPI, TransactionEnvelope},
 };
 use jsonrpsee::{RpcModule, core::RpcResult};
 use tracing::{Instrument, instrument};
@@ -93,7 +93,7 @@ impl TransactionExecutionApi {
             IotaTransactionBlockResponseOptions,
             Address,
             Vec<InputObjectKind>,
-            Transaction,
+            TransactionEnvelope,
             Option<IotaTransactionBlock>,
             Vec<u8>,
         ),
@@ -111,7 +111,7 @@ impl TransactionExecutionApi {
                     .map_err(|e| IotaRpcInputError::GenericInvalid(e.to_string()))?,
             );
         }
-        let txn = Transaction::from_user_sig_data(tx_data, sigs);
+        let txn = TransactionEnvelope::from_user_sig_data(tx_data, sigs);
         let raw_transaction = if opts.show_raw_input {
             bcs::to_bytes(txn.data())?
         } else {

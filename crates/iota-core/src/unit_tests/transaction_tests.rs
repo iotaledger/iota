@@ -9,7 +9,7 @@ use std::{
 
 use fastcrypto::traits::KeyPair;
 use iota_macros::sim_test;
-use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
+use iota_protocol_config::{Chain, OverrideGuard, ProtocolConfig, ProtocolVersion};
 use iota_sdk_types::{
     Address, ConsensusCommitPrologueV1, ConsensusDeterminedVersionAssignments, GenesisTransaction,
     Identifier, SharedObjectReference, TransactionKind, crypto::IntentScope,
@@ -267,7 +267,7 @@ pub fn init_transfer_transaction(
     gas_object_ref: ObjectReference,
     gas_budget: u64,
     gas_price: u64,
-) -> Transaction {
+) -> TransactionEnvelope {
     let mut data = TransactionData::new_transfer(
         recipient,
         object_ref,
@@ -287,7 +287,7 @@ pub fn init_move_call_transaction(
     gas_object_ref: ObjectReference,
     gas_budget: u64,
     gas_price: u64,
-) -> Transaction {
+) -> TransactionEnvelope {
     let mut data = TransactionData::new_move_call(
         sender,
         ObjectId::SYSTEM,
@@ -307,7 +307,7 @@ pub fn init_move_call_transaction(
 async fn do_transaction_test_skip_cert_checks(
     expected_sig_errors: u64,
     pre_sign_mutations: impl Fn(&mut TransactionData),
-    post_sign_mutations: impl Fn(&mut Transaction),
+    post_sign_mutations: impl Fn(&mut TransactionEnvelope),
     err_check: impl Fn(&IotaError),
 ) {
     do_transaction_test_impl(
@@ -323,7 +323,7 @@ async fn do_transaction_test_skip_cert_checks(
 async fn do_transaction_test(
     expected_sig_errors: u64,
     pre_sign_mutations: impl Fn(&mut TransactionData),
-    post_sign_mutations: impl Fn(&mut Transaction),
+    post_sign_mutations: impl Fn(&mut TransactionEnvelope),
     err_check: impl Fn(&IotaError),
 ) {
     do_transaction_test_impl(
@@ -340,10 +340,11 @@ async fn do_transaction_test_impl(
     _expected_sig_errors: u64,
     check_forged_cert: bool,
     pre_sign_mutations: impl Fn(&mut TransactionData),
-    post_sign_mutations: impl Fn(&mut Transaction),
+    post_sign_mutations: impl Fn(&mut TransactionEnvelope),
     err_check: impl Fn(&IotaError),
 ) {
     telemetry_subscribers::init_for_testing();
+    let _guard = disable_pcool_flow();
     let (sender1, sender_key1): (_, AccountKeyPair) = get_key_pair();
     let (sender2, sender_key2): (_, AccountKeyPair) = get_key_pair();
     let recipient = dbg_addr(2);
@@ -498,9 +499,20 @@ fn make_socket_addr() -> std::net::SocketAddr {
     SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 0)
 }
 
+/// The tests here drive the pre-consensus endpoints -- `handle_transaction`,
+/// `handle_certificate` and soft bundles -- which the P-COOL flow replaces
+/// with `submit_tx`, so they run against a protocol config with P-COOL off.
+fn disable_pcool_flow() -> OverrideGuard {
+    ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(false);
+        config
+    })
+}
+
 #[tokio::test]
 async fn test_oversized_txn() {
     telemetry_subscribers::init_for_testing();
+    let _guard = disable_pcool_flow();
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
     let recipient = dbg_addr(2);
     let object_id = ObjectId::random();
@@ -560,6 +572,7 @@ async fn test_oversized_txn() {
 #[tokio::test]
 async fn test_very_large_certificate() {
     telemetry_subscribers::init_for_testing();
+    let _guard = disable_pcool_flow();
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
     let recipient = dbg_addr(2);
     let object_id = ObjectId::random();
@@ -649,6 +662,7 @@ async fn test_very_large_certificate() {
 #[tokio::test]
 async fn test_handle_certificate_errors() {
     telemetry_subscribers::init_for_testing();
+    let _guard = disable_pcool_flow();
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
     let recipient = dbg_addr(2);
     let object_id = ObjectId::random();
@@ -814,6 +828,7 @@ async fn test_handle_soft_bundle_certificates() {
     let mut protocol_config =
         ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
     protocol_config.set_max_soft_bundle_size_for_testing(10);
+    protocol_config.set_enable_pcool_flow_for_testing(false);
 
     let authority = TestAuthorityBuilder::new()
         .with_reference_gas_price(1000)
@@ -878,7 +893,7 @@ async fn test_handle_soft_bundle_certificates() {
     .await
     .unwrap();
 
-    let signed_tx_into_certificate = |transaction: Transaction| async {
+    let signed_tx_into_certificate = |transaction: TransactionEnvelope| async {
         let epoch_store = authority.load_epoch_store_one_call_per_task();
         let committee = authority.clone_committee_for_testing();
         let mut sigs = vec![];
@@ -990,6 +1005,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
         ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
     protocol_config.set_max_soft_bundle_size_for_testing(3);
     protocol_config.set_consensus_max_transactions_in_block_bytes_for_testing(10_000);
+    protocol_config.set_enable_pcool_flow_for_testing(false);
     let authority = TestAuthorityBuilder::new()
         .with_reference_gas_price(1000)
         .with_protocol_config(protocol_config)
@@ -1035,7 +1051,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
     .await
     .unwrap();
 
-    let signed_tx_into_certificate = |transaction: Transaction| async {
+    let signed_tx_into_certificate = |transaction: TransactionEnvelope| async {
         let epoch_store = authority.load_epoch_store_one_call_per_task();
         let committee = authority.clone_committee_for_testing();
         let mut sigs = vec![];

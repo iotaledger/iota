@@ -39,7 +39,6 @@ RUN BINARIES="\
       iota-faucet \
       iota-cluster-test \
       iota-tool \
-      iota-genesis-builder \
     "; \
     for binary in $BINARIES; do \
       features=$(jq -r --arg bin "$binary" '.release_binaries[$bin] // [] | join(",")' binary-build-list.json); \
@@ -68,7 +67,6 @@ COPY --from=builder /iota/iota-localnet /usr/local/bin
 COPY --from=builder /iota/iota-faucet /usr/local/bin
 COPY --from=builder /iota/iota-cluster-test /usr/local/bin
 COPY --from=builder /iota/iota-tool /usr/local/bin
-COPY --from=builder /iota/iota-genesis-builder /usr/local/bin
 
 ARG BUILD_DATE
 ARG GIT_REVISION

@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{net::SocketAddr, path::PathBuf};
+use std::{net::SocketAddr, num::NonZeroUsize, path::PathBuf};
 
 use fastcrypto::{
     encoding::{Encoding, Hex},
@@ -13,19 +13,21 @@ use iota_config::{
     IOTA_GENESIS_MIGRATION_TX_DATA_FILENAME, NodeConfig, local_ip_utils,
     node::{
         AuthorityKeyPairWithPath, AuthorityOverloadConfig, AuthorityStorePruningConfig,
-        CheckpointExecutorConfig, DBCheckpointConfig, DEFAULT_GRPC_CONCURRENCY_LIMIT,
-        ExecutionCacheConfig, ExpensiveSafetyCheckConfig, Genesis, GrpcApiConfig, KeyPairWithPath,
-        RunWithRange, StateSnapshotConfig, default_enable_index_processing,
-        default_end_of_epoch_broadcast_channel_capacity,
+        CheckpointExecutorConfig, ExecutionCacheConfig, ExpensiveSafetyCheckConfig, Genesis,
+        GrpcApiConfig, KeyPairWithPath, RunWithRange, StateSnapshotConfig,
+        default_enable_index_processing, default_end_of_epoch_broadcast_channel_capacity,
         default_full_checkpoint_contents_cache_size_mb,
     },
     p2p::{DiscoveryConfig, P2pConfig, SeedPeer, StateSyncConfig},
+    transaction_deny_config::TransactionDenyConfig,
     verifier_signing_config::VerifierSigningConfig,
 };
 use iota_names::config::IotaNamesConfig;
 use iota_protocol_config::Chain;
 use iota_types::{
-    crypto::{AuthorityKeyPair, AuthorityPublicKeyBytes, IotaKeyPair, NetworkKeyPair},
+    crypto::{
+        AuthorityKeyPair, AuthorityPublicKeyBytes, NetworkKeyPair, network_to_simple_keypair,
+    },
     multiaddr::Multiaddr,
     supported_protocol_versions::SupportedProtocolVersions,
     traffic_control::{PolicyConfig, RemoteFirewallConfig},
@@ -45,6 +47,7 @@ pub struct ValidatorConfigBuilder {
     supported_protocol_versions: Option<SupportedProtocolVersions>,
     force_unpruned_checkpoints: bool,
     authority_overload_config: Option<AuthorityOverloadConfig>,
+    transaction_deny_config: Option<TransactionDenyConfig>,
     execution_cache_config: Option<ExecutionCacheConfig>,
     data_ingestion_dir: Option<PathBuf>,
     policy_config: Option<PolicyConfig>,
@@ -90,6 +93,11 @@ impl ValidatorConfigBuilder {
 
     pub fn with_authority_overload_config(mut self, config: AuthorityOverloadConfig) -> Self {
         self.authority_overload_config = Some(config);
+        self
+    }
+
+    pub fn with_transaction_deny_config(mut self, config: TransactionDenyConfig) -> Self {
+        self.transaction_deny_config = Some(config);
         self
     }
 
@@ -186,12 +194,12 @@ impl ValidatorConfigBuilder {
 
         NodeConfig {
             authority_key_pair: AuthorityKeyPairWithPath::new(validator.authority_key_pair),
-            network_key_pair: KeyPairWithPath::new(IotaKeyPair::Ed25519(
-                validator.network_key_pair,
+            network_key_pair: KeyPairWithPath::new(network_to_simple_keypair(
+                &validator.network_key_pair,
             )),
             account_key_pair: KeyPairWithPath::new(validator.account_key_pair),
-            protocol_key_pair: KeyPairWithPath::new(IotaKeyPair::Ed25519(
-                validator.protocol_key_pair,
+            protocol_key_pair: KeyPairWithPath::new(network_to_simple_keypair(
+                &validator.protocol_key_pair,
             )),
             db_path,
             network_address,
@@ -205,7 +213,9 @@ impl ValidatorConfigBuilder {
             genesis: Genesis::new_empty(),
             migration_tx_data_path,
             grpc_load_shed: None,
-            grpc_concurrency_limit: Some(DEFAULT_GRPC_CONCURRENCY_LIMIT),
+            // Effectively unlimited: tests and benchmarks must not be
+            // throttled.
+            grpc_concurrency_limit_per_core: NonZeroUsize::new(500_000_000).unwrap(),
             p2p_config,
             authority_store_pruning_config: pruning_config,
             end_of_epoch_broadcast_channel_capacity:
@@ -213,11 +223,10 @@ impl ValidatorConfigBuilder {
             checkpoint_executor_config,
             metrics: None,
             supported_protocol_versions: self.supported_protocol_versions,
-            db_checkpoint_config: Default::default(),
             // By default, expensive checks will be enabled in debug build, but not in release
             // build.
             expensive_safety_check_config: ExpensiveSafetyCheckConfig::default(),
-            transaction_deny_config: Default::default(),
+            transaction_deny_config: self.transaction_deny_config.unwrap_or_default(),
             certificate_deny_config: Default::default(),
             state_debug_dump_config: Default::default(),
             checkpoint_archive_config: None,
@@ -272,7 +281,6 @@ pub struct FullnodeConfigBuilder {
     rpc_port: Option<u16>,
     rpc_addr: Option<SocketAddr>,
     supported_protocol_versions: Option<SupportedProtocolVersions>,
-    db_checkpoint_config: Option<DBCheckpointConfig>,
     expensive_safety_check_config: Option<ExpensiveSafetyCheckConfig>,
     db_path: Option<PathBuf>,
     network_address: Option<Multiaddr>,
@@ -325,11 +333,6 @@ impl FullnodeConfigBuilder {
 
     pub fn with_supported_protocol_versions(mut self, versions: SupportedProtocolVersions) -> Self {
         self.supported_protocol_versions = Some(versions);
-        self
-    }
-
-    pub fn with_db_checkpoint_config(mut self, db_checkpoint_config: DBCheckpointConfig) -> Self {
-        self.db_checkpoint_config = Some(db_checkpoint_config);
         self
     }
 
@@ -391,8 +394,9 @@ impl FullnodeConfigBuilder {
 
     pub fn with_network_key_pair(mut self, network_key_pair: Option<NetworkKeyPair>) -> Self {
         if let Some(network_key_pair) = network_key_pair {
-            self.network_key_pair =
-                Some(KeyPairWithPath::new(IotaKeyPair::Ed25519(network_key_pair)));
+            self.network_key_pair = Some(KeyPairWithPath::new(network_to_simple_keypair(
+                &network_key_pair,
+            )));
         }
         self
     }
@@ -533,11 +537,11 @@ impl FullnodeConfigBuilder {
         NodeConfig {
             authority_key_pair: AuthorityKeyPairWithPath::new(validator_config.authority_key_pair),
             account_key_pair: KeyPairWithPath::new(validator_config.account_key_pair),
-            protocol_key_pair: KeyPairWithPath::new(IotaKeyPair::Ed25519(
-                validator_config.protocol_key_pair,
+            protocol_key_pair: KeyPairWithPath::new(network_to_simple_keypair(
+                &validator_config.protocol_key_pair,
             )),
             network_key_pair: self.network_key_pair.unwrap_or(KeyPairWithPath::new(
-                IotaKeyPair::Ed25519(validator_config.network_key_pair),
+                network_to_simple_keypair(&validator_config.network_key_pair),
             )),
             db_path: self
                 .db_path
@@ -557,7 +561,9 @@ impl FullnodeConfigBuilder {
             genesis,
             migration_tx_data_path,
             grpc_load_shed: None,
-            grpc_concurrency_limit: None,
+            // Effectively unlimited: tests and benchmarks must not be
+            // throttled.
+            grpc_concurrency_limit_per_core: NonZeroUsize::new(500_000_000).unwrap(),
             p2p_config,
             authority_store_pruning_config: pruning_config,
             end_of_epoch_broadcast_channel_capacity:
@@ -565,7 +571,6 @@ impl FullnodeConfigBuilder {
             checkpoint_executor_config,
             metrics: None,
             supported_protocol_versions: self.supported_protocol_versions,
-            db_checkpoint_config: self.db_checkpoint_config.unwrap_or_default(),
             expensive_safety_check_config: self
                 .expensive_safety_check_config
                 .unwrap_or_else(ExpensiveSafetyCheckConfig::new_enable_all),

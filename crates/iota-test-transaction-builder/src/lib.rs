@@ -21,11 +21,11 @@ use iota_sdk_types::{
     Version, crypto::SimpleSignature,
 };
 use iota_types::{
-    crypto::{AccountKeyPair, IotaKeyPair, get_key_pair},
+    crypto::{AccountKeyPair, get_key_pair},
     multisig::{BitmapUnit, MultiSig, MultiSigPublicKey},
     transaction::{
         CallArg, DEFAULT_VALIDATOR_GAS_PRICE, TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE,
-        TEST_ONLY_GAS_UNIT_FOR_TRANSFER, Transaction, TransactionData, TransactionDataAPI,
+        TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionData, TransactionDataAPI, TransactionEnvelope,
     },
     utils::to_sender_signed_transaction,
 };
@@ -409,8 +409,8 @@ impl TestTransactionBuilder {
         }
     }
 
-    pub fn build_and_sign(self, signer: impl Into<IotaKeyPair>) -> Transaction {
-        Transaction::from_data_and_signer(self.build(), vec![signer])
+    pub fn build_and_sign(self, signer: &impl Signer<SimpleSignature>) -> TransactionEnvelope {
+        TransactionEnvelope::from_data_and_signer(self.build(), vec![signer])
     }
 
     pub fn build_and_sign_multisig(
@@ -418,14 +418,14 @@ impl TestTransactionBuilder {
         multisig_pk: MultiSigPublicKey,
         signers: &[&dyn Signer<SimpleSignature>],
         bitmap: BitmapUnit,
-    ) -> Transaction {
+    ) -> TransactionEnvelope {
         let data = self.build();
         let digest = data.signing_digest();
         let signatures = signers.iter().map(|s| s.sign(&digest).into()).collect();
         let multisig =
             UserSignature::Multisig(MultiSig::new_unchecked(signatures, bitmap, multisig_pk));
 
-        Transaction::from_user_sig_data(data, vec![multisig])
+        TransactionEnvelope::from_user_sig_data(data, vec![multisig])
     }
 }
 
@@ -486,7 +486,7 @@ struct SplitCoinData {
 pub async fn batch_make_transfer_transactions(
     context: &WalletContext,
     max_txn_num: usize,
-) -> Vec<Transaction> {
+) -> Vec<TransactionEnvelope> {
     let recipient = get_key_pair::<AccountKeyPair>().0;
     let result = context.get_all_accounts_and_gas_objects().await;
     let accounts_and_objs = result.unwrap();
@@ -517,7 +517,7 @@ pub async fn make_transfer_iota_transaction(
     context: &WalletContext,
     recipient: Option<Address>,
     amount: Option<u64>,
-) -> Transaction {
+) -> TransactionEnvelope {
     let (sender, gas_object) = context.get_one_gas_object().await.unwrap().unwrap();
     let gas_price = context.get_reference_gas_price().await.unwrap();
     context.sign_transaction(
@@ -530,7 +530,7 @@ pub async fn make_transfer_iota_transaction(
 pub async fn make_staking_transaction(
     context: &WalletContext,
     validator_address: Address,
-) -> Transaction {
+) -> TransactionEnvelope {
     let accounts_and_objs = context.get_all_accounts_and_gas_objects().await.unwrap();
     let sender = accounts_and_objs[0].0;
     let gas_object = accounts_and_objs[0].1[0];
@@ -543,7 +543,10 @@ pub async fn make_staking_transaction(
     )
 }
 
-pub async fn make_publish_transaction(context: &WalletContext, path: PathBuf) -> Transaction {
+pub async fn make_publish_transaction(
+    context: &WalletContext,
+    path: PathBuf,
+) -> TransactionEnvelope {
     let (sender, gas_object) = context.get_one_gas_object().await.unwrap().unwrap();
     let gas_price = context.get_reference_gas_price().await.unwrap();
     context.sign_transaction(
@@ -556,7 +559,7 @@ pub async fn make_publish_transaction(context: &WalletContext, path: PathBuf) ->
 pub async fn make_publish_transaction_with_deps(
     context: &WalletContext,
     path: PathBuf,
-) -> Transaction {
+) -> TransactionEnvelope {
     let (sender, gas_object) = context.get_one_gas_object().await.unwrap().unwrap();
     let gas_price = context.get_reference_gas_price().await.unwrap();
     context.sign_transaction(
@@ -862,6 +865,7 @@ pub async fn split_coin_equal_tx(
         .into_inner()
         .into_iter()
         .next()
+        .expect("no result for the requested coin")
         .expect("coin not found")
         .object()
         .expect("invalid coin object");

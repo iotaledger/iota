@@ -22,13 +22,13 @@ use crate::{
     error::IotaError,
     messages_checkpoint::CheckpointSequenceNumber,
     object::Object,
-    transaction::Transaction,
+    transaction::TransactionEnvelope,
 };
 
 pub type QuorumDriverResult = Result<QuorumDriverResponse, QuorumDriverError>;
 
 pub type QuorumDriverEffectsQueueResult =
-    Result<(Transaction, QuorumDriverResponse), (TransactionDigest, QuorumDriverError)>;
+    Result<(TransactionEnvelope, QuorumDriverResponse), (TransactionDigest, QuorumDriverError)>;
 
 pub const NON_RECOVERABLE_ERROR_MSG: &str =
     "Transaction has non recoverable errors from at least 1/3 of validators";
@@ -215,7 +215,7 @@ pub struct QuorumDriverResponse {
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct ExecuteTransactionRequestV1 {
-    pub transaction: Transaction,
+    pub transaction: TransactionEnvelope,
 
     pub include_events: bool,
     pub include_input_objects: bool,
@@ -224,7 +224,7 @@ pub struct ExecuteTransactionRequestV1 {
 }
 
 impl ExecuteTransactionRequestV1 {
-    pub fn new<T: Into<Transaction>>(transaction: T) -> Self {
+    pub fn new<T: Into<TransactionEnvelope>>(transaction: T) -> Self {
         Self {
             transaction: transaction.into(),
             include_events: true,

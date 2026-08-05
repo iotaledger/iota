@@ -14,6 +14,7 @@ use iota_keys::keystore::AccountKeystore;
 use iota_macros::*;
 use iota_node::IotaNodeHandle;
 use iota_sdk::wallet_context::WalletContext;
+use iota_sdk_crypto::{ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey};
 use iota_sdk_types::{
     Address, GasPayment, Identifier, ObjectId, ObjectReference, Owner, TransactionDigest,
     TransactionKind, Version,
@@ -26,9 +27,8 @@ use iota_test_transaction_builder::{
     increment_counter, publish_basics_package, publish_basics_package_and_make_counter,
     publish_nfts_package,
 };
-use iota_tool::restore_from_db_checkpoint;
 use iota_types::{
-    crypto::{IotaKeyPair, get_key_pair},
+    crypto::{SimpleKeypair, get_key_pair},
     error::{IotaError, UserInputError},
     messages_grpc::TransactionInfoRequest,
     object::{Object, ObjectRead, PastObjectRead},
@@ -45,8 +45,7 @@ use iota_types::{
 };
 use jsonrpsee::{core::client::ClientT, rpc_params};
 use move_core_types::annotated_value::MoveStructLayout;
-use rand::rngs::OsRng;
-use test_cluster::TestClusterBuilder;
+use test_cluster::{TestClusterBuilder, override_pcool_flow};
 use tokio::{
     sync::RwLock,
     time::{Duration, sleep},
@@ -689,6 +688,7 @@ async fn test_full_node_event_query_by_module_ok() {
 
 #[sim_test]
 async fn test_full_node_transaction_orchestrator_basic() -> Result<(), anyhow::Error> {
+    let _pcool_guard = override_pcool_flow(false);
     let mut test_cluster = TestClusterBuilder::new().build().await;
     let fullnode = test_cluster.spawn_new_fullnode().await.iota_node;
     let metrics = KeyValueStoreMetrics::new_for_tests();
@@ -813,14 +813,14 @@ async fn test_validator_node_has_no_transaction_orchestrator() {
 async fn test_execute_tx_with_serialized_signature() -> Result<(), anyhow::Error> {
     let mut test_cluster = TestClusterBuilder::new().build().await;
     let context = &mut test_cluster.wallet;
-    context
-        .config_mut()
-        .keystore_mut()
-        .add_key(None, IotaKeyPair::Secp256k1(get_key_pair().1))?;
-    context
-        .config_mut()
-        .keystore_mut()
-        .add_key(None, IotaKeyPair::Ed25519(get_key_pair().1))?;
+    context.config_mut().keystore_mut().add_key(
+        None,
+        SimpleKeypair::from(get_key_pair::<Secp256k1PrivateKey>().1),
+    )?;
+    context.config_mut().keystore_mut().add_key(
+        None,
+        SimpleKeypair::from(get_key_pair::<Ed25519PrivateKey>().1),
+    )?;
 
     let jsonrpc_client = &test_cluster.fullnode_handle.rpc_client;
 
@@ -1071,76 +1071,10 @@ async fn test_get_objects_read() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-// Test for restoring a full node from a db snapshot
-#[sim_test]
-async fn test_full_node_bootstrap_from_snapshot() -> Result<(), anyhow::Error> {
-    telemetry_subscribers::init_for_testing();
-    let mut test_cluster = TestClusterBuilder::new()
-        .with_epoch_duration_ms(10_000)
-        // This will also do aggressive pruning and compaction of the snapshot
-        .with_enable_db_checkpoints_fullnodes()
-        .build()
-        .await;
-
-    let checkpoint_path = test_cluster
-        .fullnode_handle
-        .iota_node
-        .with(|node| node.db_checkpoint_path());
-    let config = test_cluster
-        .fullnode_config_builder()
-        .build(&mut OsRng, test_cluster.swarm.config());
-    let epoch_0_db_path = config.db_path().join("store").join("epoch_0");
-    let _ = transfer_coin(&test_cluster.wallet).await?;
-    let _ = transfer_coin(&test_cluster.wallet).await?;
-    let (_transferred_object, _, _, digest, ..) = transfer_coin(&test_cluster.wallet).await?;
-
-    // Skip the first epoch change from epoch 0 to epoch 1, but wait for the second
-    // epoch change from epoch 1 to epoch 2 at which point during reconfiguration we
-    // will take the db snapshot for epoch 1
-    loop {
-        if checkpoint_path.join("epoch_1").exists() {
-            break;
-        }
-        sleep(Duration::from_millis(500)).await;
-    }
-
-    // Spin up a new full node restored from the snapshot taken at the end of epoch
-    // 1
-    restore_from_db_checkpoint(&config, &checkpoint_path.join("epoch_1")).await?;
-    let node = test_cluster
-        .start_fullnode_from_config(config)
-        .await
-        .iota_node;
-
-    node.state()
-        .get_transaction_cache_reader()
-        .notify_read_executed_effects_for_testing(&[digest])
-        .await;
-
-    loop {
-        // Ensure this full node is able to transition to the next epoch
-        if node.with(|node| node.current_epoch_for_testing()) >= 2 {
-            break;
-        }
-        sleep(Duration::from_millis(500)).await;
-    }
-
-    // Ensure this fullnode never processed older epoch (before snapshot) i.e.
-    // epoch_0 store was doesn't exist
-    assert!(!epoch_0_db_path.exists());
-
-    let (_transferred_object, _, _, digest_after_restore, ..) =
-        transfer_coin(&test_cluster.wallet).await?;
-    node.state()
-        .get_transaction_cache_reader()
-        .notify_read_executed_effects_for_testing(&[digest_after_restore])
-        .await;
-    Ok(())
-}
-
 // Object fast path should be disabled and unused.
 #[sim_test]
 async fn test_pass_back_no_object() -> Result<(), anyhow::Error> {
+    let _pcool_guard = override_pcool_flow(false);
     let mut test_cluster = TestClusterBuilder::new().build().await;
     let rgp = test_cluster.get_reference_gas_price().await;
     let fullnode = test_cluster.spawn_new_fullnode().await.iota_node;

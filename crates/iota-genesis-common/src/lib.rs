@@ -15,7 +15,7 @@ use iota_types::{
     messages_checkpoint::CheckpointTimestamp,
     metrics::LimitsMetrics,
     object::Object,
-    transaction::{CheckedInputObjects, Transaction, TransactionDataAPI},
+    transaction::{CheckedInputObjects, TransactionDataAPI, TransactionEnvelope},
 };
 use prometheus_filtered::Registry;
 
@@ -37,7 +37,7 @@ pub fn get_genesis_protocol_config(version: ProtocolVersion) -> ProtocolConfig {
 pub fn prepare_and_execute_genesis_transaction(
     chain_start_timestamp_ms: CheckpointTimestamp,
     protocol_version: ProtocolVersion,
-    genesis_transaction: &Transaction,
+    genesis_transaction: &TransactionEnvelope,
 ) -> (TransactionEffects, TransactionEvents, Vec<Object>) {
     let registry = Registry::new();
     let metrics = Arc::new(LimitsMetrics::new(&registry));
@@ -56,7 +56,7 @@ pub fn execute_genesis_transaction(
     epoch_data: &EpochData,
     protocol_config: &ProtocolConfig,
     metrics: Arc<LimitsMetrics>,
-    genesis_transaction: &Transaction,
+    genesis_transaction: &TransactionEnvelope,
 ) -> (TransactionEffects, TransactionEvents, Vec<Object>) {
     assert!(
         matches!(

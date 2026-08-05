@@ -14,19 +14,20 @@ use iota_config::{local_ip_utils, node::GrpcApiConfig};
 use iota_grpc_server::{GrpcReader, GrpcServerHandle, start_grpc_server};
 use iota_node_storage::GrpcStateReader;
 use iota_sdk_types::{
-    Address, CheckpointContentsDigest, CheckpointDigest, ObjectId, StructTag, TransactionDigest,
-    Version,
+    Address, CheckpointContentsDigest, CheckpointDigest, MoveStruct, ObjectId, Owner, StructTag,
+    TransactionDigest, Version,
     checkpoint::{CheckpointContents, CheckpointSummary},
 };
 use iota_types::{
-    crypto::AuthorityStrongQuorumSignInfo,
+    crypto::{AccountKeyPair, AuthorityStrongQuorumSignInfo, get_key_pair},
     effects::{TransactionEffects, TransactionEvents},
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
+    gas_coin::GasCoin,
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointContentsExt, CheckpointSequenceNumber,
         VerifiedCheckpoint,
     },
-    object::Object,
+    object::{MoveStructExt, OBJECT_START_VERSION, Object},
     storage::error::Result as StorageResult,
     transaction::VerifiedTransaction,
 };
@@ -54,6 +55,28 @@ pub fn assert_messages_within_limit<M: prost::Message>(messages: &[M], limit: u3
 // Mock helpers
 // ---------------------------------------------------------------------------
 
+/// Create a large object (~`padding_bytes` extra) so that a small number of
+/// objects exceeds the 1 MB minimum message size.
+pub fn create_large_object(padding_bytes_len: usize) -> (ObjectId, Object) {
+    let id = ObjectId::random();
+    let (owner, _) = get_key_pair::<AccountKeyPair>();
+    let mut contents = GasCoin::new(id, 100).to_bcs_bytes();
+    contents.extend(vec![0u8; padding_bytes_len]);
+    let move_obj = MoveStruct::new_from_execution_with_limit(
+        StructTag::new_gas_coin(),
+        OBJECT_START_VERSION,
+        contents,
+        u64::try_from(padding_bytes_len).unwrap() + 1024,
+    )
+    .unwrap();
+    let obj = Object::new_move(
+        move_obj,
+        Owner::Address(owner),
+        TransactionDigest::GENESIS_MARKER,
+    );
+    (id, obj)
+}
+
 /// Create a mock `CertifiedCheckpointSummary` for the given sequence number.
 pub fn mock_summary(
     sequence_number: u64,
@@ -63,7 +86,7 @@ pub fn mock_summary(
         epoch: 0,
         sequence_number,
         network_total_transactions: 0,
-        content_digest: contents.digest(),
+        contents_digest: contents.digest(),
         previous_digest: None,
         epoch_rolling_gas_cost_summary: Default::default(),
         timestamp_ms: 0,
@@ -481,12 +504,15 @@ impl iota_node_storage::GrpcIndexes for MockGrpcStateReader {
 // Server setup helpers
 // ---------------------------------------------------------------------------
 
-/// Start a gRPC server backed by the given `MockGrpcStateReader`.
+/// Start a gRPC server backed by the given `MockGrpcStateReader`, with an
+/// optional transaction executor and traffic controller.
 ///
 /// Returns the server handle and the `GrpcReader` (callers may need it to
 /// create different client types).
-pub async fn start_test_server(
+async fn start_test_server_with(
     state_reader: Arc<MockGrpcStateReader>,
+    executor: Option<Arc<dyn iota_types::transaction_executor::TransactionExecutor>>,
+    traffic_controller: Option<Arc<iota_core::traffic_controller::TrafficController>>,
     config_customizer: impl FnOnce(&mut GrpcApiConfig),
 ) -> (GrpcServerHandle, Arc<GrpcReader>) {
     let grpc_reader = Arc::new(GrpcReader::new(state_reader, Some("test".to_string())));
@@ -501,16 +527,39 @@ pub async fn start_test_server(
     let cancellation_token = tokio_util::sync::CancellationToken::new();
     let server_handle = start_grpc_server(
         grpc_reader.clone(),
-        None,
+        executor,
         config,
         cancellation_token,
         iota_types::digests::ChainIdentifier::default(),
         None,
-        None,
+        traffic_controller,
         None,
     )
     .await
     .expect("Failed to start gRPC server");
 
     (server_handle, grpc_reader)
+}
+
+/// Start a gRPC server backed by the given `MockGrpcStateReader`.
+///
+/// Returns the server handle and the `GrpcReader` (callers may need it to
+/// create different client types).
+pub async fn start_test_server(
+    state_reader: Arc<MockGrpcStateReader>,
+    config_customizer: impl FnOnce(&mut GrpcApiConfig),
+) -> (GrpcServerHandle, Arc<GrpcReader>) {
+    start_test_server_with(state_reader, None, None, config_customizer).await
+}
+
+/// Like [`start_test_server`], but with the given traffic controller wired
+/// into the server's `TrafficControlLayer` and an optional transaction
+/// executor (required for the `TransactionExecutionService` to be
+/// registered).
+pub async fn start_test_server_with_traffic_controller(
+    state_reader: Arc<MockGrpcStateReader>,
+    traffic_controller: Arc<iota_core::traffic_controller::TrafficController>,
+    executor: Option<Arc<dyn iota_types::transaction_executor::TransactionExecutor>>,
+) -> (GrpcServerHandle, Arc<GrpcReader>) {
+    start_test_server_with(state_reader, executor, Some(traffic_controller), |_| {}).await
 }

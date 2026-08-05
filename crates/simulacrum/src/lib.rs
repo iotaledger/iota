@@ -45,7 +45,7 @@ use iota_swarm_config::{
 use iota_types::{
     base_types::{AuthorityName, VersionNumber},
     committee::Committee,
-    crypto::{AuthoritySignature, KeypairTraits},
+    crypto::AuthoritySignature,
     effects::TransactionEffects,
     error::ExecutionError,
     gas_coin::{GasCoin, NANOS_PER_IOTA},
@@ -59,7 +59,7 @@ use iota_types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     signature::VerifyParams,
     storage::{EpochInfoV2, ObjectStore, ReadStore, TransactionInfo},
-    transaction::{Transaction, TransactionData, TransactionDataAPI, VerifiedTransaction},
+    transaction::{TransactionData, TransactionDataAPI, TransactionEnvelope, VerifiedTransaction},
 };
 use rand::rngs::OsRng;
 
@@ -177,9 +177,9 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
         }
     }
 
-    /// Attempts to execute the provided Transaction.
+    /// Attempts to execute the provided transaction.
     ///
-    /// The provided Transaction undergoes the same types of checks that a
+    /// The provided transaction undergoes the same types of checks that a
     /// Validator does prior to signing and executing in the production
     /// system. Some of these checks are as follows:
     /// - User signature is valid
@@ -192,7 +192,7 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
     /// TransactionEffects are returned.
     pub fn execute_transaction(
         &self,
-        transaction: Transaction,
+        transaction: TransactionEnvelope,
     ) -> anyhow::Result<(TransactionEffects, Option<ExecutionError>)> {
         let mut inner = self.inner.write().unwrap();
         let transaction = transaction.try_into_verified_for_testing(&VerifyParams::default())?;
@@ -435,7 +435,7 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
                 .accounts()
                 .next()
                 .ok_or_else(|| anyhow!("no accounts available in keystore"))?;
-            Ok((*s, k.copy()))
+            Ok((*s, k.clone()))
         })?;
 
         let object = self
@@ -466,7 +466,7 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
         let kind = TransactionKind::Programmable(pt);
         let tx_data =
             iota_types::transaction::TransactionData::new_with_gas_data(kind, sender, gas_data);
-        let tx = Transaction::from_data_and_signer(tx_data, vec![&key]);
+        let tx = TransactionEnvelope::from_data_and_signer(tx_data, vec![&key]);
 
         self.execute_transaction(tx).map(|x| x.0)
     }
@@ -478,7 +478,7 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
             let checkpoint = inner.store.get_checkpoint_by_sequence_number(0).unwrap();
             let contents = inner
                 .store
-                .get_checkpoint_contents_by_digest(&checkpoint.content_digest);
+                .get_checkpoint_contents_by_digest(&checkpoint.contents_digest);
             (checkpoint, contents)
         };
         // Release lock before expensive data ingestion operation
@@ -626,7 +626,7 @@ impl<T, V: store::SimulatorStore> ReadStore for Simulacrum<T, V> {
             store
                 .get_checkpoint_by_sequence_number(sequence_number)
                 .and_then(|checkpoint| {
-                    store.get_checkpoint_contents_by_digest(&checkpoint.content_digest)
+                    store.get_checkpoint_contents_by_digest(&checkpoint.contents_digest)
                 })
         }))
     }
@@ -661,7 +661,7 @@ impl<T, V: store::SimulatorStore> ReadStore for Simulacrum<T, V> {
         self.with_store(|store| {
             store
                 .try_get_checkpoint_by_sequence_number(sequence_number)?
-                .and_then(|chk| store.get_checkpoint_contents_by_digest(&chk.content_digest))
+                .and_then(|chk| store.get_checkpoint_contents_by_digest(&chk.contents_digest))
                 .map_or(Ok(None), |contents| {
                     iota_types::messages_checkpoint::FullCheckpointContents::try_from_checkpoint_contents(
                         store,
@@ -789,7 +789,7 @@ impl<T: Send + Sync, V: store::SimulatorStore + Send + Sync> GrpcIndexes for Sim
             for seq in (0..=highest_seq).rev() {
                 if let Some(checkpoint) = store.get_checkpoint_by_sequence_number(seq) {
                     if let Some(contents) =
-                        store.get_checkpoint_contents_by_digest(&checkpoint.content_digest)
+                        store.get_checkpoint_contents_by_digest(&checkpoint.contents_digest)
                     {
                         if contents
                             .iter()
@@ -863,10 +863,10 @@ impl Simulacrum {
     /// iota-test-transaction-builder by defining a trait
     /// that both WalletContext and Simulacrum implement. Then we can remove
     /// this function.
-    pub fn transfer_txn(&self, recipient: Address) -> (Transaction, u64) {
+    pub fn transfer_txn(&self, recipient: Address) -> (TransactionEnvelope, u64) {
         let (sender, key) = self.with_keystore(|keystore| {
             let (s, k) = keystore.accounts().next().unwrap();
-            (*s, k.copy())
+            (*s, k.clone())
         });
 
         let (object, gas_coin_value) = self.with_store(|store| {
@@ -893,7 +893,7 @@ impl Simulacrum {
             budget: 1_000_000_000,
         };
         let tx_data = TransactionData::new_with_gas_data(kind, sender, gas_data);
-        let tx = Transaction::from_data_and_signer(tx_data, vec![&key]);
+        let tx = TransactionEnvelope::from_data_and_signer(tx_data, vec![&key]);
         (tx, transfer_amount)
     }
 }

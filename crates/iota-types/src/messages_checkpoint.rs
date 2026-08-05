@@ -39,7 +39,7 @@ use crate::{
     global_state_hash::GlobalStateHash,
     message_envelope::{Envelope, Message, TrustedEnvelope, VerifiedEnvelope},
     storage::ReadStore,
-    transaction::{Transaction, TransactionData, TransactionDataAPI},
+    transaction::{TransactionData, TransactionDataAPI, TransactionEnvelope},
 };
 
 pub type CheckpointSequenceNumber = u64;
@@ -67,10 +67,10 @@ pub enum CheckpointSummaryResponse {
 }
 
 impl CheckpointSummaryResponse {
-    pub fn content_digest(&self) -> CheckpointContentsDigest {
+    pub fn contents_digest(&self) -> CheckpointContentsDigest {
         match self {
-            Self::Certified(s) => s.content_digest,
-            Self::Pending(s) => s.content_digest,
+            Self::Certified(s) => s.contents_digest,
+            Self::Pending(s) => s.contents_digest,
         }
     }
 }
@@ -161,7 +161,7 @@ impl CheckpointSummaryExt for CheckpointSummary {
         timestamp_ms: CheckpointTimestamp,
         randomness_rounds: Vec<RandomnessRound>,
     ) -> Self {
-        let content_digest = transactions.digest();
+        let contents_digest = transactions.digest();
 
         let version_specific_data =
             match protocol_config.checkpoint_summary_version_specific_data_as_option() {
@@ -180,7 +180,7 @@ impl CheckpointSummaryExt for CheckpointSummary {
             epoch,
             sequence_number,
             network_total_transactions,
-            content_digest,
+            contents_digest,
             previous_digest,
             epoch_rolling_gas_cost_summary,
             end_of_epoch_data,
@@ -272,14 +272,14 @@ impl CertifiedCheckpointSummary {
         self.verify_authority_signatures(committee)?;
 
         if let Some(contents) = contents {
-            let content_digest = contents.digest();
+            let contents_digest = contents.digest();
             fp_ensure!(
-                content_digest == self.data().content_digest,
+                contents_digest == self.data().contents_digest,
                 IotaError::GenericAuthority {
                     error: format!(
                         "Checkpoint contents digest mismatch: summary={:?}, received content digest {:?}, received {} transactions",
                         self.data(),
-                        content_digest,
+                        contents_digest,
                         contents.len()
                     )
                 }
@@ -583,7 +583,7 @@ impl FullCheckpointContents {
 
     pub fn random_for_testing() -> Self {
         let (a, key): (_, AccountKeyPair) = get_key_pair();
-        let transaction = Transaction::from_data_and_signer(
+        let transaction = TransactionEnvelope::from_data_and_signer(
             TransactionData::new_transfer(
                 a,
                 random_object_ref(),

@@ -19,7 +19,7 @@ use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     error::{IotaError, IotaResult},
     multisig::{MultiSig, MultiSigPublicKey, MultisigMember},
-    transaction::Transaction,
+    transaction::TransactionEnvelope,
     utils::{make_upgraded_multisig_tx, multisig_keys},
 };
 use p256::pkcs8::DecodePublicKey;
@@ -36,7 +36,7 @@ use passkey_types::{
         PublicKeyCredentialUserEntity, UserVerificationRequirement,
     },
 };
-use test_cluster::{TestCluster, TestClusterBuilder};
+use test_cluster::{TestCluster, TestClusterBuilder, override_pcool_flow};
 use url::Url;
 
 async fn do_upgraded_multisig_test() -> IotaResult {
@@ -60,7 +60,7 @@ async fn create_credential_and_sign_test_tx_with_passkey_multisig(
     sender: Option<Address>,
     change_intent: bool,
     change_tx: bool,
-) -> Transaction {
+) -> TransactionEnvelope {
     // set up authenticator and client
     let my_aaguid = Aaguid::new_empty();
     let user_validation_method = MyUserValidationMethod {};
@@ -204,7 +204,7 @@ async fn create_credential_and_sign_test_tx_with_passkey_multisig(
     let multisig =
         UserSignature::Multisig(MultiSig::new(vec![sig.into()], multisig_pk.clone()).unwrap());
 
-    Transaction::from_user_sig_data(tx_data, vec![multisig])
+    TransactionEnvelope::from_user_sig_data(tx_data, vec![multisig])
 }
 
 struct MyUserValidationMethod {}
@@ -236,6 +236,7 @@ impl UserValidationMethod for MyUserValidationMethod {
 
 #[sim_test]
 async fn test_upgraded_multisig_feature_allow() {
+    let _pcool_guard = override_pcool_flow(false);
     let res = do_upgraded_multisig_test().await;
 
     // we didn't make a real transaction with a valid object, but we verify that we
@@ -251,13 +252,13 @@ async fn test_multisig_e2e() {
 
     let (kp1, kp2, kp3) = multisig_keys();
     let pk0 = kp1.public_key(); // ed25519
-    let pk1 = kp2.public_key(); // secp256k1
+    let pk1: PublicKey = kp2.public_key().into(); // secp256k1
     let pk2 = kp3.public_key(); // secp256r1
 
     let multisig_pk = MultiSigPublicKey::new_unchecked(
         vec![
             MultisigMember::new(pk0, 1),
-            MultisigMember::new(pk1, 1),
+            MultisigMember::new(pk1.clone(), 1),
             MultisigMember::new(pk2, 1),
         ],
         2,
@@ -299,7 +300,7 @@ async fn test_multisig_e2e() {
     assert!(
         res.unwrap_err()
             .to_string()
-            .contains("Invalid sig for pk=AQIOF81ZOeRrGWZBlozXWZELold+J/pz/eOHbbm+xbzrKw==")
+            .contains(format!("Invalid sig for pk={}", pk1.to_base64()).as_str())
     );
 
     // 4. sign with key 0 only is below threshold, fails to execute.

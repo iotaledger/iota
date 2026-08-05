@@ -9,9 +9,13 @@ teams:
   - iotaledger/infrastructure
 ---
 
+import IndexerRestorePicker from '@site/src/components/IndexerRestorePicker';
+
 The `iota-indexer` binary in writer mode ingests checkpoints from an IOTA checkpoint source, writes them into PostgreSQL tables, and maintains that database over time (migrations on start-up, pruning per retention policy). See the [Extended Data Services overview](./overview.mdx) for how it fits together with the JSON-RPC and GraphQL reader services.
 
 The `iota-indexer` binary also has a `run-backfill` subcommand — a one-off maintenance tool for filling specific tables over a historical range, typically after a schema change. Not part of normal operation.
+
+It also has a `restore` subcommand. This is a one-off tool that bootstraps the database from a formal snapshot instead of replaying every checkpoint from genesis. See [Restoring from a formal snapshot](#restoring-from-a-formal-snapshot).
 
 ## Scope
 
@@ -236,6 +240,44 @@ Tables not listed here are never pruned by the indexer.
 ### Non-prunable tables
 
 Several tables hold data that is retained for the full lifetime of the database. They are not affected by any retention setting and will not shrink when pruning is enabled. The largest contributors are `objects_version`, `objects_snapshot`, and `objects`.
+
+## Restoring from a formal snapshot
+
+The IOTA Indexer has the ability to initialize the database from a [formal snapshot](../common/snapshots.mdx#formal-snapshots) of the network instead of ingesting every checkpoint from genesis. A formal snapshot is a minimal, cryptographically verifiable capture of the end-of-epoch object state. Full nodes bootstrap from the same snapshots (see [formal-snapshot restore](../common/snapshots.mdx#restoring-from-formal-snapshots)).
+
+For a target epoch, restoring the Indexer involves downloading the snapshot, verifying it against the committee chain, and writing the live object state plus the epoch, protocol, and other data derived from it (display, packages, object-version mapping).
+
+The CLI command to manage the underlying operations is `restore`, which exposes `run` and `available-epochs`:
+
+```sh
+iota-indexer restore --network <mainnet|testnet|devnet> run [OPTIONS]
+      --staging-path <STAGING_PATH>   Local directory to stage the downloaded MANIFEST and .ref files
+      --genesis-path <GENESIS_PATH>   Path to the genesis blob used to verify the snapshot
+      --epoch <EPOCH>                 Epoch to download [default: latest available]
+      --num-parallel-downloads <N>    Parallel downloads [default: host available parallelism]
+```
+where `--genesis-path` is the network's [genesis blob](../common/genesis.mdx). It is the trusted resource the committee chain is verified against. The snapshot is in turn verified against that committee chain.
+
+To get the epochs for which a formal snapshot is available use the following command:
+
+```sh
+# epochs are returned as a sorted JSON array, newest first
+iota-indexer restore --network <mainnet|testnet|devnet> available-epochs [| jq .[i] ] # i: 0,1,2,...
+```
+
+When the restore finishes it leaves the database at the target epoch's final checkpoint. So, all prunable history tables start populating from the checkpoints that follow the restore point. Thus, one caveat when selecting the target epoch and configuring a retention policy is that the restore epoch must sit at least a full retention window behind the tip of the network. To keep the recommended [30 epochs of data](#sizing-and-retention), restore from an epoch about 30 epochs behind the tip.
+
+For convenience, the interactive picker below generates the restore command. Leave the epoch on **Latest** for the most recent snapshot, and adjust `DATABASE_URL` and `GENESIS_PATH`.
+
+<IndexerRestorePicker />
+
+The snapshots are served from the public endpoints listed under [IOTA Foundation managed snapshots](../common/snapshots.mdx#iota-foundation-managed-snapshots).
+
+:::warning Destructive operation
+
+Like [`--reset-db`](#resetting-the-database), `restore` drops every table and re-applies all migrations before restoring. Run it only against a database you intend to rebuild or initialize, since it affects any reader sharing the same database.
+
+:::
 
 ## Appendix: PostgreSQL configuration
 

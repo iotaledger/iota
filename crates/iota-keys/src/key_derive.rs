@@ -5,14 +5,12 @@
 use anyhow::anyhow;
 use bip32::{ChildNumber, DerivationPath, XPrv};
 use bip39::{Language, Mnemonic, MnemonicType, Seed};
-use fastcrypto::{
-    ed25519::{Ed25519KeyPair, Ed25519PrivateKey},
-    secp256k1::{Secp256k1KeyPair, Secp256k1PrivateKey},
-    secp256r1::{Secp256r1KeyPair, Secp256r1PrivateKey},
-    traits::{KeyPair, ToFromBytes},
+use iota_sdk_crypto::{
+    ToFromBytes as _, ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey,
+    secp256r1::Secp256r1PrivateKey,
 };
 use iota_sdk_types::{Address, SignatureScheme};
-use iota_types::{base_types::address_from_iota_pub_key, crypto::IotaKeyPair, error::IotaError};
+use iota_types::{crypto::SimpleKeypair, error::IotaError};
 use slip10_ed25519::derive_ed25519_private_key;
 
 pub const DERIVATION_PATH_COIN_TYPE: u32 = 4218;
@@ -29,43 +27,32 @@ pub fn derive_key_pair_from_path(
     seed: &[u8],
     derivation_path: Option<DerivationPath>,
     key_scheme: &SignatureScheme,
-) -> Result<(Address, IotaKeyPair), IotaError> {
+) -> Result<(Address, SimpleKeypair), IotaError> {
     let path = validate_path(key_scheme, derivation_path)?;
     match key_scheme {
         SignatureScheme::Ed25519 => {
             let indexes = path.into_iter().map(|i| i.into()).collect::<Vec<_>>();
             let derived = derive_ed25519_private_key(seed, &indexes);
-            let sk = Ed25519PrivateKey::from_bytes(&derived)
+            let kp = Ed25519PrivateKey::from_bytes(derived)
                 .map_err(|e| IotaError::SignatureKeyGen(e.to_string()))?;
-            let kp: Ed25519KeyPair = sk.into();
-            Ok((
-                address_from_iota_pub_key(kp.public()),
-                IotaKeyPair::Ed25519(kp),
-            ))
+            let ikp = SimpleKeypair::from(kp);
+            Ok((ikp.public_key().derive_address(), ikp))
         }
         SignatureScheme::Secp256k1 => {
             let child_xprv = XPrv::derive_from_path(seed, &path)
                 .map_err(|e| IotaError::SignatureKeyGen(e.to_string()))?;
-            let kp = Secp256k1KeyPair::from(
-                Secp256k1PrivateKey::from_bytes(child_xprv.private_key().to_bytes().as_slice())
-                    .map_err(|e| IotaError::SignatureKeyGen(e.to_string()))?,
-            );
-            Ok((
-                address_from_iota_pub_key(kp.public()),
-                IotaKeyPair::Secp256k1(kp),
-            ))
+            let kp = Secp256k1PrivateKey::from_bytes(child_xprv.private_key().to_bytes())
+                .map_err(|e| IotaError::SignatureKeyGen(e.to_string()))?;
+            let ikp = SimpleKeypair::from(kp);
+            Ok((ikp.public_key().derive_address(), ikp))
         }
         SignatureScheme::Secp256r1 => {
             let child_xprv = XPrv::derive_from_path(seed, &path)
                 .map_err(|e| IotaError::SignatureKeyGen(e.to_string()))?;
-            let kp = Secp256r1KeyPair::from(
-                Secp256r1PrivateKey::from_bytes(child_xprv.private_key().to_bytes().as_slice())
-                    .map_err(|e| IotaError::SignatureKeyGen(e.to_string()))?,
-            );
-            Ok((
-                address_from_iota_pub_key(kp.public()),
-                IotaKeyPair::Secp256r1(kp),
-            ))
+            let kp = Secp256r1PrivateKey::from_bytes(child_xprv.private_key().to_bytes())
+                .map_err(|e| IotaError::SignatureKeyGen(e.to_string()))?;
+            let ikp = SimpleKeypair::from(kp);
+            Ok((ikp.public_key().derive_address(), ikp))
         }
         SignatureScheme::Bls12381
         | SignatureScheme::Multisig
@@ -183,7 +170,7 @@ pub fn generate_new_key(
     key_scheme: SignatureScheme,
     derivation_path: Option<DerivationPath>,
     word_length: Option<String>,
-) -> Result<(Address, IotaKeyPair, SignatureScheme, String), anyhow::Error> {
+) -> Result<(Address, SimpleKeypair, SignatureScheme, String), anyhow::Error> {
     let mnemonic = Mnemonic::new(parse_word_length(word_length)?, Language::English);
     let seed = Seed::new(&mnemonic, "");
     match derive_key_pair_from_path(seed.as_bytes(), derivation_path, &key_scheme) {
