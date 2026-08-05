@@ -20,6 +20,7 @@ use iota_protocol_config::Chain;
 use iota_replay::{ReplayToolCommand, execute_replay_command};
 use iota_sdk::{IotaClient, IotaClientBuilder, rpc_types::IotaTransactionBlockResponseOptions};
 use iota_sdk_types::{Address, ObjectId, SenderSignedTransaction, TransactionDigest};
+use iota_snapshot::progress::LOG_TARGET_PROGRESS;
 use iota_types::{
     base_types::*,
     crypto::AuthorityPublicKeyBytes,
@@ -36,6 +37,13 @@ use crate::{
     download_formal_snapshot, get_latest_available_epoch, get_object, get_transaction_block,
     make_clients,
 };
+
+/// Log filter for the restore commands' non-verbose default: silence
+/// everything except the progress status lines, which are the only progress
+/// output left once the progress bars can't be drawn.
+fn progress_only_log_directives() -> String {
+    format!("off,{LOG_TARGET_PROGRESS}=info")
+}
 
 #[derive(Parser, Clone, ValueEnum)]
 pub enum Verbosity {
@@ -245,6 +253,10 @@ pub enum ToolCommand {
         #[arg(long)]
         verbose: bool,
 
+        /// Report progress as a status line logged once per second.
+        #[arg(long)]
+        disable_progress_bar: bool,
+
         /// Skip building the gRPC index store during the restore. By default
         /// it is built from the same object stream that restores the state,
         /// so a fullnode started with gRPC enabled opens it in place instead
@@ -284,6 +296,9 @@ pub enum ToolCommand {
         /// output will be reduced to necessary status information.
         #[arg(long)]
         verbose: bool,
+        /// Report progress as a status line logged once per second.
+        #[arg(long)]
+        disable_progress_bar: bool,
     },
 
     Replay {
@@ -583,11 +598,12 @@ impl ToolCommand {
                 no_sign_request,
                 latest,
                 verbose,
+                disable_progress_bar,
                 skip_grpc_indexes,
             } => {
                 if !verbose {
                     tracing_handle
-                        .update_log("off")
+                        .update_log(progress_only_log_directives())
                         .expect("Failed to update log level");
                 }
                 let num_parallel_downloads = num_parallel_downloads.unwrap_or_else(|| {
@@ -705,6 +721,7 @@ impl ToolCommand {
                     num_parallel_downloads,
                     verify,
                     skip_grpc_indexes,
+                    disable_progress_bar,
                 )
                 .await?;
             }
@@ -713,10 +730,11 @@ impl ToolCommand {
                 ingestion_url,
                 num_parallel_downloads,
                 verbose,
+                disable_progress_bar,
             } => {
                 if !verbose {
                     tracing_handle
-                        .update_log("off")
+                        .update_log(progress_only_log_directives())
                         .expect("Failed to update log level");
                 }
                 let num_parallel_downloads = NonZeroUsize::new(
@@ -724,7 +742,13 @@ impl ToolCommand {
                         .unwrap_or_else(|| num_cpus::get().saturating_sub(1).max(1)),
                 )
                 .expect("num-parallel-downloads must be non-zero");
-                backfill_checkpoint_summaries(&path, ingestion_url, num_parallel_downloads).await?;
+                backfill_checkpoint_summaries(
+                    &path,
+                    ingestion_url,
+                    num_parallel_downloads,
+                    disable_progress_bar,
+                )
+                .await?;
             }
             ToolCommand::Replay {
                 rpc_url,

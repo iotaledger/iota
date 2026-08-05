@@ -7637,6 +7637,8 @@ name = "iota-snapshot"
 version = "1.30.0-alpha"
 dependencies = [
  "anyhow",
+ "async-trait",
+ "backoff",
  "bcs",
  "byteorder",
  "bytes",
@@ -7654,11 +7656,13 @@ dependencies = [
  "object_store 0.13.1",
  "prometheus-filtered",
  "rand 0.8.6",
+ "reqwest",
  "serde",
  "tempfile",
  "tokio",
  "tokio-stream",
  "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -7752,7 +7756,6 @@ dependencies = [
  "fastcrypto",
  "futures",
  "hyper",
- "indicatif",
  "integer-encoding",
  "iota-common",
  "iota-config",

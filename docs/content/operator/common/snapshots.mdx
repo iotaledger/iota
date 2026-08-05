@@ -107,7 +107,7 @@ To restore from a RocksDB snapshot, follow these steps:
 
 1. Empty the snapshot directory specified by the `db-path` in your `fullnode.yaml`.
 2. Set the `AWS_SNAPSHOT_ENDPOINT` environment variable to the target snapshot URL. If not set, the default values are endpoints provided by the IOTA Foundation with public access:
-3. **Download the snapshot** for your target epoch to your local disk. Snapshots are stored per epoch in S3 buckets. For example, if you're restoring the latest epoch:
+3. **Download the snapshot** for your target epoch to your local disk. Snapshots are stored per epoch in S3 buckets. The Docker commands mount `$PWD/data/db`, the database directory used by the [Docker setup](../full-node/docker.mdx), so run them from that setup's directory or adjust the mount to your own `db-path`. For example, if you're restoring the latest epoch:
 
    <Tabs groupId="rocksdb-snapshot-command" queryString>
       <TabItem label="Mainnet (Binary)" value="mainnet-binary">
@@ -125,7 +125,7 @@ To restore from a RocksDB snapshot, follow these steps:
       <TabItem label="Mainnet (Docker)" value="mainnet-docker">
       ```shell
       docker run --rm \
-         -v "<PATH-TO-NODE-DB>":/opt/iota/db \
+         -v "$PWD/data/db":/opt/iota/db \
          iotaledger/iota-tools:mainnet \
          /bin/sh -c "/usr/local/bin/iota-tool download-db-snapshot \
             --latest \
@@ -152,7 +152,7 @@ To restore from a RocksDB snapshot, follow these steps:
       <TabItem label="Testnet (Docker)" value="testnet-docker">
       ```shell
       docker run --rm \
-         -v "<PATH-TO-NODE-DB>":/opt/iota/db \
+         -v "$PWD/data/db":/opt/iota/db \
          iotaledger/iota-tools:testnet \
          /bin/sh -c "/usr/local/bin/iota-tool download-db-snapshot \
             --latest \
@@ -194,7 +194,7 @@ See [Install IOTA](../../developer/getting-started/install-iota.mdx#install-from
 The following steps can be used to restore a node from a Formal snapshot:
 
 1. If it's running, stop the node.
-2. Pick your setup, network, and a snapshot epoch. Copy the resulting command and run it:
+2. Pick your setup, network, and a snapshot epoch. Copy the resulting command and run it. The Docker command mounts `$PWD/data/db` and `$PWD/data/config/genesis.blob`, the layout used by the [Docker setup](../full-node/docker.mdx), so run it from that setup's directory or adjust the mounts to your own paths:
 
    <FormalSnapshotPicker />
 
@@ -203,6 +203,7 @@ The following steps can be used to restore a node from a Formal snapshot:
    - `--network`: Network to download snapshot for. Defaults to "mainnet".
    - `--path`: Path to snapshot directory on local filesystem.
    - `--skip-grpc-indexes`: Skips building the gRPC index store during the restore. By default it is built from the same object stream that restores the state, so a full node started with the gRPC API enabled opens it in place instead of re-indexing the whole restored state on first start. Skip it only if the node will never serve the gRPC API.
+   - `--disable-progress-bar`: Reports progress as a status line logged once per second instead of drawing progress bars.
 
 ### Backfilling the full checkpoint summary history
 
@@ -220,6 +221,7 @@ iota-tool backfill-checkpoint-summaries \
    - `--ingestion-url`: URL of the checkpoint archive to download summaries from — the same archive the node's state-sync fallback reads from (for example `https://checkpoints.<network>.iota.cafe/ingestion/historical`).
    - `--num-parallel-downloads`: Number of summaries to download in parallel. Defaults to a value based on the number of available cores.
    - `--verbose`: Enable verbose logging.
+   - `--disable-progress-bar`: Reports progress as a status line logged once per second instead of drawing a progress bar.
 
 Summaries are taken as-is from `--ingestion-url` without chain verification, so point it at the checkpoint archive you trust to serve this node's own chain. This only adds historical summaries below the node's existing watermarks — it never changes how far the node has synced or executed, and it never overwrites the summaries the node already has. It is safe to re-run.
 
