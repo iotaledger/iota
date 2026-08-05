@@ -43,7 +43,8 @@ use iota_sdk_types::{
     Address, CheckpointContentsDigest, CheckpointDigest, Digest, EndOfEpochTransactionKind,
     ExecutionStatus, GasPayment, MoveAuthenticator, MoveStruct, ObjectDigest, ObjectId,
     ObjectReference, Owner, RandomnessRound, StructTag, SystemPackage, TransactionDigest,
-    TransactionEffectsDigest, TransactionExpiration, TransactionKind, TypeTag, Version,
+    TransactionEffectsDigest, TransactionExpiration, TransactionKind, TransactionV1, TypeTag,
+    Version,
     checkpoint::{CheckpointCommitment, CheckpointContents, CheckpointSummary},
     crypto::{Intent, IntentAppId, IntentMessage, IntentScope, IntentVersion},
     gas::GasCostSummary,
@@ -2528,7 +2529,7 @@ impl AuthorityState {
         // Payment might be empty here, but it's fine we'll have to deal with it later
         // after reading all the input objects.
         let payment = gas_objects.unwrap_or_default();
-        let mut transaction = TransactionData::V1(TransactionDataV1 {
+        let mut transaction = TransactionData::V1(TransactionV1 {
             kind: transaction_kind.clone(),
             sender,
             gas_payment: GasPayment {

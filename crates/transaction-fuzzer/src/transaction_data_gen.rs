@@ -4,9 +4,9 @@
 
 use iota_sdk_types::{
     Address, GasPayment, ObjectDigest, ObjectId, ObjectReference, TransactionExpiration,
-    TransactionKind, Version,
+    TransactionKind, TransactionV1, Version,
 };
-use iota_types::transaction::{TransactionData, TransactionDataV1};
+use iota_types::transaction::TransactionData;
 use move_core_types::account_address::AccountAddress;
 use proptest::{arbitrary::*, collection::vec, prelude::*};
 
@@ -121,7 +121,7 @@ impl<
             self.gas_data.expect("gas_data must be set"),
             self.expiration.expect("expiration must be set"),
         )
-            .prop_map(|(kind, sender, gas_data, expiration)| TransactionDataV1 {
+            .prop_map(|(kind, sender, gas_data, expiration)| TransactionV1 {
                 kind,
                 sender,
                 gas_payment: gas_data,
