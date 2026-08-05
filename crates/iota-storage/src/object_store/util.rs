@@ -9,7 +9,7 @@ use std::{
 use anyhow::{Context, Result, anyhow};
 use backoff::future::retry;
 use bytes::Bytes;
-use futures::{StreamExt, TryStreamExt};
+use futures::StreamExt;
 use itertools::Itertools;
 use object_store::{DynObjectStore, Error, ObjectStore, ObjectStoreExt, path::Path};
 use serde::{Deserialize, Serialize};
@@ -104,23 +104,6 @@ pub async fn copy_file<S: ObjectStoreGetExt, D: ObjectStorePutExt>(
         warn!("Not copying empty file: {:?}", src);
         Ok(())
     }
-}
-
-/// Copy `src[i]` to `dest[i]` for all `i` in parallel, failing on the first
-/// copy that fails.
-pub async fn copy_files<S: ObjectStoreGetExt, D: ObjectStorePutExt>(
-    src: &[Path],
-    dest: &[Path],
-    src_store: &S,
-    dest_store: &D,
-    concurrency: NonZeroUsize,
-) -> Result<()> {
-    futures::stream::iter(src.iter().zip(dest.iter()))
-        .map(|(path_in, path_out)| copy_file(path_in, path_out, src_store, dest_store))
-        .boxed()
-        .buffer_unordered(concurrency.get())
-        .try_for_each(|()| futures::future::ready(Ok(())))
-        .await
 }
 
 pub async fn delete_files<S: ObjectStoreDeleteExt>(
