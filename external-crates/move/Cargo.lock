@@ -326,6 +326,7 @@ name = "bytecode-verifier-tests"
 version = "0.1.0"
 dependencies = [
  "hex",
+ "itertools 0.10.5",
  "move-abstract-interpreter",
  "move-binary-format",
  "move-bytecode-verifier",
@@ -1826,11 +1827,6 @@ dependencies = [
 [[package]]
 name = "move-abstract-interpreter"
 version = "0.1.0"
-dependencies = [
- "itertools 0.10.5",
- "move-binary-format",
- "move-bytecode-verifier-meter",
-]
 
 [[package]]
 name = "move-abstract-stack"
@@ -1877,6 +1873,7 @@ dependencies = [
  "arbitrary",
  "getrandom 0.2.16",
  "indexmap 2.11.0",
+ "move-abstract-interpreter",
  "move-core-types",
  "proptest",
  "proptest-derive",
