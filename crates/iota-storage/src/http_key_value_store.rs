@@ -17,7 +17,7 @@ use iota_types::{
     messages_checkpoint::{CertifiedCheckpointSummary, CheckpointSequenceNumber},
     object::Object,
     storage::ObjectKey,
-    transaction::Transaction,
+    transaction::TransactionEnvelope,
 };
 use moka::sync::{Cache as MokaCache, CacheBuilder as MokaCacheBuilder};
 use reqwest::{
@@ -295,7 +295,7 @@ impl Key {
 
 #[derive(Clone, Debug)]
 enum Value {
-    Tx(Box<Transaction>),
+    Tx(Box<TransactionEnvelope>),
     Fx(Box<TransactionEffects>),
     Events(Box<TransactionEvents>),
     CheckpointContents(Box<CheckpointContents>),
@@ -491,7 +491,7 @@ impl TransactionKeyValueStoreTrait for HttpKVStore {
             .map(map_fetch)
             .map(|maybe_bytes| {
                 maybe_bytes.and_then(|(bytes, digest)| {
-                    deser_check_digest(digest, bytes, |tx: &Transaction| *tx.digest())
+                    deser_check_digest(digest, bytes, |tx: &TransactionEnvelope| *tx.digest())
                 })
             })
             .collect::<Vec<_>>();

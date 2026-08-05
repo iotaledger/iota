@@ -9,10 +9,7 @@ use iota_config::{
     ExecutionCacheConfig,
     certificate_deny_config::CertificateDenyConfig,
     genesis::Genesis,
-    node::{
-        AuthorityOverloadConfig, AuthorityStorePruningConfig, DBCheckpointConfig,
-        ExpensiveSafetyCheckConfig,
-    },
+    node::{AuthorityOverloadConfig, AuthorityStorePruningConfig, ExpensiveSafetyCheckConfig},
     transaction_deny_config::TransactionDenyConfig,
 };
 use iota_network::randomness;
@@ -381,7 +378,6 @@ impl<'a> TestAuthorityBuilder<'a> {
             checkpoint_store,
             &registry,
             genesis.objects(),
-            &DBCheckpointConfig::default(),
             config.clone(),
             None,
             chain_identifier,

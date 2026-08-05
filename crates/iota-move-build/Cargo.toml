@@ -28,5 +28,8 @@ move-ir-types.workspace = true
 move-package.workspace = true
 move-symbol-pool.workspace = true
 
+[dev-dependencies]
+iota-protocol-config.workspace = true
+
 [lints]
 workspace = true

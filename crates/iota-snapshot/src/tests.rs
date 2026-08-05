@@ -25,9 +25,10 @@ use iota_core::{
     grpc_indexes::{GRPC_INDEXES_DIR, GrpcIndexesStore, OwnerTypeFilter},
 };
 use iota_sdk_types::{
-    Address, CheckpointDigest, GasCostSummary, ObjectId, TransactionDigest,
+    Address, CheckpointCommitment, CheckpointDigest, GasCostSummary, ObjectId, TransactionDigest,
     checkpoint::{CheckpointContents, CheckpointSummary, EndOfEpochData},
 };
+use iota_storage::object_store::util::SUCCESS_MARKER;
 use iota_types::{
     committee::{Committee, EpochId},
     crypto::AuthorityKeyPair,
@@ -37,17 +38,18 @@ use iota_types::{
     iota_system_state::IotaSystemState,
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointContentsExt, ECMHLiveObjectSetDigest,
-        SignedCheckpointSummary,
+        SignedCheckpointSummary, VerifiedCheckpoint,
     },
     object::Object,
     storage::EpochInfoV2,
 };
+use prometheus_filtered::Registry;
 
 use crate::{
     EPOCH_INFO_FILE_MAGIC, EpochInfo, EpochInfoV1, EpochInfoV1Entry, FileCompression, FileMetadata,
     FileType, MAGIC_BYTES, MANIFEST_FILE_MAGIC, Manifest, ManifestV2, OBJECT_REF_BYTES,
-    reader::StateSnapshotReaderV1, restore::RestoreWithGrpcIndexes, verify_epoch_info_chain,
-    writer::StateSnapshotWriterV1,
+    reader::StateSnapshotReaderV1, restore::RestoreWithGrpcIndexes,
+    uploader::StateSnapshotUploader, verify_epoch_info_chain, writer::StateSnapshotWriterV1,
 };
 
 /// A fresh `CheckpointStore` seeded with fully-populated `epoch_info` rows for
@@ -139,6 +141,50 @@ fn certify_summary(summary: CheckpointSummary) -> CertifiedCheckpointSummary {
 
 fn fully_populated_checkpoint_summary(epoch: EpochId) -> CertifiedCheckpointSummary {
     certify_summary(end_of_epoch_summary(epoch))
+}
+
+/// Seeds `store` with a certified end-of-epoch-0 checkpoint (sequence 0)
+/// carrying `digest` as the epoch's ECMH live-object-set commitment. The
+/// uploader reads this one checkpoint three ways: as the genesis checkpoint
+/// (for the chain identifier), as epoch 0's last checkpoint, and as the
+/// source of the epoch's state commitment.
+fn insert_end_of_epoch_zero_checkpoint(store: &CheckpointStore, digest: ECMHLiveObjectSetDigest) {
+    let mut summary = end_of_epoch_summary(0);
+    summary
+        .end_of_epoch_data
+        .as_mut()
+        .expect("end-of-epoch fixture carries EndOfEpochData")
+        .epoch_commitments = vec![CheckpointCommitment::EcmhLiveObjectSet {
+        digest: digest.digest,
+    }];
+    let verified = VerifiedCheckpoint::new_unchecked(certify_summary(summary));
+    store
+        .insert_verified_checkpoint(&verified)
+        .expect("inserting end-of-epoch checkpoint");
+}
+
+/// An uploader over file-backed local and remote stores rooted in the given
+/// directories.
+fn test_uploader(
+    db_checkpoint_dir: &std::path::Path,
+    staging_dir: &std::path::Path,
+    remote_dir: &std::path::Path,
+    checkpoint_store: Arc<CheckpointStore>,
+) -> Arc<StateSnapshotUploader> {
+    StateSnapshotUploader::new(
+        db_checkpoint_dir,
+        staging_dir,
+        ObjectStoreConfig {
+            object_store: Some(ObjectStoreType::File),
+            directory: Some(remote_dir.to_path_buf()),
+            ..Default::default()
+        },
+        1,
+        60,
+        &Registry::default(),
+        checkpoint_store,
+    )
+    .expect("constructing test uploader")
 }
 
 /// Placeholder closing-checkpoint contents for the row/entry fixtures. These
@@ -1125,4 +1171,89 @@ fn open_row_has_no_end_fields() {
     assert!(!open.is_finalized());
     assert_eq!(open.end_checkpoint(), None);
     assert_eq!(open.end_timestamp_ms(), None);
+}
+
+/// After a successful upload, the uploader writes the remote `_SUCCESS`
+/// marker and deletes the local db checkpoint directory it consumed.
+#[tokio::test]
+async fn uploader_removes_db_checkpoint_after_upload() -> Result<(), anyhow::Error> {
+    let dir = iota_common::tempdir();
+    let db_checkpoint_dir = dir.path().join("db_checkpoints");
+    let epoch_0_dir = db_checkpoint_dir.join("epoch_0");
+
+    // An epoch-0 db checkpoint with a populated perpetual store, laid out as
+    // `checkpoint_perpetual_db` produces it (`epoch_0/store/perpetual`).
+    fs::create_dir_all(epoch_0_dir.join("store"))?;
+    let ecmh_digest = {
+        let perpetual_db = AuthorityPerpetualTables::open(&epoch_0_dir.join("store"), None);
+        insert_keys(&perpetual_db, 10)?;
+        // The db drops with this scope so the uploader can reopen it.
+        ECMHLiveObjectSetDigest::from(accumulate_live_object_set(&perpetual_db).digest())
+    };
+
+    let checkpoint_store = checkpoint_store_with_epochs(0);
+    insert_end_of_epoch_zero_checkpoint(&checkpoint_store, ecmh_digest);
+
+    let remote_dir = dir.path().join("remote");
+    let uploader = test_uploader(
+        &db_checkpoint_dir,
+        &dir.path().join("staging"),
+        &remote_dir,
+        checkpoint_store,
+    );
+    uploader
+        .upload_state_snapshot_to_object_store(vec![0])
+        .await?;
+
+    assert!(
+        remote_dir.join("epoch_0").join(SUCCESS_MARKER).exists(),
+        "snapshot upload must leave a _SUCCESS marker in the remote epoch dir"
+    );
+    assert!(
+        !epoch_0_dir.exists(),
+        "local db checkpoint dir must be deleted after its snapshot is uploaded"
+    );
+    Ok(())
+}
+
+/// A local db checkpoint whose epoch is already covered remotely is deleted
+/// without being re-uploaded.
+#[tokio::test]
+async fn uploader_removes_db_checkpoint_for_skipped_epoch() -> Result<(), anyhow::Error> {
+    let dir = iota_common::tempdir();
+    let db_checkpoint_dir = dir.path().join("db_checkpoints");
+    let epoch_0_dir = db_checkpoint_dir.join("epoch_0");
+    fs::create_dir_all(&epoch_0_dir)?;
+    fs::write(epoch_0_dir.join("some_file"), b"stale checkpoint contents")?;
+
+    // Only the genesis-checkpoint lookup runs on this path; the commitment
+    // digest is never read.
+    let checkpoint_store = empty_checkpoint_store();
+    insert_end_of_epoch_zero_checkpoint(
+        &checkpoint_store,
+        ECMHLiveObjectSetDigest::from(GlobalStateHash::default().digest()),
+    );
+
+    let remote_dir = dir.path().join("remote");
+    let uploader = test_uploader(
+        &db_checkpoint_dir,
+        &dir.path().join("staging"),
+        &remote_dir,
+        checkpoint_store,
+    );
+    // Epoch 0 is not missing remotely (only epoch 1 is), so its local dir is
+    // deleted without a new upload.
+    uploader
+        .upload_state_snapshot_to_object_store(vec![1])
+        .await?;
+
+    assert!(
+        !epoch_0_dir.exists(),
+        "local db checkpoint dir must be deleted when its epoch needs no upload"
+    );
+    assert!(
+        !remote_dir.join("epoch_0").exists(),
+        "skipped epoch must not be uploaded"
+    );
+    Ok(())
 }

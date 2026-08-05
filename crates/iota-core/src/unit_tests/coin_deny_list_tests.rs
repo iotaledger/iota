@@ -21,7 +21,9 @@ use iota_types::{
     error::{IotaError, IotaResult, UserInputError},
     messages_consensus::{ConsensusTransaction, ConsensusTransactionKind},
     object::Object,
-    transaction::{CallArg, TEST_ONLY_GAS_UNIT_FOR_PUBLISH, Transaction, VerifiedTransaction},
+    transaction::{
+        CallArg, TEST_ONLY_GAS_UNIT_FOR_PUBLISH, TransactionEnvelope, VerifiedTransaction,
+    },
 };
 
 use crate::{
@@ -556,7 +558,7 @@ impl RegulatedCoinEnv {
     /// A transfer of the regulated coin with its own freshly inserted gas
     /// object, so the deny-list calls above (which spend the publisher's gas)
     /// never invalidate its input references.
-    async fn build_transfer(&self) -> Transaction {
+    async fn build_transfer(&self) -> TransactionEnvelope {
         let gas_object = Object::with_owner_for_testing(self.env.sender);
         self.env.authority.insert_genesis_object(gas_object.clone());
 
@@ -573,7 +575,7 @@ impl RegulatedCoinEnv {
     /// follows epoch changes made through [`Self::reconfigure`].
     async fn validation_check(
         &self,
-        transaction: &Transaction,
+        transaction: &TransactionEnvelope,
         epoch_gated_coin_deny_list: bool,
     ) -> IotaResult<Vec<ObjectReference>> {
         let epoch_store = self.env.authority.epoch_store_for_testing();
@@ -594,7 +596,7 @@ impl RegulatedCoinEnv {
     /// was kept in the sequence.
     async fn post_consensus_validate(
         &self,
-        transaction: Transaction,
+        transaction: TransactionEnvelope,
     ) -> (Vec<(TransactionDigest, IotaError)>, bool) {
         let digest = *transaction.digest();
         let consensus_tx = ConsensusTransaction {

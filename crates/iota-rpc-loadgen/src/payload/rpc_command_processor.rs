@@ -25,7 +25,7 @@ use iota_sdk_types::{Address, ObjectId, ObjectReference, TransactionDigest};
 use iota_types::{
     crypto::{AccountKeyPair, IotaSignature, Signature, SimpleKeypair, get_key_pair},
     quorum_driver_types::ExecuteTransactionRequestType,
-    transaction::{Transaction, TransactionData},
+    transaction::{TransactionData, TransactionEnvelope},
 };
 use serde::{Serialize, de::DeserializeOwned};
 use tokio::{sync::RwLock, time::sleep};
@@ -796,7 +796,7 @@ pub(crate) async fn sign_and_execute(
     let transaction_response = match client
         .quorum_driver_api()
         .execute_transaction_block(
-            Transaction::from_data(txn_data, vec![signature]),
+            TransactionEnvelope::from_data(txn_data, vec![signature]),
             IotaTransactionBlockResponseOptions::new().with_effects(),
             Some(request_type),
         )

@@ -50,7 +50,7 @@ use iota_types::{
     },
     messages_consensus::ConsensusTransactionKey,
     storage::EpochInfoV2,
-    transaction::{Transaction, TransactionDataAPI, TransactionKey},
+    transaction::{TransactionDataAPI, TransactionEnvelope, TransactionKey},
 };
 use itertools::Itertools;
 use nonempty::NonEmpty;
@@ -264,16 +264,6 @@ impl CheckpointStore {
     pub fn new_for_tests() -> Arc<Self> {
         let storage_dir = iota_common::tempdir().keep();
         CheckpointStore::new(storage_dir.as_path())
-    }
-
-    pub fn new_for_db_checkpoint_handler(path: &Path) -> Arc<Self> {
-        let tables = CheckpointStoreTables::new(path, "db_checkpoint");
-        Arc::new(Self {
-            tables,
-            full_checkpoint_contents_cache: FullCheckpointContentsCache::default(),
-            synced_checkpoint_notify_read: NotifyRead::new(),
-            executed_checkpoint_notify_read: NotifyRead::new(),
-        })
     }
 
     pub fn open_readonly(path: &Path) -> CheckpointStoreTablesReadOnly {
@@ -949,29 +939,6 @@ impl CheckpointStore {
                 .computation_cost,
         })
     }
-
-    pub fn checkpoint_db(&self, path: &Path) -> IotaResult {
-        // This checkpoints the entire db and not one column family
-        self.tables
-            .checkpoint_content
-            .checkpoint_db(path)
-            .map_err(Into::into)
-    }
-
-    pub fn delete_highest_executed_checkpoint_test_only(&self) -> Result<(), TypedStoreError> {
-        let mut wb = self.tables.watermarks.batch();
-        wb.delete_batch(
-            &self.tables.watermarks,
-            std::iter::once(CheckpointWatermark::HighestExecuted),
-        )?;
-        wb.write()?;
-        Ok(())
-    }
-
-    pub fn reset_db_for_execution_since_genesis(&self) -> IotaResult {
-        self.delete_highest_executed_checkpoint_test_only()?;
-        Ok(())
-    }
 }
 
 #[derive(Copy, Clone, Debug, Serialize, Deserialize)]
@@ -1557,9 +1524,10 @@ impl CheckpointBuilder {
     #[expect(clippy::type_complexity)]
     fn split_checkpoint_chunks(
         &self,
-        transactions_effects_and_sizes: Vec<(Transaction, TransactionEffects, usize)>,
+        transactions_effects_and_sizes: Vec<(TransactionEnvelope, TransactionEffects, usize)>,
         signatures: Vec<Vec<UserSignature>>,
-    ) -> anyhow::Result<Vec<Vec<(Transaction, TransactionEffects, Vec<UserSignature>)>>> {
+    ) -> anyhow::Result<Vec<Vec<(TransactionEnvelope, TransactionEffects, Vec<UserSignature>)>>>
+    {
         let _guard = monitored_scope("CheckpointBuilder::split_checkpoint_chunks");
         let mut chunks = Vec::new();
         let mut chunk = Vec::new();
@@ -1779,7 +1747,7 @@ impl CheckpointBuilder {
             }
 
             let (chunk_transactions, mut effects, mut signatures): (
-                Vec<Transaction>,
+                Vec<TransactionEnvelope>,
                 Vec<TransactionEffects>,
                 Vec<Vec<UserSignature>>,
             ) = chunk.into_iter().multiunzip();

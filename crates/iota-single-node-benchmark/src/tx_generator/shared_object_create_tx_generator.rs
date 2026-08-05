@@ -4,7 +4,7 @@
 
 use iota_sdk_types::ObjectId;
 use iota_test_transaction_builder::TestTransactionBuilder;
-use iota_types::transaction::{DEFAULT_VALIDATOR_GAS_PRICE, Transaction};
+use iota_types::transaction::{DEFAULT_VALIDATOR_GAS_PRICE, TransactionEnvelope};
 
 use crate::{mock_account::Account, tx_generator::TxGenerator};
 
@@ -19,7 +19,7 @@ impl SharedObjectCreateTxGenerator {
 }
 
 impl TxGenerator for SharedObjectCreateTxGenerator {
-    fn generate_tx(&self, account: Account) -> Transaction {
+    fn generate_tx(&self, account: Account) -> TransactionEnvelope {
         TestTransactionBuilder::new(
             account.sender,
             account.gas_objects[0],

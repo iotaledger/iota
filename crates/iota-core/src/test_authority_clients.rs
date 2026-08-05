@@ -27,7 +27,7 @@ use iota_types::{
         ObjectInfoResponse, SystemStateRequest, TransactionInfoRequest, TransactionInfoResponse,
         TxStatusUpdate, ValidatorHealthRequest, ValidatorHealthResponse,
     },
-    transaction::{Transaction, VerifiedTransaction},
+    transaction::{TransactionEnvelope, VerifiedTransaction},
 };
 use tracing::info;
 
@@ -72,7 +72,7 @@ impl ValidatorPeerAPI for LocalAuthorityClient {
 impl ValidatorV2API for LocalAuthorityClient {
     async fn submit_tx(
         &self,
-        _transactions: Vec<Transaction>,
+        _transactions: Vec<TransactionEnvelope>,
         _client_addr: Option<SocketAddr>,
     ) -> Result<Vec<(TransactionDigest, TxStatusUpdate)>, IotaError> {
         unimplemented!()
@@ -114,7 +114,7 @@ impl ValidatorV2API for LocalAuthorityClient {
 impl ValidatorAPI for LocalAuthorityClient {
     async fn handle_transaction(
         &self,
-        transaction: Transaction,
+        transaction: TransactionEnvelope,
         _client_addr: Option<SocketAddr>,
     ) -> Result<HandleTransactionResponse, IotaError> {
         if self.fault_config.fail_before_handle_transaction {
@@ -359,7 +359,7 @@ impl ValidatorPeerAPI for MockAuthorityApi {
 impl ValidatorV2API for MockAuthorityApi {
     async fn submit_tx(
         &self,
-        _transactions: Vec<Transaction>,
+        _transactions: Vec<TransactionEnvelope>,
         _client_addr: Option<SocketAddr>,
     ) -> Result<Vec<(TransactionDigest, TxStatusUpdate)>, IotaError> {
         unimplemented!()
@@ -400,7 +400,7 @@ impl ValidatorAPI for MockAuthorityApi {
     /// Initiate a new transaction to an IOTA or Primary account.
     async fn handle_transaction(
         &self,
-        _transaction: Transaction,
+        _transaction: TransactionEnvelope,
         _client_addr: Option<SocketAddr>,
     ) -> Result<HandleTransactionResponse, IotaError> {
         unimplemented!();
@@ -500,7 +500,7 @@ impl ValidatorPeerAPI for HandleTransactionTestAuthorityClient {
 impl ValidatorV2API for HandleTransactionTestAuthorityClient {
     async fn submit_tx(
         &self,
-        _transactions: Vec<Transaction>,
+        _transactions: Vec<TransactionEnvelope>,
         _client_addr: Option<SocketAddr>,
     ) -> Result<Vec<(TransactionDigest, TxStatusUpdate)>, IotaError> {
         unimplemented!()
@@ -530,7 +530,7 @@ impl ValidatorV2API for HandleTransactionTestAuthorityClient {
 impl ValidatorAPI for HandleTransactionTestAuthorityClient {
     async fn handle_transaction(
         &self,
-        _transaction: Transaction,
+        _transaction: TransactionEnvelope,
         _client_addr: Option<SocketAddr>,
     ) -> Result<HandleTransactionResponse, IotaError> {
         if let Some(duration) = self.sleep_duration_before_responding {

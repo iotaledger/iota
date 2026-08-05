@@ -1092,7 +1092,7 @@ where
     #[instrument(level = "trace", skip_all)]
     pub async fn process_transaction(
         &self,
-        transaction: Transaction,
+        transaction: TransactionEnvelope,
         client_addr: Option<SocketAddr>,
     ) -> Result<ProcessTransactionResult, AggregatorProcessTransactionError> {
         // Now broadcast the transaction to all authorities.
@@ -1849,7 +1849,7 @@ where
     #[instrument(level = "trace", skip_all, fields(tx_digest = ?transaction.digest()))]
     pub async fn execute_transaction_block(
         &self,
-        transaction: &Transaction,
+        transaction: &TransactionEnvelope,
         client_addr: Option<SocketAddr>,
     ) -> Result<VerifiedCertifiedTransactionEffects, anyhow::Error> {
         let tx_guard = GaugeGuard::acquire(&self.metrics.inflight_transactions);

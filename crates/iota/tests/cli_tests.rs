@@ -5665,6 +5665,7 @@ async fn test_move_new() -> Result<(), anyhow::Error> {
             dump_bytecode_as_base64: false,
             generate_struct_layouts: false,
             with_unpublished_dependencies: false,
+            package_info: false,
             protocol_build_config_args: Default::default(),
         }),
     }
@@ -7264,12 +7265,14 @@ fn protocol_build_config_args_resolve_to_protocol_build_config() {
     assert!(
         ProtocolBuildConfig::from(ProtocolBuildConfigArgs {
             allow_view_function: Some(true),
+            max_move_package_size: None,
         })
         .allow_view_function
     );
     assert!(
         !ProtocolBuildConfig::from(ProtocolBuildConfigArgs {
             allow_view_function: Some(false),
+            max_move_package_size: None,
         })
         .allow_view_function
     );
@@ -7284,15 +7287,20 @@ fn protocol_build_config_args_fill_unset_from_keeps_user_overrides() {
     let mut args = ProtocolBuildConfigArgs::default();
     args.fill_unset_from(&ProtocolBuildConfig {
         allow_view_function: true,
+        max_move_package_size: Some(1234),
     });
     assert_eq!(args.allow_view_function, Some(true));
+    assert_eq!(args.max_move_package_size, Some(1234));
 
     // A command-line override is preserved even when the default differs.
     let mut args = ProtocolBuildConfigArgs {
         allow_view_function: Some(false),
+        max_move_package_size: None,
     };
     args.fill_unset_from(&ProtocolBuildConfig {
         allow_view_function: true,
+        max_move_package_size: Some(1234),
     });
     assert_eq!(args.allow_view_function, Some(false));
+    assert_eq!(args.max_move_package_size, Some(1234));
 }

@@ -13,7 +13,7 @@ use iota_indexer::{
 };
 use iota_node_storage::GrpcStateReader;
 use iota_swarm_config::genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT};
-use iota_types::transaction::{Transaction, TransactionData};
+use iota_types::transaction::{TransactionData, TransactionEnvelope};
 use test_cluster::{TestCluster, TestClusterBuilder};
 use tokio::{join, task::JoinHandle};
 use tokio_util::sync::CancellationToken;
@@ -353,7 +353,7 @@ impl Cluster {
     }
 
     /// Signs a transaction.
-    pub fn sign_transaction(&self, transaction: &TransactionData) -> Transaction {
+    pub fn sign_transaction(&self, transaction: &TransactionData) -> TransactionEnvelope {
         self.validator_fullnode_handle
             .wallet
             .sign_transaction(transaction)

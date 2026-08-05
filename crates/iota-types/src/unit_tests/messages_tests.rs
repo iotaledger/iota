@@ -63,7 +63,7 @@ fn test_signed_values() {
     );
     let committee = Committee::new_for_testing_with_normalized_voting_power(0, authorities);
     let gas_price = 10;
-    let transaction = Transaction::from_data_and_signer(
+    let transaction = TransactionEnvelope::from_data_and_signer(
         TransactionData::new_transfer(
             _a2,
             random_object_ref(),
@@ -77,17 +77,18 @@ fn test_signed_values() {
     .try_into_verified_for_testing(&Default::default())
     .unwrap();
 
-    let bad_transaction = VerifiedTransaction::new_unchecked(Transaction::from_data_and_signer(
-        TransactionData::new_transfer(
-            _a2,
-            random_object_ref(),
-            a_sender,
-            random_object_ref(),
-            TEST_ONLY_GAS_UNIT_FOR_TRANSFER * gas_price,
-            gas_price,
-        ),
-        vec![&sender_sec2],
-    ));
+    let bad_transaction =
+        VerifiedTransaction::new_unchecked(TransactionEnvelope::from_data_and_signer(
+            TransactionData::new_transfer(
+                _a2,
+                random_object_ref(),
+                a_sender,
+                random_object_ref(),
+                TEST_ONLY_GAS_UNIT_FOR_TRANSFER * gas_price,
+                gas_price,
+            ),
+            vec![&sender_sec2],
+        ));
 
     let v = SignedTransaction::new(
         committee.epoch(),
@@ -156,7 +157,7 @@ fn test_certificates() {
     );
     let committee = Committee::new_for_testing_with_normalized_voting_power(0, authorities);
     let gas_price = 10;
-    let transaction = Transaction::from_data_and_signer(
+    let transaction = TransactionEnvelope::from_data_and_signer(
         TransactionData::new_transfer(
             a2,
             random_object_ref(),
@@ -504,7 +505,7 @@ fn test_digest_caching() {
     let committee = Committee::new_for_testing_with_normalized_voting_power(0, authorities);
 
     let gas_price = 10;
-    let transaction = Transaction::from_data_and_signer(
+    let transaction = TransactionEnvelope::from_data_and_signer(
         TransactionData::new_transfer(
             sa1,
             random_object_ref(),
@@ -595,9 +596,10 @@ fn test_user_signature_committed_in_transactions() {
     let mut tx_data_2 = tx_data.clone();
     tx_data_2.gas_data_mut().budget += 1;
 
-    let transaction_a = Transaction::from_data_and_signer(tx_data.clone(), vec![&sender_sec]);
-    let transaction_b = Transaction::from_data_and_signer(tx_data, vec![&sender_sec2]);
-    let transaction_c = Transaction::from_data_and_signer(tx_data_2, vec![&sender_sec2]);
+    let transaction_a =
+        TransactionEnvelope::from_data_and_signer(tx_data.clone(), vec![&sender_sec]);
+    let transaction_b = TransactionEnvelope::from_data_and_signer(tx_data, vec![&sender_sec2]);
+    let transaction_c = TransactionEnvelope::from_data_and_signer(tx_data_2, vec![&sender_sec2]);
 
     let tx_digest_a = transaction_a.digest();
     let tx_digest_b = transaction_b.digest();
@@ -643,14 +645,14 @@ fn test_user_signature_committed_in_signed_transactions() {
         TEST_ONLY_GAS_UNIT_FOR_TRANSFER * gas_price,
         gas_price,
     );
-    let transaction_a = Transaction::from_data_and_signer(tx_data.clone(), vec![&sender_sec])
-        .try_into_verified_for_testing(&Default::default())
-        .unwrap();
+    let transaction_a =
+        TransactionEnvelope::from_data_and_signer(tx_data.clone(), vec![&sender_sec])
+            .try_into_verified_for_testing(&Default::default())
+            .unwrap();
     // transaction_b intentionally invalid (sender does not match signer).
-    let transaction_b = VerifiedTransaction::new_unchecked(Transaction::from_data_and_signer(
-        tx_data,
-        vec![&sender_sec2],
-    ));
+    let transaction_b = VerifiedTransaction::new_unchecked(
+        TransactionEnvelope::from_data_and_signer(tx_data, vec![&sender_sec2]),
+    );
 
     let signed_tx_a = SignedTransaction::new(
         0,
@@ -748,7 +750,7 @@ fn test_sponsored_transaction_message() {
         signature_from_signer(tx_data.clone(), intent, &sender_kp).into();
     let sponsor_sig: UserSignature =
         signature_from_signer(tx_data.clone(), intent, &sponsor_kp).into();
-    let transaction = Transaction::from_user_sig_data(
+    let transaction = TransactionEnvelope::from_user_sig_data(
         tx_data.clone(),
         vec![sender_sig.clone(), sponsor_sig.clone()],
     )
@@ -764,7 +766,7 @@ fn test_sponsored_transaction_message() {
     assert_eq!(transaction.gas(), &[gas_obj_ref]);
 
     // Sig order does not matter
-    let transaction = Transaction::from_user_sig_data(
+    let transaction = TransactionEnvelope::from_user_sig_data(
         tx_data.clone(),
         vec![sponsor_sig.clone(), sender_sig.clone()],
     )
@@ -773,7 +775,7 @@ fn test_sponsored_transaction_message() {
 
     // Test incomplete signature lists (missing sponsor sig)
     assert!(matches!(
-        Transaction::from_user_sig_data(tx_data.clone(), vec![sender_sig.clone()],)
+        TransactionEnvelope::from_user_sig_data(tx_data.clone(), vec![sender_sig.clone()],)
             .try_into_verified_for_testing(&Default::default())
             .unwrap_err(),
         IotaError::SignerSignatureNumberMismatch { .. }
@@ -781,7 +783,7 @@ fn test_sponsored_transaction_message() {
 
     // Test incomplete signature lists (missing sender sig)
     assert!(matches!(
-        Transaction::from_user_sig_data(tx_data.clone(), vec![sponsor_sig.clone()],)
+        TransactionEnvelope::from_user_sig_data(tx_data.clone(), vec![sponsor_sig.clone()],)
             .try_into_verified_for_testing(&Default::default())
             .unwrap_err(),
         IotaError::SignerSignatureNumberMismatch { .. }
@@ -792,7 +794,7 @@ fn test_sponsored_transaction_message() {
     let third_party_sig: UserSignature =
         signature_from_signer(tx_data.clone(), intent, &third_party_kp).into();
     assert!(matches!(
-        Transaction::from_user_sig_data(
+        TransactionEnvelope::from_user_sig_data(
             tx_data.clone(),
             vec![sender_sig, sponsor_sig.clone(), third_party_sig.clone()],
         )
@@ -803,7 +805,7 @@ fn test_sponsored_transaction_message() {
 
     // Test irrelevant sigs
     assert!(matches!(
-        Transaction::from_user_sig_data(tx_data, vec![sponsor_sig, third_party_sig],)
+        TransactionEnvelope::from_user_sig_data(tx_data, vec![sponsor_sig, third_party_sig],)
             .try_into_verified_for_testing(&Default::default())
             .unwrap_err(),
         IotaError::SignerSignatureAbsent { .. }
@@ -963,7 +965,7 @@ fn verify_sender_signature_correctly_with_flag() {
     *tx_data_3.sender_mut_for_testing() = (&PublicKey::from(&sender_kp_3)).into();
     tx_data_3.gas_data_mut().owner = tx_data_3.sender();
 
-    let transaction = Transaction::from_data_and_signer(tx_data, vec![&sender_kp])
+    let transaction = TransactionEnvelope::from_data_and_signer(tx_data, vec![&sender_kp])
         .try_into_verified_for_testing(&Default::default())
         .unwrap();
 
@@ -994,7 +996,7 @@ fn verify_sender_signature_correctly_with_flag() {
             .is_ok()
     );
 
-    let transaction_1 = Transaction::from_data_and_signer(tx_data_2, vec![&sender_kp_2])
+    let transaction_1 = TransactionEnvelope::from_data_and_signer(tx_data_2, vec![&sender_kp_2])
         .try_into_verified_for_testing(&Default::default())
         .unwrap();
 
@@ -1036,7 +1038,7 @@ fn verify_sender_signature_correctly_with_flag() {
     );
 
     // create transaction with r1 signer
-    let tx_3 = Transaction::from_data_and_signer(tx_data_3, vec![&sender_kp_3]);
+    let tx_3 = TransactionEnvelope::from_data_and_signer(tx_data_3, vec![&sender_kp_3]);
     let tx_31 = tx_3.clone();
     let tx_32 = tx_3.clone();
 
@@ -1265,7 +1267,7 @@ fn test_certificate_digest() {
 
     let gas_price = 10;
     let make_tx = |sender, sender_sec: AccountKeyPair| {
-        Transaction::from_data_and_signer(
+        TransactionEnvelope::from_data_and_signer(
             TransactionData::new_transfer(
                 receiver,
                 random_object_ref(),

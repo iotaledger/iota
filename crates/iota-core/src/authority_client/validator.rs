@@ -25,10 +25,10 @@ use crate::authority_client::{NetworkAuthorityClient, insert_metadata};
 
 #[async_trait]
 pub trait ValidatorAPI {
-    /// Handles a `Transaction`.
+    /// Handles a `TransactionEnvelope`.
     async fn handle_transaction(
         &self,
-        transaction: Transaction,
+        transaction: TransactionEnvelope,
         client_addr: Option<SocketAddr>,
     ) -> Result<HandleTransactionResponse, IotaError>;
 
@@ -80,10 +80,10 @@ pub trait ValidatorAPI {
 
 #[async_trait]
 impl ValidatorAPI for NetworkAuthorityClient {
-    /// Handles a `Transaction` .
+    /// Handles a `TransactionEnvelope` .
     async fn handle_transaction(
         &self,
-        transaction: Transaction,
+        transaction: TransactionEnvelope,
         client_addr: Option<SocketAddr>,
     ) -> Result<HandleTransactionResponse, IotaError> {
         let mut request = transaction.into_request();

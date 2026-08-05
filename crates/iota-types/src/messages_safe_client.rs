@@ -4,7 +4,7 @@
 
 use crate::{
     effects::{SignedTransactionEffects, TransactionEvents},
-    transaction::{CertifiedTransaction, SignedTransaction, Transaction},
+    transaction::{CertifiedTransaction, SignedTransaction, TransactionEnvelope},
 };
 
 /// This enum represents all possible states of a response returned from
@@ -21,7 +21,11 @@ pub enum PlainTransactionInfoResponse {
         SignedTransactionEffects,
         TransactionEvents,
     ),
-    ExecutedWithoutCert(Transaction, SignedTransactionEffects, TransactionEvents),
+    ExecutedWithoutCert(
+        TransactionEnvelope,
+        SignedTransactionEffects,
+        TransactionEvents,
+    ),
 }
 
 impl PlainTransactionInfoResponse {

@@ -28,10 +28,7 @@ use iota_common::{debug_fatal, fatal};
 use iota_config::{
     NodeConfig,
     genesis::Genesis,
-    node::{
-        AuthorityOverloadConfig, DBCheckpointConfig, ExpensiveSafetyCheckConfig,
-        StateDebugDumpConfig,
-    },
+    node::{AuthorityOverloadConfig, ExpensiveSafetyCheckConfig, StateDebugDumpConfig},
 };
 use iota_framework::{BuiltInFramework, SystemPackage as FrameworkSystemPackage};
 use iota_json_rpc_types::{
@@ -173,7 +170,7 @@ use crate::{
     },
     execution_driver::execution_process,
     global_state_hasher::{GlobalStateHashStore, GlobalStateHasher},
-    grpc_indexes::{GRPC_INDEXES_DIR, GrpcIndexesStore},
+    grpc_indexes::GrpcIndexesStore,
     jsonrpc_index::{CoinInfo, IndexStore, ObjectIndexChanges},
     metrics::{LatencyObserver, RateTracker},
     module_cache_metrics::ResolverMetrics,
@@ -518,7 +515,7 @@ impl AuthorityMetrics {
                 .unwrap(),
             db_checkpoint_latency: register_histogram_with_registry!(
                 "db_checkpoint_latency",
-                "Latency of checkpointing dbs",
+                "Latency of checkpointing the perpetual store at epoch end",
                 LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             ).unwrap(),
@@ -889,9 +886,6 @@ pub struct AuthorityState {
     pruner: AuthorityStorePruner,
     authority_per_epoch_pruner: AuthorityPerEpochStorePruner,
     checkpoint_progress_tracker: Option<Arc<CheckpointProgressTracker>>,
-
-    /// Take db checkpoints of different dbs
-    db_checkpoint_config: DBCheckpointConfig,
 
     pub config: NodeConfig,
 
@@ -3307,7 +3301,6 @@ impl AuthorityState {
         checkpoint_store: Arc<CheckpointStore>,
         prometheus_registry: &Registry,
         genesis_objects: &[Object],
-        db_checkpoint_config: &DBCheckpointConfig,
         config: NodeConfig,
         validator_tx_finalizer: Option<Arc<ValidatorTxFinalizer<NetworkAuthorityClient>>>,
         chain_identifier: ChainIdentifier,
@@ -3386,7 +3379,6 @@ impl AuthorityState {
             pruner,
             authority_per_epoch_pruner,
             checkpoint_progress_tracker,
-            db_checkpoint_config: db_checkpoint_config.clone(),
             config,
             overload_info: AuthorityOverloadInfo::default(),
             validator_tx_finalizer,
@@ -3691,23 +3683,21 @@ impl AuthorityState {
         )?;
         self.get_reconfig_api()
             .try_set_epoch_start_configuration(&epoch_start_configuration)?;
-        if let Some(checkpoint_path) = &self.db_checkpoint_config.checkpoint_path {
-            if self
-                .db_checkpoint_config
-                .perform_db_checkpoints_at_epoch_end
-            {
-                let checkpoint_indexes = self
-                    .db_checkpoint_config
-                    .perform_index_db_checkpoints_at_epoch_end
-                    .unwrap_or(false);
-                let current_epoch = cur_epoch_store.epoch();
-                let epoch_checkpoint_path = checkpoint_path.join(format!("epoch_{current_epoch}"));
-                self.checkpoint_all_dbs(
-                    &epoch_checkpoint_path,
-                    cur_epoch_store,
-                    checkpoint_indexes,
-                )?;
-            }
+        // When state snapshots are published, a RocksDB checkpoint of the
+        // perpetual store taken at epoch end serves as the snapshot creation
+        // input.
+        if self
+            .config
+            .state_snapshot_write_config
+            .object_store_config
+            .is_some()
+        {
+            let current_epoch = cur_epoch_store.epoch();
+            let epoch_checkpoint_path = self
+                .config
+                .db_checkpoint_path()
+                .join(format!("epoch_{current_epoch}"));
+            self.checkpoint_perpetual_db(&epoch_checkpoint_path, cur_epoch_store)?;
         }
 
         let new_epoch = new_committee.epoch;
@@ -3847,12 +3837,14 @@ impl AuthorityState {
         self.epoch_store_for_testing().epoch()
     }
 
+    /// Takes a RocksDB checkpoint of the perpetual store under
+    /// `<checkpoint_path>/store/perpetual`, the layout the state snapshot
+    /// uploader reads.
     #[instrument(level = "error", skip_all)]
-    pub fn checkpoint_all_dbs(
+    fn checkpoint_perpetual_db(
         &self,
         checkpoint_path: &Path,
         cur_epoch_store: &AuthorityPerEpochStore,
-        checkpoint_indexes: bool,
     ) -> IotaResult {
         let _metrics_guard = self.metrics.db_checkpoint_latency.start_timer();
         let current_epoch = cur_epoch_store.epoch();
@@ -3873,25 +3865,8 @@ impl AuthorityState {
         fs::create_dir_all(&checkpoint_path_tmp).map_err(|e| IotaError::FileIO(e.to_string()))?;
         fs::create_dir(&store_checkpoint_path_tmp).map_err(|e| IotaError::FileIO(e.to_string()))?;
 
-        // NOTE: Do not change the order of invoking these checkpoint calls
-        // We want to snapshot checkpoint db first to not race with state sync
-        self.checkpoint_store
-            .checkpoint_db(&checkpoint_path_tmp.join("checkpoints"))?;
-
         self.get_reconfig_api()
             .try_checkpoint_db(&store_checkpoint_path_tmp.join("perpetual"))?;
-
-        self.committee_store
-            .checkpoint_db(&checkpoint_path_tmp.join("epochs"))?;
-
-        if checkpoint_indexes {
-            if let Some(indexes) = self.indexes.as_ref() {
-                indexes.checkpoint_db(&checkpoint_path_tmp.join("indexes"))?;
-            }
-            if let Some(grpc_indexes_store) = self.grpc_indexes_store.as_ref() {
-                grpc_indexes_store.checkpoint_db(&checkpoint_path_tmp.join(GRPC_INDEXES_DIR))?;
-            }
-        }
 
         fs::rename(checkpoint_path_tmp, checkpoint_path)
             .map_err(|e| IotaError::FileIO(e.to_string()))?;
@@ -4377,7 +4352,7 @@ impl AuthorityState {
         &self,
         digest: TransactionDigest,
         kv_store: Arc<TransactionKeyValueStore>,
-    ) -> IotaResult<(Transaction, TransactionEffects)> {
+    ) -> IotaResult<(TransactionEnvelope, TransactionEffects)> {
         let transaction = kv_store.get_tx(digest).await?;
         let effects = kv_store.get_fx_by_tx_digest(digest).await?;
         Ok((transaction, effects))
@@ -4979,7 +4954,7 @@ impl AuthorityState {
         Some((input_coin_objects, written_coin_objects))
     }
 
-    /// Get the TransactionEnvelope that currently locks the given object, if
+    /// Get the transaction envelope that currently locks the given object, if
     /// any. Since object locks are only valid for one epoch, we also need
     /// the epoch_id in the query. Returns UserInputError::ObjectNotFound if
     /// no lock records for the given object can be found.

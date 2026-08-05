@@ -38,7 +38,8 @@ use iota_types::{
     },
     multiaddr::{Multiaddr, Protocol},
     transaction::{
-        CallArg, TEST_ONLY_GAS_UNIT_FOR_GENERIC, Transaction, TransactionData, TransactionDataAPI,
+        CallArg, TEST_ONLY_GAS_UNIT_FOR_GENERIC, TransactionData, TransactionDataAPI,
+        TransactionEnvelope,
     },
 };
 use tracing::info;
@@ -322,7 +323,7 @@ async fn execute_tx(
     tx_data: TransactionData,
     action: &str,
 ) -> anyhow::Result<()> {
-    let tx = Transaction::from_data_and_signer(tx_data, vec![account_key]);
+    let tx = TransactionEnvelope::from_data_and_signer(tx_data, vec![account_key]);
     info!("Executing {:?}", tx.digest());
     let tx_digest = *tx.digest();
     let resp = iota_client

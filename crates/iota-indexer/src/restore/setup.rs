@@ -6,12 +6,11 @@ use std::{cmp::Reverse, num::NonZeroUsize, path::Path, sync::Arc, time::Duration
 use clap::ValueEnum;
 use indicatif::MultiProgress;
 use iota_config::object_storage_config::{ObjectStoreConfig, ObjectStoreType};
-use iota_core::db_checkpoint_handler::SUCCESS_MARKER;
 use iota_snapshot::reader::StateSnapshotReaderV1;
 use iota_storage::object_store::{
     ObjectStoreGetExt,
     http::HttpDownloaderBuilder,
-    util::{MANIFEST_FILENAME, RootManifest, get_path},
+    util::{MANIFEST_FILENAME, RootManifest, SUCCESS_MARKER, get_path},
 };
 use tracing::info;
 

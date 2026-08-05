@@ -64,7 +64,7 @@ use iota_types::{
     storage::{BackingPackageStore, InputKey},
     transaction::{
         CertifiedTransaction, InputObjectKind, SenderSignedData, SenderSignedTransactionAPI,
-        Transaction, TransactionDataAPI, TransactionKey, TxValidityCheckContext,
+        TransactionDataAPI, TransactionEnvelope, TransactionKey, TxValidityCheckContext,
         VerifiedCertificate, VerifiedSignedTransaction, VerifiedTransaction,
     },
 };
@@ -3293,7 +3293,7 @@ impl AuthorityPerEpochStore {
     }
 
     #[instrument(level = "trace", skip_all)]
-    pub fn verify_transaction(&self, tx: Transaction) -> IotaResult<VerifiedTransaction> {
+    pub fn verify_transaction(&self, tx: TransactionEnvelope) -> IotaResult<VerifiedTransaction> {
         self.signature_verifier
             .verify_tx(tx.data())
             .map(|_| VerifiedTransaction::new_from_verified(tx))

@@ -158,7 +158,7 @@ async fn main() -> Result<(), anyhow::Error> {
     let transaction_response = client
         .quorum_driver_api()
         .execute_transaction_block(
-            iota_types::transaction::Transaction::from_user_sig_data(
+            iota_types::transaction::TransactionEnvelope::from_user_sig_data(
                 intent_msg.value.clone(),
                 vec![UserSignature::Simple(iota_sig)],
             ),

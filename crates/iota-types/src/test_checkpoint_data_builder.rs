@@ -27,7 +27,9 @@ use crate::{
     },
     object::{GAS_VALUE_FOR_TESTING, MoveStructExt, Object},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{CallArg, SenderSignedData, Transaction, TransactionData, TransactionDataAPI},
+    transaction::{
+        CallArg, SenderSignedData, TransactionData, TransactionDataAPI, TransactionEnvelope,
+    },
 };
 
 /// A builder for creating test checkpoint data.
@@ -441,7 +443,7 @@ impl TestCheckpointDataBuilder {
 
         let pt = pt_builder.finish();
         let tx_data = TransactionData::new(TransactionKind::Programmable(pt), sender, gas, 1, 1);
-        let tx = Transaction::new(SenderSignedData::new(tx_data, vec![]));
+        let tx = TransactionEnvelope::new(SenderSignedData::new(tx_data, vec![]));
 
         let wrapped_objects: Vec<_> = wrapped_objects
             .into_iter()
@@ -567,7 +569,7 @@ impl TestCheckpointDataBuilder {
             1,
         )
         .pipe(|data| SenderSignedData::new(data, vec![]))
-        .pipe(Transaction::new);
+        .pipe(TransactionEnvelope::new);
 
         let events = if !safe_mode {
             let system_epoch_info_event = SystemEpochInfoEventV2 {

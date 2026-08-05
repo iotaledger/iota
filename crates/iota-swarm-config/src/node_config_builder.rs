@@ -13,10 +13,9 @@ use iota_config::{
     IOTA_GENESIS_MIGRATION_TX_DATA_FILENAME, NodeConfig, local_ip_utils,
     node::{
         AuthorityKeyPairWithPath, AuthorityOverloadConfig, AuthorityStorePruningConfig,
-        CheckpointExecutorConfig, DBCheckpointConfig, ExecutionCacheConfig,
-        ExpensiveSafetyCheckConfig, Genesis, GrpcApiConfig, KeyPairWithPath, RunWithRange,
-        StateSnapshotConfig, default_enable_index_processing,
-        default_end_of_epoch_broadcast_channel_capacity,
+        CheckpointExecutorConfig, ExecutionCacheConfig, ExpensiveSafetyCheckConfig, Genesis,
+        GrpcApiConfig, KeyPairWithPath, RunWithRange, StateSnapshotConfig,
+        default_enable_index_processing, default_end_of_epoch_broadcast_channel_capacity,
         default_full_checkpoint_contents_cache_size_mb,
     },
     p2p::{DiscoveryConfig, P2pConfig, SeedPeer, StateSyncConfig},
@@ -224,7 +223,6 @@ impl ValidatorConfigBuilder {
             checkpoint_executor_config,
             metrics: None,
             supported_protocol_versions: self.supported_protocol_versions,
-            db_checkpoint_config: Default::default(),
             // By default, expensive checks will be enabled in debug build, but not in release
             // build.
             expensive_safety_check_config: ExpensiveSafetyCheckConfig::default(),
@@ -283,7 +281,6 @@ pub struct FullnodeConfigBuilder {
     rpc_port: Option<u16>,
     rpc_addr: Option<SocketAddr>,
     supported_protocol_versions: Option<SupportedProtocolVersions>,
-    db_checkpoint_config: Option<DBCheckpointConfig>,
     expensive_safety_check_config: Option<ExpensiveSafetyCheckConfig>,
     db_path: Option<PathBuf>,
     network_address: Option<Multiaddr>,
@@ -336,11 +333,6 @@ impl FullnodeConfigBuilder {
 
     pub fn with_supported_protocol_versions(mut self, versions: SupportedProtocolVersions) -> Self {
         self.supported_protocol_versions = Some(versions);
-        self
-    }
-
-    pub fn with_db_checkpoint_config(mut self, db_checkpoint_config: DBCheckpointConfig) -> Self {
-        self.db_checkpoint_config = Some(db_checkpoint_config);
         self
     }
 
@@ -579,7 +571,6 @@ impl FullnodeConfigBuilder {
             checkpoint_executor_config,
             metrics: None,
             supported_protocol_versions: self.supported_protocol_versions,
-            db_checkpoint_config: self.db_checkpoint_config.unwrap_or_default(),
             expensive_safety_check_config: self
                 .expensive_safety_check_config
                 .unwrap_or_else(ExpensiveSafetyCheckConfig::new_enable_all),
