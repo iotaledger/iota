@@ -79,7 +79,12 @@ async fn get(
     client: &Client,
 ) -> Result<GetResult> {
     let request = client.request(Method::GET, url);
-    let response = request.send().await.context("failed to get")?;
+    let response = request
+        .send()
+        .await
+        .context("failed to get")?
+        .error_for_status()
+        .with_context(|| format!("{store} returned an error status for {location}"))?;
     let meta = header_meta(location, response.headers()).context("Failed to get header")?;
     let stream = response
         .bytes_stream()

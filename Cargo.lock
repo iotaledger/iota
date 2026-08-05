@@ -7654,6 +7654,7 @@ dependencies = [
  "object_store 0.13.1",
  "prometheus-filtered",
  "rand 0.8.6",
+ "reqwest",
  "serde",
  "tempfile",
  "tokio",

@@ -31,7 +31,9 @@ use indicatif::{
     FormattedDuration, HumanBytes, HumanCount, HumanDuration, MultiProgress, ProgressBar,
     ProgressDrawTarget, ProgressStyle,
 };
-use iota_storage::object_store::{ObjectStoreGetExt, ObjectStorePutExt, util::put};
+use iota_storage::object_store::{
+    ObjectStoreGetExt, ObjectStorePutExt, util::put,
+};
 use object_store::path::Path;
 use tokio::task::JoinHandle;
 use tracing::{error, info, warn};
@@ -256,10 +258,7 @@ pub async fn fetch_total_bytes(
                 // error out of thousands of lookups doesn't hide the totals,
                 // but give up quickly rather than stall the restore.
                 let size = retry(size_lookup_backoff(), || async {
-                    store
-                        .object_size(&path)
-                        .await
-                        .map_err(backoff::Error::transient)
+                    store.object_size(&path).await.map_err(classify_for_retry)
                 })
                 .await;
                 bar.inc(1);
@@ -290,6 +289,30 @@ pub async fn fetch_total_bytes(
 fn steady_tick_when_drawn(bar: &ProgressBar) {
     if !bar.is_hidden() {
         bar.enable_steady_tick(Duration::from_millis(100));
+    }
+}
+
+/// Wrap `err` for [`retry`]: an error retrying cannot fix — a missing object
+/// or denied access — gives up immediately, everything else is retried.
+fn classify_for_retry(err: anyhow::Error) -> backoff::Error<anyhow::Error> {
+    let is_permanent = err.chain().any(|cause| {
+        cause
+            .downcast_ref::<reqwest::Error>()
+            .and_then(reqwest::Error::status)
+            .is_some_and(|status| {
+                matches!(
+                    status,
+                    reqwest::StatusCode::NOT_FOUND
+                        | reqwest::StatusCode::FORBIDDEN
+                        | reqwest::StatusCode::UNAUTHORIZED
+                )
+            })
+    });
+
+    if is_permanent {
+        backoff::Error::permanent(err)
+    } else {
+        backoff::Error::transient(err)
     }
 }
 
@@ -417,7 +440,7 @@ pub async fn get_with_progress<S: ObjectStoreGetExt>(
             .map_err(|e| {
                 progress.remove_bytes(attempt_bytes.load(Ordering::Relaxed));
                 error!("Failed to read file {src} from object store with error: {e:?}");
-                backoff::Error::transient(e)
+                classify_for_retry(e)
             })
     })
     .await
