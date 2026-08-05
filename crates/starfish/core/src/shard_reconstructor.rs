@@ -17,7 +17,7 @@ use tokio::{
     task::{JoinError, JoinHandle},
     time::{Instant, sleep_until},
 };
-use tracing::{debug, warn};
+use tracing::{debug, error, warn};
 
 use crate::{
     Round, Transaction,
@@ -201,9 +201,10 @@ impl ShardAccumulator {
 /// such a header exists, as he then committed to the invalid transactions.
 ///
 /// Attribution is one-shot: a header arriving only after this failure does not
-/// retroactively charge the author (the failed ref stays in the reconstruction
-/// queue and is not revisited). Such an author is instead charged on the direct
-/// primary-block route, where the full payload is verified against the author.
+/// retroactively charge the author (the failed ref is marked processed and not
+/// revisited until garbage collection). Such an author is instead charged on
+/// the direct primary-block route, where the full payload is verified against
+/// the author.
 fn record_reconstruction_verification_failure(
     context: &Context,
     dag_state: &RwLock<DagState>,
@@ -322,6 +323,10 @@ impl<C: CoreThreadDispatcher + 'static> ShardReconstructor<C> {
     }
 }
 
+/// Result of a reconstruction job: the verified transactions on success, or
+/// the failed job's transaction reference so its queue entry can be dropped.
+type ReconstructionResult = Result<VerifiedTransactions, TransactionRef>;
+
 /// The main structure responsible for collecting shards and reconstructing
 /// transaction data once enough shards are collected. Keeps track of already
 /// locally available transaction data. The transaction is reconstructed only
@@ -366,10 +371,10 @@ pub struct ShardReconstructor<C: CoreThreadDispatcher> {
     ready_to_reconstruct_sender: Sender<ShardAccumulator>,
     /// Channel to receive accumulated shard for reconstruction by workers
     ready_to_reconstruct_receiver: Arc<Mutex<Receiver<ShardAccumulator>>>,
-    /// Reconstruction workers send the verified data through this channel
-    reconstructed_transactions_sender: Sender<VerifiedTransactions>,
-    /// Reconstructed data is received by this channel
-    reconstructed_transactions_receiver: Receiver<VerifiedTransactions>,
+    /// Reconstruction workers report each job's result through this channel
+    reconstruction_result_sender: Sender<ReconstructionResult>,
+    /// Job results are received by this channel
+    reconstruction_result_receiver: Receiver<ReconstructionResult>,
 }
 
 impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
@@ -400,8 +405,8 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
             reconstruction_queue: BTreeSet::new(),
             ready_to_reconstruct_sender: ready_sender,
             ready_to_reconstruct_receiver: Arc::new(Mutex::new(ready_receiver)),
-            reconstructed_transactions_sender: result_sender,
-            reconstructed_transactions_receiver: result_receiver,
+            reconstruction_result_sender: result_sender,
+            reconstruction_result_receiver: result_receiver,
             processed_transactions: BTreeSet::new(),
             reconstructed_transactions: BTreeMap::new(),
             shard_accumulators: BTreeMap::new(),
@@ -415,7 +420,7 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
         for _ in 0..NUMBER_OF_RECONSTRUCTION_WORKERS {
             let mut codec = Codec::new(&self.context);
             let ready_rx = Arc::clone(&self.ready_to_reconstruct_receiver);
-            let result_tx = self.reconstructed_transactions_sender.clone();
+            let result_tx = self.reconstruction_result_sender.clone();
             let context = self.context.clone();
             let dag_state = self.dag_state.clone();
             let block_verifier = self.block_verifier.clone();
@@ -428,9 +433,13 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
                     rx.recv().await
                 } {
                     metrics.node_metrics.reconstruction_jobs_started.inc();
-                    match shard_accumulator.decode_by_codec(&mut codec) {
+                    let result = match shard_accumulator.decode_by_codec(&mut codec) {
+                        // With at least one honest relayer the commitment is
+                        // genuine and proof-valid shards decode to the committed
+                        // payload, so a decode failure requires info_length
+                        // colluding relayers (or a codec bug).
                         Err(err) => {
-                            warn!(
+                            error!(
                                 "Failed to reconstruct transactions for {:?}: {:?}",
                                 shard_accumulator.transaction_ref, err
                             );
@@ -445,6 +454,7 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
                                     &shard_accumulator,
                                 );
                             }
+                            Err(shard_accumulator.transaction_ref)
                         }
                         Ok(verified_transactions) => match block_verifier
                             .check_and_verify_transactions(&verified_transactions.transactions())
@@ -454,18 +464,22 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
                                     "Successfully reconstructed transactions for {:?}",
                                     shard_accumulator.transaction_ref
                                 );
-                                if let Err(err) = result_tx.send(verified_transactions).await {
-                                    warn!("Failed to send the result to shard accumulator {err}");
-                                }
+                                Ok(verified_transactions)
                             }
-                            Err(err) => record_reconstruction_verification_failure(
-                                &context,
-                                &dag_state,
-                                &misbehavior_store,
-                                &shard_accumulator,
-                                &err,
-                            ),
+                            Err(err) => {
+                                record_reconstruction_verification_failure(
+                                    &context,
+                                    &dag_state,
+                                    &misbehavior_store,
+                                    &shard_accumulator,
+                                    &err,
+                                );
+                                Err(shard_accumulator.transaction_ref)
+                            }
                         },
+                    };
+                    if let Err(err) = result_tx.send(result).await {
+                        warn!("Failed to send the result to shard accumulator {err}");
                     }
                     metrics.node_metrics.reconstruction_jobs_finished.inc();
                 }
@@ -504,12 +518,20 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
                             }
                         }
                     }
-                    // A transaction is reconstructed in one of the reconstruction workers
-                    Some(verified_transactions) = self.reconstructed_transactions_receiver.recv() => {
-                        let tx_ref = verified_transactions.transaction_ref();
+                    // A reconstruction job finished in one of the reconstruction workers
+                    Some(result) = self.reconstruction_result_receiver.recv() => {
+                        // Success and failure are both final for the ref: the shards
+                        // proved membership against the commitment inside the ref, so
+                        // a failed job would fail identically on retry.
+                        let tx_ref = match &result {
+                            Ok(verified_transactions) => verified_transactions.transaction_ref(),
+                            Err(tx_ref) => *tx_ref,
+                        };
                         self.processed_transactions.insert(tx_ref);
                         self.reconstruction_queue.remove(&tx_ref);
-                        self.reconstructed_transactions.insert(tx_ref, verified_transactions);
+                        if let Ok(verified_transactions) = result {
+                            self.reconstructed_transactions.insert(tx_ref, verified_transactions);
+                        }
                     }
 
                  () = &mut send_to_core_timeout => {
@@ -573,6 +595,7 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
         self.processed_transactions = self.processed_transactions.split_off(&lower_bound);
         self.reconstructed_transactions = self.reconstructed_transactions.split_off(&lower_bound);
         self.shard_accumulators = self.shard_accumulators.split_off(&lower_bound);
+        self.reconstruction_queue = self.reconstruction_queue.split_off(&lower_bound);
     }
 
     fn get_transactions_with_headers_in_dag_state(&mut self) -> Vec<VerifiedTransactions> {
@@ -1545,5 +1568,92 @@ mod tests {
                 "Each peer that relayed a shard must be charged unprovably"
             );
         }
+    }
+
+    /// A failed reconstruction must not leak its queue entry: the ref is
+    /// dropped from `reconstruction_queue` and marked processed, so shards
+    /// for it are dropped without re-accumulating (a retry would fail
+    /// identically — the shards proved membership against the same
+    /// commitment).
+    #[tokio::test]
+    async fn test_failed_reconstruction_clears_queue_and_is_not_retried() {
+        telemetry_subscribers::init_for_testing();
+
+        let h = TestHarness::new(10);
+        let context = &h.context;
+        let transaction_message_sender = h.tx.clone();
+
+        // Shards encode `txs`, but the ref commits to a different payload's
+        // commitment, so the decode fails the commitment recheck.
+        let txs = vec![Transaction::new(vec![7u8; 8])];
+        let serialized = Transaction::serialize(&txs).unwrap();
+        let mut encoder = create_encoder(context);
+        let other = Transaction::serialize(&[Transaction::new(vec![9u8; 8])]).unwrap();
+        let wrong_commitment =
+            TransactionsCommitment::compute_transactions_commitment(&other, context, &mut encoder)
+                .unwrap();
+
+        let header = VerifiedBlockHeader::new_for_test(TestBlockHeader::new(5, 1).build());
+        let block_ref = header.reference();
+
+        let info_length = context.committee.info_length();
+        let parity_length = context.committee.parity_length();
+        let all_shards = encoder
+            .encode_serialized_data(&serialized, info_length, parity_length)
+            .unwrap();
+
+        let batch: Vec<_> = (0..info_length)
+            .map(|i| {
+                TransactionMessage::Shard(ShardMessage {
+                    transaction_ref: TransactionRef::new(block_ref, wrong_commitment),
+                    block_digest: Some(block_ref.digest),
+                    shard: all_shards[i].clone(),
+                    shard_index: i,
+                })
+            })
+            .collect();
+
+        // WHEN enough shards arrive and the decode fails.
+        transaction_message_sender
+            .send(batch.clone())
+            .await
+            .unwrap();
+        // Wait past EVICTION_TIMEOUT so the gauges are refreshed.
+        tokio::time::sleep(Duration::from_millis(1500)).await;
+
+        // THEN the queue entry is gone and the ref is marked processed.
+        let metrics = &context.metrics.node_metrics;
+        assert_eq!(
+            metrics.reconstruction_queue.get(),
+            0,
+            "A failed reconstruction must not leave its ref in the queue"
+        );
+        assert_eq!(
+            metrics.shard_reconstructor_processed_transactions.get(),
+            1,
+            "A failed reconstruction must mark its ref processed"
+        );
+        assert_eq!(metrics.reconstruction_jobs_started.get(), 1);
+
+        // AND resending the same shards does not start another job.
+        transaction_message_sender.send(batch).await.unwrap();
+        tokio::time::sleep(Duration::from_millis(600)).await;
+        assert_eq!(
+            metrics.reconstruction_jobs_started.get(),
+            1,
+            "Shards for a failed ref must be dropped without re-accumulating"
+        );
+        assert!(
+            h.core_dispatcher
+                .get_and_drain_transactions()
+                .await
+                .is_empty(),
+            "A failed reconstruction must never reach Core"
+        );
+
+        h.handle
+            .stop()
+            .await
+            .expect("We should expect graceful shutdown");
     }
 }
