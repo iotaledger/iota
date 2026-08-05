@@ -645,14 +645,10 @@ impl<K, V> DBMap<K, V> {
     }
 
     /// Returns a vector of raw values corresponding to the keys provided.
-    fn multi_get_pinned<J>(
+    fn multi_get_pinned(
         &self,
-        keys: impl IntoIterator<Item = J>,
-    ) -> Result<Vec<Option<GetResult<'_>>>, TypedStoreError>
-    where
-        J: Borrow<K>,
-        K: Serialize,
-    {
+        keys_bytes: impl IntoIterator<Item = Vec<u8>>,
+    ) -> Result<Vec<Option<GetResult<'_>>>, TypedStoreError> {
         let _timer = self
             .db_metrics
             .op_metrics
@@ -664,7 +660,6 @@ impl<K, V> DBMap<K, V> {
         } else {
             None
         };
-        let keys_bytes = keys.into_iter().map(|k| be_fix_int_ser(k.borrow()));
         let results: Result<Vec<_>, TypedStoreError> = self
             .db
             .multi_get(&self.column_family, keys_bytes, &self.opts.readopts())
@@ -1218,16 +1213,9 @@ impl DBBatch {
     }
 }
 
-impl<'a, K, V> Map<'a, K, V> for DBMap<K, V>
-where
-    K: Serialize + DeserializeOwned,
-    V: Serialize + DeserializeOwned,
-{
-    type Error = TypedStoreError;
-
+impl<K, V> DBMap<K, V> {
     #[instrument(level = "trace", skip_all, err)]
-    fn contains_key(&self, key: &K) -> Result<bool, TypedStoreError> {
-        let key_buf = be_fix_int_ser(key);
+    pub(crate) fn contains_raw_key(&self, key_buf: Vec<u8>) -> Result<bool, TypedStoreError> {
         let readopts = self.opts.readopts();
         Ok(self
             .db
@@ -1239,19 +1227,19 @@ where
     }
 
     #[instrument(level = "trace", skip_all, err)]
-    fn multi_contains_keys<J>(
+    pub(crate) fn multi_contains_raw_keys(
         &self,
-        keys: impl IntoIterator<Item = J>,
-    ) -> Result<Vec<bool>, Self::Error>
-    where
-        J: Borrow<K>,
-    {
+        keys: impl IntoIterator<Item = Vec<u8>>,
+    ) -> Result<Vec<bool>, TypedStoreError> {
         let values = self.multi_get_pinned(keys)?;
         Ok(values.into_iter().map(|v| v.is_some()).collect())
     }
 
     #[instrument(level = "trace", skip_all, err)]
-    fn get(&self, key: &K) -> Result<Option<V>, TypedStoreError> {
+    pub(crate) fn get_raw_key(&self, key_buf: Vec<u8>) -> Result<Option<V>, TypedStoreError>
+    where
+        V: DeserializeOwned,
+    {
         let _timer = self
             .db_metrics
             .op_metrics
@@ -1263,7 +1251,6 @@ where
         } else {
             None
         };
-        let key_buf = be_fix_int_ser(key);
         let res = self
             .db
             .get(&self.column_family, &key_buf, &self.opts.readopts())?;
@@ -1298,7 +1285,10 @@ where
     }
 
     #[instrument(level = "trace", skip_all, err)]
-    fn insert(&self, key: &K, value: &V) -> Result<(), TypedStoreError> {
+    pub(crate) fn insert_raw_key(&self, key_buf: Vec<u8>, value: &V) -> Result<(), TypedStoreError>
+    where
+        V: Serialize,
+    {
         let timer = self
             .db_metrics
             .op_metrics
@@ -1310,7 +1300,6 @@ where
         } else {
             None
         };
-        let key_buf = be_fix_int_ser(key);
         let value_buf = bcs::to_bytes(value).map_err(typed_store_err_from_bcs_err)?;
         self.db_metrics
             .op_metrics
@@ -1343,7 +1332,7 @@ where
     }
 
     #[instrument(level = "trace", skip_all, err)]
-    fn remove(&self, key: &K) -> Result<(), TypedStoreError> {
+    pub(crate) fn remove_raw_key(&self, key_buf: Vec<u8>) -> Result<(), TypedStoreError> {
         let _timer = self
             .db_metrics
             .op_metrics
@@ -1355,7 +1344,6 @@ where
         } else {
             None
         };
-        let key_buf = be_fix_int_ser(key);
         self.db.delete_cf(&self.column_family, key_buf)?;
         self.db_metrics
             .op_metrics
@@ -1368,6 +1356,62 @@ where
                 .report_metrics(self.cf_name());
         }
         Ok(())
+    }
+
+    #[instrument(level = "trace", skip_all, err)]
+    pub(crate) fn multi_get_raw_keys(
+        &self,
+        keys: impl IntoIterator<Item = Vec<u8>>,
+    ) -> Result<Vec<Option<V>>, TypedStoreError>
+    where
+        V: DeserializeOwned,
+    {
+        let results = self.multi_get_pinned(keys)?;
+        let values_parsed: Result<Vec<_>, TypedStoreError> = results
+            .into_iter()
+            .map(|value_byte| match value_byte {
+                Some(data) => Ok(Some(
+                    bcs::from_bytes(&data).map_err(typed_store_err_from_bcs_err)?,
+                )),
+                None => Ok(None),
+            })
+            .collect();
+
+        values_parsed
+    }
+}
+
+impl<'a, K, V> Map<'a, K, V> for DBMap<K, V>
+where
+    K: Serialize + DeserializeOwned,
+    V: Serialize + DeserializeOwned,
+{
+    type Error = TypedStoreError;
+
+    fn contains_key(&self, key: &K) -> Result<bool, TypedStoreError> {
+        self.contains_raw_key(be_fix_int_ser(key))
+    }
+
+    fn multi_contains_keys<J>(
+        &self,
+        keys: impl IntoIterator<Item = J>,
+    ) -> Result<Vec<bool>, Self::Error>
+    where
+        J: Borrow<K>,
+    {
+        self.multi_contains_raw_keys(keys.into_iter().map(|k| be_fix_int_ser(k.borrow())))
+    }
+
+    fn get(&self, key: &K) -> Result<Option<V>, TypedStoreError> {
+        self.get_raw_key(be_fix_int_ser(key))
+    }
+
+    fn insert(&self, key: &K, value: &V) -> Result<(), TypedStoreError> {
+        self.insert_raw_key(be_fix_int_ser(key), value)
+    }
+
+    fn remove(&self, key: &K) -> Result<(), TypedStoreError> {
+        self.remove_raw_key(be_fix_int_ser(key))
     }
 
     /// Writes a range delete tombstone to delete all entries in the db map.
@@ -1441,7 +1485,6 @@ where
     }
 
     /// Returns a vector of values corresponding to the keys provided.
-    #[instrument(level = "trace", skip_all, err)]
     fn multi_get<J>(
         &self,
         keys: impl IntoIterator<Item = J>,
@@ -1449,18 +1492,7 @@ where
     where
         J: Borrow<K>,
     {
-        let results = self.multi_get_pinned(keys)?;
-        let values_parsed: Result<Vec<_>, TypedStoreError> = results
-            .into_iter()
-            .map(|value_byte| match value_byte {
-                Some(data) => Ok(Some(
-                    bcs::from_bytes(&data).map_err(typed_store_err_from_bcs_err)?,
-                )),
-                None => Ok(None),
-            })
-            .collect();
-
-        values_parsed
+        self.multi_get_raw_keys(keys.into_iter().map(|k| be_fix_int_ser(k.borrow())))
     }
 
     /// Convenience method for batch insertion
@@ -1583,13 +1615,13 @@ impl<K, V> TaggedDBMap<K, V> {
 
 impl<'a, K, V> Map<'a, K, V> for TaggedDBMap<K, V>
 where
-    K: Clone + Serialize + DeserializeOwned,
+    K: Serialize + DeserializeOwned,
     V: Serialize + DeserializeOwned,
 {
     type Error = TypedStoreError;
 
     fn contains_key(&self, key: &K) -> Result<bool, TypedStoreError> {
-        self.map.contains_key(&(self.tag, key.clone()))
+        self.map.contains_raw_key(be_fix_int_ser(&(self.tag, key)))
     }
 
     fn multi_contains_keys<J>(
@@ -1599,12 +1631,14 @@ where
     where
         J: Borrow<K>,
     {
-        self.map
-            .multi_contains_keys(keys.into_iter().map(|key| (self.tag, key.borrow().clone())))
+        self.map.multi_contains_raw_keys(
+            keys.into_iter()
+                .map(|key| be_fix_int_ser(&(self.tag, key.borrow()))),
+        )
     }
 
     fn get(&self, key: &K) -> Result<Option<V>, TypedStoreError> {
-        self.map.get(&(self.tag, key.clone()))
+        self.map.get_raw_key(be_fix_int_ser(&(self.tag, key)))
     }
 
     fn multi_get<J>(
@@ -1614,16 +1648,19 @@ where
     where
         J: Borrow<K>,
     {
-        self.map
-            .multi_get(keys.into_iter().map(|key| (self.tag, key.borrow().clone())))
+        self.map.multi_get_raw_keys(
+            keys.into_iter()
+                .map(|key| be_fix_int_ser(&(self.tag, key.borrow()))),
+        )
     }
 
     fn insert(&self, key: &K, value: &V) -> Result<(), TypedStoreError> {
-        self.map.insert(&(self.tag, key.clone()), value)
+        self.map
+            .insert_raw_key(be_fix_int_ser(&(self.tag, key)), value)
     }
 
     fn remove(&self, key: &K) -> Result<(), TypedStoreError> {
-        self.map.remove(&(self.tag, key.clone()))
+        self.map.remove_raw_key(be_fix_int_ser(&(self.tag, key)))
     }
 
     #[instrument(level = "trace", skip_all, err)]
