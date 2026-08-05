@@ -1696,7 +1696,12 @@ where
     fn schedule_delete_all(&self) -> Result<(), TypedStoreError> {
         let from = be_fix_int_ser(&self.tag);
         let to = match prefix_iterator_bounds(&self.tag).1 {
-            Some(to) => to,
+            Some(to) => {
+                if self.is_empty() {
+                    return Ok(());
+                }
+                to
+            }
             // The maximum tag has no following tag to bound the range
             // against, so end it just past the last entry. That read is why a
             // row written in between survives the clear, and why a value that

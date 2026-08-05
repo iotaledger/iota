@@ -1296,6 +1296,40 @@ async fn tagged_ranges_follow_the_key_encoding_rather_than_ord() {
     assert!(signed.safe_range_iter(-1..=1).next().is_none());
 }
 
+/// Clearing a map that holds nothing writes nothing, whatever its tag: a
+/// tombstone would be read past by every iterator of the column family until
+/// compaction drops it.
+#[tokio::test]
+async fn clearing_an_empty_tagged_map_writes_nothing() {
+    let tmp_dir = iota_common::tempdir();
+    let db = open_rocksdb(tmp_dir.path(), &["shared"]);
+    let writes_so_far = || match &db.storage {
+        crate::database::Storage::Rocks(rocks) => rocks.underlying.latest_sequence_number(),
+        _ => unreachable!("the database is rocksdb"),
+    };
+    let open = |tag| {
+        TaggedDBMap::<u32, String>::reopen(&db, "shared", tag, &ReadWriteOptions::default(), false)
+            .expect("failed to open the map")
+    };
+
+    // The maximum tag ends its range on the last entry, the others on the tag
+    // that follows, so each takes its own path to the same answer.
+    for tag in [0, u8::MAX] {
+        let map = open(tag);
+        let before = writes_so_far();
+        map.schedule_delete_all().expect("failed to clear the map");
+        assert_eq!(writes_so_far(), before, "tag {tag} wrote over nothing");
+    }
+
+    // And a map that does hold rows still writes its tombstone.
+    let map = open(0);
+    map.insert(&1, &"one".to_string()).unwrap();
+    let before = writes_so_far();
+    map.schedule_delete_all().expect("failed to clear the map");
+    assert!(writes_so_far() > before);
+    assert!(map.is_empty());
+}
+
 /// A tag belongs to its column family, so the same one is free in another.
 #[tokio::test]
 async fn a_tag_is_free_in_another_column_family() {
