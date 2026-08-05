@@ -398,14 +398,14 @@ impl StoredTransaction {
     }
 
     pub fn try_into_sender_signed_transaction(&self) -> IndexerResult<SenderSignedTransaction> {
-        let sender_signed_data: SenderSignedTransaction = bcs::from_bytes(&self.raw_transaction)
+        let sender_signed_tx: SenderSignedTransaction = bcs::from_bytes(&self.raw_transaction)
             .map_err(|e| {
                 IndexerError::PersistentStorageDataCorruption(format!(
                     "Can't convert raw_transaction of {} into SenderSignedTransaction. Error: {e}",
                     self.tx_sequence_number
                 ))
             })?;
-        Ok(sender_signed_data)
+        Ok(sender_signed_tx)
     }
 
     pub async fn try_into_iota_transaction_effects(

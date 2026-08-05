@@ -195,7 +195,7 @@ impl TransactionBlock {
     /// chain.
     #[graphql(complexity = 0)]
     async fn digest(&self) -> Option<String> {
-        self.native_signed_data()
+        self.native_signed_transaction()
             .map(|s| Base58::encode(s.digest()))
     }
 
@@ -250,7 +250,7 @@ impl TransactionBlock {
     /// the gas owner if this is a sponsored transaction.
     #[graphql(complexity = 0)]
     async fn signatures(&self) -> Option<Vec<Base64>> {
-        self.native_signed_data().map(|s| {
+        self.native_signed_transaction().map(|s| {
             s.signatures()
                 .iter()
                 .map(|sig| Base64::from(sig.to_bytes()))
@@ -314,7 +314,7 @@ impl TransactionBlock {
         if self.inner.is_checkpointed() {
             return Ok(Some(true));
         }
-        let Some(digest) = self.native_signed_data().map(|d| d.digest()) else {
+        let Some(digest) = self.native_signed_transaction().map(|d| d.digest()) else {
             // dry-run transactions are never indexed
             return Ok(Some(false));
         };
@@ -336,7 +336,7 @@ impl TransactionBlock {
         }
     }
 
-    fn native_signed_data(&self) -> Option<&NativeSenderSignedTransaction> {
+    fn native_signed_transaction(&self) -> Option<&NativeSenderSignedTransaction> {
         match &self.inner {
             TransactionBlockInner::Checkpointed { native, .. } => Some(native),
             TransactionBlockInner::Executed { native, .. } => Some(native),

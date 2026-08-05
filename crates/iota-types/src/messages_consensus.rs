@@ -341,9 +341,9 @@ impl ConsensusTransactionKind {
         }
     }
 
-    /// The signed data of the underlying certified or raw user transaction,
-    /// or `None` for internal consensus messages.
-    pub fn as_sender_signed_data(&self) -> Option<&SenderSignedTransaction> {
+    /// The signed transaction of the underlying certified or raw user
+    /// transaction, or `None` for internal consensus messages.
+    pub fn as_sender_signed_transaction(&self) -> Option<&SenderSignedTransaction> {
         self.map_cert_or_raw_user_tx(|c| c.data(), |t| t.data())
     }
 

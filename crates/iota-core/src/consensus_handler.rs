@@ -795,7 +795,9 @@ impl SequencedConsensusTransaction {
     /// always `false`, since only user transactions can request randomness.
     pub fn is_user_tx_with_randomness(&self) -> bool {
         match &self.transaction {
-            SequencedConsensusTransactionKind::External(ext) => ext.kind.as_sender_signed_data(),
+            SequencedConsensusTransactionKind::External(ext) => {
+                ext.kind.as_sender_signed_transaction()
+            }
             SequencedConsensusTransactionKind::System(_) => None,
         }
         .is_some_and(|data| data.uses_randomness())
@@ -809,7 +811,7 @@ impl SequencedConsensusTransaction {
         match &self.transaction {
             SequencedConsensusTransactionKind::External(ext) => ext
                 .kind
-                .as_sender_signed_data()
+                .as_sender_signed_transaction()
                 .filter(|data| data.contains_shared_object()),
             SequencedConsensusTransactionKind::System(txn) => {
                 txn.contains_shared_object().then(|| txn.data())
