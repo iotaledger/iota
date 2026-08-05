@@ -704,18 +704,25 @@ async fn test_ptb_publish_upgrade() -> Result<(), anyhow::Error> {
     }
 
     // Update lock file for both packages
+    let chain_identifier = context
+        .get_client()
+        .await?
+        .read_api()
+        .get_chain_identifier()
+        .await?;
+    let env_alias = context.active_env()?.alias().clone();
     for (pkg_path, package_id, _) in &packages_with_upgrade_cap {
         let mut build_config = BuildConfig::new_for_testing().config;
         build_config.lock_file = Some(pkg_path.join("Move.lock"));
         iota_package_management::update_lock_file_with_package_id(
-            context,
+            chain_identifier.clone(),
+            &env_alias,
             iota_package_management::LockCommand::Publish,
             build_config.install_dir,
             build_config.lock_file,
             (*package_id).into(),
             1,
-        )
-        .await?;
+        )?;
     }
 
     let publish_ptb_string = format!(
@@ -819,15 +826,22 @@ async fn publish_package_for_upgrade(
     // Update lock file
     let mut build_config = BuildConfig::new_for_testing().config;
     build_config.lock_file = Some(package_path.join("Move.lock"));
+    let chain_identifier = context
+        .get_client()
+        .await?
+        .read_api()
+        .get_chain_identifier()
+        .await?;
+    let env_alias = context.active_env()?.alias().clone();
     iota_package_management::update_lock_file_with_package_id(
-        context,
+        chain_identifier,
+        &env_alias,
         iota_package_management::LockCommand::Publish,
         build_config.install_dir,
         build_config.lock_file,
         package_addr.into(),
         1,
-    )
-    .await?;
+    )?;
 
     Ok(upgrade_cap_id)
 }
