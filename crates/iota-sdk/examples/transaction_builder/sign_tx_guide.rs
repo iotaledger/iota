@@ -25,7 +25,7 @@ use iota_sdk::{
     },
 };
 use iota_sdk_crypto::{
-    Signer as _, ToFromBase64, ToFromBech32, ToFromBytes as _, ed25519::Ed25519PrivateKey,
+    Signer as _, ToFromBase64, ToFromBech32, ed25519::Ed25519PrivateKey,
     secp256k1::Secp256k1PrivateKey, secp256r1::Secp256r1PrivateKey,
 };
 use iota_sdk_types::{Address, UserSignature};
