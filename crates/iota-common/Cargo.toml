@@ -26,7 +26,7 @@ iota-macros.workspace = true
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 # external dependencies
 tempfile.workspace = true
-tokio = { workspace = true, features = ["sync"] }
+tokio = { workspace = true, features = ["rt", "sync", "time"] }
 
 # internal dependencies
 iota-metrics.workspace = true

@@ -34,8 +34,8 @@ use iota_types::{
     mock_checkpoint_builder::{MockCheckpointBuilder, ValidatorKeypairProvider},
     object::Object,
     transaction::{
-        CertifiedTransaction, DEFAULT_VALIDATOR_GAS_PRICE, SenderSignedTransactionAPI, Transaction,
-        TransactionDataAPI, VerifiedCertificate, VerifiedTransaction,
+        CertifiedTransaction, DEFAULT_VALIDATOR_GAS_PRICE, SenderSignedTransactionAPI,
+        TransactionDataAPI, TransactionEnvelope, VerifiedCertificate, VerifiedTransaction,
     },
 };
 
@@ -128,7 +128,10 @@ impl SingleValidator {
         (package, updated_gas)
     }
 
-    pub async fn execute_raw_transaction(&self, transaction: Transaction) -> TransactionEffects {
+    pub async fn execute_raw_transaction(
+        &self,
+        transaction: TransactionEnvelope,
+    ) -> TransactionEffects {
         let executable = VerifiedExecutableTransaction::new_from_quorum_execution(
             VerifiedTransaction::new_unchecked(transaction),
             0,
@@ -142,7 +145,7 @@ impl SingleValidator {
         effects
     }
 
-    pub async fn execute_dry_run(&self, transaction: Transaction) -> TransactionEffects {
+    pub async fn execute_dry_run(&self, transaction: TransactionEnvelope) -> TransactionEffects {
         let effects = self
             .get_validator()
             .dry_exec_transaction_for_benchmark(
@@ -244,7 +247,10 @@ impl SingleValidator {
         effects
     }
 
-    pub async fn sign_transaction(&self, transaction: Transaction) -> HandleTransactionResponse {
+    pub async fn sign_transaction(
+        &self,
+        transaction: TransactionEnvelope,
+    ) -> HandleTransactionResponse {
         self.validator_service
             .handle_transaction_for_benchmarking(transaction)
             .await

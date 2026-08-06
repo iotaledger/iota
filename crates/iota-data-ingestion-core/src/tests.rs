@@ -29,7 +29,7 @@ use iota_types::{
         CertifiedCheckpointSummary, CheckpointContentsExt, CheckpointSequenceNumber,
         CheckpointSummaryExt, SignedCheckpointSummary,
     },
-    transaction::{Transaction, TransactionData, TransactionDataAPI},
+    transaction::{TransactionData, TransactionDataAPI, TransactionEnvelope},
     utils::make_committee_key,
 };
 use prometheus_filtered::Registry;
@@ -451,7 +451,7 @@ async fn basic_flow_with_custom_callback() {
         0,
     );
 
-    let transaction = Transaction::from_data(tx_data, vec![]);
+    let transaction = TransactionEnvelope::from_data(tx_data, vec![]);
     let effects = TransactionEffects::new_empty_v1_for_testing(*transaction.digest());
     let ch_tx = CheckpointTransaction {
         transaction,

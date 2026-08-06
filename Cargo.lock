@@ -5679,7 +5679,6 @@ dependencies = [
  "csv",
  "dirs",
  "fastcrypto",
- "iota-genesis-common",
  "iota-keys",
  "iota-metrics",
  "iota-names",
@@ -5732,6 +5731,7 @@ dependencies = [
  "iota-execution",
  "iota-framework",
  "iota-genesis-builder",
+ "iota-genesis-common",
  "iota-json-rpc-types",
  "iota-macros",
  "iota-metrics",
@@ -5763,7 +5763,6 @@ dependencies = [
  "nonempty",
  "num-bigint 0.4.6",
  "num_cpus",
- "object_store 0.13.1",
  "once_cell",
  "parking_lot 0.12.3",
  "pin-project-lite",
@@ -5932,7 +5931,6 @@ dependencies = [
  "iota-swarm",
  "iota-swarm-config",
  "iota-test-transaction-builder",
- "iota-tool",
  "iota-types",
  "iota-vm-sdk",
  "jsonrpsee",
@@ -6140,6 +6138,7 @@ dependencies = [
 name = "iota-genesis-common"
 version = "1.30.0-alpha"
 dependencies = [
+ "iota-config",
  "iota-execution",
  "iota-protocol-config",
  "iota-sdk-types",
@@ -7046,6 +7045,7 @@ dependencies = [
  "iota-common",
  "iota-config",
  "iota-core",
+ "iota-genesis-common",
  "iota-grpc-server",
  "iota-http",
  "iota-json-rpc",
@@ -7364,6 +7364,7 @@ dependencies = [
  "iota-json-rpc-types",
  "iota-keys",
  "iota-sdk",
+ "iota-sdk-crypto",
  "iota-sdk-types",
  "iota-types",
  "itertools 0.13.0",
@@ -7636,6 +7637,8 @@ name = "iota-snapshot"
 version = "1.30.0-alpha"
 dependencies = [
  "anyhow",
+ "async-trait",
+ "backoff",
  "bcs",
  "byteorder",
  "bytes",
@@ -7653,11 +7656,13 @@ dependencies = [
  "object_store 0.13.1",
  "prometheus-filtered",
  "rand 0.8.6",
+ "reqwest",
  "serde",
  "tempfile",
  "tokio",
  "tokio-stream",
  "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -7751,7 +7756,6 @@ dependencies = [
  "fastcrypto",
  "futures",
  "hyper",
- "indicatif",
  "integer-encoding",
  "iota-common",
  "iota-config",
@@ -7936,7 +7940,6 @@ dependencies = [
  "itertools 0.13.0",
  "move-core-types",
  "num_cpus",
- "object_store 0.13.1",
  "prometheus-filtered",
  "rand 0.8.6",
  "ron",

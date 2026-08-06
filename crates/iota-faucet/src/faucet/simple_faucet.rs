@@ -27,7 +27,7 @@ use iota_types::{
     gas_coin::GasCoin,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::ExecuteTransactionRequestType,
-    transaction::{Transaction, TransactionData, TransactionDataAPI},
+    transaction::{TransactionData, TransactionDataAPI, TransactionEnvelope},
 };
 use prometheus_filtered::Registry;
 use tap::tap::TapFallible;
@@ -445,7 +445,7 @@ impl SimpleFaucet {
             .keystore()
             .sign_secure(&self.active_address, &tx_data, Intent::iota_transaction())
             .map_err(FaucetError::internal)?;
-        let tx = Transaction::from_data(tx_data, vec![signature]);
+        let tx = TransactionEnvelope::from_data(tx_data, vec![signature]);
         let tx_digest = *tx.digest();
         info!(
             ?tx_digest,
@@ -601,7 +601,7 @@ impl SimpleFaucet {
 
     async fn execute_pay_iota_txn_with_retries(
         &self,
-        tx: &Transaction,
+        tx: &TransactionEnvelope,
         coin_id: ObjectId,
         recipient: Address,
         uuid: Uuid,
@@ -633,7 +633,7 @@ impl SimpleFaucet {
 
     async fn execute_pay_iota_txn(
         &self,
-        tx: &Transaction,
+        tx: &TransactionEnvelope,
         coin_id: ObjectId,
         recipient: Address,
         uuid: Uuid,
@@ -1180,8 +1180,8 @@ mod tests {
     use anyhow::*;
     use iota_json_rpc_types::{IotaExecutionStatus, IotaTransactionBlockEffects};
     use iota_sdk::wallet_context::WalletContext;
-    use iota_sdk_types::crypto::Intent;
-    use iota_types::transaction::{SenderSignedData, TransactionDataAPI};
+    use iota_sdk_types::{SenderSignedTransaction, crypto::Intent};
+    use iota_types::transaction::TransactionDataAPI;
     use test_cluster::TestClusterBuilder;
 
     use super::*;
@@ -1195,8 +1195,9 @@ mod tests {
             &tx_data,
             Intent::iota_transaction(),
         )?;
-        let sender_signed_data = SenderSignedData::new_from_sender_signature(tx_data, signature);
-        let transaction = Transaction::new(sender_signed_data);
+        let sender_signed_tx =
+            SenderSignedTransaction::new_from_sender_signature(tx_data, signature);
+        let transaction = TransactionEnvelope::new(sender_signed_tx);
         let response = ctx.execute_transaction_may_fail(transaction).await?;
         let result_effects = response.effects;
 

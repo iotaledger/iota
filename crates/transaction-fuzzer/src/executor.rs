@@ -15,7 +15,7 @@ use iota_types::{
     effects::{TransactionEffects, TransactionEffectsAPI},
     error::IotaError,
     object::Object,
-    transaction::{Transaction, TransactionData, TransactionDataAPI},
+    transaction::{TransactionData, TransactionDataAPI, TransactionEnvelope},
     utils::to_sender_signed_transaction,
 };
 use tokio::runtime::Runtime;
@@ -103,7 +103,7 @@ impl Executor {
         self.state.insert_genesis_objects(objects);
     }
 
-    pub fn execute_transaction(&mut self, txn: Transaction) -> ExecutionResult {
+    pub fn execute_transaction(&mut self, txn: TransactionEnvelope) -> ExecutionResult {
         self.rt
             .block_on(send_and_confirm_transaction(&self.state, None, txn))
             .map(|(_, effects)| effects.into_data().status().clone())
@@ -145,7 +145,7 @@ impl Executor {
 
     pub fn execute_transactions(
         &mut self,
-        txn: impl IntoIterator<Item = Transaction>,
+        txn: impl IntoIterator<Item = TransactionEnvelope>,
     ) -> Vec<ExecutionResult> {
         txn.into_iter()
             .map(|txn| self.execute_transaction(txn))

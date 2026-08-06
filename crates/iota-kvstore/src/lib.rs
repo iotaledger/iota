@@ -15,7 +15,7 @@ use iota_types::{
     messages_checkpoint::{CertifiedCheckpointSummary, CheckpointSequenceNumber},
     object::Object,
     storage::ObjectKey,
-    transaction::Transaction,
+    transaction::TransactionEnvelope,
 };
 use serde::{Deserialize, Serialize};
 
@@ -153,7 +153,7 @@ pub struct Checkpoint {
 /// including its effects, events, and the checkpoint number it belongs to.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct TransactionData {
-    pub transaction: Transaction,
+    pub transaction: TransactionEnvelope,
     pub effects: TransactionEffects,
     pub events: Option<TransactionEvents>,
     pub checkpoint_number: CheckpointSequenceNumber,

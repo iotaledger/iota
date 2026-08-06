@@ -32,10 +32,14 @@ use iota_sdk::{IotaClient, IotaClientBuilder, rpc_types::IotaTransactionBlockEff
 use iota_sdk_types::{Address, Identifier, ObjectId, ObjectReference};
 use iota_types::{
     committee::EpochId,
-    crypto::{IotaKeyPair, generate_proof_of_possession, get_authority_key_pair, get_key_pair},
+    crypto::{
+        SimpleKeypair, generate_proof_of_possession, get_authority_key_pair, get_key_pair,
+        network_to_simple_keypair,
+    },
     multiaddr::{Multiaddr, Protocol},
     transaction::{
-        CallArg, TEST_ONLY_GAS_UNIT_FOR_GENERIC, Transaction, TransactionData, TransactionDataAPI,
+        CallArg, TEST_ONLY_GAS_UNIT_FOR_GENERIC, TransactionData, TransactionDataAPI,
+        TransactionEnvelope,
     },
 };
 use tracing::info;
@@ -81,7 +85,7 @@ async fn run_metadata_rotation(metadata_rotation: MetadataRotation) -> anyhow::R
     })?;
 
     let iota_client = IotaClientBuilder::default().build(fullnode_rpc_url).await?;
-    let iota_address = Address::from(&account_key.public());
+    let iota_address = account_key.public_key().derive_address();
     let starting_epoch = current_epoch(&iota_client).await?;
     info!(
         "Running Metadata Rotation fire drill for validator address {iota_address} in epoch {starting_epoch}."
@@ -129,7 +133,7 @@ async fn update_next_epoch_metadata(
     iota_node_config_path: &Path,
     config: &NodeConfig,
     iota_client: &IotaClient,
-    account_key: &IotaKeyPair,
+    account_key: &SimpleKeypair,
 ) -> anyhow::Result<PathBuf> {
     // Save backup config just in case
     let mut backup_config_path = iota_node_config_path.to_path_buf();
@@ -138,7 +142,7 @@ async fn update_next_epoch_metadata(
     let backup_config = config.clone();
     backup_config.persisted(&backup_config_path).save()?;
 
-    let iota_address = Address::from(&account_key.public());
+    let iota_address = account_key.public_key().derive_address();
 
     let mut new_config = config.clone();
 
@@ -151,12 +155,14 @@ async fn update_next_epoch_metadata(
     // network key
     let new_network_key_pair: Ed25519KeyPair = get_key_pair().1;
     let new_network_key_pair_copy = new_network_key_pair.copy();
-    new_config.network_key_pair = KeyPairWithPath::new(new_network_key_pair.into());
+    new_config.network_key_pair =
+        KeyPairWithPath::new(network_to_simple_keypair(&new_network_key_pair));
 
     // protocol key
     let new_protocol_key_pair: Ed25519KeyPair = get_key_pair().1;
     let new_protocol_key_pair_copy = new_protocol_key_pair.copy();
-    new_config.protocol_key_pair = KeyPairWithPath::new(new_protocol_key_pair.into());
+    new_config.protocol_key_pair =
+        KeyPairWithPath::new(network_to_simple_keypair(&new_protocol_key_pair));
 
     // needs to be active_validators instead of committee_members here, so that
     // every validator can update their own metadata
@@ -281,12 +287,12 @@ async fn update_next_epoch_metadata(
 }
 
 async fn update_metadata_on_chain(
-    account_key: &IotaKeyPair,
+    account_key: &SimpleKeypair,
     function: &'static str,
     call_args: Vec<CallArg>,
     iota_client: &IotaClient,
 ) -> anyhow::Result<()> {
-    let iota_address = Address::from(&account_key.public());
+    let iota_address = account_key.public_key().derive_address();
     let gas_obj_ref = get_gas_obj_ref(iota_address, iota_client, 10000 * 100).await?;
     let rgp = iota_client
         .governance_api()
@@ -312,12 +318,12 @@ async fn update_metadata_on_chain(
 }
 
 async fn execute_tx(
-    account_key: &IotaKeyPair,
+    account_key: &SimpleKeypair,
     iota_client: &IotaClient,
     tx_data: TransactionData,
     action: &str,
 ) -> anyhow::Result<()> {
-    let tx = Transaction::from_data_and_signer(tx_data, vec![account_key]);
+    let tx = TransactionEnvelope::from_data_and_signer(tx_data, vec![account_key]);
     info!("Executing {:?}", tx.digest());
     let tx_digest = *tx.digest();
     let resp = iota_client

@@ -25,8 +25,8 @@ use iota_json_rpc_types::{
 use iota_open_rpc::Module;
 use iota_package_resolver::{PackageStore, Resolver};
 use iota_sdk_types::{
-    Address, GasPayment, ObjectId, TransactionDigest, TransactionExpiration, TransactionKind,
-    UserSignature, Version,
+    Address, GasPayment, ObjectId, SenderSignedTransaction, TransactionDigest,
+    TransactionExpiration, TransactionKind, TransactionV1, UserSignature, Version,
 };
 use iota_transaction_builder::TransactionBuilder;
 use iota_types::{
@@ -34,7 +34,7 @@ use iota_types::{
     error::ExecutionError,
     iota_serde::BigInt,
     object::{Object, PastObjectRead},
-    transaction::{SenderSignedData, TransactionData, TransactionDataAPI, TransactionDataV1},
+    transaction::{TransactionData, TransactionDataAPI},
 };
 use jsonrpsee::{RpcModule, core::RpcResult};
 
@@ -135,7 +135,8 @@ impl WriteApi {
             .map(|s| -> IndexerResult<_> { Ok(s.signature()?) })
             .collect::<IndexerResult<Vec<UserSignature>>>()?;
 
-        let sender_signed_data = SenderSignedData::new(transaction_data.clone(), tx_signatures);
+        let sender_signed_tx =
+            SenderSignedTransaction::new(transaction_data.clone(), tx_signatures);
 
         let tx_events = executed_transaction.events()?.events()?;
 
@@ -155,7 +156,7 @@ impl WriteApi {
             });
 
         let fut2 = IotaTransactionBlock::try_from_with_package_resolver(
-            sender_signed_data,
+            sender_signed_tx,
             package_resolver,
             tx_digest,
         )
@@ -220,7 +221,7 @@ impl WriteApi {
 
         let kind = bcs::from_bytes::<TransactionKind>(&tx_bytes.to_vec()?)?;
 
-        let transaction_data = TransactionData::V1(TransactionDataV1 {
+        let transaction_data = TransactionData::V1(TransactionV1 {
             kind,
             sender: sender_address,
             gas_payment: GasPayment {

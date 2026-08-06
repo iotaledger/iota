@@ -42,7 +42,7 @@ use iota_metrics::init_metrics;
 use iota_move_build::BuildConfig;
 use iota_sdk_types::TransactionDigest;
 use iota_types::{
-    crypto::{IotaKeyPair, Signature},
+    crypto::{Signature, SimpleKeypair},
     quorum_driver_types::ExecuteTransactionRequestType,
     utils::to_sender_signed_transaction,
 };
@@ -551,7 +551,7 @@ pub async fn start_simulacrum_grpc_with_read_write_indexer(
 pub async fn publish_test_move_package(
     client: &HttpClient,
     address: Address,
-    account_keypair: &IotaKeyPair,
+    account_keypair: &SimpleKeypair,
     test_package_name: &str,
 ) -> Result<(ObjectReference, IotaTransactionBlockResponse), anyhow::Error> {
     let _lock = PACKAGE_PUBLISH_LOCK

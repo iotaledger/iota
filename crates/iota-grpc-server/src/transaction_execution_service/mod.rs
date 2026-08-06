@@ -676,7 +676,7 @@ async fn execute_single_transaction(
         signatures: sdk_signatures,
     };
 
-    let transaction = iota_types::transaction::Transaction::from(sdk_signed_transaction);
+    let transaction = iota_types::transaction::TransactionEnvelope::from(sdk_signed_transaction);
 
     // Determine what to include in the request based on read mask.
     // Balance/object changes are derived from the input/output objects, so the

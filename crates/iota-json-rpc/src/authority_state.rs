@@ -41,7 +41,7 @@ use iota_types::{
     object::{Object, ObjectRead, PastObjectRead},
     storage::{BackingPackageStore, ObjectStore, WriteKind},
     timelock::timelocked_staked_iota::TimelockedStakedIota,
-    transaction::{Transaction, TransactionData},
+    transaction::{TransactionData, TransactionEnvelope},
 };
 #[cfg(test)]
 use mockall::automock;
@@ -180,7 +180,7 @@ pub trait StateRead: Send + Sync {
         &self,
         digest: TransactionDigest,
         kv_store: Arc<TransactionKeyValueStore>,
-    ) -> StateReadResult<(Transaction, TransactionEffects)>;
+    ) -> StateReadResult<(TransactionEnvelope, TransactionEffects)>;
     async fn get_balance(
         &self,
         owner: Address,
@@ -442,7 +442,7 @@ impl StateRead for AuthorityState {
         &self,
         digest: TransactionDigest,
         kv_store: Arc<TransactionKeyValueStore>,
-    ) -> StateReadResult<(Transaction, TransactionEffects)> {
+    ) -> StateReadResult<(TransactionEnvelope, TransactionEffects)> {
         Ok(self
             .get_executed_transaction_and_effects(digest, kv_store)
             .await?)
