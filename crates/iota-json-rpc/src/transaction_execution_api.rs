@@ -488,8 +488,10 @@ impl TransactionExecutionApi {
         let skip_checks = skip_checks.unwrap_or(true);
 
         // Hold on to one epoch store for the whole operation, so that the simulation
-        // and the type resolution below observe the same epoch.
-        let epoch_store = self.state.load_epoch_store_one_call_per_task();
+        // and the type resolution below observe the same epoch. A full `Arc` rather
+        // than the arc-swap guard: a guard occupies one of arc-swap's scarce
+        // per-thread borrow slots, meant for short borrows, not a whole simulation.
+        let epoch_store = Arc::clone(&self.state.load_epoch_store_one_call_per_task());
 
         let transaction = TransactionData::V1(TransactionV1 {
             kind: transaction_kind,

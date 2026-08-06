@@ -428,6 +428,40 @@ fn dev_inspect_rejects_a_gas_payment_that_is_not_a_gas_coin() {
     assert!(matches!(err, VmSdkError::Validation(_)), "got {err:?}");
 }
 
+/// A simulation relaxes the requirement to carry a gas payment at all, so it
+/// also skips the cap on how many coins that payment may hold. The cap still
+/// applies: the engine smashes every coin it is given before running anything.
+#[test]
+fn dev_inspect_rejects_more_gas_coins_than_the_protocol_allows() {
+    let sender = Address::ZERO;
+    let recipient = Address::from(ObjectId::random());
+
+    let funded_coin = gas_coin(sender);
+    let mut store = InMemoryStore::with_framework();
+    store.insert(funded_coin.clone());
+
+    let max_gas_payment_objects =
+        iota_protocol_config::ProtocolConfig::get_for_version(ProtocolVersion::MAX, Chain::Unknown)
+            .max_gas_payment_objects() as usize;
+    let extra_coins: Vec<Object> = (0..max_gas_payment_objects)
+        .map(|_| gas_coin(sender))
+        .collect();
+    for coin in &extra_coins {
+        store.insert(coin.clone());
+    }
+    let mut vm = LocalVm::new(chain_context(), store).expect("build LocalVm");
+
+    let mut tx = transfer_tx(sender, &funded_coin, recipient, TRANSFER_AMOUNT);
+    tx.gas_data_mut().objects = std::iter::once(funded_coin.object_ref())
+        .chain(extra_coins.iter().map(|coin| coin.object_ref()))
+        .collect();
+
+    let err = vm
+        .execute(tx, ExecuteOptions::dev_inspect())
+        .expect_err("a gas payment over the protocol cap must be rejected");
+    assert!(matches!(err, VmSdkError::Validation(_)), "got {err:?}");
+}
+
 /// System transactions are rejected in every mode.
 #[test]
 fn system_transactions_are_rejected() {

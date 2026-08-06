@@ -81,6 +81,10 @@ pub(super) fn prepare_transaction(
         .validity_check_no_gas_check(&env.protocol_config)
         .map_err(|e| ValidationError::new("transaction validity check", e))?;
 
+    transaction
+        .check_gas_payment_size(&env.protocol_config)
+        .map_err(|e| ValidationError::new("transaction validity check", e))?;
+
     // Update gas payment references to match actual object versions in the store.
     let mut updated_gas = Vec::with_capacity(transaction.gas().len());
     for gas_ref in transaction.gas() {

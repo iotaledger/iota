@@ -26,11 +26,11 @@ in every phase.
 `ExecutionMode` selects input-check relaxation, the gas budget, and whether
 effects are committed:
 
-| Mode         | Input check                                                  | Gas price                                   | Gas budget                       | Mock gas coin if none supplied? | Commits to store? |
-| ------------ | ------------------------------------------------------------ | ------------------------------------------- | -------------------------------- | ------------------------------- | ----------------- |
-| `DevInspect` | `check_simulation_input` (relaxed), plus a gas balance check | declared, or the reference gas price if `0` | declared, or `max_tx_gas` if `0` | yes                             | no                |
-| `DryRun`     | `check_transaction_input` (budget `0` → full tx budget)      | declared, or the reference gas price if `0` | declared, or `max_tx_gas` if `0` | yes                             | no                |
-| `Execute`    | `check_transaction_input` (budget `0` → full tx budget)      | declared                                    | declared                         | no — requires real gas          | yes, on success   |
+| Mode         | Input check                                                                         | Gas price                                   | Gas budget                       | Mock gas coin if none supplied? | Commits to store? |
+| ------------ | ----------------------------------------------------------------------------------- | ------------------------------------------- | -------------------------------- | ------------------------------- | ----------------- |
+| `DevInspect` | `check_simulation_input` (relaxed), plus a gas balance check                        | declared, or the reference gas price if `0` | declared, or `max_tx_gas` if `0` | yes                             | no                |
+| `DryRun`     | `check_transaction_input` (authenticator budget `0` → meters at the full tx budget) | declared, or the reference gas price if `0` | declared, or `max_tx_gas` if `0` | yes                             | no                |
+| `Execute`    | `check_transaction_input` (authenticator budget `0` → meters at the full tx budget) | declared                                    | declared                         | no — requires real gas          | yes, on success   |
 
 Both simulation modes fill in gas the caller left unset, the same way the node's
 simulation paths do: a zero price is below the reference gas price and a zero
