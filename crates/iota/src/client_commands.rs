@@ -1417,7 +1417,6 @@ impl IotaClientCommands {
                 let client = context.get_grpc_client().await?;
                 let mut builder = TransactionBuilder::new(signer).with_client(&client);
                 builder.pay(input_coins.clone(), recipients.into_iter().zip(amounts));
-
                 let tx_kind = builder.finish_kind().await?;
                 let gas_payment = grpc_input_refs(&client, &payment.gas).await?;
 
