@@ -13,8 +13,9 @@ use iota_json_rpc_api::ReadApiClient;
 use iota_json_rpc_types::{
     IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponseOptions, ObjectChange,
 };
+use iota_sdk_crypto::simple::SimpleKeypair;
 use iota_sdk_types::{Address, ObjectId, Version};
-use iota_types::crypto::{AccountKeyPair, SimpleKeypair, get_key_pair};
+use iota_types::crypto::{AccountKeyPair, get_key_pair};
 use jsonrpsee::http_client::HttpClient;
 
 use crate::{
