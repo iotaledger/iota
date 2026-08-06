@@ -29,14 +29,14 @@ use iota_sdk_types::{
     ConsensusDeterminedVersionAssignments, Digest, EpochId, ExecutionError, ExecutionStatus,
     GasPayment, Identifier, MoveStruct, ObjectData, ObjectDigest, ObjectId, ObjectReference, Owner,
     ProgrammableTransaction, SharedObjectReference, StructTag, TransactionDigest, TransactionKind,
-    TypeTag, Version, VersionAssignment,
+    TypeTag, Version, VersionAssignment, crypto::SimpleSignature,
 };
 use iota_types::{
     base_types::{AuthorityName, TxContext, dbg_addr, dbg_object_id, random_object_ref},
     committee::Committee,
     crypto::{
-        AccountKeyPair, AuthorityKeyPair, AuthorityPublicKey, IotaSignature, Signature,
-        get_key_pair, random_committee_key_pairs_of_size,
+        AccountKeyPair, AuthorityKeyPair, AuthorityPublicKey, IotaSignature, get_key_pair,
+        random_committee_key_pairs_of_size,
     },
     dynamic_field::{DynamicFieldInfo, DynamicFieldType},
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
@@ -54,8 +54,8 @@ use iota_types::{
     supported_protocol_versions::{SupportedProtocolVersions, SupportedProtocolVersionsWithHashes},
     transaction::{
         CallArg, SenderSignedTransactionAPI, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS,
-        TEST_ONLY_GAS_UNIT_FOR_PUBLISH, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, Transaction,
-        TransactionData, TransactionDataAPI, VerifiedCertificate, VerifiedTransaction,
+        TEST_ONLY_GAS_UNIT_FOR_PUBLISH, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionData,
+        TransactionDataAPI, TransactionEnvelope, VerifiedCertificate, VerifiedTransaction,
     },
     utils::{to_sender_signed_transaction, to_sender_signed_transaction_with_multi_signers},
 };
@@ -1185,7 +1185,8 @@ async fn test_handle_transfer_transaction_bad_signature() {
     *bad_signature_transfer_transaction
         .data_mut_for_testing()
         .tx_signatures_mut_for_testing() = vec![
-        Signature::new_secure(&transfer_transaction.data().intent_message(), &unknown_key).into(),
+        SimpleSignature::new_secure(&transfer_transaction.data().intent_message(), &unknown_key)
+            .into(),
     ];
 
     assert!(
@@ -4245,7 +4246,7 @@ pub async fn build_programmable_transaction(
     sender_key: &AccountKeyPair,
     pt: ProgrammableTransaction,
     gas_unit: u64,
-) -> IotaResult<Transaction> {
+) -> IotaResult<TransactionEnvelope> {
     let rgp = authority.reference_gas_price_for_testing().unwrap();
     let gas_object = authority.get_object(gas_object_id);
     let gas_object_ref = gas_object.unwrap().object_ref();
@@ -4615,7 +4616,10 @@ async fn test_shared_object_transaction_ok() {
     authority.execute_for_test(&certificate);
 
     // Ensure transaction effects are available.
-    authority.notify_read_effects(&certificate).await.unwrap();
+    authority
+        .notify_read_effects("", &certificate)
+        .await
+        .unwrap();
 
     // Ensure shared object sequence number increased.
     let shared_object_version = authority.get_object(&shared_object_id).unwrap().version();

@@ -36,7 +36,7 @@ use crate::{
     messages_checkpoint::CheckpointTimestamp,
     object::Object,
     parse_iota_struct_tag,
-    transaction::{Transaction, VerifiedTransaction},
+    transaction::{TransactionEnvelope, VerifiedTransaction},
 };
 
 #[cfg(test)]
@@ -258,12 +258,12 @@ impl ExecutionDigests {
 
 #[derive(Clone, Eq, PartialEq, Serialize, Deserialize, Debug)]
 pub struct ExecutionData {
-    pub transaction: Transaction,
+    pub transaction: TransactionEnvelope,
     pub effects: TransactionEffects,
 }
 
 impl ExecutionData {
-    pub fn new(transaction: Transaction, effects: TransactionEffects) -> ExecutionData {
+    pub fn new(transaction: TransactionEnvelope, effects: TransactionEffects) -> ExecutionData {
         debug_assert_eq!(transaction.digest(), effects.transaction_digest());
         Self {
             transaction,

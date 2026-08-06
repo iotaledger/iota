@@ -40,7 +40,7 @@ use iota_types::{
     iota_serde::BigInt,
     messages_checkpoint::{CheckpointSequenceNumber, CheckpointTimestamp},
     object::{MoveStructExt, Object, ObjectRead, PastObjectRead},
-    transaction::{Transaction, TransactionDataAPI},
+    transaction::{TransactionDataAPI, TransactionEnvelope},
 };
 use itertools::Itertools;
 use jsonrpsee::{RpcModule, core::RpcResult};
@@ -76,7 +76,7 @@ pub struct ReadApi {
 #[derive(Default)]
 struct IntermediateTransactionResponse {
     digest: TransactionDigest,
-    transaction: Option<Transaction>,
+    transaction: Option<TransactionEnvelope>,
     effects: Option<TransactionEffects>,
     events: Option<IotaTransactionBlockEvents>,
     checkpoint_seq: Option<CheckpointSequenceNumber>,
@@ -94,7 +94,7 @@ impl IntermediateTransactionResponse {
         }
     }
 
-    pub fn transaction(&self) -> &Option<Transaction> {
+    pub fn transaction(&self) -> &Option<TransactionEnvelope> {
         &self.transaction
     }
 }

@@ -33,8 +33,8 @@ function buildCommand(
 
     return [
         'docker run --rm \\',
-        '  -v "<PATH-TO-NODE-DB>":/opt/iota/db \\',
-        '  -v "<PATH-TO-GENESIS-BLOB>":/opt/iota/config/genesis.blob \\',
+        '  -v "$PWD/data/db":/opt/iota/db \\',
+        '  -v "$PWD/data/config/genesis.blob":/opt/iota/config/genesis.blob \\',
         `  iotaledger/iota-tools:${network} \\`,
         '  /bin/sh -c "/usr/local/bin/iota-tool download-formal-snapshot \\',
         `    ${epochArg} \\`,

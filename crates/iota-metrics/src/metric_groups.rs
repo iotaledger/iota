@@ -6,7 +6,7 @@
 //! Most groups are filter-based: they key on the module path of the metrics
 //! (preferred over the metric name, because module paths are stable and names
 //! are not) and are rendered into a `METRICS_FILTER`-style string via
-//! [`MetricGroups::to_filter_string`].
+//! `MetricGroups::to_filter_string`.
 //!
 //! Each filter-based group is set to a [`MetricLevel`], a verbosity threshold.
 //! Individual metrics declare their own level where they are registered,
@@ -20,9 +20,9 @@
 //! - `debug` exposes everything except `trace`-tagged metrics;
 //! - `trace` exposes everything.
 //!
-//! Metrics whose module belongs to no group are covered by the `default`
-//! threshold (`info` unless configured), rendered as the leading catch-all
-//! directive.
+//! Metrics whose module belongs to no other group form the `default` group,
+//! covered by the `default` threshold (`info` unless configured), rendered
+//! as the leading `default=LEVEL` directive.
 //!
 //! The levels never affect collection: a filter-based group's metrics are
 //! registered and keep collecting regardless of the configured level.
@@ -35,11 +35,10 @@
 //! `metrics.groups` entirely, so an omitted and an empty section behave the
 //! same.
 //!
-//! The `hw` hardware metrics are registered as a prometheus collector and
-//! so bypass the filtering macros entirely. They cannot be level-filtered
-//! individually: the `hardware` group's level is read once at registration
-//! time — [`MetricLevel::Off`] skips the whole group, any other level
-//! registers it.
+//! The `hardware` metrics are grouped together as one collector and
+//! registered with `warn` level, so the whole group shares a single level.
+
+use std::collections::BTreeMap;
 
 pub use prometheus_filtered::MetricLevel;
 use serde::{Deserialize, Serialize};
@@ -108,8 +107,7 @@ pub struct MetricGroups {
     /// uploads. The authority object store is part of the `authority` group,
     /// not this one.
     ///
-    /// Modules: `typed_store`, `iota_storage`,
-    /// `iota_core::db_checkpoint_handler`, `iota_snapshot`.
+    /// Modules: `typed_store`, `iota_storage`, `iota_snapshot`.
     pub storage: MetricLevel,
     /// API servers and RPC-facing indexes.
     ///
@@ -130,13 +128,22 @@ pub struct MetricGroups {
     /// Modules: `iota_metrics` (except the `hardware` and `p2p` group
     /// submodules), `telemetry_subscribers`.
     pub runtime: MetricLevel,
-    /// Host hardware metrics (CPU / memory / disk). Registered as a collector,
-    /// so individual metrics cannot be level-filtered: `off` skips the whole
-    /// group and every other level registers it, at startup only.
+    /// Host hardware metrics (CPU / memory / disk). Individual hardware metrics
+    /// cannot be given their own level.
     ///
     /// Rendered as an `iota_metrics::hardware_metrics` directive, the module
     /// where the collector is registered.
     pub hardware: MetricLevel,
+    /// Free-form overrides for module paths or metric names, including ones
+    /// already covered by a named group: the most specific matching pattern
+    /// decides each metric (a metric-name match wins over a module match),
+    /// so an override can raise or lower a single module or metric within a
+    /// group. A `default` key is the same pattern as the `default` field and
+    /// replaces its level; likewise a group-name key expands to the group's
+    /// patterns and replaces the group field's level, as the same directive
+    /// would in `METRICS_FILTER` or the admin endpoint.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub overrides: BTreeMap<String, MetricLevel>,
 }
 
 impl Default for MetricGroups {
@@ -156,6 +163,7 @@ impl Default for MetricGroups {
             epoch: MetricLevel::Warn,
             runtime: MetricLevel::Warn,
             hardware: MetricLevel::Warn,
+            overrides: BTreeMap::new(),
         }
     }
 }
@@ -163,7 +171,7 @@ impl Default for MetricGroups {
 impl MetricGroups {
     /// Returns the filter patterns a group covers — keyed
     /// by the group's config key. `None` for unknown groups.
-    pub fn modules_for_group(group: &str) -> Option<&'static [&'static str]> {
+    fn modules_for_group(group: &str) -> Option<&'static [&'static str]> {
         Some(match group {
             "runtime" => &["iota_metrics", "telemetry_subscribers"],
             "consensus" => &[
@@ -206,12 +214,7 @@ impl MetricGroups {
                 "iota_network::state_sync",
             ],
             "p2p" => &["iota_metrics::metrics_network"],
-            "storage" => &[
-                "typed_store",
-                "iota_storage",
-                "iota_core::db_checkpoint_handler",
-                "iota_snapshot",
-            ],
+            "storage" => &["typed_store", "iota_storage", "iota_snapshot"],
             "rpc" => &[
                 "iota_json_rpc",
                 "iota_grpc_server",
@@ -231,12 +234,8 @@ impl MetricGroups {
         })
     }
 
-    /// Maps each group's configured level to the filter patterns it covers.
-    ///
-    /// `runtime` must come first: its `iota_metrics` module prefix also
-    /// matches the `p2p` and `hardware` groups' submodules, and only a
-    /// later directive can override it (last match wins).
-    fn group_modules(&self) -> [(MetricLevel, &'static [&'static str]); 13] {
+    /// The predefined groups paired with their configured levels.
+    fn group_levels(&self) -> [(&'static str, MetricLevel); 13] {
         [
             ("runtime", self.runtime),
             ("consensus", self.consensus),
@@ -252,7 +251,11 @@ impl MetricGroups {
             ("epoch", self.epoch),
             ("hardware", self.hardware),
         ]
-        .map(|(group, level)| {
+    }
+
+    /// Each group's configured level paired with the module paths it covers.
+    fn group_modules(&self) -> [(MetricLevel, &'static [&'static str]); 13] {
+        self.group_levels().map(|(group, level)| {
             (
                 level,
                 Self::modules_for_group(group).expect("group has modules"),
@@ -260,33 +263,120 @@ impl MetricGroups {
         })
     }
 
-    /// Renders the levels into a `METRICS_FILTER`-style directive string: the
-    /// `default` threshold as the leading catch-all directive, then one
-    /// directive per group module (including the hardware group's). Later
-    /// directives win, so the group levels override the catch-all for their
-    /// modules.
-    pub fn to_filter_string(&self) -> String {
-        fn token(level: MetricLevel) -> &'static str {
-            match level {
-                MetricLevel::Off => "off",
-                MetricLevel::Warn => "warn",
-                MetricLevel::Info => "info",
-                MetricLevel::Debug => "debug",
-                MetricLevel::Trace => "trace",
-            }
-        }
-        let mut directives = vec![token(self.default).to_owned()];
+    /// Renders the levels into a `METRICS_FILTER`-style directive string.
+    fn to_filter_string(&self) -> String {
+        let mut directives = vec![format!("default={}", self.default.as_str())];
         for (level, modules) in self.group_modules() {
             for module in modules {
-                directives.push(format!("{module}={}", token(level)));
+                directives.push(format!("{module}={}", level.as_str()));
             }
         }
+        for directive in self.override_directives() {
+            // Group-name keys expand exactly like env var and runtime
+            // directives; rendered after the group directives, the expansion
+            // replaces the group field's level.
+            directives.extend(
+                Self::expand_directive(&directive)
+                    .expect("override levels are typed, so the rendered directive is valid"),
+            );
+        }
         directives.join(",")
+    }
+
+    /// Renders the levels into a group-form directive string.
+    /// Keyed by group name rather than expanded
+    /// to module paths, so the admin endpoint can echo the config compactly.
+    fn to_display_string(&self) -> String {
+        let mut directives = vec![format!("default={}", self.default.as_str())];
+        for (group, level) in self.group_levels() {
+            directives.push(format!("{group}={}", level.as_str()));
+        }
+        directives.extend(self.override_directives());
+        directives.join(",")
+    }
+
+    /// Expands group names in a `pattern=LEVEL` directive string into the
+    /// groups' filter patterns; other directives pass through unchanged.
+    /// Any invalid directive rejects the whole string, with every offending
+    /// directive reported.
+    pub(crate) fn expand_directives(filter: &str) -> Result<String, String> {
+        let (directives, errors) = Self::expand_startup_directives(filter);
+        if errors.is_empty() {
+            Ok(directives)
+        } else {
+            Err(errors.join("; "))
+        }
+    }
+
+    /// Like [`Self::expand_directives`], but for startup use: an invalid
+    /// directive is dropped instead of rejecting the whole string, its error
+    /// message returned alongside the expanded directives.
+    fn expand_startup_directives(filter: &str) -> (String, Vec<String>) {
+        let mut directives = Vec::new();
+        let mut errors = Vec::new();
+        for part in prometheus_filtered::directive_parts(filter) {
+            match Self::expand_directive(part) {
+                Ok(expanded) => directives.extend(expanded),
+                Err(err) => errors.push(err),
+            }
+        }
+        (directives.join(","), errors)
+    }
+
+    /// Builds the startup metrics filter: these group levels with the `env`
+    /// directives merged over them. An env bare level replaces the group
+    /// directives entirely instead of merging, so `METRICS_FILTER=trace`
+    /// exposes everything whatever the groups configure.
+    /// Invalid env directives are dropped.
+    ///
+    /// Matching uses the expanded module directives; the admin endpoint
+    /// echoes the group-form strings, so each source keeps both.
+    pub fn startup_filter(&self, env: Option<&str>) -> (prometheus_filtered::Filter, Vec<String>) {
+        let directives = self.to_filter_string();
+        let display = self.to_display_string();
+        let config = prometheus_filtered::FilterSource::with_display(&directives, &display);
+        match env {
+            Some(env) => {
+                let (expanded, errors) = Self::expand_startup_directives(env);
+                let filter = prometheus_filtered::Filter::from_sources(
+                    config,
+                    Some(prometheus_filtered::FilterSource::with_display(
+                        &expanded, env,
+                    )),
+                );
+                (filter, errors)
+            }
+            None => (
+                prometheus_filtered::Filter::from_sources(config, None),
+                Vec::new(),
+            ),
+        }
+    }
+
+    fn expand_directive(part: &str) -> Result<Vec<String>, String> {
+        let (pattern, level) = prometheus_filtered::split_directive(part)?;
+        Ok(match Self::modules_for_group(pattern) {
+            Some(modules) => modules
+                .iter()
+                .map(|module| format!("{module}={}", level.as_str()))
+                .collect(),
+            // A raw module path, metric-name prefix, or bare global level passes through unchanged.
+            None => vec![part.to_owned()],
+        })
+    }
+
+    /// Renders the free-form overrides as `pattern=LEVEL` directives.
+    fn override_directives(&self) -> impl Iterator<Item = String> + '_ {
+        self.overrides
+            .iter()
+            .map(|(pattern, level)| format!("{pattern}={}", level.as_str()))
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeMap;
+
     use prometheus_filtered::Filter;
 
     use super::{MetricGroups, MetricLevel};
@@ -307,6 +397,7 @@ mod tests {
             epoch: MetricLevel::Trace,
             runtime: MetricLevel::Trace,
             hardware: MetricLevel::Trace,
+            overrides: BTreeMap::new(),
         }
     }
 
@@ -314,9 +405,9 @@ mod tests {
     fn metric_groups_default_trims_to_warn_tagged() {
         // The default (all groups `warn`) renders `{module}=warn` for every
         // group's modules, so only the `warn`-tagged metrics are exposed;
-        // non-grouped modules fall to the `info` catch-all.
+        // non-grouped modules fall to the `default` group's `info`.
         let filter_string = MetricGroups::default().to_filter_string();
-        assert!(filter_string.starts_with("info,"));
+        assert!(filter_string.starts_with("default=info,"));
         assert!(filter_string.contains("starfish_core=warn"));
         assert!(filter_string.contains("iota_core::execution_cache=warn"));
         assert!(filter_string.contains("iota_grpc_server=warn"));
@@ -328,6 +419,33 @@ mod tests {
         assert!(!filter.is_exposed("x", "starfish_core::metrics", MetricLevel::Info));
         assert!(filter.is_exposed("x", "iota_node::some_module", MetricLevel::Info));
         assert!(!filter.is_exposed("x", "iota_node::some_module", MetricLevel::Debug));
+
+        // A bare env level replaces all group directives instead of merging
+        // over them, so `METRICS_FILTER=trace` (which the benchmark tooling
+        // exports to read gated metrics) exposes everything.
+        let (filter, errors) = MetricGroups::default().startup_filter(Some("trace"));
+        assert!(errors.is_empty());
+        assert!(filter.is_exposed("x", "iota_core::execution_cache", MetricLevel::Trace));
+        assert!(filter.is_exposed("x", "iota_node::some_module", MetricLevel::Trace));
+        assert_eq!(filter.startup_filter_string(), "trace");
+    }
+
+    #[test]
+    fn to_display_string_keys_by_group_name() {
+        // The display form keeps group names rather than expanding to modules.
+        let display = MetricGroups {
+            consensus: MetricLevel::Off,
+            storage: MetricLevel::Trace,
+            ..MetricGroups::default()
+        }
+        .to_display_string();
+        assert!(display.starts_with("default=info,"));
+        assert!(display.contains("consensus=off"));
+        assert!(display.contains("storage=trace"));
+        assert!(display.contains("hardware=warn"));
+        // No module paths leak into the display form.
+        assert!(!display.contains("::"));
+        assert!(!display.contains("starfish_core"));
     }
 
     #[test]
@@ -339,7 +457,7 @@ mod tests {
             ..all_trace()
         };
         let filter_string = groups.to_filter_string();
-        assert!(filter_string.starts_with("trace,"));
+        assert!(filter_string.starts_with("default=trace,"));
         assert!(filter_string.contains("iota_core::execution_cache=warn"));
         assert!(filter_string.contains("iota_core::checkpoints=debug"));
         assert!(filter_string.contains("iota_core::epoch::epoch_metrics=off"));
@@ -351,9 +469,9 @@ mod tests {
         assert!(!filter.is_exposed("x", "iota_core::checkpoints", MetricLevel::Trace));
         assert!(!filter.is_exposed("x", "iota_core::epoch::epoch_metrics", MetricLevel::Warn));
         // `trace` groups expose everything — their directives are rendered,
-        // not skipped, so they are not clipped by the catch-all.
+        // not skipped, so they are not clipped by the `default` level.
         assert!(filter.is_exposed("x", "iota_core::quorum_driver", MetricLevel::Trace));
-        // Ungrouped modules follow the `default` catch-all (`trace` here).
+        // Ungrouped modules follow the `default` level (`trace` here).
         assert!(filter.is_exposed("x", "iota_node::some_module", MetricLevel::Trace));
     }
 
@@ -361,7 +479,7 @@ mod tests {
     fn metric_groups_runtime_prefix_is_overridden_by_submodule_groups() {
         // `runtime` covers the whole `iota_metrics` crate by module prefix,
         // but the `p2p` and `hardware` submodules belong to their own
-        // groups, whose directives render later and win.
+        // groups, whose more specific patterns win.
         let groups = MetricGroups {
             runtime: MetricLevel::Trace,
             p2p: MetricLevel::Warn,
@@ -411,26 +529,6 @@ mod tests {
     }
 
     #[test]
-    fn metric_groups_renders_hardware_directive() {
-        use crate::hardware_metrics::hardware_metrics_enabled;
-
-        let groups = MetricGroups {
-            hardware: MetricLevel::Off,
-            ..all_trace()
-        };
-        // `hardware` is gated at registration, via the rendered directive.
-        let filter_string = groups.to_filter_string();
-        assert!(filter_string.contains("iota_metrics::hardware_metrics=off"));
-        assert!(!hardware_metrics_enabled(&Filter::parse(&filter_string)));
-        // A `METRICS_FILTER` directive is appended after the config's and
-        // overrides it.
-        let overridden = Filter::parse(&format!(
-            "{filter_string},iota_metrics::hardware_metrics=warn"
-        ));
-        assert!(hardware_metrics_enabled(&overridden));
-    }
-
-    #[test]
     fn modules_for_group_covers_every_group() {
         // Every group resolves to a non-empty module list; the rendered
         // filter contains exactly those modules.
@@ -462,6 +560,104 @@ mod tests {
     }
 
     #[test]
+    fn expand_directives_expands_groups_and_passes_raw_patterns() {
+        assert_eq!(
+            MetricGroups::expand_directives("checkpoints=off,epoch=debug").unwrap(),
+            "iota_core::checkpoints=off,iota_core::epoch::epoch_metrics=debug,\
+             iota_current_protocol_version=debug,iota_binary_max_protocol_version=debug,\
+             iota_configured_max_protocol_version=debug"
+        );
+        // Raw module paths, metric-name prefixes, and bare global levels are
+        // kept verbatim; level validity is checked up front.
+        assert_eq!(
+            MetricGroups::expand_directives("typed_store=warn, uptime=off ,trace").unwrap(),
+            "typed_store=warn,uptime=off,trace"
+        );
+        assert_eq!(MetricGroups::expand_directives("").unwrap(), "");
+        // The reserved `default` pattern passes through unexpanded; it sets
+        // the `default` group's level and leaves the group directives in
+        // place.
+        assert_eq!(
+            MetricGroups::expand_directives("default=info,traffic-control=off").unwrap(),
+            "default=info,iota_core::traffic_controller=off,\
+             iota_config::node_config_metrics=off"
+        );
+        // The single-collector hardware group expands like any other.
+        assert_eq!(
+            MetricGroups::expand_directives("hardware=off").unwrap(),
+            "iota_metrics::hardware_metrics=off"
+        );
+        assert_eq!(
+            MetricGroups::expand_directives("iota_metrics=off,runtime=warn").unwrap(),
+            "iota_metrics=off,iota_metrics=warn,telemetry_subscribers=warn"
+        );
+    }
+
+    #[test]
+    fn runtime_group_override_keeps_other_groups_untouched() {
+        use prometheus_filtered::FilterSource;
+
+        // The `runtime` group's `iota_metrics` module prefix also covers the
+        // `p2p` and `hardware` groups' submodules; overriding `runtime` must
+        // not change those groups' exposure, matching the group definition.
+        let groups = MetricGroups {
+            hardware: MetricLevel::Off,
+            ..MetricGroups::default()
+        };
+        let filter = prometheus_filtered::Filter::from_sources(
+            FilterSource::with_display(&groups.to_filter_string(), &groups.to_display_string()),
+            None,
+        );
+        let expanded = MetricGroups::expand_directives("runtime=trace").unwrap();
+        filter
+            .set_runtime_filter(FilterSource::with_display(&expanded, "runtime=trace"))
+            .unwrap();
+
+        // The runtime group's own modules are raised ...
+        assert!(filter.is_exposed("x", "iota_metrics::monitored_mpsc", MetricLevel::Trace));
+        // ... while hardware stays off and p2p keeps its configured `warn`.
+        assert!(!filter.is_exposed(
+            "hw_metrics",
+            "iota_metrics::hardware_metrics",
+            MetricLevel::Warn
+        ));
+        assert!(!filter.is_exposed("x", "iota_metrics::metrics_network", MetricLevel::Info));
+        // The reported filter reflects that: only the runtime entry changed.
+        let display = filter.filter_string();
+        assert!(display.contains("runtime=trace"), "{display}");
+        assert!(display.contains("hardware=off"), "{display}");
+        assert!(display.contains("p2p=warn"), "{display}");
+        assert!(!display.contains("runtime=warn"), "{display}");
+    }
+
+    #[test]
+    fn expand_startup_directives_drops_bad_directives() {
+        // An invalid directive is dropped and reported; the rest still expand.
+        let (expanded, errors) =
+            MetricGroups::expand_startup_directives("consensus=bogus,traffic-control=off");
+        assert_eq!(
+            expanded,
+            "iota_core::traffic_controller=off,iota_config::node_config_metrics=off"
+        );
+        assert_eq!(errors.len(), 1);
+        assert!(
+            errors[0].contains("consensus=bogus"),
+            "unexpected error: {}",
+            errors[0]
+        );
+    }
+
+    #[test]
+    fn expand_directives_rejects_invalid_input() {
+        // An invalid level fails the whole string, citing every offending
+        // directive as the caller wrote it — not its expansion.
+        let err =
+            MetricGroups::expand_directives("consensus=bogus,storage=warn,epoch=nah").unwrap_err();
+        assert!(err.contains("consensus=bogus"), "unexpected error: {err}");
+        assert!(err.contains("epoch=nah"), "unexpected error: {err}");
+    }
+
+    #[test]
     fn metric_groups_config_parsing() {
         // Omitted groups default to `warn`; the explicitly-set group keeps its
         // value.
@@ -478,5 +674,44 @@ mod tests {
         // leaving the intended group at its default.
         assert!(serde_yaml::from_str::<MetricGroups>("traffic_control: off").is_err());
         assert!(serde_yaml::from_str::<MetricGroups>("bogus: warn").is_err());
+    }
+
+    #[test]
+    fn metric_groups_config_allows_free_overrides() {
+        // Module- and metric-level directives that no named group covers go in
+        // the `overrides` map, keeping group-name typo protection intact.
+        let groups: MetricGroups = serde_yaml::from_str(
+            "consensus: off\n\
+             overrides:\n  \"iota_core::authority::foo\": trace\n  bespoke_metric: off\n  \
+             certs_total: trace\n  network: trace",
+        )
+        .unwrap();
+        assert_eq!(groups.consensus, MetricLevel::Off);
+
+        let filter_string = groups.to_filter_string();
+        assert!(filter_string.contains("iota_core::authority::foo=trace"));
+        assert!(filter_string.contains("bespoke_metric=off"));
+        // A group-name key expands to the group's module patterns, replacing
+        // the group field's level (`warn` here).
+        assert!(filter_string.contains("iota_network::discovery=trace"));
+
+        let filter = Filter::parse(&filter_string);
+        // The longer override pattern wins over the `authority` group directive.
+        assert!(filter.is_exposed("x", "iota_core::authority::foo", MetricLevel::Trace));
+        assert!(!filter.is_exposed("bespoke_metric_total", "somewhere", MetricLevel::Warn));
+        // A metric-name override wins over its module's group directive
+        // (`iota_core::execution_cache=warn` here) even though the name is
+        // the shorter pattern.
+        assert!(filter.is_exposed(
+            "certs_total",
+            "iota_core::execution_cache",
+            MetricLevel::Trace
+        ));
+        // Other metrics in the module keep the group's level.
+        assert!(!filter.is_exposed("other", "iota_core::execution_cache", MetricLevel::Info));
+        // The expanded group-name override applies to the group's modules ...
+        assert!(filter.is_exposed("x", "iota_network::discovery", MetricLevel::Trace));
+        // ... and other groups keep their configured level.
+        assert!(!filter.is_exposed("x", "iota_storage::http_key_value_store", MetricLevel::Info));
     }
 }

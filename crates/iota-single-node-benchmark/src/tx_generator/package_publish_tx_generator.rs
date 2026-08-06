@@ -7,7 +7,7 @@ use std::{collections::BTreeMap, fs, path::PathBuf};
 use iota_move_build::{BuildConfig, CompiledPackage};
 use iota_sdk_types::ObjectId;
 use iota_test_transaction_builder::{PublishData, TestTransactionBuilder};
-use iota_types::transaction::{DEFAULT_VALIDATOR_GAS_PRICE, Transaction};
+use iota_types::transaction::{DEFAULT_VALIDATOR_GAS_PRICE, TransactionEnvelope};
 use move_package::source_package::manifest_parser::parse_move_manifest_from_file;
 use move_symbol_pool::Symbol;
 use serde::{Deserialize, Serialize};
@@ -102,7 +102,7 @@ impl PackagePublishTxGenerator {
 }
 
 impl TxGenerator for PackagePublishTxGenerator {
-    fn generate_tx(&self, account: Account) -> Transaction {
+    fn generate_tx(&self, account: Account) -> TransactionEnvelope {
         TestTransactionBuilder::new(
             account.sender,
             account.gas_objects[0],

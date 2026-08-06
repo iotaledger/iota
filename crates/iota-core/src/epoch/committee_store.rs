@@ -2,11 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{
-    collections::HashMap,
-    path::{Path, PathBuf},
-    sync::Arc,
-};
+use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
 use iota_types::{
     committee::{Committee, EpochId},
@@ -143,13 +139,6 @@ impl CommitteeStore {
                 .map(|c| Committee::clone(&*c))?,
             None => self.get_latest_committee()?,
         })
-    }
-
-    pub fn checkpoint_db(&self, path: &Path) -> IotaResult {
-        self.tables
-            .committee_map
-            .checkpoint_db(path)
-            .map_err(Into::into)
     }
 
     fn database_is_empty(&self) -> IotaResult<bool> {

@@ -21,7 +21,7 @@ use iota_types::{
         TxStatusUpdate, ValidatorHealthRequest, ValidatorHealthResponse,
     },
     traffic_control::Weight,
-    transaction::{SenderSignedTransactionAPI, Transaction},
+    transaction::{SenderSignedTransactionAPI, TransactionEnvelope},
 };
 use tokio_stream::wrappers::ReceiverStream;
 
@@ -119,7 +119,7 @@ use crate::{
 impl ValidatorService {
     async fn submit_tx_impl(
         &self,
-        transactions: Vec<Transaction>,
+        transactions: Vec<TransactionEnvelope>,
     ) -> Result<ReceiverStream<TxUpdateItem>, tonic::Status> {
         let state = self.state.clone();
         let epoch_store = state.load_epoch_store_one_call_per_task();
@@ -207,7 +207,7 @@ impl ValidatorService {
         metrics: &Arc<ValidatorServiceMetrics>,
         epoch_store: &Arc<AuthorityPerEpochStore>,
         soft_locks: &Arc<PreConsensusSoftLocks>,
-        transaction: Transaction,
+        transaction: TransactionEnvelope,
     ) -> (TxStatusUpdate, Weight) {
         let tx_digest = *transaction.digest();
 
@@ -485,7 +485,7 @@ impl ValidatorService {
                 let digests_to_watch = [tx_digest];
                 tokio::select! {
                     biased;
-                    effects_digests = cache.notify_read_executed_effects_digests(&digests_to_watch) => {
+                    effects_digests = cache.notify_read_executed_effects_digests("ValidatorService::notify_read_executed_effects_digests", &digests_to_watch) => {
                         Either::Left(effects_digests)
                     }
                     dropped_error = epoch_store.notify_read_dropped_digests(tx_digest) => {

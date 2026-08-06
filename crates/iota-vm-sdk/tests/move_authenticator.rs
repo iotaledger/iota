@@ -17,10 +17,10 @@
 use std::{fs, path::PathBuf};
 
 use fastcrypto::encoding::{Base64, Encoding};
-use iota_sdk_types::UserSignature;
+use iota_sdk_types::{SenderSignedTransaction, UserSignature};
 use iota_types::{
     object::Object,
-    transaction::{SenderSignedData, TransactionData, TransactionDataAPI},
+    transaction::{TransactionData, TransactionDataAPI},
 };
 use iota_vm_sdk::{
     Chain, ChainContext, ExecuteOptions, ExecutionResult, InMemoryStore, LocalVm, ProtocolVersion,
@@ -58,8 +58,8 @@ impl Fixture {
             .collect()
     }
 
-    fn signed(&self) -> SenderSignedData {
-        SenderSignedData::new(self.transaction(), self.decoded_signatures())
+    fn signed(&self) -> SenderSignedTransaction {
+        SenderSignedTransaction::new(self.transaction(), self.decoded_signatures())
     }
 
     fn objects(&self) -> Vec<Object> {
@@ -220,7 +220,7 @@ fn move_authenticator_dev_inspect_rerun_ignores_zero_declared_budget() {
     // declared `0`.
     let first = vm
         .execute_signed(
-            SenderSignedData::new(tx.clone(), f.decoded_signatures()),
+            SenderSignedTransaction::new(tx.clone(), f.decoded_signatures()),
             ExecuteOptions::dev_inspect(),
         )
         .expect("first run returns Ok");
@@ -241,7 +241,7 @@ fn move_authenticator_dev_inspect_rerun_ignores_zero_declared_budget() {
     // metered at the declared `0` it would run out of gas and misreport.
     let second = vm
         .execute_signed(
-            SenderSignedData::new(tx, f.decoded_signatures()),
+            SenderSignedTransaction::new(tx, f.decoded_signatures()),
             ExecuteOptions::dev_inspect(),
         )
         .expect("second run returns Ok (the abort is carried in the status)");
@@ -289,7 +289,7 @@ fn sponsor_move_authenticator_is_executed_and_can_reject() {
         "tx must be sponsored (sender != sponsor)"
     );
 
-    let signed = SenderSignedData::new(tx, vec![sender_auth, sponsor_auth]);
+    let signed = SenderSignedTransaction::new(tx, vec![sender_auth, sponsor_auth]);
 
     // The store needs both accounts' objects (each authenticator resolves its
     // own `AuthenticatorFunctionRefV1` dynamic field).

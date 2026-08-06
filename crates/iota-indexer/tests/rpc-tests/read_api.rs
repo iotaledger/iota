@@ -29,7 +29,7 @@ use iota_test_transaction_builder::{
     publish_simple_warrior_package,
 };
 use iota_types::{
-    crypto::{AccountKeyPair, IotaKeyPair, get_key_pair},
+    crypto::{AccountKeyPair, SimpleKeypair, get_key_pair},
     digests::ChainIdentifier,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::CallArg,
@@ -2585,7 +2585,7 @@ fn get_transaction_block_with_unwrapped_object_changes() -> Result<(), anyhow::E
 
     runtime.block_on(async move {
         let (address, keypair): (_, AccountKeyPair) = get_key_pair();
-        let keypair = IotaKeyPair::Ed25519(keypair);
+        let keypair = SimpleKeypair::from(keypair);
         let gas = cluster
             .fund_address_and_return_gas(
                 cluster.get_reference_gas_price().await,

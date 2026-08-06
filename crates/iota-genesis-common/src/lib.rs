@@ -3,6 +3,8 @@
 
 use std::{collections::HashSet, sync::Arc};
 
+mod migration_tx_data_ext;
+
 use iota_execution::executor;
 use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
 use iota_sdk_types::TransactionKind;
@@ -15,8 +17,9 @@ use iota_types::{
     messages_checkpoint::CheckpointTimestamp,
     metrics::LimitsMetrics,
     object::Object,
-    transaction::{CheckedInputObjects, Transaction, TransactionDataAPI},
+    transaction::{CheckedInputObjects, TransactionDataAPI, TransactionEnvelope},
 };
+pub use migration_tx_data_ext::MigrationTxDataExt;
 use prometheus_filtered::Registry;
 
 /// Gets a `ProtocolConfig` for genesis based on a `ProtocolVersion`.
@@ -37,7 +40,7 @@ pub fn get_genesis_protocol_config(version: ProtocolVersion) -> ProtocolConfig {
 pub fn prepare_and_execute_genesis_transaction(
     chain_start_timestamp_ms: CheckpointTimestamp,
     protocol_version: ProtocolVersion,
-    genesis_transaction: &Transaction,
+    genesis_transaction: &TransactionEnvelope,
 ) -> (TransactionEffects, TransactionEvents, Vec<Object>) {
     let registry = Registry::new();
     let metrics = Arc::new(LimitsMetrics::new(&registry));
@@ -56,7 +59,7 @@ pub fn execute_genesis_transaction(
     epoch_data: &EpochData,
     protocol_config: &ProtocolConfig,
     metrics: Arc<LimitsMetrics>,
-    genesis_transaction: &Transaction,
+    genesis_transaction: &TransactionEnvelope,
 ) -> (TransactionEffects, TransactionEvents, Vec<Object>) {
     assert!(
         matches!(

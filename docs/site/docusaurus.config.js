@@ -437,7 +437,7 @@ const config = {
           ],
           rehypePlugins: [
             katex,
-            [require('./config/rehype-jargon-safe.js'), { jargon: jargonConfig}]
+            [require('rehype-jargon'), { jargon: jargonConfig}]
           ],
         },
         theme: {

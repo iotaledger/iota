@@ -9,7 +9,6 @@ use clap::*;
 use fastcrypto::encoding::Encoding;
 use futures::{StreamExt, future::join_all};
 use iota_config::{
-    Config,
     genesis::Genesis,
     object_storage_config::{ObjectStoreConfig, ObjectStoreType},
 };
@@ -20,13 +19,14 @@ use iota_core::{
 use iota_protocol_config::Chain;
 use iota_replay::{ReplayToolCommand, execute_replay_command};
 use iota_sdk::{IotaClient, IotaClientBuilder, rpc_types::IotaTransactionBlockResponseOptions};
-use iota_sdk_types::{Address, ObjectId, TransactionDigest};
+use iota_sdk_types::{Address, ObjectId, SenderSignedTransaction, TransactionDigest};
+use iota_snapshot::progress::LOG_TARGET_PROGRESS;
 use iota_types::{
     base_types::*,
     crypto::AuthorityPublicKeyBytes,
     messages_checkpoint::{CheckpointRequest, CheckpointResponse, CheckpointSequenceNumber},
     messages_grpc::TransactionInfoRequest,
-    transaction::{SenderSignedData, Transaction},
+    transaction::TransactionEnvelope,
 };
 use telemetry_subscribers::TracingHandle;
 
@@ -34,9 +34,16 @@ use crate::{
     ConciseObjectOutput, GroupedObjectOutput, SnapshotVerifyMode, VerboseObjectOutput,
     backfill_checkpoint_summaries, check_completed_snapshot,
     db_tool::{DbToolCommand, execute_db_tool_command, print_db_all_tables},
-    download_db_snapshot, download_formal_snapshot, get_latest_available_epoch, get_object,
-    get_transaction_block, make_clients, restore_from_db_checkpoint,
+    download_formal_snapshot, get_latest_available_epoch, get_object, get_transaction_block,
+    make_clients,
 };
+
+/// Log filter for the restore commands' non-verbose default: silence
+/// everything except the progress status lines, which are the only progress
+/// output left once the progress bars can't be drawn.
+fn progress_only_log_directives() -> String {
+    format!("off,{LOG_TARGET_PROGRESS}=info")
+}
 
 #[derive(Parser, Clone, ValueEnum)]
 pub enum Verbosity {
@@ -184,71 +191,6 @@ pub enum ToolCommand {
         args: anemo_cli::Args,
     },
 
-    #[command(name = "restore-db")]
-    RestoreFromDBCheckpoint {
-        #[arg(long)]
-        config_path: PathBuf,
-        #[arg(long)]
-        db_checkpoint_path: PathBuf,
-    },
-
-    #[command(
-        name = "download-db-snapshot",
-        about = "Downloads the legacy database snapshot via cloud object store, outputs to local disk"
-    )]
-    DownloadDBSnapshot {
-        #[arg(long, conflicts_with = "latest")]
-        epoch: Option<u64>,
-        #[arg(long, help = "the path to write the downloaded snapshot files")]
-        path: PathBuf,
-        /// skip downloading indexes dir
-        #[arg(long)]
-        skip_indexes: bool,
-        /// Number of parallel downloads to perform. Defaults to a reasonable
-        /// value based on number of available logical cores.
-        #[arg(long)]
-        num_parallel_downloads: Option<usize>,
-        /// Network to download snapshot for. Defaults to "mainnet".
-        /// If `--snapshot-bucket` or `--archive-bucket` is not specified,
-        /// the value of this flag is used to construct default bucket names.
-        #[arg(long, default_value = "mainnet")]
-        network: Chain,
-        /// Snapshot bucket name. If not specified, defaults are
-        /// based on value of `--network` flag.
-        #[arg(long, conflicts_with = "no_sign_request")]
-        snapshot_bucket: Option<String>,
-        /// Snapshot bucket type
-        #[arg(
-            long,
-            conflicts_with = "no_sign_request",
-            help = "Required if --no-sign-request is not set"
-        )]
-        snapshot_bucket_type: Option<ObjectStoreType>,
-        /// Path to snapshot directory on local filesystem.
-        /// Only applicable if `--snapshot-bucket-type` is "file".
-        #[arg(long, help = "only used for testing, when --snapshot-bucket-type=FILE")]
-        snapshot_path: Option<PathBuf>,
-        /// If true, no authentication is needed for snapshot restores
-        #[arg(
-            long,
-            conflicts_with_all = &["snapshot_bucket", "snapshot_bucket_type"],
-            help = "if set, no authentication is needed for snapshot restore"
-        )]
-        no_sign_request: bool,
-        /// Download snapshot of the latest available epoch.
-        /// If `--epoch` is specified, then this flag gets ignored.
-        #[arg(
-            long,
-            conflicts_with = "epoch",
-            help = "defaults to latest available snapshot in chosen bucket"
-        )]
-        latest: bool,
-        /// If false (default), log level will be overridden to "off",
-        /// and output will be reduced to necessary status information.
-        #[arg(long)]
-        verbose: bool,
-    },
-
     // Restore from formal (slim, DB agnostic) snapshot.
     #[command(
         about = "Downloads formal database snapshot via cloud object store, outputs to local disk"
@@ -311,6 +253,10 @@ pub enum ToolCommand {
         #[arg(long)]
         verbose: bool,
 
+        /// Report progress as a status line logged once per second.
+        #[arg(long)]
+        disable_progress_bar: bool,
+
         /// Skip building the gRPC index store during the restore. By default
         /// it is built from the same object stream that restores the state,
         /// so a fullnode started with gRPC enabled opens it in place instead
@@ -350,6 +296,9 @@ pub enum ToolCommand {
         /// output will be reduced to necessary status information.
         #[arg(long)]
         verbose: bool,
+        /// Report progress as a status line logged once per second.
+        #[arg(long)]
+        disable_progress_bar: bool,
     },
 
     Replay {
@@ -384,7 +333,7 @@ pub enum ToolCommand {
 
         #[arg(
             long,
-            help = "The Base64-encoding of the bcs bytes of SenderSignedData"
+            help = "The Base64-encoding of the bcs bytes of SenderSignedTransaction"
         )]
         sender_signed_data: String,
     },
@@ -452,7 +401,7 @@ async fn check_locked_object(
     let res = iota_client
         .quorum_driver_api()
         .execute_transaction_block(
-            Transaction::new(tx),
+            TransactionEnvelope::new(tx),
             IotaTransactionBlockResponseOptions::full_content(),
             None,
         )
@@ -636,13 +585,6 @@ impl ToolCommand {
                 let config = crate::make_anemo_config();
                 anemo_cli::run(config, args).await
             }
-            ToolCommand::RestoreFromDBCheckpoint {
-                config_path,
-                db_checkpoint_path,
-            } => {
-                let config = iota_config::NodeConfig::load(config_path)?;
-                restore_from_db_checkpoint(&config, &db_checkpoint_path).await?;
-            }
             ToolCommand::DownloadFormalSnapshot {
                 epoch,
                 genesis,
@@ -656,11 +598,12 @@ impl ToolCommand {
                 no_sign_request,
                 latest,
                 verbose,
+                disable_progress_bar,
                 skip_grpc_indexes,
             } => {
                 if !verbose {
                     tracing_handle
-                        .update_log("off")
+                        .update_log(progress_only_log_directives())
                         .expect("Failed to update log level");
                 }
                 let num_parallel_downloads = num_parallel_downloads.unwrap_or_else(|| {
@@ -778,6 +721,7 @@ impl ToolCommand {
                     num_parallel_downloads,
                     verify,
                     skip_grpc_indexes,
+                    disable_progress_bar,
                 )
                 .await?;
             }
@@ -786,10 +730,11 @@ impl ToolCommand {
                 ingestion_url,
                 num_parallel_downloads,
                 verbose,
+                disable_progress_bar,
             } => {
                 if !verbose {
                     tracing_handle
-                        .update_log("off")
+                        .update_log(progress_only_log_directives())
                         .expect("Failed to update log level");
                 }
                 let num_parallel_downloads = NonZeroUsize::new(
@@ -797,153 +742,11 @@ impl ToolCommand {
                         .unwrap_or_else(|| num_cpus::get().saturating_sub(1).max(1)),
                 )
                 .expect("num-parallel-downloads must be non-zero");
-                backfill_checkpoint_summaries(&path, ingestion_url, num_parallel_downloads).await?;
-            }
-            ToolCommand::DownloadDBSnapshot {
-                epoch,
-                path,
-                skip_indexes,
-                num_parallel_downloads,
-                network,
-                snapshot_bucket,
-                snapshot_bucket_type,
-                snapshot_path,
-                no_sign_request,
-                latest,
-                verbose,
-            } => {
-                if !verbose {
-                    tracing_handle
-                        .update_log("off")
-                        .expect("Failed to update log level");
-                }
-                let num_parallel_downloads = num_parallel_downloads.unwrap_or_else(|| {
-                    num_cpus::get()
-                        .checked_sub(1)
-                        .expect("Failed to get number of CPUs")
-                });
-                let snapshot_bucket =
-                    snapshot_bucket.or_else(|| match (network, no_sign_request) {
-                        (Chain::Mainnet, false) => Some(
-                            env::var("MAINNET_DB_SIGNED_BUCKET")
-                                .unwrap_or("iota-mainnet-snapshots".to_string()),
-                        ),
-                        (Chain::Mainnet, true) => env::var("MAINNET_DB_UNSIGNED_BUCKET").ok(),
-                        (Chain::Testnet, true) => env::var("TESTNET_DB_UNSIGNED_BUCKET").ok(),
-                        (Chain::Testnet, _) => Some(
-                            env::var("TESTNET_DB_SIGNED_BUCKET")
-                                .unwrap_or("iota-testnet-snapshots".to_string()),
-                        ),
-                        (Chain::Unknown, _) => {
-                            panic!("Cannot generate default snapshot bucket for unknown network");
-                        }
-                    });
-
-                let aws_endpoint = env::var("AWS_SNAPSHOT_ENDPOINT").ok();
-                let snapshot_bucket_type = if no_sign_request {
-                    ObjectStoreType::S3
-                } else {
-                    snapshot_bucket_type
-                        .expect("You must set either --snapshot-bucket-type or --no-sign-request")
-                };
-                let snapshot_store_config = if no_sign_request {
-                    let aws_endpoint = env::var("AWS_SNAPSHOT_ENDPOINT").ok().or_else(|| {
-                        if network == Chain::Mainnet {
-                            Some("https://rocksdb-snapshot.mainnet.iota.cafe".to_string())
-                        } else if network == Chain::Testnet {
-                            Some("https://rocksdb-snapshot.testnet.iota.cafe".to_string())
-                        } else {
-                            None
-                        }
-                    });
-                    ObjectStoreConfig {
-                        object_store: Some(ObjectStoreType::S3),
-                        aws_endpoint: aws_endpoint.filter(|s| !s.is_empty()),
-                        aws_virtual_hosted_style_request: env::var(
-                            "AWS_SNAPSHOT_VIRTUAL_HOSTED_REQUESTS",
-                        )
-                        .ok()
-                        .and_then(|b| b.parse().ok())
-                        .unwrap_or(no_sign_request),
-                        object_store_connection_limit: 200,
-                        no_sign_request,
-                        ..Default::default()
-                    }
-                } else {
-                    match snapshot_bucket_type {
-                        ObjectStoreType::S3 => ObjectStoreConfig {
-                            object_store: Some(ObjectStoreType::S3),
-                            bucket: snapshot_bucket.filter(|s| !s.is_empty()),
-                            aws_access_key_id: env::var("AWS_SNAPSHOT_ACCESS_KEY_ID").ok(),
-                            aws_secret_access_key: env::var("AWS_SNAPSHOT_SECRET_ACCESS_KEY").ok(),
-                            aws_region: env::var("AWS_SNAPSHOT_REGION").ok(),
-                            aws_endpoint: aws_endpoint.filter(|s| !s.is_empty()),
-                            aws_virtual_hosted_style_request: env::var(
-                                "AWS_SNAPSHOT_VIRTUAL_HOSTED_REQUESTS",
-                            )
-                            .ok()
-                            .and_then(|b| b.parse().ok())
-                            .unwrap_or(no_sign_request),
-                            object_store_connection_limit: 200,
-                            no_sign_request,
-                            ..Default::default()
-                        },
-                        ObjectStoreType::GCS => ObjectStoreConfig {
-                            object_store: Some(ObjectStoreType::GCS),
-                            bucket: snapshot_bucket,
-                            google_service_account: env::var(
-                                "GCS_SNAPSHOT_SERVICE_ACCOUNT_FILE_PATH",
-                            )
-                            .ok(),
-                            google_project_id: env::var("GCS_SNAPSHOT_SERVICE_ACCOUNT_PROJECT_ID")
-                                .ok(),
-                            object_store_connection_limit: 200,
-                            no_sign_request,
-                            ..Default::default()
-                        },
-                        ObjectStoreType::Azure => ObjectStoreConfig {
-                            object_store: Some(ObjectStoreType::Azure),
-                            bucket: snapshot_bucket,
-                            azure_storage_account: env::var("AZURE_SNAPSHOT_STORAGE_ACCOUNT").ok(),
-                            azure_storage_access_key: env::var("AZURE_SNAPSHOT_STORAGE_ACCESS_KEY")
-                                .ok(),
-                            object_store_connection_limit: 200,
-                            no_sign_request,
-                            ..Default::default()
-                        },
-                        ObjectStoreType::File => {
-                            if snapshot_path.is_some() {
-                                ObjectStoreConfig {
-                                    object_store: Some(ObjectStoreType::File),
-                                    directory: snapshot_path,
-                                    ..Default::default()
-                                }
-                            } else {
-                                panic!(
-                                    "--snapshot-path must be specified for --snapshot-bucket-type=file"
-                                );
-                            }
-                        }
-                    }
-                };
-
-                let latest_available_epoch =
-                    latest.then_some(get_latest_available_epoch(&snapshot_store_config).await?);
-                let epoch_to_download = epoch.or(latest_available_epoch).expect(
-                    "Either pass epoch with --epoch <epoch_num> or use latest with --latest",
-                );
-
-                if let Err(e) =
-                    check_completed_snapshot(&snapshot_store_config, epoch_to_download).await
-                {
-                    panic!("Aborting snapshot restore: {e}, snapshot may not be uploaded yet");
-                }
-                download_db_snapshot(
+                backfill_checkpoint_summaries(
                     &path,
-                    epoch_to_download,
-                    snapshot_store_config,
-                    skip_indexes,
+                    ingestion_url,
                     num_parallel_downloads,
+                    disable_progress_bar,
                 )
                 .await?;
             }
@@ -963,11 +766,11 @@ impl ToolCommand {
                 sender_signed_data,
             } => {
                 let genesis = Genesis::load(genesis)?;
-                let sender_signed_data = bcs::from_bytes::<SenderSignedData>(
+                let sender_signed_tx = bcs::from_bytes::<SenderSignedTransaction>(
                     &fastcrypto::encoding::Base64::decode(sender_signed_data.as_str()).unwrap(),
                 )
                 .unwrap();
-                let transaction = Transaction::new(sender_signed_data);
+                let transaction = TransactionEnvelope::new(sender_signed_tx);
                 let (agg, _) =
                     AuthorityAggregatorBuilder::from_genesis(&genesis).build_network_clients();
                 let result = agg.process_transaction(transaction, None).await;

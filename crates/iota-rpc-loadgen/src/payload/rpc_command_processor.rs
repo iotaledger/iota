@@ -20,13 +20,14 @@ use iota_json_rpc_types::{
     IotaTransactionBlockResponseOptions,
 };
 use iota_sdk::{IotaClient, IotaClientBuilder};
-use iota_sdk_types::{Address, ObjectId, ObjectReference, TransactionDigest};
+use iota_sdk_crypto::ToFromBech32;
+use iota_sdk_types::{
+    Address, ObjectId, ObjectReference, TransactionDigest, crypto::SimpleSignature,
+};
 use iota_types::{
-    crypto::{
-        AccountKeyPair, EncodeDecodeBase64, IotaKeyPair, IotaSignature, Signature, get_key_pair,
-    },
+    crypto::{AccountKeyPair, IotaSignature, SimpleKeypair, get_key_pair},
     quorum_driver_types::ExecuteTransactionRequestType,
-    transaction::{Transaction, TransactionData},
+    transaction::{TransactionData, TransactionEnvelope},
 };
 use serde::{Serialize, de::DeserializeOwned};
 use tokio::{sync::RwLock, time::sleep};
@@ -104,7 +105,7 @@ impl RpcCommandProcessor {
     pub(crate) async fn sign_and_execute(
         &self,
         client: &IotaClient,
-        keypair: &IotaKeyPair,
+        keypair: &SimpleKeypair,
         txn_data: TransactionData,
         request_type: ExecuteTransactionRequestType,
     ) -> IotaTransactionBlockResponse {
@@ -566,9 +567,9 @@ async fn prepare_new_signer_and_coins(
         DEFAULT_GAS_BUDGET,
     );
 
-    let primary_keypair = IotaKeyPair::decode_base64(&signer_info.encoded_keypair)
+    let primary_keypair = SimpleKeypair::from_bech32(&signer_info.encoded_keypair)
         .expect("decoding keypair should not fail");
-    let sender = Address::from(&primary_keypair.public());
+    let sender = primary_keypair.public_key().derive_address();
     let (coin, balance) = get_coin_with_max_balance(client, sender).await;
     // The balance needs to cover `pay_amount` plus
     // 1. gas fee for pay_iota from the primary address to the burner address
@@ -595,7 +596,7 @@ async fn prepare_new_signer_and_coins(
     // from the faucet, but in some environment that might not be possible when
     // faucet resource is scarce
     let (burner_address, burner_keypair): (_, AccountKeyPair) = get_key_pair();
-    let burner_keypair = IotaKeyPair::Ed25519(burner_keypair);
+    let burner_keypair = SimpleKeypair::from(burner_keypair);
     let pay_amounts = split_amounts
         .iter()
         .map(|(amount, _)| *amount)
@@ -655,7 +656,12 @@ async fn prepare_new_signer_and_coins(
     }
     assert_eq!(results.len(), num_coins);
     debug!("Split off {} coins for gas payment {results:?}", num_coins);
-    (results, burner_keypair.encode_base64())
+    (
+        results,
+        burner_keypair
+            .to_bech32()
+            .expect("encoding keypair should not fail"),
+    )
 }
 
 /// Calculate the number of transactions needed to split the given number of
@@ -725,13 +731,13 @@ async fn get_iota_coin_ids(client: &IotaClient, address: Address) -> Vec<(Object
 
 async fn pay_iota(
     client: &IotaClient,
-    keypair: &IotaKeyPair,
+    keypair: &SimpleKeypair,
     input_coins: Vec<ObjectId>,
     gas_budget: u64,
     recipients: Vec<Address>,
     amounts: Vec<u64>,
 ) -> IotaTransactionBlockResponse {
-    let sender = Address::from(&keypair.public());
+    let sender = keypair.public_key().derive_address();
     let tx = client
         .transaction_builder()
         .pay(sender, input_coins, recipients, amounts, None, gas_budget)
@@ -748,12 +754,12 @@ async fn pay_iota(
 
 async fn split_coins(
     client: &IotaClient,
-    keypair: &IotaKeyPair,
+    keypair: &SimpleKeypair,
     coin_to_split: ObjectId,
     gas_payment: ObjectId,
     num_coins: u64,
 ) -> Vec<ObjectId> {
-    let sender = Address::from(&keypair.public());
+    let sender = keypair.public_key().derive_address();
     let split_coin_tx = client
         .transaction_builder()
         .split_coin_equal(
@@ -783,16 +789,16 @@ async fn split_coins(
 
 pub(crate) async fn sign_and_execute(
     client: &IotaClient,
-    keypair: &IotaKeyPair,
+    keypair: &SimpleKeypair,
     txn_data: TransactionData,
     request_type: ExecuteTransactionRequestType,
 ) -> IotaTransactionBlockResponse {
-    let signature = Signature::new_secure(&txn_data.intent_message(), keypair);
+    let signature = SimpleSignature::new_secure(&txn_data.intent_message(), keypair);
 
     let transaction_response = match client
         .quorum_driver_api()
         .execute_transaction_block(
-            Transaction::from_data(txn_data, vec![signature]),
+            TransactionEnvelope::from_data(txn_data, vec![signature]),
             IotaTransactionBlockResponseOptions::new().with_effects(),
             Some(request_type),
         )
