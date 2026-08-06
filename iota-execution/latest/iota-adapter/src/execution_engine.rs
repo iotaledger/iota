@@ -37,7 +37,10 @@ mod checked {
         committee::EpochId,
         effects::TransactionEffects,
         error::{ExecutionError, ExecutionErrorKind},
-        execution::{ExecutionResults, ExecutionResultsV1, SharedInput, is_certificate_denied},
+        execution::{
+            ExecutionResults, ExecutionResultsV1, ExecutionTiming, ResultWithTimings, SharedInput,
+            is_certificate_denied,
+        },
         execution_config_utils::to_binary_config,
         gas::{IotaGasStatus, IotaGasStatusAPI},
         gas_coin::GAS,
@@ -98,6 +101,7 @@ mod checked {
         InnerTemporaryStore,
         IotaGasStatus,
         TransactionEffects,
+        Vec<ExecutionTiming>,
         Result<Mode::ExecutionResults, ExecutionError>,
     ) {
         let input_objects = input_objects.into_inner();
@@ -199,12 +203,13 @@ mod checked {
         InnerTemporaryStore,
         IotaGasStatus,
         TransactionEffects,
+        Vec<ExecutionTiming>,
         Result<Mode::ExecutionResults, ExecutionError>,
     ) {
         let is_epoch_change = transaction_kind.is_end_of_epoch();
         let deny_cert = is_certificate_denied(&transaction_digest, certificate_deny_set);
 
-        let (gas_cost_summary, execution_result) = execute_transaction::<Mode>(
+        let (gas_cost_summary, execution_result, timings) = execute_transaction::<Mode>(
             &mut temporary_store,
             transaction_kind,
             &mut gas_charger,
@@ -267,6 +272,7 @@ mod checked {
             inner,
             gas_charger.into_gas_status(),
             effects,
+            timings,
             execution_result,
         )
     }
@@ -322,6 +328,7 @@ mod checked {
         InnerTemporaryStore,
         IotaGasStatus,
         TransactionEffects,
+        Vec<ExecutionTiming>,
         Result<Mode::ExecutionResults, ExecutionError>,
     ) {
         // Preparation
@@ -734,7 +741,8 @@ mod checked {
                 authenticator_move_call,
                 trace_builder_opt,
             )
-            .and_then(|ok_result| {
+            .map_err(|(e, _)| e)
+            .and_then(|(ok_result, _timings)| {
                 temporary_store.check_move_authenticator_results_consistency()?;
                 Ok(ok_result)
             })
@@ -771,7 +779,8 @@ mod checked {
             &mut gas_charger,
             pt,
             &mut None,
-        )?;
+        )
+        .map_err(|(e, _)| e)?;
         temporary_store.update_object_version_and_prev_tx();
         Ok(temporary_store.into_inner())
     }
@@ -807,6 +816,7 @@ mod checked {
     ) -> (
         GasCostSummary,
         Result<Mode::ExecutionResults, ExecutionError>,
+        Vec<ExecutionTiming>,
     ) {
         gas_charger.smash_gas(temporary_store);
 
@@ -828,53 +838,65 @@ mod checked {
         // fails we must still ensure an effect is committed and all objects
         // versions incremented
         let result = gas_charger.charge_input_objects(temporary_store);
-        let mut result = result.and_then(|()| {
-            run_inputs_checks(
-                protocol_config,
-                deny_cert,
-                contains_deleted_input,
-                cancelled_objects,
-            )?;
+        let result: ResultWithTimings<Mode::ExecutionResults, ExecutionError> =
+            result.map_err(|e| (e, vec![])).and_then(
+                |()| -> ResultWithTimings<Mode::ExecutionResults, ExecutionError> {
+                    run_inputs_checks(
+                        protocol_config,
+                        deny_cert,
+                        contains_deleted_input,
+                        cancelled_objects,
+                    )
+                    .map_err(|e| (e, vec![]))?;
 
-            // If the pre-execution succeeded, proceed with the main execution loop
-            // else propagate the pre-execution error
-            let mut execution_result = pre_execution_result_opt.unwrap_or(Ok(())).and_then(|_| {
-                execution_loop::<Mode>(
-                    temporary_store,
-                    transaction_kind,
-                    tx_ctx,
-                    move_vm,
-                    gas_charger,
-                    protocol_config,
-                    metrics.clone(),
-                    trace_builder_opt,
-                )
-            });
+                    // If the pre-execution succeeded, proceed with the main execution loop
+                    // else propagate the pre-execution error
+                    let mut execution_result = pre_execution_result_opt
+                        .unwrap_or(Ok(()))
+                        .map_err(|e| (e, vec![]))
+                        .and_then(|_| {
+                            execution_loop::<Mode>(
+                                temporary_store,
+                                transaction_kind,
+                                tx_ctx,
+                                move_vm,
+                                gas_charger,
+                                protocol_config,
+                                metrics.clone(),
+                                trace_builder_opt,
+                            )
+                        });
 
-            let meter_check = check_meter_limit(
-                temporary_store,
-                gas_charger,
-                protocol_config,
-                metrics.clone(),
+                    let meter_check = check_meter_limit(
+                        temporary_store,
+                        gas_charger,
+                        protocol_config,
+                        metrics.clone(),
+                    );
+                    if let Err(e) = meter_check {
+                        execution_result = Err((e, vec![]));
+                    }
+
+                    if execution_result.is_ok() {
+                        let gas_check = check_written_objects_limit(
+                            temporary_store,
+                            gas_charger,
+                            protocol_config,
+                            metrics,
+                        );
+                        if let Err(e) = gas_check {
+                            execution_result = Err((e, vec![]));
+                        }
+                    }
+
+                    execution_result
+                },
             );
-            if let Err(e) = meter_check {
-                execution_result = Err(e);
-            }
 
-            if execution_result.is_ok() {
-                let gas_check = check_written_objects_limit(
-                    temporary_store,
-                    gas_charger,
-                    protocol_config,
-                    metrics,
-                );
-                if let Err(e) = gas_check {
-                    execution_result = Err(e);
-                }
-            }
-
-            execution_result
-        });
+        let (mut result, timings) = match result {
+            Ok((r, t)) => (Ok(r), t),
+            Err((e, t)) => (Err(e), t),
+        };
 
         let cost_summary = gas_charger.charge_gas(temporary_store, &mut result);
         // For advance epoch transaction, we need to provide epoch rewards and rebates
@@ -901,7 +923,7 @@ mod checked {
             result = Err(e);
         }
 
-        (cost_summary, result)
+        (cost_summary, result, timings)
     }
 
     /// When enabled by the protocol config, report a failure of the Move
@@ -1216,7 +1238,7 @@ mod checked {
         protocol_config: &ProtocolConfig,
         metrics: Arc<LimitsMetrics>,
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
-    ) -> Result<Mode::ExecutionResults, ExecutionError> {
+    ) -> ResultWithTimings<Mode::ExecutionResults, ExecutionError> {
         let result = match transaction_kind {
             TransactionKind::Genesis(GenesisTransaction { objects, events }) => {
                 if tx_ctx.borrow().epoch() != 0 {
@@ -1240,7 +1262,7 @@ mod checked {
                     },
                 ));
 
-                Ok(Mode::empty_results())
+                Ok((Mode::empty_results(), vec![]))
             }
             TransactionKind::ConsensusCommitPrologueV1(prologue) => {
                 setup_consensus_commit(
@@ -1254,7 +1276,7 @@ mod checked {
                     trace_builder_opt,
                 )
                 .expect("ConsensusCommitPrologueV1 cannot fail");
-                Ok(Mode::empty_results())
+                Ok((Mode::empty_results(), vec![]))
             }
             TransactionKind::Programmable(pt) => {
                 programmable_transactions::execution::execute::<Mode>(
@@ -1286,8 +1308,9 @@ mod checked {
                                 protocol_config,
                                 metrics,
                                 trace_builder_opt,
-                            )?;
-                            return Ok(Mode::empty_results());
+                            )
+                            .map_err(|e| (e, vec![]))?;
+                            return Ok((Mode::empty_results(), vec![]));
                         }
                         EndOfEpochTransactionKind::ChangeEpochV2(change_epoch_v2) => {
                             assert_eq!(i, len - 1);
@@ -1301,8 +1324,9 @@ mod checked {
                                 protocol_config,
                                 metrics,
                                 trace_builder_opt,
-                            )?;
-                            return Ok(Mode::empty_results());
+                            )
+                            .map_err(|e| (e, vec![]))?;
+                            return Ok((Mode::empty_results(), vec![]));
                         }
                         EndOfEpochTransactionKind::ChangeEpochV3(change_epoch_v3) => {
                             assert_eq!(i, len - 1);
@@ -1316,8 +1340,9 @@ mod checked {
                                 protocol_config,
                                 metrics,
                                 trace_builder_opt,
-                            )?;
-                            return Ok(Mode::empty_results());
+                            )
+                            .map_err(|e| (e, vec![]))?;
+                            return Ok((Mode::empty_results(), vec![]));
                         }
                         EndOfEpochTransactionKind::ChangeEpochV4(change_epoch_v4) => {
                             assert_eq!(i, len - 1);
@@ -1331,8 +1356,9 @@ mod checked {
                                 protocol_config,
                                 metrics,
                                 trace_builder_opt,
-                            )?;
-                            return Ok(Mode::empty_results());
+                            )
+                            .map_err(|e| (e, vec![]))?;
+                            return Ok((Mode::empty_results(), vec![]));
                         }
                         _ => unimplemented!(
                             "a new EndOfEpochTransactionKind enum variant was added and needs to be handled"
@@ -1348,9 +1374,12 @@ mod checked {
                 // Deprecated: Authenticator state (JWK) is deprecated and
                 // was never enabled. These transaction kinds are retained
                 // only for BCS enum variant compatibility.
-                return Err(ExecutionError::new(
-                    ExecutionErrorKind::VmInvariantViolation,
-                    Some("AuthenticatorState transactions are deprecated and were never created on IOTA".into()),
+                return Err((
+                    ExecutionError::new(
+                        ExecutionErrorKind::VmInvariantViolation,
+                        Some("AuthenticatorState transactions are deprecated and were never created on IOTA".into()),
+                    ),
+                    vec![],
                 ));
             }
             TransactionKind::RandomnessStateUpdate(randomness_state_update) => {
@@ -1363,14 +1392,17 @@ mod checked {
                     protocol_config,
                     metrics,
                     trace_builder_opt,
-                )?;
-                Ok(Mode::empty_results())
+                )
+                .map_err(|e| (e, vec![]))?;
+                Ok((Mode::empty_results(), vec![]))
             }
             _ => unimplemented!(
                 "a new TransactionKind enum variant was added and needs to be handled"
             ),
         }?;
-        temporary_store.check_execution_results_consistency()?;
+        temporary_store
+            .check_execution_results_consistency()
+            .map_err(|e| (e, vec![]))?;
         Ok(result)
     }
 
@@ -1593,10 +1625,10 @@ mod checked {
         #[cfg(msim)]
         let result = maybe_modify_result(result, params.epoch);
 
-        if result.is_err() {
+        if let Err(err) = &result {
             tracing::error!(
                 "Failed to execute advance epoch transaction. Switching to safe mode. Error: {:?}. Input objects: {:?}. Tx params: {:?}",
-                result.as_ref().err(),
+                err.0,
                 temporary_store.objects(),
                 params,
             );
@@ -1857,6 +1889,7 @@ mod checked {
                     publish_pt,
                     trace_builder_opt,
                 )
+                .map_err(|(e, _)| e)
                 .expect("System Package Publish must succeed");
             } else {
                 let mut new_package = Object::new_system_package(
@@ -1926,6 +1959,8 @@ mod checked {
             pt,
             trace_builder_opt,
         )
+        .map_err(|(e, _)| e)?;
+        Ok(())
     }
 
     /// The function constructs a transaction that invokes
@@ -1976,6 +2011,8 @@ mod checked {
             pt,
             trace_builder_opt,
         )
+        .map_err(|(e, _)| e)?;
+        Ok(())
     }
 
     /// Construct a PTB with a single move call. This calls the authenticator
