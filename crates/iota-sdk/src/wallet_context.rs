@@ -14,9 +14,9 @@ use iota_json_rpc_types::{
     IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
 };
 use iota_keys::keystore::{AccountKeystore, Keystore};
+use iota_sdk_crypto::simple::SimpleKeypair;
 use iota_sdk_types::{Address, ObjectId, ObjectReference, StructTag, crypto::Intent};
 use iota_types::{
-    crypto::SimpleKeypair,
     gas_coin::GasCoin,
     transaction::{TransactionData, TransactionDataAPI, TransactionEnvelope},
 };

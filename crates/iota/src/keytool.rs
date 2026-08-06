@@ -37,6 +37,7 @@ use iota_keys::{
 use iota_ledger::Ledger;
 use iota_sdk_crypto::{
     Signer as _, ToFromBase64, ToFromBech32, ToFromBytes as _, ed25519::Ed25519PrivateKey,
+    simple::SimpleKeypair,
 };
 use iota_sdk_types::{
     Address, SenderSignedTransaction, SignatureScheme, Transaction,
@@ -46,7 +47,7 @@ use iota_sdk_types::{
     },
 };
 use iota_types::{
-    crypto::{DefaultHash, EncodeDecodeBase64, PublicKey, SimpleKeypair, get_authority_key_pair},
+    crypto::{DefaultHash, EncodeDecodeBase64, PublicKey, get_authority_key_pair},
     error::IotaResult,
     move_authenticator::MoveAuthenticatorExt,
     multisig::{MultiSig, MultiSigPublicKey, MultisigMember, ThresholdUnit, WeightUnit},

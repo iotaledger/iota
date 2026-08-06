@@ -20,12 +20,12 @@ use iota_json_rpc_types::{
     IotaTransactionBlockResponseOptions,
 };
 use iota_sdk::{IotaClient, IotaClientBuilder};
-use iota_sdk_crypto::ToFromBech32;
+use iota_sdk_crypto::{ToFromBech32, simple::SimpleKeypair};
 use iota_sdk_types::{
     Address, ObjectId, ObjectReference, TransactionDigest, crypto::SimpleSignature,
 };
 use iota_types::{
-    crypto::{AccountKeyPair, IotaSignature, SimpleKeypair, get_key_pair},
+    crypto::{AccountKeyPair, IotaSignature, get_key_pair},
     quorum_driver_types::ExecuteTransactionRequestType,
     transaction::{TransactionData, TransactionEnvelope},
 };

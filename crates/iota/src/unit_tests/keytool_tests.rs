@@ -11,6 +11,7 @@ use iota_sdk_crypto::{
     ToFromBech32, ToFromBytes as _, Verifier as _,
     ed25519::{Ed25519PrivateKey, Ed25519VerifyingKey},
     secp256k1::Secp256k1PrivateKey,
+    simple::SimpleKeypair,
 };
 use iota_sdk_types::{
     Address, Ed25519PublicKey, Ed25519Signature, ObjectDigest, ObjectId, ObjectReference,
@@ -18,9 +19,7 @@ use iota_sdk_types::{
     crypto::{Intent, IntentScope, PublicKey, PublicKeyExt as _, SimpleSignature, UserSignature},
 };
 use iota_types::{
-    crypto::{
-        AuthorityKeyPair, EncodeDecodeBase64, SimpleKeypair, get_key_pair, get_key_pair_from_rng,
-    },
+    crypto::{AuthorityKeyPair, EncodeDecodeBase64, get_key_pair, get_key_pair_from_rng},
     transaction::{TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionData, TransactionDataAPI},
 };
 use rand::{SeedableRng, rngs::StdRng};
