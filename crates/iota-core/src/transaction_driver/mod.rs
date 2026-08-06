@@ -21,7 +21,9 @@ pub use error::{AggregatedRequestErrors, TransactionDriverError};
 use iota_common::{backoff::ExponentialBackoff, debug_fatal};
 use iota_metrics::{monitored_future, spawn_logged_monitored_task};
 use iota_sdk_types::TransactionDigest;
-use iota_types::{committee::EpochId, messages_grpc::TxStatusUpdate, transaction::Transaction};
+use iota_types::{
+    committee::EpochId, messages_grpc::TxStatusUpdate, transaction::TransactionEnvelope,
+};
 pub use metrics::*;
 use parking_lot::Mutex;
 use rand::Rng;
@@ -145,7 +147,7 @@ where
     #[instrument(level = "error", skip_all, fields(tx_digest = ?transaction.as_ref().map(|t| *t.digest())))]
     pub async fn drive_transaction(
         &self,
-        transaction: Option<Transaction>,
+        transaction: Option<TransactionEnvelope>,
         options: SubmitTransactionOptions,
         timeout_duration: Option<Duration>,
         skip_certification: bool,
@@ -316,7 +318,7 @@ where
     async fn drive_transaction_once(
         &self,
         amplification_factor: u64,
-        transaction: Option<Transaction>,
+        transaction: Option<TransactionEnvelope>,
         options: &SubmitTransactionOptions,
         skip_certification: bool,
     ) -> Result<QuorumTransactionResponse, TransactionDriverError> {

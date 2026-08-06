@@ -524,12 +524,11 @@ mod tests {
     /// of objects created by the `*_for_testing` constructors. Also returns
     /// the gas coin at its input version (0) and output version (1) so the
     /// derivation finds the mutated gas object.
-    fn version_zero_gas_transaction() -> (iota_types::transaction::SenderSignedData, Object, Object)
-    {
-        use iota_sdk_types::ObjectReference;
+    fn version_zero_gas_transaction() -> (iota_sdk_types::SenderSignedTransaction, Object, Object) {
+        use iota_sdk_types::{ObjectReference, SenderSignedTransaction};
         use iota_types::{
             programmable_transaction_builder::ProgrammableTransactionBuilder,
-            transaction::{SenderSignedData, TransactionData},
+            transaction::TransactionData,
         };
 
         let gas_id = ObjectId::random();
@@ -545,7 +544,7 @@ mod tests {
         );
         let gas_owner = Owner::Address(sender_address());
         (
-            SenderSignedData::new(transaction_data, vec![]),
+            SenderSignedTransaction::new(transaction_data, vec![]),
             Object::with_id_owner_version_for_testing(gas_id, 0u64.into(), gas_owner),
             Object::with_id_owner_version_for_testing(gas_id, 1u64.into(), gas_owner),
         )

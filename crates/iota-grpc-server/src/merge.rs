@@ -129,12 +129,12 @@ impl Merge<&UserSignature> for UserSignature {
     }
 }
 
-impl Merge<&iota_types::transaction::Transaction> for UserSignatures {
+impl Merge<&iota_types::transaction::TransactionEnvelope> for UserSignatures {
     type Error = RpcError;
 
     fn merge(
         &mut self,
-        source: &iota_types::transaction::Transaction,
+        source: &iota_types::transaction::TransactionEnvelope,
         mask: &FieldMaskTree,
     ) -> Result<(), Self::Error> {
         // Get signatures directly from transaction without converting the whole
@@ -695,12 +695,12 @@ impl Merge<&ExecutedTransaction> for ExecutedTransaction {
     }
 }
 
-impl Merge<&iota_types::transaction::Transaction> for Transaction {
+impl Merge<&iota_types::transaction::TransactionEnvelope> for Transaction {
     type Error = RpcError;
 
     fn merge(
         &mut self,
-        source: &iota_types::transaction::Transaction,
+        source: &iota_types::transaction::TransactionEnvelope,
         mask: &FieldMaskTree,
     ) -> Result<(), Self::Error> {
         if !mask.contains(Self::DIGEST_FIELD.name) && !mask.contains(Self::BCS_FIELD.name) {

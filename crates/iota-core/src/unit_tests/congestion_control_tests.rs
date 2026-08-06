@@ -19,7 +19,7 @@ use iota_types::{
     executable_transaction::VerifiedExecutableTransaction,
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{CallArg, Transaction},
+    transaction::{CallArg, TransactionEnvelope},
 };
 
 use crate::{
@@ -215,7 +215,7 @@ async fn commit_and_execute_transaction(
     shared_objects: &[(ObjectId, Version)],
     owned_object: &ObjectReference,
     gas_units: u64,
-) -> (Transaction, TransactionEffects) {
+) -> (TransactionEnvelope, TransactionEffects) {
     let mut txn_builder = ProgrammableTransactionBuilder::new();
     let mut args = vec![];
     for shared_object in shared_objects {

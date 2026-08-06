@@ -295,7 +295,7 @@ async fn build_shared_object_transaction(
     sender_key: &AccountKeyPair,
     gas_object_id: ObjectId,
     pkg_ref: iota_sdk_types::ObjectReference,
-) -> Transaction {
+) -> TransactionEnvelope {
     let rgp = state.reference_gas_price_for_testing().unwrap();
     let gas = state.get_object(&gas_object_id).unwrap();
     let tx_data = TransactionData::new_move_call(
@@ -315,9 +315,11 @@ async fn build_shared_object_transaction(
 
 // ── ValidatorV2 submit_tx (streaming) tests ──────────────────────────────────
 
-/// Helper: convert a `Vec<Transaction>` into the proto `SubmitTxRequest` and
-/// wrap it in a tonic request.
-fn make_v2_submit_request(transactions: Vec<Transaction>) -> tonic::Request<SubmitTxRequest> {
+/// Helper: convert a `Vec<TransactionEnvelope>` into the proto
+/// `SubmitTxRequest` and wrap it in a tonic request.
+fn make_v2_submit_request(
+    transactions: Vec<TransactionEnvelope>,
+) -> tonic::Request<SubmitTxRequest> {
     let proto: SubmitTxRequest = transactions.try_into().expect("BCS serialization failed");
     make_tonic_request_for_testing(proto)
 }
@@ -395,7 +397,7 @@ async fn collect_v2_stream(
 async fn setup_v2_transfer_tx() -> (
     OverrideGuard,
     Arc<ValidatorService>,
-    Transaction,
+    TransactionEnvelope,
     TransactionDigest,
 ) {
     telemetry_subscribers::init_for_testing();

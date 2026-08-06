@@ -8,15 +8,13 @@ use anyhow::{Context, Result};
 use bytes::Bytes;
 use iota_config::object_storage_config::{ObjectStoreConfig, ObjectStoreType};
 use iota_core::{
-    authority::authority_store_tables::AuthorityPerpetualTables,
-    checkpoints::CheckpointStore,
-    db_checkpoint_handler::{STATE_SNAPSHOT_COMPLETED_MARKER, SUCCESS_MARKER},
+    authority::authority_store_tables::AuthorityPerpetualTables, checkpoints::CheckpointStore,
 };
 use iota_sdk_types::CheckpointCommitment;
 use iota_storage::{
     FileCompression,
     object_store::util::{
-        EPOCH_METADATA_FILENAME, EpochMetadata, find_all_dirs_with_epoch_prefix,
+        EPOCH_METADATA_FILENAME, EpochMetadata, SUCCESS_MARKER, find_all_dirs_with_epoch_prefix,
         find_missing_epochs_dirs, path_to_filesystem, put, run_manifest_update_loop,
     },
 };
@@ -128,7 +126,10 @@ impl StateSnapshotUploader {
     }
 
     /// Uploads state snapshots to remote store if they are missing.
-    async fn upload_state_snapshot_to_object_store(&self, missing_epochs: Vec<u64>) -> Result<()> {
+    pub(crate) async fn upload_state_snapshot_to_object_store(
+        &self,
+        missing_epochs: Vec<u64>,
+    ) -> Result<()> {
         let last_missing_epoch = missing_epochs.last().cloned().unwrap_or(0);
         // Chain identifier = genesis checkpoint digest; tags each manifest.
         let chain_id = ChainIdentifier::from(
@@ -203,25 +204,10 @@ impl StateSnapshotUploader {
                 let bytes = Bytes::from_static(b"success");
                 let success_marker = db_path.child(SUCCESS_MARKER);
                 put(&self.snapshot_store, &success_marker, bytes.clone()).await?;
-                let state_snapshot_completed_marker =
-                    db_path.child(STATE_SNAPSHOT_COMPLETED_MARKER);
-                put(
-                    &self.db_checkpoint_store.clone(),
-                    &state_snapshot_completed_marker,
-                    bytes.clone(),
-                )
-                .await?;
+                self.remove_db_checkpoint(db_path).await;
                 info!("State snapshot completed for epoch: {epoch}");
             } else {
-                let bytes = Bytes::from_static(b"success");
-                let state_snapshot_completed_marker =
-                    db_path.child(STATE_SNAPSHOT_COMPLETED_MARKER);
-                put(
-                    &self.db_checkpoint_store.clone(),
-                    &state_snapshot_completed_marker,
-                    bytes.clone(),
-                )
-                .await?;
+                self.remove_db_checkpoint(db_path).await;
                 info!("State snapshot skipped for epoch: {epoch}");
             }
         }
@@ -266,5 +252,20 @@ impl StateSnapshotUploader {
     async fn get_missing_epochs(&self) -> Result<Vec<u64>> {
         let missing_epochs = find_missing_epochs_dirs(&self.snapshot_store, SUCCESS_MARKER).await?;
         Ok(missing_epochs.to_vec())
+    }
+
+    /// Deletes a local db checkpoint directory once the state snapshot for its
+    /// epoch is no longer needed. A failure is only logged: a directory that
+    /// cannot be deleted must not block snapshot uploads for later epochs.
+    async fn remove_db_checkpoint(&self, db_path: &object_store::path::Path) {
+        let result = match path_to_filesystem(self.db_checkpoint_path.clone(), db_path) {
+            Ok(local_db_path) => tokio::fs::remove_dir_all(&local_db_path)
+                .await
+                .map_err(anyhow::Error::from),
+            Err(err) => Err(err),
+        };
+        if let Err(err) = result {
+            error!("Failed to remove local db checkpoint dir {db_path}: {err:?}");
+        }
     }
 }

@@ -8,7 +8,7 @@ use std::{
 };
 
 use prometheus_filtered::{
-    Filter, IntGauge, MetricLevel, Opts,
+    IntGauge, MetricLevel, Opts,
     core::{Collector, Desc, Number},
     proto::{LabelPair, Metric, MetricFamily, MetricType},
 };
@@ -24,16 +24,12 @@ pub enum HardwareMetricsErr {
     ErrRegisterHardwareMetrics(prometheus_filtered::Error),
 }
 
-/// Returns whether the hardware metrics should be registered under `filter`:
-/// any effective level for this module except `off` registers them.
-pub fn hardware_metrics_enabled(filter: &Filter) -> bool {
-    filter.is_exposed("hw", module_path!(), MetricLevel::Warn)
-}
-
 /// Register all hardware metrics: CPU specs, Memory specs/usage, Disk
 /// specs/usage
 /// These metrics are all named with a prefix "hw_"
 /// They are both pushed to iota-proxy and exposed on the /metrics endpoint.
+/// The whole group shares one level (`off` hides the collector, any
+/// other level exposes it), since it is a single collector.
 pub fn register_hardware_metrics(
     registry_service: &RegistryService,
     db_path: &Path,
@@ -52,13 +48,21 @@ pub fn register_hardware_metrics(
             .new_registry_custom(Some("hw".to_string()), None)
             .map_err(HardwareMetricsErr::ErrRegisterHardwareMetrics)?;
         registry
-            .register(Box::new(HardwareMetrics::new(db_path)?))
+            .register_filtered(
+                // Bookkeeping key for this collector, does not change the metric name:
+                // the exposed names come from the collector and the "hw" prefix.
+                "metrics",
+                module_path!(),
+                MetricLevel::Warn,
+                HardwareMetrics::new(db_path)?,
+            )
             .map_err(HardwareMetricsErr::ErrRegisterHardwareMetrics)?;
         registry_service.add(registry);
         Ok(())
     }
 }
 
+#[derive(Clone)]
 pub struct HardwareMetrics {
     system: Arc<Mutex<System>>,
     disks: Arc<Mutex<Disks>>,

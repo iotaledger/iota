@@ -32,8 +32,8 @@ use iota_protocol_config::{
 };
 use iota_sdk_types::{
     Address, CancelledTransaction, CheckpointTimestamp, ObjectId, ObjectReference, RandomnessRound,
-    TransactionDigest, TransactionEffectsDigest, TransactionKind, UserSignature, Version,
-    VersionAssignment,
+    SenderSignedTransaction, TransactionDigest, TransactionEffectsDigest, TransactionKind,
+    UserSignature, Version, VersionAssignment,
     checkpoint::{CheckpointContents, CheckpointSummary},
 };
 use iota_storage::mutex_table::{MutexGuard, MutexTable};
@@ -63,9 +63,9 @@ use iota_types::{
     },
     storage::{BackingPackageStore, InputKey},
     transaction::{
-        CertifiedTransaction, InputObjectKind, SenderSignedData, SenderSignedTransactionAPI,
-        Transaction, TransactionDataAPI, TransactionKey, TxValidityCheckContext,
-        VerifiedCertificate, VerifiedSignedTransaction, VerifiedTransaction,
+        CertifiedTransaction, InputObjectKind, SenderSignedTransactionAPI, TransactionDataAPI,
+        TransactionEnvelope, TransactionKey, TxValidityCheckContext, VerifiedCertificate,
+        VerifiedSignedTransaction, VerifiedTransaction,
     },
 };
 use itertools::izip;
@@ -785,7 +785,7 @@ pub struct AuthorityEpochTables {
     /// `transaction_lock`.
     #[default_options_override_fn = "signed_transactions_table_default_config"]
     signed_transactions:
-        DBMap<TransactionDigest, TrustedEnvelope<SenderSignedData, AuthoritySignInfo>>,
+        DBMap<TransactionDigest, TrustedEnvelope<SenderSignedTransaction, AuthoritySignInfo>>,
 
     /// Map from ObjectReference to transaction locking that object
     #[default_options_override_fn = "owned_object_locked_transactions_table_default_config"]
@@ -1370,10 +1370,14 @@ impl AuthorityPerEpochStore {
             .set(tokio::sync::Mutex::new(randomness_manager))
             .is_err()
         {
-            error!("BUG: `set_randomness_manager` called more than once; this should never happen");
+            debug_fatal!(
+                "BUG: `set_randomness_manager` called more than once; this should never happen"
+            );
         }
         if self.randomness_reporter.set(reporter).is_err() {
-            error!("BUG: `set_randomness_manager` called more than once; this should never happen");
+            debug_fatal!(
+                "BUG: `set_randomness_manager` called more than once; this should never happen"
+            );
         }
         result
     }
@@ -1837,12 +1841,16 @@ impl AuthorityPerEpochStore {
     ) -> IotaResult<Vec<GlobalStateHash>> {
         let tables = self.tables()?;
         self.checkpoint_state_notify_read
-            .read(checkpoints, |checkpoints| {
-                tables
-                    .state_hash_by_checkpoint
-                    .multi_get(checkpoints)
-                    .map_err(Into::into)
-            })
+            .read(
+                "notify_read_checkpoint_state_hasher",
+                checkpoints,
+                |checkpoints| {
+                    tables
+                        .state_hash_by_checkpoint
+                        .multi_get(checkpoints)
+                        .map_err(Into::into)
+                },
+            )
             .await
     }
 
@@ -3293,7 +3301,7 @@ impl AuthorityPerEpochStore {
     }
 
     #[instrument(level = "trace", skip_all)]
-    pub fn verify_transaction(&self, tx: Transaction) -> IotaResult<VerifiedTransaction> {
+    pub fn verify_transaction(&self, tx: TransactionEnvelope) -> IotaResult<VerifiedTransaction> {
         self.signature_verifier
             .verify_tx(tx.data())
             .map(|_| VerifiedTransaction::new_from_verified(tx))

@@ -9,7 +9,10 @@ use std::{
 };
 
 use fastcrypto::traits::{AggregateAuthenticator, KeyPair};
-use iota_sdk_crypto::{ed25519::Ed25519PrivateKey, simple::SimpleKeypair};
+use iota_sdk_crypto::{
+    ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey, secp256r1::Secp256r1PrivateKey,
+    simple::SimpleKeypair,
+};
 use iota_sdk_types::{
     Address, ExecutionStatus, GasPayment, Owner, SharedObjectReference, SignatureScheme, StructTag,
     TransactionEventsDigest, gas::GasCostSummary,
@@ -22,7 +25,7 @@ use crate::{
     committee::Committee,
     crypto::{
         AccountKeyPair, AuthorityKeyPair, AuthorityPublicKeyBytes, AuthoritySignInfoTrait,
-        IotaAuthoritySignature, IotaKeyPair, IotaSignature, VerificationObligation,
+        IotaAuthoritySignature, IotaSignature, PublicKey, VerificationObligation,
         bcs_signable_test::{Foo, get_obligation_input},
         get_key_pair,
     },
@@ -60,7 +63,7 @@ fn test_signed_values() {
     );
     let committee = Committee::new_for_testing_with_normalized_voting_power(0, authorities);
     let gas_price = 10;
-    let transaction = Transaction::from_data_and_signer(
+    let transaction = TransactionEnvelope::from_data_and_signer(
         TransactionData::new_transfer(
             _a2,
             random_object_ref(),
@@ -74,17 +77,18 @@ fn test_signed_values() {
     .try_into_verified_for_testing(&Default::default())
     .unwrap();
 
-    let bad_transaction = VerifiedTransaction::new_unchecked(Transaction::from_data_and_signer(
-        TransactionData::new_transfer(
-            _a2,
-            random_object_ref(),
-            a_sender,
-            random_object_ref(),
-            TEST_ONLY_GAS_UNIT_FOR_TRANSFER * gas_price,
-            gas_price,
-        ),
-        vec![&sender_sec2],
-    ));
+    let bad_transaction =
+        VerifiedTransaction::new_unchecked(TransactionEnvelope::from_data_and_signer(
+            TransactionData::new_transfer(
+                _a2,
+                random_object_ref(),
+                a_sender,
+                random_object_ref(),
+                TEST_ONLY_GAS_UNIT_FOR_TRANSFER * gas_price,
+                gas_price,
+            ),
+            vec![&sender_sec2],
+        ));
 
     let v = SignedTransaction::new(
         committee.epoch(),
@@ -153,7 +157,7 @@ fn test_certificates() {
     );
     let committee = Committee::new_for_testing_with_normalized_voting_power(0, authorities);
     let gas_price = 10;
-    let transaction = Transaction::from_data_and_signer(
+    let transaction = TransactionEnvelope::from_data_and_signer(
         TransactionData::new_transfer(
             a2,
             random_object_ref(),
@@ -501,7 +505,7 @@ fn test_digest_caching() {
     let committee = Committee::new_for_testing_with_normalized_voting_power(0, authorities);
 
     let gas_price = 10;
-    let transaction = Transaction::from_data_and_signer(
+    let transaction = TransactionEnvelope::from_data_and_signer(
         TransactionData::new_transfer(
             sa1,
             random_object_ref(),
@@ -592,9 +596,10 @@ fn test_user_signature_committed_in_transactions() {
     let mut tx_data_2 = tx_data.clone();
     tx_data_2.gas_data_mut().budget += 1;
 
-    let transaction_a = Transaction::from_data_and_signer(tx_data.clone(), vec![&sender_sec]);
-    let transaction_b = Transaction::from_data_and_signer(tx_data, vec![&sender_sec2]);
-    let transaction_c = Transaction::from_data_and_signer(tx_data_2, vec![&sender_sec2]);
+    let transaction_a =
+        TransactionEnvelope::from_data_and_signer(tx_data.clone(), vec![&sender_sec]);
+    let transaction_b = TransactionEnvelope::from_data_and_signer(tx_data, vec![&sender_sec2]);
+    let transaction_c = TransactionEnvelope::from_data_and_signer(tx_data_2, vec![&sender_sec2]);
 
     let tx_digest_a = transaction_a.digest();
     let tx_digest_b = transaction_b.digest();
@@ -640,14 +645,14 @@ fn test_user_signature_committed_in_signed_transactions() {
         TEST_ONLY_GAS_UNIT_FOR_TRANSFER * gas_price,
         gas_price,
     );
-    let transaction_a = Transaction::from_data_and_signer(tx_data.clone(), vec![&sender_sec])
-        .try_into_verified_for_testing(&Default::default())
-        .unwrap();
+    let transaction_a =
+        TransactionEnvelope::from_data_and_signer(tx_data.clone(), vec![&sender_sec])
+            .try_into_verified_for_testing(&Default::default())
+            .unwrap();
     // transaction_b intentionally invalid (sender does not match signer).
-    let transaction_b = VerifiedTransaction::new_unchecked(Transaction::from_data_and_signer(
-        tx_data,
-        vec![&sender_sec2],
-    ));
+    let transaction_b = VerifiedTransaction::new_unchecked(
+        TransactionEnvelope::from_data_and_signer(tx_data, vec![&sender_sec2]),
+    );
 
     let signed_tx_a = SignedTransaction::new(
         0,
@@ -719,10 +724,10 @@ fn signature_from_signer(
 
 #[test]
 fn test_sponsored_transaction_message() {
-    let sender_kp = IotaKeyPair::Ed25519(get_key_pair().1);
-    let sender = (&sender_kp.public()).into();
-    let sponsor_kp = IotaKeyPair::Ed25519(get_key_pair().1);
-    let sponsor = (&sponsor_kp.public()).into();
+    let sender_kp = SimpleKeypair::from(get_key_pair::<Ed25519PrivateKey>().1);
+    let sender = (&PublicKey::from(&sender_kp)).into();
+    let sponsor_kp = SimpleKeypair::from(get_key_pair::<Ed25519PrivateKey>().1);
+    let sponsor = (&PublicKey::from(&sponsor_kp)).into();
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
         builder
@@ -745,7 +750,7 @@ fn test_sponsored_transaction_message() {
         signature_from_signer(tx_data.clone(), intent, &sender_kp).into();
     let sponsor_sig: UserSignature =
         signature_from_signer(tx_data.clone(), intent, &sponsor_kp).into();
-    let transaction = Transaction::from_user_sig_data(
+    let transaction = TransactionEnvelope::from_user_sig_data(
         tx_data.clone(),
         vec![sender_sig.clone(), sponsor_sig.clone()],
     )
@@ -761,7 +766,7 @@ fn test_sponsored_transaction_message() {
     assert_eq!(transaction.gas(), &[gas_obj_ref]);
 
     // Sig order does not matter
-    let transaction = Transaction::from_user_sig_data(
+    let transaction = TransactionEnvelope::from_user_sig_data(
         tx_data.clone(),
         vec![sponsor_sig.clone(), sender_sig.clone()],
     )
@@ -770,7 +775,7 @@ fn test_sponsored_transaction_message() {
 
     // Test incomplete signature lists (missing sponsor sig)
     assert!(matches!(
-        Transaction::from_user_sig_data(tx_data.clone(), vec![sender_sig.clone()],)
+        TransactionEnvelope::from_user_sig_data(tx_data.clone(), vec![sender_sig.clone()],)
             .try_into_verified_for_testing(&Default::default())
             .unwrap_err(),
         IotaError::SignerSignatureNumberMismatch { .. }
@@ -778,18 +783,18 @@ fn test_sponsored_transaction_message() {
 
     // Test incomplete signature lists (missing sender sig)
     assert!(matches!(
-        Transaction::from_user_sig_data(tx_data.clone(), vec![sponsor_sig.clone()],)
+        TransactionEnvelope::from_user_sig_data(tx_data.clone(), vec![sponsor_sig.clone()],)
             .try_into_verified_for_testing(&Default::default())
             .unwrap_err(),
         IotaError::SignerSignatureNumberMismatch { .. }
     ));
 
     // Test incomplete signature lists (more sigs than expected)
-    let third_party_kp = IotaKeyPair::Ed25519(get_key_pair().1);
+    let third_party_kp = SimpleKeypair::from(get_key_pair::<Ed25519PrivateKey>().1);
     let third_party_sig: UserSignature =
         signature_from_signer(tx_data.clone(), intent, &third_party_kp).into();
     assert!(matches!(
-        Transaction::from_user_sig_data(
+        TransactionEnvelope::from_user_sig_data(
             tx_data.clone(),
             vec![sender_sig, sponsor_sig.clone(), third_party_sig.clone()],
         )
@@ -800,7 +805,7 @@ fn test_sponsored_transaction_message() {
 
     // Test irrelevant sigs
     assert!(matches!(
-        Transaction::from_user_sig_data(tx_data, vec![sponsor_sig, third_party_sig],)
+        TransactionEnvelope::from_user_sig_data(tx_data, vec![sponsor_sig, third_party_sig],)
             .try_into_verified_for_testing(&Default::default())
             .unwrap_err(),
         IotaError::SignerSignatureAbsent { .. }
@@ -815,10 +820,10 @@ fn test_sponsored_transaction_message() {
 
 #[test]
 fn test_sponsored_transaction_validity_check() {
-    let sender_kp = IotaKeyPair::Ed25519(get_key_pair().1);
-    let sender = (&sender_kp.public()).into();
-    let sponsor_kp = IotaKeyPair::Ed25519(get_key_pair().1);
-    let sponsor = (&sponsor_kp.public()).into();
+    let sender_kp = SimpleKeypair::from(get_key_pair::<Ed25519PrivateKey>().1);
+    let sender = (&PublicKey::from(&sender_kp)).into();
+    let sponsor_kp = SimpleKeypair::from(get_key_pair::<Ed25519PrivateKey>().1);
+    let sponsor = (&PublicKey::from(&sponsor_kp)).into();
 
     // This is a sponsored transaction
     let gas_price = 10;
@@ -932,35 +937,35 @@ fn verify_sender_signature_correctly_with_flag() {
     let committee = Committee::new_for_testing_with_normalized_voting_power(0, authorities);
 
     // create a receiver keypair with Secp256k1
-    let receiver_kp = IotaKeyPair::Secp256k1(get_key_pair().1);
-    let receiver_address = (&receiver_kp.public()).into();
+    let receiver_kp = SimpleKeypair::from(get_key_pair::<Secp256k1PrivateKey>().1);
+    let receiver_address = (&PublicKey::from(&receiver_kp)).into();
 
     // create a sender keypair with Secp256k1
-    let sender_kp = IotaKeyPair::Secp256k1(get_key_pair().1);
+    let sender_kp = SimpleKeypair::from(get_key_pair::<Secp256k1PrivateKey>().1);
     // and creates a corresponding transaction
     let gas_price = 10;
     let tx_data = TransactionData::new_transfer(
         receiver_address,
         random_object_ref(),
-        (&sender_kp.public()).into(),
+        (&PublicKey::from(&sender_kp)).into(),
         random_object_ref(),
         TEST_ONLY_GAS_UNIT_FOR_TRANSFER * gas_price,
         gas_price,
     );
 
     // create a sender keypair with Ed25519
-    let sender_kp_2 = IotaKeyPair::Ed25519(get_key_pair().1);
+    let sender_kp_2 = SimpleKeypair::from(get_key_pair::<Ed25519PrivateKey>().1);
     let mut tx_data_2 = tx_data.clone();
-    *tx_data_2.sender_mut_for_testing() = (&sender_kp_2.public()).into();
+    *tx_data_2.sender_mut_for_testing() = (&PublicKey::from(&sender_kp_2)).into();
     tx_data_2.gas_data_mut().owner = tx_data_2.sender();
 
     // create a sender keypair with Secp256r1
-    let sender_kp_3 = IotaKeyPair::Secp256r1(get_key_pair().1);
+    let sender_kp_3 = SimpleKeypair::from(get_key_pair::<Secp256r1PrivateKey>().1);
     let mut tx_data_3 = tx_data.clone();
-    *tx_data_3.sender_mut_for_testing() = (&sender_kp_3.public()).into();
+    *tx_data_3.sender_mut_for_testing() = (&PublicKey::from(&sender_kp_3)).into();
     tx_data_3.gas_data_mut().owner = tx_data_3.sender();
 
-    let transaction = Transaction::from_data_and_signer(tx_data, vec![&sender_kp])
+    let transaction = TransactionEnvelope::from_data_and_signer(tx_data, vec![&sender_kp])
         .try_into_verified_for_testing(&Default::default())
         .unwrap();
 
@@ -991,7 +996,7 @@ fn verify_sender_signature_correctly_with_flag() {
             .is_ok()
     );
 
-    let transaction_1 = Transaction::from_data_and_signer(tx_data_2, vec![&sender_kp_2])
+    let transaction_1 = TransactionEnvelope::from_data_and_signer(tx_data_2, vec![&sender_kp_2])
         .try_into_verified_for_testing(&Default::default())
         .unwrap();
 
@@ -1033,7 +1038,7 @@ fn verify_sender_signature_correctly_with_flag() {
     );
 
     // create transaction with r1 signer
-    let tx_3 = Transaction::from_data_and_signer(tx_data_3, vec![&sender_kp_3]);
+    let tx_3 = TransactionEnvelope::from_data_and_signer(tx_data_3, vec![&sender_kp_3]);
     let tx_31 = tx_3.clone();
     let tx_32 = tx_3.clone();
 
@@ -1214,8 +1219,8 @@ fn test_unique_input_objects() {
             .unwrap(),
     ];
 
-    let sender_kp = IotaKeyPair::Ed25519(get_key_pair().1);
-    let sender = (&sender_kp.public()).into();
+    let sender_kp = SimpleKeypair::from(get_key_pair::<Ed25519PrivateKey>().1);
+    let sender = (&PublicKey::from(&sender_kp)).into();
     let gas_price = 10;
     let gas_object_ref = random_object_ref();
     let gas_data = GasPayment {
@@ -1262,7 +1267,7 @@ fn test_certificate_digest() {
 
     let gas_price = 10;
     let make_tx = |sender, sender_sec: AccountKeyPair| {
-        Transaction::from_data_and_signer(
+        TransactionEnvelope::from_data_and_signer(
             TransactionData::new_transfer(
                 receiver,
                 random_object_ref(),

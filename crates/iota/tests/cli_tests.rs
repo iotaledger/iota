@@ -47,7 +47,7 @@ use iota_sdk_types::{
 use iota_swarm_config::genesis_config::{AccountConfig, GenesisConfig};
 use iota_test_transaction_builder::batch_make_transfer_transactions;
 use iota_types::{
-    crypto::{AccountKeyPair, IotaKeyPair, get_key_pair},
+    crypto::{AccountKeyPair, SimpleKeypair, get_key_pair},
     gas_coin::GasCoin,
     transaction::{
         TEST_ONLY_GAS_UNIT_FOR_GENERIC, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS,
@@ -357,10 +357,10 @@ async fn test_addresses_command() -> Result<(), anyhow::Error> {
 
     // Add 3 accounts
     for _ in 0..3 {
-        context
-            .config_mut()
-            .keystore_mut()
-            .add_key(None, IotaKeyPair::Ed25519(get_key_pair().1))?;
+        context.config_mut().keystore_mut().add_key(
+            None,
+            SimpleKeypair::from(get_key_pair::<iota_sdk_crypto::ed25519::Ed25519PrivateKey>().1),
+        )?;
     }
 
     // Print all addresses

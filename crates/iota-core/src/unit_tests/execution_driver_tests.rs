@@ -20,8 +20,8 @@ use iota_types::{
     error::{IotaError, IotaResult},
     object::Object,
     transaction::{
-        CertifiedTransaction, TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, Transaction,
-        VerifiedCertificate,
+        CertifiedTransaction, TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE,
+        TransactionEnvelope, VerifiedCertificate,
     },
 };
 use itertools::Itertools;
@@ -246,7 +246,7 @@ async fn wait_for_certs(
 async fn execute_owned_on_first_three_authorities(
     authority_clients: &[Arc<SafeClient<LocalAuthorityClient>>],
     committee: &Committee,
-    txn: &Transaction,
+    txn: &TransactionEnvelope,
 ) -> (VerifiedCertificate, TransactionEffects) {
     do_transaction(&authority_clients[0], txn).await;
     do_transaction(&authority_clients[1], txn).await;
@@ -268,7 +268,7 @@ pub async fn do_cert_with_shared_objects(
     send_consensus(authority, cert).await;
     authority
         .get_transaction_cache_reader()
-        .notify_read_executed_effects_for_testing(&[*cert.digest()])
+        .notify_read_executed_effects_for_testing("", &[*cert.digest()])
         .await
         .pop()
         .unwrap()
@@ -277,7 +277,7 @@ pub async fn do_cert_with_shared_objects(
 async fn execute_shared_on_first_three_authorities(
     authority_clients: &[Arc<SafeClient<LocalAuthorityClient>>],
     committee: &Committee,
-    txn: &Transaction,
+    txn: &TransactionEnvelope,
 ) -> (VerifiedCertificate, TransactionEffects) {
     do_transaction(&authority_clients[0], txn).await;
     do_transaction(&authority_clients[1], txn).await;
@@ -445,7 +445,7 @@ async fn test_execution_with_dependencies() {
         .collect();
     authorities[3]
         .get_transaction_cache_reader()
-        .notify_read_executed_effects_for_testing(&digests)
+        .notify_read_executed_effects_for_testing("", &digests)
         .await;
 }
 
@@ -456,7 +456,7 @@ fn make_socket_addr() -> std::net::SocketAddr {
 async fn try_sign_on_first_three_authorities(
     authority_clients: &[Arc<SafeClient<LocalAuthorityClient>>],
     committee: &Committee,
-    txn: &Transaction,
+    txn: &TransactionEnvelope,
 ) -> IotaResult<VerifiedCertificate> {
     for client in authority_clients.iter().take(3) {
         client
@@ -508,7 +508,7 @@ async fn test_per_object_overload() {
     for authority in authorities.iter().take(3) {
         authority
             .get_transaction_cache_reader()
-            .notify_read_executed_effects_for_testing(&[*create_counter_cert.digest()])
+            .notify_read_executed_effects_for_testing("", &[*create_counter_cert.digest()])
             .await
             .pop()
             .unwrap();
@@ -522,7 +522,7 @@ async fn test_per_object_overload() {
     send_consensus(&authorities[3], &create_counter_cert).await;
     let create_counter_effects = authorities[3]
         .get_transaction_cache_reader()
-        .notify_read_executed_effects_for_testing(&[*create_counter_cert.digest()])
+        .notify_read_executed_effects_for_testing("", &[*create_counter_cert.digest()])
         .await
         .pop()
         .unwrap();
@@ -633,7 +633,7 @@ async fn test_txn_age_overload() {
     for authority in authorities.iter().take(3) {
         authority
             .get_transaction_cache_reader()
-            .notify_read_executed_effects_for_testing(&[*create_counter_cert.digest()])
+            .notify_read_executed_effects_for_testing("", &[*create_counter_cert.digest()])
             .await
             .pop()
             .unwrap();
@@ -647,7 +647,7 @@ async fn test_txn_age_overload() {
     send_consensus(&authorities[3], &create_counter_cert).await;
     let create_counter_effects = authorities[3]
         .get_transaction_cache_reader()
-        .notify_read_executed_effects_for_testing(&[*create_counter_cert.digest()])
+        .notify_read_executed_effects_for_testing("", &[*create_counter_cert.digest()])
         .await
         .pop()
         .unwrap();

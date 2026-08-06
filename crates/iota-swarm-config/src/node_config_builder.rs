@@ -13,10 +13,9 @@ use iota_config::{
     IOTA_GENESIS_MIGRATION_TX_DATA_FILENAME, NodeConfig, local_ip_utils,
     node::{
         AuthorityKeyPairWithPath, AuthorityOverloadConfig, AuthorityStorePruningConfig,
-        CheckpointExecutorConfig, DBCheckpointConfig, ExecutionCacheConfig,
-        ExpensiveSafetyCheckConfig, Genesis, GrpcApiConfig, KeyPairWithPath, RunWithRange,
-        StateSnapshotConfig, default_enable_index_processing,
-        default_end_of_epoch_broadcast_channel_capacity,
+        CheckpointExecutorConfig, ExecutionCacheConfig, ExpensiveSafetyCheckConfig, Genesis,
+        GrpcApiConfig, KeyPairWithPath, RunWithRange, StateSnapshotConfig,
+        default_enable_index_processing, default_end_of_epoch_broadcast_channel_capacity,
         default_full_checkpoint_contents_cache_size_mb,
     },
     p2p::{DiscoveryConfig, P2pConfig, SeedPeer, StateSyncConfig},
@@ -26,7 +25,9 @@ use iota_config::{
 use iota_names::config::IotaNamesConfig;
 use iota_protocol_config::Chain;
 use iota_types::{
-    crypto::{AuthorityKeyPair, AuthorityPublicKeyBytes, NetworkKeyPair},
+    crypto::{
+        AuthorityKeyPair, AuthorityPublicKeyBytes, NetworkKeyPair, network_to_simple_keypair,
+    },
     multiaddr::Multiaddr,
     supported_protocol_versions::SupportedProtocolVersions,
     traffic_control::{PolicyConfig, RemoteFirewallConfig},
@@ -193,9 +194,13 @@ impl ValidatorConfigBuilder {
 
         NodeConfig {
             authority_key_pair: AuthorityKeyPairWithPath::new(validator.authority_key_pair),
-            network_key_pair: KeyPairWithPath::new(validator.network_key_pair.into()),
+            network_key_pair: KeyPairWithPath::new(network_to_simple_keypair(
+                &validator.network_key_pair,
+            )),
             account_key_pair: KeyPairWithPath::new(validator.account_key_pair),
-            protocol_key_pair: KeyPairWithPath::new(validator.protocol_key_pair.into()),
+            protocol_key_pair: KeyPairWithPath::new(network_to_simple_keypair(
+                &validator.protocol_key_pair,
+            )),
             db_path,
             network_address,
             metrics_address: validator.metrics_address,
@@ -218,7 +223,6 @@ impl ValidatorConfigBuilder {
             checkpoint_executor_config,
             metrics: None,
             supported_protocol_versions: self.supported_protocol_versions,
-            db_checkpoint_config: Default::default(),
             // By default, expensive checks will be enabled in debug build, but not in release
             // build.
             expensive_safety_check_config: ExpensiveSafetyCheckConfig::default(),
@@ -277,7 +281,6 @@ pub struct FullnodeConfigBuilder {
     rpc_port: Option<u16>,
     rpc_addr: Option<SocketAddr>,
     supported_protocol_versions: Option<SupportedProtocolVersions>,
-    db_checkpoint_config: Option<DBCheckpointConfig>,
     expensive_safety_check_config: Option<ExpensiveSafetyCheckConfig>,
     db_path: Option<PathBuf>,
     network_address: Option<Multiaddr>,
@@ -330,11 +333,6 @@ impl FullnodeConfigBuilder {
 
     pub fn with_supported_protocol_versions(mut self, versions: SupportedProtocolVersions) -> Self {
         self.supported_protocol_versions = Some(versions);
-        self
-    }
-
-    pub fn with_db_checkpoint_config(mut self, db_checkpoint_config: DBCheckpointConfig) -> Self {
-        self.db_checkpoint_config = Some(db_checkpoint_config);
         self
     }
 
@@ -396,7 +394,9 @@ impl FullnodeConfigBuilder {
 
     pub fn with_network_key_pair(mut self, network_key_pair: Option<NetworkKeyPair>) -> Self {
         if let Some(network_key_pair) = network_key_pair {
-            self.network_key_pair = Some(KeyPairWithPath::new(network_key_pair.into()));
+            self.network_key_pair = Some(KeyPairWithPath::new(network_to_simple_keypair(
+                &network_key_pair,
+            )));
         }
         self
     }
@@ -537,9 +537,11 @@ impl FullnodeConfigBuilder {
         NodeConfig {
             authority_key_pair: AuthorityKeyPairWithPath::new(validator_config.authority_key_pair),
             account_key_pair: KeyPairWithPath::new(validator_config.account_key_pair),
-            protocol_key_pair: KeyPairWithPath::new(validator_config.protocol_key_pair.into()),
+            protocol_key_pair: KeyPairWithPath::new(network_to_simple_keypair(
+                &validator_config.protocol_key_pair,
+            )),
             network_key_pair: self.network_key_pair.unwrap_or(KeyPairWithPath::new(
-                validator_config.network_key_pair.into(),
+                network_to_simple_keypair(&validator_config.network_key_pair),
             )),
             db_path: self
                 .db_path
@@ -569,7 +571,6 @@ impl FullnodeConfigBuilder {
             checkpoint_executor_config,
             metrics: None,
             supported_protocol_versions: self.supported_protocol_versions,
-            db_checkpoint_config: self.db_checkpoint_config.unwrap_or_default(),
             expensive_safety_check_config: self
                 .expensive_safety_check_config
                 .unwrap_or_else(ExpensiveSafetyCheckConfig::new_enable_all),

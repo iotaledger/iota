@@ -4407,8 +4407,8 @@ type TransactionBlock {
 	"""
 	expiration: Epoch
 	"""
-	Serialized form of this transaction's `SenderSignedData`, BCS serialized
-	and Base64 encoded.
+	Serialized form of this transaction's `SenderSignedTransaction`, BCS
+	serialized and Base64 encoded.
 	"""
 	bcs: Base64
 	"""

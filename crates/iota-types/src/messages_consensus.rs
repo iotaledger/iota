@@ -14,7 +14,8 @@ use byteorder::{BigEndian, ReadBytesExt};
 use fastcrypto::{error::FastCryptoResult, groups::bls12381, hash::HashFunction};
 use fastcrypto_tbls::dkg_v1;
 use iota_sdk_types::{
-    Digest, MisbehaviorReportDigest, ObjectReference, TransactionDigest, crypto::IntentScope,
+    Digest, MisbehaviorReportDigest, ObjectReference, SenderSignedTransaction, TransactionDigest,
+    crypto::IntentScope,
 };
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
@@ -29,7 +30,7 @@ use crate::{
     supported_protocol_versions::{
         Chain, SupportedProtocolVersions, SupportedProtocolVersionsWithHashes,
     },
-    transaction::{CertifiedTransaction, SenderSignedData, Transaction},
+    transaction::{CertifiedTransaction, TransactionEnvelope},
 };
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -297,7 +298,7 @@ pub enum ConsensusTransactionKind {
     /// P-COOL user transaction. Raw, uncertified transaction submitted
     /// directly to consensus without pre-consensus object locking.
     /// Conflicts are resolved post-consensus.
-    UserTransactionV1(Box<Transaction>),
+    UserTransactionV1(Box<TransactionEnvelope>),
     OverloadNotificationV1(
         AuthorityName,
         u64, // generation
@@ -321,7 +322,7 @@ impl ConsensusTransactionKind {
     fn map_cert_or_raw_user_tx<'a, R>(
         &'a self,
         certified: impl FnOnce(&'a CertifiedTransaction) -> R,
-        raw: impl FnOnce(&'a Transaction) -> R,
+        raw: impl FnOnce(&'a TransactionEnvelope) -> R,
     ) -> Option<R> {
         match self {
             Self::CertifiedTransaction(c) => Some(certified(c)),
@@ -340,9 +341,9 @@ impl ConsensusTransactionKind {
         }
     }
 
-    /// The signed data of the underlying certified or raw user transaction,
-    /// or `None` for internal consensus messages.
-    pub fn as_sender_signed_data(&self) -> Option<&SenderSignedData> {
+    /// The signed transaction of the underlying certified or raw user
+    /// transaction, or `None` for internal consensus messages.
+    pub fn as_sender_signed_transaction(&self) -> Option<&SenderSignedTransaction> {
         self.map_cert_or_raw_user_tx(|c| c.data(), |t| t.data())
     }
 
@@ -355,7 +356,7 @@ impl ConsensusTransactionKind {
     /// Returns the raw, uncertified user transaction (`UserTransactionV1`)
     /// submitted directly to consensus, or `None` for any other kind. Certified
     /// user transactions are not included here.
-    pub fn as_user_transaction(&self) -> Option<&Transaction> {
+    pub fn as_user_transaction(&self) -> Option<&TransactionEnvelope> {
         match self {
             Self::UserTransactionV1(tx) => Some(tx),
             Self::CertifiedTransaction(_)
@@ -684,7 +685,7 @@ impl ConsensusTransaction {
         }
     }
 
-    pub fn new_user_transaction(transaction: Transaction) -> Self {
+    pub fn new_user_transaction(transaction: TransactionEnvelope) -> Self {
         let mut hasher = DefaultHasher::new();
         let tx_digest = transaction.digest();
         tx_digest.hash(&mut hasher);

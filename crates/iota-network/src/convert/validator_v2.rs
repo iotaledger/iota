@@ -12,7 +12,7 @@ use iota_types::{
         HandleCapabilityNotificationResponseV1, TxStatusQuery, TxStatusUpdate,
         ValidatorHealthRequest, ValidatorHealthResponse,
     },
-    transaction::Transaction,
+    transaction::TransactionEnvelope,
 };
 
 use super::{bcs_deserialize, bcs_serialize};
@@ -106,24 +106,24 @@ impl TryFrom<api::GetTxStatusRequest> for GetTxStatusRequest {
 
 // --- SubmitTxRequest (proto → domain) ---
 
-impl TryFrom<api::SubmitTxRequest> for Vec<Transaction> {
+impl TryFrom<api::SubmitTxRequest> for Vec<TransactionEnvelope> {
     type Error = IotaError;
 
     fn try_from(value: api::SubmitTxRequest) -> Result<Self, Self::Error> {
         value
             .tx
             .iter()
-            .map(|t| bcs_deserialize::<Transaction>(t, "SubmitTxRequest.tx"))
+            .map(|t| bcs_deserialize::<TransactionEnvelope>(t, "SubmitTxRequest.tx"))
             .collect()
     }
 }
 
 // --- SubmitTxRequest (domain → proto, used by tests) ---
 
-impl TryFrom<Vec<Transaction>> for api::SubmitTxRequest {
+impl TryFrom<Vec<TransactionEnvelope>> for api::SubmitTxRequest {
     type Error = IotaError;
 
-    fn try_from(value: Vec<Transaction>) -> Result<Self, Self::Error> {
+    fn try_from(value: Vec<TransactionEnvelope>) -> Result<Self, Self::Error> {
         let tx = value
             .iter()
             .map(|t| bcs_serialize(t, "SubmitTxRequest.tx"))
@@ -308,7 +308,7 @@ mod tests {
     use iota_types::{
         error::IotaError,
         messages_grpc::{ExecutedData, GetTxStatusRequest, TxStatusUpdate},
-        transaction::Transaction,
+        transaction::TransactionEnvelope,
     };
 
     use crate::api::{self, SubmittedStatus, status_detail::Kind};
@@ -578,9 +578,9 @@ mod tests {
 
     #[test]
     fn submit_tx_request_empty_round_trip() {
-        let request: Vec<Transaction> = vec![];
+        let request: Vec<TransactionEnvelope> = vec![];
         let proto: api::SubmitTxRequest = request.try_into().unwrap();
-        let back: Vec<Transaction> = proto.try_into().unwrap();
+        let back: Vec<TransactionEnvelope> = proto.try_into().unwrap();
         assert!(back.is_empty());
     }
 

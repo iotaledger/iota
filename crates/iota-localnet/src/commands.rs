@@ -41,7 +41,7 @@ use iota_swarm_config::{
     network_config_builder::ConfigBuilder,
     node_config_builder::FullnodeConfigBuilder,
 };
-use iota_types::crypto::IotaKeyPair;
+use iota_types::crypto::SimpleKeypair;
 use rand::rngs::OsRng;
 use tempfile::tempdir;
 use tracing::{info, warn};
@@ -742,8 +742,8 @@ async fn start(
             let kp = swarm.config_mut().account_keys.swap_remove(0);
             let keystore_path = faucet_config_dir.join(IOTA_KEYSTORE_FILENAME);
             let mut keystore = Keystore::from(FileBasedKeystore::new(&keystore_path).unwrap());
-            let kp = IotaKeyPair::Ed25519(kp);
-            let address: Address = kp.address();
+            let kp = SimpleKeypair::from(kp);
+            let address: Address = kp.public_key().derive_address();
             keystore.add_key(None, kp).unwrap();
             IotaClientConfig::new(keystore)
                 .with_envs([IotaEnv::new("localnet", fullnode_url)])
@@ -968,7 +968,7 @@ async fn genesis(
     let network_config = tokio::task::spawn_blocking(move || builder.build()).await?;
     let mut keystore = FileBasedKeystore::new(&keystore_path)?;
     for key in &network_config.account_keys {
-        keystore.add_key(None, IotaKeyPair::Ed25519(key.clone()))?;
+        keystore.add_key(None, SimpleKeypair::from(key.clone()))?;
     }
     let active_address = keystore.addresses().pop();
 

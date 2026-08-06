@@ -17,7 +17,7 @@ use crate::{
     },
     object::Object,
     transaction::{
-        TEST_ONLY_GAS_UNIT_FOR_TRANSFER, Transaction, TransactionData, TransactionDataAPI,
+        TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionData, TransactionDataAPI, TransactionEnvelope,
     },
 };
 
@@ -72,7 +72,7 @@ fn test_authority_signature_intent() {
         gas_price,
     );
     let signature = Signature::new_secure(&data.intent_message(), &sender_key);
-    let tx = Transaction::from_data(data, vec![signature]);
+    let tx = TransactionEnvelope::from_data(data, vec![signature]);
     let tx1 = tx.clone();
     assert!(
         tx.try_into_verified_for_testing(&Default::default())
