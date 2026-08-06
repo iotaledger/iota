@@ -37,13 +37,13 @@ use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
     Address, Argument, Identifier, MoveAuthenticatorV1, ObjectId, ObjectReference, Owner,
-    ProgrammableTransaction, SharedObjectReference, SignatureScheme, TypeTag, UserSignature,
-    crypto::Intent,
+    ProgrammableTransaction, SharedObjectReference, SignatureScheme, TransactionEffects, TypeTag,
+    UserSignature, crypto::Intent,
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     IOTA_CLOCK_OBJECT_ID, IOTA_CLOCK_OBJECT_SHARED_VERSION, IOTA_FRAMEWORK_PACKAGE_ID,
-    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
+    effects::{TransactionEffectsAPI, TransactionEffectsExt},
     move_package,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     storage::WriteKind,

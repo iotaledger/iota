@@ -5,7 +5,7 @@
 
 use std::collections::BTreeMap;
 
-use iota_sdk_types::{ObjectReference, TransactionDigest};
+use iota_sdk_types::{ObjectReference, TransactionDigest, TransactionEffects, TransactionEvents};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use strum::AsRefStr;
@@ -15,10 +15,7 @@ use crate::{
     base_types::{AuthorityName, EpochId},
     committee::{QUORUM_THRESHOLD, StakeUnit, TOTAL_VOTING_POWER},
     crypto::{AuthorityStrongQuorumSignInfo, ConciseAuthorityPublicKeyBytes},
-    effects::{
-        CertifiedTransactionEffects, TransactionEffects, TransactionEvents,
-        VerifiedCertifiedTransactionEffects,
-    },
+    effects::{CertifiedTransactionEffects, VerifiedCertifiedTransactionEffects},
     error::IotaError,
     messages_checkpoint::CheckpointSequenceNumber,
     object::Object,

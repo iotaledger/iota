@@ -10,9 +10,9 @@ use iota_core::{
     test_utils::send_and_confirm_transaction,
 };
 use iota_move_build::BuildConfig;
-use iota_sdk_types::{ExecutionError, ExecutionStatus, ObjectId};
+use iota_sdk_types::{ExecutionError, ExecutionStatus, ObjectId, TransactionEffects};
 use iota_types::{
-    effects::{TransactionEffects, TransactionEffectsAPI},
+    effects::TransactionEffectsAPI,
     error::IotaError,
     object::Object,
     transaction::{TransactionData, TransactionDataAPI, TransactionEnvelope},

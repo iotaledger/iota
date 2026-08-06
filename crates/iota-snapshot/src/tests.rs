@@ -26,6 +26,7 @@ use iota_core::{
 };
 use iota_sdk_types::{
     Address, CheckpointCommitment, CheckpointDigest, GasCostSummary, ObjectId, TransactionDigest,
+    TransactionEffects, TransactionEvents,
     checkpoint::{CheckpointContents, CheckpointSummary, EndOfEpochData},
 };
 use iota_storage::object_store::util::SUCCESS_MARKER;
@@ -33,7 +34,7 @@ use iota_types::{
     committee::{Committee, EpochId},
     crypto::AuthorityKeyPair,
     digests::ChainIdentifier,
-    effects::{TransactionEffects, TransactionEffectsExtForTesting, TransactionEvents},
+    effects::TransactionEffectsExtForTesting,
     global_state_hash::GlobalStateHash,
     iota_system_state::IotaSystemState,
     messages_checkpoint::{

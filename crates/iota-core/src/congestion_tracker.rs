@@ -4,9 +4,9 @@
 
 use std::collections::{HashMap, hash_map::Entry};
 
-use iota_sdk_types::{ExecutionError, ExecutionStatus, ObjectId};
+use iota_sdk_types::{ExecutionError, ExecutionStatus, ObjectId, TransactionEffects};
 use iota_types::{
-    effects::{InputSharedObject, TransactionEffects, TransactionEffectsAPI},
+    effects::{InputSharedObject, TransactionEffectsAPI},
     messages_checkpoint::{CheckpointTimestamp, VerifiedCheckpoint},
     transaction::{TransactionData, TransactionDataAPI},
 };

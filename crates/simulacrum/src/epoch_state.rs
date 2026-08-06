@@ -10,9 +10,10 @@ use iota_config::{
 };
 use iota_execution::Executor;
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
+use iota_sdk_types::TransactionEffects;
 use iota_types::{
     committee::{Committee, EpochId},
-    effects::{TransactionEffects, TransactionEffectsAPI},
+    effects::TransactionEffectsAPI,
     error::IotaResult,
     gas::IotaGasStatus,
     gas_coin::mock_simulation_gas_coin,

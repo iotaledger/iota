@@ -7,7 +7,7 @@ use std::{cell::RefCell, collections::HashSet, rc::Rc, sync::Arc};
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
     Address, GasPayment, MoveAuthenticator, ProgrammableTransaction, TransactionDigest,
-    TransactionKind,
+    TransactionEffects, TransactionKind,
 };
 use iota_types::{
     account_abstraction::authenticator_function::{
@@ -16,7 +16,6 @@ use iota_types::{
     auth_context::AuthContextData,
     base_types::TxContext,
     committee::EpochId,
-    effects::TransactionEffects,
     error::ExecutionError,
     execution::{ExecutionResult, TypeLayoutStore},
     gas::IotaGasStatus,

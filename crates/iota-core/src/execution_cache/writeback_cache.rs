@@ -59,12 +59,11 @@ use iota_common::{random_util::randomize_cache_capacity_in_tests, sync::notify_r
 use iota_config::WritebackCacheConfig;
 use iota_macros::fail_point;
 use iota_sdk_types::{
-    ObjectDigest, ObjectId, ObjectReference, Owner, TransactionDigest, TransactionEffectsDigest,
-    Version,
+    ObjectDigest, ObjectId, ObjectReference, Owner, TransactionDigest, TransactionEffects,
+    TransactionEffectsDigest, TransactionEvents, Version,
 };
 use iota_types::{
     base_types::{EpochId, VerifiedExecutionData},
-    effects::{TransactionEffects, TransactionEvents},
     error::{IotaError, IotaResult, UserInputError},
     executable_transaction::VerifiedExecutableTransaction,
     global_state_hash::GlobalStateHash,

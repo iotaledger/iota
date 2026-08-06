@@ -1111,8 +1111,8 @@ mod bcs_signable {
     #[cfg(not(target_arch = "wasm32"))]
     impl BcsSignable for crate::messages_consensus::VersionedMisbehaviorReport {}
 
-    impl BcsSignable for crate::effects::TransactionEffects {}
-    impl BcsSignable for crate::effects::TransactionEvents {}
+    impl BcsSignable for iota_sdk_types::TransactionEffects {}
+    impl BcsSignable for iota_sdk_types::TransactionEvents {}
     impl BcsSignable for crate::transaction::TransactionData {}
     impl BcsSignable for iota_sdk_types::SenderSignedTransaction {}
     impl BcsSignable for crate::object::ObjectInner {}

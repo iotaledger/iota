@@ -20,14 +20,16 @@ use iota_network::{
     DEFAULT_CONNECT_TIMEOUT_SEC, DEFAULT_REQUEST_TIMEOUT_SEC, default_iota_network_config,
 };
 use iota_network_stack::config::Config;
-use iota_sdk_types::{ObjectId, ObjectReference, TransactionDigest, TransactionEffectsDigest};
+use iota_sdk_types::{
+    ObjectId, ObjectReference, TransactionDigest, TransactionEffects, TransactionEffectsDigest,
+    TransactionEvents,
+};
 use iota_types::{
     base_types::*,
     committee::{Committee, CommitteeTrait, CommitteeWithNetworkMetadata, StakeUnit},
     crypto::{AuthorityPublicKeyBytes, AuthoritySignInfo},
     effects::{
-        CertifiedTransactionEffects, SignedTransactionEffects, TransactionEffects,
-        TransactionEvents, VerifiedCertifiedTransactionEffects,
+        CertifiedTransactionEffects, SignedTransactionEffects, VerifiedCertifiedTransactionEffects,
     },
     error::{IotaError, IotaResult, UserInputError},
     fp_ensure,

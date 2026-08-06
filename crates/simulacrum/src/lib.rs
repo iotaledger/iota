@@ -34,7 +34,7 @@ use iota_protocol_config::ProtocolVersion;
 use iota_sdk_types::{
     Address, CheckpointContentsDigest, CheckpointDigest, ConsensusCommitDigest,
     EndOfEpochTransactionKind, GasPayment, ObjectId, StructTag, SystemPackage, TransactionDigest,
-    TransactionKind,
+    TransactionEffects, TransactionEvents, TransactionKind,
     checkpoint::{CheckpointContents, EndOfEpochData},
 };
 use iota_storage::blob::{Blob, BlobEncoding};
@@ -46,7 +46,6 @@ use iota_types::{
     base_types::{AuthorityName, EpochId, VersionNumber},
     committee::Committee,
     crypto::AuthoritySignature,
-    effects::TransactionEffects,
     error::ExecutionError,
     gas_coin::{GasCoin, NANOS_PER_IOTA},
     inner_temporary_store::InnerTemporaryStore,
@@ -695,7 +694,7 @@ impl<T, V: store::SimulatorStore> ReadStore for Simulacrum<T, V> {
     fn try_get_events(
         &self,
         digest: &TransactionDigest,
-    ) -> iota_types::storage::error::Result<Option<iota_types::effects::TransactionEvents>> {
+    ) -> iota_types::storage::error::Result<Option<TransactionEvents>> {
         Ok(self.with_store(|store| store.get_events(digest)))
     }
 

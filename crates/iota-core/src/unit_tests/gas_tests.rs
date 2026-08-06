@@ -7,12 +7,12 @@ use std::sync::Arc;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
     Address, Command, ExecutionError, ExecutionStatus, GasCostSummary, Identifier, ObjectId,
-    ObjectReference, Owner, TransactionEffects, TransactionKind,
+    ObjectReference, Owner, TransactionEffects, TransactionEvents, TransactionKind,
 };
 use iota_types::{
     base_types::dbg_addr,
     crypto::{AccountKeyPair, get_key_pair},
-    effects::{TransactionEffectsAPI, TransactionEffectsExt, TransactionEvents},
+    effects::{TransactionEffectsAPI, TransactionEffectsExt},
     error::{IotaResult, UserInputError},
     gas_coin::GasCoin,
     messages_grpc::TransactionStatus,

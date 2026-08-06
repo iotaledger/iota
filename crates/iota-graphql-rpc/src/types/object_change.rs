@@ -3,7 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use async_graphql::*;
-use iota_types::effects::{IDOperation, ObjectChange as NativeObjectChange};
+use iota_sdk_types::IdOperation;
+use iota_types::effects::ObjectChange as NativeObjectChange;
 
 use crate::types::{iota_address::IotaAddress, object::Object};
 
@@ -70,11 +71,11 @@ impl ObjectChange {
 
     /// Whether the ID was created in this transaction.
     async fn id_created(&self) -> Option<bool> {
-        Some(self.native.id_operation == IDOperation::Created)
+        Some(self.native.id_operation == IdOperation::Created)
     }
 
     /// Whether the ID was deleted in this transaction.
     async fn id_deleted(&self) -> Option<bool> {
-        Some(self.native.id_operation == IDOperation::Deleted)
+        Some(self.native.id_operation == IdOperation::Deleted)
     }
 }

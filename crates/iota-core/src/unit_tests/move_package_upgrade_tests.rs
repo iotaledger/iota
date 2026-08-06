@@ -14,10 +14,11 @@ use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
     Address, Argument, CommandArgumentError, Digest, ExecutionError, ExecutionStatus, Identifier,
     ObjectId, ObjectReference, Owner, PackageUpgradeError, ProgrammableTransaction, StructTag,
+    TransactionEffects,
 };
 use iota_types::{
     crypto::{AccountKeyPair, get_key_pair},
-    effects::{TransactionEffects, TransactionEffectsAPI},
+    effects::TransactionEffectsAPI,
     error::{IotaError, UserInputError},
     execution_config_utils::to_binary_config,
     move_package::{MovePackageExt, UpgradePolicy},

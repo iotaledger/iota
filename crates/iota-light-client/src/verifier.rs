@@ -8,12 +8,10 @@ use anyhow::{Context, Result, anyhow, bail};
 use iota_config::genesis::Genesis;
 use iota_json_rpc_types::{IotaObjectDataOptions, IotaTransactionBlockResponseOptions};
 use iota_sdk::IotaClientBuilder;
-use iota_sdk_types::{ObjectId, TransactionDigest};
+use iota_sdk_types::{ObjectId, TransactionDigest, TransactionEffects, TransactionEvents};
 use iota_types::{
     committee::Committee,
-    effects::{
-        TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt, TransactionEvents,
-    },
+    effects::{TransactionEffectsAPI, TransactionEffectsExt},
     full_checkpoint_content::CheckpointData,
     messages_checkpoint::{CheckpointContentsExt, CheckpointSequenceNumber},
     object::Object,

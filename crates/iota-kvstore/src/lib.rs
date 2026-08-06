@@ -7,10 +7,10 @@ use std::num::NonZeroUsize;
 use anyhow::Result;
 use async_trait::async_trait;
 use iota_sdk_types::{
-    Address, CheckpointDigest, TransactionDigest, checkpoint::CheckpointContents,
+    Address, CheckpointDigest, TransactionDigest, TransactionEffects, TransactionEvents,
+    checkpoint::CheckpointContents,
 };
 use iota_types::{
-    effects::{TransactionEffects, TransactionEvents},
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     messages_checkpoint::{CertifiedCheckpointSummary, CheckpointSequenceNumber},
     object::Object,

@@ -7,14 +7,14 @@ use std::{
     sync::Arc,
 };
 
-use iota_sdk_types::{ObjectId, Owner, Version};
+use iota_sdk_types::{ObjectId, Owner, TransactionEffects, TransactionEvents, Version};
 use move_binary_format::{CompiledModule, binary_config::BinaryConfig};
 use move_bytecode_utils::module_cache::GetModule;
 use move_core_types::language_storage::ModuleId;
 
 use crate::{
     base_types::VersionDigest,
-    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
+    effects::TransactionEffectsAPI,
     error::IotaResult,
     execution::DynamicallyLoadedObjectMetadata,
     iota_sdk_types_conversions::identifier_core_to_sdk,
