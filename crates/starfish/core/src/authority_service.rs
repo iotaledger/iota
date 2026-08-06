@@ -830,11 +830,10 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             );
         }
 
-        // 5b. Drop the primary block when a different header is already accepted
-        // for its slot: two signed headers from the author's own stream for one
-        // slot are provable equivocation, so charge the author. The rest of the
-        // bundle is still processed; a same-slot header sitting in the block
-        // manager's suspender is caught by the equivalent cap there.
+        // 5b. Two signed headers from the author's own stream for one slot are
+        // provable equivocation, so drop the block before its shards and payload
+        // are processed, and charge the author. A same-slot header still only
+        // suspended is caught by the equivalent cap in the block manager.
         let primary_block_equivocates = !primary_block_far_future
             && self
                 .dag_state
@@ -855,12 +854,19 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                     DataSource::BlockStreaming.as_str(),
                 ])
                 .inc();
-            info!("Dropped streamed block {block_ref} from peer {peer}: {e}");
+            warn!(
+                "Peer {peer} equivocated: dropping streamed block {block_ref}, its slot already \
+                 holds a header with a different digest"
+            );
         }
+        // The block is not accepted for either reason, so the steps below skip it.
         let primary_block_dropped = primary_block_far_future || primary_block_equivocates;
 
         // 6. Collect shards from a bundle and check their proofs. Skipped for a
-        // dropped primary block so its shards never reach the reconstructor.
+        // dropped primary block so its shards never reach the reconstructor. The
+        // bundled headers still go through: they are signed by their authors and
+        // already verified, while a shard's proof is checked only against the
+        // commitment carried inside the shard itself.
         let verified_shards = if primary_block_dropped {
             Vec::new()
         } else {
