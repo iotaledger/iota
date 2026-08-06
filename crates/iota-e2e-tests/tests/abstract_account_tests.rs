@@ -29,7 +29,8 @@ use iota_protocol_config::{PerObjectCongestionControlMode, ProtocolConfig};
 use iota_sdk_types::{
     Address, Argument, ExecutionError, Identifier, MoveAuthenticatorV1, MoveLocation, ObjectId,
     ObjectReference, Owner, ProgrammableTransaction, SharedObjectReference, SignatureScheme,
-    TypeTag, UserSignature, crypto::Intent,
+    TypeTag, UserSignature,
+    crypto::{Intent, SimpleSignature},
 };
 use iota_test_transaction_builder::publish_package;
 use iota_types::{
@@ -2837,7 +2838,7 @@ impl TestEnvironment {
     /// `SimpleSignature` and the abstract-account object reference.
     fn move_authenticator_from_ed25519_sig(
         aa_obj_ref: ObjectReference,
-        signature: iota_sdk_types::crypto::SimpleSignature,
+        signature: SimpleSignature,
     ) -> anyhow::Result<UserSignature> {
         let hex_encoded_signature: String = Hex::encode(signature.to_bytes())
             .chars()

@@ -10,8 +10,8 @@ use std::{
 
 use fastcrypto::traits::{AggregateAuthenticator, KeyPair};
 use iota_sdk_crypto::{
-    ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey, secp256r1::Secp256r1PrivateKey,
-    simple::SimpleKeypair,
+    Signer, ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey,
+    secp256r1::Secp256r1PrivateKey, simple::SimpleKeypair,
 };
 use iota_sdk_types::{
     Address, ExecutionStatus, GasPayment, Owner, SharedObjectReference, SignatureScheme, StructTag,
@@ -716,7 +716,7 @@ fn test_user_signature_committed_in_signed_transactions() {
 fn signature_from_signer(
     data: TransactionData,
     intent: Intent,
-    signer: &impl iota_sdk_crypto::Signer<SimpleSignature>,
+    signer: &impl Signer<SimpleSignature>,
 ) -> SimpleSignature {
     let intent_msg = IntentMessage::new(intent, data);
     SimpleSignature::new_secure(&intent_msg, signer)
