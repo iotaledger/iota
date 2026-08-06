@@ -321,6 +321,8 @@ EndOfEpochTransactionKind:
       ChangeEpochV4:
         NEWTYPE:
           TYPENAME: ChangeEpochV4
+    4:
+      TransactionDenyRulesCreate: UNIT
 Event:
   STRUCT:
     - package_id:
@@ -813,6 +815,35 @@ Transaction:
       V1:
         NEWTYPE:
           TYPENAME: TransactionV1
+TransactionDenyRulesUpdate:
+  STRUCT:
+    - epoch: U64
+    - round: U64
+    - added_addresses:
+        SEQ:
+          TYPENAME: Address
+    - removed_addresses:
+        SEQ:
+          TYPENAME: Address
+    - added_objects:
+        SEQ:
+          TYPENAME: ObjectId
+    - removed_objects:
+        SEQ:
+          TYPENAME: ObjectId
+    - added_packages:
+        SEQ:
+          TYPENAME: ObjectId
+    - removed_packages:
+        SEQ:
+          TYPENAME: ObjectId
+    - package_publish_disabled: BOOL
+    - package_upgrade_disabled: BOOL
+    - shared_object_disabled: BOOL
+    - user_transaction_disabled: BOOL
+    - receiving_objects_disabled: BOOL
+    - move_authenticator_disabled: BOOL
+    - deny_rules_obj_initial_shared_version: U64
 TransactionDigest:
   NEWTYPESTRUCT:
     TYPENAME: Digest
@@ -891,6 +922,10 @@ TransactionKind:
       RandomnessStateUpdate:
         NEWTYPE:
           TYPENAME: RandomnessStateUpdate
+    6:
+      TransactionDenyRulesUpdate:
+        NEWTYPE:
+          TYPENAME: TransactionDenyRulesUpdate
 TransactionV1:
   STRUCT:
     - kind:

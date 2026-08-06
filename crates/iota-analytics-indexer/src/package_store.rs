@@ -5,7 +5,7 @@
 use std::{path::Path, sync::Arc};
 
 use async_trait::async_trait;
-use iota_grpc_client::{Client, ReadMask, read_mask_fields::ObjectField};
+use iota_grpc_client::{Client, read_mask_fields::ObjectField};
 use iota_package_resolver::{
     Package, PackageStore, PackageStoreWithLruCache, error::Error as PackageResolverError,
 };
@@ -103,10 +103,7 @@ impl LocalDBPackageStore {
             }
             let objects = self
                 .fallback_client
-                .get_objects(
-                    &[(ObjectId::new(id.into_bytes()), None)],
-                    Some(ReadMask::from(ObjectField::BCS)),
-                )
+                .get_objects([ObjectId::new(id.into_bytes())], ObjectField::BCS)
                 .await
                 .map_err(grpc_err)?
                 .into_inner();
