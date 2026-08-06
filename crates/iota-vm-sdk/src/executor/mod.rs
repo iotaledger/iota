@@ -8,7 +8,8 @@
 //! [`LocalVm::execute`] / [`LocalVm::execute_signed`] call runs a transaction
 //! in one of three [`ExecutionMode`]s:
 //!
-//! - [`ExecutionMode::DevInspect`] — relaxed Move VM checks, no commit.
+//! - [`ExecutionMode::DevInspect`] — relaxed input and Move VM checks, no
+//!   commit.
 //! - [`ExecutionMode::DryRun`] — full sign-time checks, no commit.
 //! - [`ExecutionMode::Execute`] — full checks; on success the effects (writes
 //!   *and* deletions) are applied back into the store and

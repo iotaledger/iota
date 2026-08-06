@@ -34,8 +34,38 @@ effects are committed:
 
 Dev-inspect meters at `max_tx_gas` rather than the declared budget because a run
 before a budget is settled isn't limited by one; a real gas coin still caps it at
-the coin's balance. `DryRun` and `Execute` use the same preparation and budget;
-they differ only in the mock-gas rule and whether effects are committed.
+the coin's balance. This follows the node's `dev_inspect_transaction_block` and
+is a deliberate deviation from `simulate_transaction` with
+`VmChecks::Disabled`, which meters at the declared budget and so runs out of gas
+on the zero-budget transaction that is the common dev-inspect input. `DryRun` and
+`Execute` use the same preparation and budget; they differ only in the mock-gas
+rule and whether effects are committed.
+
+### Engine execution mode each SDK mode runs under
+
+The SDK modes name node entry points, not the engine's `ExecutionMode`
+implementations. Which of those the run ends up in also depends on whether a
+trace was requested:
+
+| Mode         | untraced            | traced              | node entry point mirrored                  |
+| ------------ | ------------------- | ------------------- | ------------------------------------------ |
+| `DevInspect` | `DevInspect<true>`  | n/a — runs untraced | `simulate_transaction(VmChecks::Disabled)` |
+| `DryRun`     | `DevInspect<false>` | `Normal`            | `simulate_transaction(VmChecks::Enabled)`  |
+| `Execute`    | `DevInspect<false>` | `Normal`            | post-consensus certified execution         |
+
+`DevInspect<false>` and `Normal` return the same value from every
+`ExecutionMode` trait method, so the checks and gas are identical; they differ
+only in that `DevInspect<false>` collects the per-command results reported as
+`ExecutionResult::command_results`. That is why a traced `DryRun` / `Execute` may
+switch to `Normal` — the only observable loss is those per-command results —
+while `DevInspect` cannot, since `Normal` would drop its relaxations. See
+`ExecutionMode::supports_tracing`.
+
+A `MoveAuthenticator` transaction runs under `Normal` for the body (and
+`Authentication` for the authenticators) in **every** SDK mode, because
+`authenticate_then_execute_transaction_to_effects` is not generic over the mode.
+In `DevInspect` only the input checks and the gas budget relax there; that path
+is traced in every mode.
 
 ## SDK entry points and the phase each mirrors
 
@@ -45,6 +75,10 @@ they differ only in the mock-gas rule and whether effects are committed.
 | `execute_signed`, standard schemes          | verified cryptographically           | `dev_inspect_transaction`                                        | per mode                                  | post-consensus body-only execution | `Verified`                                                                    |
 | `execute_signed`, with `MoveAuthenticator`s | crypto + authenticator run in the VM | `authenticate_then_execute_transaction_to_effects`               | per mode, shared by authenticators + body | post-consensus certified execution | `Verified`, or `Failed` if an authenticator rejects                           |
 | `check_signing_authentication`              | crypto + authenticator run in the VM | `authenticate_transaction` (no body, commits nothing)            | **`max_auth_gas`**                        | pre-consensus signing              | `Verified`, or `Failed` if an authenticator rejects or exceeds `max_auth_gas` |
+
+The two `dev_inspect_transaction` rows use `execute_transaction_to_effects`
+instead when a trace was requested and the mode supports tracing, as described
+above.
 
 ### Authenticator outcome
 

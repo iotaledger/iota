@@ -162,10 +162,14 @@ pub(super) fn prepare_transaction(
         )
         .map_err(|e| ValidationError::new("dev-inspect input check", e))?;
         // Dev-inspect meters at `max_tx_gas`, not the transaction's declared
-        // budget, matching the node's dev-inspect entry point — a run before a
-        // budget is settled isn't limited by it. Real gas coins cap the budget
-        // at their total balance, since the engine smashes the budget off the
-        // coin up front (the mock coin's balance always covers `max_tx_gas`).
+        // budget, as the node's `dev_inspect_transaction_block` does — a run
+        // before a budget is settled isn't limited by it. This is a deliberate
+        // deviation from `simulate_transaction` with `VmChecks::Disabled`, which
+        // meters at the declared budget and so runs out of gas on the
+        // zero-budget transaction that is the common dev-inspect input. Real gas
+        // coins cap the budget at their total balance, since the engine smashes
+        // the budget off the coin up front (the mock coin's balance always
+        // covers `max_tx_gas`).
         let dev_inspect_gas_budget = if mock_gas_id.is_some() {
             env.protocol_config.max_tx_gas()
         } else {
@@ -234,6 +238,7 @@ pub(super) fn execute_prepared(
     store: &dyn BackingStore,
     prepared: PreparedTransaction,
     mode: ExecutionMode,
+    trace_builder_opt: &mut Option<MoveTraceBuilder>,
 ) -> Result<SimulateTransactionResult, VmSdkError> {
     let PreparedTransaction {
         transaction,
@@ -242,26 +247,62 @@ pub(super) fn execute_prepared(
         mock_gas_id,
     } = prepared;
 
-    let dev_inspect = matches!(mode, ExecutionMode::DevInspect);
+    // Tracing requires the `execute_transaction_to_effects` entry point below,
+    // which runs under `execution_mode::Normal`. `DevInspect` would lose its
+    // relaxed checks there, so it runs untraced instead of under rules the caller
+    // did not ask for.
+    if !mode.supports_tracing() {
+        *trace_builder_opt = None;
+    }
+
     let (kind, signer, gas_data) = transaction.execution_parts();
-    // `dev_inspect_transaction` accepts no `MoveTraceBuilder`; tracing is only
-    // available on the `authenticate_then_execute_transaction_to_effects` path.
-    let (inner_temp_store, _, effects, execution_result) = env.executor.dev_inspect_transaction(
-        store,
-        &env.protocol_config,
-        env.limits_metrics.clone(),
-        false,
-        &HashSet::new(),
-        &env.epoch_id,
-        env.epoch_timestamp_ms,
-        checked_input_objects,
-        gas_data,
-        gas_status,
-        kind,
-        signer,
-        transaction.digest(),
-        dev_inspect,
-    );
+    let (inner_temp_store, _, effects, execution_result) = if trace_builder_opt.is_some() {
+        // `dev_inspect_transaction` accepts no `MoveTraceBuilder`, so a traced run
+        // goes through `execute_transaction_to_effects` instead. It runs under
+        // `execution_mode::Normal`, whose checks are identical to the
+        // `DevInspect<false>` the untraced `DryRun` / `Execute` paths use; it only
+        // collects no per-command results.
+        let (inner_temp_store, gas_status, effects, execution_result) =
+            env.executor.execute_transaction_to_effects(
+                store,
+                &env.protocol_config,
+                env.limits_metrics.clone(),
+                false,
+                &HashSet::new(),
+                &env.epoch_id,
+                env.epoch_timestamp_ms,
+                checked_input_objects,
+                gas_data,
+                gas_status,
+                kind,
+                signer,
+                transaction.digest(),
+                trace_builder_opt,
+            );
+        (
+            inner_temp_store,
+            gas_status,
+            effects,
+            execution_result.map(|()| Vec::new()),
+        )
+    } else {
+        env.executor.dev_inspect_transaction(
+            store,
+            &env.protocol_config,
+            env.limits_metrics.clone(),
+            false,
+            &HashSet::new(),
+            &env.epoch_id,
+            env.epoch_timestamp_ms,
+            checked_input_objects,
+            gas_data,
+            gas_status,
+            kind,
+            signer,
+            transaction.digest(),
+            matches!(mode, ExecutionMode::DevInspect),
+        )
+    };
 
     Ok(simulation_result(
         inner_temp_store,
