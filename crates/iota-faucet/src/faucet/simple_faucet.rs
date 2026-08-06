@@ -1180,8 +1180,8 @@ mod tests {
     use anyhow::*;
     use iota_json_rpc_types::{IotaExecutionStatus, IotaTransactionBlockEffects};
     use iota_sdk::wallet_context::WalletContext;
-    use iota_sdk_types::crypto::Intent;
-    use iota_types::transaction::{SenderSignedData, TransactionDataAPI};
+    use iota_sdk_types::{SenderSignedTransaction, crypto::Intent};
+    use iota_types::transaction::TransactionDataAPI;
     use test_cluster::TestClusterBuilder;
 
     use super::*;
@@ -1195,8 +1195,9 @@ mod tests {
             &tx_data,
             Intent::iota_transaction(),
         )?;
-        let sender_signed_data = SenderSignedData::new_from_sender_signature(tx_data, signature);
-        let transaction = TransactionEnvelope::new(sender_signed_data);
+        let sender_signed_tx =
+            SenderSignedTransaction::new_from_sender_signature(tx_data, signature);
+        let transaction = TransactionEnvelope::new(sender_signed_tx);
         let response = ctx.execute_transaction_may_fail(transaction).await?;
         let result_effects = response.effects;
 

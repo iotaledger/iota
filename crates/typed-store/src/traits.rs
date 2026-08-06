@@ -46,7 +46,6 @@ where
     ///
     /// Not atomic with respect to concurrent writers: an entry inserted while
     /// the call is in flight may survive it.
-    #[cfg(msim)]
     fn schedule_delete_all(&self) -> Result<(), TypedStoreError>;
 
     /// Returns true if the map is empty, otherwise false.

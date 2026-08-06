@@ -5,6 +5,7 @@
 use std::path::PathBuf;
 
 use iota_genesis_builder::validator_info::GenesisValidatorMetadata;
+use iota_grpc_client::read_mask_fields::{ObjectReadMask, OwnedObjectReadMask};
 use iota_move_build::{BuildConfig, CompiledPackage};
 use iota_sdk::{
     rpc_types::{
@@ -800,7 +801,13 @@ pub async fn delete_nft(
 /// one output coin, breaking tests that observe the sender's coin count.
 pub async fn select_gas_coin(grpc_client: &iota_grpc_client::Client, sender: Address) -> ObjectId {
     let gas_coin = grpc_client
-        .list_owned_objects(sender, Some(StructTag::new_gas_coin()), Some(1), None, None)
+        .list_owned_objects(
+            sender,
+            Some(StructTag::new_gas_coin()),
+            Some(1),
+            None,
+            OwnedObjectReadMask::default(),
+        )
         .collect(Some(1))
         .await
         .expect("failed to fetch gas coin")
@@ -859,7 +866,7 @@ pub async fn split_coin_equal_tx(
     gas_budget: u64,
 ) -> TransactionData {
     let coin_object = grpc_client
-        .get_objects(&[(coin_to_split, None)], None)
+        .get_objects([coin_to_split], ObjectReadMask::default())
         .await
         .expect("failed to fetch coin")
         .into_inner()

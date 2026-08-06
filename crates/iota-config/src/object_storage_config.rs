@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{env, fs, path::PathBuf, sync::Arc};
+use std::{env, fs, path::PathBuf, sync::Arc, time::Duration};
 
 use anyhow::{Context, Result, anyhow, bail};
 use clap::*;
@@ -104,11 +104,20 @@ fn default_object_store_connection_limit() -> usize {
     20
 }
 
-fn no_timeout_options() -> ClientOptions {
+/// How long establishing a connection may take before it is abandoned.
+pub const CONNECT_TIMEOUT: Duration = Duration::from_secs(15);
+
+/// How long a transfer may go without receiving any bytes before it is
+/// abandoned.
+pub const TRANSFER_STALL_TIMEOUT: Duration = Duration::from_secs(60);
+
+/// Client options with no overall request timeout, since a transfer takes as
+/// long as the object is large, but with the connect phase bounded.
+fn transfer_client_options() -> ClientOptions {
     ClientOptions::new()
         .with_timeout_disabled()
-        .with_connect_timeout_disabled()
-        .with_pool_idle_timeout(std::time::Duration::from_secs(300))
+        .with_connect_timeout(CONNECT_TIMEOUT)
+        .with_pool_idle_timeout(Duration::from_secs(300))
 }
 
 impl ObjectStoreConfig {
@@ -132,7 +141,7 @@ impl ObjectStoreConfig {
         info!(bucket=?self.bucket, object_store_type="S3", "Object Store");
 
         let mut builder = AmazonS3Builder::new()
-            .with_client_options(no_timeout_options())
+            .with_client_options(transfer_client_options())
             .with_imdsv1_fallback();
 
         if self.aws_virtual_hosted_style_request {
@@ -190,7 +199,7 @@ impl ObjectStoreConfig {
             builder = builder.with_service_account_path(account);
         }
 
-        let mut client_options = no_timeout_options();
+        let mut client_options = transfer_client_options();
         if let Some(google_project_id) = &self.google_project_id {
             let x_project_header = HeaderName::from_static("x-goog-user-project");
             let iam_req_header = HeaderName::from_static("userproject");
@@ -213,7 +222,8 @@ impl ObjectStoreConfig {
         info!(bucket=?self.bucket, account=?self.azure_storage_account,
           object_store_type="Azure", "Object Store");
 
-        let mut builder = MicrosoftAzureBuilder::new().with_client_options(no_timeout_options());
+        let mut builder =
+            MicrosoftAzureBuilder::new().with_client_options(transfer_client_options());
 
         if let Some(bucket) = &self.bucket {
             builder = builder.with_container_name(bucket);

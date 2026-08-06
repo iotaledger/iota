@@ -299,7 +299,7 @@ jsonrpsee = { version = "0.24", features = ["server", "macros", "client", "ws-cl
 lru = "0.12"
 mockall = "0.11.4"
 moka = { version = "0.12.12", default-features = false, features = ["sync"] }
-msim = { git = "https://github.com/iotaledger/iota-sim.git", branch = "tokio-1.52.2", package = "msim" }
+msim = { git = "https://github.com/iotaledger/iota-sim.git", branch = "tokio-1.53.1", package = "msim" }
 multiaddr = "0.18.2"
 nonempty = "0.9.0"
 num_cpus = "1.15.0"
@@ -354,7 +354,7 @@ test-fuzz = "3.0.4"
 thiserror = "1.0.40"
 # tokio is defined at a specific version to support patching with iota-sim
 # Do not upgrade without updating https://github.com/iotaledger/iota-sim first
-tokio = { version = "1.52.2", features = ["parking_lot"] }
+tokio = { version = "1.53.1", features = ["parking_lot"] }
 tokio-rustls = { version = "0.26.4", default-features = false, features = ["tls12", "ring"] }
 tokio-stream = { version = "0.1.18", features = ["sync", "net"] }
 tokio-util = "0.7.18"
@@ -398,9 +398,9 @@ iota-graphql-config = { path = "crates/iota-graphql-config" }
 iota-graphql-rpc = { path = "crates/iota-graphql-rpc" }
 iota-graphql-rpc-client = { path = "crates/iota-graphql-rpc-client" }
 iota-graphql-rpc-headers = { path = "crates/iota-graphql-rpc-headers" }
-iota-grpc-client = { git = "https://github.com/iotaledger/iota-rust-sdk.git", package = "iota-sdk-grpc-client", rev = "045b53b8b66c8123db4225107f152e8690048c54" }
+iota-grpc-client = { git = "https://github.com/iotaledger/iota-rust-sdk.git", package = "iota-sdk-grpc-client", rev = "38d7e7dda8219f5d96d92abb7a0b63a9f509e3cf" }
 iota-grpc-server = { path = "crates/iota-grpc-server" }
-iota-grpc-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", package = "iota-sdk-grpc-types", rev = "045b53b8b66c8123db4225107f152e8690048c54" }
+iota-grpc-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", package = "iota-sdk-grpc-types", rev = "38d7e7dda8219f5d96d92abb7a0b63a9f509e3cf" }
 iota-http = { path = "crates/iota-http" }
 iota-indexer = { path = "crates/iota-indexer" }
 iota-indexer-builder = { path = "crates/iota-indexer-builder" }
@@ -439,10 +439,10 @@ iota-replay = { path = "crates/iota-replay" }
 iota-rest-kv = { path = "crates/iota-rest-kv" }
 iota-rpc-loadgen = { path = "crates/iota-rpc-loadgen" }
 iota-sdk = { path = "crates/iota-sdk" }
-iota-sdk-crypto = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "045b53b8b66c8123db4225107f152e8690048c54", default-features = false }
-iota-sdk-graphql-client = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "045b53b8b66c8123db4225107f152e8690048c54", default-features = false }
-iota-sdk-transaction-builder = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "045b53b8b66c8123db4225107f152e8690048c54", default-features = false }
-iota-sdk-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "045b53b8b66c8123db4225107f152e8690048c54", default-features = false }
+iota-sdk-crypto = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "38d7e7dda8219f5d96d92abb7a0b63a9f509e3cf", default-features = false }
+iota-sdk-graphql-client = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "38d7e7dda8219f5d96d92abb7a0b63a9f509e3cf", default-features = false }
+iota-sdk-transaction-builder = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "38d7e7dda8219f5d96d92abb7a0b63a9f509e3cf", default-features = false }
+iota-sdk-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "38d7e7dda8219f5d96d92abb7a0b63a9f509e3cf", default-features = false }
 iota-simulator = { path = "crates/iota-simulator" }
 iota-snapshot = { path = "crates/iota-snapshot" }
 iota-source-validation = { path = "crates/iota-source-validation" }

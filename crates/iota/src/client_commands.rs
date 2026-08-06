@@ -49,8 +49,8 @@ use iota_sdk::{
 };
 use iota_sdk_types::{
     Address, Identifier, MoveAuthenticatorV1, ObjectId, ObjectReference, Owner,
-    SharedObjectReference, SignatureScheme, TransactionDigest, TransactionKind, TypeTag,
-    UserSignature, Version,
+    SenderSignedTransaction, SharedObjectReference, SignatureScheme, TransactionDigest,
+    TransactionKind, TypeTag, UserSignature, Version,
     crypto::{Intent, IntentMessage},
     gas::GasCostSummary,
     move_package::MovePackage,
@@ -76,8 +76,8 @@ use iota_types::{
     parse_iota_type_tag,
     quorum_driver_types::ExecuteTransactionRequestType,
     transaction::{
-        CallArg, InputObjectKind, SenderSignedData, TransactionData, TransactionDataAPI,
-        TransactionEnvelope, TransactionKindExt,
+        CallArg, InputObjectKind, TransactionData, TransactionDataAPI, TransactionEnvelope,
+        TransactionKindExt,
     },
 };
 use json_to_table::json_to_table;
@@ -213,7 +213,7 @@ pub enum IotaClientCommands {
         #[arg(long, num_args(1..), required = true)]
         signatures: Vec<String>,
     },
-    /// Execute a combined serialized SenderSignedData string.
+    /// Execute a combined serialized SenderSignedTransaction string.
     ExecuteCombinedSignedTx {
         /// BCS serialized sender signed data, as base64 encoded string. This is
         /// the output of iota client command using
@@ -664,7 +664,7 @@ pub struct TxProcessingArgs {
     #[arg(long)]
     pub serialize_unsigned_transaction: bool,
     /// Instead of executing the transaction, serialize the bcs bytes of the
-    /// signed transaction data (SenderSignedData) using base64 encoding,
+    /// signed transaction data (SenderSignedTransaction) using base64 encoding,
     /// and print out the string <SIGNED_TX_BYTES>. The string can be used
     /// to execute transaction with `iota client execute-combined-signed-tx
     /// --signed-tx-bytes <SIGNED_TX_BYTES>`.
@@ -1868,13 +1868,13 @@ impl IotaClientCommands {
                 IotaClientCommandResult::TransactionBlock(response)
             }
             IotaClientCommands::ExecuteCombinedSignedTx { signed_tx_bytes } => {
-                let data: SenderSignedData = bcs::from_bytes(
+                let tx: SenderSignedTransaction = bcs::from_bytes(
                     &Base64::try_from(signed_tx_bytes)
                         .map_err(|_| anyhow!("Invalid Base64 encoding"))?
                         .to_vec()
                         .map_err(|_| anyhow!("Invalid Base64 encoding"))?
-                ).map_err(|_| anyhow!("Failed to parse SenderSignedData bytes, check if it matches the output of iota client commands with --serialize-signed-transaction"))?;
-                let transaction = Envelope::<SenderSignedData, EmptySignInfo>::new(data);
+                ).map_err(|_| anyhow!("Failed to parse SenderSignedTransaction bytes, check if it matches the output of iota client commands with --serialize-signed-transaction"))?;
+                let transaction = Envelope::<SenderSignedTransaction, EmptySignInfo>::new(tx);
                 let response = context.execute_transaction_may_fail(transaction).await?;
                 IotaClientCommandResult::TransactionBlock(response)
             }
@@ -2995,7 +2995,7 @@ pub enum IotaClientCommandResult {
     Objects(Vec<IotaObjectResponse>),
     RawObject(IotaObjectResponse),
     RemoveAddress(Address),
-    SerializedSignedTransaction(SenderSignedData),
+    SerializedSignedTransaction(SenderSignedTransaction),
     SerializedUnsignedTransaction(TransactionData),
     Sign(SignData),
     Switch(SwitchResponse),
@@ -3508,14 +3508,14 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
             }
         }
 
-        let sender_signed_data = SenderSignedData::new(tx_data, signatures);
+        let sender_signed_tx = SenderSignedTransaction::new(tx_data, signatures);
 
         if serialize_signed_transaction {
             Ok(IotaClientCommandResult::SerializedSignedTransaction(
-                sender_signed_data,
+                sender_signed_tx,
             ))
         } else {
-            let transaction = TransactionEnvelope::new(sender_signed_data);
+            let transaction = TransactionEnvelope::new(sender_signed_tx);
             debug!("Executing transaction: {:?}", transaction);
             let mut response = client
                 .quorum_driver_api()

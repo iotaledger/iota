@@ -75,6 +75,7 @@ use iota_core::{
     transaction_orchestrator::TransactionOrchestrator,
     validator_tx_finalizer::ValidatorTxFinalizer,
 };
+use iota_genesis_common::MigrationTxDataExt;
 use iota_grpc_server::{GrpcReader, GrpcServerHandle, start_grpc_server};
 use iota_json_rpc::{
     JsonRpcServerBuilder, coin_api::CoinReadApi, governance_api::GovernanceReadApi,
@@ -1678,7 +1679,10 @@ impl IotaNode {
             std::time::Duration::from_secs(timeout),
             state
                 .get_transaction_cache_reader()
-                .try_notify_read_executed_effects_digests(&digests),
+                .try_notify_read_executed_effects_digests(
+                    "IotaNode::notify_read_executed_effects_digests",
+                    &digests,
+                ),
         )
         .await
         .is_err()

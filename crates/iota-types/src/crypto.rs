@@ -38,7 +38,7 @@ use iota_sdk_crypto::{
 };
 use iota_sdk_types::{
     Address, SignatureScheme,
-    crypto::{Intent, IntentMessage, IntentScope},
+    crypto::{Intent, IntentMessage, IntentScope, SimpleSignature},
 };
 use rand::{
     SeedableRng,
@@ -591,22 +591,13 @@ pub fn get_key_pair_from_bytes<KP: KeypairTraits>(bytes: &[u8]) -> IotaResult<KP
     Ok(sk.into())
 }
 
-// Account Signatures
-//
-
-// User signatures over transactions. Sourced from the SDK so the node shares a
-// single definition with clients; node-only behaviour (signing and
-// intent-message verification) lives in the [`IotaSignature`] extension trait
-// below.
-pub use iota_sdk_types::SimpleSignature as Signature;
-
-/// An all-zero ed25519 [`Signature`] placeholder, used for system transactions
-/// (which are not signed) and in tests where the signature content is
-/// irrelevant.
-pub fn zero_ed25519_signature() -> Signature {
+/// An all-zero ed25519 [`SimpleSignature`] placeholder, used for system
+/// transactions (which are not signed) and in tests where the signature
+/// content is irrelevant.
+pub fn zero_ed25519_signature() -> SimpleSignature {
     // `flag || signature || public key`, all zero; the leading zero byte selects
     // the ed25519 scheme.
-    Signature::from_bytes([0u8; 1 + Ed25519Signature::LENGTH + Ed25519PublicKey::LENGTH])
+    SimpleSignature::from_bytes([0u8; 1 + Ed25519Signature::LENGTH + Ed25519PublicKey::LENGTH])
         .expect("zero-filled ed25519 signature has the expected length")
 }
 
@@ -633,15 +624,14 @@ pub trait IotaPublicKey: VerifyingKey {
     const SIGNATURE_SCHEME: SignatureScheme;
 }
 
-/// Node-only behaviour layered on top of the SDK [`Signature`]
-/// (`iota_sdk_types::SimpleSignature`): construction from a signer and
-/// intent-message verification.
+/// Node-only behaviour layered on top of the SDK [`SimpleSignature`]:
+/// construction from a signer and intent-message verification.
 pub trait IotaSignature: Sized {
     /// Signs a message that is already in hashed form.
     fn new_hashed(
         hashed_msg: &[u8],
-        secret: &impl iota_sdk_crypto::Signer<Signature>,
-    ) -> Signature {
+        secret: &impl iota_sdk_crypto::Signer<SimpleSignature>,
+    ) -> SimpleSignature {
         secret.sign(hashed_msg)
     }
 
@@ -649,8 +639,8 @@ pub trait IotaSignature: Sized {
     #[instrument(level = "trace", skip_all)]
     fn new_secure<T>(
         value: &IntentMessage<T>,
-        secret: &impl iota_sdk_crypto::Signer<Signature>,
-    ) -> Signature
+        secret: &impl iota_sdk_crypto::Signer<SimpleSignature>,
+    ) -> SimpleSignature
     where
         T: Serialize,
     {
@@ -658,7 +648,7 @@ pub trait IotaSignature: Sized {
         // transaction data, this is the BCS hash of `struct TransactionData`,
         // different from the transaction digest itself that computes the BCS
         // hash of the Rust type prefix and `struct TransactionData`.
-        // (See `fn digest` in `impl Message for SenderSignedData`).
+        // (See `fn digest` in `impl Message for SenderSignedTransaction`).
         let mut hasher = DefaultHash::default();
         hasher.update(bcs::to_bytes(&value).expect("Message serialization should not fail"));
 
@@ -670,7 +660,7 @@ pub trait IotaSignature: Sized {
         T: Serialize;
 }
 
-impl IotaSignature for Signature {
+impl IotaSignature for SimpleSignature {
     #[instrument(level = "trace", skip_all)]
     fn verify_secure<T>(&self, value: &IntentMessage<T>, author: Address) -> Result<(), IotaError>
     where
@@ -1124,7 +1114,7 @@ mod bcs_signable {
     impl BcsSignable for crate::effects::TransactionEffects {}
     impl BcsSignable for crate::effects::TransactionEvents {}
     impl BcsSignable for crate::transaction::TransactionData {}
-    impl BcsSignable for crate::transaction::SenderSignedData {}
+    impl BcsSignable for iota_sdk_types::SenderSignedTransaction {}
     impl BcsSignable for crate::object::ObjectInner {}
 
     impl BcsSignable for crate::global_state_hash::GlobalStateHash {}

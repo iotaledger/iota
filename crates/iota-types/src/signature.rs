@@ -2,7 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::{Address, UserSignature, crypto::IntentMessage};
+use iota_sdk_types::{
+    Address, UserSignature,
+    crypto::{IntentMessage, SimpleSignature},
+};
 use serde::Serialize;
 
 use crate::error::IotaResult;
@@ -57,8 +60,8 @@ impl AuthenticatorTrait for UserSignature {
 }
 
 /// This ports the wrapper trait to the verify_secure defined on
-/// [`crate::crypto::Signature`].
-impl AuthenticatorTrait for crate::crypto::Signature {
+/// [`SimpleSignature`].
+impl AuthenticatorTrait for SimpleSignature {
     #[tracing::instrument(level = "trace", skip_all)]
     fn verify_claims<T>(
         &self,

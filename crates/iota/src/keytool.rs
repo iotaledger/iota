@@ -35,23 +35,23 @@ use iota_keys::{
     keystore::{AccountKeystore, Keystore, StoredKey},
 };
 use iota_ledger::Ledger;
-use iota_sdk_crypto::{Signer as _, ToFromBech32, ToFromBytes as _, ed25519::Ed25519PrivateKey};
+use iota_sdk_crypto::{
+    Signer as _, ToFromBase64, ToFromBech32, ToFromBytes as _, ed25519::Ed25519PrivateKey,
+};
 use iota_sdk_types::{
     Address, SenderSignedTransaction, SignatureScheme, Transaction,
     crypto::{
-        Intent, IntentMessage, PasskeyAuthenticator, PublicKey as SdkPublicKey, UserSignature,
+        Intent, IntentMessage, PasskeyAuthenticator, PublicKey as SdkPublicKey, SimpleSignature,
+        UserSignature,
     },
 };
 use iota_types::{
-    crypto::{
-        DefaultHash, EncodeDecodeBase64, PublicKey, Signature, SimpleKeypair,
-        get_authority_key_pair,
-    },
+    crypto::{DefaultHash, EncodeDecodeBase64, PublicKey, SimpleKeypair, get_authority_key_pair},
     error::IotaResult,
     move_authenticator::MoveAuthenticatorExt,
     multisig::{MultiSig, MultiSigPublicKey, MultisigMember, ThresholdUnit, WeightUnit},
     signature::{AuthenticatorTrait, VerifyParams},
-    transaction::{SenderSignedData, TransactionData, TransactionDataAPI},
+    transaction::{TransactionData, TransactionDataAPI},
 };
 use json_to_table::{Orientation, json_to_table};
 use serde::Serialize;
@@ -481,16 +481,17 @@ impl KeyToolCommand {
             }
             KeyToolCommand::DecodeSig { sig } => {
                 // Try to decode as UserSignature first, then fallback to
-                // SenderSignedData (which contains a SenderSignedTransaction)
+                // SenderSignedTransaction (which contains a SenderSignedTransaction)
                 let signature = match UserSignature::from_base64(&sig) {
                     Ok(sig) => sig,
                     Err(_) => {
-                        // Try decoding as SenderSignedData
+                        // Try decoding as SenderSignedTransaction
                         let tx_bytes = Base64::decode(&sig)
                             .map_err(|e| anyhow!("Invalid base64 encoding: {e}"))?;
-                        let tx = bcs::from_bytes::<SenderSignedData>(&tx_bytes).map_err(|e| {
-                            anyhow!("Failed to decode as signature or transaction: {e}")
-                        })?;
+                        let tx =
+                            bcs::from_bytes::<SenderSignedTransaction>(&tx_bytes).map_err(|e| {
+                                anyhow!("Failed to decode as signature or transaction: {e}")
+                            })?;
                         tx.0.signatures
                             .into_iter()
                             .next()
@@ -842,7 +843,7 @@ impl KeyToolCommand {
                     StoredKey::KeyPair(kp) => kp,
                     _ => bail!("Not a keypair"),
                 };
-                let signature: Signature = ikp.sign(&bytes);
+                let signature: SimpleSignature = ikp.sign(&bytes);
                 let iota_signature = signature.to_base64();
                 let public_key = PublicKey::from(ikp).encode_base64();
                 let public_key_hex = Hex::encode_with_format(PublicKey::from(ikp).as_ref());
@@ -1198,12 +1199,9 @@ fn convert_private_key_to_bech32(value: String) -> Result<ConvertOutput, anyhow:
                 .and_then(|bytes| SimpleKeypair::from_bytes(&bytes).ok())
             {
                 Some(ikp) => ikp,
-                None => match Base64::decode(&value)
-                    .ok()
-                    .and_then(|bytes| Ed25519PrivateKey::from_bytes(&bytes).ok())
-                {
-                    Some(kp) => SimpleKeypair::from(kp),
-                    None => bail!("Invalid private key encoding"),
+                None => match Ed25519PrivateKey::from_base64(&value) {
+                    Ok(kp) => SimpleKeypair::from(kp),
+                    Err(_) => bail!("Invalid private key encoding"),
                 },
             },
         },

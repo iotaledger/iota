@@ -19,16 +19,16 @@ use iota_sdk::{
     IotaClientBuilder,
     rpc_types::IotaTransactionBlockResponseOptions,
     types::{
-        crypto::{IotaSignature, PublicKey, Signature, SimpleKeypair, get_key_pair_from_rng},
+        crypto::{IotaSignature, PublicKey, SimpleKeypair, get_key_pair_from_rng},
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         transaction::{TransactionData, TransactionDataAPI},
     },
 };
 use iota_sdk_crypto::{
-    Signer as _, ToFromBech32, ToFromBytes as _, ed25519::Ed25519PrivateKey,
+    Signer as _, ToFromBase64, ToFromBech32, ed25519::Ed25519PrivateKey,
     secp256k1::Secp256k1PrivateKey, secp256r1::Secp256r1PrivateKey,
 };
-use iota_sdk_types::{Address, UserSignature};
+use iota_sdk_types::{Address, UserSignature, crypto::SimpleSignature};
 use rand::{SeedableRng, rngs::StdRng};
 use utils::request_tokens_from_faucet;
 
@@ -58,18 +58,18 @@ async fn main() -> Result<(), anyhow::Error> {
 
     // import a keypair from a base64 encoded 32-byte `private key` assuming scheme
     // is Ed25519.
-    let _ikp_import_no_flag_0 = SimpleKeypair::from(Ed25519PrivateKey::from_bytes(
-        Base64::decode("1GPhHHkVlF6GrCty2IuBkM+tj/e0jn64ksJ1pc8KPoI=")
+    let _ikp_import_no_flag_0 = SimpleKeypair::from(
+        Ed25519PrivateKey::from_base64("1GPhHHkVlF6GrCty2IuBkM+tj/e0jn64ksJ1pc8KPoI=")
             .map_err(|_| anyhow!("Invalid base64"))?,
-    )?);
-    let _ikp_import_no_flag_1 = SimpleKeypair::from(Ed25519PrivateKey::from_bytes(
-        Base64::decode("1GPhHHkVlF6GrCty2IuBkM+tj/e0jn64ksJ1pc8KPoI=")
+    );
+    let _ikp_import_no_flag_1 = SimpleKeypair::from(
+        Ed25519PrivateKey::from_base64("1GPhHHkVlF6GrCty2IuBkM+tj/e0jn64ksJ1pc8KPoI=")
             .map_err(|_| anyhow!("Invalid base64"))?,
-    )?);
-    let _ikp_import_no_flag_2 = SimpleKeypair::from(Ed25519PrivateKey::from_bytes(
-        Base64::decode("1GPhHHkVlF6GrCty2IuBkM+tj/e0jn64ksJ1pc8KPoI=")
+    );
+    let _ikp_import_no_flag_2 = SimpleKeypair::from(
+        Ed25519PrivateKey::from_base64("1GPhHHkVlF6GrCty2IuBkM+tj/e0jn64ksJ1pc8KPoI=")
             .map_err(|_| anyhow!("Invalid base64"))?,
-    )?);
+    );
 
     // import a keypair from a base64 encoded 33-byte `flag || private key`.
     // The signature scheme is determined by the flag.
@@ -146,7 +146,7 @@ async fn main() -> Result<(), anyhow::Error> {
     let digest = hasher.finalize().digest;
 
     // use SimpleKeypair to sign the digest.
-    let iota_sig: Signature = ikp_determ_0.sign(&digest);
+    let iota_sig: SimpleSignature = ikp_determ_0.sign(&digest);
 
     // if you would like to verify the signature locally before submission, use this
     // function. if it fails to verify locally, the transaction will fail to

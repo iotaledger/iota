@@ -21,9 +21,11 @@ use iota_json_rpc_types::{
 };
 use iota_sdk::{IotaClient, IotaClientBuilder};
 use iota_sdk_crypto::ToFromBech32;
-use iota_sdk_types::{Address, ObjectId, ObjectReference, TransactionDigest};
+use iota_sdk_types::{
+    Address, ObjectId, ObjectReference, TransactionDigest, crypto::SimpleSignature,
+};
 use iota_types::{
-    crypto::{AccountKeyPair, IotaSignature, Signature, SimpleKeypair, get_key_pair},
+    crypto::{AccountKeyPair, IotaSignature, SimpleKeypair, get_key_pair},
     quorum_driver_types::ExecuteTransactionRequestType,
     transaction::{TransactionData, TransactionEnvelope},
 };
@@ -791,7 +793,7 @@ pub(crate) async fn sign_and_execute(
     txn_data: TransactionData,
     request_type: ExecuteTransactionRequestType,
 ) -> IotaTransactionBlockResponse {
-    let signature = Signature::new_secure(&txn_data.intent_message(), keypair);
+    let signature = SimpleSignature::new_secure(&txn_data.intent_message(), keypair);
 
     let transaction_response = match client
         .quorum_driver_api()

@@ -8,8 +8,8 @@ use async_trait::async_trait;
 use fastcrypto::encoding::Base64;
 use futures::{FutureExt, TryFutureExt};
 use iota_grpc_client::{
-    Client as GrpcClient, ReadMask,
-    read_mask_fields::{EpochField, SimulateExecutedTransactionField, SimulateField},
+    Client as GrpcClient,
+    read_mask_fields::{EpochField, SimulateField},
 };
 use iota_json::IotaJsonValue;
 use iota_json_rpc::{
@@ -25,8 +25,8 @@ use iota_json_rpc_types::{
 use iota_open_rpc::Module;
 use iota_package_resolver::{PackageStore, Resolver};
 use iota_sdk_types::{
-    Address, GasPayment, ObjectId, TransactionDigest, TransactionExpiration, TransactionKind,
-    UserSignature, Version,
+    Address, GasPayment, ObjectId, SenderSignedTransaction, TransactionDigest,
+    TransactionExpiration, TransactionKind, TransactionV1, UserSignature, Version,
 };
 use iota_transaction_builder::TransactionBuilder;
 use iota_types::{
@@ -34,7 +34,7 @@ use iota_types::{
     error::ExecutionError,
     iota_serde::BigInt,
     object::{Object, PastObjectRead},
-    transaction::{SenderSignedData, TransactionData, TransactionDataAPI, TransactionDataV1},
+    transaction::{TransactionData, TransactionDataAPI},
 };
 use jsonrpsee::{RpcModule, core::RpcResult};
 
@@ -49,18 +49,18 @@ use crate::{
 };
 
 // As an optimization, we're trying to request only the fields we actually need.
-const DRY_RUN_TRANSACTION_READ_MASK: &[&str] = &[
-    SimulateExecutedTransactionField::SIGNATURES_BCS,
-    SimulateExecutedTransactionField::EFFECTS_BCS,
-    SimulateExecutedTransactionField::EVENTS_EVENTS_BCS,
-    SimulateExecutedTransactionField::INPUT_OBJECTS_BCS,
-    SimulateExecutedTransactionField::OUTPUT_OBJECTS_BCS,
+const DRY_RUN_TRANSACTION_READ_MASK: &[SimulateField] = &[
+    SimulateField::EXECUTED_TRANSACTION_SIGNATURES_BCS,
+    SimulateField::EXECUTED_TRANSACTION_EFFECTS_BCS,
+    SimulateField::EXECUTED_TRANSACTION_EVENTS_EVENTS_BCS,
+    SimulateField::EXECUTED_TRANSACTION_INPUT_OBJECTS_BCS,
+    SimulateField::EXECUTED_TRANSACTION_OUTPUT_OBJECTS_BCS,
     SimulateField::SUGGESTED_GAS_PRICE,
     SimulateField::EXECUTION_RESULT_EXECUTION_ERROR_SOURCE,
 ];
-const DEV_INSPECT_TRANSACTION_READ_MASK: &[&str] = &[
-    SimulateExecutedTransactionField::EFFECTS_BCS,
-    SimulateExecutedTransactionField::EVENTS_EVENTS_BCS,
+const DEV_INSPECT_TRANSACTION_READ_MASK: &[SimulateField] = &[
+    SimulateField::EXECUTED_TRANSACTION_EFFECTS_BCS,
+    SimulateField::EXECUTED_TRANSACTION_EVENTS_EVENTS_BCS,
     SimulateField::EXECUTION_RESULT_EXECUTION_ERROR_BCS_KIND,
     SimulateField::EXECUTION_RESULT_EXECUTION_ERROR_SOURCE,
     SimulateField::EXECUTION_RESULT_EXECUTION_ERROR_COMMAND_INDEX,
@@ -107,7 +107,7 @@ impl WriteApi {
             .simulate_transaction(
                 transaction_data.clone(),
                 false,
-                Some(ReadMask::from(DRY_RUN_TRANSACTION_READ_MASK)),
+                DRY_RUN_TRANSACTION_READ_MASK,
             )
             .await?
             .into_inner();
@@ -135,7 +135,8 @@ impl WriteApi {
             .map(|s| -> IndexerResult<_> { Ok(s.signature()?) })
             .collect::<IndexerResult<Vec<UserSignature>>>()?;
 
-        let sender_signed_data = SenderSignedData::new(transaction_data.clone(), tx_signatures);
+        let sender_signed_tx =
+            SenderSignedTransaction::new(transaction_data.clone(), tx_signatures);
 
         let tx_events = executed_transaction.events()?.events()?;
 
@@ -155,7 +156,7 @@ impl WriteApi {
             });
 
         let fut2 = IotaTransactionBlock::try_from_with_package_resolver(
-            sender_signed_data,
+            sender_signed_tx,
             package_resolver,
             tx_digest,
         )
@@ -220,7 +221,7 @@ impl WriteApi {
 
         let kind = bcs::from_bytes::<TransactionKind>(&tx_bytes.to_vec()?)?;
 
-        let transaction_data = TransactionData::V1(TransactionDataV1 {
+        let transaction_data = TransactionData::V1(TransactionV1 {
             kind,
             sender: sender_address,
             gas_payment: GasPayment {
@@ -242,7 +243,7 @@ impl WriteApi {
             .simulate_transaction(
                 transaction_data,
                 skip_checks,
-                Some(ReadMask::from(DEV_INSPECT_TRANSACTION_READ_MASK)),
+                DEV_INSPECT_TRANSACTION_READ_MASK,
             )
             .await?
             .into_inner();
@@ -303,11 +304,10 @@ impl WriteApi {
             .get_epoch(
                 None, // we're requesting the information for the current epoch.
                 {
-                    let max_tx_gas = EpochField::attribute("max_tx_gas");
-                    Some(ReadMask::from(&[
+                    [
                         EpochField::REFERENCE_GAS_PRICE,
-                        &max_tx_gas,
-                    ]))
+                        EpochField::attribute("max_tx_gas"),
+                    ]
                 },
             )
             .await?

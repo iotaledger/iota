@@ -3,7 +3,7 @@
 
 use std::collections::{HashMap, HashSet};
 
-use iota_grpc_client::{ReadMask, read_mask_fields::CheckpointResponseField};
+use iota_grpc_client::read_mask_fields::CheckpointResponseField;
 use iota_grpc_types::v1::types::{Address as ProtoAddress, ObjectId as ProtoObjectId};
 use iota_sdk_types::{
     Address, ExecutionStatus, ObjectDigest, ObjectId, Owner, SignedTransaction, Transaction,
@@ -178,11 +178,7 @@ pub async fn wait_for_executed_transactions_checkpointed(
     client: &iota_grpc_client::Client,
 ) -> u64 {
     let baseline_seq = client
-        .get_checkpoint_latest(
-            Some(ReadMask::from(CheckpointResponseField::ALL)),
-            None,
-            None,
-        )
+        .get_checkpoint_latest(None, None, CheckpointResponseField::ALL)
         .await
         .expect("get latest checkpoint")
         .body()

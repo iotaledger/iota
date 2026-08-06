@@ -40,6 +40,7 @@ bin-version.workspace = true
 iota-common.workspace = true
 iota-config.workspace = true
 iota-core.workspace = true
+iota-genesis-common.workspace = true
 iota-grpc-server.workspace = true
 iota-http.workspace = true
 iota-json-rpc.workspace = true

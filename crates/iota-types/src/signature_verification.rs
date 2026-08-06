@@ -5,6 +5,7 @@
 #[cfg(not(target_arch = "wasm32"))]
 use std::hash::Hash;
 
+use iota_sdk_types::SenderSignedTransaction;
 #[cfg(not(target_arch = "wasm32"))]
 use lru::LruCache;
 use nonempty::NonEmpty;
@@ -16,7 +17,7 @@ use prometheus_filtered::IntCounter;
 use crate::{
     error::{IotaError, IotaResult},
     signature::{AuthenticatorTrait, VerifyParams},
-    transaction::{SenderSignedData, SenderSignedTransactionAPI, TransactionDataAPI},
+    transaction::{SenderSignedTransactionAPI, TransactionDataAPI},
 };
 
 // Cache up to this many verified certs. We will need to tune this number in the
@@ -117,7 +118,7 @@ impl<D: Hash + Eq + Copy> VerifiedDigestCache<D> {
 /// Does crypto validation for a transaction which may be user-provided, or may
 /// be from a checkpoint.
 pub fn verify_sender_signed_data_message_signatures(
-    txn: &SenderSignedData,
+    txn: &SenderSignedTransaction,
     verify_params: &VerifyParams,
 ) -> IotaResult {
     let tx = txn.transaction();
