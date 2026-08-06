@@ -238,9 +238,9 @@ fn move_authenticator_dev_inspect_rerun_ignores_zero_declared_budget() {
     let mut tx = f.transaction();
     tx.gas_data_mut().budget = 0;
     let mut vm = f.vm();
-    // A zero budget resolves to `max_tx_gas`, which the gas coins have to cover,
-    // so top up the fixture's coin — otherwise the run is rejected over the gas
-    // before reaching the metering this test is about.
+    // A zero budget resolves to as much as the gas coins can back, up to
+    // `max_tx_gas`, so top up the fixture's coin — otherwise it resolves to that
+    // smaller balance rather than the maximum this test is about.
     fund_gas_coins_for_max_budget(&mut vm, &tx);
 
     // First run: the free-access authenticator accepts and `add_field`

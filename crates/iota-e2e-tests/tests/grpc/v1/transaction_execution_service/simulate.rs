@@ -191,7 +191,7 @@ async fn simulate_transaction_derived_changes() {
 }
 
 #[sim_test]
-async fn simulate_transaction_zero_gas_budget_uses_max() {
+async fn simulate_transaction_zero_gas_budget_reports_the_gas_charged() {
     let (test_cluster, client) = setup_grpc_test(Some(1), None).await;
 
     let mut exec_client = client.execution_service_client();
@@ -209,7 +209,7 @@ async fn simulate_transaction_zero_gas_budget_uses_max() {
         *obj_to_send,
         sender,
         *gas_obj,
-        0,    // zero gas budget — server should replace with max_tx_gas
+        0,    // zero gas budget — the server estimates and reports the cost
         1000, // gas price
     );
 
@@ -230,8 +230,8 @@ async fn simulate_transaction_zero_gas_budget_uses_max() {
 
     let simulated = first_simulated_transaction(&response);
 
-    // Verify that the returned transaction has a non-zero gas budget (replaced with
-    // max_tx_gas)
+    // Verify that the returned transaction reports the gas the simulation charged
+    // in place of the zero the caller sent.
     let bcs_data = simulated
         .executed_transaction
         .as_ref()
@@ -305,7 +305,7 @@ async fn simulate_transaction_zero_gas_budget_uses_max() {
 /// With a budget the caller declared, the reported transaction is exactly the
 /// one that ran and hashes to the digest the effects are keyed by. That does
 /// not hold for a zero budget, which comes back as the gas charged instead: see
-/// `simulate_transaction_zero_gas_budget_uses_max`.
+/// `simulate_transaction_zero_gas_budget_reports_the_gas_charged`.
 #[sim_test]
 async fn simulate_transaction_gasless_reports_the_transaction_that_ran() {
     let (test_cluster, client) = setup_grpc_test(Some(1), None).await;

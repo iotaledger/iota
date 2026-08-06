@@ -2117,18 +2117,20 @@ impl AuthorityState {
     /// leave all of it out: no gas payment mints a mock gas coin, whose ID is
     /// reported back in [`SimulateTransactionResult::mock_gas_id`]; a zero gas
     /// price becomes the epoch's reference gas price; and a zero gas budget
-    /// becomes the protocol maximum. Anything the transaction does declare is
-    /// metered as given, so a dry run still rejects the gas a validator would.
+    /// becomes as much as the gas coins can back, up to
+    /// [`max_tx_gas`](iota_protocol_config::ProtocolConfig::max_tx_gas).
+    /// Anything the transaction does declare is metered as given, so a dry run
+    /// still rejects the gas a validator would.
     ///
     /// Whatever the budget resolves to, the gas coins have to cover it, since
-    /// execution reserves the whole budget from them before running any
-    /// command. Note what that means for a caller leaving the budget at zero to
-    /// have the cost estimated: the mock gas coin covers the protocol maximum,
-    /// but a real gas coin has to hold
-    /// [`max_tx_gas`](iota_protocol_config::ProtocolConfig::max_tx_gas) or the
-    /// simulation is rejected with
-    /// [`UserInputError::GasBalanceTooLow`]. Declaring a budget the coins do
-    /// cover avoids that.
+    /// execution reserves the whole budget from them before running any command
+    /// and refunds it afterwards. A caller leaving the budget at zero to have
+    /// the cost estimated therefore gets an estimate whatever its coins hold,
+    /// but the reserved budget is off limits for the duration of the
+    /// programmable transaction: a transaction that also pays out of its gas
+    /// coin has to declare a budget leaving room for that, exactly as it would
+    /// on chain. A balance too small to declare the minimum budget at all is
+    /// rejected with [`UserInputError::GasBalanceTooLow`].
     pub fn simulate_transaction(
         &self,
         transaction: TransactionData,
@@ -2240,6 +2242,7 @@ impl AuthorityState {
 
         iota_types::gas::fill_in_unset_simulation_gas(
             &mut transaction,
+            &input_objects,
             epoch_store.reference_gas_price(),
             protocol_config,
         );

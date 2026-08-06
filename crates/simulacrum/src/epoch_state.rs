@@ -219,6 +219,7 @@ impl EpochState {
 
         iota_types::gas::fill_in_unset_simulation_gas(
             &mut transaction,
+            &input_objects,
             self.epoch_start_state.reference_gas_price(),
             &self.protocol_config,
         );

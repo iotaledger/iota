@@ -847,38 +847,58 @@ async fn test_dev_inspect_uses_supplied_gas_budget() {
     );
 }
 
-/// An unset gas budget becomes `max_tx_gas`, so a supplied gas coin has to back
-/// that budget for a dry run to go through, exactly as a validator would
-/// require.
+/// An unset gas budget becomes as much as the gas coins can back, up to
+/// `max_tx_gas`, so a coin holding less than the maximum still gets an estimate
+/// rather than being rejected over a budget the caller never asked for.
 ///
-/// The budget deliberately is not the coin's balance: a transaction that pays
-/// out of its own gas coin would then have nothing left to pay with.
+/// The budget is still held back for the whole programmable transaction, so
+/// capping it to the balance leaves a transaction that also pays out of its own
+/// gas coin nothing to pay with — that caller has to declare a budget, as it
+/// would on chain.
 #[tokio::test]
-async fn test_simulate_unset_gas_budget_uses_max_tx_gas() {
+async fn test_simulate_unset_gas_budget_is_capped_by_the_gas_coin_balance() {
     let sender = Address::random();
     let recipient = Address::random();
-    let (validator, fullnode, _object_basics) =
+    let (validator, fullnode, object_basics) =
         init_state_with_ids_and_object_basics_with_fullnode(vec![]).await;
 
-    let max_tx_gas = validator
+    let protocol_config = validator
         .epoch_store_for_testing()
         .protocol_config()
-        .max_tx_gas();
+        .clone();
+    let max_tx_gas = protocol_config.max_tx_gas();
+    let min_gas_budget =
+        protocol_config.base_tx_cost_fixed() * fullnode.reference_gas_price_for_testing().unwrap();
 
-    let simulate_paying_from_gas_coin = |gas_balance: u64, checks| {
+    // A transfer out of the gas coin, which competes with the budget execution
+    // holds back, and a Move call that leaves the gas coin's balance alone.
+    let paying_from_gas_coin = || {
+        let mut builder = ProgrammableTransactionBuilder::new();
+        builder.pay_iota(vec![recipient], vec![500]).unwrap();
+        TransactionKind::new_programmable(builder.finish())
+    };
+    let leaving_gas_coin_alone = || {
+        TransactionKind::new_programmable(ProgrammableTransaction {
+            inputs: vec![CallArg::pure(&(32_u64)), CallArg::pure(&sender)],
+            commands: vec![Command::new_move_call(
+                object_basics.object_id,
+                Identifier::from_static("object_basics"),
+                Identifier::from_static("create"),
+                vec![],
+                vec![Argument::Input(0), Argument::Input(1)],
+            )],
+        })
+    };
+
+    let simulate = |gas_balance: u64, kind: TransactionKind, checks| {
         let gas_object = Object::new_gas_with_balance_and_owner_for_testing(gas_balance, sender);
         let gas_object_ref = gas_object.object_ref();
         validator.insert_genesis_object(gas_object.clone());
         fullnode.insert_genesis_object(gas_object);
 
-        let pt = {
-            let mut builder = ProgrammableTransactionBuilder::new();
-            builder.pay_iota(vec![recipient], vec![500]).unwrap();
-            builder.finish()
-        };
         fullnode.simulate_transaction(
             TransactionData::V1(TransactionV1 {
-                kind: TransactionKind::new_programmable(pt),
+                kind,
                 sender,
                 gas_payment: GasPayment {
                     objects: vec![gas_object_ref],
@@ -892,21 +912,43 @@ async fn test_simulate_unset_gas_budget_uses_max_tx_gas() {
         )
     };
 
-    // A coin that backs `max_tx_gas` with room to spare.
     for checks in [VmChecks::Enabled, VmChecks::Disabled] {
-        let result = simulate_paying_from_gas_coin(max_tx_gas * 4, checks)
-            .unwrap_or_else(|e| panic!("simulation with {checks:?} failed: {e}"));
-        assert!(result.effects.status().is_success());
+        // A coin backing `max_tx_gas` with room to spare: the budget stays at the
+        // protocol maximum, leaving the rest of the balance for the transfer.
+        let result = simulate(max_tx_gas * 4, paying_from_gas_coin(), checks)
+            .unwrap_or_else(|e| panic!("{checks:?} should simulate a well-funded coin: {e}"));
+        assert!(result.effects.status().is_success(), "{checks:?}");
         // The supplied coin was used rather than a mock one being minted.
-        assert!(result.mock_gas_id.is_none());
-    }
+        assert!(result.mock_gas_id.is_none(), "{checks:?}");
 
-    // A coin that cannot back the budget is rejected over the gas, up front,
-    // rather than part-way through the transaction. Execution reserves the budget
-    // from the coin either way, so this does not depend on the checks.
-    for checks in [VmChecks::Enabled, VmChecks::Disabled] {
-        let Err(error) = simulate_paying_from_gas_coin(max_tx_gas / 2, checks) else {
-            panic!("{checks:?} should reject a gas coin that cannot back the budget");
+        // A coin below `max_tx_gas` still reports what the transaction costs, as
+        // long as the transaction does not also spend the coin down. Being able to
+        // estimate without holding `max_tx_gas` is the point of the cap.
+        let result = simulate(max_tx_gas / 2, leaving_gas_coin_alone(), checks)
+            .unwrap_or_else(|e| panic!("{checks:?} should simulate a coin under the maximum: {e}"));
+        assert!(result.effects.status().is_success(), "{checks:?}");
+        let gas_used = result.effects.gas_cost_summary().net_gas_usage();
+        assert!(gas_used > 0, "{checks:?}: the run should report a cost");
+        assert!(
+            (gas_used as u64) < max_tx_gas / 2,
+            "{checks:?}: the cost should sit inside the coin's balance"
+        );
+
+        // The same coin cannot also pay out of itself: the capped budget is held
+        // back for the whole programmable transaction, so the transfer runs out of
+        // balance. Such a caller has to name a budget it can cover, as it would
+        // for a real transaction.
+        let result = simulate(max_tx_gas / 2, paying_from_gas_coin(), checks)
+            .unwrap_or_else(|e| panic!("{checks:?} should run rather than reject: {e}"));
+        assert!(
+            !result.effects.status().is_success(),
+            "{checks:?}: paying out of a capped gas coin should fail during execution"
+        );
+
+        // A balance under the smallest budget a transaction may declare is
+        // reported against the balance, not against a budget the caller never set.
+        let Err(error) = simulate(min_gas_budget - 1, leaving_gas_coin_alone(), checks) else {
+            panic!("{checks:?} should reject a balance below the minimum budget");
         };
         assert!(
             matches!(

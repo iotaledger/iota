@@ -151,6 +151,7 @@ pub(super) fn prepare_transaction(
     if !matches!(mode, ExecutionMode::Execute) {
         fill_in_unset_simulation_gas(
             &mut transaction,
+            &input_objects,
             env.reference_gas_price,
             &env.protocol_config,
         );
