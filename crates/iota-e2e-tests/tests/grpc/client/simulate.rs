@@ -1,11 +1,11 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_grpc_client::{
-    ReadMask,
-    read_mask_fields::{SimulateExecutedTransactionField, SimulateField},
+use iota_grpc_client::read_mask_fields::SimulateField;
+use iota_grpc_types::{
+    read_mask_fields::SimulateReadMask,
+    v1::transaction_execution_service::simulated_transaction::ExecutionResult,
 };
-use iota_grpc_types::v1::transaction_execution_service::simulated_transaction::ExecutionResult;
 use iota_macros::sim_test;
 use iota_sdk_types::{Address, Command, Transaction};
 use iota_test_transaction_builder::TestTransactionBuilder;
@@ -30,7 +30,7 @@ async fn simulate_transaction_scenarios() {
         let transaction = create_transaction_for_simulation(&test_cluster).await;
 
         let result = client
-            .simulate_transaction(transaction, skip_checks, None)
+            .simulate_transaction(transaction, skip_checks, SimulateReadMask::default())
             .await
             .unwrap_or_else(|e| panic!("Failed to simulate transaction in {mode_name} mode: {e}"));
 
@@ -60,7 +60,7 @@ async fn simulate_transaction_scenarios() {
         .simulate_transaction(
             transaction,
             false,
-            Some(ReadMask::from(SimulateExecutedTransactionField::EFFECTS)),
+            SimulateField::EXECUTED_TRANSACTION_EFFECTS,
         )
         .await
         .expect("Failed to simulate transaction with minimal mask");
@@ -94,7 +94,9 @@ async fn simulate_transaction_scenarios() {
         .transfer_iota(None, sender)
         .with_gas_budget(1)
         .build();
-    let result = client.simulate_transaction(transaction, false, None).await;
+    let result = client
+        .simulate_transaction(transaction, false, SimulateReadMask::default())
+        .await;
     assert_grpc_error(result, Code::Internal);
 
     // Test: transfer exceeding balance returns Ok with failed effects
@@ -112,7 +114,7 @@ async fn simulate_transaction_scenarios() {
         .transfer_iota(Some(1_000_000_000_000_000_000), fake_recipient)
         .build();
     let response = client
-        .simulate_transaction(transaction, false, None)
+        .simulate_transaction(transaction, false, SimulateReadMask::default())
         .await
         .expect("Simulation should succeed at RPC level");
 
@@ -167,9 +169,7 @@ async fn simulate_transaction_command_results_split_coins() {
         .simulate_transaction(
             transaction,
             false,
-            Some(ReadMask::from(
-                SimulateField::EXECUTION_RESULT_COMMAND_RESULTS,
-            )),
+            SimulateField::EXECUTION_RESULT_COMMAND_RESULTS,
         )
         .await
         .expect("simulate_transaction should succeed");
