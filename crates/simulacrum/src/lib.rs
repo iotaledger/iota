@@ -293,6 +293,10 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
     ///
     /// NOTE: This function does not currently support updating the protocol
     /// version or the system packages
+    ///
+    /// # Panics
+    ///
+    /// Panics if the end-of-epoch transaction cannot be executed or fails.
     pub fn advance_epoch(&self) {
         let inner = self.inner.read().unwrap();
         let current_epoch = inner.epoch_state.epoch();
@@ -303,25 +307,64 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
             .epoch_rolling_gas_cost_summary()
             .clone();
         let epoch_start_timestamp_ms = inner.store.get_clock().timestamp_ms();
+        let pass_validator_scores = inner
+            .epoch_state
+            .protocol_config()
+            .pass_validator_scores_to_advance_epoch();
+        let adjust_rewards_by_score = inner
+            .epoch_state
+            .protocol_config()
+            .adjust_rewards_by_score();
+        let committee_size = inner.epoch_state.committee().num_members();
         drop(inner);
 
+        // One full score per validator, so rewards stay unadjusted. This
+        // mirrors the node's default when locally calculated scores are not
+        // passed. Must match MAX_SCORE in validator_set.move.
+        const MAX_SCORE: u64 = u16::MAX as u64 + 1;
+        let scores = vec![MAX_SCORE; committee_size];
+
         let next_epoch_system_package_bytes: Vec<SystemPackage> = vec![];
-        let kinds = vec![EndOfEpochTransactionKind::new_change_epoch_v3(
-            next_epoch,
-            next_epoch_protocol_version.as_u64(),
-            gas_cost_summary.storage_cost,
-            gas_cost_summary.computation_cost,
-            gas_cost_summary.computation_cost_burned,
-            gas_cost_summary.storage_rebate,
-            gas_cost_summary.non_refundable_storage_fee,
-            epoch_start_timestamp_ms,
-            next_epoch_system_package_bytes,
-            vec![],
-        )];
+        // Mirror the node's kind selection: the framework's `advance_epoch`
+        // expects the V4 argument shape when the flag is enabled.
+        let kinds = vec![if pass_validator_scores {
+            EndOfEpochTransactionKind::new_change_epoch_v4(
+                next_epoch,
+                next_epoch_protocol_version.as_u64(),
+                gas_cost_summary.storage_cost,
+                gas_cost_summary.computation_cost,
+                gas_cost_summary.computation_cost_burned,
+                gas_cost_summary.storage_rebate,
+                gas_cost_summary.non_refundable_storage_fee,
+                epoch_start_timestamp_ms,
+                next_epoch_system_package_bytes,
+                vec![],
+                scores,
+                adjust_rewards_by_score,
+            )
+        } else {
+            EndOfEpochTransactionKind::new_change_epoch_v3(
+                next_epoch,
+                next_epoch_protocol_version.as_u64(),
+                gas_cost_summary.storage_cost,
+                gas_cost_summary.computation_cost,
+                gas_cost_summary.computation_cost_burned,
+                gas_cost_summary.storage_rebate,
+                gas_cost_summary.non_refundable_storage_fee,
+                epoch_start_timestamp_ms,
+                next_epoch_system_package_bytes,
+                vec![],
+            )
+        }];
 
         let tx = VerifiedTransaction::new_end_of_epoch_transaction(kinds);
-        self.execute_transaction(tx.into())
+        let (effects, execution_error) = self
+            .execute_transaction(tx.into())
             .expect("advancing the epoch cannot fail");
+        assert!(
+            execution_error.is_none(),
+            "the end-of-epoch transaction failed: {execution_error:?}, {effects:?}"
+        );
 
         let (checkpoint, contents, new_epoch_state) = {
             let mut inner = self.inner.write().unwrap();
