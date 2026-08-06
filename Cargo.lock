@@ -5455,6 +5455,7 @@ dependencies = [
  "iota-sdk",
  "iota-sdk-crypto",
  "iota-sdk-grpc-client",
+ "iota-sdk-transaction-builder",
  "iota-sdk-types",
  "iota-simulator",
  "iota-source-validation",

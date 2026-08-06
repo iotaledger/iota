@@ -19,7 +19,7 @@ use colored::Colorize;
 use fastcrypto::encoding::{Base64, Encoding};
 use futures::{StreamExt, TryStreamExt};
 use iota_config::verifier_signing_config::VerifierSigningConfig;
-use iota_grpc_client::{ReadMask, read_mask_fields::ObjectField};
+use iota_grpc_client::read_mask_fields::ObjectField;
 use iota_json::IotaJsonValue;
 use iota_json_rpc_types::{
     Coin, DevInspectArgs, DevInspectResults, DryRunTransactionBlockResponse, DynamicFieldPage,
@@ -3330,9 +3330,8 @@ async fn grpc_input_refs(
     if object_ids.is_empty() {
         return Ok(Vec::new());
     }
-    let requests: Vec<_> = object_ids.iter().map(|id| (*id, None)).collect();
     let objects = client
-        .get_objects(&requests, Some(ReadMask::from(ObjectField::REFERENCE)))
+        .get_objects(object_ids.iter().copied(), ObjectField::REFERENCE)
         .await?
         .into_inner();
     objects
