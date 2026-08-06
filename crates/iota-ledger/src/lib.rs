@@ -14,9 +14,9 @@ pub use crate::api::errors::LedgerError;
 mod api;
 use iota_sdk_types::{
     Address,
-    crypto::{Intent, IntentMessage},
+    crypto::{Intent, IntentMessage, SimpleSignature},
 };
-use iota_types::{crypto::Signature, object::Object};
+use iota_types::object::Object;
 
 pub use crate::api::{get_public_key::PublicKeyResult, get_version::Version};
 use crate::{
@@ -29,7 +29,7 @@ pub struct Ledger {
 }
 
 pub struct SignedTransaction {
-    pub signature: Signature,
+    pub signature: SimpleSignature,
     pub address: Address,
 }
 
@@ -184,7 +184,7 @@ impl Ledger {
         signature_bytes.extend_from_slice(key_response.public_key.as_ref());
 
         Ok(SignedTransaction {
-            signature: Signature::from_bytes(&signature_bytes)
+            signature: SimpleSignature::from_bytes(&signature_bytes)
                 .map_err(|_| LedgerError::Serialization)?,
             address: Address::from_bytes(key_response.address)
                 .map_err(|_| LedgerError::Serialization)?,

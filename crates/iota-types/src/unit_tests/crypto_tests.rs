@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_sdk_crypto::{ToFromBech32, ToFromBytes as _};
+use iota_sdk_types::crypto::SimpleSignature;
 use proptest::{collection, prelude::*};
 
 use super::*;
@@ -120,7 +121,7 @@ proptest! {
         let _pk = PublicKey::try_from_bytes(SignatureScheme::Bls12381, &bytes);
         let _pk = PublicKey::try_from_bytes(SignatureScheme::Ed25519, &bytes);
         let _pk = PublicKey::try_from_bytes(SignatureScheme::Secp256k1, &bytes);
-        let _sig = Signature::from_bytes(&bytes);
+        let _sig = SimpleSignature::from_bytes(&bytes);
     }
 
     #[test]

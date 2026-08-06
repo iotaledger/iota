@@ -26,7 +26,7 @@ use iota_sdk_types::{
     SenderSignedTransaction, SharedObjectReference, SplitCoins, TransactionDigest,
     TransactionExpiration, TransactionKind, TransactionV1, TransferObjects, TypeTag, Upgrade,
     UserSignature, Version,
-    crypto::{Intent, IntentMessage, IntentScope},
+    crypto::{Intent, IntentMessage, IntentScope, SimpleSignature},
 };
 use itertools::Either;
 use nonempty::{NonEmpty, nonempty};
@@ -40,8 +40,8 @@ use crate::{
     committee::{Committee, EpochId},
     crypto::{
         AuthoritySignInfo, AuthoritySignInfoTrait, AuthoritySignature,
-        AuthorityStrongQuorumSignInfo, DefaultHash, EmptySignInfo, IotaSignature, Signature,
-        Signer, zero_ed25519_signature,
+        AuthorityStrongQuorumSignInfo, DefaultHash, EmptySignInfo, IotaSignature, Signer,
+        zero_ed25519_signature,
     },
     execution::SharedInput,
     message_envelope::{Envelope, Message, TrustedEnvelope, VerifiedEnvelope},
@@ -1848,12 +1848,12 @@ pub trait SenderSignedTransactionAPI {
     /// signature.
     fn new_from_sender_signature(
         tx_data: TransactionData,
-        tx_signature: Signature,
+        tx_signature: SimpleSignature,
     ) -> SenderSignedTransaction;
 
     /// Adds a signature. Does not check the validity of the signature or
     /// perform any de-dup checks.
-    fn add_signature(&mut self, new_signature: Signature);
+    fn add_signature(&mut self, new_signature: SimpleSignature);
 
     /// Returns a mapping from the address each signature commits to, to the
     /// signature itself.
@@ -1933,12 +1933,12 @@ pub trait SenderSignedTransactionAPI {
 impl SenderSignedTransactionAPI for SenderSignedTransaction {
     fn new_from_sender_signature(
         tx_data: TransactionData,
-        tx_signature: Signature,
+        tx_signature: SimpleSignature,
     ) -> SenderSignedTransaction {
         Self::new(tx_data, vec![tx_signature.into()])
     }
 
-    fn add_signature(&mut self, new_signature: Signature) {
+    fn add_signature(&mut self, new_signature: SimpleSignature) {
         self.0.signatures.push(new_signature.into());
     }
 
@@ -2323,30 +2323,30 @@ impl<S> Envelope<SenderSignedTransaction, S> {
 impl TransactionEnvelope {
     pub fn from_data_and_signer(
         data: TransactionData,
-        signers: Vec<&impl iota_sdk_crypto::Signer<Signature>>,
+        signers: Vec<&impl iota_sdk_crypto::Signer<SimpleSignature>>,
     ) -> Self {
         let signatures = {
             let intent_msg = data.intent_message();
             signers
                 .into_iter()
-                .map(|s| Signature::new_secure(&intent_msg, s))
+                .map(|s| SimpleSignature::new_secure(&intent_msg, s))
                 .collect()
         };
         Self::from_data(data, signatures)
     }
 
     // TODO: Rename this function and above to make it clearer.
-    pub fn from_data(data: TransactionData, signatures: Vec<Signature>) -> Self {
+    pub fn from_data(data: TransactionData, signatures: Vec<SimpleSignature>) -> Self {
         Self::from_user_sig_data(data, signatures.into_iter().map(|s| s.into()).collect())
     }
 
     pub fn signature_from_signer(
         data: TransactionData,
         intent: Intent,
-        signer: &impl iota_sdk_crypto::Signer<Signature>,
-    ) -> Signature {
+        signer: &impl iota_sdk_crypto::Signer<SimpleSignature>,
+    ) -> SimpleSignature {
         let intent_msg = IntentMessage::new(intent, data);
-        Signature::new_secure(&intent_msg, signer)
+        SimpleSignature::new_secure(&intent_msg, signer)
     }
 
     pub fn from_user_sig_data(data: TransactionData, signatures: Vec<UserSignature>) -> Self {

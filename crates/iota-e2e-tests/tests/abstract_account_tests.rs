@@ -2834,10 +2834,10 @@ impl TestEnvironment {
     }
 
     /// Build a `UserSignature::MoveAuthenticator` from a raw ed25519
-    /// `Signature` and the abstract-account object reference.
+    /// `SimpleSignature` and the abstract-account object reference.
     fn move_authenticator_from_ed25519_sig(
         aa_obj_ref: ObjectReference,
-        signature: iota_types::crypto::Signature,
+        signature: iota_sdk_types::crypto::SimpleSignature,
     ) -> anyhow::Result<UserSignature> {
         let hex_encoded_signature: String = Hex::encode(signature.to_bytes())
             .chars()

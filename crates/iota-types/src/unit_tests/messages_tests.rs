@@ -15,7 +15,7 @@ use iota_sdk_crypto::{
 };
 use iota_sdk_types::{
     Address, ExecutionStatus, GasPayment, Owner, SharedObjectReference, SignatureScheme, StructTag,
-    TransactionEventsDigest, gas::GasCostSummary,
+    TransactionEventsDigest, crypto::SimpleSignature, gas::GasCostSummary,
 };
 use roaring::RoaringBitmap;
 
@@ -716,10 +716,10 @@ fn test_user_signature_committed_in_signed_transactions() {
 fn signature_from_signer(
     data: TransactionData,
     intent: Intent,
-    signer: &impl iota_sdk_crypto::Signer<Signature>,
-) -> Signature {
+    signer: &impl iota_sdk_crypto::Signer<SimpleSignature>,
+) -> SimpleSignature {
     let intent_msg = IntentMessage::new(intent, data);
-    Signature::new_secure(&intent_msg, signer)
+    SimpleSignature::new_secure(&intent_msg, signer)
 }
 
 #[test]

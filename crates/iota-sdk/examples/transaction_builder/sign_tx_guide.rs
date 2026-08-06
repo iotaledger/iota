@@ -19,7 +19,7 @@ use iota_sdk::{
     IotaClientBuilder,
     rpc_types::IotaTransactionBlockResponseOptions,
     types::{
-        crypto::{IotaSignature, PublicKey, Signature, SimpleKeypair, get_key_pair_from_rng},
+        crypto::{IotaSignature, PublicKey, SimpleKeypair, get_key_pair_from_rng},
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         transaction::{TransactionData, TransactionDataAPI},
     },
@@ -28,7 +28,7 @@ use iota_sdk_crypto::{
     Signer as _, ToFromBase64, ToFromBech32, ed25519::Ed25519PrivateKey,
     secp256k1::Secp256k1PrivateKey, secp256r1::Secp256r1PrivateKey,
 };
-use iota_sdk_types::{Address, UserSignature};
+use iota_sdk_types::{Address, UserSignature, crypto::SimpleSignature};
 use rand::{SeedableRng, rngs::StdRng};
 use utils::request_tokens_from_faucet;
 
@@ -146,7 +146,7 @@ async fn main() -> Result<(), anyhow::Error> {
     let digest = hasher.finalize().digest;
 
     // use SimpleKeypair to sign the digest.
-    let iota_sig: Signature = ikp_determ_0.sign(&digest);
+    let iota_sig: SimpleSignature = ikp_determ_0.sign(&digest);
 
     // if you would like to verify the signature locally before submission, use this
     // function. if it fails to verify locally, the transaction will fail to
