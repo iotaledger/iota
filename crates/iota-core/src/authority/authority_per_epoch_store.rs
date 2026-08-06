@@ -32,8 +32,9 @@ use iota_protocol_config::{
 };
 use iota_sdk_types::{
     Address, CanceledTransaction, CheckpointTimestamp, DenyRuleSet, ObjectId, ObjectReference,
-    RandomnessRound, SenderSignedTransaction, TransactionDigest, TransactionEffects,
-    TransactionEffectsDigest, TransactionKind, UserSignature, Version, VersionAssignment,
+    RandomnessRound, SenderSignedTransaction, TransactionDenyRulesUpdate, TransactionDigest,
+    TransactionEffects, TransactionEffectsDigest, TransactionKind, UserSignature, Version,
+    VersionAssignment,
     checkpoint::{CheckpointContents, CheckpointSummary},
 };
 use iota_storage::mutex_table::{MutexGuard, MutexTable};
@@ -925,6 +926,14 @@ pub struct AuthorityEpochTables {
     /// generation overwrites an older one from the same authority.
     deny_rule_proposals: DBMap<AuthorityName, TransactionDenyRuleProposal>,
 
+    /// The deny rule state last written to the `TransactionDenyRules` object
+    /// by injected updates, as of the last flushed commit. Single row keyed by
+    /// `()`; written atomically with the flush batch so a restart resumes with
+    /// the mirror exactly at the flush position (unflushed commits are
+    /// re-processed by consensus replay). Absent until the first injection of
+    /// the epoch.
+    mirrored_deny_rules: DBMap<(), DenyRuleSet>,
+
     /// Contains a single key, which overrides the value of
     /// ProtocolConfig::buffer_stake_for_protocol_upgrade_bps
     override_protocol_upgrade_buffer_stake: DBMap<u64, u64>,
@@ -1285,10 +1294,8 @@ impl AuthorityPerEpochStore {
                 .safe_iter()
                 .collect::<Result<BTreeMap<_, _>, _>>()
                 .expect("AuthorityEpochTables should contain valid deny rule proposals");
-        let mirrored_deny_rules = epoch_start_configuration
-            .transaction_deny_rules_state()
-            .cloned()
-            .unwrap_or_default();
+        let mirrored_deny_rules =
+            Self::initial_mirrored_deny_rules(&tables, &epoch_start_configuration)?;
         let active_transaction_deny_rules = ArcSwap::from_pointee(union_deny_rule_sets(
             Self::compute_active_transaction_deny_rules(&cached_deny_rule_proposals, &committee),
             &mirrored_deny_rules,
@@ -3112,6 +3119,26 @@ impl AuthorityPerEpochStore {
         self.mirrored_transaction_deny_rules.load_full()
     }
 
+    /// The mirrored deny rule state to start from when the epoch store opens.
+    /// A persisted row (mid-epoch restart) wins over the epoch-start seed: it
+    /// carries the advances from every flushed injection, and consensus
+    /// replay re-applies only the unflushed tail. On a fresh epoch the row is
+    /// absent and the seed is the object state at the boundary.
+    fn initial_mirrored_deny_rules(
+        tables: &AuthorityEpochTables,
+        epoch_start_configuration: &EpochStartConfiguration,
+    ) -> IotaResult<DenyRuleSet> {
+        Ok(tables
+            .mirrored_deny_rules
+            .get(&())?
+            .or_else(|| {
+                epoch_start_configuration
+                    .transaction_deny_rules_state()
+                    .cloned()
+            })
+            .unwrap_or_default())
+    }
+
     /// Recomputes the active deny rule set from the current proposals and
     /// swaps it in. Returns true when the active set changed. Production
     /// recomputes through `ConsensusOutputQuarantine::push_consensus_output`;
@@ -4228,6 +4255,121 @@ impl AuthorityPerEpochStore {
         consensus_round * 2
     }
 
+    /// Injects `TransactionDenyRulesUpdate` system transactions bringing the
+    /// on-chain object to the current proposal aggregate: additions always,
+    /// removals only once enough of the committee has announced this epoch
+    /// and the round floor has passed. A diff larger than
+    /// `deny_rule_update_max_entries_per_tx` is split into disjoint chunks of
+    /// the sorted diff — deterministic on every validator — each carrying the
+    /// absolute switch states, so application is order-free and a re-sent
+    /// chunk is a no-op. Advances the mirrored state to the injected target
+    /// in the same commit output that persists it.
+    pub(crate) fn add_deny_rule_update_transactions(
+        &self,
+        output: &mut ConsensusCommitOutput,
+        transactions: &mut VecDeque<VerifiedExecutableTransaction>,
+        consensus_commit_info: &ConsensusCommitInfo,
+    ) -> IotaResult<()> {
+        if !self.protocol_config().deny_rule_governance_on_chain() {
+            return Ok(());
+        }
+        // Mirroring starts the epoch after the object is created: without the
+        // object there is nothing to update.
+        let Some(initial_shared_version) = self
+            .epoch_start_config()
+            .transaction_deny_rules_obj_initial_shared_version()
+        else {
+            return Ok(());
+        };
+
+        // The aggregate from every recorded proposal, this commit's included.
+        let mut proposals = self
+            .consensus_quarantine
+            .read()
+            .current_deny_rule_proposals();
+        proposals.extend(
+            output
+                .deny_rule_proposals()
+                .iter()
+                .map(|(authority, proposal)| (*authority, proposal.clone())),
+        );
+        let aggregate = Self::compute_active_transaction_deny_rules(&proposals, self.committee());
+        let mirror = self.mirrored_transaction_deny_rules.load_full();
+
+        // Removals wait until enough of the committee has re-announced its
+        // configuration this epoch, so entries do not drop out just because
+        // announcements are still arriving. Additions apply immediately.
+        let announced_stake: StakeUnit = proposals
+            .keys()
+            .map(|authority| self.committee().weight(authority))
+            .sum();
+        let removals_unlocked = announced_stake >= self.committee().quorum_threshold()
+            && consensus_commit_info.round
+                >= self.protocol_config().deny_rule_removal_grace_round_floor();
+        self.metrics
+            .deny_rule_removals_unlocked
+            .set(removals_unlocked as i64);
+
+        let (chunks, target) = compute_deny_rule_update_chunks(
+            &aggregate,
+            &mirror,
+            removals_unlocked,
+            self.protocol_config().deny_rule_update_max_entries_per_tx() as usize,
+            self.epoch(),
+            consensus_commit_info.round,
+            initial_shared_version,
+        );
+        if chunks.is_empty() {
+            return Ok(());
+        }
+        let chunk_count = chunks.len();
+
+        let mut all_scheduled = true;
+        for chunk in chunks {
+            let transaction = VerifiedExecutableTransaction::new_system(
+                VerifiedTransaction::new_transaction_deny_rules_update(chunk),
+                self.epoch(),
+            );
+            match self.process_consensus_system_transaction(&transaction) {
+                ConsensusTransactionResult::Scheduled {
+                    transaction,
+                    start_time: _,
+                } => {
+                    transactions.push_front(transaction);
+                }
+                ConsensusTransactionResult::IgnoredSystem => {
+                    all_scheduled = false;
+                }
+                _ => unreachable!(
+                    "process_consensus_system_transaction returned unexpected ConsensusTransactionResult."
+                ),
+            }
+            output.record_consensus_message_processed(SequencedConsensusTransactionKey::System(
+                *transaction.digest(),
+            ));
+        }
+        // A skipped chunk (epoch closing) leaves the object behind the
+        // aggregate; keeping the mirror behind too makes the next commit
+        // re-derive the same delta, and the tolerant Move ops absorb any
+        // chunk that did execute.
+        if all_scheduled {
+            self.metrics.deny_rule_updates_injected.inc();
+            self.metrics
+                .deny_rule_update_transactions_injected
+                .inc_by(chunk_count as u64);
+            output.record_mirrored_deny_rules(target.clone());
+            self.mirrored_transaction_deny_rules.store(Arc::new(target));
+            // Re-derive enforcement from the advanced mirror: the recompute in
+            // `push_consensus_output` only runs for commits that record
+            // proposals, so without this a removal that unlocks on a
+            // proposal-free commit would stay enforced until the next
+            // proposal arrives, though the object already dropped it.
+            self.store_active_transaction_deny_rules(&proposals);
+        }
+
+        Ok(())
+    }
+
     // Adds the consensus commit prologue transaction to the beginning of input
     // `transactions` to update the system clock used in all transactions in the
     // current consensus commit. Returns the root of the consensus commit
@@ -4755,6 +4897,15 @@ impl AuthorityPerEpochStore {
                     .await?;
             }
         }
+
+        // Bring the on-chain deny-rules object up to date with the proposal
+        // aggregate before the prologue is prepended, so the prologue stays
+        // the first transaction of the commit.
+        self.add_deny_rule_update_transactions(
+            output,
+            &mut verified_non_randomness_transactions,
+            consensus_commit_info,
+        )?;
 
         // Add the consensus commit prologue transaction to the beginning of
         // `verified_non_randomness_transactions`.
@@ -5909,4 +6060,187 @@ pub(crate) fn union_deny_rule_sets(mut rules: DenyRuleSet, other: &DenyRuleSet) 
     rules.receiving_objects_disabled |= other.receiving_objects_disabled;
     rules.move_authenticator_disabled |= other.move_authenticator_disabled;
     rules
+}
+
+/// Computes the `TransactionDenyRulesUpdate` transactions that bring the
+/// on-chain object from `mirror` to `aggregate`: additions and switch
+/// activations always, entry removals and switch deactivations only when
+/// `removals_unlocked` — until then a mirrored switch stays on even though
+/// the (still incomplete) aggregate no longer carries it. A delta larger
+/// than `max_entries_per_tx` is split into disjoint chunks of the sorted
+/// delta, each carrying the absolute switch states. Returns the chunks
+/// (empty when the object is already up to date) and the state the object
+/// holds once they have executed — the next mirror. Pure function of its
+/// inputs, so every validator derives the same transactions at the same
+/// commit.
+pub(crate) fn compute_deny_rule_update_chunks(
+    aggregate: &DenyRuleSet,
+    mirror: &DenyRuleSet,
+    removals_unlocked: bool,
+    max_entries_per_tx: usize,
+    epoch: EpochId,
+    round: u64,
+    deny_rules_obj_initial_shared_version: Version,
+) -> (Vec<TransactionDenyRulesUpdate>, DenyRuleSet) {
+    let switch = |aggregate_switch: bool, mirror_switch: bool| {
+        if removals_unlocked {
+            aggregate_switch
+        } else {
+            aggregate_switch || mirror_switch
+        }
+    };
+    let mut delta = TransactionDenyRulesUpdate {
+        epoch,
+        round,
+        added_addresses: aggregate
+            .denied_addresses
+            .difference(&mirror.denied_addresses)
+            .copied()
+            .collect(),
+        removed_addresses: BTreeSet::new(),
+        added_objects: aggregate
+            .denied_objects
+            .difference(&mirror.denied_objects)
+            .copied()
+            .collect(),
+        removed_objects: BTreeSet::new(),
+        added_packages: aggregate
+            .denied_packages
+            .difference(&mirror.denied_packages)
+            .copied()
+            .collect(),
+        removed_packages: BTreeSet::new(),
+        package_publish_disabled: switch(
+            aggregate.package_publish_disabled,
+            mirror.package_publish_disabled,
+        ),
+        package_upgrade_disabled: switch(
+            aggregate.package_upgrade_disabled,
+            mirror.package_upgrade_disabled,
+        ),
+        shared_object_disabled: switch(
+            aggregate.shared_object_disabled,
+            mirror.shared_object_disabled,
+        ),
+        user_transaction_disabled: switch(
+            aggregate.user_transaction_disabled,
+            mirror.user_transaction_disabled,
+        ),
+        receiving_objects_disabled: switch(
+            aggregate.receiving_objects_disabled,
+            mirror.receiving_objects_disabled,
+        ),
+        move_authenticator_disabled: switch(
+            aggregate.move_authenticator_disabled,
+            mirror.move_authenticator_disabled,
+        ),
+        deny_rules_obj_initial_shared_version,
+    };
+    if removals_unlocked {
+        delta.removed_addresses = mirror
+            .denied_addresses
+            .difference(&aggregate.denied_addresses)
+            .copied()
+            .collect();
+        delta.removed_objects = mirror
+            .denied_objects
+            .difference(&aggregate.denied_objects)
+            .copied()
+            .collect();
+        delta.removed_packages = mirror
+            .denied_packages
+            .difference(&aggregate.denied_packages)
+            .copied()
+            .collect();
+    }
+
+    // The object state once the delta has executed.
+    let target = DenyRuleSet {
+        denied_addresses: mirror
+            .denied_addresses
+            .union(&delta.added_addresses)
+            .filter(|key| !delta.removed_addresses.contains(key))
+            .copied()
+            .collect(),
+        denied_objects: mirror
+            .denied_objects
+            .union(&delta.added_objects)
+            .filter(|key| !delta.removed_objects.contains(key))
+            .copied()
+            .collect(),
+        denied_packages: mirror
+            .denied_packages
+            .union(&delta.added_packages)
+            .filter(|key| !delta.removed_packages.contains(key))
+            .copied()
+            .collect(),
+        package_publish_disabled: delta.package_publish_disabled,
+        package_upgrade_disabled: delta.package_upgrade_disabled,
+        shared_object_disabled: delta.shared_object_disabled,
+        user_transaction_disabled: delta.user_transaction_disabled,
+        receiving_objects_disabled: delta.receiving_objects_disabled,
+        move_authenticator_disabled: delta.move_authenticator_disabled,
+    };
+
+    let switches_changed = delta.package_publish_disabled != mirror.package_publish_disabled
+        || delta.package_upgrade_disabled != mirror.package_upgrade_disabled
+        || delta.shared_object_disabled != mirror.shared_object_disabled
+        || delta.user_transaction_disabled != mirror.user_transaction_disabled
+        || delta.receiving_objects_disabled != mirror.receiving_objects_disabled
+        || delta.move_authenticator_disabled != mirror.move_authenticator_disabled;
+    let entry_count = delta.added_addresses.len()
+        + delta.removed_addresses.len()
+        + delta.added_objects.len()
+        + delta.removed_objects.len()
+        + delta.added_packages.len()
+        + delta.removed_packages.len();
+    if entry_count == 0 && !switches_changed {
+        return (Vec::new(), target);
+    }
+
+    // Deterministic chunking: cut each (already sorted) delta set into runs,
+    // filling one chunk to the limit before starting the next.
+    let max_entries_per_tx = max_entries_per_tx.max(1);
+    let chunk_count = entry_count.div_ceil(max_entries_per_tx).max(1);
+    let empty = TransactionDenyRulesUpdate {
+        added_addresses: BTreeSet::new(),
+        removed_addresses: BTreeSet::new(),
+        added_objects: BTreeSet::new(),
+        removed_objects: BTreeSet::new(),
+        added_packages: BTreeSet::new(),
+        removed_packages: BTreeSet::new(),
+        ..delta
+    };
+    let mut chunks = vec![empty; chunk_count];
+    let mut slot = 0;
+    {
+        let mut fill =
+            |set: BTreeSet<Address>,
+             select: fn(&mut TransactionDenyRulesUpdate) -> &mut BTreeSet<Address>| {
+                for key in set {
+                    select(&mut chunks[slot / max_entries_per_tx]).insert(key);
+                    slot += 1;
+                }
+            };
+        fill(delta.added_addresses, |chunk| &mut chunk.added_addresses);
+        fill(delta.removed_addresses, |chunk| {
+            &mut chunk.removed_addresses
+        });
+    }
+    {
+        let mut fill =
+            |set: BTreeSet<ObjectId>,
+             select: fn(&mut TransactionDenyRulesUpdate) -> &mut BTreeSet<ObjectId>| {
+                for key in set {
+                    select(&mut chunks[slot / max_entries_per_tx]).insert(key);
+                    slot += 1;
+                }
+            };
+        fill(delta.added_objects, |chunk| &mut chunk.added_objects);
+        fill(delta.removed_objects, |chunk| &mut chunk.removed_objects);
+        fill(delta.added_packages, |chunk| &mut chunk.added_packages);
+        fill(delta.removed_packages, |chunk| &mut chunk.removed_packages);
+    }
+
+    (chunks, target)
 }

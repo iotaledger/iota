@@ -1031,6 +1031,8 @@ mod tests {
             iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
                 config.set_deny_rule_governance_for_testing(true);
                 config.set_deny_rule_governance_on_chain_for_testing(true);
+                config.set_deny_rule_update_max_entries_per_tx_for_testing(1000);
+                config.set_deny_rule_removal_grace_round_floor_for_testing(0);
                 config
             });
         let sim = Simulacrum::new();
@@ -1068,6 +1070,8 @@ mod tests {
             iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
                 config.set_deny_rule_governance_for_testing(true);
                 config.set_deny_rule_governance_on_chain_for_testing(true);
+                config.set_deny_rule_update_max_entries_per_tx_for_testing(1000);
+                config.set_deny_rule_removal_grace_round_floor_for_testing(0);
                 config
             });
         let sim = Simulacrum::new();

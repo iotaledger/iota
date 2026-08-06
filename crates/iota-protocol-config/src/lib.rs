@@ -1449,6 +1449,18 @@ pub struct ProtocolConfig {
     /// validators in any epoch to go above this.
     max_committee_members_count: Option<u64>,
 
+    /// Maximum number of added plus removed entries one injected
+    /// `TransactionDenyRulesUpdate` transaction may carry; a larger diff is
+    /// split into multiple transactions in the same commit. Set together with
+    /// the `deny_rule_governance` feature flags.
+    deny_rule_update_max_entries_per_tx: Option<u64>,
+
+    /// Consensus round before which removals are never injected into the
+    /// `TransactionDenyRules` object, so validators can re-announce their
+    /// rules after an epoch change before unsupported entries are dropped.
+    /// Set together with the `deny_rule_governance` feature flags.
+    deny_rule_removal_grace_round_floor: Option<u64>,
+
     /// Configures the garbage collection depth for consensus. When is unset or
     /// `0` then the garbage collection is disabled.
     consensus_gc_depth: Option<u32>,
@@ -2105,6 +2117,14 @@ impl ProtocolConfig {
                 || ret.feature_flags.deny_rule_governance,
             "deny_rule_governance_on_chain requires deny_rule_governance"
         );
+        // The injection cannot chunk updates or gate removals without its
+        // knobs.
+        assert!(
+            !ret.feature_flags.deny_rule_governance_on_chain
+                || (ret.deny_rule_update_max_entries_per_tx.is_some()
+                    && ret.deny_rule_removal_grace_round_floor.is_some()),
+            "deny_rule_governance_on_chain requires deny_rule_update_max_entries_per_tx and deny_rule_removal_grace_round_floor"
+        );
 
         ret
     }
@@ -2625,6 +2645,8 @@ impl ProtocolConfig {
             max_accumulated_txn_cost_per_object_in_mysticeti_commit: Some(10),
 
             max_committee_members_count: None,
+            deny_rule_update_max_entries_per_tx: None,
+            deny_rule_removal_grace_round_floor: None,
 
             consensus_gc_depth: None,
 
