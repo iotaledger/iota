@@ -10,13 +10,14 @@ use std::{
 use iota_config::genesis;
 use iota_sdk_types::{
     Address, CheckpointContentsDigest, CheckpointDigest, ObjectId, ObjectReference, Owner,
-    TransactionDigest, Version, checkpoint::CheckpointContents,
+    TransactionDigest, TransactionEffects, TransactionEvents, Version,
+    checkpoint::CheckpointContents,
 };
 use iota_types::{
     base_types::AuthorityName,
     committee::{Committee, EpochId},
     crypto::{AccountKeyPair, AuthorityKeyPair},
-    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
+    effects::TransactionEffectsAPI,
     error::IotaError,
     messages_checkpoint::{CheckpointSequenceNumber, VerifiedCheckpoint},
     object::Object,
@@ -466,7 +467,7 @@ impl ReadStore for InMemoryStore {
     fn try_get_events(
         &self,
         digest: &TransactionDigest,
-    ) -> iota_types::storage::error::Result<Option<iota_types::effects::TransactionEvents>> {
+    ) -> iota_types::storage::error::Result<Option<iota_sdk_types::TransactionEvents>> {
         Ok(self.get_transaction_events(digest).cloned())
     }
 

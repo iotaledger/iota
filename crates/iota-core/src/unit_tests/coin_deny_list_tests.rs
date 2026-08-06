@@ -7,7 +7,7 @@ use std::sync::Arc;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
     Address, Identifier, ObjectId, ObjectReference, SharedObjectReference, StructTag,
-    TransactionDigest, TypeTag, Version,
+    TransactionDigest, TransactionEffects, TypeTag, Version,
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
@@ -17,7 +17,7 @@ use iota_types::{
         DenyCapV1, RegulatedCoinMetadata, check_address_denied_by_config, check_global_pause,
         get_per_type_coin_deny_list_v1,
     },
-    effects::{TransactionEffects, TransactionEffectsAPI},
+    effects::TransactionEffectsAPI,
     error::{IotaError, IotaResult, UserInputError},
     messages_consensus::{ConsensusTransaction, ConsensusTransactionKind},
     object::Object,

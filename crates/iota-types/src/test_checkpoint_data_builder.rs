@@ -8,7 +8,7 @@ use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
     Address, EndOfEpochTransactionKind, Event, Identifier, MoveStruct, ObjectId, ObjectReference,
     Owner, SenderSignedTransaction, SharedObjectReference, StructTag, TransactionDigest,
-    TransactionKind, TypeTag, Version,
+    TransactionEffects, TransactionEvents, TransactionKind, TypeTag, Version,
     checkpoint::{CheckpointContents, CheckpointSummary, EndOfEpochData},
 };
 use tap::Pipe;
@@ -16,10 +16,7 @@ use tap::Pipe;
 use crate::{
     base_types::{ExecutionDigests, dbg_addr, random_object_ref},
     committee::Committee,
-    effects::{
-        TestEffectsBuilder, TransactionEffects, TransactionEffectsAPI,
-        TransactionEffectsExtForTesting, TransactionEvents,
-    },
+    effects::{TestEffectsBuilder, TransactionEffectsAPI, TransactionEffectsExtForTesting},
     event::SystemEpochInfoEventV2,
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     gas_coin::GAS,

@@ -21,7 +21,8 @@ use iota_json_rpc_types::{
 };
 use iota_sdk_types::{
     Address, CheckpointContentsDigest, CheckpointDigest, ObjectId, ObjectReference, StructTag,
-    TransactionDigest, TransactionKind, TypeTag, Version, checkpoint::CheckpointContents,
+    TransactionDigest, TransactionEffects, TransactionKind, TypeTag, Version,
+    checkpoint::CheckpointContents,
 };
 use iota_storage::key_value_store::{
     KVStoreTransactionData, TransactionKeyValueStore, TransactionKeyValueStoreTrait,
@@ -31,7 +32,6 @@ use iota_types::{
     committee::{Committee, EpochId},
     digests::ChainIdentifier,
     dynamic_field::DynamicFieldInfo,
-    effects::TransactionEffects,
     error::{IotaError, UserInputError},
     event::EventID,
     governance::StakedIota,

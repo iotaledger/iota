@@ -7,14 +7,11 @@ use std::collections::{BTreeMap, BTreeSet};
 use iota_sdk_types::{
     EpochId, ExecutionStatus, GasCostSummary, IntentScope, ObjectDigest, ObjectId, ObjectReference,
     Owner, TransactionDigest, TransactionEffectsDigest, TransactionEventsDigest,
-    UnchangedSharedKind, UnchangedSharedObject, Version, crypto::Intent,
-};
-pub use iota_sdk_types::{
+    UnchangedSharedKind, UnchangedSharedObject, Version,
+    crypto::Intent,
     effects::{
-        ChangedObject as EffectsObjectChange, IdOperation as IDOperation, ObjectIn, ObjectOut,
-        TransactionEffects, TransactionEffectsV1,
+        ChangedObject, IdOperation, ObjectIn, ObjectOut, TransactionEffects, TransactionEffectsV1,
     },
-    events::TransactionEvents,
 };
 pub use test_effects_builder::TestEffectsBuilder;
 use tracing::instrument;
@@ -104,7 +101,7 @@ impl InputSharedObject {
 ///
 /// Describes the input and output version/digest of a single object that was
 /// read or modified during transaction execution, along with the
-/// [`IDOperation`] that was applied to it. This is a flattened,
+/// [`IdOperation`] that was applied to it. This is a flattened,
 /// version-agnostic view derived from the effects via
 /// [`TransactionEffectsAPI::object_changes`].
 #[derive(Eq, PartialEq, Copy, Clone, Debug)]
@@ -114,7 +111,7 @@ pub struct ObjectChange {
     pub input_digest: Option<ObjectDigest>,
     pub output_version: Option<Version>,
     pub output_digest: Option<ObjectDigest>,
-    pub id_operation: IDOperation,
+    pub id_operation: IdOperation,
 }
 
 mod transaction_effects_api {
@@ -194,7 +191,7 @@ pub trait TransactionEffectsAPI: transaction_effects_api::Sealed {
 
     /// Returns a flattened view of every object change recorded in these
     /// effects: for each touched object, the input and output version/digest
-    /// (when present) together with the [`IDOperation`] describing whether
+    /// (when present) together with the [`IdOperation`] describing whether
     /// the ID was created, deleted, or unchanged.
     fn object_changes(&self) -> Vec<ObjectChange>;
 
@@ -288,7 +285,7 @@ pub trait TransactionEffectsExt: transaction_effects_ext::Sealed {
         loaded_per_epoch_config_objects: BTreeSet<ObjectId>,
         transaction_digest: TransactionDigest,
         lamport_version: Version,
-        changed_objects: BTreeMap<ObjectId, EffectsObjectChange>,
+        changed_objects: BTreeMap<ObjectId, ChangedObject>,
         gas_object: Option<ObjectId>,
         events_digest: Option<TransactionEventsDigest>,
         dependencies: Vec<TransactionDigest>,
@@ -497,7 +494,7 @@ impl TransactionEffectsExt for TransactionEffects {
         loaded_per_epoch_config_objects: BTreeSet<ObjectId>,
         transaction_digest: TransactionDigest,
         lamport_version: Version,
-        changed_objects: BTreeMap<ObjectId, EffectsObjectChange>,
+        changed_objects: BTreeMap<ObjectId, ChangedObject>,
         gas_object: Option<ObjectId>,
         events_digest: Option<TransactionEventsDigest>,
         dependencies: Vec<TransactionDigest>,
@@ -571,7 +568,7 @@ impl TransactionEffectsExt for TransactionEffects {
             .filter_map(|change| {
                 if change.input_digest.is_none()
                     && change.output_digest.is_none()
-                    && change.id_operation == IDOperation::Created
+                    && change.id_operation == IdOperation::Created
                 {
                     Some((change.id, change.output_version.unwrap_or_default()))
                 } else {

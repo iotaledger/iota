@@ -8,7 +8,8 @@ use async_trait::async_trait;
 use futures::FutureExt;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    CheckpointContentsDigest, CheckpointDigest, ObjectId, TransactionDigest,
+    CheckpointContentsDigest, CheckpointDigest, ObjectId, TransactionDigest, TransactionEffects,
+    TransactionEvents,
     checkpoint::{CheckpointContents, CheckpointSummary},
 };
 use iota_storage::{key_value_store::*, key_value_store_metrics::KeyValueStoreMetrics};
@@ -17,7 +18,7 @@ use iota_types::{
     base_types::{ExecutionDigests, VersionNumber, random_object_ref},
     committee::Committee,
     crypto::{AccountKeyPair, KeypairTraits, get_key_pair},
-    effects::{TestEffectsBuilder, TransactionEffects, TransactionEffectsAPI, TransactionEvents},
+    effects::{TestEffectsBuilder, TransactionEffectsAPI},
     error::IotaResult,
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointContentsExt, CheckpointSequenceNumber,

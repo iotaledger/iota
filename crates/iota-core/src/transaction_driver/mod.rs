@@ -78,7 +78,7 @@ pub struct SubmitTransactionOptions {
 pub struct QuorumTransactionResponse {
     pub effects: iota_types::transaction_driver_types::FinalizedEffects,
 
-    pub events: Option<iota_types::effects::TransactionEvents>,
+    pub events: Option<iota_sdk_types::TransactionEvents>,
     // Input objects will only be populated in the happy path
     pub input_objects: Option<Vec<iota_types::object::Object>>,
     // Output objects will only be populated in the happy path

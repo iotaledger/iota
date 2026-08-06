@@ -5,11 +5,11 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 use iota_sdk_types::{
-    ObjectId, SenderSignedTransaction, SharedObjectReference, TransactionDigest, Version,
-    VersionAssignment,
+    ObjectId, SenderSignedTransaction, SharedObjectReference, TransactionDigest,
+    TransactionEffects, Version, VersionAssignment,
 };
 use iota_types::{
-    effects::{TransactionEffects, TransactionEffectsAPI},
+    effects::TransactionEffectsAPI,
     error::IotaResult,
     executable_transaction::VerifiedExecutableTransaction,
     storage::{

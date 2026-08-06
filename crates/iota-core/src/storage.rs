@@ -6,12 +6,12 @@ use std::sync::Arc;
 
 use iota_node_storage::{GrpcIndexes, GrpcStateReader};
 use iota_sdk_types::{
-    CheckpointContentsDigest, CheckpointDigest, StructTag, TransactionDigest,
+    CheckpointContentsDigest, CheckpointDigest, StructTag, TransactionDigest, TransactionEffects,
+    TransactionEvents,
     checkpoint::{CheckpointContents, EndOfEpochData},
 };
 use iota_types::{
     committee::{Committee, EpochId},
-    effects::{TransactionEffects, TransactionEvents},
     error::IotaError,
     messages_checkpoint::{
         CheckpointContentsExt, CheckpointSequenceNumber, FullCheckpointContents,

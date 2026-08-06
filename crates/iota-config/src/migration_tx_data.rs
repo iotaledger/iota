@@ -10,14 +10,12 @@ use std::{
 
 use anyhow::{Context, Result};
 use iota_sdk_types::{
-    TransactionDigest,
+    TransactionDigest, TransactionEffects, TransactionEvents,
     checkpoint::{CheckpointContents, CheckpointSummary},
 };
 use iota_types::{
-    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
-    message_envelope::Message,
-    messages_checkpoint::CheckpointContentsExt,
-    transaction::TransactionEnvelope,
+    effects::TransactionEffectsAPI, message_envelope::Message,
+    messages_checkpoint::CheckpointContentsExt, transaction::TransactionEnvelope,
 };
 use serde::{Deserialize, Serialize};
 use tracing::trace;

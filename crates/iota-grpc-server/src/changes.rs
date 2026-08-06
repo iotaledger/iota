@@ -18,11 +18,12 @@ use std::{
 
 use iota_grpc_types::v1::transaction as grpc_tx;
 use iota_sdk_types::{
-    Address, ExecutionStatus, ObjectDigest, ObjectId, Owner, StructTag, TypeTag, Version,
+    Address, ExecutionStatus, ObjectDigest, ObjectId, Owner, StructTag, TransactionEffects,
+    TypeTag, Version,
 };
 use iota_types::{
     coin::Coin,
-    effects::{ObjectRemoveKind, TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
+    effects::{ObjectRemoveKind, TransactionEffectsAPI, TransactionEffectsExt},
     gas_coin::GAS,
     object::Object,
     storage::WriteKind,

@@ -39,7 +39,9 @@ use iota_sdk::{
     wallet_context::WalletContext,
 };
 use iota_sdk_transaction_builder::TransactionBuilder;
-use iota_sdk_types::{Address, ObjectId, ObjectReference, TransactionDigest};
+use iota_sdk_types::{
+    Address, ObjectId, ObjectReference, TransactionDigest, TransactionEffects, TransactionEvents,
+};
 use iota_swarm::memory::{Swarm, SwarmBuilder};
 use iota_swarm_config::{
     genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT, GenesisConfig, ValidatorGenesisConfig},
@@ -55,7 +57,6 @@ use iota_types::{
     base_types::{AuthorityName, ConciseableName},
     committee::{Committee, CommitteeTrait, EpochId},
     crypto::{AccountKeyPair, SimpleKeypair, get_key_pair},
-    effects::{TransactionEffects, TransactionEvents},
     error::IotaResult,
     iota_system_state::{
         IotaSystemState, IotaSystemStateTrait,

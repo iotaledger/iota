@@ -16,12 +16,12 @@ use iota_sdk_types::{
     EndOfEpochTransactionKind, ExecutionError as ExecutionFailureStatus, ExecutionStatus,
     GenesisObject, Identifier, MoveCall, ObjectDigest, ObjectId, ObjectReference, Owner,
     ProgrammableTransaction, SenderSignedTransaction, SharedObjectReference, TransactionDigest,
-    TransactionEventsDigest, TransactionKind, TransferObjects, TypeTag, UserSignature, Version,
-    VersionAssignment, gas::GasCostSummary,
+    TransactionEffects, TransactionEvents, TransactionEventsDigest, TransactionKind,
+    TransferObjects, TypeTag, UserSignature, Version, VersionAssignment, gas::GasCostSummary,
 };
 use iota_types::{
     base_types::EpochId,
-    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
+    effects::TransactionEffectsAPI,
     error::{ExecutionError, IotaError, IotaResult},
     event::EventID,
     iota_sdk_types_conversions::{identifier_sdk_to_core, type_tag_core_to_sdk},

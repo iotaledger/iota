@@ -14,10 +14,11 @@ use iota_sdk_types::{
     Address, Argument, ChangeEpoch, CheckpointContentsDigest, CheckpointDigest, Command,
     CommandArgumentError, ConsensusCommitDigest, ConsensusCommitPrologueV1,
     ConsensusDeterminedVersionAssignments, EndOfEpochTransactionKind, Event, ExecutionError,
-    ExecutionStatus, GenesisObject, GenesisTransaction, Identifier, MoveLocation, MoveObjectType,
-    MoveStruct, ObjectData, ObjectDigest, ObjectId, ObjectReference, Owner, PackageUpgradeError,
-    ProgrammableTransaction, RandomnessStateUpdate, SenderSignedTransaction, SharedObjectReference,
-    SimpleSignature, StructTag, TransactionDigest, TransactionEffectsDigest, TransactionExpiration,
+    ExecutionStatus, GenesisObject, GenesisTransaction, IdOperation, Identifier, MoveLocation,
+    MoveObjectType, MoveStruct, ObjectData, ObjectDigest, ObjectId, ObjectIn, ObjectOut,
+    ObjectReference, Owner, PackageUpgradeError, ProgrammableTransaction, RandomnessStateUpdate,
+    SenderSignedTransaction, SharedObjectReference, SimpleSignature, StructTag, TransactionDigest,
+    TransactionEffects, TransactionEffectsDigest, TransactionEvents, TransactionExpiration,
     TransactionKind, TypeArgumentError, TypeTag, UnchangedSharedKind, UserSignature,
     checkpoint::{CheckpointCommitment, CheckpointContents, CheckpointSummary},
     crypto::{Intent, IntentMessage, PersonalMessage},
@@ -31,10 +32,7 @@ use iota_types::{
         AuthorityQuorumSignInfo, AuthoritySignature, AuthorityStrongQuorumSignInfo, KeypairTraits,
         Signer, get_key_pair,
     },
-    effects::{
-        IDOperation, ObjectIn, ObjectOut, TransactionEffects, TransactionEffectsExtForTesting,
-        TransactionEvents,
-    },
+    effects::TransactionEffectsExtForTesting,
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointContentsExt, FullCheckpointContents,
@@ -539,7 +537,7 @@ fn get_registry() -> Result<Registry> {
         .trace_type::<EndOfEpochTransactionKind>(&samples)
         .unwrap();
 
-    tracer.trace_type::<IDOperation>(&samples).unwrap();
+    tracer.trace_type::<IdOperation>(&samples).unwrap();
     tracer.trace_type::<ObjectIn>(&samples).unwrap();
     tracer.trace_type::<ObjectOut>(&samples).unwrap();
     tracer.trace_type::<UnchangedSharedKind>(&samples).unwrap();

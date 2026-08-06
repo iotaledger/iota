@@ -4,15 +4,16 @@
 
 use std::collections::BTreeMap;
 
-use iota_sdk_types::{ObjectId, ObjectReference, TransactionKind, checkpoint::CheckpointContents};
+use iota_sdk_types::{
+    ObjectId, ObjectReference, TransactionEffects, TransactionEvents, TransactionKind,
+    checkpoint::CheckpointContents,
+};
 use serde::{Deserialize, Serialize};
 use tap::Pipe;
 
 use crate::{
     base_types::ExecutionData,
-    effects::{
-        TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt, TransactionEvents,
-    },
+    effects::{TransactionEffectsAPI, TransactionEffectsExt},
     iota_system_state::{IotaSystemStateTrait, get_iota_system_state},
     messages_checkpoint::CertifiedCheckpointSummary,
     object::Object,

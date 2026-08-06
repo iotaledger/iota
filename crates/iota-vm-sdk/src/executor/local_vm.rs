@@ -7,9 +7,9 @@ use std::sync::{Arc, OnceLock};
 
 use iota_execution::Executor;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{Address, MoveAuthenticator, SenderSignedTransaction};
+use iota_sdk_types::{Address, MoveAuthenticator, SenderSignedTransaction, TransactionEvents};
 use iota_types::{
-    effects::{TransactionEffectsAPI, TransactionEvents},
+    effects::TransactionEffectsAPI,
     gas::IotaGasStatus,
     metrics::{BytecodeVerifierMetrics, LimitsMetrics},
     signature::VerifyParams,

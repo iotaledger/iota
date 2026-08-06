@@ -294,14 +294,14 @@ mod tests {
     use arc_swap::ArcSwap;
     use async_trait::async_trait;
     use iota_macros::sim_test;
-    use iota_sdk_types::{Address, ObjectId, TransactionDigest};
+    use iota_sdk_types::{Address, ObjectId, TransactionDigest, TransactionEvents};
     use iota_swarm_config::network_config_builder::ConfigBuilder;
     use iota_test_transaction_builder::TestTransactionBuilder;
     use iota_types::{
         base_types::AuthorityName,
         committee::{CommitteeTrait, StakeUnit},
         crypto::{AccountKeyPair, get_account_key_pair},
-        effects::{TransactionEffectsAPI, TransactionEvents},
+        effects::TransactionEffectsAPI,
         error::IotaError,
         executable_transaction::VerifiedExecutableTransaction,
         iota_system_state::IotaSystemState,

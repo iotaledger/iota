@@ -21,13 +21,12 @@ use iota_json_rpc::authority_state::StateRead;
 use iota_json_rpc_types::{DevInspectResults, DryRunTransactionBlockResponse, EventFilter};
 use iota_sdk_types::{
     Address, CheckpointContentsDigest, CheckpointDigest, Event, ObjectId, TransactionDigest,
-    TransactionKind, checkpoint::CheckpointContents,
+    TransactionEffects, TransactionEvents, TransactionKind, checkpoint::CheckpointContents,
 };
 use iota_storage::key_value_store::TransactionKeyValueStore;
 use iota_types::{
     base_types::VersionNumber,
     committee::EpochId,
-    effects::{TransactionEffects, TransactionEvents},
     error::{ExecutionError, IotaError, IotaResult},
     executable_transaction::{ExecutableTransaction, VerifiedExecutableTransaction},
     iota_system_state::{

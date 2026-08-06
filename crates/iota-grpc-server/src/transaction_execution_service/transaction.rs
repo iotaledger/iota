@@ -23,8 +23,8 @@ pub struct TransactionReadSource<'a> {
     pub config: &'a iota_config::node::GrpcApiConfig,
     pub transaction: Option<iota_sdk_types::transaction::Transaction>,
     pub signatures: Option<Vec<iota_sdk_types::UserSignature>>,
-    pub effects: Option<iota_types::effects::TransactionEffects>,
-    pub events: Option<iota_types::effects::TransactionEvents>,
+    pub effects: Option<iota_sdk_types::TransactionEffects>,
+    pub events: Option<iota_sdk_types::TransactionEvents>,
     pub checkpoint: Option<u64>,
     pub timestamp_ms: Option<u64>,
     pub input_objects: Option<Vec<iota_types::object::Object>>,
@@ -153,7 +153,7 @@ impl TransactionReadSource<'_> {
         &self,
     ) -> Result<
         (
-            &iota_types::effects::TransactionEffects,
+            &iota_sdk_types::TransactionEffects,
             &[iota_types::object::Object],
             &[iota_types::object::Object],
         ),

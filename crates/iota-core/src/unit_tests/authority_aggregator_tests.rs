@@ -17,7 +17,7 @@ use iota_move_build::BuildConfig;
 use iota_protocol_config::Chain::Unknown;
 use iota_sdk_types::{
     Address, ExecutionError, ExecutionStatus, Identifier, ObjectId, ObjectReference,
-    SenderSignedTransaction, StakeUnit, TransactionDigest,
+    SenderSignedTransaction, StakeUnit, TransactionDigest, TransactionEffects, TransactionEvents,
     crypto::{Intent, IntentMessage, IntentScope, SimpleSignature},
 };
 #[cfg(msim)]
@@ -29,10 +29,7 @@ use iota_types::{
         AccountKeyPair, AuthorityKeyPair, AuthoritySignInfo, AuthoritySignature,
         IotaAuthoritySignature, KeypairTraits, Signer, get_key_pair, get_key_pair_from_rng,
     },
-    effects::{
-        SignedTransactionEffects, TestEffectsBuilder, TransactionEffects,
-        TransactionEffectsExtForTesting, TransactionEvents,
-    },
+    effects::{SignedTransactionEffects, TestEffectsBuilder, TransactionEffectsExtForTesting},
     error::{IotaError, UserInputError},
     messages_consensus::{AuthorityCapabilitiesV1, SignedAuthorityCapabilitiesV1},
     messages_grpc::{

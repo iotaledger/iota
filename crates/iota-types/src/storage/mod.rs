@@ -17,8 +17,8 @@ use std::{
 };
 
 use iota_sdk_types::{
-    ObjectId, ObjectReference, SenderSignedTransaction, TransactionDigest, Version,
-    move_package::MovePackage,
+    ObjectId, ObjectReference, SenderSignedTransaction, TransactionDigest, TransactionEffects,
+    Version, move_package::MovePackage,
 };
 use itertools::Itertools;
 use move_binary_format::CompiledModule;
@@ -38,7 +38,7 @@ use crate::{
     auth_context::AuthContext,
     base_types::VersionNumber,
     committee::EpochId,
-    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
+    effects::{TransactionEffectsAPI, TransactionEffectsExt},
     error::{ExecutionError, IotaError, IotaResult},
     execution::{DynamicallyLoadedObjectMetadata, ExecutionResults},
     iota_sdk_types_conversions::identifier_core_to_sdk,
