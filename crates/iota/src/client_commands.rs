@@ -1404,6 +1404,11 @@ impl IotaClientCommands {
                         amounts.len()
                     ),
                 );
+                ensure!(
+                    !payment.gas.iter().any(|gas| input_coins.contains(gas)),
+                    "Gas coin is in input coins of `pay` command, use `pay-iota` instead!"
+                );
+
                 let recipients = futures::stream::iter(recipients)
                     .then(|x| async { get_identity_address(Some(x), context).await })
                     .try_collect::<Vec<Address>>()
@@ -1412,11 +1417,6 @@ impl IotaClientCommands {
                 let client = context.get_grpc_client().await?;
                 let mut builder = TransactionBuilder::new(signer).with_client(&client);
                 builder.pay(input_coins.clone(), recipients.into_iter().zip(amounts));
-
-                ensure!(
-                    !payment.gas.iter().any(|gas| input_coins.contains(gas)),
-                    "Gas coin is in input coins of `pay` command, use `pay-iota` instead!"
-                );
 
                 let tx_kind = builder.finish_kind().await?;
                 let gas_payment = grpc_input_refs(&client, &payment.gas).await?;
@@ -3338,7 +3338,6 @@ async fn grpc_input_refs(
         .into_iter()
         .map(|result| match result {
             Ok(obj) => obj.object_reference().map_err(|e| anyhow::anyhow!(e)),
-            Err(e) if e.is_not_found() => Err(anyhow::anyhow!("Object not found: {e}")),
             Err(e) => Err(anyhow::anyhow!(e)),
         })
         .collect()
