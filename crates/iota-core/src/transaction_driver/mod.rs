@@ -20,7 +20,7 @@ use effects_certifier::*;
 pub use error::{AggregatedRequestErrors, TransactionDriverError};
 use iota_common::{backoff::ExponentialBackoff, debug_fatal};
 use iota_metrics::{monitored_future, spawn_logged_monitored_task};
-use iota_sdk_types::TransactionDigest;
+use iota_sdk_types::{TransactionDigest, TransactionEvents};
 use iota_types::{
     committee::EpochId, messages_grpc::TxStatusUpdate, transaction::TransactionEnvelope,
 };
@@ -78,7 +78,7 @@ pub struct SubmitTransactionOptions {
 pub struct QuorumTransactionResponse {
     pub effects: iota_types::transaction_driver_types::FinalizedEffects,
 
-    pub events: Option<iota_sdk_types::TransactionEvents>,
+    pub events: Option<TransactionEvents>,
     // Input objects will only be populated in the happy path
     pub input_objects: Option<Vec<iota_types::object::Object>>,
     // Output objects will only be populated in the happy path

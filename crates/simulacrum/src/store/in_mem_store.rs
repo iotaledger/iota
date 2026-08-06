@@ -467,7 +467,7 @@ impl ReadStore for InMemoryStore {
     fn try_get_events(
         &self,
         digest: &TransactionDigest,
-    ) -> iota_types::storage::error::Result<Option<iota_sdk_types::TransactionEvents>> {
+    ) -> iota_types::storage::error::Result<Option<TransactionEvents>> {
         Ok(self.get_transaction_events(digest).cloned())
     }
 
