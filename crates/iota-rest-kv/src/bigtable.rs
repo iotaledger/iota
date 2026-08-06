@@ -26,9 +26,9 @@ use iota_kvstore::{
         row_range::{EndKey, StartKey},
     },
 };
-use iota_sdk_types::TransactionDigest;
+use iota_sdk_types::{TransactionDigest, TransactionEvents};
 use iota_storage::http_key_value_store::{ItemType, Key};
-use iota_types::{effects::TransactionEvents, sdk_types::Address, storage::ObjectKey};
+use iota_types::{sdk_types::Address, storage::ObjectKey};
 use serde::{Deserialize, Serialize};
 use tracing::{debug, error, info, instrument};
 

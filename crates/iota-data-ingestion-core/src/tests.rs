@@ -14,8 +14,8 @@ use std::{
 use async_trait::async_trait;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    Address, ObjectDigest, ObjectId, ObjectReference, RandomnessStateUpdate, TransactionKind,
-    Version,
+    Address, ObjectDigest, ObjectId, ObjectReference, RandomnessStateUpdate, TransactionEffects,
+    TransactionKind, Version,
     checkpoint::{CheckpointContents, CheckpointSummary},
     gas::GasCostSummary,
 };
@@ -23,7 +23,7 @@ use iota_storage::blob::{Blob, BlobEncoding};
 use iota_types::{
     committee::EpochId,
     crypto::KeypairTraits,
-    effects::{TransactionEffects, TransactionEffectsExtForTesting},
+    effects::TransactionEffectsExtForTesting,
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointContentsExt, CheckpointSequenceNumber,

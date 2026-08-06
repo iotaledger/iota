@@ -13,11 +13,12 @@ use iota_core::authority::AuthorityState;
 use iota_macros::*;
 use iota_sdk_types::{
     Address, Argument, Command, ObjectId, ObjectReference, Owner, ProgrammableTransaction,
+    TransactionEffects,
 };
 use iota_swarm_config::genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    effects::{TransactionEffects, TransactionEffectsAPI},
+    effects::TransactionEffectsAPI,
     iota_system_state::{
         IotaSystemStateTrait,
         iota_system_state_summary::{IotaSystemStateSummary, IotaValidatorSummary},
@@ -282,7 +283,7 @@ impl StressTestRunner {
 }
 
 mod add_stake {
-    use iota_types::effects::TransactionEffects;
+    use iota_sdk_types::TransactionEffects;
 
     use super::*;
 

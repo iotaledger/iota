@@ -25,12 +25,12 @@ use iota_json_rpc_types::{
 use iota_open_rpc::Module;
 use iota_package_resolver::{PackageStore, Resolver};
 use iota_sdk_types::{
-    Address, GasPayment, ObjectId, SenderSignedTransaction, TransactionDigest,
+    Address, GasPayment, ObjectId, SenderSignedTransaction, TransactionDigest, TransactionEffects,
     TransactionExpiration, TransactionKind, TransactionV1, UserSignature, Version,
 };
 use iota_transaction_builder::TransactionBuilder;
 use iota_types::{
-    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
+    effects::{TransactionEffectsAPI, TransactionEffectsExt},
     error::ExecutionError,
     iota_serde::BigInt,
     object::{Object, PastObjectRead},

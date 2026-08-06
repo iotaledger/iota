@@ -31,9 +31,9 @@ use iota_protocol_config::{Chain, ProtocolConfig};
 use iota_sdk_types::{
     Address, Argument, CheckpointContentsDigest, CheckpointDigest, Command, ConsensusCommitDigest,
     Event, ExecutionStatus, Identifier, MoveAuthenticatorV1, ObjectData, ObjectId, ObjectReference,
-    ProgrammableTransaction, RandomnessRound, TransactionDigest, TransactionKind, TypeTag,
-    UserSignature, Version, checkpoint::CheckpointContents, gas::GasCostSummary,
-    move_package::MovePackage,
+    ProgrammableTransaction, RandomnessRound, TransactionDigest, TransactionEffects,
+    TransactionEvents, TransactionKind, TypeTag, UserSignature, Version,
+    checkpoint::CheckpointContents, gas::GasCostSummary, move_package::MovePackage,
 };
 use iota_storage::{
     key_value_store::TransactionKeyValueStore, key_value_store_metrics::KeyValueStoreMetrics,
@@ -43,7 +43,7 @@ use iota_types::{
     base_types::{IOTA_ADDRESS_LENGTH, VersionNumber},
     committee::EpochId,
     crypto::{AccountKeyPair, get_authority_key_pair, get_key_pair_from_rng},
-    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
+    effects::TransactionEffectsAPI,
     iota_sdk_types_conversions::type_tag_core_to_sdk,
     messages_checkpoint::{CheckpointSequenceNumber, VerifiedCheckpoint},
     move_package::{

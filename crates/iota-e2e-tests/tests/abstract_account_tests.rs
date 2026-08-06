@@ -29,14 +29,14 @@ use iota_protocol_config::{PerObjectCongestionControlMode, ProtocolConfig};
 use iota_sdk_types::{
     Address, Argument, ExecutionError, Identifier, MoveAuthenticatorV1, MoveLocation, ObjectId,
     ObjectReference, Owner, ProgrammableTransaction, SharedObjectReference, SignatureScheme,
-    TypeTag, UserSignature,
+    TransactionEffects, TypeTag, UserSignature,
     crypto::{Intent, SimpleSignature},
 };
 use iota_test_transaction_builder::publish_package;
 use iota_types::{
     IOTA_FRAMEWORK_PACKAGE_ID,
     crypto::PublicKey,
-    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
+    effects::{TransactionEffectsAPI, TransactionEffectsExt},
     error::{IotaError, UserInputError},
     messages_grpc::{HandleCertificateRequestV1, HandleTransactionResponse},
     move_package,

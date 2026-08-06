@@ -17,10 +17,10 @@ use iota_indexer::{
 use iota_json_rpc_api::ReadApiServer;
 use iota_sdk_types::{
     Address as NativeAddress, Event as NativeEvent,
-    SenderSignedTransaction as NativeSenderSignedTransaction, TransactionExpiration,
+    SenderSignedTransaction as NativeSenderSignedTransaction,
+    TransactionEffects as NativeTransactionEffects, TransactionExpiration,
 };
 use iota_types::{
-    effects::TransactionEffects as NativeTransactionEffects,
     message_envelope::Message,
     transaction::{TransactionData as NativeTransactionData, TransactionDataAPI},
 };

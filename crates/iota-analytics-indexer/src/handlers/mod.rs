@@ -7,9 +7,11 @@ use std::collections::{BTreeMap, BTreeSet};
 use anyhow::{Result, bail};
 use iota_data_ingestion_core::Worker;
 use iota_package_resolver::{PackageStore, Resolver};
-use iota_sdk_types::{ObjectId, Owner, SenderSignedTransaction, StructTag, TypeTag};
+use iota_sdk_types::{
+    ObjectId, Owner, SenderSignedTransaction, StructTag, TransactionEffects, TypeTag,
+};
 use iota_types::{
-    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
+    effects::{TransactionEffectsAPI, TransactionEffectsExt},
     iota_sdk_types_conversions::struct_tag_core_to_sdk,
     object::{Object, bounded_visitor::BoundedVisitor},
     transaction::{SenderSignedTransactionAPI, TransactionDataAPI},

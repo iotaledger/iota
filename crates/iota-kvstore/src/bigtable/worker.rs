@@ -56,8 +56,8 @@ pub enum Table {
     /// Stores a mapping of
     /// [`TransactionDigest`](iota_sdk_types::TransactionDigest) to
     /// [`TransactionEnvelope`](iota_types::transaction::TransactionEnvelope),
-    /// [`TransactionEffects`](iota_types::effects::TransactionEffects),
-    /// [`TransactionEvents`](iota_types::effects::TransactionEvents) and
+    /// [`TransactionEffects`](iota_sdk_types::TransactionEffects),
+    /// [`TransactionEvents`](iota_sdk_types::TransactionEvents) and
     /// [`CheckpointSequenceNumber`](iota_types::messages_checkpoint::CheckpointSequenceNumber) for every transaction.
     Transactions,
     /// Stores a mapping of ( [`Address`], [`TransactionSequenceNumber`] ) to

@@ -14,10 +14,11 @@ use std::collections::HashMap;
 use futures::future;
 use iota_json_rpc_types::{CheckpointId, IotaEvent};
 use iota_sdk_types::{
-    Address, ObjectId, TransactionDigest, Version, checkpoint::CheckpointContents,
+    Address, ObjectId, TransactionDigest, TransactionEffects, Version,
+    checkpoint::CheckpointContents,
 };
 use iota_types::{
-    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
+    effects::{TransactionEffectsAPI, TransactionEffectsExt},
     event::EventID,
     full_checkpoint_content::CheckpointTransaction,
     messages_checkpoint::{

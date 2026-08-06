@@ -249,7 +249,7 @@ async fn indirect_commit() {
         .map(|authority| (authority.0, references_leader_round_wave_1.clone()))
         .collect();
     let references_with_votes_for_leader_wave_1 =
-        build_dag_layer(connections_with_leader_wave_1, dag_state.clone());
+        build_dag_layer(&context, connections_with_leader_wave_1, dag_state.clone());
 
     // The validators not part of the 2f+1 above do not vote for the leader
     // of wave 1
@@ -259,8 +259,11 @@ async fn indirect_commit() {
         .skip(context.committee.quorum_threshold() as usize)
         .map(|authority| (authority.0, references_without_leader_wave_1.clone()))
         .collect();
-    let references_without_votes_for_leader_wave_1 =
-        build_dag_layer(connections_without_leader_wave_1, dag_state.clone());
+    let references_without_votes_for_leader_wave_1 = build_dag_layer(
+        &context,
+        connections_without_leader_wave_1,
+        dag_state.clone(),
+    );
 
     // Only f+1 validators certify the leader of wave 1.
     let mut references_certifying_round_wave_1 = Vec::new();
@@ -272,6 +275,7 @@ async fn indirect_commit() {
         .map(|authority| (authority.0, references_with_votes_for_leader_wave_1.clone()))
         .collect();
     references_certifying_round_wave_1.extend(build_dag_layer(
+        &context,
         connections_with_certs_for_leader_wave_1,
         dag_state.clone(),
     ));
@@ -291,6 +295,7 @@ async fn indirect_commit() {
         .map(|authority| (authority.0, references_voting_round_wave_1.clone()))
         .collect();
     references_certifying_round_wave_1.extend(build_dag_layer(
+        &context,
         connections_without_votes_for_leader_1,
         dag_state.clone(),
     ));
@@ -399,6 +404,7 @@ async fn indirect_skip() {
         .collect();
 
     references_voting_round_wave_2.extend(build_dag_layer(
+        &context,
         connections_with_vote_leader_wave_2,
         dag_state.clone(),
     ));
@@ -411,6 +417,7 @@ async fn indirect_skip() {
         .collect();
 
     references_voting_round_wave_2.extend(build_dag_layer(
+        &context,
         connections_without_vote_leader_wave_2,
         dag_state.clone(),
     ));
@@ -540,7 +547,7 @@ async fn undecided() {
         .chain(connections_without_leader_wave_1)
         .collect();
     let references_voting_round_wave_1 =
-        build_dag_layer(connections_voting_round_wave_1, dag_state.clone());
+        build_dag_layer(&context, connections_voting_round_wave_1, dag_state.clone());
 
     // Add enough blocks to reach the certifying round of wave 1.
     let certifying_round_wave_1 = committer.certifying_round(1);

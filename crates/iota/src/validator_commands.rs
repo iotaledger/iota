@@ -31,6 +31,7 @@ use iota_keys::{
     keystore::{AccountKeystore, StoredKey},
 };
 use iota_sdk::{IotaClient, PagedFn, wallet_context::WalletContext};
+use iota_sdk_crypto::simple::SimpleKeypair;
 use iota_sdk_types::{
     Address, Identifier, ObjectId, ObjectReference, Owner, SignatureScheme, TypeTag,
     crypto::{Intent, IntentMessage, IntentScope},
@@ -38,7 +39,7 @@ use iota_sdk_types::{
 use iota_types::{
     crypto::{
         AuthorityKeyPair, AuthorityPublicKey, AuthorityPublicKeyBytes, DEFAULT_EPOCH_ID,
-        NetworkKeyPair, NetworkPublicKey, Signable, SimpleKeypair, generate_proof_of_possession,
+        NetworkKeyPair, NetworkPublicKey, Signable, generate_proof_of_possession,
         get_authority_key_pair,
     },
     dynamic_field::{DynamicFieldName, Field},

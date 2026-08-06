@@ -11,8 +11,10 @@ use iota_json_rpc_types::{
     IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, ObjectChange,
 };
 use iota_package_resolver::{PackageStore, Resolver};
-use iota_sdk_types::{Event, SenderSignedTransaction, TransactionDigest, TypeTag};
-use iota_types::effects::{TransactionEffects, TransactionEvents};
+use iota_sdk_types::{
+    Event, SenderSignedTransaction, TransactionDigest, TransactionEffects, TransactionEvents,
+    TypeTag,
+};
 use move_core_types::annotated_value::{MoveDatatypeLayout, MoveTypeLayout};
 #[cfg(feature = "shared_test_runtime")]
 use serde::Deserialize;

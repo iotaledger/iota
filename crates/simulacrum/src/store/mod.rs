@@ -6,11 +6,12 @@ use std::collections::BTreeMap;
 
 use iota_config::genesis;
 use iota_sdk_types::{
-    Address, ObjectId, ObjectReference, TransactionDigest, Version, checkpoint::CheckpointContents,
+    Address, ObjectId, ObjectReference, TransactionDigest, TransactionEffects, TransactionEvents,
+    Version, checkpoint::CheckpointContents,
 };
 use iota_types::{
     committee::{Committee, EpochId},
-    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
+    effects::TransactionEffectsAPI,
     error::{IotaResult, UserInputError},
     messages_checkpoint::{CheckpointSequenceNumber, VerifiedCheckpoint},
     object::Object,

@@ -10,11 +10,12 @@ use std::{
 use async_trait::async_trait;
 use iota_json_rpc_types::BalanceChange;
 use iota_sdk_types::{
-    ExecutionStatus, ObjectDigest, ObjectId, ObjectReference, Owner, TypeTag, Version,
+    ExecutionStatus, ObjectDigest, ObjectId, ObjectReference, Owner, TransactionEffects, TypeTag,
+    Version,
 };
 use iota_types::{
     coin::Coin,
-    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
+    effects::{TransactionEffectsAPI, TransactionEffectsExt},
     gas_coin::GAS,
     object::Object,
     storage::WriteKind,

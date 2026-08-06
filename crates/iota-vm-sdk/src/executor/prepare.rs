@@ -13,7 +13,8 @@ use std::collections::HashSet;
 
 use iota_config::transaction_deny_config::TransactionDenyConfig;
 use iota_sdk_types::{
-    Address, Digest, Event, MoveAuthenticator, ObjectId, ObjectReference, UserSignature,
+    Address, Digest, Event, MoveAuthenticator, ObjectId, ObjectReference, TransactionEffects,
+    UserSignature,
 };
 use iota_types::{
     account_abstraction::authenticator_function::{
@@ -22,7 +23,7 @@ use iota_types::{
         derive_authenticator_function_ref_v1_dynamic_field_id, extract_auth_fun_refs,
     },
     auth_context::AuthContextData,
-    effects::{TransactionEffects, TransactionEffectsAPI},
+    effects::TransactionEffectsAPI,
     error::{IotaError, UserInputError},
     gas::{IotaGasStatus, IotaGasStatusAPI},
     gas_coin::mock_simulation_gas_coin,

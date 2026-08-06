@@ -29,11 +29,12 @@ use iota_config::{
 use iota_json_rpc_types::{IotaExecutionStatus, IotaTransactionBlockResponseOptions};
 use iota_keys::keypair_file::read_keypair_from_file;
 use iota_sdk::{IotaClient, IotaClientBuilder, rpc_types::IotaTransactionBlockEffectsAPI};
+use iota_sdk_crypto::simple::SimpleKeypair;
 use iota_sdk_types::{Address, Identifier, ObjectId, ObjectReference};
 use iota_types::{
     committee::EpochId,
     crypto::{
-        SimpleKeypair, generate_proof_of_possession, get_authority_key_pair, get_key_pair,
+        generate_proof_of_possession, get_authority_key_pair, get_key_pair,
         network_to_simple_keypair,
     },
     multiaddr::{Multiaddr, Protocol},

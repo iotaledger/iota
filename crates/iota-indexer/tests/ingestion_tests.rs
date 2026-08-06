@@ -33,11 +33,12 @@ mod ingestion_tests {
         types::{EventIndex, ObjectStatus, TxIndex},
     };
     use iota_sdk_types::{
-        Address, Identifier, ObjectId, ObjectReference, Owner, StructTag, Version,
+        Address, Identifier, ObjectId, ObjectReference, Owner, StructTag, TransactionEffects,
+        Version,
     };
     use iota_test_transaction_builder::TestTransactionBuilder;
     use iota_types::{
-        effects::{TransactionEffects, TransactionEffectsAPI},
+        effects::TransactionEffectsAPI,
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         transaction::{CallArg, TransactionData, TransactionDataAPI, TransactionEnvelope},
     };

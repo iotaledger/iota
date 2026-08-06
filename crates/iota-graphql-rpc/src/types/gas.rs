@@ -3,8 +3,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use async_graphql::{connection::Connection, *};
-use iota_sdk_types::{GasPayment, gas::GasCostSummary as NativeGasCostSummary};
-use iota_types::effects::{TransactionEffects as NativeTransactionEffects, TransactionEffectsAPI};
+use iota_sdk_types::{
+    GasPayment, TransactionEffects as NativeTransactionEffects,
+    gas::GasCostSummary as NativeGasCostSummary,
+};
+use iota_types::effects::TransactionEffectsAPI;
 
 use crate::types::{
     address::Address,

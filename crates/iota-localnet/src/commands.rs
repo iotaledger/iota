@@ -33,6 +33,7 @@ use iota_indexer::{
 };
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore, Keystore};
 use iota_sdk::iota_client_config::{IotaClientConfig, IotaEnv};
+use iota_sdk_crypto::simple::SimpleKeypair;
 use iota_sdk_types::Address;
 use iota_swarm::memory::Swarm;
 use iota_swarm_config::{
@@ -41,7 +42,6 @@ use iota_swarm_config::{
     network_config_builder::ConfigBuilder,
     node_config_builder::FullnodeConfigBuilder,
 };
-use iota_types::crypto::SimpleKeypair;
 use rand::rngs::OsRng;
 use tempfile::tempdir;
 use tracing::{info, warn};

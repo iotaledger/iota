@@ -19,14 +19,14 @@ use iota_sdk::{
     IotaClientBuilder,
     rpc_types::IotaTransactionBlockResponseOptions,
     types::{
-        crypto::{IotaSignature, PublicKey, SimpleKeypair, get_key_pair_from_rng},
+        crypto::{IotaSignature, PublicKey, get_key_pair_from_rng},
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         transaction::{TransactionData, TransactionDataAPI},
     },
 };
 use iota_sdk_crypto::{
     Signer as _, ToFromBase64, ToFromBech32, ed25519::Ed25519PrivateKey,
-    secp256k1::Secp256k1PrivateKey, secp256r1::Secp256r1PrivateKey,
+    secp256k1::Secp256k1PrivateKey, secp256r1::Secp256r1PrivateKey, simple::SimpleKeypair,
 };
 use iota_sdk_types::{Address, UserSignature, crypto::SimpleSignature};
 use rand::{SeedableRng, rngs::StdRng};

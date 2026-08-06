@@ -6,11 +6,11 @@ use std::{collections::HashSet, sync::Arc};
 
 use iota_sdk_types::{
     Address, ExecutionError, ExecutionStatus, Identifier, ObjectDigest, ObjectId, ObjectReference,
-    Owner, ProgrammableTransaction, SharedObjectReference, Version,
+    Owner, ProgrammableTransaction, SharedObjectReference, TransactionEffects, Version,
 };
 use iota_types::{
     crypto::{AccountKeyPair, get_key_pair},
-    effects::{TransactionEffects, TransactionEffectsAPI},
+    effects::TransactionEffectsAPI,
     error::{IotaError, UserInputError},
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,

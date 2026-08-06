@@ -15,12 +15,13 @@ use fastcrypto::ed25519::Ed25519KeyPair;
 use iota_keys::keypair_file::{read_authority_keypair_from_file, read_keypair_from_file};
 use iota_metrics::MetricGroups;
 use iota_names::config::IotaNamesConfig;
+use iota_sdk_crypto::simple::SimpleKeypair;
 use iota_sdk_types::Address;
 use iota_types::{
     committee::EpochId,
     crypto::{
         AccountKeyPair, AuthorityKeyPair, AuthorityPublicKeyBytes, KeypairTraits, NetworkKeyPair,
-        SimpleKeypair, get_key_pair_from_rng, simple_to_network_keypair,
+        get_key_pair_from_rng, simple_to_network_keypair,
     },
     messages_checkpoint::CheckpointSequenceNumber,
     multiaddr::Multiaddr,
@@ -1667,8 +1668,7 @@ mod bech32_formatted_keypair {
     use std::ops::Deref;
 
     use fastcrypto::encoding::{Base64, Encoding};
-    use iota_sdk_crypto::ToFromBech32;
-    use iota_types::crypto::SimpleKeypair;
+    use iota_sdk_crypto::{ToFromBech32, simple::SimpleKeypair};
     use serde::{Deserialize, Deserializer, Serializer};
 
     pub fn serialize<S, T>(kp: &T, serializer: S) -> Result<S::Ok, S::Error>

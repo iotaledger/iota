@@ -10,12 +10,12 @@ use iota_sdk_types::{
     Address, CommandArgumentError, ExecutionError as ExecutionFailureStatus,
     ExecutionError::{InputObjectDeleted, SharedObjectOperationNotAllowed},
     ObjectId, ObjectReference, ProgrammableTransaction, SharedObjectReference, TransactionDigest,
-    Version,
+    TransactionEffects, Version,
 };
 use iota_types::{
     committee::EpochId,
     crypto::{AccountKeyPair, get_key_pair},
-    effects::{TransactionEffects, TransactionEffectsAPI},
+    effects::TransactionEffectsAPI,
     error::{ExecutionError, IotaError},
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,

@@ -15,12 +15,11 @@ use iota_grpc_server::{GrpcReader, GrpcServerHandle, start_grpc_server};
 use iota_node_storage::GrpcStateReader;
 use iota_sdk_types::{
     Address, CheckpointContentsDigest, CheckpointDigest, MoveStruct, ObjectId, Owner, StructTag,
-    TransactionDigest, Version,
+    TransactionDigest, TransactionEffects, TransactionEvents, Version,
     checkpoint::{CheckpointContents, CheckpointSummary},
 };
 use iota_types::{
     crypto::{AccountKeyPair, AuthorityStrongQuorumSignInfo, get_key_pair},
-    effects::{TransactionEffects, TransactionEvents},
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     gas_coin::GasCoin,
     messages_checkpoint::{
