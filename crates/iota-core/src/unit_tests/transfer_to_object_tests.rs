@@ -77,7 +77,7 @@ impl TestRunner {
         aggressive_pruning_enabled: bool,
     ) -> Self {
         telemetry_subscribers::init_for_testing();
-        let sender_key = AccountKeyPair::generate(rand::thread_rng());
+        let sender_key = AccountKeyPair::random();
         let sender = sender_key.public_key().derive_address();
 
         let authority_state = TestAuthorityBuilder::new().build().await;

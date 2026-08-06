@@ -73,7 +73,7 @@ async fn test_handle_transfer_transaction_bad_signature() {
         1,
         |_| {},
         |mut_tx| {
-            let unknown_key = AccountKeyPair::generate(rand::thread_rng());
+            let unknown_key = AccountKeyPair::random();
             let _unknown_address = unknown_key.public_key().derive_address();
             let data = mut_tx.data_mut_for_testing();
             let signature = SimpleSignature::new_secure(&data.intent_message(), &unknown_key);
@@ -177,9 +177,7 @@ async fn test_gas_wrong_owner_matches_sender() {
         1,
         |tx| {
             let gas_data = tx.gas_data_mut();
-            let new_addr = AccountKeyPair::generate(rand::thread_rng())
-                .public_key()
-                .derive_address();
+            let new_addr = AccountKeyPair::random().public_key().derive_address();
             gas_data.owner = new_addr;
             *tx.sender_mut_for_testing() = new_addr;
         },
@@ -197,9 +195,7 @@ async fn test_gas_wrong_owner() {
         1,
         |tx| {
             let gas_data = tx.gas_data_mut();
-            let new_addr = AccountKeyPair::generate(rand::thread_rng())
-                .public_key()
-                .derive_address();
+            let new_addr = AccountKeyPair::random().public_key().derive_address();
             gas_data.owner = new_addr;
         },
         |_| {},
@@ -354,9 +350,9 @@ async fn do_transaction_test_impl(
 ) {
     telemetry_subscribers::init_for_testing();
     let _guard = disable_pcool_flow();
-    let sender_key1 = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key1 = AccountKeyPair::random();
     let sender1 = sender_key1.public_key().derive_address();
-    let sender_key2 = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key2 = AccountKeyPair::random();
     let sender2 = sender_key2.public_key().derive_address();
     let recipient = dbg_addr(2);
     let object_id = ObjectId::random();
@@ -524,7 +520,7 @@ fn disable_pcool_flow() -> OverrideGuard {
 async fn test_oversized_txn() {
     telemetry_subscribers::init_for_testing();
     let _guard = disable_pcool_flow();
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
     let recipient = dbg_addr(2);
     let object_id = ObjectId::random();
@@ -585,7 +581,7 @@ async fn test_oversized_txn() {
 async fn test_very_large_certificate() {
     telemetry_subscribers::init_for_testing();
     let _guard = disable_pcool_flow();
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
     let recipient = dbg_addr(2);
     let object_id = ObjectId::random();
@@ -676,7 +672,7 @@ async fn test_very_large_certificate() {
 async fn test_handle_certificate_errors() {
     telemetry_subscribers::init_for_testing();
     let _guard = disable_pcool_flow();
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
     let recipient = dbg_addr(2);
     let object_id = ObjectId::random();
@@ -813,7 +809,7 @@ async fn test_handle_certificate_errors() {
     );
 
     let mut absent_sig_tx = transfer_transaction.clone();
-    let unknown_key = AccountKeyPair::generate(rand::thread_rng());
+    let unknown_key = AccountKeyPair::random();
     let _unknown_address = unknown_key.public_key().derive_address();
     let data = absent_sig_tx.data_mut_for_testing();
     let signature = SimpleSignature::new_secure(&data.intent_message(), &unknown_key);
@@ -854,7 +850,7 @@ async fn test_handle_soft_bundle_certificates() {
     let mut senders = Vec::new();
     let mut gas_object_ids = Vec::new();
     for _i in 0..4 {
-        let keypair = AccountKeyPair::generate(rand::thread_rng());
+        let keypair = AccountKeyPair::random();
         let address = keypair.public_key().derive_address();
         let gas_object_id = ObjectId::random();
 
@@ -1010,7 +1006,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
     let mut gas_objects = Vec::new();
     let mut owned_objects = Vec::new();
     for _i in 0..15 {
-        let keypair = AccountKeyPair::generate(rand::thread_rng());
+        let keypair = AccountKeyPair::random();
         let sender = keypair.public_key().derive_address();
         let mut objects = create_gas_objects(2, sender);
         senders.push((sender, keypair));

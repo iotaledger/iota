@@ -48,11 +48,9 @@ fn test_bcs_enum() {
 
 #[test]
 fn test_signatures() {
-    let sec1 = AccountKeyPair::generate(rand::thread_rng());
+    let sec1 = AccountKeyPair::random();
     let addr1 = sec1.public_key().derive_address();
-    let addr2 = AccountKeyPair::generate(rand::thread_rng())
-        .public_key()
-        .derive_address();
+    let addr2 = AccountKeyPair::random().public_key().derive_address();
 
     let foo = IntentMessage::new(Intent::iota_transaction(), Foo("hello".into()));
     let foox = IntentMessage::new(Intent::iota_transaction(), Foo("hellox".into()));
@@ -79,7 +77,7 @@ fn test_signatures() {
 
 #[test]
 fn test_signatures_serde() {
-    let sec1 = AccountKeyPair::generate(rand::thread_rng());
+    let sec1 = AccountKeyPair::random();
     let foo = Foo("hello".into());
     let s =
         SimpleSignature::new_secure(&IntentMessage::new(Intent::iota_transaction(), foo), &sec1);

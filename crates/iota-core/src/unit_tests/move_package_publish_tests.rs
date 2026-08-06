@@ -33,7 +33,7 @@ use crate::authority::{
 #[tokio::test]
 #[cfg_attr(msim, ignore)]
 async fn test_publishing_with_unpublished_deps() {
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
     let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
@@ -99,7 +99,7 @@ async fn test_publishing_with_unpublished_deps() {
 #[tokio::test]
 #[cfg_attr(msim, ignore)]
 async fn test_publish_empty_package() {
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
     let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
@@ -153,7 +153,7 @@ async fn test_publish_empty_package() {
 #[tokio::test]
 #[cfg_attr(msim, ignore)]
 async fn test_publish_duplicate_modules() {
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
     let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
@@ -319,7 +319,7 @@ async fn test_custom_property_check_unpublished_dependencies() {
 #[tokio::test]
 #[cfg_attr(msim, ignore)]
 async fn test_publish_extraneous_bytes_modules() {
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
     let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
@@ -442,7 +442,7 @@ async fn test_publish_extraneous_bytes_modules() {
 #[tokio::test]
 #[cfg_attr(msim, ignore)]
 async fn test_publish_max_packages() {
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
     let gas_object_id = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas_object_id)]).await;
@@ -471,7 +471,7 @@ async fn test_publish_max_packages() {
 #[tokio::test]
 #[cfg_attr(msim, ignore)]
 async fn test_publish_more_than_max_packages_error() {
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
     let gas_object_id = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas_object_id)]).await;

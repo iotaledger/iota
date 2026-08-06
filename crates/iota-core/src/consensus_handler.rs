@@ -1097,7 +1097,7 @@ mod tests {
             config
         });
 
-        let sender_key = AccountKeyPair::generate(rand::thread_rng());
+        let sender_key = AccountKeyPair::random();
         let sender = sender_key.public_key().derive_address();
         let num_txns: usize = 3;
 
@@ -1144,9 +1144,7 @@ mod tests {
         );
 
         // AND build one block per UserTransactionV1 transaction
-        let recipient = AccountKeyPair::generate(rand::thread_rng())
-            .public_key()
-            .derive_address();
+        let recipient = AccountKeyPair::random().public_key().derive_address();
         let mut headers = Vec::new();
         let mut subdag_transactions = Vec::new();
 

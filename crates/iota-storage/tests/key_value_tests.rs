@@ -30,7 +30,7 @@ use iota_types::{
 };
 
 fn random_tx() -> TransactionEnvelope {
-    let key = AccountKeyPair::generate(rand::thread_rng());
+    let key = AccountKeyPair::random();
     let sender = key.public_key().derive_address();
     let gas = random_object_ref();
     TestTransactionBuilder::new(sender, gas, 1)

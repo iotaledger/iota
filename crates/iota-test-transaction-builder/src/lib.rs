@@ -491,9 +491,7 @@ pub async fn batch_make_transfer_transactions(
     context: &WalletContext,
     max_txn_num: usize,
 ) -> Vec<TransactionEnvelope> {
-    let recipient = AccountKeyPair::generate(rand::thread_rng())
-        .public_key()
-        .derive_address();
+    let recipient = AccountKeyPair::random().public_key().derive_address();
     let result = context.get_all_accounts_and_gas_objects().await;
     let accounts_and_objs = result.unwrap();
     let mut res = Vec::with_capacity(max_txn_num);

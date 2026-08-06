@@ -31,7 +31,7 @@ fn test_staking() {
 
         indexer_wait_for_checkpoint(store, 1).await;
 
-        let keypair = AccountKeyPair::generate(rand::thread_rng());
+        let keypair = AccountKeyPair::random();
         let sender = keypair.public_key().derive_address();
 
         let gas = cluster
@@ -115,7 +115,7 @@ fn test_unstaking() {
 
         indexer_wait_for_checkpoint(store, 1).await;
 
-        let keypair = AccountKeyPair::generate(rand::thread_rng());
+        let keypair = AccountKeyPair::random();
         let sender = keypair.public_key().derive_address();
 
         let gas = cluster
@@ -230,7 +230,7 @@ fn test_timelocked_staking() {
 
         indexer_wait_for_checkpoint(store, 1).await;
 
-        let keypair = AccountKeyPair::generate(rand::thread_rng());
+        let keypair = AccountKeyPair::random();
         let sender = keypair.public_key().derive_address();
 
         let gas = cluster
@@ -349,7 +349,7 @@ fn test_timelocked_unstaking() {
 
         indexer_wait_for_checkpoint(store, 1).await;
 
-        let keypair = AccountKeyPair::generate(rand::thread_rng());
+        let keypair = AccountKeyPair::random();
         let sender = keypair.public_key().derive_address();
 
         let gas = cluster

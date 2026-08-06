@@ -32,9 +32,7 @@ impl TestCaseImpl for NativeTransferTest {
         let gas_obj = ctx.get_iota_from_faucet(Some(1)).await.swap_remove(0);
 
         let signer = ctx.get_wallet_address();
-        let recipient_addr = AccountKeyPair::generate(rand::thread_rng())
-            .public_key()
-            .derive_address();
+        let recipient_addr = AccountKeyPair::random().public_key().derive_address();
         // Test transfer object
         let obj_to_transfer: ObjectId = *iota_objs.swap_remove(0).id();
         let params = rpc_params![

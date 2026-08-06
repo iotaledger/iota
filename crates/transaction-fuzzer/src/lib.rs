@@ -43,7 +43,7 @@ fn generate_random_gas_data(
     // was implemented.
     const MAX_GAS_BALANCE: u64 = 4_600_000_000 * NANOS_PER_IOTA;
 
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
     let mut rng = StdRng::from_seed(seed);
     let mut gas_objects = vec![];

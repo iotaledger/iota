@@ -49,11 +49,9 @@ fn transfer_object() {
     } = ApiTestSetup::get_or_init();
 
     runtime.block_on(async move {
-        let keypair = AccountKeyPair::generate(rand::thread_rng());
+        let keypair = AccountKeyPair::random();
         let sender = keypair.public_key().derive_address();
-        let receiver = AccountKeyPair::generate(rand::thread_rng())
-            .public_key()
-            .derive_address();
+        let receiver = AccountKeyPair::random().public_key().derive_address();
 
         let sender_coins = create_coins_and_wait_for_indexer(cluster, client, sender, 2).await;
         let gas = sender_coins[0];
@@ -90,11 +88,9 @@ fn transfer_iota() {
     } = ApiTestSetup::get_or_init();
 
     runtime.block_on(async move {
-        let keypair = AccountKeyPair::generate(rand::thread_rng());
+        let keypair = AccountKeyPair::random();
         let sender = keypair.public_key().derive_address();
-        let receiver = AccountKeyPair::generate(rand::thread_rng())
-            .public_key()
-            .derive_address();
+        let receiver = AccountKeyPair::random().public_key().derive_address();
 
         let sender_coins = create_coins_and_wait_for_indexer(cluster, client, sender, 1).await;
         let gas = sender_coins[0];
@@ -128,14 +124,10 @@ fn pay() {
     } = ApiTestSetup::get_or_init();
 
     runtime.block_on(async move {
-        let keypair = AccountKeyPair::generate(rand::thread_rng());
+        let keypair = AccountKeyPair::random();
         let sender = keypair.public_key().derive_address();
-        let receiver_1 = AccountKeyPair::generate(rand::thread_rng())
-            .public_key()
-            .derive_address();
-        let receiver_2 = AccountKeyPair::generate(rand::thread_rng())
-            .public_key()
-            .derive_address();
+        let receiver_1 = AccountKeyPair::random().public_key().derive_address();
+        let receiver_2 = AccountKeyPair::random().public_key().derive_address();
 
         let input_coins: u64 = 3;
         let sender_coins =
@@ -176,14 +168,10 @@ fn pay_iota() {
     } = ApiTestSetup::get_or_init();
 
     runtime.block_on(async move {
-        let keypair = AccountKeyPair::generate(rand::thread_rng());
+        let keypair = AccountKeyPair::random();
         let sender = keypair.public_key().derive_address();
-        let receiver_1 = AccountKeyPair::generate(rand::thread_rng())
-            .public_key()
-            .derive_address();
-        let receiver_2 = AccountKeyPair::generate(rand::thread_rng())
-            .public_key()
-            .derive_address();
+        let receiver_1 = AccountKeyPair::random().public_key().derive_address();
+        let receiver_2 = AccountKeyPair::random().public_key().derive_address();
 
         let input_coins: u64 = 3;
         let sender_coins =
@@ -224,11 +212,9 @@ fn pay_all_iota() {
     } = ApiTestSetup::get_or_init();
 
     runtime.block_on(async move {
-        let keypair = AccountKeyPair::generate(rand::thread_rng());
+        let keypair = AccountKeyPair::random();
         let sender = keypair.public_key().derive_address();
-        let receiver = AccountKeyPair::generate(rand::thread_rng())
-            .public_key()
-            .derive_address();
+        let receiver = AccountKeyPair::random().public_key().derive_address();
 
         let input_coins: u64 = 3;
         let sender_coins =
@@ -260,7 +246,7 @@ fn move_call() {
 
     runtime
         .block_on(async move {
-            let keypair = AccountKeyPair::generate(rand::thread_rng());
+            let keypair = AccountKeyPair::random();
             let sender = keypair.public_key().derive_address();
 
             let sender_coins = create_coins_and_wait_for_indexer(cluster, client, sender, 3).await;
@@ -302,7 +288,7 @@ fn split_coin() {
     } = ApiTestSetup::get_or_init();
 
     runtime.block_on(async move {
-        let keypair = AccountKeyPair::generate(rand::thread_rng());
+        let keypair = AccountKeyPair::random();
         let sender = keypair.public_key().derive_address();
 
         let sender_coins = create_coins_and_wait_for_indexer(cluster, client, sender, 2).await;
@@ -347,7 +333,7 @@ fn split_coin_equal() {
     } = ApiTestSetup::get_or_init();
 
     runtime.block_on(async move {
-        let keypair = AccountKeyPair::generate(rand::thread_rng());
+        let keypair = AccountKeyPair::random();
         let sender = keypair.public_key().derive_address();
 
         let sender_coins = create_coins_and_wait_for_indexer(cluster, client, sender, 2).await;
@@ -379,7 +365,7 @@ fn merge_coin() {
     } = ApiTestSetup::get_or_init();
 
     runtime.block_on(async move {
-        let keypair = AccountKeyPair::generate(rand::thread_rng());
+        let keypair = AccountKeyPair::random();
         let sender = keypair.public_key().derive_address();
 
         let sender_coins = create_coins_and_wait_for_indexer(cluster, client, sender, 3).await;
@@ -416,11 +402,9 @@ fn batch_transaction() {
 
     runtime
         .block_on(async move {
-            let keypair = AccountKeyPair::generate(rand::thread_rng());
+            let keypair = AccountKeyPair::random();
             let sender = keypair.public_key().derive_address();
-            let receiver = AccountKeyPair::generate(rand::thread_rng())
-                .public_key()
-                .derive_address();
+            let receiver = AccountKeyPair::random().public_key().derive_address();
 
             let sender_coins = create_coins_and_wait_for_indexer(cluster, client, sender, 3).await;
             let gas = sender_coins[0];
@@ -482,7 +466,7 @@ fn request_add_stake() {
                 None,
             )
             .await;
-            let keypair = AccountKeyPair::generate(rand::thread_rng());
+            let keypair = AccountKeyPair::random();
             let address = keypair.public_key().derive_address();
             let coins = create_coins_and_wait_for_indexer(cluster, client, address, 4).await;
             let gas = coins[3];
@@ -538,7 +522,7 @@ fn request_withdraw_stake_from_pending() {
 
     runtime
         .block_on(async move {
-            let keypair = AccountKeyPair::generate(rand::thread_rng());
+            let keypair = AccountKeyPair::random();
             let address = keypair.public_key().derive_address();
             let coins = create_coins_and_wait_for_indexer(cluster, client, address, 4).await;
             let gas = coins[3];
@@ -596,7 +580,7 @@ fn request_withdraw_stake_from_active() {
                 None,
             )
             .await;
-            let keypair = AccountKeyPair::generate(rand::thread_rng());
+            let keypair = AccountKeyPair::random();
             let address = keypair.public_key().derive_address();
             let coins = create_coins_and_wait_for_indexer(cluster, client, address, 4).await;
             let gas = coins[3];
@@ -650,7 +634,7 @@ fn request_add_timelocked_stake() {
 
     runtime
         .block_on(async move {
-            let keypair = AccountKeyPair::generate(rand::thread_rng());
+            let keypair = AccountKeyPair::random();
             let address = keypair.public_key().derive_address();
             let (cluster, store, client, timelocked_balance) = create_cluster_with_timelocked_iota(
                 address,
@@ -701,7 +685,7 @@ fn request_withdraw_timelocked_stake_from_pending() {
 
     runtime
         .block_on(async move {
-            let keypair = AccountKeyPair::generate(rand::thread_rng());
+            let keypair = AccountKeyPair::random();
             let address = keypair.public_key().derive_address();
             let (cluster, store, client, timelocked_balance) = create_cluster_with_timelocked_iota(
                 address,
@@ -760,7 +744,7 @@ fn request_withdraw_timelocked_stake_from_active() {
 
     runtime
         .block_on(async move {
-            let keypair = AccountKeyPair::generate(rand::thread_rng());
+            let keypair = AccountKeyPair::random();
             let address = keypair.public_key().derive_address();
             let (cluster, store, client, timelocked_balance) = create_cluster_with_timelocked_iota(
                 address,

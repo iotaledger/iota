@@ -178,7 +178,7 @@ struct UpgradeStateRunner {
 impl UpgradeStateRunner {
     pub async fn new(base_package_name: &str) -> Self {
         telemetry_subscribers::init_for_testing();
-        let sender_key = AccountKeyPair::generate(rand::thread_rng());
+        let sender_key = AccountKeyPair::random();
         let sender = sender_key.public_key().derive_address();
         let gas_object_id = ObjectId::random();
         let gas_object = Object::with_id_owner_for_testing(gas_object_id, sender);
@@ -1503,7 +1503,7 @@ async fn test_upgrade_cross_module_refs() {
 
 #[tokio::test]
 async fn test_upgrade_max_packages() {
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
     let gas_object_id = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas_object_id)]).await;
@@ -1558,7 +1558,7 @@ async fn test_upgrade_max_packages() {
 
 #[tokio::test]
 async fn test_upgrade_more_than_max_packages_error() {
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
     let gas_object_id = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas_object_id)]).await;

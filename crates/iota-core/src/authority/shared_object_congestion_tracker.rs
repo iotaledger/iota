@@ -786,7 +786,7 @@ pub mod shared_object_test_utils {
         gas_budget: u64,
         gas_price: u64,
     ) -> VerifiedExecutableTransaction {
-        let keypair = AccountKeyPair::generate(rand::thread_rng());
+        let keypair = AccountKeyPair::random();
         let sender = keypair.public_key().derive_address();
         let gas_object = random_object_ref();
         VerifiedExecutableTransaction::new_system(

@@ -291,7 +291,7 @@ fn default_ed25519_key_pair() -> NetworkKeyPair {
 }
 
 fn default_iota_key_pair() -> SimpleKeypair {
-    SimpleKeypair::from(AccountKeyPair::generate(rand::rngs::OsRng))
+    SimpleKeypair::from(AccountKeyPair::random())
 }
 
 // Serde adapter storing the keypair as base64 `flag || privkey`, the on-disk

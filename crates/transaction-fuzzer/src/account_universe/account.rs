@@ -41,7 +41,7 @@ pub struct AccountCurrent {
 
 impl Account {
     pub fn new_random() -> Self {
-        let key = AccountKeyPair::generate(rand::thread_rng());
+        let key = AccountKeyPair::random();
         let address = key.public_key().derive_address();
         Self { address, key }
     }

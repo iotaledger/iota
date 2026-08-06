@@ -18,11 +18,9 @@ use crate::authority::authority_tests::init_state_with_ids_and_object_basics;
 async fn test_batch_transaction_ok() -> anyhow::Result<()> {
     // This test tests a successful normal batch transaction.
     // This batch transaction contains 5 transfers, and 5 Move calls.
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
-    let recipient = AccountKeyPair::generate(rand::thread_rng())
-        .public_key()
-        .derive_address();
+    let recipient = AccountKeyPair::random().public_key().derive_address();
     const N: usize = 5;
     const TOTAL: usize = N + 1;
     let all_ids = (0..TOTAL).map(|_| ObjectId::random()).collect::<Vec<_>>();
@@ -101,11 +99,9 @@ async fn test_batch_transaction_last_one_fail() -> anyhow::Result<()> {
     // This test tests the case where the last transaction in a batch transaction
     // would fail to execute. We make sure that the entire batch is rolled back,
     // and only gas is charged.
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
-    let recipient = AccountKeyPair::generate(rand::thread_rng())
-        .public_key()
-        .derive_address();
+    let recipient = AccountKeyPair::random().public_key().derive_address();
     const N: usize = 5;
     const TOTAL: usize = N + 1;
     let all_ids = (0..TOTAL).map(|_| ObjectId::random()).collect::<Vec<_>>();
@@ -162,7 +158,7 @@ async fn test_batch_transaction_last_one_fail() -> anyhow::Result<()> {
 async fn test_batch_insufficient_gas_balance() -> anyhow::Result<()> {
     // This test creates 10 Move call transactions batch, each with a budget of
     // 5000. However we provide a gas coin with only 49999 balance.
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
     let (authority_state, package) = init_state_with_ids_and_object_basics([]).await;
     let rgp = authority_state.reference_gas_price_for_testing()?;

@@ -1227,7 +1227,7 @@ mod test {
 
         let authority_key: AuthorityKeyPair = get_key_pair_from_rng(&mut rand::rngs::OsRng).1;
         let protocol_key: NetworkKeyPair = get_key_pair_from_rng(&mut rand::rngs::OsRng).1;
-        let account_key = AccountKeyPair::generate(rand::rngs::OsRng);
+        let account_key = AccountKeyPair::random();
         let account_address = account_key.public_key().derive_address();
         let network_key: NetworkKeyPair = get_key_pair_from_rng(&mut rand::rngs::OsRng).1;
         let validator = ValidatorInfo {

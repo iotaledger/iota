@@ -49,7 +49,7 @@ pub struct TestRunner {
 impl TestRunner {
     pub async fn new(base_package_name: &str) -> Self {
         telemetry_subscribers::init_for_testing();
-        let sender_key = AccountKeyPair::generate(rand::thread_rng());
+        let sender_key = AccountKeyPair::random();
         let sender = sender_key.public_key().derive_address();
 
         let protocol_config =

@@ -360,9 +360,7 @@ async fn test_addresses_command() -> Result<(), anyhow::Error> {
     for _ in 0..3 {
         context.config_mut().keystore_mut().add_key(
             None,
-            SimpleKeypair::from(iota_sdk_crypto::ed25519::Ed25519PrivateKey::generate(
-                rand::thread_rng(),
-            )),
+            SimpleKeypair::from(iota_sdk_crypto::ed25519::Ed25519PrivateKey::random()),
         )?;
     }
 
@@ -5355,9 +5353,7 @@ async fn test_faucet() -> Result<(), anyhow::Error> {
     let wallet_config = test_cluster.swarm.dir().join(IOTA_CLIENT_CONFIG);
     let mut context = WalletContext::new(&wallet_config)?;
 
-    let address = AccountKeyPair::generate(rand::thread_rng())
-        .public_key()
-        .derive_address();
+    let address = AccountKeyPair::random().public_key().derive_address();
 
     let faucet_result = IotaClientCommands::Faucet {
         address: Some(KeyIdentity::Address(address)),
@@ -5418,15 +5414,9 @@ async fn test_faucet_batch() -> Result<(), anyhow::Error> {
     let wallet_config = test_cluster.swarm.dir().join(IOTA_CLIENT_CONFIG);
     let mut context = WalletContext::new(&wallet_config)?;
 
-    let address_1 = AccountKeyPair::generate(rand::thread_rng())
-        .public_key()
-        .derive_address();
-    let address_2 = AccountKeyPair::generate(rand::thread_rng())
-        .public_key()
-        .derive_address();
-    let address_3 = AccountKeyPair::generate(rand::thread_rng())
-        .public_key()
-        .derive_address();
+    let address_1 = AccountKeyPair::random().public_key().derive_address();
+    let address_2 = AccountKeyPair::random().public_key().derive_address();
+    let address_3 = AccountKeyPair::random().public_key().derive_address();
 
     assert_ne!(address_1, address_2);
     assert_ne!(address_1, address_3);
@@ -5469,15 +5459,9 @@ async fn test_faucet_batch() -> Result<(), anyhow::Error> {
     }
 
     // try with a new batch
-    let address_4 = AccountKeyPair::generate(rand::thread_rng())
-        .public_key()
-        .derive_address();
-    let address_5 = AccountKeyPair::generate(rand::thread_rng())
-        .public_key()
-        .derive_address();
-    let address_6 = AccountKeyPair::generate(rand::thread_rng())
-        .public_key()
-        .derive_address();
+    let address_4 = AccountKeyPair::random().public_key().derive_address();
+    let address_5 = AccountKeyPair::random().public_key().derive_address();
+    let address_6 = AccountKeyPair::random().public_key().derive_address();
 
     assert_ne!(address_4, address_5);
     assert_ne!(address_4, address_6);
@@ -5560,11 +5544,7 @@ async fn test_faucet_batch_concurrent_requests() -> Result<(), anyhow::Error> {
 
     // Generate multiple addresses
     let addresses: Vec<_> = (0..6)
-        .map(|_| {
-            AccountKeyPair::generate(rand::thread_rng())
-                .public_key()
-                .derive_address()
-        })
+        .map(|_| AccountKeyPair::random().public_key().derive_address())
         .collect::<Vec<Address>>();
 
     // Ensure all addresses have zero gas objects initially

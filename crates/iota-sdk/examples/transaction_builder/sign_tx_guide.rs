@@ -46,9 +46,9 @@ async fn main() -> Result<(), anyhow::Error> {
         SimpleKeypair::from(Secp256r1PrivateKey::generate(StdRng::from_seed([0; 32])));
 
     // randomly generate a keypair.
-    let _ikp_rand_0 = SimpleKeypair::from(Ed25519PrivateKey::generate(rand::rngs::OsRng));
-    let _ikp_rand_1 = SimpleKeypair::from(Secp256k1PrivateKey::generate(rand::rngs::OsRng));
-    let _ikp_rand_2 = SimpleKeypair::from(Secp256r1PrivateKey::generate(rand::rngs::OsRng));
+    let _ikp_rand_0 = SimpleKeypair::from(Ed25519PrivateKey::random());
+    let _ikp_rand_1 = SimpleKeypair::from(Secp256k1PrivateKey::random());
+    let _ikp_rand_2 = SimpleKeypair::from(Secp256r1PrivateKey::random());
 
     // import a keypair from a base64 encoded 32-byte `private key` assuming scheme
     // is Ed25519.

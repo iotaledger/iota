@@ -30,7 +30,7 @@ use crate::authority::authority_tests::{
 #[cfg_attr(msim, ignore)]
 async fn test_object_wrapping_unwrapping() {
     telemetry_subscribers::init_for_testing();
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
     let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
@@ -254,7 +254,7 @@ async fn test_object_wrapping_unwrapping() {
 #[tokio::test]
 #[cfg_attr(msim, ignore)]
 async fn test_object_owning_another_object() {
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
     let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
@@ -451,7 +451,7 @@ async fn test_object_owning_another_object() {
 #[tokio::test]
 #[cfg_attr(msim, ignore)]
 async fn test_create_then_delete_parent_child() {
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
     let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
@@ -514,7 +514,7 @@ async fn test_create_then_delete_parent_child() {
 #[tokio::test]
 #[cfg_attr(msim, ignore)]
 async fn test_create_then_delete_parent_child_wrap() {
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
     let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
@@ -612,7 +612,7 @@ async fn test_create_then_delete_parent_child_wrap() {
 #[tokio::test]
 #[cfg_attr(msim, ignore)]
 async fn test_remove_child_when_no_prior_version_exists() {
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
     let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
@@ -706,7 +706,7 @@ async fn test_remove_child_when_no_prior_version_exists() {
 #[tokio::test]
 #[cfg_attr(msim, ignore)]
 async fn test_create_then_delete_parent_child_wrap_separate() {
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
     let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
@@ -811,7 +811,7 @@ async fn test_create_then_delete_parent_child_wrap_separate() {
 #[tokio::test]
 #[cfg_attr(msim, ignore)]
 async fn test_entry_point_vector_empty() {
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
     let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
@@ -960,7 +960,7 @@ async fn test_entry_point_vector_empty() {
 #[tokio::test]
 #[cfg_attr(msim, ignore)]
 async fn test_entry_point_vector_primitive() {
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
     let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
@@ -1003,7 +1003,7 @@ async fn test_entry_point_vector_primitive() {
 #[tokio::test]
 #[cfg_attr(msim, ignore)]
 async fn test_entry_point_vector() {
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
     let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
@@ -1134,7 +1134,7 @@ async fn test_entry_point_vector() {
 #[tokio::test]
 #[cfg_attr(msim, ignore)]
 async fn test_entry_point_vector_error() {
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
     let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
@@ -1414,7 +1414,7 @@ async fn test_entry_point_vector_error() {
 #[tokio::test]
 #[cfg_attr(msim, ignore)]
 async fn test_entry_point_vector_any() {
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
     let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
@@ -1549,7 +1549,7 @@ async fn test_entry_point_vector_any() {
 #[tokio::test]
 #[cfg_attr(msim, ignore)]
 async fn test_entry_point_vector_any_error() {
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
     let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
@@ -1831,7 +1831,7 @@ async fn test_entry_point_vector_any_error() {
 #[tokio::test]
 #[cfg_attr(msim, ignore)]
 async fn test_entry_point_string() {
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
     let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
@@ -1917,7 +1917,7 @@ async fn test_entry_point_string() {
 #[tokio::test]
 #[cfg_attr(msim, ignore)]
 async fn test_nested_string() {
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
     let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
@@ -2063,7 +2063,7 @@ async fn test_nested_string() {
 #[tokio::test]
 #[cfg_attr(msim, ignore)]
 async fn test_entry_point_string_vec() {
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
     let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
@@ -2106,7 +2106,7 @@ async fn test_entry_point_string_vec() {
 #[tokio::test]
 #[cfg_attr(msim, ignore)]
 async fn test_entry_point_string_error() {
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
     let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
@@ -2227,7 +2227,7 @@ async fn test_entry_point_string_error() {
 #[tokio::test]
 #[cfg_attr(msim, ignore)]
 async fn test_entry_point_string_vec_error() {
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
     let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
@@ -2284,7 +2284,7 @@ async fn test_entry_point_string_vec_error() {
 #[tokio::test]
 #[cfg_attr(msim, ignore)]
 async fn test_entry_point_string_option_error() {
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
     let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
@@ -2553,7 +2553,7 @@ macro_rules! make_vec_tests_for_type {
         #[tokio::test]
         #[cfg_attr(msim, ignore)]
         async fn $test() {
-            let sender_key = AccountKeyPair::generate(rand::thread_rng());
+            let sender_key = AccountKeyPair::random();
             let sender = sender_key.public_key().derive_address();
             let gas = ObjectId::random();
             let authority = init_state_with_ids(vec![(sender, gas)]).await;
@@ -2752,7 +2752,7 @@ macro_rules! make_vec_error_tests_for_type {
         #[tokio::test]
         #[cfg_attr(msim, ignore)]
         async fn $test() {
-            let sender_key = AccountKeyPair::generate(rand::thread_rng());
+            let sender_key = AccountKeyPair::random();
             let sender = sender_key.public_key().derive_address();
             let gas = ObjectId::random();
             let authority = init_state_with_ids(vec![(sender, gas)]).await;
@@ -2842,7 +2842,7 @@ make_vec_error_tests_for_type!(
 #[tokio::test]
 #[cfg_attr(msim, ignore)]
 async fn test_make_move_vec_empty() {
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
     let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;

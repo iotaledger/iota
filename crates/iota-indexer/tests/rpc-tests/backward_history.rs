@@ -139,7 +139,7 @@ fn backward_history_all_lifecycle_events() -> Result<(), anyhow::Error> {
 
     runtime.block_on(async move {
         // --- Set up a funded address ---
-        let keypair = AccountKeyPair::generate(rand::thread_rng());
+        let keypair = AccountKeyPair::random();
         let address = keypair.public_key().derive_address();
         let keypair = SimpleKeypair::from(keypair);
         let gas = cluster

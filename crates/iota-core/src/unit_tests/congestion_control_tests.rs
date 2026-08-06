@@ -61,7 +61,7 @@ impl TestSetup {
         max_execution_duration_per_commit: u64,
         max_congestion_limit_overshoot_per_commit: u64,
     ) -> Self {
-        let sender_key = AccountKeyPair::generate(rand::thread_rng());
+        let sender_key = AccountKeyPair::random();
         let sender = sender_key.public_key().derive_address();
 
         let mut protocol_config =

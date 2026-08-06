@@ -1338,7 +1338,7 @@ impl TestClusterBuilder {
         // `NetworkConfig` provided. Only either a `GenesisConfig` or a
         // `NetworkConfig` can be used to configure and build the cluster.
         let faucet = self.network_config.is_none().then(|| {
-            let faucet_keypair = AccountKeyPair::generate(rand::thread_rng());
+            let faucet_keypair = AccountKeyPair::random();
             let faucet_address = faucet_keypair.public_key().derive_address();
             let accounts = &mut self.get_or_init_genesis_config().accounts;
             accounts.push(AccountConfig {

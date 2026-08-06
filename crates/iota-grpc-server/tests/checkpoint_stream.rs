@@ -103,7 +103,7 @@ fn build_large_checkpoint_transactions() -> Vec<CheckpointTransaction> {
     let mut transactions = Vec::with_capacity(num_transactions);
 
     for _ in 0..num_transactions {
-        let key = AccountKeyPair::generate(rand::thread_rng());
+        let key = AccountKeyPair::random();
         let sender = key.public_key().derive_address();
         let gas = random_object_ref();
         let transaction = TestTransactionBuilder::new(sender, gas, 1000)
@@ -684,9 +684,7 @@ async fn test_filter_checkpoints_validation() {
     assert!(result.is_err(), "expected error when no filters are set");
 
     // tx filter without transactions in read_mask should fail
-    let sender = AccountKeyPair::generate(rand::thread_rng())
-        .public_key()
-        .derive_address();
+    let sender = AccountKeyPair::random().public_key().derive_address();
     let sender_bytes = sender.into_bytes();
     let tx_filter = filter::TransactionFilter::default().with_sender(
         filter::AddressFilter::default().with_address(
@@ -719,7 +717,7 @@ async fn test_filter_checkpoints_validation() {
 async fn test_filter_checkpoints_streaming() {
     let (server_handle, client, _) = test_server_and_client_setup(0..=0, |_| {}, None, None).await;
 
-    let key = AccountKeyPair::generate(rand::thread_rng());
+    let key = AccountKeyPair::random();
     let sender = key.public_key().derive_address();
     let sender_bytes = sender.into_bytes();
 
@@ -805,7 +803,7 @@ async fn test_filter_checkpoints_streaming() {
             .send_traced(&mock_checkpoint_data(i));
     }
     // Broadcast checkpoint with a different sender (should be skipped)
-    let other_key = AccountKeyPair::generate(rand::thread_rng());
+    let other_key = AccountKeyPair::random();
     let other_sender = other_key.public_key().derive_address();
     server_handle
         .checkpoint_data_broadcaster()
@@ -1042,7 +1040,7 @@ fn build_checkpoint_transactions_with_events(
 ) -> Vec<CheckpointTransaction> {
     let mut transactions = Vec::with_capacity(count);
     for _ in 0..count {
-        let key = AccountKeyPair::generate(rand::thread_rng());
+        let key = AccountKeyPair::random();
         let sender = key.public_key().derive_address();
         let gas = random_object_ref();
         let transaction = TestTransactionBuilder::new(sender, gas, 1000)

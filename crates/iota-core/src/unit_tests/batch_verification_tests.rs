@@ -33,13 +33,11 @@ fn gen_certs(
     key_pairs: &[AuthorityKeyPair],
     count: usize,
 ) -> Vec<CertifiedTransaction> {
-    let receiver = AccountKeyPair::generate(rand::thread_rng())
-        .public_key()
-        .derive_address();
+    let receiver = AccountKeyPair::random().public_key().derive_address();
 
     let senders: Vec<_> = (0..count)
         .map(|_| {
-            let key = AccountKeyPair::generate(rand::thread_rng());
+            let key = AccountKeyPair::random();
             (key.public_key().derive_address(), key)
         })
         .collect();
@@ -112,14 +110,12 @@ async fn test_batch_verify() {
         .unwrap_err();
     }
 
-    let other_sender_sec = AccountKeyPair::generate(rand::thread_rng());
+    let other_sender_sec = AccountKeyPair::random();
     let other_sender = other_sender_sec.public_key().derive_address();
     // this test is a bit much for the current implementation - it was originally
     // written to verify a bisecting fall back approach.
     for i in 0..16 {
-        let receiver = AccountKeyPair::generate(rand::thread_rng())
-            .public_key()
-            .derive_address();
+        let receiver = AccountKeyPair::random().public_key().derive_address();
         let mut certs = certs.clone();
         let other_tx = make_dummy_tx(receiver, other_sender, &other_sender_sec);
         let other_cert = make_cert_with_large_committee(&committee, &key_pairs, &other_tx);
@@ -163,10 +159,8 @@ async fn test_async_verifier() {
             tokio::task::spawn(async move {
                 let certs = gen_certs(&committee, &key_pairs, 100);
 
-                let receiver = AccountKeyPair::generate(rand::thread_rng())
-                    .public_key()
-                    .derive_address();
-                let other_sender_sec = AccountKeyPair::generate(rand::thread_rng());
+                let receiver = AccountKeyPair::random().public_key().derive_address();
+                let other_sender_sec = AccountKeyPair::random();
                 let other_sender = other_sender_sec.public_key().derive_address();
                 let other_tx = make_dummy_tx(receiver, other_sender, &other_sender_sec);
                 let other_cert = make_cert_with_large_committee(&committee, &key_pairs, &other_tx);

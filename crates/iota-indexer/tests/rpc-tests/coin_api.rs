@@ -44,7 +44,7 @@ async fn create_addr_and_custom_coins(
     cluster: &TestCluster,
     indexer_client: &HttpClient,
 ) -> (Address, SimpleKeypair, String) {
-    let keypair = AccountKeyPair::generate(rand::thread_rng());
+    let keypair = AccountKeyPair::random();
     let address = keypair.public_key().derive_address();
     let keypair = SimpleKeypair::from(keypair);
 

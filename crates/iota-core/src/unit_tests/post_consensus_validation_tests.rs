@@ -77,11 +77,9 @@ async fn test_valid_user_transaction_passes() {
         config
     });
 
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
-    let recipient = AccountKeyPair::generate(rand::thread_rng())
-        .public_key()
-        .derive_address();
+    let recipient = AccountKeyPair::random().public_key().derive_address();
 
     let object_id = ObjectId::random();
     let gas_id = ObjectId::random();
@@ -169,11 +167,9 @@ async fn test_duplicate_transaction_deduplicated() {
         config
     });
 
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
-    let recipient = AccountKeyPair::generate(rand::thread_rng())
-        .public_key()
-        .derive_address();
+    let recipient = AccountKeyPair::random().public_key().derive_address();
 
     let object_id = ObjectId::random();
     let gas_id = ObjectId::random();
@@ -232,11 +228,9 @@ async fn test_mixed_batch_filtering() {
         config
     });
 
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
-    let recipient = AccountKeyPair::generate(rand::thread_rng())
-        .public_key()
-        .derive_address();
+    let recipient = AccountKeyPair::random().public_key().derive_address();
 
     let obj1_id = ObjectId::random();
     let gas1_id = ObjectId::random();
@@ -313,14 +307,10 @@ async fn test_simple_conflict() {
         config
     });
 
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
-    let recipient1 = AccountKeyPair::generate(rand::thread_rng())
-        .public_key()
-        .derive_address();
-    let recipient2 = AccountKeyPair::generate(rand::thread_rng())
-        .public_key()
-        .derive_address();
+    let recipient1 = AccountKeyPair::random().public_key().derive_address();
+    let recipient2 = AccountKeyPair::random().public_key().derive_address();
 
     let object_id = ObjectId::random();
     let gas1_id = ObjectId::random();
@@ -411,11 +401,9 @@ async fn test_stale_version_dropped_fresh_kept() {
         config
     });
 
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
-    let recipient = AccountKeyPair::generate(rand::thread_rng())
-        .public_key()
-        .derive_address();
+    let recipient = AccountKeyPair::random().public_key().derive_address();
 
     let object_id = ObjectId::random();
     let gas_stale_id = ObjectId::random();
@@ -526,14 +514,10 @@ async fn test_no_conflict() {
         config
     });
 
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
-    let recipient1 = AccountKeyPair::generate(rand::thread_rng())
-        .public_key()
-        .derive_address();
-    let recipient2 = AccountKeyPair::generate(rand::thread_rng())
-        .public_key()
-        .derive_address();
+    let recipient1 = AccountKeyPair::random().public_key().derive_address();
+    let recipient2 = AccountKeyPair::random().public_key().derive_address();
 
     let object1_id = ObjectId::random();
     let object2_id = ObjectId::random();
@@ -618,17 +602,11 @@ async fn test_chain_conflict() {
         config
     });
 
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
-    let recipient1 = AccountKeyPair::generate(rand::thread_rng())
-        .public_key()
-        .derive_address();
-    let recipient2 = AccountKeyPair::generate(rand::thread_rng())
-        .public_key()
-        .derive_address();
-    let recipient3 = AccountKeyPair::generate(rand::thread_rng())
-        .public_key()
-        .derive_address();
+    let recipient1 = AccountKeyPair::random().public_key().derive_address();
+    let recipient2 = AccountKeyPair::random().public_key().derive_address();
+    let recipient3 = AccountKeyPair::random().public_key().derive_address();
 
     let object_a_id = ObjectId::random();
     let object_b_id = ObjectId::random();
@@ -736,11 +714,9 @@ async fn test_multiple_conflicts_in_batch() {
         config
     });
 
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
-    let recipient = AccountKeyPair::generate(rand::thread_rng())
-        .public_key()
-        .derive_address();
+    let recipient = AccountKeyPair::random().public_key().derive_address();
 
     let object_a_id = ObjectId::random();
     let object_b_id = ObjectId::random();
@@ -857,14 +833,10 @@ async fn test_gas_object_conflict() {
         config
     });
 
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
-    let recipient1 = AccountKeyPair::generate(rand::thread_rng())
-        .public_key()
-        .derive_address();
-    let recipient2 = AccountKeyPair::generate(rand::thread_rng())
-        .public_key()
-        .derive_address();
+    let recipient1 = AccountKeyPair::random().public_key().derive_address();
+    let recipient2 = AccountKeyPair::random().public_key().derive_address();
 
     let object1_id = ObjectId::random();
     let object2_id = ObjectId::random();
@@ -949,11 +921,9 @@ async fn test_winner_blocks_multiple_losers() {
         config
     });
 
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
-    let recipient = AccountKeyPair::generate(rand::thread_rng())
-        .public_key()
-        .derive_address();
+    let recipient = AccountKeyPair::random().public_key().derive_address();
 
     let object_a_id = ObjectId::random();
     let object_b_id = ObjectId::random();
@@ -1074,11 +1044,9 @@ async fn test_dropped_tx_does_not_acquire_locks() {
         config
     });
 
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
-    let recipient = AccountKeyPair::generate(rand::thread_rng())
-        .public_key()
-        .derive_address();
+    let recipient = AccountKeyPair::random().public_key().derive_address();
 
     let object_a_id = ObjectId::random();
     let object_b_id = ObjectId::random();
@@ -1230,11 +1198,9 @@ async fn already_executed_tx_must_remain_in_checkpoint_roots() {
         config
     });
 
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
-    let recipient = AccountKeyPair::generate(rand::thread_rng())
-        .public_key()
-        .derive_address();
+    let recipient = AccountKeyPair::random().public_key().derive_address();
 
     let object_id = ObjectId::random();
     let gas_id = ObjectId::random();
@@ -1329,11 +1295,9 @@ async fn double_spend_loser_excluded_from_checkpoint_roots() {
         config
     });
 
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
-    let recipient = AccountKeyPair::generate(rand::thread_rng())
-        .public_key()
-        .derive_address();
+    let recipient = AccountKeyPair::random().public_key().derive_address();
 
     // One owned object spent by both transactions, plus a distinct gas object each
     // so the only conflict is on `object_id`.
@@ -1469,11 +1433,9 @@ async fn setup_lock_tier() -> LockTierSetup {
         config
     });
 
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
-    let recipient = AccountKeyPair::generate(rand::thread_rng())
-        .public_key()
-        .derive_address();
+    let recipient = AccountKeyPair::random().public_key().derive_address();
     let object_id = ObjectId::random();
     let gas_id = ObjectId::random();
 
@@ -1598,9 +1560,7 @@ async fn run_different_digest_lock_drops_contender(tier: LockTier) {
     // For Quarantine we can build a contender with the same inputs because
     // make_tx is hashed by recipient/sender_key which are stable; produce a
     // different digest by swapping recipient.
-    let alt_recipient = AccountKeyPair::generate(rand::thread_rng())
-        .public_key()
-        .derive_address();
+    let alt_recipient = AccountKeyPair::random().public_key().derive_address();
     let new_tx_raw = make_transfer_object_transaction(
         s.object_ref,
         s.gas_ref,
@@ -1827,11 +1787,9 @@ async fn post_consensus_validation_uses_governance_rules_when_enabled() {
         config
     });
 
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
-    let recipient = AccountKeyPair::generate(rand::thread_rng())
-        .public_key()
-        .derive_address();
+    let recipient = AccountKeyPair::random().public_key().derive_address();
     let object_id = ObjectId::random();
     let gas_id = ObjectId::random();
     let (authority, _) = init_state_with_objects_and_object_basics(vec![
@@ -1888,11 +1846,9 @@ async fn post_consensus_validation_keeps_non_denied_transactions() {
         config
     });
 
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
-    let recipient = AccountKeyPair::generate(rand::thread_rng())
-        .public_key()
-        .derive_address();
+    let recipient = AccountKeyPair::random().public_key().derive_address();
     let object_id = ObjectId::random();
     let gas_id = ObjectId::random();
     let (authority, _) = init_state_with_objects_and_object_basics(vec![
@@ -1905,10 +1861,7 @@ async fn post_consensus_validation_keeps_non_denied_transactions() {
     activate_deny_rules(
         &epoch_store,
         iota_types::deny_rule_governance::DenyRuleSet {
-            denied_addresses: [AccountKeyPair::generate(rand::thread_rng())
-                .public_key()
-                .derive_address()]
-            .into(),
+            denied_addresses: [AccountKeyPair::random().public_key().derive_address()].into(),
             ..Default::default()
         },
         1,
@@ -1947,11 +1900,9 @@ async fn post_consensus_validation_uses_local_config_when_disabled() {
         config
     });
 
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
-    let recipient = AccountKeyPair::generate(rand::thread_rng())
-        .public_key()
-        .derive_address();
+    let recipient = AccountKeyPair::random().public_key().derive_address();
     let object_id = ObjectId::random();
     let gas_id = ObjectId::random();
     let (authority, _) = init_state_with_objects_and_object_basics(vec![
@@ -2000,11 +1951,9 @@ async fn post_consensus_validation_applies_relaxed_rules() {
         config
     });
 
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
-    let recipient = AccountKeyPair::generate(rand::thread_rng())
-        .public_key()
-        .derive_address();
+    let recipient = AccountKeyPair::random().public_key().derive_address();
     let object_id = ObjectId::random();
     let gas_id = ObjectId::random();
     let (authority, _) = init_state_with_objects_and_object_basics(vec![
@@ -2046,9 +1995,7 @@ async fn post_consensus_validation_applies_relaxed_rules() {
     // The dropped transaction did not execute, so the same object refs are
     // still current for a fresh transaction (distinct digest via a new
     // recipient) from the no-longer-denied sender.
-    let recipient = AccountKeyPair::generate(rand::thread_rng())
-        .public_key()
-        .derive_address();
+    let recipient = AccountKeyPair::random().public_key().derive_address();
     let tx =
         make_transfer_object_transaction(object_ref, gas_ref, sender, &sender_key, recipient, rgp);
     let mut transactions = vec![make_user_tx_v1(tx)];

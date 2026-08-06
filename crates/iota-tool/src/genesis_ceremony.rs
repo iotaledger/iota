@@ -355,7 +355,7 @@ mod test {
                     get_key_pair_from_rng(&mut rand::rngs::OsRng).1;
                 let network_keypair: NetworkKeyPair =
                     get_key_pair_from_rng(&mut rand::rngs::OsRng).1;
-                let account_keypair = AccountKeyPair::generate(rand::rngs::OsRng);
+                let account_keypair = AccountKeyPair::random();
                 let info = ValidatorInfo {
                     name: format!("validator-{i}"),
                     authority_key: authority_keypair.public().into(),

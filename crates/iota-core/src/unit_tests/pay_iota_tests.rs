@@ -27,7 +27,7 @@ use crate::authority::{
 
 #[tokio::test]
 async fn test_pay_iota_failure_empty_recipients() {
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
     let coin_id = ObjectId::random();
     let coin1 = Object::with_id_owner_gas_for_testing(coin_id, sender, 2000000);
@@ -45,7 +45,7 @@ async fn test_pay_iota_failure_empty_recipients() {
 
 #[tokio::test]
 async fn test_pay_iota_failure_insufficient_gas_balance_one_input_coin() {
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
     let coin1 = Object::with_id_owner_gas_for_testing(ObjectId::random(), sender, 2000);
     let recipient1 = dbg_addr(1);
@@ -72,7 +72,7 @@ async fn test_pay_iota_failure_insufficient_gas_balance_one_input_coin() {
 
 #[tokio::test]
 async fn test_pay_iota_failure_insufficient_total_balance_one_input_coin() {
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
     let coin1 = Object::with_id_owner_gas_for_testing(ObjectId::random(), sender, 1000100);
     let recipient1 = dbg_addr(1);
@@ -99,7 +99,7 @@ async fn test_pay_iota_failure_insufficient_total_balance_one_input_coin() {
 
 #[tokio::test]
 async fn test_pay_iota_failure_insufficient_gas_balance_multiple_input_coins() {
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
     let coin1 = Object::with_id_owner_gas_for_testing(ObjectId::random(), sender, 800);
     let coin2 = Object::with_id_owner_gas_for_testing(ObjectId::random(), sender, 700);
@@ -127,7 +127,7 @@ async fn test_pay_iota_failure_insufficient_gas_balance_multiple_input_coins() {
 
 #[tokio::test]
 async fn test_pay_iota_failure_insufficient_total_balance_multiple_input_coins() {
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
     let coin1 = Object::with_id_owner_gas_for_testing(ObjectId::random(), sender, 404000);
     let coin2 = Object::with_id_owner_gas_for_testing(ObjectId::random(), sender, 603000);
@@ -154,7 +154,7 @@ async fn test_pay_iota_failure_insufficient_total_balance_multiple_input_coins()
 
 #[tokio::test]
 async fn test_pay_iota_success_one_input_coin() -> anyhow::Result<()> {
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
     let object_id = ObjectId::random();
     let coin_amount = 50000000;
@@ -227,7 +227,7 @@ async fn test_pay_iota_success_one_input_coin() -> anyhow::Result<()> {
 
 #[tokio::test]
 async fn test_pay_iota_success_multiple_input_coins() -> anyhow::Result<()> {
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
     let object_id1 = ObjectId::random();
     let object_id2 = ObjectId::random();
@@ -295,7 +295,7 @@ async fn test_pay_iota_success_multiple_input_coins() -> anyhow::Result<()> {
 
 #[tokio::test]
 async fn test_pay_all_iota_failure_insufficient_gas_one_input_coin() {
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
     let coin1 = Object::with_id_owner_gas_for_testing(ObjectId::random(), sender, 1800);
     let recipient = dbg_addr(2);
@@ -313,7 +313,7 @@ async fn test_pay_all_iota_failure_insufficient_gas_one_input_coin() {
 
 #[tokio::test]
 async fn test_pay_all_iota_failure_insufficient_gas_budget_multiple_input_coins() {
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
     let coin1 = Object::with_id_owner_gas_for_testing(ObjectId::random(), sender, 1000);
     let coin2 = Object::with_id_owner_gas_for_testing(ObjectId::random(), sender, 1000);
@@ -332,7 +332,7 @@ async fn test_pay_all_iota_failure_insufficient_gas_budget_multiple_input_coins(
 
 #[tokio::test]
 async fn test_pay_all_iota_success_one_input_coin() -> anyhow::Result<()> {
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
     let object_id = ObjectId::random();
     let coin_obj = Object::with_id_owner_gas_for_testing(object_id, sender, 3000000);
@@ -356,7 +356,7 @@ async fn test_pay_all_iota_success_one_input_coin() -> anyhow::Result<()> {
 
 #[tokio::test]
 async fn test_pay_all_iota_success_multiple_input_coins() -> anyhow::Result<()> {
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
     let object_id1 = ObjectId::random();
     let coin_obj1 = Object::with_id_owner_gas_for_testing(object_id1, sender, 3000000);

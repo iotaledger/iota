@@ -46,7 +46,7 @@ fn checkpointed_objects_wrap_delete_unwrap_lifecycle() -> Result<(), anyhow::Err
     } = ApiTestSetup::get_or_init();
 
     runtime.block_on(async move {
-        let keypair = AccountKeyPair::generate(rand::thread_rng());
+        let keypair = AccountKeyPair::random();
         let address = keypair.public_key().derive_address();
         let keypair = SimpleKeypair::from(keypair);
         let gas = cluster

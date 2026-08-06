@@ -129,7 +129,7 @@ impl Cluster for RemoteRunningCluster {
     }
 
     fn user_key(&self) -> AccountKeyPair {
-        AccountKeyPair::generate(rand::thread_rng())
+        AccountKeyPair::random()
     }
 
     fn remote_faucet_url(&self) -> Option<&str> {
@@ -314,7 +314,7 @@ impl Cluster for LocalNewCluster {
     }
 
     fn user_key(&self) -> AccountKeyPair {
-        AccountKeyPair::generate(rand::thread_rng())
+        AccountKeyPair::random()
     }
 
     fn remote_faucet_url(&self) -> Option<&str> {

@@ -24,13 +24,11 @@ fn gen_certs(
     key_pairs: &[AuthorityKeyPair],
     count: u64,
 ) -> Vec<CertifiedTransaction> {
-    let receiver = AccountKeyPair::generate(rand::thread_rng())
-        .public_key()
-        .derive_address();
+    let receiver = AccountKeyPair::random().public_key().derive_address();
 
     let senders: Vec<_> = (0..count)
         .map(|_| {
-            let key = AccountKeyPair::generate(rand::thread_rng());
+            let key = AccountKeyPair::random();
             (key.public_key().derive_address(), key)
         })
         .collect();
@@ -121,10 +119,8 @@ fn batch_verification_bench(c: &mut Criterion) {
         for num_errors in [0, 1] {
             let mut certs = gen_certs(&committee, &key_pairs, batch_size);
 
-            let receiver = AccountKeyPair::generate(rand::thread_rng())
-                .public_key()
-                .derive_address();
-            let other_sender_sec = AccountKeyPair::generate(rand::thread_rng());
+            let receiver = AccountKeyPair::random().public_key().derive_address();
+            let other_sender_sec = AccountKeyPair::random();
             let other_sender = other_sender_sec.public_key().derive_address();
             let other_tx = make_dummy_tx(receiver, other_sender, &other_sender_sec);
             let other_cert = make_cert_with_large_committee(&committee, &key_pairs, &other_tx);

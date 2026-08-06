@@ -57,7 +57,7 @@ where
 // Creates a fake sender-signed transaction for testing. This transaction will
 // not actually work.
 pub fn create_fake_transaction() -> TransactionEnvelope {
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
     let recipient = dbg_addr(2);
     let object_id = ObjectId::random();
@@ -204,9 +204,9 @@ pub fn make_upgraded_multisig_tx() -> TransactionEnvelope {
 /// Returns the transaction together with the sender's and sponsor's addresses
 /// so callers can locate each signature within the transaction.
 pub fn make_sponsored_regular_sig_tx() -> (TransactionEnvelope, Address, Address) {
-    let sender_kp = AccountKeyPair::generate(rand::thread_rng());
+    let sender_kp = AccountKeyPair::random();
     let sender = sender_kp.public_key().derive_address();
-    let sponsor_kp = AccountKeyPair::generate(rand::thread_rng());
+    let sponsor_kp = AccountKeyPair::random();
     let sponsor = sponsor_kp.public_key().derive_address();
     let tx_data = make_sponsored_transaction_data(sender, sponsor);
     let sender_sig: UserSignature = TransactionEnvelope::signature_from_signer(
@@ -305,7 +305,7 @@ mod passkey {
     /// padding, satisfying the length requirement without needing a real
     /// WebAuthn round-trip.
     pub fn make_passkey_authenticator_sig() -> UserSignature {
-        let r1_kp = Secp256r1PrivateKey::generate(rand::thread_rng());
+        let r1_kp = Secp256r1PrivateKey::random();
         let user_sig: SimpleSignature = r1_kp.sign(&[0u8; 32]);
         let client_data_json = r#"{"type":"webauthn.get","challenge":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA","origin":"https://test.iota.org"}"#;
         let passkey =

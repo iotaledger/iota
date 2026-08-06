@@ -24,7 +24,7 @@ use crate::{
 
 #[test]
 fn test_personal_message_intent() {
-    let sec1 = AccountKeyPair::generate(rand::thread_rng());
+    let sec1 = AccountKeyPair::random();
     let addr1 = sec1.public_key().derive_address();
     let message = "Hello".as_bytes().to_vec();
     let p_message = PersonalMessage(message.into());
@@ -60,7 +60,7 @@ fn test_authority_signature_intent() {
     let kp: AuthorityKeyPair = get_key_pair().1;
 
     // Create a signed user transaction.
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
     let recipient = dbg_addr(2);
     let object_id = ObjectId::random();

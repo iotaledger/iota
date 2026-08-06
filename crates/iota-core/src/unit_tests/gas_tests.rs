@@ -295,7 +295,7 @@ async fn touch_gas_coins(
 async fn test_computation_oog_storage_ok_single_gas_coin() -> IotaResult {
     const GAS_PRICE: u64 = 1_000;
     let budget: u64 = ProtocolConfig::get_for_max_version_UNSAFE().max_tx_gas();
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
     check_oog_transaction(
         sender,
@@ -325,7 +325,7 @@ async fn test_computation_oog_storage_ok_single_gas_coin() -> IotaResult {
 async fn test_computation_oog_storage_ok_multi_gas_coins() -> IotaResult {
     const GAS_PRICE: u64 = 1_000;
     let budget: u64 = ProtocolConfig::get_for_max_version_UNSAFE().max_tx_gas();
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
     check_oog_transaction(
         sender,
@@ -356,7 +356,7 @@ async fn test_computation_oog_storage_ok_computation_is_entire_budget() -> IotaR
     const GAS_PRICE: u64 = 1000;
     const MAX_UNIT_BUDGET: u64 = 5_000_000;
     const BUDGET: u64 = MAX_UNIT_BUDGET * GAS_PRICE;
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
     check_oog_transaction(
         sender,
@@ -386,7 +386,7 @@ async fn test_computation_oog_storage_ok_computation_is_entire_budget() -> IotaR
 async fn test_computation_ok_storage_oog_single_gas_coin() -> IotaResult {
     const GAS_PRICE: u64 = 1001;
     const BUDGET: u64 = 1_100_000;
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
     check_oog_transaction(
         sender,
@@ -416,7 +416,7 @@ async fn test_computation_ok_storage_oog_single_gas_coin() -> IotaResult {
 async fn test_computation_ok_storage_oog_multi_gas_coins() -> IotaResult {
     const GAS_PRICE: u64 = 1001;
     const BUDGET: u64 = 1_100_000;
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
     check_oog_transaction(
         sender,
@@ -446,7 +446,7 @@ async fn test_computation_ok_storage_oog_multi_gas_coins() -> IotaResult {
 async fn test_computation_ok_storage_oog_computation_is_entire_budget() -> IotaResult {
     const GAS_PRICE: u64 = 1001;
     const BUDGET: u64 = 1_002_000;
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
     check_oog_transaction(
         sender,
@@ -551,7 +551,7 @@ async fn test_native_transfer_gas_price_is_used() {
 
 #[tokio::test]
 async fn test_transfer_iota_insufficient_gas() {
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
     let recipient = dbg_addr(2);
     let authority_state = TestAuthorityBuilder::new().build().await;
@@ -594,7 +594,7 @@ async fn test_transfer_iota_insufficient_gas() {
 /// - All gas coins should be owned by the sender, or the sponsor
 #[tokio::test]
 async fn test_invalid_gas_owners() {
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
     let authority_state = TestAuthorityBuilder::new().build().await;
 
@@ -761,7 +761,7 @@ async fn test_native_transfer_insufficient_gas_execution() {
 
 #[tokio::test]
 async fn test_publish_gas() -> anyhow::Result<()> {
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
     let gas_object_id = ObjectId::random();
     let authority_state = init_state_with_ids(vec![(sender, gas_object_id)]).await;
@@ -835,7 +835,7 @@ async fn test_publish_gas() -> anyhow::Result<()> {
 
 #[tokio::test]
 async fn test_move_call_gas() -> IotaResult {
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
     let gas_object_id = ObjectId::random();
     let (authority_state, package_object_ref) =
@@ -925,7 +925,7 @@ async fn test_tx_gas_price_less_than_reference_gas_price() {
 
 #[tokio::test]
 async fn test_tx_gas_coins_input_coins() {
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
     let authority_state = TestAuthorityBuilder::new().build().await;
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
@@ -1021,7 +1021,7 @@ async fn execute_transfer_with_price(
     run_confirm: bool,
     min_budget_pre_rgp: bool,
 ) -> TransferResult {
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
     let object_id: ObjectId = ObjectId::random();
     let recipient = dbg_addr(2);

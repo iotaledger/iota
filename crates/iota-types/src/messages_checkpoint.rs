@@ -583,7 +583,7 @@ impl FullCheckpointContents {
     }
 
     pub fn random_for_testing() -> Self {
-        let key = AccountKeyPair::generate(rand::thread_rng());
+        let key = AccountKeyPair::random();
         let a = key.public_key().derive_address();
         let transaction = TransactionEnvelope::from_data_and_signer(
             Transaction::new_transfer(

@@ -36,7 +36,7 @@ fn create_test_transaction() -> (
     Arc<VerifiedTransaction>,
     TransactionEffects,
 ) {
-    let key = AccountKeyPair::generate(rand::thread_rng());
+    let key = AccountKeyPair::random();
     let sender = key.public_key().derive_address();
     let gas = random_object_ref();
     let tx = TestTransactionBuilder::new(sender, gas, 1000)

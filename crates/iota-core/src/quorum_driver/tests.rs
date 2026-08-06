@@ -39,7 +39,7 @@ async fn setup() -> (
     AuthorityAggregator<LocalAuthorityClient>,
     TransactionEnvelope,
 ) {
-    let keypair = AccountKeyPair::generate(rand::thread_rng());
+    let keypair = AccountKeyPair::random();
     let sender = keypair.public_key().derive_address();
     let gas_object = Object::with_owner_for_testing(sender);
     let (aggregator, authorities, genesis, _) =
@@ -561,7 +561,7 @@ async fn test_quorum_driver_handling_overload_and_retry() {
     telemetry_subscribers::init_for_testing();
 
     // Setup
-    let keypair = AccountKeyPair::generate(rand::thread_rng());
+    let keypair = AccountKeyPair::random();
     let sender = keypair.public_key().derive_address();
     let gas_object = Object::with_owner_for_testing(sender);
     let (mut aggregator, authorities, genesis, _) =

@@ -44,7 +44,7 @@ async fn test_addresses_command() -> Result<(), anyhow::Error> {
     for _ in 0..3 {
         keystore.add_key(
             None,
-            SimpleKeypair::from(Secp256k1PrivateKey::generate(rand::thread_rng())),
+            SimpleKeypair::from(Secp256k1PrivateKey::random()),
         )?;
     }
 
@@ -64,11 +64,11 @@ async fn test_flag_in_signature_and_keypair() -> Result<(), anyhow::Error> {
 
     keystore.add_key(
         None,
-        SimpleKeypair::from(Secp256k1PrivateKey::generate(rand::thread_rng())),
+        SimpleKeypair::from(Secp256k1PrivateKey::random()),
     )?;
     keystore.add_key(
         None,
-        SimpleKeypair::from(Ed25519PrivateKey::generate(rand::thread_rng())),
+        SimpleKeypair::from(Ed25519PrivateKey::random()),
     )?;
 
     for key in keystore
@@ -118,7 +118,7 @@ async fn test_read_write_keystore_with_flag() {
     let dir = tempfile::TempDir::new().unwrap();
 
     // create Secp256k1 keypair
-    let kp_secp = SimpleKeypair::from(Secp256k1PrivateKey::generate(rand::thread_rng()));
+    let kp_secp = SimpleKeypair::from(Secp256k1PrivateKey::random());
     let addr_secp: Address = kp_secp.public_key().derive_address();
     let fp_secp = dir.path().join(format!("{addr_secp}.key"));
     let fp_secp_2 = fp_secp.clone();
@@ -139,7 +139,7 @@ async fn test_read_write_keystore_with_flag() {
     assert!(kp_secp_read.is_err());
 
     // create Ed25519 keypair
-    let kp_ed = SimpleKeypair::from(Ed25519PrivateKey::generate(rand::thread_rng()));
+    let kp_ed = SimpleKeypair::from(Ed25519PrivateKey::random());
     let addr_ed: Address = kp_ed.public_key().derive_address();
     let fp_ed = dir.path().join(format!("{addr_ed}.key"));
     let fp_ed_2 = fp_ed.clone();

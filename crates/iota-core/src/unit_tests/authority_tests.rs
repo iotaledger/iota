@@ -156,7 +156,7 @@ async fn construct_shared_object_transaction_with_version(
     ObjectId,
     ObjectId,
 ) {
-    let keypair = AccountKeyPair::generate(rand::thread_rng());
+    let keypair = AccountKeyPair::random();
     let sender = keypair.public_key().derive_address();
 
     // Initialize an authority with a (owned) gas object and a shared object.
@@ -269,7 +269,7 @@ async fn test_dry_run_transaction_block() {
 
 #[tokio::test]
 async fn test_dry_run_no_gas_big_transfer() {
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
     let recipient = dbg_addr(2);
     let gas_object_id = ObjectId::random();
@@ -298,7 +298,7 @@ async fn test_dry_run_no_gas_big_transfer() {
 
 #[tokio::test]
 async fn test_dev_inspect_object_by_bytes() {
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
     let gas_object_id = ObjectId::random();
     let (validator, fullnode, object_basics) =
@@ -435,14 +435,12 @@ async fn test_dev_inspect_object_by_bytes() {
 
 #[tokio::test]
 async fn test_dev_inspect_unowned_object() {
-    let alice_key = AccountKeyPair::generate(rand::thread_rng());
+    let alice_key = AccountKeyPair::random();
     let alice = alice_key.public_key().derive_address();
     let alice_gas_id = ObjectId::random();
     let (validator, fullnode, object_basics) =
         init_state_with_ids_and_object_basics_with_fullnode(vec![(alice, alice_gas_id)]).await;
-    let bob = AccountKeyPair::generate(rand::thread_rng())
-        .public_key()
-        .derive_address();
+    let bob = AccountKeyPair::random().public_key().derive_address();
 
     // make an object, send it to bob
     let effects = call_move_(
@@ -505,7 +503,7 @@ async fn test_dev_inspect_unowned_object() {
 #[tokio::test]
 async fn test_dev_inspect_dynamic_field() {
     let (test_object1_bytes, test_object2_bytes) = {
-        let sender_key = AccountKeyPair::generate(rand::thread_rng());
+        let sender_key = AccountKeyPair::random();
         let sender = sender_key.public_key().derive_address();
         let gas_object_id = ObjectId::random();
         let (validator, fullnode, object_basics) =
@@ -545,9 +543,7 @@ async fn test_dev_inspect_dynamic_field() {
         (mk_obj!(), mk_obj!())
     };
 
-    let sender = AccountKeyPair::generate(rand::thread_rng())
-        .public_key()
-        .derive_address();
+    let sender = AccountKeyPair::random().public_key().derive_address();
     let gas_object_id = ObjectId::random();
     let (_validator, fullnode, object_basics) =
         init_state_with_ids_and_object_basics_with_fullnode(vec![(sender, gas_object_id)]).await;
@@ -612,7 +608,7 @@ async fn test_dev_inspect_dynamic_field() {
 
 #[tokio::test]
 async fn test_dev_inspect_return_values() {
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
     let gas_object_id = ObjectId::random();
     let (validator, fullnode, object_basics) =
@@ -1028,9 +1024,7 @@ fn check_coin_value(actual_value: &[u8], actual_type: &TypeTag, expected_value: 
 
 #[tokio::test]
 async fn test_dev_inspect_uses_unbound_object() {
-    let sender = AccountKeyPair::generate(rand::thread_rng())
-        .public_key()
-        .derive_address();
+    let sender = AccountKeyPair::random().public_key().derive_address();
     let gas_object_id = ObjectId::random();
     let (_validator, fullnode, object_basics) =
         init_state_with_ids_and_object_basics_with_fullnode(vec![(sender, gas_object_id)]).await;
@@ -1067,9 +1061,7 @@ async fn test_dev_inspect_uses_unbound_object() {
 
 #[tokio::test]
 async fn test_dev_inspect_on_validator() {
-    let sender = AccountKeyPair::generate(rand::thread_rng())
-        .public_key()
-        .derive_address();
+    let sender = AccountKeyPair::random().public_key().derive_address();
     let gas_object_id = ObjectId::random();
     let (validator, object_basics) =
         init_state_with_ids_and_object_basics(vec![(sender, gas_object_id)]).await;
@@ -1104,7 +1096,7 @@ async fn test_dry_run_on_validator() {
 // run results in not being able to access the dynamic field object
 #[tokio::test]
 async fn test_dry_run_dev_inspect_dynamic_field_too_new() {
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
     let gas_object_id = ObjectId::random();
     let (validator, fullnode) = init_state_validator_with_fullnode().await;
@@ -1296,7 +1288,7 @@ async fn test_simulate_rejects_a_gas_payment_that_is_not_a_gas_coin() {
 // tests using a gas coin with version MAX - 1
 #[tokio::test]
 async fn test_dry_run_dev_inspect_max_gas_version() {
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
     let gas_object_id = ObjectId::random();
     let (validator, fullnode) = init_state_validator_with_fullnode().await;
@@ -1342,7 +1334,7 @@ async fn test_dry_run_dev_inspect_max_gas_version() {
 
 #[tokio::test]
 async fn test_handle_transfer_transaction_bad_signature() {
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
     let recipient = dbg_addr(2);
     let object_id = ObjectId::random();
@@ -1379,7 +1371,7 @@ async fn test_handle_transfer_transaction_bad_signature() {
     .await
     .unwrap();
 
-    let unknown_key = AccountKeyPair::generate(rand::thread_rng());
+    let unknown_key = AccountKeyPair::random();
     let mut bad_signature_transfer_transaction = transfer_transaction.clone().into_inner();
     *bad_signature_transfer_transaction
         .data_mut_for_testing()
@@ -1423,7 +1415,7 @@ async fn test_handle_transfer_transaction_bad_signature() {
 
 #[tokio::test]
 async fn test_handle_transfer_transaction_with_max_sequence_number() {
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
     let object_id: ObjectId = ObjectId::random();
     let gas_object_id = ObjectId::random();
@@ -1475,7 +1467,7 @@ async fn test_handle_shared_object_with_max_sequence_number() {
 #[tokio::test]
 async fn test_handle_transfer_transaction_unknown_sender() {
     let sender = dbg_addr(1);
-    let unknown_key = AccountKeyPair::generate(rand::thread_rng());
+    let unknown_key = AccountKeyPair::random();
     let unknown_address = unknown_key.public_key().derive_address();
     let object_id: ObjectId = ObjectId::random();
     let gas_object_id = ObjectId::random();
@@ -1530,7 +1522,7 @@ async fn test_handle_transfer_transaction_unknown_sender() {
 
 #[tokio::test]
 async fn test_handle_transfer_transaction_ok() {
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
     let recipient = dbg_addr(2);
     let object_id = ObjectId::random();
@@ -1617,9 +1609,9 @@ async fn test_handle_transfer_transaction_ok() {
 
 #[tokio::test]
 async fn test_handle_sponsored_transaction() {
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
-    let sponsor_key = AccountKeyPair::generate(rand::thread_rng());
+    let sponsor_key = AccountKeyPair::random();
     let sponsor = sponsor_key.public_key().derive_address();
     let recipient = dbg_addr(2);
     let object_id = ObjectId::random();
@@ -1689,7 +1681,7 @@ async fn test_handle_sponsored_transaction() {
     );
 
     // Verify wrong gas owner gives error, using another address
-    let wrong_owner_key = AccountKeyPair::generate(rand::thread_rng());
+    let wrong_owner_key = AccountKeyPair::random();
     let wrong_owner = wrong_owner_key.public_key().derive_address();
     let tx = Transaction::new_with_gas_data(
         tx_kind.clone(),
@@ -1719,7 +1711,7 @@ async fn test_handle_sponsored_transaction() {
     );
 
     // Sponsor sig is valid but it doesn't actually own the gas object
-    let third_party_key = AccountKeyPair::generate(rand::thread_rng());
+    let third_party_key = AccountKeyPair::random();
     let third_party = third_party_key.public_key().derive_address();
     let tx = Transaction::new_with_gas_data(
         tx_kind,
@@ -1751,7 +1743,7 @@ async fn test_handle_sponsored_transaction() {
 
 #[tokio::test]
 async fn test_transfer_package() {
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
     let recipient = dbg_addr(2);
     let object_id = ObjectId::random();
@@ -1783,7 +1775,7 @@ async fn test_transfer_package() {
 // We expect it to fail early during transaction handle phase.
 #[tokio::test]
 async fn test_immutable_gas() {
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
     let recipient = dbg_addr(2);
     let mut_object_id = ObjectId::random();
@@ -1818,7 +1810,7 @@ async fn test_immutable_gas() {
 // We expect it to fail early during transaction handle phase.
 #[tokio::test]
 async fn test_objected_owned_gas() {
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
     let recipient = dbg_addr(2);
     let parent_object_id = ObjectId::random();
@@ -1867,7 +1859,7 @@ fn make_dependent_module(m: &CompiledModule) -> CompiledModule {
 // Test that publishing a module that depends on an existing one works
 #[tokio::test]
 async fn test_publish_dependent_module_ok() {
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
     let gas_payment_object_id = ObjectId::random();
     let gas_payment_object = Object::with_id_owner_for_testing(gas_payment_object_id, sender);
@@ -1938,7 +1930,7 @@ async fn test_publish_dependent_module_ok() {
 // Test that publishing a module with no dependencies works
 #[tokio::test]
 async fn test_publish_module_no_dependencies_ok() {
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
     let authority = init_state_with_objects(vec![]).await;
     let rgp = authority.reference_gas_price_for_testing().unwrap();
@@ -1990,7 +1982,7 @@ async fn test_publish_module_no_dependencies_ok() {
 
 #[tokio::test]
 async fn test_publish_non_existing_dependent_module() {
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
     let gas_payment_object_id = ObjectId::random();
     let gas_payment_object = Object::with_id_owner_for_testing(gas_payment_object_id, sender);
@@ -2066,7 +2058,7 @@ async fn test_publish_non_existing_dependent_module() {
 // make sure that publishing a package above the size limit fails
 #[tokio::test]
 async fn test_package_size_limit() {
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
     let gas_payment_object_id = ObjectId::random();
     let gas_payment_object =
@@ -2120,7 +2112,7 @@ async fn test_package_size_limit() {
 
 #[tokio::test]
 async fn test_handle_move_transaction() {
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
     let gas_payment_object_id = ObjectId::random();
     let (authority_state, pkg_ref) =
@@ -2149,7 +2141,7 @@ async fn test_handle_move_transaction() {
 
 #[sim_test]
 async fn test_conflicting_transactions() {
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
     let recipient1 = dbg_addr(2);
     let recipient2 = dbg_addr(3);
@@ -2254,7 +2246,7 @@ async fn test_conflicting_transactions() {
 
 #[tokio::test]
 async fn test_handle_transfer_transaction_double_spend() {
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
     let recipient = dbg_addr(2);
     let object_id = ObjectId::random();
@@ -2293,7 +2285,7 @@ async fn test_handle_transfer_transaction_double_spend() {
 
 #[tokio::test]
 async fn test_handle_transfer_iota_with_amount_insufficient_gas() {
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
     let recipient = dbg_addr(2);
     let object_id = ObjectId::random();
@@ -2324,7 +2316,7 @@ async fn test_handle_transfer_iota_with_amount_insufficient_gas() {
 
 #[tokio::test]
 async fn test_missing_package() {
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
     let gas_object_id = ObjectId::random();
     let (authority_state, _object_basics) =
@@ -2359,11 +2351,11 @@ async fn test_missing_package() {
 
 #[tokio::test]
 async fn test_type_argument_dependencies() {
-    let s1_key = AccountKeyPair::generate(rand::thread_rng());
+    let s1_key = AccountKeyPair::random();
     let s1 = s1_key.public_key().derive_address();
-    let s2_key = AccountKeyPair::generate(rand::thread_rng());
+    let s2_key = AccountKeyPair::random();
     let s2 = s2_key.public_key().derive_address();
-    let s3_key = AccountKeyPair::generate(rand::thread_rng());
+    let s3_key = AccountKeyPair::random();
     let s3 = s3_key.public_key().derive_address();
     let gas1 = ObjectId::random();
     let gas2 = ObjectId::random();
@@ -2463,7 +2455,7 @@ async fn test_type_argument_dependencies() {
 
 #[tokio::test]
 async fn test_handle_confirmation_transaction_receiver_equal_sender() {
-    let key = AccountKeyPair::generate(rand::thread_rng());
+    let key = AccountKeyPair::random();
     let address = key.public_key().derive_address();
     let object_id: ObjectId = ObjectId::random();
     let gas_object_id = ObjectId::random();
@@ -2570,7 +2562,7 @@ async fn try_execute_immediately_panics_on_already_executed_digest_mismatch() {
 
 #[tokio::test]
 async fn test_handle_confirmation_transaction_ok() {
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
     let recipient = dbg_addr(2);
     let object_id = ObjectId::random();
@@ -2630,7 +2622,7 @@ async fn test_handle_confirmation_transaction_ok() {
 
 #[tokio::test]
 async fn test_handle_confirmation_transaction_idempotent() {
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
     let recipient = dbg_addr(2);
     let object_id = ObjectId::random();
@@ -2684,7 +2676,7 @@ async fn test_handle_confirmation_transaction_idempotent() {
 
 #[tokio::test]
 async fn test_move_call_mutable_object_not_mutated() {
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
     let gas_object_id = ObjectId::random();
     let (authority_state, pkg_ref) =
@@ -2772,9 +2764,9 @@ async fn test_move_call_insufficient_gas() {
     // This test attempts to trigger a transaction execution that would fail due to
     // insufficient gas. We want to ensure that even though the transaction
     // failed to execute, all objects are mutated properly.
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
-    let recipient_key = AccountKeyPair::generate(rand::thread_rng());
+    let recipient_key = AccountKeyPair::random();
     let recipient = recipient_key.public_key().derive_address();
     let object_id = ObjectId::random();
     let gas_object_id1 = ObjectId::random();
@@ -2850,7 +2842,7 @@ async fn test_move_call_insufficient_gas() {
 
 #[tokio::test]
 async fn test_move_call_delete() {
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
     let gas_object_id = ObjectId::random();
     let (authority_state, pkg_ref) =
@@ -2939,7 +2931,7 @@ async fn test_get_latest_parent_entry_genesis() {
 
 #[tokio::test]
 async fn test_get_latest_parent_entry() {
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
     let gas_object_id = ObjectId::random();
     let (authority_state, pkg_ref) =
@@ -3135,7 +3127,7 @@ async fn test_idempotent_reversed_confirmation() {
     // certificate, and then receive the raw transaction latter. We should still
     // ensure idempotent response and be able to get back the same result.
     let recipient = dbg_addr(2);
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
 
     let object = Object::with_owner_for_testing(sender);
@@ -3178,7 +3170,7 @@ async fn test_idempotent_reversed_confirmation() {
 async fn test_invalid_mutable_clock_parameter() {
     // User transactions that take the singleton Clock object at `0x6` by mutable
     // reference will fail to sign, to prevent transactions bottlenecking on it.
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
     let gas_object_id = ObjectId::random();
     let (authority_state, package_object_ref) =
@@ -3225,7 +3217,7 @@ async fn test_invalid_randomness_parameter() {
     // User transactions that take the singleton Randomness object at `0x8` by
     // mutable reference will fail to sign, to prevent transactions
     // bottlenecking on it.
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
     let gas_object_id = ObjectId::random();
     let (authority_state, package_object_ref) =
@@ -3279,11 +3271,9 @@ async fn test_invalid_randomness_parameter() {
 async fn test_invalid_object_ownership() {
     // User transaction that attempts to mutate an object it does not own will fail
     // to sign.
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
-    let invalid_owner = AccountKeyPair::generate(rand::thread_rng())
-        .public_key()
-        .derive_address();
+    let invalid_owner = AccountKeyPair::random().public_key().derive_address();
 
     let recipient = dbg_addr(2);
     let gas_object_id = ObjectId::random();
@@ -3331,7 +3321,7 @@ async fn test_invalid_object_ownership() {
 #[tokio::test]
 async fn test_valid_immutable_clock_parameter() {
     // User transactions can take an immutable reference of the singleton Clock.
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
     let gas_object_id = ObjectId::random();
     let (authority_state, package_object_ref) =
@@ -3392,7 +3382,7 @@ async fn test_genesis_iota_system_state_object() {
 
 #[tokio::test]
 async fn test_transfer_iota_no_amount() {
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
     let recipient = dbg_addr(2);
     let gas_object_id = ObjectId::random();
@@ -3444,7 +3434,7 @@ async fn test_transfer_iota_no_amount() {
 
 #[tokio::test]
 async fn test_transfer_iota_with_amount() {
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
     let recipient = dbg_addr(2);
     let gas_object_id = ObjectId::random();
@@ -3492,11 +3482,9 @@ async fn test_transfer_iota_with_amount() {
 #[tokio::test]
 async fn test_store_revert_transfer_iota() {
     // This test checks the correctness of revert_state_update in IotaDataStore.
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
-    let recipient = AccountKeyPair::generate(rand::thread_rng())
-        .public_key()
-        .derive_address();
+    let recipient = AccountKeyPair::random().public_key().derive_address();
     let gas_object_id = ObjectId::random();
     let gas_object = Object::with_id_owner_for_testing(gas_object_id, sender);
     let gas_object_ref = gas_object.object_ref();
@@ -3552,7 +3540,7 @@ fn build_and_commit(
 
 #[tokio::test]
 async fn test_store_revert_wrap_move_call() {
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
     let gas_object_id = ObjectId::random();
     let (authority_state, object_basics) =
@@ -3632,7 +3620,7 @@ async fn test_store_revert_wrap_move_call() {
 
 #[tokio::test]
 async fn test_store_revert_unwrap_move_call() {
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
     let gas_object_id = ObjectId::random();
     let (authority_state, object_basics) =
@@ -3752,7 +3740,7 @@ async fn test_store_get_dynamic_field() {
 }
 
 async fn create_and_retrieve_df_info(function: &Identifier) -> (Address, Vec<DynamicFieldInfo>) {
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
     let gas_object_id = ObjectId::random();
     let (authority_state, object_basics) =
@@ -3914,7 +3902,7 @@ async fn test_dynamic_object_field_address_name_parsing() {
 
 #[tokio::test]
 async fn test_store_revert_add_ofield() {
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
     let gas_object_id = ObjectId::random();
     let (authority_state, object_basics) =
@@ -4025,7 +4013,7 @@ async fn test_store_revert_add_ofield() {
 
 #[tokio::test]
 async fn test_store_revert_remove_ofield() {
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
     let gas_object_id = ObjectId::random();
     let (authority_state, object_basics) =
@@ -4149,11 +4137,9 @@ async fn test_store_revert_remove_ofield() {
 
 #[tokio::test]
 async fn test_iter_live_object_set() {
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
-    let receiver = AccountKeyPair::generate(rand::thread_rng())
-        .public_key()
-        .derive_address();
+    let receiver = AccountKeyPair::random().public_key().derive_address();
     let gas = ObjectId::random();
     let obj_id = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas), (sender, obj_id)]).await;
@@ -4936,7 +4922,7 @@ async fn make_test_transaction(
 
 async fn prepare_authority_and_shared_object_cert()
 -> (Arc<AuthorityState>, VerifiedCertificate, ObjectId) {
-    let keypair = AccountKeyPair::generate(rand::thread_rng());
+    let keypair = AccountKeyPair::random();
     let sender = keypair.public_key().derive_address();
 
     // Initialize an authority with a (owned) gas object and a shared object.
@@ -5041,7 +5027,7 @@ async fn test_consensus_commit_prologue_generation(#[values(false, true)] pcool:
         config
     });
 
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
 
     let gas_objects = create_gas_objects(2, sender);
@@ -5175,7 +5161,7 @@ async fn test_consensus_commit_prologue_generation(#[values(false, true)] pcool:
 async fn test_consensus_message_processed() {
     telemetry_subscribers::init_for_testing();
 
-    let keypair = AccountKeyPair::generate(rand::thread_rng());
+    let keypair = AccountKeyPair::random();
     let sender = keypair.public_key().derive_address();
 
     let gas_object_id = ObjectId::random();
@@ -5960,7 +5946,7 @@ async fn test_gas_smashing() {
         budget: u64,
         success: bool,
     ) -> u64 {
-        let sender_key = AccountKeyPair::generate(rand::thread_rng());
+        let sender_key = AccountKeyPair::random();
         let sender = sender_key.public_key().derive_address();
         let gas_coins = make_gas_coins(sender, reference_gas_used, coin_num);
         let gas_coin_ids: Vec<_> = gas_coins.iter().map(|obj| obj.id()).collect();
@@ -6020,9 +6006,7 @@ async fn test_gas_smashing() {
 async fn test_for_inc_201_dev_inspect() {
     use iota_move_build::BuildConfig;
 
-    let sender = AccountKeyPair::generate(rand::thread_rng())
-        .public_key()
-        .derive_address();
+    let sender = AccountKeyPair::random().public_key().derive_address();
     let gas_object_id = ObjectId::random();
     let (_, fullnode, _) =
         init_state_with_ids_and_object_basics_with_fullnode(vec![(sender, gas_object_id)]).await;
@@ -6062,7 +6046,7 @@ async fn test_for_inc_201_dev_inspect() {
 async fn test_for_inc_201_dry_run() {
     use iota_move_build::BuildConfig;
 
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
     let gas_object_id = ObjectId::random();
     let (_, fullnode, _) =
@@ -6106,7 +6090,7 @@ async fn test_for_inc_201_dry_run() {
 
 #[tokio::test]
 async fn test_function_not_found() {
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
     let gas_object_id = ObjectId::random();
     let (_, fullnode, _) =
@@ -6150,7 +6134,7 @@ async fn test_function_not_found() {
 
 #[tokio::test]
 async fn test_arity_mismatch() {
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
     let gas = ObjectId::random();
     let obj_id = ObjectId::random();
@@ -6201,7 +6185,7 @@ async fn test_arity_mismatch() {
 async fn test_publish_transitive_dependencies_ok() {
     use iota_move_build::BuildConfig;
 
-    let key = AccountKeyPair::generate(rand::thread_rng());
+    let key = AccountKeyPair::random();
     let sender = key.public_key().derive_address();
     let gas_id = ObjectId::random();
     let state = init_state_with_ids(vec![(sender, gas_id)]).await;
@@ -6400,7 +6384,7 @@ async fn test_publish_transitive_dependencies_ok() {
 async fn test_publish_missing_dependency() {
     use iota_move_build::BuildConfig;
 
-    let key = AccountKeyPair::generate(rand::thread_rng());
+    let key = AccountKeyPair::random();
     let sender = key.public_key().derive_address();
     let gas_id = ObjectId::random();
     let state = init_state_with_ids(vec![(sender, gas_id)]).await;
@@ -6447,7 +6431,7 @@ async fn test_publish_missing_dependency() {
 async fn test_publish_missing_transitive_dependency() {
     use iota_move_build::BuildConfig;
 
-    let key = AccountKeyPair::generate(rand::thread_rng());
+    let key = AccountKeyPair::random();
     let sender = key.public_key().derive_address();
     let gas_id = ObjectId::random();
     let state = init_state_with_ids(vec![(sender, gas_id)]).await;
@@ -6494,7 +6478,7 @@ async fn test_publish_missing_transitive_dependency() {
 async fn test_publish_not_a_package_dependency() {
     use iota_move_build::BuildConfig;
 
-    let key = AccountKeyPair::generate(rand::thread_rng());
+    let key = AccountKeyPair::random();
     let sender = key.public_key().derive_address();
     let gas_id = ObjectId::random();
     let state = init_state_with_ids(vec![(sender, gas_id)]).await;
@@ -6569,7 +6553,7 @@ fn create_shared_objects(num: u32) -> Vec<Object> {
 async fn test_consensus_handler_per_object_congestion_control(
     mode: PerObjectCongestionControlMode,
 ) {
-    let keypair = AccountKeyPair::generate(rand::thread_rng());
+    let keypair = AccountKeyPair::random();
     let sender = keypair.public_key().derive_address();
 
     // In this test, we tests transactions that operate on 2 shared objects. The
@@ -6804,7 +6788,7 @@ async fn test_consensus_handler_per_object_congestion_control_using_tx_count() {
 async fn test_consensus_handler_congestion_control_transaction_cancellation() {
     telemetry_subscribers::init_for_testing();
 
-    let keypair = AccountKeyPair::generate(rand::thread_rng());
+    let keypair = AccountKeyPair::random();
     let sender = keypair.public_key().derive_address();
 
     // Test setup. We will create some shared object transactions with one that will
@@ -7054,7 +7038,7 @@ async fn test_post_consensus_white_flag_simple_conflict() {
     });
 
     // Setup: Two transactions competing for the same owned object
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
     let recipient1 = dbg_addr(2);
     let recipient2 = dbg_addr(3);
@@ -7606,7 +7590,7 @@ async fn test_post_consensus_white_flag_no_conflict() {
     });
 
     // Setup: Two transactions using different objects
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
     let recipient = dbg_addr(2);
     let object1_id = ObjectId::random();
@@ -7722,7 +7706,7 @@ async fn test_post_consensus_white_flag_conflict_different_commits() {
 
     // Test that a transaction in a second commit is dropped if it conflicts
     // with a lock from a first commit that was persisted to DB
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
     let recipient = dbg_addr(2);
     let object_id = ObjectId::random();
@@ -7864,7 +7848,7 @@ async fn test_single_authority_reconfigure() {
 async fn test_pcool_deferred_tx_not_dropped_next_round_but_executed() {
     telemetry_subscribers::init_for_testing();
 
-    let keypair = AccountKeyPair::generate(rand::thread_rng());
+    let keypair = AccountKeyPair::random();
     let sender = keypair.public_key().derive_address();
 
     // One shared object both transactions contend on, plus a distinct gas coin
@@ -8015,7 +7999,7 @@ async fn test_pcool_deferred_tx_not_dropped_next_round_but_executed() {
 async fn test_consensus_queue_graduated_load_shedding() {
     telemetry_subscribers::init_for_testing();
 
-    let sender_key = AccountKeyPair::generate(rand::thread_rng());
+    let sender_key = AccountKeyPair::random();
     let sender = sender_key.public_key().derive_address();
     let gas_object1 = Object::with_owner_for_testing(sender);
     let gas_object2 = Object::with_owner_for_testing(sender);
@@ -8040,9 +8024,7 @@ async fn test_consensus_queue_graduated_load_shedding() {
         soft_limit_pct,
     ));
 
-    let recipient = AccountKeyPair::generate(rand::thread_rng())
-        .public_key()
-        .derive_address();
+    let recipient = AccountKeyPair::random().public_key().derive_address();
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
     let tx = make_transfer_object_transaction(
         gas_object1.object_ref(),

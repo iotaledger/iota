@@ -58,9 +58,7 @@ pub fn assert_messages_within_limit<M: prost::Message>(messages: &[M], limit: u3
 /// objects exceeds the 1 MB minimum message size.
 pub fn create_large_object(padding_bytes_len: usize) -> (ObjectId, Object) {
     let id = ObjectId::random();
-    let owner = AccountKeyPair::generate(rand::thread_rng())
-        .public_key()
-        .derive_address();
+    let owner = AccountKeyPair::random().public_key().derive_address();
     let mut contents = GasCoin::new(id, 100).to_bcs_bytes();
     contents.extend(vec![0u8; padding_bytes_len]);
     let move_obj = MoveStruct::new_from_execution_with_limit(
