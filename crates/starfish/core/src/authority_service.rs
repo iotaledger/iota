@@ -28,7 +28,7 @@ use crate::{
         ShardWithProofAPI, SignedBlockHeader, TransactionsCommitment, VerifiedBlock,
         VerifiedOwnShard, VerifiedTransactions,
     },
-    block_verifier::BlockVerifier,
+    block_verifier::{BlockVerifier, max_shard_bytes},
     commit::{CommitAPI as _, CommitRange, TrustedCommit},
     commit_syncer::CommitSyncType,
     commit_vote_monitor::CommitVoteMonitor,
@@ -376,6 +376,8 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
             serialized_shards.truncate(self.context.parameters.max_shards_per_bundle);
         }
 
+        let max_shard_bytes = max_shard_bytes(&self.context);
+
         let mut verified_shards: Vec<ShardWithProof> = vec![];
         for serialized_shard in &serialized_shards {
             let shard: ShardWithProof = bcs::from_bytes(serialized_shard)
@@ -410,6 +412,23 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
                 let e = ConsensusError::TooBigShardRoundInABundle {
                     shard_round: shard.round(),
                     block_round,
+                };
+                self.context
+                    .metrics
+                    .node_metrics
+                    .bundles_with_invalid_parts
+                    .with_label_values(&[peer_hostname, "shard", e.name()])
+                    .inc();
+                self.misbehavior_store.record_faulty_block(peer, peer, &e);
+                info!("Invalid shard from {}: {}", peer, e);
+                return Err(e);
+            }
+
+            if shard.shard().len() > max_shard_bytes {
+                let e = ConsensusError::SerializedShardTooLarge {
+                    peer,
+                    size: shard.shard().len(),
+                    limit: max_shard_bytes,
                 };
                 self.context
                     .metrics
@@ -811,9 +830,38 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             );
         }
 
+        // 5b. Drop the primary block when a different header is already accepted
+        // for its slot: two signed headers from the author's own stream for one
+        // slot are provable equivocation, so charge the author. The rest of the
+        // bundle is still processed; a same-slot header sitting in the block
+        // manager's suspender is caught by the equivalent cap there.
+        let primary_block_equivocates = !primary_block_far_future
+            && self
+                .dag_state
+                .read()
+                .contains_other_block_header_at_slot(&block_ref);
+        if primary_block_equivocates {
+            let e = ConsensusError::BlockHeaderEquivocation {
+                authority: peer,
+                round: block_ref.round,
+            };
+            self.misbehavior_store.record_faulty_block(peer, peer, &e);
+            self.context
+                .metrics
+                .node_metrics
+                .dropped_slot_cap_headers_total
+                .with_label_values(&[
+                    self.context.authority_hostname(peer),
+                    DataSource::BlockStreaming.as_str(),
+                ])
+                .inc();
+            info!("Dropped streamed block {block_ref} from peer {peer}: {e}");
+        }
+        let primary_block_dropped = primary_block_far_future || primary_block_equivocates;
+
         // 6. Collect shards from a bundle and check their proofs. Skipped for a
-        // far-future primary block so its shards never reach the reconstructor.
-        let verified_shards = if primary_block_far_future {
+        // dropped primary block so its shards never reach the reconstructor.
+        let verified_shards = if primary_block_dropped {
             Vec::new()
         } else {
             let serialized_shards =
@@ -841,8 +889,8 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             .await;
 
         // 9. Prepare transaction messages for shard reconstructor and send them.
-        // Skipped for a far-future primary block (no shards were collected).
-        if !primary_block_far_future {
+        // Skipped for a dropped primary block (no shards were collected).
+        if !primary_block_dropped {
             let transaction_messages = TransactionMessage::create_transaction_messages(
                 &verified_blocks[0],
                 &verified_shards,
@@ -876,8 +924,8 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             .observe(missing_ancestors.len() as f64);
 
         // 11. Add the block to dag, add its missing ancestors to the set. A
-        // far-future block was dropped above and is not forwarded to the core.
-        if !primary_block_far_future {
+        // block dropped above is not forwarded to the core.
+        if !primary_block_dropped {
             let (missing_block_ancestors, missing_block_committed_transactions) = self
                 .core_dispatcher
                 .add_blocks(verified_blocks, DataSource::BlockStreaming)
@@ -903,8 +951,8 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         }
 
         // 12. Add our shard from the received block and its proof to the dag_state
-        // only if it contains transactions and the block is not far-future.
-        if let Some(shard_for_core) = shard_for_core.filter(|_| !primary_block_far_future) {
+        // only if it contains transactions and the block was not dropped.
+        if let Some(shard_for_core) = shard_for_core.filter(|_| !primary_block_dropped) {
             let serialized_shard_for_core: Bytes = bcs::to_bytes(&shard_for_core)
                 .map_err(ConsensusError::SerializationFailure)?
                 .into();
@@ -1153,7 +1201,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                     continue;
                 }
 
-                let missing_headers = dag_state.get_cached_block_headers_in_range(
+                let missing_headers = dag_state.get_cached_block_headers_in_range_one_per_round(
                     authority,
                     highest_accepted_round + 1,
                     lowest_missing_round,
@@ -1996,6 +2044,112 @@ mod tests {
                 .get(),
             1,
             "the dropped far-future block is counted"
+        );
+    }
+
+    /// A second streamed block for a slot we already accepted a header for is
+    /// provable equivocation by its author: the block is dropped before shard
+    /// extraction, its payload and own shard never reach the core, and the
+    /// author is charged.
+    #[tokio::test(flavor = "current_thread")]
+    async fn test_handle_subscribed_block_bundle_drops_slot_equivocation() {
+        let (context, _keys) = Context::new_for_test(4);
+        let context = Arc::new(context);
+        let block_verifier = Arc::new(crate::block_verifier::NoopBlockVerifier {});
+        let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
+        let core_dispatcher = Arc::new(MockCoreThreadDispatcher::default());
+        let (_tx_block_broadcast, rx_block_broadcast) = broadcast::channel(100);
+        let (tx_message_sender, mut tx_message_receiver) = mpsc::channel(100);
+        let network_client = Arc::new(FakeNetworkClient::default());
+        let store = Arc::new(MemStore::new());
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+        let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
+        let transactions_synchronizer = TransactionsSynchronizer::start(
+            network_client.clone(),
+            context.clone(),
+            core_dispatcher.clone(),
+            dag_state.clone(),
+            block_verifier.clone(),
+        );
+        let header_synchronizer = HeaderSynchronizer::start(
+            network_client.clone(),
+            context.clone(),
+            core_dispatcher.clone(),
+            commit_vote_monitor.clone(),
+            transactions_synchronizer.clone(),
+            block_verifier.clone(),
+            dag_state.clone(),
+            false,
+            None,
+            Arc::new(MisbehaviorStore::new(&context)),
+        );
+        let misbehavior_store = Arc::new(MisbehaviorStore::new(&context));
+        let authority_service = Arc::new(AuthorityService::new(
+            context.clone(),
+            block_verifier,
+            commit_vote_monitor,
+            header_synchronizer,
+            transactions_synchronizer,
+            core_dispatcher.clone(),
+            rx_block_broadcast,
+            dag_state.clone(),
+            store,
+            misbehavior_store.clone(),
+            tx_message_sender,
+            cordial_knowledge,
+        ));
+        let mut encoder = create_encoder(&context);
+
+        // Authority 0 already has an accepted header at round 1; the streamed
+        // block below is a different header for the same slot.
+        let peer = context.committee.to_authority_index(0).unwrap();
+        let accepted = VerifiedBlockHeader::new_for_test(
+            TestBlockHeader::new_with_commitment(1, 0, &context, &mut encoder)
+                .set_ancestors(vec![BlockRef::new(
+                    GENESIS_ROUND,
+                    AuthorityIndex::new_for_test(1),
+                    BlockHeaderDigest::MIN,
+                )])
+                .build(),
+        );
+        let input_block = VerifiedBlock::new_for_test(
+            TestBlockHeader::new_with_commitment(1, 0, &context, &mut encoder).build(),
+        );
+        assert_ne!(accepted.reference(), input_block.reference());
+        dag_state
+            .write()
+            .accept_block_header(accepted, DataSource::BlockBundleStream);
+
+        let bundle = SerializedBlockBundle::try_from(input_block).unwrap();
+        authority_service
+            .handle_subscribed_block_bundle(peer, bundle, &mut encoder)
+            .await
+            .unwrap();
+
+        assert!(
+            tx_message_receiver.try_recv().is_err(),
+            "an equivocating bundle must not feed the shard reconstructor"
+        );
+        assert!(
+            core_dispatcher.get_blocks().is_empty(),
+            "the equivocating block must not be forwarded to the core"
+        );
+        assert_eq!(
+            context
+                .metrics
+                .node_metrics
+                .dropped_slot_cap_headers_total
+                .with_label_values(&[
+                    context.authority_hostname(peer),
+                    DataSource::BlockStreaming.as_str(),
+                ])
+                .get(),
+            1,
+        );
+        let MisbehaviorCounts::V1(counts) = &misbehavior_store.snapshot_totals()[peer.value()];
+        assert_eq!(
+            counts.faulty_blocks_provable, 1,
+            "two signed headers for one slot are provable equivocation"
         );
     }
 
@@ -4259,5 +4413,105 @@ mod tests {
             TransactionsCommitment::default(),
         );
         check_shard_transaction_author(&valid_shard, peer, &context).unwrap();
+    }
+
+    /// A shard longer than the maximum honest shard length is refused at
+    /// ingress and charged to the relaying peer; one at exactly that length
+    /// passes the length gate and is only rejected by its Merkle proof.
+    #[tokio::test(flavor = "current_thread")]
+    async fn test_extract_shards_rejects_oversized_shard() {
+        let (context, _keys) = Context::new_for_test(4);
+        let context = Arc::new(context);
+        let block_verifier = Arc::new(crate::block_verifier::NoopBlockVerifier {});
+        let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
+        let core_dispatcher = Arc::new(MockCoreThreadDispatcher::default());
+        let (_tx_block_broadcast, rx_block_broadcast) = broadcast::channel(100);
+        let (tx_message_sender, _tx_message_receiver) = mpsc::channel(100);
+        let network_client = Arc::new(FakeNetworkClient::default());
+        let store = Arc::new(MemStore::new());
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+        let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
+        let transactions_synchronizer = TransactionsSynchronizer::start(
+            network_client.clone(),
+            context.clone(),
+            core_dispatcher.clone(),
+            dag_state.clone(),
+            block_verifier.clone(),
+        );
+        let header_synchronizer = HeaderSynchronizer::start(
+            network_client,
+            context.clone(),
+            core_dispatcher.clone(),
+            commit_vote_monitor.clone(),
+            transactions_synchronizer.clone(),
+            block_verifier.clone(),
+            dag_state.clone(),
+            false,
+            None,
+            Arc::new(MisbehaviorStore::new(&context)),
+        );
+        let misbehavior_store = Arc::new(MisbehaviorStore::new(&context));
+        let authority_service = AuthorityService::new(
+            context.clone(),
+            block_verifier,
+            commit_vote_monitor,
+            header_synchronizer,
+            transactions_synchronizer,
+            core_dispatcher,
+            rx_block_broadcast,
+            dag_state,
+            store,
+            misbehavior_store.clone(),
+            tx_message_sender,
+            cordial_knowledge,
+        );
+
+        let max_shard_bytes = {
+            let limit = crate::block_verifier::serialized_transactions_size_limit(&context);
+            let shard_bytes = (limit + 4).div_ceil(context.committee.info_length());
+            shard_bytes + (shard_bytes % 2)
+        };
+        let peer = context.committee.to_authority_index(1).unwrap();
+        let carrier_ref = BlockRef::new(5, peer, BlockHeaderDigest::default());
+        let shard_ref = BlockRef::new(4, peer, BlockHeaderDigest::default());
+        let shard_of_len = |len: usize| {
+            let shard = crate::block_header::ShardWithProof::new(
+                vec![0u8; len],
+                vec![],
+                shard_ref,
+                TransactionsCommitment::default(),
+            );
+            vec![Bytes::from(bcs::to_bytes(&shard).unwrap())]
+        };
+
+        let result = authority_service.extract_shards_from_bundle(
+            peer,
+            &context.committee.authority(peer).hostname.clone(),
+            shard_of_len(max_shard_bytes + 1),
+            carrier_ref,
+        );
+        assert!(
+            matches!(
+                result,
+                Err(ConsensusError::SerializedShardTooLarge { limit, peer: err_peer, .. })
+                    if limit == max_shard_bytes && err_peer == peer
+            ),
+            "an oversized shard must be refused, got {result:?}"
+        );
+        let MisbehaviorCounts::V1(counts) = &misbehavior_store.snapshot_totals()[peer.value()];
+        assert_eq!(counts.faulty_blocks_unprovable, 1);
+
+        // At exactly the maximum length the size gate passes, so the shard is
+        // only rejected by the following proof check.
+        let result = authority_service.extract_shards_from_bundle(
+            peer,
+            &context.committee.authority(peer).hostname.clone(),
+            shard_of_len(max_shard_bytes),
+            carrier_ref,
+        );
+        assert!(
+            matches!(result, Err(ConsensusError::IncorrectShardProof { .. })),
+            "a maximum-length shard must pass the size gate, got {result:?}"
+        );
     }
 }

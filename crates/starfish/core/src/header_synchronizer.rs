@@ -42,6 +42,7 @@ use crate::{
         BlockHeaderAPI, BlockHeaderDigest, BlockRef, GENESIS_ROUND, SignedBlockHeader,
         VerifiedBlockHeader,
     },
+    block_manager::drop_far_future,
     block_verifier::BlockVerifier,
     commit_syncer::fast::{FastSyncPauseSource, paused_by_fast_sync},
     commit_vote_monitor::CommitVoteMonitor,
@@ -646,6 +647,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                             if let Err(err) = Self::process_fetched_headers_from_authority(blocks,
                                 peer_index,
                                 blocks_guard,
+                                highest_rounds,
                                 core_dispatcher.clone(),
                                 dag_state.clone(),
                                 block_verifier.clone(),
@@ -688,6 +690,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
         mut serialized_headers: Vec<Bytes>,
         peer_index: AuthorityIndex,
         requested_blocks_guard: BlocksGuard,
+        highest_rounds: Vec<Round>,
         core_dispatcher: Arc<D>,
         dag_state: Arc<RwLock<DagState>>,
         block_verifier: Arc<V>,
@@ -768,24 +771,98 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                 .join(", "),
         );
 
-        // A peer may volunteer validly-signed headers we never requested, so
-        // bound the response here; the block manager applies the same bound
-        // downstream when these headers are accepted.
-        let block_headers = crate::block_manager::drop_far_future(
+        // Partition the response. Refs we asked for are admitted unconditionally:
+        // we named them by digest, so they are needed by definition. Anything
+        // else is the server's gap-fill, legitimate only for an author we
+        // requested from, at a round strictly between the frontier we sent and
+        // the highest round we requested for that author. The bound is the
+        // highest rather than the lowest requested round because the server may
+        // truncate an oversized request and derive its gap-fill window from the
+        // surviving refs.
+        let mut max_requested_rounds: Vec<Option<Round>> = vec![None; context.committee.size()];
+        for block_ref in &requested_blocks_guard.block_refs {
+            let entry = &mut max_requested_rounds[block_ref.author];
+            *entry = Some(entry.map_or(block_ref.round, |round| round.max(block_ref.round)));
+        }
+
+        let mut requested_headers = Vec::new();
+        let mut additional_headers = Vec::new();
+        let mut out_of_window: Option<BlockRef> = None;
+        for header in block_headers {
+            let block_ref = header.reference();
+            if requested_blocks_guard.block_refs.contains(&block_ref) {
+                requested_headers.push(header);
+                continue;
+            }
+            let in_window = max_requested_rounds[block_ref.author].is_some_and(|max_round| {
+                highest_rounds[block_ref.author] < block_ref.round && block_ref.round < max_round
+            });
+            if !in_window {
+                out_of_window.get_or_insert(block_ref);
+            }
+            additional_headers.push(header);
+        }
+
+        // Both sides derive the gap-fill window from the same request inputs,
+        // so an out-of-window header cannot come from an honest server — and
+        // the unrequested part of the response is exactly what we cannot
+        // verify by digest, so none of it is accepted.
+        if let Some(block_ref) = out_of_window {
+            let e = ConsensusError::UnrequestedHeaderOutOfWindow {
+                peer: peer_index,
+                author: block_ref.author,
+                round: block_ref.round,
+            };
+            misbehavior_store.record_faulty_block(peer_index, peer_index, &e);
+            metrics
+                .synchronizer_fetch_window_violations
+                .with_label_values(&[peer_hostname.as_str(), sync_method])
+                .inc();
+            warn!(
+                "Dropping {} unrequested headers fetched from peer {peer_index} {peer_hostname}: {e}",
+                additional_headers.len()
+            );
+            additional_headers.clear();
+        }
+
+        let requested_headers = drop_far_future(
             &context,
             &dag_state,
-            block_headers,
-            DataSource::HeaderSynchronizer,
+            requested_headers,
+            DataSource::HeaderSynchronizerRequested,
+            |header| header.round(),
+        );
+        let additional_headers = drop_far_future(
+            &context,
+            &dag_state,
+            additional_headers,
+            DataSource::HeaderSynchronizerAdditional,
             |header| header.round(),
         );
 
-        // Now send them to core for processing. Ignore the returned missing blocks as
-        // we don't want this mechanism to keep feedback looping on fetching
-        // more blocks. The periodic synchronization will take care of that.
-        let (missing_blocks, missing_committed_txns) = core_dispatcher
-            .add_block_headers(block_headers, DataSource::HeaderSynchronizer)
-            .await
-            .map_err(|_| ConsensusError::Shutdown)?;
+        // Now send them to core for processing — additional headers first, as
+        // they sit below the requested ones and connect them to our frontier.
+        // They go in under their own source so the block manager's per-slot cap
+        // applies to them but never to the requested refs. Ignore the returned
+        // missing blocks as we don't want this mechanism to keep feedback
+        // looping on fetching more blocks. The periodic synchronization will
+        // take care of that.
+        let mut missing_blocks = BTreeSet::new();
+        let mut missing_committed_txns = BTreeMap::new();
+        for (headers, source) in [
+            (additional_headers, DataSource::HeaderSynchronizerAdditional),
+            (requested_headers, DataSource::HeaderSynchronizerRequested),
+        ] {
+            if headers.is_empty() {
+                continue;
+            }
+            let (blocks, committed_txns) = core_dispatcher
+                .add_block_headers(headers, source)
+                .await
+                .map_err(|_| ConsensusError::Shutdown)?;
+            missing_blocks.extend(blocks);
+            missing_committed_txns.extend(committed_txns);
+        }
 
         // now release all the locked blocks as they have been fetched, verified &
         // processed
@@ -1221,13 +1298,16 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
 
                 // Now process the returned results
                 let mut total_fetched = 0;
-                for (blocks_guard, serialized_fetched_block_headers, peer) in results {
+                for (blocks_guard, serialized_fetched_block_headers, peer, highest_rounds) in
+                    results
+                {
                     total_fetched += serialized_fetched_block_headers.len();
 
                     if let Err(err) = Self::process_fetched_headers_from_authority(
                         serialized_fetched_block_headers,
                         peer,
                         blocks_guard,
+                        highest_rounds,
                         core_dispatcher.clone(),
                         dag_state.clone(),
                         block_verifier.clone(),
@@ -1299,7 +1379,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
         network_client: Arc<C>,
         missing_block_headers_refs: BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
         dag_state: Arc<RwLock<DagState>>,
-    ) -> Vec<(BlocksGuard, Vec<Bytes>, AuthorityIndex)> {
+    ) -> Vec<(BlocksGuard, Vec<Bytes>, AuthorityIndex, Vec<Round>)> {
         // Step 1: Map authorities to missing block headers refs that they are aware of
         let mut authority_to_block_headers_refs: HashMap<AuthorityIndex, Vec<BlockRef>> =
             HashMap::new();
@@ -1525,7 +1605,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                     match response {
                         Ok(fetched_block_headers) => {
                             info!("Fetched {} block headers from peer {}", fetched_block_headers.len(), peer_hostname);
-                            results.push((blocks_guard, fetched_block_headers, peer_index));
+                            results.push((blocks_guard, fetched_block_headers, peer_index, highest_rounds));
 
                             // no more pending requests are left, just break the loop
                             if request_futures.is_empty() {
@@ -1613,7 +1693,7 @@ mod tests {
         CommitDigest, CommitIndex,
         authority_service::COMMIT_LAG_MULTIPLIER,
         block_header::{
-            BlockHeaderDigest, BlockRef, Round, TestBlockHeader, VerifiedBlock,
+            BlockHeaderDigest, BlockRef, GENESIS_ROUND, Round, TestBlockHeader, VerifiedBlock,
             VerifiedBlockHeader, VerifiedOwnShard, VerifiedTransactions,
         },
         block_verifier::NoopBlockVerifier,
@@ -3031,7 +3111,7 @@ mod tests {
             assert_eq!(results.len(), 3);
 
             // 6) Results in order: peers 2 and 3 (known), then peer 1 (random)
-            let peers: Vec<_> = results.iter().map(|(_, _, peer)| *peer).collect();
+            let peers: Vec<_> = results.iter().map(|(_, _, peer, _)| *peer).collect();
             assert_eq!(
                 peers,
                 vec![
@@ -3042,7 +3122,7 @@ mod tests {
             );
 
             // 7) Verify the returned bytes correspond to that block
-            for (_, bytes, _) in &results {
+            for (_, bytes, _, _) in &results {
                 let expected = missing_vbh.serialized().clone();
                 assert_eq!(bytes, &vec![expected]);
             }
@@ -3189,7 +3269,7 @@ mod tests {
         assert_eq!(results.len(), 4, "Expected 2 known + 2 random fetches");
 
         // 7) First fetch from peer 3 (knowledge-based)
-        let (_guard3, bytes3, peer3) = &results[0];
+        let (_guard3, bytes3, peer3, _) = &results[0];
         assert_eq!(*peer3, AuthorityIndex::new_for_test(3));
         let expected2 = all_verified_block_headers
             [known_number_block_headers..2 * known_number_block_headers]
@@ -3199,7 +3279,7 @@ mod tests {
         assert_eq!(bytes3, &expected2);
 
         // 8) Second fetch from peer 1 (additional random)
-        let (_guard1, bytes1, peer1) = &results[1];
+        let (_guard1, bytes1, peer1, _) = &results[1];
         assert_eq!(*peer1, AuthorityIndex::new_for_test(1));
         let expected1 = all_verified_block_headers
             [0..context.parameters.max_headers_per_header_sync_fetch]
@@ -3209,7 +3289,7 @@ mod tests {
         assert_eq!(bytes1, &expected1);
 
         // 9) Third fetch from peer 4 (additional random)
-        let (_guard4, bytes4, peer4) = &results[2];
+        let (_guard4, bytes4, peer4, _) = &results[2];
         assert_eq!(*peer4, AuthorityIndex::new_for_test(4));
         let expected4 =
             all_verified_block_headers[context.parameters.max_headers_per_header_sync_fetch
@@ -3220,7 +3300,7 @@ mod tests {
         assert_eq!(bytes4, &expected4);
 
         // 10) Fourth fetch from peer 5 (fallback after peer 2 timeout)
-        let (_guard5, bytes5, peer5) = &results[3];
+        let (_guard5, bytes5, peer5, _) = &results[3];
         assert_eq!(*peer5, AuthorityIndex::new_for_test(5));
         let expected5 = all_verified_block_headers[0..known_number_block_headers]
             .iter()
@@ -3301,6 +3381,7 @@ mod tests {
             expected_serialized_block_headers.clone(),
             peer_index,
             blocks_guard, // The guard is consumed here
+            vec![GENESIS_ROUND; context.committee.size()],
             core_dispatcher.clone(),
             dag_state.clone(),
             block_verifier.clone(),
@@ -3344,6 +3425,7 @@ mod tests {
             expected_serialized_block_headers,
             peer_index,
             blocks_guard_second,
+            vec![GENESIS_ROUND; context.committee.size()],
             core_dispatcher.clone(),
             dag_state.clone(),
             block_verifier,
@@ -3431,6 +3513,7 @@ mod tests {
             serialized,
             peer_index,
             blocks_guard,
+            vec![GENESIS_ROUND; context.committee.size()],
             core_dispatcher.clone(),
             dag_state.clone(),
             block_verifier,
@@ -3456,9 +3539,194 @@ mod tests {
                 .metrics
                 .node_metrics
                 .dropped_far_future_headers_total
-                .with_label_values(&[DataSource::HeaderSynchronizer.as_str()])
+                .with_label_values(&[DataSource::HeaderSynchronizerRequested.as_str()])
                 .get(),
             1
         );
+    }
+
+    /// Unrequested headers inside the gap-fill window are admitted; the window
+    /// upper bound is the highest requested round per author.
+    #[tokio::test]
+    async fn test_process_fetched_headers_admits_in_window_extras() {
+        let (context, _) = Context::new_for_test(4);
+        let context = Arc::new(context);
+        let block_verifier = Arc::new(NoopBlockVerifier {});
+        let core_dispatcher = Arc::new(MockCoreThreadDispatcher::default());
+        let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
+        let store = Arc::new(MemStore::new());
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
+        let (commands_sender, _commands_receiver) =
+            monitored_mpsc::channel("consensus_synchronizer_commands", 1000);
+        let network_client = Arc::new(MockNetworkClient::default());
+        let transactions_synchronizer = TransactionsSynchronizer::start(
+            network_client.clone(),
+            context.clone(),
+            core_dispatcher.clone(),
+            dag_state.clone(),
+            block_verifier.clone(),
+        );
+
+        // Requested: authority 1 at rounds 10 and 50. Extra: authority 1 at
+        // round 30 — between the sent frontier (5) and the *highest* requested
+        // round, so it must be admitted even though it is above the lowest.
+        let requested_low = VerifiedBlockHeader::new_for_test(TestBlockHeader::new(10, 1).build());
+        let requested_high = VerifiedBlockHeader::new_for_test(TestBlockHeader::new(50, 1).build());
+        let extra = VerifiedBlockHeader::new_for_test(TestBlockHeader::new(30, 1).build());
+        let refs = [requested_low.reference(), requested_high.reference()]
+            .into_iter()
+            .collect::<BTreeSet<_>>();
+        let serialized = vec![
+            requested_low.serialized().clone(),
+            requested_high.serialized().clone(),
+            extra.serialized().clone(),
+        ];
+
+        let peer_index = AuthorityIndex::new_for_test(2);
+        let inflight_blocks_map = InflightBlockHeadersMap::new();
+        let blocks_guard = inflight_blocks_map
+            .lock_headers(refs.clone(), peer_index, SyncMethod::Live)
+            .expect("Failed to lock blocks");
+        let verified_cache = Arc::new(parking_lot::Mutex::new(lru::LruCache::new(
+            NonZero::new(1000).unwrap(),
+        )));
+        let misbehavior_store = Arc::new(MisbehaviorStore::new(&context));
+
+        let result = HeaderSynchronizer::<
+            MockNetworkClient,
+            NoopBlockVerifier,
+            MockCoreThreadDispatcher,
+        >::process_fetched_headers_from_authority(
+            serialized,
+            peer_index,
+            blocks_guard,
+            vec![5; context.committee.size()],
+            core_dispatcher.clone(),
+            dag_state.clone(),
+            block_verifier,
+            verified_cache,
+            commit_vote_monitor,
+            transactions_synchronizer,
+            context.clone(),
+            commands_sender,
+            "live",
+            misbehavior_store,
+        )
+        .await;
+        assert!(result.is_ok());
+
+        let added = core_dispatcher.get_and_drain_block_headers().await;
+        let added_refs = added.iter().map(|b| b.reference()).collect::<BTreeSet<_>>();
+        assert!(added_refs.contains(&extra.reference()));
+        assert!(refs.iter().all(|r| added_refs.contains(r)));
+        assert_eq!(
+            context
+                .metrics
+                .node_metrics
+                .synchronizer_fetch_window_violations
+                .with_label_values(&[
+                    context.committee.authority(peer_index).hostname.as_str(),
+                    "live",
+                ])
+                .get(),
+            0
+        );
+    }
+
+    /// An unrequested header outside the gap-fill window discredits every
+    /// unrequested header in the response: all extras are dropped, the peer is
+    /// charged, and the requested refs are still processed.
+    #[tokio::test]
+    async fn test_process_fetched_headers_rejects_out_of_window_extras() {
+        let (context, _) = Context::new_for_test(4);
+        let context = Arc::new(context);
+        let block_verifier = Arc::new(NoopBlockVerifier {});
+        let core_dispatcher = Arc::new(MockCoreThreadDispatcher::default());
+        let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
+        let store = Arc::new(MemStore::new());
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
+        let (commands_sender, _commands_receiver) =
+            monitored_mpsc::channel("consensus_synchronizer_commands", 1000);
+        let network_client = Arc::new(MockNetworkClient::default());
+        let transactions_synchronizer = TransactionsSynchronizer::start(
+            network_client.clone(),
+            context.clone(),
+            core_dispatcher.clone(),
+            dag_state.clone(),
+            block_verifier.clone(),
+        );
+
+        // Requested: authority 1 at round 50. Extras: one above the highest
+        // requested round for authority 1, one from an authority we did not
+        // request from at all, and one legitimately in-window — the violation
+        // must take the in-window one down with it.
+        let requested = VerifiedBlockHeader::new_for_test(TestBlockHeader::new(50, 1).build());
+        let extra_above = VerifiedBlockHeader::new_for_test(TestBlockHeader::new(60, 1).build());
+        let extra_unrequested_author =
+            VerifiedBlockHeader::new_for_test(TestBlockHeader::new(30, 3).build());
+        let extra_in_window =
+            VerifiedBlockHeader::new_for_test(TestBlockHeader::new(30, 1).build());
+        let refs = [requested.reference()].into_iter().collect::<BTreeSet<_>>();
+        let serialized = vec![
+            requested.serialized().clone(),
+            extra_above.serialized().clone(),
+            extra_unrequested_author.serialized().clone(),
+            extra_in_window.serialized().clone(),
+        ];
+
+        let peer_index = AuthorityIndex::new_for_test(2);
+        let inflight_blocks_map = InflightBlockHeadersMap::new();
+        let blocks_guard = inflight_blocks_map
+            .lock_headers(refs, peer_index, SyncMethod::Live)
+            .expect("Failed to lock blocks");
+        let verified_cache = Arc::new(parking_lot::Mutex::new(lru::LruCache::new(
+            NonZero::new(1000).unwrap(),
+        )));
+        let misbehavior_store = Arc::new(MisbehaviorStore::new(&context));
+
+        let result = HeaderSynchronizer::<
+            MockNetworkClient,
+            NoopBlockVerifier,
+            MockCoreThreadDispatcher,
+        >::process_fetched_headers_from_authority(
+            serialized,
+            peer_index,
+            blocks_guard,
+            vec![5; context.committee.size()],
+            core_dispatcher.clone(),
+            dag_state.clone(),
+            block_verifier,
+            verified_cache,
+            commit_vote_monitor,
+            transactions_synchronizer,
+            context.clone(),
+            commands_sender,
+            "live",
+            misbehavior_store.clone(),
+        )
+        .await;
+        assert!(result.is_ok());
+
+        let added = core_dispatcher.get_and_drain_block_headers().await;
+        assert_eq!(
+            added.iter().map(|b| b.reference()).collect::<Vec<_>>(),
+            vec![requested.reference()],
+            "only the requested ref may be processed after a window violation"
+        );
+        assert_eq!(
+            context
+                .metrics
+                .node_metrics
+                .synchronizer_fetch_window_violations
+                .with_label_values(&[
+                    context.committee.authority(peer_index).hostname.as_str(),
+                    "live",
+                ])
+                .get(),
+            1
+        );
+        let crate::misbehavior_store::MisbehaviorCounts::V1(counts) =
+            &misbehavior_store.snapshot_totals()[peer_index.value()];
+        assert_eq!(counts.faulty_blocks_unprovable, 1);
     }
 }
