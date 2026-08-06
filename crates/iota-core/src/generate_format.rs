@@ -29,7 +29,7 @@ use iota_types::{
     crypto::{
         AggregateAuthoritySignature, AuthorityKeyPair, AuthorityPublicKeyBytes,
         AuthorityQuorumSignInfo, AuthoritySignature, AuthorityStrongQuorumSignInfo, KeypairTraits,
-        Signature, Signer, get_key_pair,
+        Signer, get_key_pair,
     },
     effects::{
         IDOperation, ObjectIn, ObjectOut, TransactionEffects, TransactionEffectsExtForTesting,
@@ -179,7 +179,7 @@ fn get_registry() -> Result<Registry> {
     let kp3 = Secp256r1PrivateKey::generate(StdRng::from_seed([0; 32]));
 
     // ... and the user signature which does
-    let sig: Signature = kp1.sign(b"hello world");
+    let sig: SimpleSignature = kp1.sign(b"hello world");
     tracer.trace_value(&mut samples, &sig).unwrap();
 
     let multisig_pk = MultiSigPublicKey::new(

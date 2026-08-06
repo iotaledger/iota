@@ -20,10 +20,10 @@ use iota_sdk_crypto::{
 };
 use iota_sdk_types::{
     Address, SignatureScheme,
-    crypto::{Intent, IntentMessage},
+    crypto::{Intent, IntentMessage, SimpleSignature},
 };
 use iota_types::crypto::{
-    EncodeDecodeBase64, IotaSignature, PublicKey, Signature, SimpleKeypair, enum_dispatch,
+    EncodeDecodeBase64, IotaSignature, PublicKey, SimpleKeypair, enum_dispatch,
     get_key_pair_from_rng,
 };
 use rand::{SeedableRng, rngs::StdRng};
@@ -56,14 +56,18 @@ pub trait AccountKeystore: Send + Sync {
     fn keys(&self) -> Vec<&StoredKey>;
     fn get_key(&self, address: &Address) -> Result<&StoredKey, anyhow::Error>;
 
-    fn sign_hashed(&self, address: &Address, msg: &[u8]) -> Result<Signature, signature::Error>;
+    fn sign_hashed(
+        &self,
+        address: &Address,
+        msg: &[u8],
+    ) -> Result<SimpleSignature, signature::Error>;
 
     fn sign_secure<T>(
         &self,
         address: &Address,
         msg: &T,
         intent: Intent,
-    ) -> Result<Signature, signature::Error>
+    ) -> Result<SimpleSignature, signature::Error>
     where
         T: Serialize;
     fn addresses(&self) -> Vec<Address> {
@@ -342,13 +346,17 @@ pub struct AliasedKey {
 }
 
 impl AccountKeystore for FileBasedKeystore {
-    fn sign_hashed(&self, address: &Address, msg: &[u8]) -> Result<Signature, signature::Error> {
+    fn sign_hashed(
+        &self,
+        address: &Address,
+        msg: &[u8],
+    ) -> Result<SimpleSignature, signature::Error> {
         let stored_key = self.keys.get(address).ok_or_else(|| {
             signature::Error::from_source(format!("Cannot find key for address: [{address}]"))
         })?;
 
         match stored_key {
-            StoredKey::KeyPair(keypair) => Ok(Signature::new_hashed(msg, keypair)),
+            StoredKey::KeyPair(keypair) => Ok(SimpleSignature::new_hashed(msg, keypair)),
             StoredKey::Account(_) => Err(signature::Error::from_source(
                 "sign_hashed is not supported for account type",
             )),
@@ -362,7 +370,7 @@ impl AccountKeystore for FileBasedKeystore {
         address: &Address,
         msg: &T,
         intent: Intent,
-    ) -> Result<Signature, signature::Error>
+    ) -> Result<SimpleSignature, signature::Error>
     where
         T: Serialize,
     {
@@ -372,7 +380,7 @@ impl AccountKeystore for FileBasedKeystore {
 
         let intent_msg = &IntentMessage::new(intent, msg);
         match stored_key {
-            StoredKey::KeyPair(keypair) => Ok(Signature::new_secure(intent_msg, keypair)),
+            StoredKey::KeyPair(keypair) => Ok(SimpleSignature::new_secure(intent_msg, keypair)),
             StoredKey::Account(_) => Err(signature::Error::from_source(
                 "sign_secure is not supported for account type",
             )),
@@ -731,13 +739,17 @@ pub struct InMemKeystore {
 }
 
 impl AccountKeystore for InMemKeystore {
-    fn sign_hashed(&self, address: &Address, msg: &[u8]) -> Result<Signature, signature::Error> {
+    fn sign_hashed(
+        &self,
+        address: &Address,
+        msg: &[u8],
+    ) -> Result<SimpleSignature, signature::Error> {
         let stored_key = self.keys.get(address).ok_or_else(|| {
             signature::Error::from_source(format!("Cannot find key for address: [{address}]"))
         })?;
 
         match stored_key {
-            StoredKey::KeyPair(keypair) => Ok(Signature::new_hashed(msg, keypair)),
+            StoredKey::KeyPair(keypair) => Ok(SimpleSignature::new_hashed(msg, keypair)),
             StoredKey::Account(_) => Err(signature::Error::from_source(
                 "sign_hashed is not supported for account type",
             )),
@@ -751,7 +763,7 @@ impl AccountKeystore for InMemKeystore {
         address: &Address,
         msg: &T,
         intent: Intent,
-    ) -> Result<Signature, signature::Error>
+    ) -> Result<SimpleSignature, signature::Error>
     where
         T: Serialize,
     {
@@ -761,7 +773,7 @@ impl AccountKeystore for InMemKeystore {
 
         let intent_msg = &IntentMessage::new(intent, msg);
         match stored_key {
-            StoredKey::KeyPair(keypair) => Ok(Signature::new_secure(intent_msg, keypair)),
+            StoredKey::KeyPair(keypair) => Ok(SimpleSignature::new_secure(intent_msg, keypair)),
             StoredKey::Account(_) => Err(signature::Error::from_source(
                 "sign_secure is not supported for account type",
             )),

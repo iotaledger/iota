@@ -41,14 +41,12 @@ use iota_sdk_crypto::{
 use iota_sdk_types::{
     Address, SenderSignedTransaction, SignatureScheme, Transaction,
     crypto::{
-        Intent, IntentMessage, PasskeyAuthenticator, PublicKey as SdkPublicKey, UserSignature,
+        Intent, IntentMessage, PasskeyAuthenticator, PublicKey as SdkPublicKey, SimpleSignature,
+        UserSignature,
     },
 };
 use iota_types::{
-    crypto::{
-        DefaultHash, EncodeDecodeBase64, PublicKey, Signature, SimpleKeypair,
-        get_authority_key_pair,
-    },
+    crypto::{DefaultHash, EncodeDecodeBase64, PublicKey, SimpleKeypair, get_authority_key_pair},
     error::IotaResult,
     move_authenticator::MoveAuthenticatorExt,
     multisig::{MultiSig, MultiSigPublicKey, MultisigMember, ThresholdUnit, WeightUnit},
@@ -845,7 +843,7 @@ impl KeyToolCommand {
                     StoredKey::KeyPair(kp) => kp,
                     _ => bail!("Not a keypair"),
                 };
-                let signature: Signature = ikp.sign(&bytes);
+                let signature: SimpleSignature = ikp.sign(&bytes);
                 let iota_signature = signature.to_base64();
                 let public_key = PublicKey::from(ikp).encode_base64();
                 let public_key_hex = Hex::encode_with_format(PublicKey::from(ikp).as_ref());

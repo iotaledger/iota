@@ -15,7 +15,7 @@ use iota_protocol_config::ProtocolConfig;
 use iota_sdk_crypto::ToFromBytes as _;
 use iota_sdk_types::{
     Digest, Owner, TransactionDigest,
-    crypto::{Intent, IntentMessage, IntentScope},
+    crypto::{Intent, IntentMessage, IntentScope, SimpleSignature},
 };
 use move_binary_format::file_format;
 
@@ -24,7 +24,7 @@ use crate::{
     base_types::TypeTag,
     crypto::{
         AccountKeyPair, AuthorityKeyPair, AuthoritySignature, IotaAuthoritySignature,
-        IotaSignature, Signature,
+        IotaSignature,
         bcs_signable_test::{Bar, Foo},
         get_key_pair,
     },
@@ -55,7 +55,7 @@ fn test_signatures() {
     let foox = IntentMessage::new(Intent::iota_transaction(), Foo("hellox".into()));
     let bar = IntentMessage::new(Intent::iota_transaction(), Bar("hello".into()));
 
-    let s = Signature::new_secure(&foo, &sec1);
+    let s = SimpleSignature::new_secure(&foo, &sec1);
     assert!(s.verify_secure(&foo, addr1).is_ok());
     assert!(s.verify_secure(&foo, addr2).is_err());
     assert!(s.verify_secure(&foox, addr1).is_err());
@@ -78,11 +78,12 @@ fn test_signatures() {
 fn test_signatures_serde() {
     let (_, sec1): (_, AccountKeyPair) = get_key_pair();
     let foo = Foo("hello".into());
-    let s = Signature::new_secure(&IntentMessage::new(Intent::iota_transaction(), foo), &sec1);
+    let s =
+        SimpleSignature::new_secure(&IntentMessage::new(Intent::iota_transaction(), foo), &sec1);
 
     let serialized = bcs::to_bytes(&s).unwrap();
     println!("{serialized:?}");
-    let deserialized: Signature = bcs::from_bytes(&serialized).unwrap();
+    let deserialized: SimpleSignature = bcs::from_bytes(&serialized).unwrap();
     assert_eq!(deserialized.to_bytes(), s.to_bytes());
 }
 

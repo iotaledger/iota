@@ -40,10 +40,9 @@ use iota_json_rpc_types::{
 };
 use iota_metrics::init_metrics;
 use iota_move_build::BuildConfig;
-use iota_sdk_types::TransactionDigest;
+use iota_sdk_types::{TransactionDigest, crypto::SimpleSignature};
 use iota_types::{
-    crypto::{Signature, SimpleKeypair},
-    quorum_driver_types::ExecuteTransactionRequestType,
+    crypto::SimpleKeypair, quorum_driver_types::ExecuteTransactionRequestType,
     utils::to_sender_signed_transaction,
 };
 use jsonrpsee::{
@@ -391,7 +390,7 @@ pub async fn execute_tx_and_wait_for_indexer_checkpoint(
     indexer_client: &HttpClient,
     store: &PgIndexerStore,
     tx_bytes: TransactionBlockBytes,
-    keypair: &impl Signer<Signature>,
+    keypair: &impl Signer<SimpleSignature>,
 ) -> TransactionDigest {
     let digest = execute_tx_must_succeed(indexer_client, tx_bytes, keypair).await;
     indexer_wait_for_transaction(digest, store, indexer_client).await;
@@ -401,7 +400,7 @@ pub async fn execute_tx_and_wait_for_indexer_checkpoint(
 pub async fn execute_tx_must_succeed(
     indexer_client: &HttpClient,
     tx_bytes: TransactionBlockBytes,
-    keypair: &impl Signer<Signature>,
+    keypair: &impl Signer<SimpleSignature>,
 ) -> TransactionDigest {
     let txn = to_sender_signed_transaction(tx_bytes.to_data().unwrap(), keypair);
     let (tx_bytes, signatures) = txn.to_tx_bytes_and_signatures();
