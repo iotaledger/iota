@@ -106,7 +106,7 @@ async fn test_publish_empty_package() {
     let gas_object_ref = gas_object.unwrap().object_ref();
 
     // empty package
-    let data = Transaction::new_module(
+    let tx = Transaction::new_module(
         sender,
         gas_object_ref,
         vec![],
@@ -114,7 +114,7 @@ async fn test_publish_empty_package() {
         rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
         rgp,
     );
-    let transaction = to_sender_signed_transaction(data, &sender_key);
+    let transaction = to_sender_signed_transaction(tx, &sender_key);
     let err = send_and_confirm_transaction(&authority, transaction)
         .await
         .unwrap_err();
@@ -126,7 +126,7 @@ async fn test_publish_empty_package() {
     );
 
     // empty module
-    let data = Transaction::new_module(
+    let tx = Transaction::new_module(
         sender,
         gas_object_ref,
         vec![vec![]],
@@ -134,7 +134,7 @@ async fn test_publish_empty_package() {
         rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
         rgp,
     );
-    let transaction = to_sender_signed_transaction(data, &sender_key);
+    let transaction = to_sender_signed_transaction(tx, &sender_key);
     let result = send_and_confirm_transaction(&authority, transaction)
         .await
         .unwrap()
@@ -162,7 +162,7 @@ async fn test_publish_duplicate_modules() {
     let mut modules = build_test_package("object_owner", /* with_unpublished_deps */ false);
     assert_eq!(modules.len(), 1);
     modules.push(modules[0].clone());
-    let data = Transaction::new_module(
+    let tx = Transaction::new_module(
         sender,
         gas_object_ref,
         modules,
@@ -170,7 +170,7 @@ async fn test_publish_duplicate_modules() {
         rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
         rgp,
     );
-    let transaction = to_sender_signed_transaction(data, &sender_key);
+    let transaction = to_sender_signed_transaction(tx, &sender_key);
     let result = send_and_confirm_transaction(&authority, transaction)
         .await
         .unwrap()
@@ -327,7 +327,7 @@ async fn test_publish_extraneous_bytes_modules() {
     let correct_modules =
         build_test_package("object_owner", /* with_unpublished_deps */ false);
     assert_eq!(correct_modules.len(), 1);
-    let data = Transaction::new_module(
+    let tx = Transaction::new_module(
         sender,
         gas_object_ref,
         correct_modules.clone(),
@@ -335,7 +335,7 @@ async fn test_publish_extraneous_bytes_modules() {
         rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
         rgp,
     );
-    let transaction = to_sender_signed_transaction(data, &sender_key);
+    let transaction = to_sender_signed_transaction(tx, &sender_key);
     let result = send_and_confirm_transaction(&authority, transaction)
         .await
         .unwrap()
@@ -348,7 +348,7 @@ async fn test_publish_extraneous_bytes_modules() {
     let mut modules = correct_modules.clone();
     modules[0].push(0);
     assert_eq!(modules.len(), 1);
-    let data = Transaction::new_module(
+    let tx = Transaction::new_module(
         sender,
         gas_object_ref,
         modules,
@@ -356,7 +356,7 @@ async fn test_publish_extraneous_bytes_modules() {
         rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
         rgp,
     );
-    let transaction = to_sender_signed_transaction(data, &sender_key);
+    let transaction = to_sender_signed_transaction(tx, &sender_key);
     let result = send_and_confirm_transaction(&authority, transaction)
         .await
         .unwrap()
@@ -376,7 +376,7 @@ async fn test_publish_extraneous_bytes_modules() {
     let first_module = modules[0].clone();
     modules[0].extend(first_module);
     assert_eq!(modules.len(), 1);
-    let data = Transaction::new_module(
+    let tx = Transaction::new_module(
         sender,
         gas_object_ref,
         modules,
@@ -384,7 +384,7 @@ async fn test_publish_extraneous_bytes_modules() {
         rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
         rgp,
     );
-    let transaction = to_sender_signed_transaction(data, &sender_key);
+    let transaction = to_sender_signed_transaction(tx, &sender_key);
     let result = send_and_confirm_transaction(&authority, transaction)
         .await
         .unwrap()
@@ -413,7 +413,7 @@ async fn test_publish_extraneous_bytes_modules() {
     };
     modules[0] = new_bytes;
     assert_eq!(modules.len(), 1);
-    let data = Transaction::new_module(
+    let tx = Transaction::new_module(
         sender,
         gas_object_ref,
         modules,
@@ -421,7 +421,7 @@ async fn test_publish_extraneous_bytes_modules() {
         rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
         rgp,
     );
-    let transaction = to_sender_signed_transaction(data, &sender_key);
+    let transaction = to_sender_signed_transaction(tx, &sender_key);
     let result = send_and_confirm_transaction(&authority, transaction)
         .await
         .unwrap()

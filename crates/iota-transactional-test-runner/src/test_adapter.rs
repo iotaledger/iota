@@ -1643,9 +1643,9 @@ impl IotaTestAdapter {
             );
             self.dry_run(transaction).await?
         } else {
-            let data =
+            let tx =
                 |sender, gas| Transaction::new_programmable(sender, gas, pt, gas_budget, gas_price);
-            let transaction = self.sign_txn(Some(sender), data);
+            let transaction = self.sign_txn(Some(sender), tx);
             self.execute_txn(transaction).await?
         };
         let created_package = summary

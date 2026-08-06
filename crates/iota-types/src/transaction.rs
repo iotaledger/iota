@@ -2320,35 +2320,35 @@ impl<S> Envelope<SenderSignedTransaction, S> {
 
 impl TransactionEnvelope {
     pub fn from_data_and_signer(
-        data: Transaction,
+        tx: Transaction,
         signers: Vec<&impl iota_sdk_crypto::Signer<SimpleSignature>>,
     ) -> Self {
         let signatures = {
-            let intent_msg = data.intent_message();
+            let intent_msg = tx.intent_message();
             signers
                 .into_iter()
                 .map(|s| SimpleSignature::new_secure(&intent_msg, s))
                 .collect()
         };
-        Self::from_data(data, signatures)
+        Self::from_data(tx, signatures)
     }
 
     // TODO: Rename this function and above to make it clearer.
-    pub fn from_data(data: Transaction, signatures: Vec<SimpleSignature>) -> Self {
-        Self::from_user_sig_data(data, signatures.into_iter().map(|s| s.into()).collect())
+    pub fn from_data(tx: Transaction, signatures: Vec<SimpleSignature>) -> Self {
+        Self::from_user_sig_data(tx, signatures.into_iter().map(|s| s.into()).collect())
     }
 
     pub fn signature_from_signer(
-        data: Transaction,
+        tx: Transaction,
         intent: Intent,
         signer: &impl iota_sdk_crypto::Signer<SimpleSignature>,
     ) -> SimpleSignature {
-        let intent_msg = IntentMessage::new(intent, data);
+        let intent_msg = IntentMessage::new(intent, tx);
         SimpleSignature::new_secure(&intent_msg, signer)
     }
 
-    pub fn from_user_sig_data(data: Transaction, signatures: Vec<UserSignature>) -> Self {
-        Self::new(SenderSignedTransaction::new(data, signatures))
+    pub fn from_user_sig_data(tx: Transaction, signatures: Vec<UserSignature>) -> Self {
+        Self::new(SenderSignedTransaction::new(tx, signatures))
     }
 
     /// Returns the Base64 encoded tx_bytes

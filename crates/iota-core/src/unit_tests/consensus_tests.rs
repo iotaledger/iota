@@ -76,7 +76,7 @@ pub async fn test_certificates(
         let module = "object_basics";
         let function = "create";
 
-        let data = Transaction::new_move_call(
+        let tx = Transaction::new_move_call(
             sender,
             ObjectId::FRAMEWORK,
             Identifier::from_static(module),
@@ -96,7 +96,7 @@ pub async fn test_certificates(
         .unwrap();
 
         let transaction = epoch_store
-            .verify_transaction(to_sender_signed_transaction(data, &keypair))
+            .verify_transaction(to_sender_signed_transaction(tx, &keypair))
             .unwrap();
 
         // Submit the transaction and assemble a certificate.

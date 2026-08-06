@@ -269,7 +269,7 @@ pub fn init_transfer_transaction(
     gas_budget: u64,
     gas_price: u64,
 ) -> TransactionEnvelope {
-    let mut data = Transaction::new_transfer(
+    let mut tx = Transaction::new_transfer(
         recipient,
         object_ref,
         sender,
@@ -277,8 +277,8 @@ pub fn init_transfer_transaction(
         gas_budget,
         gas_price,
     );
-    pre_sign_mutations(&mut data);
-    to_sender_signed_transaction(data, secret)
+    pre_sign_mutations(&mut tx);
+    to_sender_signed_transaction(tx, secret)
 }
 
 pub fn init_move_call_transaction(
@@ -289,7 +289,7 @@ pub fn init_move_call_transaction(
     gas_budget: u64,
     gas_price: u64,
 ) -> TransactionEnvelope {
-    let mut data = Transaction::new_move_call(
+    let mut tx = Transaction::new_move_call(
         sender,
         ObjectId::SYSTEM,
         Identifier::IOTA_SYSTEM_MODULE,
@@ -301,8 +301,8 @@ pub fn init_move_call_transaction(
         gas_price,
     )
     .unwrap();
-    pre_sign_mutations(&mut data);
-    to_sender_signed_transaction(data, secret)
+    pre_sign_mutations(&mut tx);
+    to_sender_signed_transaction(tx, secret)
 }
 
 async fn do_transaction_test_skip_cert_checks(
@@ -535,9 +535,9 @@ async fn test_oversized_txn() {
         builder.finish()
     };
 
-    let txn_data = Transaction::new_programmable(sender, vec![obj_ref], pt, 0, 0);
+    let txn = Transaction::new_programmable(sender, vec![obj_ref], pt, 0, 0);
 
-    let txn = to_sender_signed_transaction(txn_data, &sender_key);
+    let txn = to_sender_signed_transaction(txn, &sender_key);
     let tx_size = bcs::serialized_size(&txn).unwrap();
 
     // Making sure the txn is larger than the max txn size.
@@ -924,7 +924,7 @@ async fn test_handle_soft_bundle_certificates() {
                 .get_object(&gas_object_ids[i])
                 .unwrap()
                 .object_ref();
-            let data = Transaction::new_move_call(
+            let tx = Transaction::new_move_call(
                 senders[i].0,
                 package.object_id,
                 Identifier::from_static("object_basics"),
@@ -945,7 +945,7 @@ async fn test_handle_soft_bundle_certificates() {
                 rgp,
             )
             .unwrap();
-            let signed = to_sender_signed_transaction(data, &senders[i].1);
+            let signed = to_sender_signed_transaction(tx, &senders[i].1);
             signed_tx_into_certificate(signed).await
         };
         certificates.push(cert.into());
@@ -1110,7 +1110,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
                 .get_object(&gas_objects[i].id())
                 .unwrap()
                 .object_ref();
-            let data = Transaction::new_transfer(
+            let tx = Transaction::new_transfer(
                 senders[i + 1].0,
                 owned_object_ref,
                 senders[i].0,
@@ -1118,7 +1118,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
                 rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
                 rgp,
             );
-            let signed = to_sender_signed_transaction(data, &senders[i].1);
+            let signed = to_sender_signed_transaction(tx, &senders[i].1);
             certificates.push(signed_tx_into_certificate(signed).await.into());
         }
         let response = client
@@ -1155,7 +1155,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
             .get_object(&gas_objects[5].id())
             .unwrap()
             .object_ref();
-        let data = Transaction::new_transfer(
+        let tx = Transaction::new_transfer(
             senders[6].0,
             owned_object_ref,
             senders[5].0,
@@ -1163,7 +1163,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
             rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
             rgp,
         );
-        let signed = to_sender_signed_transaction(data, &senders[5].1);
+        let signed = to_sender_signed_transaction(tx, &senders[5].1);
         let response = client
             .handle_soft_bundle_certificates_v1(
                 HandleSoftBundleCertificatesRequestV1 {
@@ -1195,7 +1195,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
                 .get_object(&gas_objects[6].id())
                 .unwrap()
                 .object_ref();
-            let data = Transaction::new_move_call(
+            let tx = Transaction::new_move_call(
                 senders[6].0,
                 package.object_id,
                 Identifier::from_static("object_basics"),
@@ -1216,7 +1216,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
                 rgp,
             )
             .unwrap();
-            let signed = to_sender_signed_transaction(data, &senders[6].1);
+            let signed = to_sender_signed_transaction(tx, &senders[6].1);
             signed_tx_into_certificate(signed).await
         };
         let cert1 = {
@@ -1224,7 +1224,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
                 .get_object(&gas_objects[7].id())
                 .unwrap()
                 .object_ref();
-            let data = Transaction::new_move_call(
+            let tx = Transaction::new_move_call(
                 senders[7].0,
                 package.object_id,
                 Identifier::from_static("object_basics"),
@@ -1245,7 +1245,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
                 rgp + 1,
             )
             .unwrap();
-            let signed = to_sender_signed_transaction(data, &senders[7].1);
+            let signed = to_sender_signed_transaction(tx, &senders[7].1);
             signed_tx_into_certificate(signed).await
         };
         let response = client
@@ -1279,7 +1279,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
                 .get_object(&gas_objects[8].id())
                 .unwrap()
                 .object_ref();
-            let data = Transaction::new_move_call(
+            let tx = Transaction::new_move_call(
                 senders[8].0,
                 package.object_id,
                 Identifier::from_static("object_basics"),
@@ -1300,7 +1300,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
                 rgp,
             )
             .unwrap();
-            let signed = to_sender_signed_transaction(data, &senders[8].1);
+            let signed = to_sender_signed_transaction(tx, &senders[8].1);
             signed_tx_into_certificate(signed).await
         };
         let cert1 = {
@@ -1308,7 +1308,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
                 .get_object(&gas_objects[9].id())
                 .unwrap()
                 .object_ref();
-            let data = Transaction::new_move_call(
+            let tx = Transaction::new_move_call(
                 senders[9].0,
                 package.object_id,
                 Identifier::from_static("object_basics"),
@@ -1329,7 +1329,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
                 rgp,
             )
             .unwrap();
-            let signed = to_sender_signed_transaction(data, &senders[9].1);
+            let signed = to_sender_signed_transaction(tx, &senders[9].1);
             signed_tx_into_certificate(signed).await
         };
         send_batch_consensus_no_execution(&authority, &[cert0.clone(), cert1.clone()], true).await;
@@ -1385,7 +1385,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
                 builder.finish()
             };
 
-            let data = Transaction::new_programmable(
+            let tx = Transaction::new_programmable(
                 sender.0,
                 vec![gas_object_ref],
                 pt,
@@ -1393,7 +1393,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
                 rgp,
             );
 
-            let signed = to_sender_signed_transaction(data, &sender.1);
+            let signed = to_sender_signed_transaction(tx, &sender.1);
             certificates.push(signed_tx_into_certificate(signed).await.into());
         }
 

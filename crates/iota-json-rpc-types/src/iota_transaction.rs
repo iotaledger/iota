@@ -1698,16 +1698,16 @@ impl IotaTransactionBlockData {
     }
 
     fn try_from_inner(
-        data: Transaction,
+        tx: Transaction,
         transaction: IotaTransactionBlockKind,
     ) -> Result<Self, anyhow::Error> {
-        let message_version = data.message_version();
-        let sender = data.sender();
+        let message_version = tx.message_version();
+        let sender = tx.sender();
         let gas_data = IotaGasData {
-            payment: data.gas().to_vec(),
-            owner: data.gas_owner(),
-            price: data.gas_price(),
-            budget: data.gas_budget(),
+            payment: tx.gas().to_vec(),
+            owner: tx.gas_owner(),
+            price: tx.gas_price(),
+            budget: tx.gas_budget(),
         };
 
         match message_version {
@@ -1723,30 +1723,30 @@ impl IotaTransactionBlockData {
     }
 
     pub fn try_from_with_module_cache(
-        data: Transaction,
+        tx: Transaction,
         module_cache: &impl GetModule,
         tx_digest: TransactionDigest,
     ) -> Result<Self, anyhow::Error> {
         let transaction = IotaTransactionBlockKind::try_from_with_module_cache(
-            data.kind().clone(),
+            tx.kind().clone(),
             module_cache,
             tx_digest,
         )?;
-        Self::try_from_inner(data, transaction)
+        Self::try_from_inner(tx, transaction)
     }
 
     pub async fn try_from_with_package_resolver(
-        data: Transaction,
+        tx: Transaction,
         package_resolver: &Resolver<impl PackageStore>,
         tx_digest: TransactionDigest,
     ) -> Result<Self, anyhow::Error> {
         let transaction = IotaTransactionBlockKind::try_from_with_package_resolver(
-            data.kind().clone(),
+            tx.kind().clone(),
             package_resolver,
             tx_digest,
         )
         .await?;
-        Self::try_from_inner(data, transaction)
+        Self::try_from_inner(tx, transaction)
     }
 }
 
@@ -2479,11 +2479,11 @@ pub struct TransactionBlockBytes {
 }
 
 impl TransactionBlockBytes {
-    pub fn from_data(data: Transaction) -> Result<Self, anyhow::Error> {
+    pub fn from_data(tx: Transaction) -> Result<Self, anyhow::Error> {
         Ok(Self {
-            tx_bytes: Base64::from_bytes(bcs::to_bytes(&data)?.as_slice()),
-            gas: data.gas().to_vec(),
-            input_objects: data
+            tx_bytes: Base64::from_bytes(bcs::to_bytes(&tx)?.as_slice()),
+            gas: tx.gas().to_vec(),
+            input_objects: tx
                 .input_objects()?
                 .into_iter()
                 .map(IotaInputObjectKind::from)

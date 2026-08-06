@@ -712,11 +712,11 @@ fn test_user_signature_committed_in_signed_transactions() {
 }
 
 fn signature_from_signer(
-    data: Transaction,
+    tx: Transaction,
     intent: Intent,
     signer: &impl Signer<SimpleSignature>,
 ) -> SimpleSignature {
-    let intent_msg = IntentMessage::new(intent, data);
+    let intent_msg = IntentMessage::new(intent, tx);
     SimpleSignature::new_secure(&intent_msg, signer)
 }
 
@@ -1132,14 +1132,14 @@ fn test_move_input_objects() {
         type_args,
         args,
     ));
-    let data = Transaction::new_programmable(
+    let tx = Transaction::new_programmable(
         Address::random(),
         vec![gas_object_ref],
         builder.finish(),
         1_000_000, // any random number the transaction is not run
         1,
     );
-    let mut input_objects = data.input_objects().unwrap();
+    let mut input_objects = tx.input_objects().unwrap();
     macro_rules! rem {
         ($exp:expr) => {{
             let idx = input_objects

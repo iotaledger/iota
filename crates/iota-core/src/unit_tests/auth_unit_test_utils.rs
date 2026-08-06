@@ -92,7 +92,7 @@ pub async fn publish_package_on_single_authority(
     let pt = builder.finish();
 
     let rgp = state.epoch_store_for_testing().reference_gas_price();
-    let txn_data = Transaction::new_programmable(
+    let txn = Transaction::new_programmable(
         sender,
         vec![gas_payment],
         pt,
@@ -100,7 +100,7 @@ pub async fn publish_package_on_single_authority(
         rgp,
     );
 
-    let signed = to_sender_signed_transaction(txn_data, sender_key);
+    let signed = to_sender_signed_transaction(txn, sender_key);
     let (_cert, effects) = send_and_confirm_transaction(state, signed).await?;
     assert!(effects.data().status().is_success());
     let package_id = effects
@@ -139,7 +139,7 @@ pub async fn upgrade_package_on_single_authority(
     let digest = package.get_package_digest(with_unpublished_deps).to_vec();
 
     let rgp = state.epoch_store_for_testing().reference_gas_price();
-    let data = Transaction::new_upgrade(
+    let tx = Transaction::new_upgrade(
         sender,
         gas_payment,
         package_id,
@@ -152,7 +152,7 @@ pub async fn upgrade_package_on_single_authority(
         rgp,
     )
     .unwrap();
-    let signed = to_sender_signed_transaction(data, sender_key);
+    let signed = to_sender_signed_transaction(tx, sender_key);
     let (_cert, effects) = send_and_confirm_transaction(state, signed).await?;
     assert!(effects.data().status().is_success());
     let package_id = effects

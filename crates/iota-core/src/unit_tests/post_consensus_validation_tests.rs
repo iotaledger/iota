@@ -942,7 +942,7 @@ async fn test_winner_blocks_multiple_losers() {
     use iota_sdk_types::{Identifier, Transaction};
     use iota_types::transaction::{CallArg, TransactionDataAPI};
 
-    let tx1_data = Transaction::new_move_call(
+    let tx1 = Transaction::new_move_call(
         sender,
         package_ref.object_id,
         Identifier::from_static("object_basics"),
@@ -957,7 +957,7 @@ async fn test_winner_blocks_multiple_losers() {
         rgp,
     )
     .unwrap();
-    let tx1 = iota_types::utils::to_sender_signed_transaction(tx1_data, &sender_key);
+    let tx1 = iota_types::utils::to_sender_signed_transaction(tx1, &sender_key);
 
     let tx2 = make_transfer_object_transaction(
         object_a.object_ref(),

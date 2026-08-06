@@ -284,7 +284,7 @@ pub fn init_transfer_transaction(
     gas_budget: u64,
     gas_price: u64,
 ) -> VerifiedTransaction {
-    let data = Transaction::new_transfer(
+    let tx = Transaction::new_transfer(
         recipient,
         object_ref,
         sender,
@@ -292,7 +292,7 @@ pub fn init_transfer_transaction(
         gas_budget,
         gas_price,
     );
-    let tx = to_sender_signed_transaction(data, secret);
+    let tx = to_sender_signed_transaction(tx, secret);
     authority_state
         .epoch_store_for_testing()
         .verify_transaction(tx)

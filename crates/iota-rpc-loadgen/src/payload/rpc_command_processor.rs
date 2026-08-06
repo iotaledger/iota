@@ -106,10 +106,10 @@ impl RpcCommandProcessor {
         &self,
         client: &IotaClient,
         keypair: &SimpleKeypair,
-        txn_data: Transaction,
+        txn: Transaction,
         request_type: ExecuteTransactionRequestType,
     ) -> IotaTransactionBlockResponse {
-        let resp = sign_and_execute(client, keypair, txn_data, request_type).await;
+        let resp = sign_and_execute(client, keypair, txn, request_type).await;
         let effects = resp.effects.as_ref().unwrap();
         let object_ref_cache = self.object_ref_cache.clone();
         // NOTE: for now we don't need to care about deleted objects
@@ -790,15 +790,15 @@ async fn split_coins(
 pub(crate) async fn sign_and_execute(
     client: &IotaClient,
     keypair: &SimpleKeypair,
-    txn_data: Transaction,
+    txn: Transaction,
     request_type: ExecuteTransactionRequestType,
 ) -> IotaTransactionBlockResponse {
-    let signature = SimpleSignature::new_secure(&txn_data.intent_message(), keypair);
+    let signature = SimpleSignature::new_secure(&txn.intent_message(), keypair);
 
     let transaction_response = match client
         .quorum_driver_api()
         .execute_transaction_block(
-            TransactionEnvelope::from_data(txn_data, vec![signature]),
+            TransactionEnvelope::from_data(txn, vec![signature]),
             IotaTransactionBlockResponseOptions::new().with_effects(),
             Some(request_type),
         )

@@ -499,7 +499,7 @@ pub async fn batch_make_transfer_transactions(
             if res.len() >= max_txn_num {
                 return res;
             }
-            let data = Transaction::new_transfer_iota(
+            let tx = Transaction::new_transfer_iota(
                 recipient,
                 address,
                 Some(2),
@@ -507,7 +507,7 @@ pub async fn batch_make_transfer_transactions(
                 gas_price * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
                 gas_price,
             );
-            let tx = context.sign_transaction(&data);
+            let tx = context.sign_transaction(&tx);
             res.push(tx);
         }
     }

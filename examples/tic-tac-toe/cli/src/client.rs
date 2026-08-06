@@ -553,8 +553,8 @@ impl Client {
 
     /// Execute a PTB, expecting it to create a shared or owned Game, and return
     /// its ObjectId.
-    async fn execute_for_game(&self, data: Transaction) -> Result<ObjectId> {
-        let tx = self.wallet.sign_transaction(&data);
+    async fn execute_for_game(&self, tx: Transaction) -> Result<ObjectId> {
+        let tx = self.wallet.sign_transaction(&tx);
         let IotaTransactionBlockResponse {
             object_changes: Some(object_changes),
             ..
@@ -709,13 +709,13 @@ impl Client {
         &self,
         sender: Address,
         admin_key: MultiSigPublicKey,
-        data: Transaction,
+        tx: Transaction,
     ) -> Result<TransactionEnvelope> {
         let sponsor_sig: UserSignature = self
             .wallet
             .config()
             .keystore()
-            .sign_secure(&sender, &data, Intent::iota_transaction())
+            .sign_secure(&sender, &tx, Intent::iota_transaction())
             .context("Signing transaction")?
             .into();
 
@@ -724,7 +724,7 @@ impl Client {
             .into();
 
         Ok(TransactionEnvelope::from_user_sig_data(
-            data,
+            tx,
             vec![multi_sig, sponsor_sig],
         ))
     }

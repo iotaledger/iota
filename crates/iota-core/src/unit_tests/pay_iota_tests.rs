@@ -403,8 +403,8 @@ async fn execute_pay_iota(
     let mut builder = ProgrammableTransactionBuilder::new();
     builder.pay_iota(recipients, amounts).unwrap();
     let pt = builder.finish();
-    let data = Transaction::new_programmable(sender, input_coin_refs, pt, gas_budget, rgp);
-    let tx = to_sender_signed_transaction(data, &sender_key);
+    let tx = Transaction::new_programmable(sender, input_coin_refs, pt, gas_budget, rgp);
+    let tx = to_sender_signed_transaction(tx, &sender_key);
     let txn_result = send_and_confirm_transaction(&authority_state, tx)
         .await
         .map(|(_, effects)| effects);
@@ -453,8 +453,8 @@ async fn execute_pay_all_iota(
     let mut builder = ProgrammableTransactionBuilder::new();
     builder.pay_all_iota(recipient);
     let pt = builder.finish();
-    let data = Transaction::new_programmable(sender, input_coins, pt, gas_budget, rgp);
-    let tx = to_sender_signed_transaction(data, &sender_key);
+    let tx = Transaction::new_programmable(sender, input_coins, pt, gas_budget, rgp);
+    let tx = to_sender_signed_transaction(tx, &sender_key);
     let txn_result = send_and_confirm_transaction(&authority_state, tx)
         .await
         .map(|(_, effects)| effects);

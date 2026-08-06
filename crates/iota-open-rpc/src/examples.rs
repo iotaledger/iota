@@ -188,7 +188,7 @@ impl RpcExampleProvider {
             builder.finish()
         };
         let gas_price = 10;
-        let data = Transaction::new_programmable(
+        let tx = Transaction::new_programmable(
             signer,
             vec![ObjectReference::new(
                 gas_id,
@@ -200,7 +200,7 @@ impl RpcExampleProvider {
             gas_price,
         );
 
-        let result = TransactionBlockBytes::from_data(data).unwrap();
+        let result = TransactionBlockBytes::from_data(tx).unwrap();
 
         Examples::new(
             "iota_batchTransaction",
@@ -681,7 +681,7 @@ impl RpcExampleProvider {
             ObjectDigest::new(self.rng.gen()),
         );
 
-        let data = Transaction::new_transfer(
+        let tx = Transaction::new_transfer(
             recipient,
             object_ref,
             signer,
@@ -689,10 +689,10 @@ impl RpcExampleProvider {
             TEST_ONLY_GAS_UNIT_FOR_TRANSFER * 10,
             10,
         );
-        let data1 = data.clone();
-        let data2 = data.clone();
+        let data1 = tx.clone();
+        let data2 = tx.clone();
 
-        let tx = to_sender_signed_transaction(data, &kp);
+        let tx = to_sender_signed_transaction(tx, &kp);
         let signatures = tx.data().signatures().to_vec();
         let raw_transaction = bcs::to_bytes(tx.data()).unwrap();
 

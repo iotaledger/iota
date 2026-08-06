@@ -119,7 +119,7 @@ impl Executor {
         // let gas_obj_ref =
         // account.current_coins.last().unwrap().object_ref();
         let gas_object = account.new_gas_object(self);
-        let data = Transaction::new_module(
+        let tx = Transaction::new_module(
             account.initial_data.account.address,
             gas_object.object_ref(),
             modules,
@@ -127,7 +127,7 @@ impl Executor {
             PUBLISH_BUDGET,
             1000,
         );
-        let txn = to_sender_signed_transaction(data, &account.initial_data.account.key);
+        let txn = to_sender_signed_transaction(tx, &account.initial_data.account.key);
         let effects = self
             .rt
             .block_on(send_and_confirm_transaction(&self.state, None, txn))

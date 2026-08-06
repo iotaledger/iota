@@ -2936,7 +2936,7 @@ pub async fn build_and_try_publish_test_package(
     let gas_object = authority.get_object(gas_object_id);
     let gas_object_ref = gas_object.unwrap().object_ref();
 
-    let data = Transaction::new_module(
+    let tx = Transaction::new_module(
         *sender,
         gas_object_ref,
         all_module_bytes,
@@ -2944,7 +2944,7 @@ pub async fn build_and_try_publish_test_package(
         gas_budget,
         gas_price,
     );
-    let transaction = to_sender_signed_transaction(data, sender_key);
+    let transaction = to_sender_signed_transaction(tx, sender_key);
 
     (
         transaction.clone(),

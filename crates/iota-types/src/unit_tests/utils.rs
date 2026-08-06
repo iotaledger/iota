@@ -69,14 +69,14 @@ pub fn create_fake_transaction() -> TransactionEnvelope {
         builder.transfer_iota(recipient, None);
         builder.finish()
     };
-    let data = Transaction::new_programmable(
+    let tx = Transaction::new_programmable(
         sender,
         vec![object.object_ref()],
         pt,
         TEST_ONLY_GAS_UNIT_FOR_TRANSFER, // gas price is 1
         1,
     );
-    to_sender_signed_transaction(data, &sender_key)
+    to_sender_signed_transaction(tx, &sender_key)
 }
 
 pub fn make_transaction_data(sender: Address) -> Transaction {
@@ -123,21 +123,21 @@ pub fn make_transaction(sender: Address, kp: &SimpleKeypair) -> TransactionEnvel
 
 // This is used to sign transaction with signer using default Intent.
 pub fn to_sender_signed_transaction(
-    data: Transaction,
+    tx: Transaction,
     signer: &impl Signer<SimpleSignature>,
 ) -> TransactionEnvelope {
-    to_sender_signed_transaction_with_multi_signers(data, vec![signer])
+    to_sender_signed_transaction_with_multi_signers(tx, vec![signer])
 }
 
 pub fn to_sender_signed_transaction_with_optional_sponsor(
-    data: Transaction,
+    tx: Transaction,
     sender_signature: UserSignature,
     sponsor_signer_opt: Option<&impl Signer<SimpleSignature>>,
 ) -> TransactionEnvelope {
     let mut signatures = vec![sender_signature];
     if let Some(sponsor) = sponsor_signer_opt {
         let sponsor_sig = TransactionEnvelope::signature_from_signer(
-            data.clone(),
+            tx.clone(),
             Intent::iota_transaction(),
             sponsor,
         )
@@ -145,14 +145,14 @@ pub fn to_sender_signed_transaction_with_optional_sponsor(
         signatures.push(sponsor_sig);
     };
 
-    TransactionEnvelope::from_user_sig_data(data, signatures)
+    TransactionEnvelope::from_user_sig_data(tx, signatures)
 }
 
 pub fn to_sender_signed_transaction_with_multi_signers(
-    data: Transaction,
+    tx: Transaction,
     signers: Vec<&impl Signer<SimpleSignature>>,
 ) -> TransactionEnvelope {
-    TransactionEnvelope::from_data_and_signer(data, signers)
+    TransactionEnvelope::from_data_and_signer(tx, signers)
 }
 
 pub fn keys() -> Vec<SimpleKeypair> {

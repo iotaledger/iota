@@ -172,7 +172,7 @@ pub fn make_transfer_iota_transaction(
     keypair: &AccountKeyPair,
     gas_price: u64,
 ) -> TransactionEnvelope {
-    let data = Transaction::new_transfer_iota(
+    let tx = Transaction::new_transfer_iota(
         recipient,
         sender,
         amount,
@@ -180,7 +180,7 @@ pub fn make_transfer_iota_transaction(
         gas_price * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
         gas_price,
     );
-    to_sender_signed_transaction(data, keypair)
+    to_sender_signed_transaction(tx, keypair)
 }
 
 pub fn make_pay_iota_transaction(
@@ -193,11 +193,11 @@ pub fn make_pay_iota_transaction(
     gas_price: u64,
     gas_budget: u64,
 ) -> TransactionEnvelope {
-    let data = Transaction::new_pay_iota(
+    let tx = Transaction::new_pay_iota(
         sender, coins, recipients, amounts, gas_object, gas_budget, gas_price,
     )
     .unwrap();
-    to_sender_signed_transaction(data, keypair)
+    to_sender_signed_transaction(tx, keypair)
 }
 
 pub fn make_transfer_object_transaction(
@@ -208,7 +208,7 @@ pub fn make_transfer_object_transaction(
     recipient: Address,
     gas_price: u64,
 ) -> TransactionEnvelope {
-    let data = Transaction::new_transfer(
+    let tx = Transaction::new_transfer(
         recipient,
         object_ref,
         sender,
@@ -216,7 +216,7 @@ pub fn make_transfer_object_transaction(
         gas_price * TEST_ONLY_GAS_UNIT_FOR_TRANSFER * 10,
         gas_price,
     );
-    to_sender_signed_transaction(data, keypair)
+    to_sender_signed_transaction(tx, keypair)
 }
 
 pub fn make_transfer_object_move_transaction(
