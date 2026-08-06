@@ -383,11 +383,14 @@ pub(crate) fn compute_per_commit_contribution(
 #[cfg(test)]
 mod tests {
 
+    use rstest::rstest;
+
     use super::*;
     use crate::{
         authority_set::AuthoritySet,
         block_header::{
-            BlockHeaderDigest, Round, StrongVote, TestBlockHeader, VerifiedBlockHeader,
+            BlockHeaderDigest, Round, StrongVote, TestBlockHeader, TestBlockHeaderVersion,
+            VerifiedBlockHeader,
         },
         commit::{CommitDigest, CommitRef},
         test_dag_builder::DagBuilder,
@@ -514,10 +517,17 @@ mod tests {
             .collect()
     }
 
+    #[rstest]
     #[tokio::test]
-    async fn test_compute_per_commit_contribution_full_connectivity() {
+    async fn test_compute_per_commit_contribution_full_connectivity(
+        #[values(false, true)] starfish_speed: bool,
+    ) {
         telemetry_subscribers::init_for_testing();
-        let context = Arc::new(Context::new_for_test(4).0);
+        let mut context = Context::new_for_test(4).0;
+        context
+            .protocol_config
+            .set_consensus_starfish_speed_for_testing(starfish_speed);
+        let context = Arc::new(context);
         let subdags = build_four_commits(context.clone());
         assert_eq!(subdags.len(), 4);
 
@@ -531,8 +541,10 @@ mod tests {
 
         // In a fully-connected DAG, every authority votes for commit-1's leader and
         // every round-(r+2) block certifies every voting block. So every authority's
-        // contribution equals the full committee stake.
-        let expected_per_authority: u64 = context.committee.total_stake();
+        // contribution equals the full committee stake — doubled under
+        // StarfishSpeed, where every one of these votes is a strong vote.
+        let vote_weight: u64 = if starfish_speed { 2 } else { 1 };
+        let expected_per_authority: u64 = context.committee.total_stake() * vote_weight;
         assert_eq!(
             contribution,
             vec![expected_per_authority; context.committee.size()],
@@ -717,6 +729,7 @@ mod tests {
         );
         let strong_vote = VerifiedBlockHeader::new_for_test(
             TestBlockHeader::new(r + 1, 2)
+                .set_version(TestBlockHeaderVersion::V2)
                 .set_ancestors(vec![c_minus_3.leader])
                 .set_strong_vote(Some(StrongVote {
                     leader_authority,

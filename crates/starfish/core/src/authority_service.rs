@@ -1712,6 +1712,7 @@ mod tests {
     use futures::StreamExt;
     use iota_metrics::monitored_mpsc::unbounded_channel;
     use parking_lot::{Mutex, RwLock};
+    use rstest::rstest;
     use starfish_config::{AuthorityIndex, Parameters};
     use tokio::{
         sync::{broadcast, mpsc},
@@ -1725,8 +1726,8 @@ mod tests {
         },
         block_header::{
             BlockHeaderAPI, BlockHeaderDigest, BlockRef, GENESIS_ROUND, SignedBlockHeader,
-            TestBlockHeader, TransactionsCommitment, VerifiedBlock, VerifiedBlockHeader,
-            VerifiedOwnShard, VerifiedTransactions,
+            TestBlockHeader, TestBlockHeaderVersion, TransactionsCommitment, VerifiedBlock,
+            VerifiedBlockHeader, VerifiedOwnShard, VerifiedTransactions,
         },
         block_manager::BlockManager,
         block_verifier::SignedBlockVerifier,
@@ -2544,17 +2545,18 @@ mod tests {
             unimplemented!("Unimplemented")
         }
     }
+    #[rstest]
     #[tokio::test(flavor = "current_thread")]
-    async fn test_handle_subscribed_block_bundle_with_additional_headers() {
+    async fn test_handle_subscribed_block_bundle_with_additional_headers(
+        #[values(false, true)] starfish_speed: bool,
+    ) {
         // GIVEN
         let rounds = 10;
         let validators = 10;
-        // Test headers are V1, which flag-on verification rejects; run with
-        // StarfishSpeed off.
         let (mut context, key_pairs) = Context::new_for_test(validators);
         context
             .protocol_config
-            .set_consensus_starfish_speed_for_testing(false);
+            .set_consensus_starfish_speed_for_testing(starfish_speed);
         let context = Arc::new(context);
         let block_verifier = Arc::new(SignedBlockVerifier::new(
             context.clone(),
@@ -2713,17 +2715,18 @@ mod tests {
         }
     }
 
+    #[rstest]
     #[tokio::test(flavor = "current_thread")]
-    async fn test_handle_subscribe_bundle_without_additional_headers() {
+    async fn test_handle_subscribe_bundle_without_additional_headers(
+        #[values(false, true)] starfish_speed: bool,
+    ) {
         // GIVEN
         let rounds = 10;
         let validators = 10;
-        // Test headers are V1, which flag-on verification rejects; run with
-        // StarfishSpeed off.
         let (mut context, key_pairs) = Context::new_for_test(validators);
         context
             .protocol_config
-            .set_consensus_starfish_speed_for_testing(false);
+            .set_consensus_starfish_speed_for_testing(starfish_speed);
         let context = Arc::new(context);
         let block_verifier = Arc::new(SignedBlockVerifier::new(
             context.clone(),
@@ -3546,17 +3549,18 @@ mod tests {
         );
     }
 
+    #[rstest]
     #[tokio::test]
-    async fn test_handle_fetch_commits() {
+    async fn test_handle_fetch_commits(#[values(false, true)] starfish_speed: bool) {
         // GIVEN
         let rounds = 15;
         let validators = 4;
-        // Test blocks carry no strong votes; run with StarfishSpeed off.
         let (mut context, key_pairs) = Context::new_for_test(validators);
         context
             .protocol_config
-            .set_consensus_starfish_speed_for_testing(false);
+            .set_consensus_starfish_speed_for_testing(starfish_speed);
         let context = Arc::new(context);
+        let version = TestBlockHeaderVersion::from_context(&context);
         let block_verifier = Arc::new(SignedBlockVerifier::new(
             context.clone(),
             Arc::new(crate::block_verifier::test::TxnSizeVerifier {}),
@@ -3682,6 +3686,7 @@ mod tests {
             .collect::<Vec<_>>();
         for validator in 0..validators {
             let test_block_header = TestBlockHeader::new(rounds + 1, validator as u8)
+                .set_version(version)
                 .set_commit_votes(commit_refs.clone())
                 .set_ancestors(refs_to_headers_from_prev_round.clone())
                 .set_timestamp_ms(
@@ -3692,6 +3697,7 @@ mod tests {
             new_block_headers.push(verified_block_header);
         }
         let equivocation = TestBlockHeader::new(rounds + 1, 1)
+            .set_version(version)
             .set_commit_votes(commit_refs.clone())
             .set_ancestors(refs_to_headers_from_prev_round.clone())
             .set_timestamp_ms((rounds as u64 + 2) * 1000)
@@ -3704,6 +3710,7 @@ mod tests {
             .map(|commit_ref| CommitRef::new(commit_ref.index, CommitDigest::MIN))
             .collect::<Vec<_>>();
         let poisoned_equivocation = TestBlockHeader::new(rounds + 1, 2)
+            .set_version(version)
             .set_commit_votes(poisoned_votes)
             .set_ancestors(refs_to_headers_from_prev_round.clone())
             .set_timestamp_ms((rounds as u64 + 2) * 1000 + 1)
@@ -3725,6 +3732,7 @@ mod tests {
                 .collect::<Vec<_>>();
             for validator in 0..validators {
                 let test_block_header = TestBlockHeader::new(round, validator as u8)
+                    .set_version(version)
                     .set_ancestors(refs_to_headers_from_prev_round.clone())
                     .set_timestamp_ms(round as u64 * 1000 + (validator + round as usize + 1) as u64)
                     .build();
