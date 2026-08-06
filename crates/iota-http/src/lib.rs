@@ -112,6 +112,8 @@ impl Builder {
             + 'static,
         ResponseBody: http_body::Body<Data = bytes::Bytes, Error: Into<BoxError>> + Send + 'static,
     {
+        self.config.validate()?;
+
         let local_addr = listener.local_addr()?;
         let graceful_shutdown_token = tokio_util::sync::CancellationToken::new();
         let connections = ActiveConnections::default();
@@ -528,7 +530,9 @@ mod tests {
         let handle = Builder::new()
             .config(
                 Config::default()
-                    .handshake_timeout(None)
+                    // Long enough that the stalled peer below is released by the test
+                    // rather than by the deadline.
+                    .handshake_timeout(Some(Duration::from_secs(60)))
                     .max_pending_connections(Some(1)),
             )
             .tls_config(server_tls_config)
@@ -564,5 +568,40 @@ mod tests {
             .await
             .expect("the server must resume accepting once a slot frees")
             .expect("the handshake must succeed");
+    }
+
+    /// A limit the accept loop can never fall below, and a limit whose slots
+    /// nothing releases, both leave the server unable to accept.
+    #[tokio::test]
+    async fn unrecoverable_limits_are_rejected() {
+        let served = |config| {
+            Builder::new()
+                .config(config)
+                .tls_config(test_tls_configs().0)
+                .serve(("localhost", 0), Router::new())
+        };
+
+        assert!(
+            served(Config::default().max_pending_connections(Some(0))).is_err(),
+            "a zero limit must be rejected"
+        );
+        assert!(
+            served(
+                Config::default()
+                    .handshake_timeout(None)
+                    .max_pending_connections(Some(8))
+            )
+            .is_err(),
+            "a limit without a handshake deadline must be rejected"
+        );
+        assert!(
+            served(
+                Config::default()
+                    .handshake_timeout(None)
+                    .max_pending_connections(None)
+            )
+            .is_ok(),
+            "removing both bounds stays allowed"
+        );
     }
 }

@@ -255,6 +255,23 @@ impl Config {
         }
     }
 
+    /// Rejects settings the accept loop cannot recover from.
+    pub(crate) fn validate(&self) -> Result<(), crate::BoxError> {
+        match self.max_pending_connections {
+            Some(0) => Err("'max_pending_connections' must be greater than zero, \
+                            a server that accepts no connection is never useful"
+                .into()),
+            // Reaching the limit stops accepting until a handshake finishes, so
+            // without a deadline enough silent peers stall the server for good.
+            Some(_) if self.handshake_timeout.is_none() => Err(
+                "'max_pending_connections' requires a 'handshake_timeout' to release its \
+                     slots"
+                    .into(),
+            ),
+            _ => Ok(()),
+        }
+    }
+
     pub(crate) fn connection_builder(
         &self,
     ) -> hyper_util::server::conn::auto::Builder<hyper_util::rt::TokioExecutor> {
