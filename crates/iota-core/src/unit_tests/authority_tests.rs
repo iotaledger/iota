@@ -4652,8 +4652,8 @@ pub fn dev_inspect(
     dev_inspect_with_budget(authority, sender, kind, gas_price, None)
 }
 
-/// Same as [`dev_inspect`], but with control over the gas budget the RPC layer
-/// would otherwise default to `max_tx_gas`.
+/// Same as [`dev_inspect`], but with control over the gas budget, which is
+/// otherwise left at zero for the simulation to fill in.
 pub fn dev_inspect_with_budget(
     authority: &AuthorityState,
     sender: Address,

@@ -330,29 +330,33 @@ impl TransactionExecutionApi {
         Ok((tx_data, input_objs))
     }
 
-    async fn dry_run_transaction_block(
+    /// The synchronous part of
+    /// [`dry_run_transaction_block`](Self::dry_run_transaction_block): the
+    /// simulation, and the resolution of the response's input and events over
+    /// the objects it wrote. Meant to run on a blocking thread; the async
+    /// object- and balance-change queries stay with the caller.
+    fn dry_run_transaction_block_impl(
         &self,
-        tx_bytes: Base64,
-    ) -> Result<DryRunTransactionBlockResponse, Error> {
-        let (mut txn_data, input_objs) = self.prepare_dry_run_transaction_block(tx_bytes)?;
-        let sender = txn_data.sender();
-
+        mut txn_data: TransactionData,
+    ) -> Result<
+        (
+            SimulateTransactionResult,
+            IotaTransactionBlockData,
+            IotaTransactionBlockEvents,
+        ),
+        Error,
+    > {
         // Hold on to one epoch store for the whole operation, so that the simulation
-        // and the type resolution below observe the same epoch.
+        // and the type resolution below observe the same epoch. A full `Arc` rather
+        // than the arc-swap guard: a guard occupies one of arc-swap's scarce
+        // per-thread borrow slots, meant for short borrows, not a whole simulation.
         let epoch_store = Arc::clone(&self.state.load_epoch_store_one_call_per_task());
 
-        // Use spawn_blocking since simulating a transaction is a long-running
-        // synchronous operation
-        let simulation = {
-            let state = self.state.clone();
-            let epoch_store = epoch_store.clone();
-            let txn_data = txn_data.clone();
-            tokio::task::spawn_blocking(move || {
-                state.simulate_transaction_in_epoch(&epoch_store, txn_data, VmChecks::Enabled)
-            })
-            .await
-            .map_err(Error::from)??
-        };
+        let mut simulation = self.state.simulate_transaction_in_epoch(
+            &epoch_store,
+            txn_data.clone(),
+            VmChecks::Enabled,
+        )?;
 
         Self::report_simulation_gas(&mut txn_data, &simulation);
 
@@ -381,13 +385,32 @@ impl TransactionExecutionApi {
                 error: format!("Failed to convert transaction to IotaTransactionBlockData: {e}"),
             })?;
             let events = IotaTransactionBlockEvents::try_from(
-                simulation.events.unwrap_or_default(),
+                simulation.events.take().unwrap_or_default(),
                 tx_digest,
                 None,
                 layout_resolver.as_mut(),
             )?;
 
             (input, events)
+        };
+
+        Ok((simulation, input, events))
+    }
+
+    async fn dry_run_transaction_block(
+        &self,
+        tx_bytes: Base64,
+    ) -> Result<DryRunTransactionBlockResponse, Error> {
+        let (txn_data, input_objs) = self.prepare_dry_run_transaction_block(tx_bytes)?;
+        let sender = txn_data.sender();
+
+        // Use spawn_blocking since simulating a transaction and resolving types
+        // over its output are long-running synchronous operations
+        let (simulation, input, events) = {
+            let this = self.clone();
+            tokio::task::spawn_blocking(move || this.dry_run_transaction_block_impl(txn_data))
+                .await
+                .map_err(Error::from)??
         };
 
         let execution_error_source = simulation
@@ -436,9 +459,10 @@ impl TransactionExecutionApi {
     /// functions and argument values relaxed, reporting the return values of
     /// every command.
     ///
-    /// Any part of the gas payment the caller leaves out is filled in with the
-    /// reference gas price, the protocol maximum gas budget, and `sender` as
-    /// the gas owner.
+    /// Any part of the gas payment the caller leaves out is filled in: an
+    /// empty payment gets a mock gas coin, a zero price the epoch's reference
+    /// gas price, and a zero budget as much as the gas coins can back, up to
+    /// the protocol maximum. `sender` stands in as the gas owner.
     async fn dev_inspect_transaction(
         &self,
         sender: Address,
