@@ -2922,7 +2922,7 @@ pub async fn build_and_try_publish_test_package(
     gas_budget: u64,
     gas_price: u64,
     with_unpublished_deps: bool,
-) -> (Transaction, SignedTransactionEffects) {
+) -> (TransactionEnvelope, SignedTransactionEffects) {
     move_package::package_hooks::register_package_hooks(Box::new(IotaPackageHooks));
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     path.extend(["src", "unit_tests", "data", test_dir]);

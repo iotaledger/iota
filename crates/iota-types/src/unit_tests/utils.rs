@@ -10,7 +10,8 @@ use iota_sdk_crypto::{
     secp256r1::Secp256r1PrivateKey, simple::SimpleKeypair,
 };
 use iota_sdk_types::{
-    Address, ObjectId, SimpleSignature, TransactionKind, UserSignature, crypto::Intent,
+    Address, ObjectId, SenderSignedTransaction, SimpleSignature, TransactionKind, UserSignature,
+    crypto::Intent,
 };
 use rand::{SeedableRng, rngs::StdRng};
 
@@ -18,15 +19,14 @@ use crate::{
     base_types::{dbg_addr, random_object_ref},
     committee::Committee,
     crypto::{
-        AccountKeyPair, AuthorityKeyPair, AuthorityPublicKeyBytes, IotaKeyPair, get_key_pair,
+        AccountKeyPair, AuthorityKeyPair, AuthorityPublicKeyBytes, get_key_pair,
         get_key_pair_from_rng,
     },
     multisig::{MultiSig, MultiSigPublicKey, MultisigMember},
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{
-        SenderSignedData, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, Transaction, TransactionData,
-        TransactionDataAPI,
+        TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionData, TransactionDataAPI, TransactionEnvelope,
     },
 };
 
@@ -61,7 +61,7 @@ where
 
 // Creates a fake sender-signed transaction for testing. This transaction will
 // not actually work.
-pub fn create_fake_transaction() -> Transaction {
+pub fn create_fake_transaction() -> TransactionEnvelope {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
     let recipient = dbg_addr(2);
     let object_id = ObjectId::random();
@@ -118,17 +118,16 @@ pub fn make_sponsored_transaction_data(sender: Address, sponsor: Address) -> Tra
 
 /// Make a user signed transaction with the given sender and its keypair. This
 /// is not verified or signed by authority.
-pub fn make_transaction(sender: Address, kp: &SimpleKeypair) -> Transaction {
+pub fn make_transaction(sender: Address, kp: &SimpleKeypair) -> TransactionEnvelope {
     let data = make_transaction_data(sender);
-    let digest = data.signing_digest();
-    Transaction::from_data(data, vec![kp.sign(&digest)])
+    TransactionEnvelope::from_data_and_signer(data, vec![kp])
 }
 
 // This is used to sign transaction with signer using default Intent.
 pub fn to_sender_signed_transaction(
     data: TransactionData,
     signer: &impl Signer<SimpleSignature>,
-) -> Transaction {
+) -> TransactionEnvelope {
     to_sender_signed_transaction_with_multi_signers(data, vec![signer])
 }
 
@@ -136,26 +135,29 @@ pub fn to_sender_signed_transaction_with_optional_sponsor(
     data: TransactionData,
     sender_signature: UserSignature,
     sponsor_signer_opt: Option<&impl Signer<SimpleSignature>>,
-) -> Transaction {
+) -> TransactionEnvelope {
     let mut signatures = vec![sender_signature];
     if let Some(sponsor) = sponsor_signer_opt {
-        let sponsor_sig =
-            Transaction::signature_from_signer(data.clone(), Intent::iota_transaction(), sponsor)
-                .into();
+        let sponsor_sig = TransactionEnvelope::signature_from_signer(
+            data.clone(),
+            Intent::iota_transaction(),
+            sponsor,
+        )
+        .into();
         signatures.push(sponsor_sig);
     };
 
-    Transaction::from_user_sig_data(data, signatures)
+    TransactionEnvelope::from_user_sig_data(data, signatures)
 }
 
 pub fn to_sender_signed_transaction_with_multi_signers(
     data: TransactionData,
     signers: Vec<&impl Signer<SimpleSignature>>,
-) -> Transaction {
-    Transaction::from_data_and_signer(data, signers)
+) -> TransactionEnvelope {
+    TransactionEnvelope::from_data_and_signer(data, signers)
 }
 
-pub fn keys() -> Vec<IotaKeyPair> {
+pub fn keys() -> Vec<SimpleKeypair> {
     let (kp1, kp2, kp3) = multisig_keys();
     vec![kp1.into(), kp2.into(), kp3.into()]
 }
@@ -169,7 +171,7 @@ pub fn multisig_keys() -> (Ed25519PrivateKey, Secp256k1PrivateKey, Secp256r1Priv
     (kp1, kp2, kp3)
 }
 
-pub fn make_upgraded_multisig_tx() -> Transaction {
+pub fn make_upgraded_multisig_tx() -> TransactionEnvelope {
     let (kp1, kp2, kp3) = multisig_keys();
     let pk1 = kp1.public_key();
     let pk2 = kp2.public_key();
@@ -193,7 +195,7 @@ pub fn make_upgraded_multisig_tx() -> Transaction {
 
     // Any 2 of 3 signatures verifies ok.
     let multi_sig1 = MultiSig::new(vec![sig1.into(), sig2.into()], multisig_pk).unwrap();
-    Transaction::new(SenderSignedData::new(
+    TransactionEnvelope::new(SenderSignedTransaction::new(
         tx.transaction().clone(),
         vec![UserSignature::Multisig(multi_sig1)],
     ))
@@ -204,13 +206,16 @@ pub fn make_upgraded_multisig_tx() -> Transaction {
 ///
 /// Returns the transaction together with the sender's and sponsor's addresses
 /// so callers can locate each signature within the transaction.
-pub fn make_sponsored_regular_sig_tx() -> (Transaction, Address, Address) {
+pub fn make_sponsored_regular_sig_tx() -> (TransactionEnvelope, Address, Address) {
     let (sender, sender_kp): (_, AccountKeyPair) = get_key_pair();
     let (sponsor, sponsor_kp): (_, AccountKeyPair) = get_key_pair();
     let tx_data = make_sponsored_transaction_data(sender, sponsor);
-    let sender_sig: UserSignature =
-        Transaction::signature_from_signer(tx_data.clone(), Intent::iota_transaction(), &sender_kp)
-            .into();
+    let sender_sig: UserSignature = TransactionEnvelope::signature_from_signer(
+        tx_data.clone(),
+        Intent::iota_transaction(),
+        &sender_kp,
+    )
+    .into();
     let tx =
         to_sender_signed_transaction_with_optional_sponsor(tx_data, sender_sig, Some(&sponsor_kp));
     (tx, sender, sponsor)
@@ -218,21 +223,23 @@ pub fn make_sponsored_regular_sig_tx() -> (Transaction, Address, Address) {
 
 mod move_authenticator {
     use fastcrypto::hash::HashFunction;
-    use iota_sdk_types::{Address, Digest, SharedObjectReference, UserSignature};
+    use iota_sdk_types::{
+        Address, Digest, SenderSignedTransaction, SharedObjectReference, UserSignature,
+    };
     pub use iota_sdk_types::{MoveAuthenticator, MoveAuthenticatorV1};
 
     use crate::{
         crypto::DefaultHash,
         object::OBJECT_START_VERSION,
-        transaction::{SenderSignedData, Transaction},
+        transaction::TransactionEnvelope,
         utils::{make_sponsored_transaction_data, make_transaction_data},
     };
 
     /// Make a transaction signed with `MoveAuthenticator` for testing.
-    pub fn make_move_authenticator_tx(address: Address) -> Transaction {
+    pub fn make_move_authenticator_tx(address: Address) -> TransactionEnvelope {
         let data = make_transaction_data(address);
         let (authenticator, _) = make_move_authenticator_sig(address);
-        Transaction::new(SenderSignedData::new(data, vec![authenticator]))
+        TransactionEnvelope::new(SenderSignedTransaction::new(data, vec![authenticator]))
     }
 
     /// Build a [`UserSignature::MoveAuthenticator`] and the underlying
@@ -262,11 +269,11 @@ mod move_authenticator {
     pub fn make_sponsored_move_authenticator_tx(
         sender_addr: Address,
         sponsor_addr: Address,
-    ) -> (Transaction, MoveAuthenticator, MoveAuthenticator) {
+    ) -> (TransactionEnvelope, MoveAuthenticator, MoveAuthenticator) {
         let (sender_sig, sender_auth) = make_move_authenticator_sig(sender_addr);
         let (sponsor_sig, sponsor_auth) = make_move_authenticator_sig(sponsor_addr);
         let tx_data = make_sponsored_transaction_data(sender_addr, sponsor_addr);
-        let tx = Transaction::new(SenderSignedData::new(
+        let tx = TransactionEnvelope::new(SenderSignedTransaction::new(
             tx_data,
             vec![sender_sig, sponsor_sig],
         ));

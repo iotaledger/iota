@@ -54,7 +54,7 @@ use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     base_types::{AuthorityName, ConciseableName},
     committee::{Committee, CommitteeTrait, EpochId},
-    crypto::{AccountKeyPair, IotaKeyPair, get_key_pair},
+    crypto::{AccountKeyPair, SimpleKeypair, get_key_pair},
     effects::{TransactionEffects, TransactionEvents},
     error::IotaResult,
     iota_system_state::{
@@ -66,7 +66,7 @@ use iota_types::{
     quorum_driver_types::{ExecuteTransactionRequestType, ExecuteTransactionRequestV1},
     supported_protocol_versions::SupportedProtocolVersions,
     traffic_control::{PolicyConfig, RemoteFirewallConfig},
-    transaction::{CertifiedTransaction, Transaction, TransactionData},
+    transaction::{CertifiedTransaction, TransactionData, TransactionEnvelope},
     utils::to_sender_signed_transaction,
 };
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
@@ -104,7 +104,7 @@ impl FullNodeHandle {
 
 struct Faucet {
     address: Address,
-    keypair: Arc<tokio::sync::Mutex<IotaKeyPair>>,
+    keypair: Arc<tokio::sync::Mutex<SimpleKeypair>>,
 }
 
 pub struct TestCluster {
@@ -624,7 +624,7 @@ impl TestCluster {
         TestTransactionBuilder::new(sender, gas, rgp)
     }
 
-    pub fn sign_transaction(&self, tx_data: &TransactionData) -> Transaction {
+    pub fn sign_transaction(&self, tx_data: &TransactionData) -> TransactionEnvelope {
         self.wallet.sign_transaction(tx_data)
     }
 
@@ -640,7 +640,10 @@ impl TestCluster {
     /// the rpc fullnode. Also expects the effects status to be
     /// ExecutionStatus::Success. This function is recommended for
     /// transaction execution since it most resembles the production path.
-    pub async fn execute_transaction(&self, tx: Transaction) -> IotaTransactionBlockResponse {
+    pub async fn execute_transaction(
+        &self,
+        tx: TransactionEnvelope,
+    ) -> IotaTransactionBlockResponse {
         self.wallet.execute_transaction_must_succeed(tx).await
     }
 
@@ -656,7 +659,7 @@ impl TestCluster {
     /// expected to fail.
     pub async fn execute_transaction_return_raw_effects(
         &self,
-        tx: Transaction,
+        tx: TransactionEnvelope,
     ) -> anyhow::Result<(TransactionEffects, TransactionEvents)> {
         if self.protocol_config().enable_pcool_flow() {
             return self.execute_transaction_via_orchestrator(tx).await;
@@ -676,7 +679,7 @@ impl TestCluster {
     /// callers that only need the raw execution results.
     async fn execute_transaction_via_orchestrator(
         &self,
-        tx: Transaction,
+        tx: TransactionEnvelope,
     ) -> anyhow::Result<(TransactionEffects, TransactionEvents)> {
         let orchestrator = self.fullnode_handle.iota_node.with(|node| {
             node.transaction_orchestrator()
@@ -709,7 +712,7 @@ impl TestCluster {
 
     pub async fn create_certificate(
         &self,
-        tx: Transaction,
+        tx: TransactionEnvelope,
         client_addr: Option<SocketAddr>,
     ) -> anyhow::Result<CertifiedTransaction> {
         let agg = self.authority_aggregator();
@@ -727,7 +730,7 @@ impl TestCluster {
     /// certificates to, which is useful in some tests.
     pub async fn submit_transaction_to_validators(
         &self,
-        tx: Transaction,
+        tx: TransactionEnvelope,
         pubkeys: &[AuthorityName],
     ) -> anyhow::Result<(TransactionEffects, TransactionEvents)> {
         let agg = self.authority_aggregator();
@@ -1340,9 +1343,7 @@ impl TestClusterBuilder {
             });
             Faucet {
                 address: faucet_address,
-                keypair: Arc::new(tokio::sync::Mutex::new(IotaKeyPair::Ed25519(
-                    faucet_keypair,
-                ))),
+                keypair: Arc::new(tokio::sync::Mutex::new(SimpleKeypair::from(faucet_keypair))),
             }
         });
 

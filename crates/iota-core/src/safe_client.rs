@@ -256,7 +256,7 @@ impl<C> SafeClient<C> {
     fn check_transaction_info(
         &self,
         digest: &TransactionDigest,
-        transaction: Transaction,
+        transaction: TransactionEnvelope,
         status: TransactionStatus,
     ) -> IotaResult<PlainTransactionInfoResponse> {
         fp_ensure!(
@@ -338,7 +338,7 @@ where
     /// Initiate a new transfer to an IOTA or Primary account.
     pub async fn handle_transaction(
         &self,
-        transaction: Transaction,
+        transaction: TransactionEnvelope,
         client_addr: Option<SocketAddr>,
     ) -> Result<PlainTransactionInfoResponse, IotaError> {
         let _timer = self.metrics.handle_transaction_latency.start_timer();
@@ -506,7 +506,7 @@ where
             .handle_transaction_info_request(request.clone())
             .await?;
 
-        let transaction = Transaction::new(transaction_info.transaction);
+        let transaction = TransactionEnvelope::new(transaction_info.transaction);
         let transaction_info = self.check_transaction_info(
             &request.transaction_digest,
             transaction,
@@ -532,7 +532,7 @@ where
     #[instrument(level = "trace", skip_all, fields(authority = ?self.address.concise()))]
     pub async fn submit_tx(
         &self,
-        transactions: Vec<Transaction>,
+        transactions: Vec<TransactionEnvelope>,
         client_addr: Option<SocketAddr>,
     ) -> Result<Vec<(TransactionDigest, TxStatusUpdate)>, IotaError> {
         let _timer = self.metrics.submit_tx_latency.start_timer();

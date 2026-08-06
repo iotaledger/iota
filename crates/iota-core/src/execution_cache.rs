@@ -936,16 +936,18 @@ pub trait TransactionCacheRead: Send + Sync {
 
     fn try_notify_read_executed_effects_digests<'a>(
         &'a self,
+        task_name: &'static str,
         digests: &'a [TransactionDigest],
     ) -> BoxFuture<'a, IotaResult<Vec<TransactionEffectsDigest>>>;
 
     /// Non-fallible version of `try_notify_read_executed_effects_digests`.
     fn notify_read_executed_effects_digests<'a>(
         &'a self,
+        task_name: &'static str,
         digests: &'a [TransactionDigest],
     ) -> BoxFuture<'a, Vec<TransactionEffectsDigest>> {
         Box::pin(async move {
-            self.try_notify_read_executed_effects_digests(digests)
+            self.try_notify_read_executed_effects_digests(task_name, digests)
                 .await
                 .expect("storage access failed")
         })
@@ -964,11 +966,12 @@ pub trait TransactionCacheRead: Send + Sync {
     /// the database.
     fn try_notify_read_executed_effects<'a>(
         &'a self,
+        task_name: &'static str,
         digests: &'a [TransactionDigest],
     ) -> BoxFuture<'a, IotaResult<Vec<TransactionEffects>>> {
         async move {
             let effects_digests = self
-                .try_notify_read_executed_effects_digests(digests)
+                .try_notify_read_executed_effects_digests(task_name, digests)
                 .await?;
             self.try_multi_get_effects(&effects_digests)?
                 .into_iter()
@@ -987,10 +990,11 @@ pub trait TransactionCacheRead: Send + Sync {
     /// effects may have been pruned, use `try_notify_read_executed_effects`.
     fn notify_read_executed_effects_for_testing<'a>(
         &'a self,
+        task_name: &'static str,
         digests: &'a [TransactionDigest],
     ) -> BoxFuture<'a, Vec<TransactionEffects>> {
         Box::pin(async move {
-            self.try_notify_read_executed_effects(digests)
+            self.try_notify_read_executed_effects(task_name, digests)
                 .await
                 .unwrap_or_else(|e| panic!("effects must exist: {e}"))
         })

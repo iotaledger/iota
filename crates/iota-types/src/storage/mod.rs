@@ -17,7 +17,8 @@ use std::{
 };
 
 use iota_sdk_types::{
-    ObjectId, ObjectReference, TransactionDigest, Version, move_package::MovePackage,
+    ObjectId, ObjectReference, SenderSignedTransaction, TransactionDigest, Version,
+    move_package::MovePackage,
 };
 use itertools::Itertools;
 use move_binary_format::CompiledModule;
@@ -43,7 +44,7 @@ use crate::{
     iota_sdk_types_conversions::identifier_core_to_sdk,
     object::Object,
     storage::error::Error as StorageError,
-    transaction::{SenderSignedData, SenderSignedTransactionAPI, TransactionDataAPI},
+    transaction::{SenderSignedTransactionAPI, TransactionDataAPI},
 };
 
 /// A potential input to a transaction.
@@ -528,7 +529,7 @@ impl From<Object> for ObjectOrTombstone {
 /// Includes owned, and immutable objects as well as the gas objects, but not
 /// move packages or shared objects.
 pub fn transaction_non_shared_input_object_keys(
-    tx: &SenderSignedData,
+    tx: &SenderSignedTransaction,
 ) -> IotaResult<Vec<ObjectKey>> {
     use crate::transaction::InputObjectKind as I;
     Ok(tx
@@ -541,7 +542,7 @@ pub fn transaction_non_shared_input_object_keys(
         .collect())
 }
 
-pub fn transaction_receiving_object_keys(tx: &SenderSignedData) -> Vec<ObjectKey> {
+pub fn transaction_receiving_object_keys(tx: &SenderSignedTransaction) -> Vec<ObjectKey> {
     tx.transaction()
         .receiving_objects()
         .into_iter()

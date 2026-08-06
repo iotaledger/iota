@@ -66,7 +66,7 @@ async fn execute_add_validator_transactions(
             ),
         }
     });
-    let address = (&new_validator.account_key_pair.public()).into();
+    let address = new_validator.account_key_pair.public_key().derive_address();
     let gas = test_cluster
         .wallet
         .get_one_gas_object_owned_by_address(address)
@@ -99,7 +99,7 @@ async fn execute_add_validator_transactions(
         assert_eq!(validator_candidates_size, cur_validator_candidate_count + 1);
     });
 
-    let address = (&new_validator.account_key_pair.public()).into();
+    let address = new_validator.account_key_pair.public_key().derive_address();
     let min_validator_joining_stake = test_cluster.protocol_config().min_validator_joining_stake();
     let stake_coin = test_cluster
         .wallet
@@ -153,7 +153,7 @@ async fn execute_add_validator_transactions(
 async fn get_stakes_with_new_validator() {
     // Create the keypair for the new validator candidate
     let new_validator = ValidatorGenesisConfigBuilder::new().build(&mut OsRng);
-    let address = (&new_validator.account_key_pair.public()).into();
+    let address = new_validator.account_key_pair.public_key().derive_address();
 
     let mut test_cluster = TestClusterBuilder::new()
         .with_validator_candidates([address])

@@ -5,7 +5,10 @@
 use fastcrypto::traits::KeyPair;
 use iota_sdk_types::{
     ObjectId,
-    crypto::{Intent, IntentAppId, IntentMessage, IntentScope, IntentVersion, PersonalMessage},
+    crypto::{
+        Intent, IntentAppId, IntentMessage, IntentScope, IntentVersion, PersonalMessage,
+        SimpleSignature,
+    },
 };
 
 use crate::{
@@ -13,11 +16,11 @@ use crate::{
     committee::EpochId,
     crypto::{
         AccountKeyPair, AuthorityKeyPair, AuthoritySignature, IotaAuthoritySignature,
-        IotaSignature, Signature, get_key_pair,
+        IotaSignature, get_key_pair,
     },
     object::Object,
     transaction::{
-        TEST_ONLY_GAS_UNIT_FOR_TRANSFER, Transaction, TransactionData, TransactionDataAPI,
+        TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionData, TransactionDataAPI, TransactionEnvelope,
     },
 };
 
@@ -47,7 +50,7 @@ fn test_personal_message_intent() {
     assert_eq!(&intent_bcs[3..], &p_message_bcs);
 
     // Let's ensure we can sign and verify intents.
-    let s = Signature::new_secure(&IntentMessage::new(intent, p_message), &sec1);
+    let s = SimpleSignature::new_secure(&IntentMessage::new(intent, p_message), &sec1);
     let verification = s.verify_secure(&IntentMessage::new(intent, p_message_2), addr1);
     assert!(verification.is_ok())
 }
@@ -71,8 +74,8 @@ fn test_authority_signature_intent() {
         gas_price * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
         gas_price,
     );
-    let signature = Signature::new_secure(&data.intent_message(), &sender_key);
-    let tx = Transaction::from_data(data, vec![signature]);
+    let signature = SimpleSignature::new_secure(&data.intent_message(), &sender_key);
+    let tx = TransactionEnvelope::from_data(data, vec![signature]);
     let tx1 = tx.clone();
     assert!(
         tx.try_into_verified_for_testing(&Default::default())

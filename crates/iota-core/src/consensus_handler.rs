@@ -13,13 +13,15 @@ use arc_swap::ArcSwap;
 use iota_common::random_util::randomize_cache_capacity_in_tests;
 use iota_macros::{fail_point, fail_point_if};
 use iota_metrics::{monitored_mpsc, monitored_scope, spawn_monitored_task};
-use iota_sdk_types::{CancelledTransaction, ConsensusCommitDigest, TransactionDigest};
+use iota_sdk_types::{
+    CancelledTransaction, ConsensusCommitDigest, SenderSignedTransaction, TransactionDigest,
+};
 use iota_types::{
     base_types::AuthorityName,
     executable_transaction::{TrustedExecutableTransaction, VerifiedExecutableTransaction},
     iota_system_state::epoch_start_iota_system_state::EpochStartSystemStateTrait,
     messages_consensus::{ConsensusTransaction, ConsensusTransactionKey, ConsensusTransactionKind},
-    transaction::{SenderSignedData, SenderSignedTransactionAPI, VerifiedTransaction},
+    transaction::{SenderSignedTransactionAPI, VerifiedTransaction},
 };
 use lru::LruCache;
 use serde::{Deserialize, Serialize};
@@ -793,7 +795,9 @@ impl SequencedConsensusTransaction {
     /// always `false`, since only user transactions can request randomness.
     pub fn is_user_tx_with_randomness(&self) -> bool {
         match &self.transaction {
-            SequencedConsensusTransactionKind::External(ext) => ext.kind.as_sender_signed_data(),
+            SequencedConsensusTransactionKind::External(ext) => {
+                ext.kind.as_sender_signed_transaction()
+            }
             SequencedConsensusTransactionKind::System(_) => None,
         }
         .is_some_and(|data| data.uses_randomness())
@@ -803,11 +807,11 @@ impl SequencedConsensusTransaction {
     /// (`CertifiedTransaction` or `UserTransactionV1`) or system transaction
     /// that touches at least one shared object, and `None` otherwise (internal
     /// consensus messages, or a transaction with only owned objects).
-    pub fn as_shared_object_txn(&self) -> Option<&SenderSignedData> {
+    pub fn as_shared_object_txn(&self) -> Option<&SenderSignedTransaction> {
         match &self.transaction {
             SequencedConsensusTransactionKind::External(ext) => ext
                 .kind
-                .as_sender_signed_data()
+                .as_sender_signed_transaction()
                 .filter(|data| data.contains_shared_object()),
             SequencedConsensusTransactionKind::System(txn) => {
                 txn.contains_shared_object().then(|| txn.data())
@@ -917,7 +921,7 @@ mod tests {
     use arc_swap::ArcSwap;
     use futures::pin_mut;
     use iota_protocol_config::{Chain, ConsensusTransactionOrdering, ProtocolConfig};
-    use iota_sdk_types::{Address, ObjectId};
+    use iota_sdk_types::{Address, ObjectId, SenderSignedTransaction};
     use iota_types::{
         base_types::{AuthorityName, random_object_ref},
         committee::Committee,
@@ -930,8 +934,8 @@ mod tests {
             SupportedProtocolVersions, SupportedProtocolVersionsWithHashes,
         },
         transaction::{
-            CertifiedTransaction, SenderSignedData, TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
-            TransactionData, TransactionDataAPI,
+            CertifiedTransaction, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionData,
+            TransactionDataAPI,
         },
         utils::to_sender_signed_transaction,
     };
@@ -1338,7 +1342,7 @@ mod tests {
 
     fn user_txn(gas_price: u64) -> VerifiedSequencedConsensusTransaction {
         let (committee, keypairs) = Committee::new_simple_test_committee();
-        let data = SenderSignedData::new(
+        let tx = SenderSignedTransaction::new(
             TransactionData::new_transfer(
                 Address::ZERO,
                 random_object_ref(),
@@ -1350,7 +1354,7 @@ mod tests {
             vec![],
         );
         txn(ConsensusTransactionKind::CertifiedTransaction(Box::new(
-            CertifiedTransaction::new_from_keypairs_for_testing(data, &keypairs, &committee),
+            CertifiedTransaction::new_from_keypairs_for_testing(tx, &keypairs, &committee),
         )))
     }
 

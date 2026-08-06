@@ -9,12 +9,12 @@ use std::{
 
 use iota_config::node::AuthorityOverloadConfig;
 use iota_metrics::spawn_monitored_task;
-use iota_sdk_types::TransactionEffectsDigest;
+use iota_sdk_types::{SenderSignedTransaction, TransactionEffectsDigest};
 use iota_types::{
     error::IotaResult,
     executable_transaction::VerifiedExecutableTransaction,
     storage::InputKey,
-    transaction::{SenderSignedData, SenderSignedTransactionAPI, TransactionDataAPI},
+    transaction::{SenderSignedTransactionAPI, TransactionDataAPI},
 };
 use tokio::{sync::mpsc::UnboundedSender, time::Instant};
 use tracing::{debug, warn};
@@ -179,7 +179,10 @@ impl ExecutionScheduler {
                     debug!(?digest, "Input objects available");
                     self.send_transaction_for_execution(&tx, expected_effects_digest, enqueue_time);
                 }
-            _ = self.transaction_cache_read.notify_read_executed_effects_digests(&digests) => {
+            _ = self.transaction_cache_read.notify_read_executed_effects_digests(
+                "ExecutionScheduler::notify_read_executed_effects_digests",
+                &digests,
+            ) => {
                 debug!(?digests, "Transaction already executed");
             }
         };
@@ -279,7 +282,7 @@ impl ExecutionSchedulerAPI for ExecutionScheduler {
     fn check_execution_overload(
         &self,
         overload_config: &AuthorityOverloadConfig,
-        tx_data: &SenderSignedData,
+        tx_data: &SenderSignedTransaction,
     ) -> IotaResult {
         let inflight_queue_len = self.num_pending_transactions();
         self.overload_tracker

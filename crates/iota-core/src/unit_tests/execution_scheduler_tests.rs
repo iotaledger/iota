@@ -19,8 +19,8 @@ use std::{time::Duration, vec};
 
 use iota_config::node::AuthorityOverloadConfig;
 use iota_sdk_types::{
-    MoveAuthenticatorV1, ObjectId, SharedObjectReference, TransactionEffectsDigest, UserSignature,
-    VersionAssignment,
+    MoveAuthenticatorV1, ObjectId, SenderSignedTransaction, SharedObjectReference,
+    TransactionEffectsDigest, UserSignature, VersionAssignment,
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
@@ -29,7 +29,7 @@ use iota_types::{
     executable_transaction::VerifiedExecutableTransaction,
     object::Object,
     storage::InputKey,
-    transaction::{CallArg, SenderSignedData, Transaction, VerifiedTransaction},
+    transaction::{CallArg, TransactionEnvelope, VerifiedTransaction},
 };
 use tokio::{
     sync::mpsc::{UnboundedReceiver, unbounded_channel},
@@ -170,7 +170,7 @@ fn make_shared_authenticator_transaction(
         vec![],
         SharedObjectReference::new(shared_object.id(), 0.into(), false),
     );
-    let signed = Transaction::new(SenderSignedData::new(
+    let signed = TransactionEnvelope::new(SenderSignedTransaction::new(
         tx_data,
         vec![UserSignature::MoveAuthenticator(authenticator.into())],
     ));
@@ -212,8 +212,8 @@ async fn assert_awaits_authenticator_input(
 ///   `collect_all_input_object_kind_for_reading`: it dispatches early and would
 ///   later panic in the input loader.
 /// - `TransactionManager` already passes: it schedules on the envelope's
-///   `SenderSignedData::input_objects()`, which already includes authenticator
-///   inputs.
+///   `SenderSignedTransaction::input_objects()`, which already includes
+///   authenticator inputs.
 #[tokio::test(flavor = "current_thread", start_paused = true)]
 async fn schedulers_wait_for_authenticator_inputs() {
     let shared_version = 2000.into();

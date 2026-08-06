@@ -7,12 +7,10 @@ use std::{collections::BTreeSet, sync::Arc};
 use enum_dispatch::enum_dispatch;
 use execution_scheduler_impl::ExecutionScheduler;
 use iota_config::node::AuthorityOverloadConfig;
-use iota_sdk_types::TransactionEffectsDigest;
+use iota_sdk_types::{SenderSignedTransaction, TransactionEffectsDigest};
 use iota_types::{
-    error::IotaResult,
-    executable_transaction::VerifiedExecutableTransaction,
-    storage::InputKey,
-    transaction::{SenderSignedData, VerifiedCertificate},
+    error::IotaResult, executable_transaction::VerifiedExecutableTransaction, storage::InputKey,
+    transaction::VerifiedCertificate,
 };
 use prometheus_filtered::IntGauge;
 use tokio::{sync::mpsc::UnboundedSender, time::Instant};
@@ -119,7 +117,7 @@ pub(crate) trait ExecutionSchedulerAPI {
     fn check_execution_overload(
         &self,
         overload_config: &AuthorityOverloadConfig,
-        tx_data: &SenderSignedData,
+        tx_data: &SenderSignedTransaction,
     ) -> IotaResult;
 
     /// Returns the number of transactions pending or being executed right now.

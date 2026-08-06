@@ -60,4 +60,19 @@ impl ObjectStoreGetExt for LocalStorage {
         .await??;
         Ok(exists)
     }
+
+    async fn object_size(&self, location: &Path) -> Result<u64> {
+        let path_to_filesystem = path_to_filesystem(self.root.clone(), location)?;
+        let handle = tokio::task::spawn_blocking(move || {
+            fs::metadata(&path_to_filesystem)
+                .map(|metadata| metadata.len())
+                .map_err(|e| {
+                    anyhow!(
+                        "Failed to get metadata for file {} with error: {e}",
+                        path_to_filesystem.display()
+                    )
+                })
+        });
+        handle.await?
+    }
 }

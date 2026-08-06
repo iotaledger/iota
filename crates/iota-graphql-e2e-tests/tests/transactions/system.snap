@@ -1455,7 +1455,7 @@ Response: {
 
 task 6, line 188:
 //# advance-epoch
-Epoch advanced: 0
+Epoch advanced: 1
 
 task 7, lines 190-277:
 //# run-graphql

@@ -5,6 +5,7 @@
 use std::path::PathBuf;
 
 use iota_genesis_builder::validator_info::GenesisValidatorMetadata;
+use iota_grpc_client::read_mask_fields::{ObjectReadMask, OwnedObjectReadMask};
 use iota_move_build::{BuildConfig, CompiledPackage};
 use iota_sdk::{
     rpc_types::{
@@ -25,7 +26,7 @@ use iota_types::{
     multisig::{BitmapUnit, MultiSig, MultiSigPublicKey},
     transaction::{
         CallArg, DEFAULT_VALIDATOR_GAS_PRICE, TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE,
-        TEST_ONLY_GAS_UNIT_FOR_TRANSFER, Transaction, TransactionData, TransactionDataAPI,
+        TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionData, TransactionDataAPI, TransactionEnvelope,
     },
     utils::to_sender_signed_transaction,
 };
@@ -409,8 +410,8 @@ impl TestTransactionBuilder {
         }
     }
 
-    pub fn build_and_sign(self, signer: &impl Signer<SimpleSignature>) -> Transaction {
-        Transaction::from_data_and_signer(self.build(), vec![signer])
+    pub fn build_and_sign(self, signer: &impl Signer<SimpleSignature>) -> TransactionEnvelope {
+        TransactionEnvelope::from_data_and_signer(self.build(), vec![signer])
     }
 
     pub fn build_and_sign_multisig(
@@ -418,14 +419,14 @@ impl TestTransactionBuilder {
         multisig_pk: MultiSigPublicKey,
         signers: &[&dyn Signer<SimpleSignature>],
         bitmap: BitmapUnit,
-    ) -> Transaction {
+    ) -> TransactionEnvelope {
         let data = self.build();
         let digest = data.signing_digest();
         let signatures = signers.iter().map(|s| s.sign(&digest).into()).collect();
         let multisig =
             UserSignature::Multisig(MultiSig::new_unchecked(signatures, bitmap, multisig_pk));
 
-        Transaction::from_user_sig_data(data, vec![multisig])
+        TransactionEnvelope::from_user_sig_data(data, vec![multisig])
     }
 }
 
@@ -486,7 +487,7 @@ struct SplitCoinData {
 pub async fn batch_make_transfer_transactions(
     context: &WalletContext,
     max_txn_num: usize,
-) -> Vec<Transaction> {
+) -> Vec<TransactionEnvelope> {
     let recipient = get_key_pair::<AccountKeyPair>().0;
     let result = context.get_all_accounts_and_gas_objects().await;
     let accounts_and_objs = result.unwrap();
@@ -517,7 +518,7 @@ pub async fn make_transfer_iota_transaction(
     context: &WalletContext,
     recipient: Option<Address>,
     amount: Option<u64>,
-) -> Transaction {
+) -> TransactionEnvelope {
     let (sender, gas_object) = context.get_one_gas_object().await.unwrap().unwrap();
     let gas_price = context.get_reference_gas_price().await.unwrap();
     context.sign_transaction(
@@ -530,7 +531,7 @@ pub async fn make_transfer_iota_transaction(
 pub async fn make_staking_transaction(
     context: &WalletContext,
     validator_address: Address,
-) -> Transaction {
+) -> TransactionEnvelope {
     let accounts_and_objs = context.get_all_accounts_and_gas_objects().await.unwrap();
     let sender = accounts_and_objs[0].0;
     let gas_object = accounts_and_objs[0].1[0];
@@ -543,7 +544,10 @@ pub async fn make_staking_transaction(
     )
 }
 
-pub async fn make_publish_transaction(context: &WalletContext, path: PathBuf) -> Transaction {
+pub async fn make_publish_transaction(
+    context: &WalletContext,
+    path: PathBuf,
+) -> TransactionEnvelope {
     let (sender, gas_object) = context.get_one_gas_object().await.unwrap().unwrap();
     let gas_price = context.get_reference_gas_price().await.unwrap();
     context.sign_transaction(
@@ -556,7 +560,7 @@ pub async fn make_publish_transaction(context: &WalletContext, path: PathBuf) ->
 pub async fn make_publish_transaction_with_deps(
     context: &WalletContext,
     path: PathBuf,
-) -> Transaction {
+) -> TransactionEnvelope {
     let (sender, gas_object) = context.get_one_gas_object().await.unwrap().unwrap();
     let gas_price = context.get_reference_gas_price().await.unwrap();
     context.sign_transaction(
@@ -797,7 +801,13 @@ pub async fn delete_nft(
 /// one output coin, breaking tests that observe the sender's coin count.
 pub async fn select_gas_coin(grpc_client: &iota_grpc_client::Client, sender: Address) -> ObjectId {
     let gas_coin = grpc_client
-        .list_owned_objects(sender, Some(StructTag::new_gas_coin()), Some(1), None, None)
+        .list_owned_objects(
+            sender,
+            Some(StructTag::new_gas_coin()),
+            Some(1),
+            None,
+            OwnedObjectReadMask::default(),
+        )
         .collect(Some(1))
         .await
         .expect("failed to fetch gas coin")
@@ -856,7 +866,7 @@ pub async fn split_coin_equal_tx(
     gas_budget: u64,
 ) -> TransactionData {
     let coin_object = grpc_client
-        .get_objects(&[(coin_to_split, None)], None)
+        .get_objects([coin_to_split], ObjectReadMask::default())
         .await
         .expect("failed to fetch coin")
         .into_inner()

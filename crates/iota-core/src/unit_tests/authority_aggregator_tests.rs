@@ -16,9 +16,9 @@ use iota_macros::sim_test;
 use iota_move_build::BuildConfig;
 use iota_protocol_config::Chain::Unknown;
 use iota_sdk_types::{
-    Address, ExecutionError, ExecutionStatus, Identifier, ObjectId, ObjectReference, StakeUnit,
-    TransactionDigest,
-    crypto::{Intent, IntentMessage, IntentScope},
+    Address, ExecutionError, ExecutionStatus, Identifier, ObjectId, ObjectReference,
+    SenderSignedTransaction, StakeUnit, TransactionDigest,
+    crypto::{Intent, IntentMessage, IntentScope, SimpleSignature},
 };
 #[cfg(msim)]
 use iota_simulator::configs::constant_latency_ms;
@@ -27,8 +27,7 @@ use iota_types::{
     committee::Committee,
     crypto::{
         AccountKeyPair, AuthorityKeyPair, AuthoritySignInfo, AuthoritySignature,
-        IotaAuthoritySignature, KeypairTraits, Signature, Signer, get_key_pair,
-        get_key_pair_from_rng,
+        IotaAuthoritySignature, KeypairTraits, Signer, get_key_pair, get_key_pair_from_rng,
     },
     effects::{
         SignedTransactionEffects, TestEffectsBuilder, TransactionEffects,
@@ -46,9 +45,9 @@ use iota_types::{
     object::Object,
     supported_protocol_versions::SupportedProtocolVersions,
     transaction::{
-        CallArg, CertifiedTransaction, SenderSignedData, SignedTransaction,
+        CallArg, CertifiedTransaction, SignedTransaction,
         TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS,
-        Transaction, TransactionData, TransactionDataAPI, VerifiedTransaction,
+        TransactionData, TransactionDataAPI, TransactionEnvelope, VerifiedTransaction,
     },
     utils::{create_fake_transaction, to_sender_signed_transaction},
 };
@@ -109,13 +108,13 @@ pub fn set_local_client_config(
 
 pub fn create_object_move_transaction(
     src: Address,
-    secret: &impl iota_sdk_crypto::Signer<Signature>,
+    secret: &impl iota_sdk_crypto::Signer<SimpleSignature>,
     dest: Address,
     value: u64,
     package_id: ObjectId,
     gas_object_ref: ObjectReference,
     gas_price: u64,
-) -> Transaction {
+) -> TransactionEnvelope {
     // When creating an object_basics object, we provide the value (u64) and address
     // which will own the object
     let arguments = vec![
@@ -142,12 +141,12 @@ pub fn create_object_move_transaction(
 
 pub fn delete_object_move_transaction(
     src: Address,
-    secret: &impl iota_sdk_crypto::Signer<Signature>,
+    secret: &impl iota_sdk_crypto::Signer<SimpleSignature>,
     object_ref: ObjectReference,
     framework_obj_id: ObjectId,
     gas_object_ref: ObjectReference,
     gas_price: u64,
-) -> Transaction {
+) -> TransactionEnvelope {
     to_sender_signed_transaction(
         TransactionData::new_move_call(
             src,
@@ -167,13 +166,13 @@ pub fn delete_object_move_transaction(
 
 pub fn set_object_move_transaction(
     src: Address,
-    secret: &impl iota_sdk_crypto::Signer<Signature>,
+    secret: &impl iota_sdk_crypto::Signer<SimpleSignature>,
     object_ref: ObjectReference,
     value: u64,
     framework_obj_id: ObjectId,
     gas_object_ref: ObjectReference,
     gas_price: u64,
-) -> Transaction {
+) -> TransactionEnvelope {
     let args = vec![CallArg::ImmutableOrOwned(object_ref), CallArg::pure(&value)];
 
     to_sender_signed_transaction(
@@ -193,7 +192,7 @@ pub fn set_object_move_transaction(
     )
 }
 
-pub async fn do_transaction<A>(authority: &Arc<SafeClient<A>>, transaction: &Transaction)
+pub async fn do_transaction<A>(authority: &Arc<SafeClient<A>>, transaction: &TransactionEnvelope)
 where
     A: AuthorityAPI + Send + Sync + Clone + 'static,
 {
@@ -216,7 +215,7 @@ where
     A: AuthorityAPI + Send + Sync + Clone + 'static,
 {
     let mut votes = vec![];
-    let mut tx_data: Option<SenderSignedData> = None;
+    let mut tx: Option<SenderSignedTransaction> = None;
     for authority in authorities {
         let response = authority
             .handle_transaction_info_request(TransactionInfoRequest {
@@ -227,10 +226,10 @@ where
             Ok(PlainTransactionInfoResponse::Signed(signed)) => {
                 let (data, sig) = signed.into_data_and_sig();
                 votes.push(sig);
-                if let Some(inner_transaction) = tx_data {
+                if let Some(inner_transaction) = tx {
                     assert_eq!(inner_transaction.transaction(), data.transaction());
                 }
-                tx_data = Some(data);
+                tx = Some(data);
             }
             Ok(PlainTransactionInfoResponse::ExecutedWithCert(cert, _, _)) => {
                 return cert;
@@ -239,7 +238,7 @@ where
         }
     }
 
-    CertifiedTransaction::new(tx_data.unwrap(), votes, committee).unwrap()
+    CertifiedTransaction::new(tx.unwrap(), votes, committee).unwrap()
 }
 
 pub async fn do_cert<A>(
@@ -2487,7 +2486,7 @@ async fn process_with_cert(
 
 async fn assert_resp_err<E, F>(
     agg: &AuthorityAggregator<HandleTransactionTestAuthorityClient>,
-    tx: Transaction,
+    tx: TransactionEnvelope,
     agg_err_checker: E,
     iota_err_checker: F,
 ) where

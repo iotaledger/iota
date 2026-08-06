@@ -9,12 +9,12 @@ use std::{
 };
 
 use iota_config::node::AuthorityOverloadConfig;
-use iota_sdk_types::{ObjectId, TransactionDigest};
+use iota_sdk_types::{ObjectId, SenderSignedTransaction, TransactionDigest};
 use iota_types::{
     error::{IotaError, IotaResult},
     fp_bail, fp_ensure,
     message_envelope::Message,
-    transaction::{SenderSignedData, SenderSignedTransactionAPI},
+    transaction::SenderSignedTransactionAPI,
 };
 use parking_lot::RwLock;
 use tokio::time::Instant;
@@ -40,7 +40,7 @@ impl OverloadTracker {
         }
     }
 
-    pub(crate) fn add_pending_transaction(&self, tx_data: &SenderSignedData) {
+    pub(crate) fn add_pending_transaction(&self, tx_data: &SenderSignedTransaction) {
         let tx_digest = tx_data.digest();
         let mutable_shared_objects = Self::get_mutable_shared_objects(tx_data);
         let mut object_waiting_queue = self.object_waiting_queue.write();
@@ -51,7 +51,7 @@ impl OverloadTracker {
         }
     }
 
-    pub(crate) fn remove_pending_transaction(&self, tx_data: &SenderSignedData) {
+    pub(crate) fn remove_pending_transaction(&self, tx_data: &SenderSignedTransaction) {
         let mutable_shared_objects = Self::get_mutable_shared_objects(tx_data);
         let mut object_waiting_queue = self.object_waiting_queue.write();
         for object_id in mutable_shared_objects {
@@ -64,7 +64,7 @@ impl OverloadTracker {
         }
     }
 
-    fn get_mutable_shared_objects(tx_data: &SenderSignedData) -> Vec<ObjectId> {
+    fn get_mutable_shared_objects(tx_data: &SenderSignedTransaction) -> Vec<ObjectId> {
         tx_data
             .shared_input_objects()
             .into_iter()
@@ -75,7 +75,7 @@ impl OverloadTracker {
     pub(crate) fn check_execution_overload(
         &self,
         overload_config: &AuthorityOverloadConfig,
-        tx_data: &SenderSignedData,
+        tx_data: &SenderSignedTransaction,
         inflight_queue_len: usize,
     ) -> IotaResult {
         // Too many transactions are pending execution.

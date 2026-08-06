@@ -9,6 +9,7 @@ use fastcrypto::hash::{HashFunction, Sha3_256};
 use futures::stream::FuturesUnordered;
 use iota_common::sync::notify_read::NotifyRead;
 use iota_config::{migration_tx_data::MigrationTxData, node::AuthorityStorePruningConfig};
+use iota_genesis_common::MigrationTxDataExt;
 use iota_macros::fail_point_arg;
 use iota_sdk_types::Version;
 use iota_storage::mutex_table::{MutexGuard, MutexTable};
@@ -210,6 +211,23 @@ impl AuthorityStore {
                 .with_label_values(&[&flag.to_string()])
                 .set(1);
         }
+    }
+
+    // NB: This must only be called at time of reconfiguration. We take the
+    // execution lock write guard as an argument to ensure that this is the
+    // case.
+    pub fn clear_object_per_epoch_marker_table(
+        &self,
+        _execution_guard: &ExecutionLockWriteGuard<'_>,
+    ) -> IotaResult<()> {
+        // We can safely delete all entries in the per epoch marker table since this is
+        // only called at epoch boundaries (during reconfiguration). Therefore
+        // any entries that currently exist can be removed. Because of this we
+        // can use the `schedule_delete_all` method.
+        Ok(self
+            .perpetual_tables
+            .object_per_epoch_marker_table
+            .schedule_delete_all()?)
     }
 
     pub async fn open_with_committee_for_testing(

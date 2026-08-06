@@ -21,7 +21,7 @@ use crate::{
         get_module_by_id, load_package_object_from_object_store,
     },
     transaction::{
-        InputObjectKind, InputObjects, ObjectReadResult, Transaction, TransactionDataAPI,
+        InputObjectKind, InputObjects, ObjectReadResult, TransactionDataAPI, TransactionEnvelope,
     },
 };
 
@@ -164,7 +164,10 @@ impl InMemoryStorage {
         Self { persistent }
     }
 
-    pub fn read_input_objects_for_transaction(&self, transaction: &Transaction) -> InputObjects {
+    pub fn read_input_objects_for_transaction(
+        &self,
+        transaction: &TransactionEnvelope,
+    ) -> InputObjects {
         let mut input_objects = Vec::new();
         for kind in transaction.transaction().input_objects().unwrap() {
             let id = match kind {

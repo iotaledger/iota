@@ -11,7 +11,8 @@ use iota_keys::keystore::AccountKeystore;
 use iota_sdk::wallet_context::WalletContext;
 use iota_sdk_types::{ObjectId, crypto::Intent};
 use iota_types::{
-    gas_coin::GasCoin, quorum_driver_types::ExecuteTransactionRequestType, transaction::Transaction,
+    gas_coin::GasCoin, quorum_driver_types::ExecuteTransactionRequestType,
+    transaction::TransactionEnvelope,
 };
 use tracing::info;
 
@@ -60,7 +61,7 @@ async fn _split_coins_equally(
         .keystore()
         .sign_secure(&active_address, &tx_data, Intent::iota_transaction())
         .unwrap();
-    let tx = Transaction::from_data(tx_data, vec![signature]);
+    let tx = TransactionEnvelope::from_data(tx_data, vec![signature]);
     let resp = client
         .quorum_driver_api()
         .execute_transaction_block(
@@ -115,7 +116,7 @@ async fn _merge_coins(gas_coin: &str, wallet: WalletContext) -> Result<(), anyho
             .keystore()
             .sign_secure(&active_address, &tx_data, Intent::iota_transaction())
             .unwrap();
-        let tx = Transaction::from_data(tx_data, vec![signature]);
+        let tx = TransactionEnvelope::from_data(tx_data, vec![signature]);
         client
             .quorum_driver_api()
             .execute_transaction_block(

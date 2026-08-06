@@ -334,9 +334,9 @@ impl CheckpointReaderActor {
             .stream_checkpoints(
                 Some(self.current_checkpoint_number),
                 None,
-                Some(iota_grpc_client::CHECKPOINT_RESPONSE_CHECKPOINT_DATA.into()),
                 self.fullnode_transaction_filter.clone().map(Into::into),
                 None,
+                iota_grpc_client::CHECKPOINT_RESPONSE_CHECKPOINT_DATA,
             )
             .await
             .map_err(|e| {

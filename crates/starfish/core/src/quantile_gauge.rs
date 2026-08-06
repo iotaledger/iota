@@ -146,15 +146,13 @@ impl QuantileGauge {
     ) -> Self {
         let gauge =
             GaugeVec::new(Opts::new(name, help), &["quantile"]).expect("valid gauge options");
-        registry.record(name, module, level);
         let this = Self {
             gauge,
             window: Arc::new(Mutex::new(Window::new(Instant::now()))),
         };
         registry
-            .register(Box::new(this.clone()))
-            .expect("quantile gauge registers without collision");
-        this
+            .register_filtered(name, module, level, this)
+            .expect("quantile gauge registers without collision")
     }
 
     pub(crate) fn observe(&self, seconds: f64) {
@@ -204,15 +202,13 @@ impl QuantileGaugeVec {
     ) -> Self {
         let gauge = GaugeVec::new(Opts::new(name, help), &[label, "quantile"])
             .expect("valid gauge options");
-        registry.record(name, module, level);
         let this = Self {
             gauge,
             windows: Arc::new(Mutex::new(HashMap::new())),
         };
         registry
-            .register(Box::new(this.clone()))
-            .expect("quantile gauge registers without collision");
-        this
+            .register_filtered(name, module, level, this)
+            .expect("quantile gauge registers without collision")
     }
 
     pub(crate) fn observe(&self, label_value: &str, seconds: f64) {

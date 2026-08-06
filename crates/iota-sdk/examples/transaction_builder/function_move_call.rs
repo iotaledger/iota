@@ -13,7 +13,7 @@ use iota_sdk::{
     types::{
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         quorum_driver_types::ExecuteTransactionRequestType,
-        transaction::{CallArg, Transaction, TransactionData, TransactionDataAPI},
+        transaction::{CallArg, TransactionData, TransactionDataAPI, TransactionEnvelope},
     },
 };
 use iota_sdk_types::{Argument, Command, Identifier, ObjectId, crypto::Intent};
@@ -93,7 +93,7 @@ async fn main() -> Result<(), anyhow::Error> {
     let transaction_response = iota
         .quorum_driver_api()
         .execute_transaction_block(
-            Transaction::from_data(tx_data, vec![signature]),
+            TransactionEnvelope::from_data(tx_data, vec![signature]),
             IotaTransactionBlockResponseOptions::full_content(),
             ExecuteTransactionRequestType::WaitForLocalExecution,
         )
