@@ -259,7 +259,7 @@ impl OptimisticTransactionExecutor {
             .optimistic_tx_total_execution_and_indexing_time
             .start_timer();
         self.metrics.optimistic_tx_count.inc();
-        let tx_data: Transaction = bcs::from_bytes(&tx_bytes.to_vec()?)?;
+        let tx: Transaction = bcs::from_bytes(&tx_bytes.to_vec()?)?;
         let sigs = signatures
             .into_iter()
             .map(|sig| {
@@ -268,7 +268,7 @@ impl OptimisticTransactionExecutor {
             })
             .collect::<Result<Vec<_>, _>>()?;
 
-        let transaction = TransactionEnvelope::from_user_sig_data(tx_data, sigs);
+        let transaction = TransactionEnvelope::from_user_sig_data(tx, sigs);
         let tx_digest = *transaction.digest();
 
         let executed_transaction = self.execute_transaction(transaction.clone()).await?;

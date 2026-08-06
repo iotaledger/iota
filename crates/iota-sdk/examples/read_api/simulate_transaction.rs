@@ -37,7 +37,7 @@ async fn main() -> Result<(), anyhow::Error> {
     let gas_budget = 5_000_000;
     let gas_price = client.read_api().get_reference_gas_price().await?;
 
-    let tx_data = Transaction::new_programmable(
+    let tx = Transaction::new_programmable(
         sender,
         vec![gas_coin.object_ref()],
         programmable_transaction.clone(),
@@ -45,7 +45,7 @@ async fn main() -> Result<(), anyhow::Error> {
         gas_price,
     );
 
-    let dry_run_tx_resp = client.read_api().dry_run_transaction_block(tx_data).await?;
+    let dry_run_tx_resp = client.read_api().dry_run_transaction_block(tx).await?;
     println!("{dry_run_tx_resp:?}");
 
     let dev_inspect_result = client

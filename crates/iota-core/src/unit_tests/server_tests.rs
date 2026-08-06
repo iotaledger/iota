@@ -299,7 +299,7 @@ async fn build_shared_object_transaction(
 ) -> TransactionEnvelope {
     let rgp = state.reference_gas_price_for_testing().unwrap();
     let gas = state.get_object(&gas_object_id).unwrap();
-    let tx_data = Transaction::new_move_call(
+    let tx = Transaction::new_move_call(
         sender,
         pkg_ref.object_id,
         Identifier::from_static("object_basics"),
@@ -311,7 +311,7 @@ async fn build_shared_object_transaction(
         rgp,
     )
     .unwrap();
-    to_sender_signed_transaction(tx_data, sender_key)
+    to_sender_signed_transaction(tx, sender_key)
 }
 
 // ── ValidatorV2 submit_tx (streaming) tests ──────────────────────────────────
@@ -434,7 +434,7 @@ async fn setup_v2_transfer_tx() -> (
     let object = authority_state.get_object(&object_id).unwrap();
     let gas = authority_state.get_object(&gas_id).unwrap();
 
-    let tx_data = Transaction::new_transfer(
+    let tx = Transaction::new_transfer(
         dbg_addr(2),
         object.object_ref(),
         sender,
@@ -442,7 +442,7 @@ async fn setup_v2_transfer_tx() -> (
         rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
         rgp,
     );
-    let tx = to_sender_signed_transaction(tx_data, &sender_key);
+    let tx = to_sender_signed_transaction(tx, &sender_key);
     let expected_digest = *tx.digest();
 
     (guard, validator_service, tx, expected_digest)
@@ -543,7 +543,7 @@ async fn test_v2_submit_tx_invalid_signature() {
     let gas = authority_state.get_object(&gas_id).unwrap();
     let recipient = dbg_addr(2);
 
-    let tx_data = Transaction::new_transfer(
+    let tx = Transaction::new_transfer(
         recipient,
         object.object_ref(),
         sender,
@@ -551,7 +551,7 @@ async fn test_v2_submit_tx_invalid_signature() {
         rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
         rgp,
     );
-    let tx = to_sender_signed_transaction(tx_data, &wrong_key);
+    let tx = to_sender_signed_transaction(tx, &wrong_key);
 
     let response = validator_service
         .submit_tx(make_v2_submit_request(vec![tx]))
@@ -608,7 +608,7 @@ async fn test_v2_submit_tx_feature_flag_disabled() {
     let gas = authority_state.get_object(&gas_id).unwrap();
     let recipient = dbg_addr(2);
 
-    let tx_data = Transaction::new_transfer(
+    let tx = Transaction::new_transfer(
         recipient,
         object.object_ref(),
         sender,
@@ -616,7 +616,7 @@ async fn test_v2_submit_tx_feature_flag_disabled() {
         rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
         rgp,
     );
-    let tx = to_sender_signed_transaction(tx_data, &sender_key);
+    let tx = to_sender_signed_transaction(tx, &sender_key);
 
     let result = validator_service
         .submit_tx(make_v2_submit_request(vec![tx]))
@@ -666,7 +666,7 @@ async fn test_v2_submit_tx_already_executed() {
     let object = authority_state.get_object(&object_id).unwrap();
     let gas = authority_state.get_object(&gas_id).unwrap();
 
-    let tx_data = Transaction::new_transfer(
+    let tx = Transaction::new_transfer(
         dbg_addr(2),
         object.object_ref(),
         sender,
@@ -674,7 +674,7 @@ async fn test_v2_submit_tx_already_executed() {
         rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
         rgp,
     );
-    let tx = to_sender_signed_transaction(tx_data, &sender_key);
+    let tx = to_sender_signed_transaction(tx, &sender_key);
 
     // Execute the transaction first.
     let cert = init_certified_transaction(tx.clone(), &authority_state);
@@ -784,14 +784,14 @@ async fn test_v2_submit_tx_invalid_transaction() {
             amounts: vec![], // empty — invalid
         })],
     };
-    let tx_data = Transaction::new_programmable(
+    let tx = Transaction::new_programmable(
         sender,
         vec![gas.object_ref()],
         pt,
         rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
         rgp,
     );
-    let tx = to_sender_signed_transaction(tx_data, &sender_key);
+    let tx = to_sender_signed_transaction(tx, &sender_key);
 
     let response = validator_service
         .submit_tx(make_v2_submit_request(vec![tx]))
@@ -841,7 +841,7 @@ async fn test_v2_submit_tx_gas_object_validation() {
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
     let object = authority_state.get_object(&object_id).unwrap();
 
-    let tx_data = Transaction::new_transfer(
+    let tx = Transaction::new_transfer(
         dbg_addr(2),
         object.object_ref(),
         sender,
@@ -849,7 +849,7 @@ async fn test_v2_submit_tx_gas_object_validation() {
         rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
         rgp,
     );
-    let tx = to_sender_signed_transaction(tx_data, &sender_key);
+    let tx = to_sender_signed_transaction(tx, &sender_key);
 
     let response = validator_service
         .submit_tx(make_v2_submit_request(vec![tx]))
@@ -899,7 +899,7 @@ async fn test_v2_submit_tx_different_gas_prices_accepted() {
     let gas1 = authority_state.get_object(&gas_id1).unwrap();
     let gas2 = authority_state.get_object(&gas_id2).unwrap();
 
-    let tx_data1 = Transaction::new_move_call(
+    let tx1 = Transaction::new_move_call(
         sender,
         pkg_ref.object_id,
         Identifier::from_static("object_basics"),
@@ -911,9 +911,9 @@ async fn test_v2_submit_tx_different_gas_prices_accepted() {
         rgp, // base price
     )
     .unwrap();
-    let tx1 = to_sender_signed_transaction(tx_data1, &sender_key);
+    let tx1 = to_sender_signed_transaction(tx1, &sender_key);
 
-    let tx_data2 = Transaction::new_move_call(
+    let tx2 = Transaction::new_move_call(
         sender,
         pkg_ref.object_id,
         Identifier::from_static("object_basics"),
@@ -925,7 +925,7 @@ async fn test_v2_submit_tx_different_gas_prices_accepted() {
         rgp * 2, // different price
     )
     .unwrap();
-    let tx2 = to_sender_signed_transaction(tx_data2, &sender_key);
+    let tx2 = to_sender_signed_transaction(tx2, &sender_key);
 
     let response = validator_service
         .submit_tx(make_v2_submit_request(vec![tx1, tx2]))
@@ -982,14 +982,14 @@ async fn test_v2_submit_tx_oversized_transaction() {
         inputs,
         commands: vec![],
     };
-    let tx_data = Transaction::new_programmable(
+    let tx = Transaction::new_programmable(
         sender,
         vec![gas.object_ref()],
         pt,
         rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
         rgp,
     );
-    let tx = to_sender_signed_transaction(tx_data, &sender_key);
+    let tx = to_sender_signed_transaction(tx, &sender_key);
 
     let response = validator_service
         .submit_tx(make_v2_submit_request(vec![tx]))
@@ -1102,7 +1102,7 @@ async fn test_v2_get_tx_status_already_executed() {
     let object = authority_state.get_object(&object_id).unwrap();
     let gas = authority_state.get_object(&gas_id).unwrap();
 
-    let tx_data = Transaction::new_transfer(
+    let tx = Transaction::new_transfer(
         dbg_addr(2),
         object.object_ref(),
         sender,
@@ -1110,7 +1110,7 @@ async fn test_v2_get_tx_status_already_executed() {
         rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
         rgp,
     );
-    let tx = to_sender_signed_transaction(tx_data, &sender_key);
+    let tx = to_sender_signed_transaction(tx, &sender_key);
     let tx_digest = *tx.digest();
 
     // Execute the transaction first.
@@ -1177,7 +1177,7 @@ async fn test_v2_get_tx_status_already_executed_with_details() {
     let object = authority_state.get_object(&object_id).unwrap();
     let gas = authority_state.get_object(&gas_id).unwrap();
 
-    let tx_data = Transaction::new_transfer(
+    let tx = Transaction::new_transfer(
         dbg_addr(2),
         object.object_ref(),
         sender,
@@ -1185,7 +1185,7 @@ async fn test_v2_get_tx_status_already_executed_with_details() {
         rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
         rgp,
     );
-    let tx = to_sender_signed_transaction(tx_data, &sender_key);
+    let tx = to_sender_signed_transaction(tx, &sender_key);
     let tx_digest = *tx.digest();
 
     // Execute first.

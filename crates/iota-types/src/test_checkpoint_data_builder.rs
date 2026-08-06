@@ -438,8 +438,8 @@ impl TestCheckpointDataBuilder {
         }
 
         let pt = pt_builder.finish();
-        let tx_data = Transaction::new(TransactionKind::Programmable(pt), sender, gas, 1, 1);
-        let tx = TransactionEnvelope::new(SenderSignedTransaction::new(tx_data, vec![]));
+        let tx = Transaction::new(TransactionKind::Programmable(pt), sender, gas, 1, 1);
+        let tx = TransactionEnvelope::new(SenderSignedTransaction::new(tx, vec![]));
 
         let wrapped_objects: Vec<_> = wrapped_objects
             .into_iter()

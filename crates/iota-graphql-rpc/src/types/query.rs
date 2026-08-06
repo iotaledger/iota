@@ -174,15 +174,15 @@ impl Query {
                 )
             } else {
                 // This implies `Transaction`
-                let tx_data = deserialize_tx_data::<Transaction>(&tx_bytes)?;
+                let tx = deserialize_tx_data::<Transaction>(&tx_bytes)?;
 
                 (
-                    tx_data.sender(),
-                    tx_data.clone().into_kind(),
-                    Some(tx_data.gas_price().into()),
-                    Some(tx_data.gas_owner()),
-                    Some(tx_data.gas_budget()),
-                    Some(tx_data.gas().to_vec()),
+                    tx.sender(),
+                    tx.clone().into_kind(),
+                    Some(tx.gas_price().into()),
+                    Some(tx.gas_owner()),
+                    Some(tx.gas_budget()),
+                    Some(tx.gas().to_vec()),
                 )
             };
 

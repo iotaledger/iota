@@ -239,7 +239,7 @@ async fn main() -> Result<(), anyhow::Error> {
     let gas_price = iota_client.read_api().get_reference_gas_price().await?;
 
     // Create the transaction data that will be sent to the network
-    let tx_data = Transaction::new_programmable(
+    let tx = Transaction::new_programmable(
         sender,
         vec![gas_coin.object_ref()],
         pt,
@@ -248,13 +248,13 @@ async fn main() -> Result<(), anyhow::Error> {
     );
 
     // Sign the transaction
-    let signature = keystore.sign_secure(&sender, &tx_data, Intent::iota_transaction())?;
+    let signature = keystore.sign_secure(&sender, &tx, Intent::iota_transaction())?;
 
     // Execute transaction
     let transaction_response = iota_client
         .quorum_driver_api()
         .execute_transaction_block(
-            TransactionEnvelope::from_data(tx_data, vec![signature]),
+            TransactionEnvelope::from_data(tx, vec![signature]),
             IotaTransactionBlockResponseOptions::full_content(),
             Some(ExecuteTransactionRequestType::WaitForLocalExecution),
         )

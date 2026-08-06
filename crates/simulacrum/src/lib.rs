@@ -506,8 +506,8 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
         };
 
         let kind = TransactionKind::Programmable(pt);
-        let tx_data = iota_sdk_types::Transaction::new_with_gas_data(kind, sender, gas_data);
-        let tx = TransactionEnvelope::from_data_and_signer(tx_data, vec![&key]);
+        let tx = iota_sdk_types::Transaction::new_with_gas_data(kind, sender, gas_data);
+        let tx = TransactionEnvelope::from_data_and_signer(tx, vec![&key]);
 
         self.execute_transaction(tx).map(|x| x.0)
     }
@@ -937,8 +937,8 @@ impl Simulacrum {
             price: self.reference_gas_price(),
             budget: 1_000_000_000,
         };
-        let tx_data = Transaction::new_with_gas_data(kind, sender, gas_data);
-        let tx = TransactionEnvelope::from_data_and_signer(tx_data, vec![&key]);
+        let tx = Transaction::new_with_gas_data(kind, sender, gas_data);
+        let tx = TransactionEnvelope::from_data_and_signer(tx, vec![&key]);
         (tx, transfer_amount)
     }
 }

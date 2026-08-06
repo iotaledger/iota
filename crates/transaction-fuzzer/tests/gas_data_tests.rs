@@ -30,8 +30,8 @@ fn test_with_random_gas_data(
         builder.finish()
     };
     let kind = TransactionKind::Programmable(pt);
-    let tx_data = Transaction::new_with_gas_data(kind, sender, gas_data);
-    let tx = to_sender_signed_transaction(tx_data, &gas_data_test.sender_key);
+    let tx = Transaction::new_with_gas_data(kind, sender, gas_data);
+    let tx = to_sender_signed_transaction(tx, &gas_data_test.sender_key);
 
     let result = executor.execute_transaction(tx);
     debug!("result: {:?}", result);

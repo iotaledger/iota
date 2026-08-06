@@ -100,9 +100,9 @@ impl TransactionExecutionApi {
         IotaRpcInputError,
     > {
         let opts = opts.unwrap_or_default();
-        let tx_data: Transaction = self.convert_bytes(tx_bytes)?;
-        let sender = tx_data.sender();
-        let input_objs = tx_data.input_objects().unwrap_or_default();
+        let tx: Transaction = self.convert_bytes(tx_bytes)?;
+        let sender = tx.sender();
+        let input_objs = tx.input_objects().unwrap_or_default();
 
         let mut sigs = Vec::new();
         for sig in signatures {
@@ -111,7 +111,7 @@ impl TransactionExecutionApi {
                     .map_err(|e| IotaRpcInputError::GenericInvalid(e.to_string()))?,
             );
         }
-        let txn = TransactionEnvelope::from_user_sig_data(tx_data, sigs);
+        let txn = TransactionEnvelope::from_user_sig_data(tx, sigs);
         let raw_transaction = if opts.show_raw_input {
             bcs::to_bytes(txn.data())?
         } else {
@@ -318,15 +318,15 @@ impl TransactionExecutionApi {
         &self,
         tx_bytes: Base64,
     ) -> Result<(Transaction, TransactionDigest, Vec<InputObjectKind>), IotaRpcInputError> {
-        let tx_data: Transaction = self.convert_bytes(tx_bytes)?;
-        let input_objs = tx_data.input_objects()?;
+        let tx: Transaction = self.convert_bytes(tx_bytes)?;
+        let input_objs = tx.input_objects()?;
         let intent_msg = IntentMessage::new(
             Intent {
                 version: IntentVersion::V0,
                 scope: IntentScope::TransactionData,
                 app_id: IntentAppId::Iota,
             },
-            tx_data,
+            tx,
         );
         let txn_digest = TransactionDigest::new(intent_msg.value.digest().into_inner());
         Ok((intent_msg.value, txn_digest, input_objs))

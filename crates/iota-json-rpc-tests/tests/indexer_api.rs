@@ -507,8 +507,8 @@ async fn test_query_transaction_blocks() -> Result<(), anyhow::Error> {
     pt_builder.command(cmd_2);
     let pt = pt_builder.finish();
 
-    let tx_data = Transaction::new_programmable(signer, vec![gas], pt, 10_000_000, 1000);
-    let signed_data = cluster.wallet.sign_transaction(&tx_data);
+    let tx = Transaction::new_programmable(signer, vec![gas], pt, 10_000_000, 1000);
+    let signed_data = cluster.wallet.sign_transaction(&tx);
     let _response = client
         .quorum_driver_api()
         .execute_transaction_block(

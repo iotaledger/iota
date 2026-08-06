@@ -88,7 +88,7 @@ pub async fn fund_address(
     let gas_price = iota_client.read_api().get_reference_gas_price().await?;
 
     // Create a transaction data that will be sent to the network.
-    let tx_data = Transaction::new_programmable(
+    let tx = Transaction::new_programmable(
         sponsor,
         vec![gas_coin.object_ref()],
         pt,
@@ -97,13 +97,13 @@ pub async fn fund_address(
     );
 
     // Sign the transaction.
-    let signature = keystore.sign_secure(&sponsor, &tx_data, Intent::iota_transaction())?;
+    let signature = keystore.sign_secure(&sponsor, &tx, Intent::iota_transaction())?;
 
     // Execute the transaction.
     let transaction_response = iota_client
         .quorum_driver_api()
         .execute_transaction_block(
-            TransactionEnvelope::from_data(tx_data, vec![signature]),
+            TransactionEnvelope::from_data(tx, vec![signature]),
             IotaTransactionBlockResponseOptions::full_content(),
             Some(ExecuteTransactionRequestType::WaitForLocalExecution),
         )
@@ -212,7 +212,7 @@ pub async fn publish_package<Keystore: AccountKeystore>(
     let gas_price = iota_client.read_api().get_reference_gas_price().await?;
 
     // Create the transaction data that will be sent to the network
-    let tx_data = Transaction::new_programmable(
+    let tx = Transaction::new_programmable(
         publisher,
         vec![gas_coin.object_ref()],
         pt,
@@ -221,13 +221,13 @@ pub async fn publish_package<Keystore: AccountKeystore>(
     );
 
     // Sign the transaction
-    let signature = keystore.sign_secure(&publisher, &tx_data, Intent::iota_transaction())?;
+    let signature = keystore.sign_secure(&publisher, &tx, Intent::iota_transaction())?;
 
     // Execute transaction
     let transaction_response = iota_client
         .quorum_driver_api()
         .execute_transaction_block(
-            TransactionEnvelope::from_data(tx_data, vec![signature]),
+            TransactionEnvelope::from_data(tx, vec![signature]),
             IotaTransactionBlockResponseOptions::full_content(),
             Some(ExecuteTransactionRequestType::WaitForLocalExecution),
         )

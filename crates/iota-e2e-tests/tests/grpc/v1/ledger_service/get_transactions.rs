@@ -279,14 +279,14 @@ async fn get_transactions_derived_changes_failed_transaction() {
         .unwrap();
     let huge_amount = builder.pure(u64::MAX).unwrap();
     builder.command(Command::new_split_coins(coin_arg, vec![huge_amount]));
-    let transaction_data = Transaction::new_programmable(
+    let tx = Transaction::new_programmable(
         sender,
         vec![*gas_object],
         builder.finish(),
         10_000_000,
         test_cluster.get_reference_gas_price().await,
     );
-    let transaction = test_cluster.wallet.sign_transaction(&transaction_data);
+    let transaction = test_cluster.wallet.sign_transaction(&tx);
     let transaction_digest = *transaction.digest();
     test_cluster
         .wallet

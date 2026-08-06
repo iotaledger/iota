@@ -48,7 +48,7 @@ async fn main() -> Result<(), anyhow::Error> {
         .await?;
     let pt = ptb.finish();
 
-    let tx_data = Transaction::new_programmable(
+    let tx = Transaction::new_programmable(
         sender,
         vec![gas_coin.object_ref()],
         pt,
@@ -56,7 +56,7 @@ async fn main() -> Result<(), anyhow::Error> {
         gas_price,
     );
 
-    let transaction_response = sign_and_execute_transaction(&client, &sender, tx_data).await?;
+    let transaction_response = sign_and_execute_transaction(&client, &sender, tx).await?;
 
     println!("Transaction sent {}", transaction_response.digest);
     println!("Object changes:");

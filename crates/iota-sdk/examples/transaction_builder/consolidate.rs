@@ -69,9 +69,9 @@ async fn main() -> Result<(), anyhow::Error> {
         let kind = TransactionKind::Programmable(pt);
 
         let gas_price = client.read_api().get_reference_gas_price().await?;
-        let tx_data = Transaction::new(kind, sender, gas_coin_ref.unwrap(), gas_budget, gas_price);
+        let tx = Transaction::new(kind, sender, gas_coin_ref.unwrap(), gas_budget, gas_price);
 
-        let transaction_response = sign_and_execute_transaction(&client, &sender, tx_data).await?;
+        let transaction_response = sign_and_execute_transaction(&client, &sender, tx).await?;
         println!("Transaction sent {}", transaction_response.digest);
 
         // Update the gas_coin_ref for the next transaction

@@ -65,7 +65,7 @@ async fn main() -> Result<(), anyhow::Error> {
     let gas_budget = 5_000_000;
     let gas_price = client.read_api().get_reference_gas_price().await?;
     // Create the transaction data that will be sent to the network
-    let tx_data = Transaction::new_programmable(
+    let tx = Transaction::new_programmable(
         sender,
         vec![coin.object_ref()],
         transaction,
@@ -75,7 +75,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
     // 5) Sign and execute transaction
     print!("Executing the transaction...");
-    let transaction_response = sign_and_execute_transaction(&client, &sender, tx_data).await?;
+    let transaction_response = sign_and_execute_transaction(&client, &sender, tx).await?;
     print!("done\n Transaction information: ");
     println!("{transaction_response:?}");
 

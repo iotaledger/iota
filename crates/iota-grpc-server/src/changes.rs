@@ -531,7 +531,7 @@ mod tests {
 
         let gas_id = ObjectId::random();
         let gas_ref = ObjectReference::new(gas_id, 0u64.into(), ObjectDigest::MIN);
-        let transaction_data = Transaction::new(
+        let tx = Transaction::new(
             iota_sdk_types::TransactionKind::Programmable(
                 ProgrammableTransactionBuilder::new().finish(),
             ),
@@ -542,7 +542,7 @@ mod tests {
         );
         let gas_owner = Owner::Address(sender_address());
         (
-            SenderSignedTransaction::new(transaction_data, vec![]),
+            SenderSignedTransaction::new(tx, vec![]),
             Object::with_id_owner_version_for_testing(gas_id, 0u64.into(), gas_owner),
             Object::with_id_owner_version_for_testing(gas_id, 1u64.into(), gas_owner),
         )

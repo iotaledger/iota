@@ -438,7 +438,7 @@ async fn basic_flow_with_custom_callback() {
         .unwrap();
     let tmp_dir = iota_common::tempdir();
 
-    let tx_data = Transaction::new(
+    let tx = Transaction::new(
         TransactionKind::RandomnessStateUpdate(RandomnessStateUpdate {
             epoch: 0,
             randomness_round: 0.into(),
@@ -451,7 +451,7 @@ async fn basic_flow_with_custom_callback() {
         0,
     );
 
-    let transaction = TransactionEnvelope::from_data(tx_data, vec![]);
+    let transaction = TransactionEnvelope::from_data(tx, vec![]);
     let effects = TransactionEffects::new_empty_v1_for_testing(*transaction.digest());
     let ch_tx = CheckpointTransaction {
         transaction,

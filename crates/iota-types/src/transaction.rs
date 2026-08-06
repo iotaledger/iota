@@ -1845,7 +1845,7 @@ pub trait SenderSignedTransactionAPI {
     /// Creates a new [`SenderSignedTransaction`] with a single sender
     /// signature.
     fn new_from_sender_signature(
-        tx_data: Transaction,
+        tx: Transaction,
         tx_signature: SimpleSignature,
     ) -> SenderSignedTransaction;
 
@@ -1930,10 +1930,10 @@ pub trait SenderSignedTransactionAPI {
 
 impl SenderSignedTransactionAPI for SenderSignedTransaction {
     fn new_from_sender_signature(
-        tx_data: Transaction,
+        tx: Transaction,
         tx_signature: SimpleSignature,
     ) -> SenderSignedTransaction {
-        Self::new(tx_data, vec![tx_signature.into()])
+        Self::new(tx, vec![tx_signature.into()])
     }
 
     fn add_signature(&mut self, new_signature: SimpleSignature) {
@@ -2235,11 +2235,11 @@ fn move_authenticators_validity_check(
 }
 
 fn check_move_authenticators_input_consistency(
-    tx_data: &Transaction,
+    tx: &Transaction,
     authenticators: &[&MoveAuthenticator],
 ) -> IotaResult {
     // Get the input objects from the transaction data kind to skip the gas coins.
-    let mut checked_inputs = tx_data
+    let mut checked_inputs = tx
         .kind()
         .input_objects()?
         .into_iter()

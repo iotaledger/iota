@@ -627,15 +627,15 @@ impl TestCluster {
         TestTransactionBuilder::new(sender, gas, rgp)
     }
 
-    pub fn sign_transaction(&self, tx_data: &Transaction) -> TransactionEnvelope {
-        self.wallet.sign_transaction(tx_data)
+    pub fn sign_transaction(&self, tx: &Transaction) -> TransactionEnvelope {
+        self.wallet.sign_transaction(tx)
     }
 
     pub async fn sign_and_execute_transaction(
         &self,
-        tx_data: &Transaction,
+        tx: &Transaction,
     ) -> IotaTransactionBlockResponse {
-        let tx = self.wallet.sign_transaction(tx_data);
+        let tx = self.wallet.sign_transaction(tx);
         self.execute_transaction(tx).await
     }
 

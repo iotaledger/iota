@@ -860,9 +860,9 @@ fn test_query_transaction_blocks() -> Result<(), anyhow::Error> {
         pt_builder.command(cmd_2);
         let pt = pt_builder.finish();
 
-        let tx_data = Transaction::new_programmable(signer, vec![gas], pt, 10_000_000, 1000);
+        let tx = Transaction::new_programmable(signer, vec![gas], pt, 10_000_000, 1000);
 
-        let signed_transaction = to_sender_signed_transaction(tx_data, &keypair);
+        let signed_transaction = to_sender_signed_transaction(tx, &keypair);
 
         let response = iota_client
             .quorum_driver_api()
@@ -1508,8 +1508,8 @@ fn test_query_transaction_blocks_tx_kind_filter() -> Result<(), anyhow::Error> {
         pt_builder.move_call(package_id, module, function, vec![], vec![])?;
         let pt = pt_builder.finish();
 
-        let tx_data = Transaction::new_programmable(signer, vec![gas], pt, 10_000_000, 1_000);
-        let signed_transaction = to_sender_signed_transaction(tx_data, &keypair);
+        let tx = Transaction::new_programmable(signer, vec![gas], pt, 10_000_000, 1_000);
+        let signed_transaction = to_sender_signed_transaction(tx, &keypair);
 
         let response = iota_client
             .quorum_driver_api()

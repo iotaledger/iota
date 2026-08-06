@@ -1113,13 +1113,13 @@ impl AuthorityState {
             // `SenderSignedTransaction::validity_check`.
 
             // Serialize the Transaction for the auth context before decomposing.
-            let tx_data_bytes = bcs::to_bytes(tx).expect("Transaction serialization cannot fail");
+            let tx_bytes = bcs::to_bytes(tx).expect("Transaction serialization cannot fail");
 
             let (sender_auth_digest, sponsor_auth_digest) =
                 transaction.data().compute_auth_digests()?;
 
             let auth_context_data = AuthContextData {
-                transaction_data_bytes: tx_data_bytes,
+                transaction_data_bytes: tx_bytes,
                 sender_auth_digest,
                 sponsor_auth_digest,
                 sender_authenticator_function_ref,
@@ -1979,7 +1979,7 @@ impl AuthorityState {
                 .collect::<Vec<_>>();
 
             // Serialize the Transaction for the auth context.
-            let tx_data_bytes = bcs::to_bytes(tx).expect("Transaction serialization cannot fail");
+            let tx_bytes = bcs::to_bytes(tx).expect("Transaction serialization cannot fail");
 
             let (sender_auth_digest, sponsor_auth_digest) =
                 transaction.data().compute_auth_digests()?;
@@ -2040,7 +2040,7 @@ impl AuthorityState {
                 });
 
             let auth_context_data = AuthContextData {
-                transaction_data_bytes: tx_data_bytes,
+                transaction_data_bytes: tx_bytes,
                 sender_auth_digest,
                 sponsor_auth_digest,
                 sender_authenticator_function_ref,
@@ -5907,7 +5907,7 @@ impl AuthorityState {
         &self,
         protocol_config: &ProtocolConfig,
         reference_gas_price: u64,
-        tx_data: &Transaction,
+        tx: &Transaction,
         tx_input_objects: InputObjects,
         tx_receiving_objects: &ReceivingObjects,
         move_authenticators: &Vec<&MoveAuthenticator>,
@@ -5976,7 +5976,7 @@ impl AuthorityState {
             iota_transaction_checks::check_transaction_input(
                 protocol_config,
                 reference_gas_price,
-                tx_data,
+                tx,
                 tx_input_objects,
                 tx_receiving_objects,
                 &self.metrics.bytecode_verifier_metrics,

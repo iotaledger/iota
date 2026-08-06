@@ -129,7 +129,7 @@ async fn main() -> Result<(), anyhow::Error> {
     let gas_price = client.read_api().get_reference_gas_price().await?;
 
     // create the transaction data that will be sent to the network.
-    let tx_data = Transaction::new_programmable(
+    let tx = Transaction::new_programmable(
         sender,
         vec![gas_coin.object_ref()],
         pt,
@@ -138,8 +138,8 @@ async fn main() -> Result<(), anyhow::Error> {
     );
 
     // derive the digest that the keypair should sign on,
-    // i.e. the blake2b hash of `intent || tx_data`.
-    let intent_msg = tx_data.intent_message();
+    // i.e. the blake2b hash of `intent || tx`.
+    let intent_msg = tx.intent_message();
     let raw_tx = bcs::to_bytes(&intent_msg).expect("bcs should not fail");
     let mut hasher = iota_types::crypto::DefaultHash::default();
     hasher.update(raw_tx.clone());

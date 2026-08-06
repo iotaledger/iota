@@ -2880,7 +2880,7 @@ async fn test_invalid_mutable_clock_parameter() {
     let gas_ref = gas_object.object_ref();
 
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
-    let tx_data = Transaction::new_move_call(
+    let tx = Transaction::new_move_call(
         sender,
         package_object_ref.object_id,
         Identifier::from_static("object_basics"),
@@ -2894,7 +2894,7 @@ async fn test_invalid_mutable_clock_parameter() {
     )
     .unwrap();
 
-    let transaction = to_sender_signed_transaction(tx_data, &sender_key);
+    let transaction = to_sender_signed_transaction(tx, &sender_key);
     let transaction = epoch_store.verify_transaction(transaction).unwrap();
 
     let Err(e) = authority_state
@@ -2936,7 +2936,7 @@ async fn test_invalid_randomness_parameter() {
     let gas_ref = gas_object.object_ref();
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
 
-    let tx_data = Transaction::new_move_call(
+    let tx = Transaction::new_move_call(
         sender,
         package_object_ref.object_id,
         Identifier::from_static("object_basics"),
@@ -2949,7 +2949,7 @@ async fn test_invalid_randomness_parameter() {
         rgp,
     )
     .unwrap();
-    let transaction = to_sender_signed_transaction(tx_data, &sender_key);
+    let transaction = to_sender_signed_transaction(tx, &sender_key);
     let transaction = epoch_store.verify_transaction(transaction).unwrap();
 
     let Err(e) = authority_state
@@ -3028,7 +3028,7 @@ async fn test_valid_immutable_clock_parameter() {
     let gas_ref = gas_object.object_ref();
 
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
-    let tx_data = Transaction::new_move_call(
+    let tx = Transaction::new_move_call(
         sender,
         package_object_ref.object_id,
         Identifier::from_static("object_basics"),
@@ -3042,7 +3042,7 @@ async fn test_valid_immutable_clock_parameter() {
     )
     .unwrap();
 
-    let transaction = to_sender_signed_transaction(tx_data, &sender_key);
+    let transaction = to_sender_signed_transaction(tx, &sender_key);
     let transaction = epoch_store.verify_transaction(transaction).unwrap();
     authority_state
         .handle_transaction(&epoch_store, transaction)
@@ -3090,7 +3090,7 @@ async fn test_transfer_iota_no_amount() {
     let rgp = epoch_store.reference_gas_price();
 
     let gas_ref = gas_object.object_ref();
-    let tx_data = Transaction::new_transfer_iota(
+    let tx = Transaction::new_transfer_iota(
         recipient,
         sender,
         None,
@@ -3100,7 +3100,7 @@ async fn test_transfer_iota_no_amount() {
     );
 
     // Make sure transaction handling works as usual.
-    let transaction = to_sender_signed_transaction(tx_data, &sender_key);
+    let transaction = to_sender_signed_transaction(tx, &sender_key);
     let transaction = epoch_store.verify_transaction(transaction).unwrap();
     authority_state
         .handle_transaction(&epoch_store, transaction.clone())
@@ -3139,7 +3139,7 @@ async fn test_transfer_iota_with_amount() {
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
 
     let gas_ref = gas_object.object_ref();
-    let tx_data = Transaction::new_transfer_iota(
+    let tx = Transaction::new_transfer_iota(
         recipient,
         sender,
         Some(500),
@@ -3147,7 +3147,7 @@ async fn test_transfer_iota_with_amount() {
         rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
         rgp,
     );
-    let transaction = to_sender_signed_transaction(tx_data, &sender_key);
+    let transaction = to_sender_signed_transaction(tx, &sender_key);
     let certificate = init_certified_transaction(transaction, &authority_state);
     let effects = authority_state
         .wait_for_certificate_execution(&certificate, &authority_state.epoch_store_for_testing())
@@ -3185,7 +3185,7 @@ async fn test_store_revert_transfer_iota() {
     let authority_state = init_state_with_objects(vec![gas_object.clone()]).await;
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
 
-    let tx_data = Transaction::new_transfer_iota(
+    let tx = Transaction::new_transfer_iota(
         recipient,
         sender,
         None,
@@ -3194,7 +3194,7 @@ async fn test_store_revert_transfer_iota() {
         rgp,
     );
 
-    let transaction = to_sender_signed_transaction(tx_data, &sender_key);
+    let transaction = to_sender_signed_transaction(tx, &sender_key);
     let certificate = init_certified_transaction(transaction, &authority_state);
     let tx_digest = *certificate.digest();
     authority_state
@@ -4662,7 +4662,7 @@ async fn test_consensus_commit_prologue_generation(#[values(false, true)] pcool:
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
 
     // Transaction 1: shared-object Move call.
-    let shared_tx_data = Transaction::new_move_call(
+    let shared_tx = Transaction::new_move_call(
         sender,
         iota_types::IOTA_FRAMEWORK_PACKAGE_ID,
         Identifier::from_static("object_basics"),
@@ -4681,10 +4681,10 @@ async fn test_consensus_commit_prologue_generation(#[values(false, true)] pcool:
         rgp,
     )
     .unwrap();
-    let shared_tx = to_sender_signed_transaction(shared_tx_data, &sender_key);
+    let shared_tx = to_sender_signed_transaction(shared_tx, &sender_key);
 
     // Transaction 2: clock-using Move call (higher gas price → ordered later).
-    let clock_tx_data = Transaction::new_move_call(
+    let clock_tx = Transaction::new_move_call(
         sender,
         package_object_ref.object_id,
         Identifier::from_static("object_basics"),
@@ -4697,7 +4697,7 @@ async fn test_consensus_commit_prologue_generation(#[values(false, true)] pcool:
         rgp * 2,
     )
     .unwrap();
-    let clock_tx = to_sender_signed_transaction(clock_tx_data, &sender_key);
+    let clock_tx = to_sender_signed_transaction(clock_tx, &sender_key);
 
     let processed_consensus_transactions = if pcool {
         // Submit as UserTransactionV1 — no certificates needed.

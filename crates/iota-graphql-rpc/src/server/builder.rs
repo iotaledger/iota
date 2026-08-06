@@ -970,7 +970,7 @@ pub mod tests {
             .get_one_gas_object_owned_by_address(addresses[0])
             .await
             .unwrap();
-        let tx_data = Transaction::new_transfer_iota(
+        let tx = Transaction::new_transfer_iota(
             addresses[1],
             addresses[0],
             Some(1000),
@@ -979,7 +979,7 @@ pub mod tests {
             wallet.get_reference_gas_price().await.unwrap(),
         );
 
-        let tx = wallet.sign_transaction(&tx_data);
+        let tx = wallet.sign_transaction(&tx);
         let (tx_bytes, signatures) = tx.to_tx_bytes_and_signatures();
 
         let signature_base64 = &signatures[0];

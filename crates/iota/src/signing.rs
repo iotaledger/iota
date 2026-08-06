@@ -67,7 +67,7 @@ impl fmt::Display for ExternalKeySource {
 
 pub(crate) async fn sign_transaction(
     context: &mut WalletContext,
-    tx_data: &Transaction,
+    tx: &Transaction,
     signer_address: &Address,
     auth_args: Option<(Vec<CallArg>, Vec<TypeTag>)>,
 ) -> Result<UserSignature> {
@@ -108,7 +108,7 @@ pub(crate) async fn sign_transaction(
             Ok(context
                 .config()
                 .keystore()
-                .sign_secure(signer_address, tx_data, Intent::iota_transaction())?
+                .sign_secure(signer_address, tx, Intent::iota_transaction())?
                 .into())
         }
         StoredKey::External {
@@ -134,7 +134,7 @@ pub(crate) async fn sign_transaction(
                     // pass the transaction sender to the signer to ensure the correct
                     // key is used
                     Ok(signer
-                        .sign_transaction(tx_data, signer_address)
+                        .sign_transaction(tx, signer_address)
                         .await
                         .map(|s| s.signature)?
                         .into())

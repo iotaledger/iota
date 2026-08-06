@@ -100,16 +100,12 @@ impl WriteApi {
         tx_bytes: Base64,
         package_resolver: &Arc<Resolver<impl PackageStore>>,
     ) -> IndexerResult<DryRunTransactionBlockResponse> {
-        let transaction_data = bcs::from_bytes::<Transaction>(&tx_bytes.to_vec()?)?;
-        let tx_digest = transaction_data.digest();
+        let tx = bcs::from_bytes::<Transaction>(&tx_bytes.to_vec()?)?;
+        let tx_digest = tx.digest();
 
         let simulate_tx_response = self
             .fullnode_grpc_client
-            .simulate_transaction(
-                transaction_data.clone(),
-                false,
-                DRY_RUN_TRANSACTION_READ_MASK,
-            )
+            .simulate_transaction(tx.clone(), false, DRY_RUN_TRANSACTION_READ_MASK)
             .await?
             .into_inner();
 
@@ -136,8 +132,7 @@ impl WriteApi {
             .map(|s| -> IndexerResult<_> { Ok(s.signature()?) })
             .collect::<IndexerResult<Vec<UserSignature>>>()?;
 
-        let sender_signed_tx =
-            SenderSignedTransaction::new(transaction_data.clone(), tx_signatures);
+        let sender_signed_tx = SenderSignedTransaction::new(tx.clone(), tx_signatures);
 
         let tx_events = executed_transaction.events()?.events()?;
 
@@ -145,7 +140,7 @@ impl WriteApi {
 
         // as a minor optimization we will run concurrently the following four futures
         let fut1 = in_mem_tx_changes
-            .get_changes(&transaction_data, &tx_effects, &tx_digest)
+            .get_changes(&tx, &tx_effects, &tx_digest)
             .map_ok(|(balance_changes, object_changes)| {
                 (
                     balance_changes,
@@ -222,7 +217,7 @@ impl WriteApi {
 
         let kind = bcs::from_bytes::<TransactionKind>(&tx_bytes.to_vec()?)?;
 
-        let transaction_data = Transaction::V1(TransactionV1 {
+        let tx = Transaction::V1(TransactionV1 {
             kind,
             sender: sender_address,
             gas_payment: GasPayment {
@@ -235,17 +230,13 @@ impl WriteApi {
         });
 
         let raw_txn_data = show_raw_txn_data_and_effects
-            .then(|| bcs::to_bytes(&transaction_data))
+            .then(|| bcs::to_bytes(&tx))
             .transpose()?
             .unwrap_or_default();
 
         let simulate_tx_response = self
             .fullnode_grpc_client
-            .simulate_transaction(
-                transaction_data,
-                skip_checks,
-                DEV_INSPECT_TRANSACTION_READ_MASK,
-            )
+            .simulate_transaction(tx, skip_checks, DEV_INSPECT_TRANSACTION_READ_MASK)
             .await?
             .into_inner();
 

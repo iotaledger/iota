@@ -2818,7 +2818,7 @@ impl TestEnvironment {
     /// `signing_digest` returns on the Move side.
     fn create_move_authenticator_for_ed25519_via_signing_digest(
         &self,
-        tx_data: &Transaction,
+        tx: &Transaction,
     ) -> anyhow::Result<UserSignature> {
         let Some(aa_ref) = self.aa_ref else {
             anyhow::bail!("Abstract account not created yet");
@@ -2828,7 +2828,7 @@ impl TestEnvironment {
         };
         let signature = self.test_cluster.wallet.config().keystore().sign_secure(
             &owner,
-            tx_data,
+            tx,
             Intent::iota_transaction(),
         )?;
         Self::move_authenticator_from_ed25519_sig(aa_ref, signature)

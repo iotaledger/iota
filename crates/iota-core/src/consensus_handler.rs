@@ -1151,7 +1151,7 @@ mod tests {
             let owned_ref = state.get_object(&owned_obj.id()).unwrap().object_ref();
             let gas_ref = state.get_object(&gas_obj.id()).unwrap().object_ref();
 
-            let tx_data = Transaction::new_transfer(
+            let tx = Transaction::new_transfer(
                 recipient,
                 owned_ref,
                 sender,
@@ -1159,7 +1159,7 @@ mod tests {
                 rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
                 rgp,
             );
-            let tx = to_sender_signed_transaction(tx_data, &sender_key);
+            let tx = to_sender_signed_transaction(tx, &sender_key);
             let verified_tx = epoch_store.verify_transaction(tx).unwrap();
 
             let consensus_tx = ConsensusTransaction {

@@ -1564,7 +1564,7 @@ async fn run_whitelist_sponsorship(env: &TestEnvironment) -> PackageResult {
         b.finish()
     };
 
-    let tx_data = Transaction::new_programmable_allow_sponsor(
+    let tx = Transaction::new_programmable_allow_sponsor(
         sender_addr,
         vec![sponsor_gas],
         sponsored_pt,
@@ -1572,7 +1572,7 @@ async fn run_whitelist_sponsorship(env: &TestEnvironment) -> PackageResult {
         rgp,
         sponsor_addr,
     );
-    let tx_digest = tx_data.digest().into_inner();
+    let tx_digest = tx.digest().into_inner();
     let signature = env.sign_digest_raw(&tx_digest);
 
     let sender_auth = match make_move_authenticator(
@@ -1599,7 +1599,7 @@ async fn run_whitelist_sponsorship(env: &TestEnvironment) -> PackageResult {
         }
     };
 
-    let tx = TransactionEnvelope::from_user_sig_data(tx_data, vec![sender_auth, sponsor_auth]);
+    let tx = TransactionEnvelope::from_user_sig_data(tx, vec![sender_auth, sponsor_auth]);
     let (outcome, err) = execute_aa_tx_outcome(env, tx).await;
     r.authenticate_outcome = outcome;
     r.authenticate_err = err;
@@ -1694,7 +1694,7 @@ async fn run_sponsorship_ed25519(env: &TestEnvironment) -> PackageResult {
     let gas_budget = rgp * TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE;
 
     let pt = simple_sender_clock_ptb();
-    let tx_data = Transaction::new_programmable_allow_sponsor(
+    let tx = Transaction::new_programmable_allow_sponsor(
         sender_addr,
         vec![sponsor_gas],
         pt,
@@ -1702,7 +1702,7 @@ async fn run_sponsorship_ed25519(env: &TestEnvironment) -> PackageResult {
         rgp,
         sponsor_addr,
     );
-    let tx_digest = tx_data.digest().into_inner();
+    let tx_digest = tx.digest().into_inner();
 
     // Sender: standard `UserSignature::Simple` (ed25519 over the
     // intent-wrapped Transaction) — NOT a `MoveAuthenticator`. So
@@ -1712,7 +1712,7 @@ async fn run_sponsorship_ed25519(env: &TestEnvironment) -> PackageResult {
             .wallet
             .config()
             .keystore()
-            .sign_secure(&env.owner, &tx_data, Intent::iota_transaction())
+            .sign_secure(&env.owner, &tx, Intent::iota_transaction())
             .expect("sender ed25519 sign should not fail"),
     );
 
@@ -1755,7 +1755,7 @@ async fn run_sponsorship_ed25519(env: &TestEnvironment) -> PackageResult {
         }
     };
 
-    let tx = TransactionEnvelope::from_user_sig_data(tx_data, vec![sender_auth, sponsor_auth]);
+    let tx = TransactionEnvelope::from_user_sig_data(tx, vec![sender_auth, sponsor_auth]);
     let (outcome, err) = execute_aa_tx_outcome(env, tx).await;
     r.authenticate_outcome = outcome;
     r.authenticate_err = err;

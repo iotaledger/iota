@@ -428,7 +428,7 @@ impl SimpleFaucet {
         Ok(())
     }
 
-    /// Sign an already created transaction (in `tx_data`) and keep trying to
+    /// Sign an already created transaction (in `tx`) and keep trying to
     /// execute it until fullnode returns a definite response or a timeout
     /// is hit.
     async fn sign_and_execute_txn(
@@ -436,16 +436,16 @@ impl SimpleFaucet {
         uuid: Uuid,
         recipient: Address,
         coin_id: ObjectId,
-        tx_data: Transaction,
+        tx: Transaction,
         for_batch: bool,
     ) -> Result<IotaTransactionBlockResponse, FaucetError> {
         let signature = self
             .wallet
             .config()
             .keystore()
-            .sign_secure(&self.active_address, &tx_data, Intent::iota_transaction())
+            .sign_secure(&self.active_address, &tx, Intent::iota_transaction())
             .map_err(FaucetError::internal)?;
-        let tx = TransactionEnvelope::from_data(tx_data, vec![signature]);
+        let tx = TransactionEnvelope::from_data(tx, vec![signature]);
         let tx_digest = *tx.digest();
         info!(
             ?tx_digest,
@@ -1188,15 +1188,13 @@ mod tests {
 
     async fn execute_tx(
         ctx: &mut WalletContext,
-        tx_data: Transaction,
+        tx: Transaction,
     ) -> Result<IotaTransactionBlockEffects, anyhow::Error> {
-        let signature = ctx.config().keystore().sign_secure(
-            &tx_data.sender(),
-            &tx_data,
-            Intent::iota_transaction(),
-        )?;
-        let sender_signed_tx =
-            SenderSignedTransaction::new_from_sender_signature(tx_data, signature);
+        let signature =
+            ctx.config()
+                .keystore()
+                .sign_secure(&tx.sender(), &tx, Intent::iota_transaction())?;
+        let sender_signed_tx = SenderSignedTransaction::new_from_sender_signature(tx, signature);
         let transaction = TransactionEnvelope::new(sender_signed_tx);
         let response = ctx.execute_transaction_may_fail(transaction).await?;
         let result_effects = response.effects;

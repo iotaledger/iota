@@ -420,7 +420,7 @@ impl AUTransactionGen for P2PTransferGenRandomGasRandomPriceRandomSponsorship {
         };
         let sender_address = sender.initial_data.account.address;
         let kind = TransactionKind::Programmable(txn);
-        let tx_data = Transaction::new_with_gas_data(
+        let tx = Transaction::new_with_gas_data(
             kind,
             sender_address,
             GasPayment {
@@ -430,7 +430,7 @@ impl AUTransactionGen for P2PTransferGenRandomGasRandomPriceRandomSponsorship {
                 budget: self.gas,
             },
         );
-        let signed_txn = self.sponsorship.sign_transaction(&account_triple, tx_data);
+        let signed_txn = self.sponsorship.sign_transaction(&account_triple, tx);
         let payer = self.sponsorship.sponsor(&mut account_triple);
         // *sender.current_balances.last().unwrap();
         let rgp = exec.get_reference_gas_price();

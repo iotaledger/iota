@@ -152,7 +152,7 @@ async fn test_sponsored_transaction() -> Result<(), anyhow::Error> {
         builder.finish()
     };
     let kind = TransactionKind::new_programmable(pt);
-    let tx_data = Transaction::new_with_gas_data(
+    let tx = Transaction::new_with_gas_data(
         kind,
         sender,
         GasPayment {
@@ -164,7 +164,7 @@ async fn test_sponsored_transaction() -> Result<(), anyhow::Error> {
     );
 
     let tx = to_sender_signed_transaction_with_multi_signers(
-        tx_data,
+        tx,
         vec![
             test_cluster
                 .wallet
@@ -1110,7 +1110,7 @@ async fn test_pass_back_no_object() -> Result<(), anyhow::Error> {
             .expect("Fullnode should have transaction orchestrator toggled on.")
     });
 
-    let tx_data = Transaction::new_move_call(
+    let tx = Transaction::new_move_call(
         sender,
         package_ref.object_id,
         Identifier::from_static("object_basics"),
@@ -1124,7 +1124,7 @@ async fn test_pass_back_no_object() -> Result<(), anyhow::Error> {
     )
     .unwrap();
     let tx = to_sender_signed_transaction(
-        tx_data,
+        tx,
         context
             .config()
             .keystore()

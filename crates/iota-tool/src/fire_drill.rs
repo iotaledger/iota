@@ -300,7 +300,7 @@ async fn update_metadata_on_chain(
         .await?;
     let mut args = vec![CallArg::IOTA_SYSTEM_MUTABLE];
     args.extend(call_args);
-    let tx_data = Transaction::new_move_call(
+    let tx = Transaction::new_move_call(
         iota_address,
         ObjectId::SYSTEM,
         Identifier::IOTA_SYSTEM_MODULE,
@@ -312,7 +312,7 @@ async fn update_metadata_on_chain(
         rgp,
     )
     .unwrap();
-    execute_tx(account_key, iota_client, tx_data, function).await?;
+    execute_tx(account_key, iota_client, tx, function).await?;
     tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
     Ok(())
 }
@@ -320,10 +320,10 @@ async fn update_metadata_on_chain(
 async fn execute_tx(
     account_key: &SimpleKeypair,
     iota_client: &IotaClient,
-    tx_data: Transaction,
+    tx: Transaction,
     action: &str,
 ) -> anyhow::Result<()> {
-    let tx = TransactionEnvelope::from_data_and_signer(tx_data, vec![account_key]);
+    let tx = TransactionEnvelope::from_data_and_signer(tx, vec![account_key]);
     info!("Executing {:?}", tx.digest());
     let tx_digest = *tx.digest();
     let resp = iota_client

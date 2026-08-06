@@ -464,13 +464,10 @@ impl KeyToolCommand {
                 if let Some(tx_bytes) = tx_bytes {
                     let tx_bytes = Base64::decode(&tx_bytes)
                         .map_err(|e| anyhow!("Invalid base64 tx bytes: {e}"))?;
-                    let tx_data: Transaction = bcs::from_bytes(&tx_bytes)?;
+                    let tx: Transaction = bcs::from_bytes(&tx_bytes)?;
                     let s = UserSignature::Multisig(multisig);
-                    let res = s.verify_claims(
-                        &tx_data.intent_message(),
-                        address,
-                        &VerifyParams::default(),
-                    );
+                    let res =
+                        s.verify_claims(&tx.intent_message(), address, &VerifyParams::default());
 
                     match res {
                         Ok(()) => output.sig_verify_result = "OK".to_string(),
@@ -570,20 +567,19 @@ impl KeyToolCommand {
             KeyToolCommand::DecodeOrVerifyTx { tx_bytes, sig } => {
                 let tx_bytes = Base64::decode(&tx_bytes)
                     .map_err(|e| anyhow!("Invalid base64 tx bytes: {e:?}"))?;
-                let tx_data: Transaction = bcs::from_bytes(&tx_bytes)?;
+                let tx: Transaction = bcs::from_bytes(&tx_bytes)?;
                 match sig {
-                    None => CommandOutput::DecodeOrVerifyTx(DecodeOrVerifyTxOutput {
-                        tx: tx_data,
-                        result: None,
-                    }),
+                    None => {
+                        CommandOutput::DecodeOrVerifyTx(DecodeOrVerifyTxOutput { tx, result: None })
+                    }
                     Some(s) => {
                         let res = s.verify_claims(
-                            &tx_data.intent_message(),
-                            tx_data.sender(),
+                            &tx.intent_message(),
+                            tx.sender(),
                             &VerifyParams::default(),
                         );
                         CommandOutput::DecodeOrVerifyTx(DecodeOrVerifyTxOutput {
-                            tx: tx_data,
+                            tx,
                             result: Some(res),
                         })
                     }

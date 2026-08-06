@@ -191,7 +191,7 @@ impl GasPriceFeedbackTester {
             .unwrap()
             .object_ref();
 
-        let transaction_data = Transaction::new_programmable(
+        let tx = Transaction::new_programmable(
             *sender,
             vec![gas_object_ref],
             pt,
@@ -199,7 +199,7 @@ impl GasPriceFeedbackTester {
             REFERENCE_GAS_PRICE_FOR_TESTS,
         );
 
-        let transaction = to_sender_signed_transaction(transaction_data, sender_key);
+        let transaction = to_sender_signed_transaction(tx, sender_key);
 
         let effects = send_and_confirm_transaction_(authority_state, None, transaction, false)
             .await
@@ -229,7 +229,7 @@ impl GasPriceFeedbackTester {
             .unwrap()
             .object_ref();
 
-        let transaction_data = Transaction::new_programmable(
+        let tx = Transaction::new_programmable(
             self.sender,
             vec![gas_object_ref],
             pt,
@@ -237,7 +237,7 @@ impl GasPriceFeedbackTester {
             gas_data.gas_price,
         );
 
-        to_sender_signed_transaction(transaction_data, &self.sender_key)
+        to_sender_signed_transaction(tx, &self.sender_key)
     }
 
     /// Certify a transaction signed by the user.

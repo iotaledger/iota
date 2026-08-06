@@ -304,7 +304,7 @@ pub async fn split_coin_digest_with_network(
 
     // using the PTB that we just constructed, create the transaction data
     // that we will submit to the network
-    let tx_data = Transaction::new_programmable(
+    let tx = Transaction::new_programmable(
         *sender,
         vec![coin.object_ref()],
         builder,
@@ -312,7 +312,7 @@ pub async fn split_coin_digest_with_network(
         gas_price,
     );
 
-    let transaction_response = sign_and_execute_transaction(client, sender, tx_data).await?;
+    let transaction_response = sign_and_execute_transaction(client, sender, tx).await?;
 
     Ok(transaction_response.digest)
 }
@@ -363,15 +363,15 @@ pub fn retrieve_wallet() -> Result<WalletContext, anyhow::Error> {
 pub async fn sign_and_execute_transaction(
     client: &IotaClient,
     sender: &Address,
-    tx_data: Transaction,
+    tx: Transaction,
 ) -> Result<IotaTransactionBlockResponse, anyhow::Error> {
     let keystore = FileBasedKeystore::new(&iota_config_dir()?.join(IOTA_KEYSTORE_FILENAME))?;
-    let signature = keystore.sign_secure(sender, &tx_data, Intent::iota_transaction())?;
+    let signature = keystore.sign_secure(sender, &tx, Intent::iota_transaction())?;
 
     let transaction_block_response = client
         .quorum_driver_api()
         .execute_transaction_block(
-            TransactionEnvelope::from_data(tx_data, vec![signature]),
+            TransactionEnvelope::from_data(tx, vec![signature]),
             IotaTransactionBlockResponseOptions::full_content(),
             ExecuteTransactionRequestType::WaitForLocalExecution,
         )

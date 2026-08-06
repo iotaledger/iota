@@ -143,7 +143,7 @@ async fn simulate_transaction_derived_changes() {
     builder
         .pay(vec![*coin_to_split], vec![recipient], vec![1000])
         .unwrap();
-    let transaction_data = Transaction::new_programmable(
+    let tx = Transaction::new_programmable(
         sender,
         vec![*gas_object],
         builder.finish(),
@@ -151,7 +151,7 @@ async fn simulate_transaction_derived_changes() {
         1000,
     );
     let proto_transaction = ProtoTransaction::default()
-        .with_bcs(BcsData::default().with_data(bcs::to_bytes(&transaction_data).unwrap()));
+        .with_bcs(BcsData::default().with_data(bcs::to_bytes(&tx).unwrap()));
 
     // Requesting only the derived fields (plus effects for the gas charge)
     // must not leak the input/output objects they are computed from
@@ -203,7 +203,7 @@ async fn simulate_transaction_zero_gas_budget_uses_max() {
     let gas_obj = gas.last().unwrap();
 
     // Build a transfer transaction with gas budget = 0
-    let tx_data = Transaction::new_transfer(
+    let tx = Transaction::new_transfer(
         recipient,
         *obj_to_send,
         sender,
@@ -213,7 +213,7 @@ async fn simulate_transaction_zero_gas_budget_uses_max() {
     );
 
     let transaction = ProtoTransaction::default()
-        .with_bcs(BcsData::default().with_data(bcs::to_bytes(&tx_data).unwrap()));
+        .with_bcs(BcsData::default().with_data(bcs::to_bytes(&tx).unwrap()));
 
     let item = SimulateTransactionItem::default()
         .with_transaction(transaction)
@@ -264,7 +264,7 @@ async fn simulate_transaction_below_min_gas_budget_returns_error() {
 
     // Build a transfer transaction with a gas budget below the minimum
     // (min = base_tx_cost_fixed * gas_price = 1000 * 1000 = 1_000_000 NANOS)
-    let tx_data = Transaction::new_transfer(
+    let tx = Transaction::new_transfer(
         recipient,
         *obj_to_send,
         sender,
@@ -274,7 +274,7 @@ async fn simulate_transaction_below_min_gas_budget_returns_error() {
     );
 
     let transaction = ProtoTransaction::default()
-        .with_bcs(BcsData::default().with_data(bcs::to_bytes(&tx_data).unwrap()));
+        .with_bcs(BcsData::default().with_data(bcs::to_bytes(&tx).unwrap()));
 
     let item = build_simulate_item(transaction);
     let request = SimulateTransactionsRequest::default().with_transactions(vec![item]);
@@ -322,7 +322,7 @@ async fn simulate_transaction_readmask_scenarios() {
     builder.transfer_arg(sender, split_result);
     let pt = builder.finish();
 
-    let tx_data = Transaction::new_programmable(
+    let tx = Transaction::new_programmable(
         sender,
         vec![*gas_obj],
         pt,
@@ -333,7 +333,7 @@ async fn simulate_transaction_readmask_scenarios() {
     let create_transaction = || {
         Some(
             ProtoTransaction::default()
-                .with_bcs(BcsData::default().with_data(bcs::to_bytes(&tx_data).unwrap())),
+                .with_bcs(BcsData::default().with_data(bcs::to_bytes(&tx).unwrap())),
         )
     };
 
@@ -351,7 +351,7 @@ async fn simulate_transaction_readmask_scenarios() {
         vec![huge_amount],
     ));
     let failing_pt = failing_builder.finish();
-    let failing_tx_data = Transaction::new_programmable(
+    let failing_tx = Transaction::new_programmable(
         sender,
         vec![*gas_obj],
         failing_pt,
@@ -361,7 +361,7 @@ async fn simulate_transaction_readmask_scenarios() {
     let create_failing_transaction = || {
         Some(
             ProtoTransaction::default()
-                .with_bcs(BcsData::default().with_data(bcs::to_bytes(&failing_tx_data).unwrap())),
+                .with_bcs(BcsData::default().with_data(bcs::to_bytes(&failing_tx).unwrap())),
         )
     };
 
