@@ -8,7 +8,9 @@ use std::sync::Arc;
 
 use fastcrypto::{hash::MultisetHash, traits::KeyPair};
 use iota_config::{genesis::Genesis, node::ExpensiveSafetyCheckConfig};
-use iota_sdk_types::{Address, ObjectId, ObjectReference, Owner, TransactionEffects, Version};
+use iota_sdk_types::{
+    Address, ObjectId, ObjectReference, Owner, Transaction, TransactionEffects, Version,
+};
 use iota_types::{
     crypto::{AccountKeyPair, AuthorityKeyPair},
     effects::SignedTransactionEffects,
@@ -18,8 +20,8 @@ use iota_types::{
     object::Object,
     transaction::{
         CertifiedTransaction, SenderSignedTransactionAPI, TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
-        TransactionData, TransactionDataAPI, TransactionEnvelope, VerifiedCertificate,
-        VerifiedSignedTransaction, VerifiedTransaction,
+        TransactionDataAPI, TransactionEnvelope, VerifiedCertificate, VerifiedSignedTransaction,
+        VerifiedTransaction,
     },
     utils::to_sender_signed_transaction,
 };
@@ -282,7 +284,7 @@ pub fn init_transfer_transaction(
     gas_budget: u64,
     gas_price: u64,
 ) -> VerifiedTransaction {
-    let data = TransactionData::new_transfer(
+    let data = Transaction::new_transfer(
         recipient,
         object_ref,
         sender,

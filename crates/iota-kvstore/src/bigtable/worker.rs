@@ -16,9 +16,7 @@ use iota_types::{
 };
 use strum::IntoEnumIterator;
 
-use crate::{
-    BigTableClient, KeyValueStoreWriter, TransactionData, client::TransactionSequenceNumber,
-};
+use crate::{BigTableClient, KeyValueStoreWriter, Transaction, client::TransactionSequenceNumber};
 
 /// Represents the available BigTable tables the Client and the KvWorker can
 /// interact with.
@@ -166,9 +164,7 @@ impl Worker for KvWorker {
                     let transactions = checkpoint
                         .transactions
                         .iter()
-                        .map(|t| {
-                            TransactionData::new(t, checkpoint.checkpoint_summary.sequence_number)
-                        })
+                        .map(|t| Transaction::new(t, checkpoint.checkpoint_summary.sequence_number))
                         .collect::<Vec<_>>();
                     client.save_transactions(&transactions).await?;
                 }

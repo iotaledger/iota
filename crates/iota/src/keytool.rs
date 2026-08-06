@@ -52,7 +52,7 @@ use iota_types::{
     move_authenticator::MoveAuthenticatorExt,
     multisig::{MultiSig, MultiSigPublicKey, MultisigMember, ThresholdUnit, WeightUnit},
     signature::{AuthenticatorTrait, VerifyParams},
-    transaction::{TransactionData, TransactionDataAPI},
+    transaction::TransactionDataAPI,
 };
 use json_to_table::{Orientation, json_to_table};
 use serde::Serialize;
@@ -298,7 +298,7 @@ pub enum DecodedSigOutput {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DecodeOrVerifyTxOutput {
-    tx: TransactionData,
+    tx: Transaction,
     result: Option<IotaResult>,
 }
 
@@ -464,7 +464,7 @@ impl KeyToolCommand {
                 if let Some(tx_bytes) = tx_bytes {
                     let tx_bytes = Base64::decode(&tx_bytes)
                         .map_err(|e| anyhow!("Invalid base64 tx bytes: {e}"))?;
-                    let tx_data: TransactionData = bcs::from_bytes(&tx_bytes)?;
+                    let tx_data: Transaction = bcs::from_bytes(&tx_bytes)?;
                     let s = UserSignature::Multisig(multisig);
                     let res = s.verify_claims(
                         &tx_data.intent_message(),
@@ -570,7 +570,7 @@ impl KeyToolCommand {
             KeyToolCommand::DecodeOrVerifyTx { tx_bytes, sig } => {
                 let tx_bytes = Base64::decode(&tx_bytes)
                     .map_err(|e| anyhow!("Invalid base64 tx bytes: {e:?}"))?;
-                let tx_data: TransactionData = bcs::from_bytes(&tx_bytes)?;
+                let tx_data: Transaction = bcs::from_bytes(&tx_bytes)?;
                 match sig {
                     None => CommandOutput::DecodeOrVerifyTx(DecodeOrVerifyTxOutput {
                         tx: tx_data,
@@ -814,10 +814,10 @@ impl KeyToolCommand {
             } => {
                 let address = get_identity_address_from_keystore(address, keystore)?;
                 let intent = intent.unwrap_or_else(Intent::iota_transaction);
-                let msg: TransactionData =
-                    bcs::from_bytes(&Base64::decode(&data).map_err(|e| {
-                        anyhow!("Cannot deserialize data as TransactionData {e:?}")
-                    })?)?;
+                let msg: Transaction = bcs::from_bytes(
+                    &Base64::decode(&data)
+                        .map_err(|e| anyhow!("Cannot deserialize data as Transaction {e:?}"))?,
+                )?;
                 let intent_msg = IntentMessage::new(intent, msg);
                 let raw_intent_msg: String = Base64::encode(bcs::to_bytes(&intent_msg)?);
                 let mut hasher = DefaultHash::default();
@@ -873,10 +873,10 @@ impl KeyToolCommand {
                 info!("Raw tx_bytes to execute: {}", data);
                 let intent = intent.unwrap_or_else(Intent::iota_transaction);
                 info!("Intent: {:?}", intent);
-                let msg: TransactionData =
-                    bcs::from_bytes(&Base64::decode(&data).map_err(|e| {
-                        anyhow!("Cannot deserialize data as TransactionData {e:?}")
-                    })?)?;
+                let msg: Transaction = bcs::from_bytes(
+                    &Base64::decode(&data)
+                        .map_err(|e| anyhow!("Cannot deserialize data as Transaction {e:?}"))?,
+                )?;
                 let intent_msg = IntentMessage::new(intent, msg);
                 info!(
                     "Raw intent message: {:?}",

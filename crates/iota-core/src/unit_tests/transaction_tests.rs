@@ -260,7 +260,7 @@ async fn test_user_sends_system_transaction_impl(transaction_kind: TransactionKi
 }
 
 pub fn init_transfer_transaction(
-    pre_sign_mutations: impl Fn(&mut TransactionData),
+    pre_sign_mutations: impl Fn(&mut Transaction),
     sender: Address,
     secret: &AccountKeyPair,
     recipient: Address,
@@ -269,7 +269,7 @@ pub fn init_transfer_transaction(
     gas_budget: u64,
     gas_price: u64,
 ) -> TransactionEnvelope {
-    let mut data = TransactionData::new_transfer(
+    let mut data = Transaction::new_transfer(
         recipient,
         object_ref,
         sender,
@@ -282,14 +282,14 @@ pub fn init_transfer_transaction(
 }
 
 pub fn init_move_call_transaction(
-    pre_sign_mutations: impl Fn(&mut TransactionData),
+    pre_sign_mutations: impl Fn(&mut Transaction),
     sender: Address,
     secret: &AccountKeyPair,
     gas_object_ref: ObjectReference,
     gas_budget: u64,
     gas_price: u64,
 ) -> TransactionEnvelope {
-    let mut data = TransactionData::new_move_call(
+    let mut data = Transaction::new_move_call(
         sender,
         ObjectId::SYSTEM,
         Identifier::IOTA_SYSTEM_MODULE,
@@ -307,7 +307,7 @@ pub fn init_move_call_transaction(
 
 async fn do_transaction_test_skip_cert_checks(
     expected_sig_errors: u64,
-    pre_sign_mutations: impl Fn(&mut TransactionData),
+    pre_sign_mutations: impl Fn(&mut Transaction),
     post_sign_mutations: impl Fn(&mut TransactionEnvelope),
     err_check: impl Fn(&IotaError),
 ) {
@@ -323,7 +323,7 @@ async fn do_transaction_test_skip_cert_checks(
 
 async fn do_transaction_test(
     expected_sig_errors: u64,
-    pre_sign_mutations: impl Fn(&mut TransactionData),
+    pre_sign_mutations: impl Fn(&mut Transaction),
     post_sign_mutations: impl Fn(&mut TransactionEnvelope),
     err_check: impl Fn(&IotaError),
 ) {
@@ -340,7 +340,7 @@ async fn do_transaction_test(
 async fn do_transaction_test_impl(
     _expected_sig_errors: u64,
     check_forged_cert: bool,
-    pre_sign_mutations: impl Fn(&mut TransactionData),
+    pre_sign_mutations: impl Fn(&mut Transaction),
     post_sign_mutations: impl Fn(&mut TransactionEnvelope),
     err_check: impl Fn(&IotaError),
 ) {
@@ -535,7 +535,7 @@ async fn test_oversized_txn() {
         builder.finish()
     };
 
-    let txn_data = TransactionData::new_programmable(sender, vec![obj_ref], pt, 0, 0);
+    let txn_data = Transaction::new_programmable(sender, vec![obj_ref], pt, 0, 0);
 
     let txn = to_sender_signed_transaction(txn_data, &sender_key);
     let tx_size = bcs::serialized_size(&txn).unwrap();
@@ -924,7 +924,7 @@ async fn test_handle_soft_bundle_certificates() {
                 .get_object(&gas_object_ids[i])
                 .unwrap()
                 .object_ref();
-            let data = TransactionData::new_move_call(
+            let data = Transaction::new_move_call(
                 senders[i].0,
                 package.object_id,
                 Identifier::from_static("object_basics"),
@@ -1110,7 +1110,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
                 .get_object(&gas_objects[i].id())
                 .unwrap()
                 .object_ref();
-            let data = TransactionData::new_transfer(
+            let data = Transaction::new_transfer(
                 senders[i + 1].0,
                 owned_object_ref,
                 senders[i].0,
@@ -1155,7 +1155,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
             .get_object(&gas_objects[5].id())
             .unwrap()
             .object_ref();
-        let data = TransactionData::new_transfer(
+        let data = Transaction::new_transfer(
             senders[6].0,
             owned_object_ref,
             senders[5].0,
@@ -1195,7 +1195,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
                 .get_object(&gas_objects[6].id())
                 .unwrap()
                 .object_ref();
-            let data = TransactionData::new_move_call(
+            let data = Transaction::new_move_call(
                 senders[6].0,
                 package.object_id,
                 Identifier::from_static("object_basics"),
@@ -1224,7 +1224,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
                 .get_object(&gas_objects[7].id())
                 .unwrap()
                 .object_ref();
-            let data = TransactionData::new_move_call(
+            let data = Transaction::new_move_call(
                 senders[7].0,
                 package.object_id,
                 Identifier::from_static("object_basics"),
@@ -1279,7 +1279,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
                 .get_object(&gas_objects[8].id())
                 .unwrap()
                 .object_ref();
-            let data = TransactionData::new_move_call(
+            let data = Transaction::new_move_call(
                 senders[8].0,
                 package.object_id,
                 Identifier::from_static("object_basics"),
@@ -1308,7 +1308,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
                 .get_object(&gas_objects[9].id())
                 .unwrap()
                 .object_ref();
-            let data = TransactionData::new_move_call(
+            let data = Transaction::new_move_call(
                 senders[9].0,
                 package.object_id,
                 Identifier::from_static("object_basics"),
@@ -1385,7 +1385,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
                 builder.finish()
             };
 
-            let data = TransactionData::new_programmable(
+            let data = Transaction::new_programmable(
                 sender.0,
                 vec![gas_object_ref],
                 pt,
@@ -1426,7 +1426,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
 #[test]
 fn sender_signed_data_serialized_intent() {
     let txn = SenderSignedTransaction::new(
-        TransactionData::new_transfer(
+        Transaction::new_transfer(
             Address::ZERO,
             random_object_ref(),
             Address::ZERO,

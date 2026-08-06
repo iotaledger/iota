@@ -4954,7 +4954,7 @@ async fn test_transfer_sponsored() -> Result<(), anyhow::Error> {
 #[sim_test]
 async fn test_transfer_serialized_data() -> Result<(), anyhow::Error> {
     // Like `test_transfer` but the transaction is pre-generated and serialized into
-    // a Base64 string containing a Base64-encoded TransactionData.
+    // a Base64 string containing a Base64-encoded Transaction.
     let (mut cluster, client, rgp, o, _, a) = test_cluster_helper().await;
     let context = &mut cluster.wallet;
 

@@ -15,10 +15,10 @@ use iota_json_rpc_types::{
 };
 use iota_keys::keystore::{AccountKeystore, Keystore};
 use iota_sdk_crypto::simple::SimpleKeypair;
-use iota_sdk_types::{Address, ObjectId, ObjectReference, StructTag, crypto::Intent};
+use iota_sdk_types::{Address, ObjectId, ObjectReference, StructTag, Transaction, crypto::Intent};
 use iota_types::{
     gas_coin::GasCoin,
-    transaction::{TransactionData, TransactionDataAPI, TransactionEnvelope},
+    transaction::{TransactionDataAPI, TransactionEnvelope},
 };
 use tokio::sync::RwLock;
 use tracing::warn;
@@ -394,7 +394,7 @@ impl WalletContext {
     }
 
     /// Sign a transaction with a key currently managed by the WalletContext.
-    pub fn sign_transaction(&self, data: &TransactionData) -> TransactionEnvelope {
+    pub fn sign_transaction(&self, data: &Transaction) -> TransactionEnvelope {
         let sig = self
             .config
             .keystore

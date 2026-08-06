@@ -4,7 +4,7 @@
 use std::collections::HashMap;
 
 use iota_data_ingestion_core::Worker;
-use iota_kvstore::{KeyValueStoreReader, KvWorker, TransactionData, emulator::BigTableEmulator};
+use iota_kvstore::{KeyValueStoreReader, KvWorker, Transaction, emulator::BigTableEmulator};
 use iota_sdk_types::{CheckpointDigest, TransactionDigest};
 use iota_types::{
     base_types::VersionNumber, effects::TransactionEffectsAPI,
@@ -54,13 +54,8 @@ async fn process_checkpoint_round_trips_objects_transactions_and_checkpoints() {
     let expected_transactions = checkpoint
         .transactions
         .iter()
-        .map(|t| {
-            (
-                *t.transaction.digest(),
-                TransactionData::new(t, checkpoint_seq),
-            )
-        })
-        .collect::<HashMap<TransactionDigest, TransactionData>>();
+        .map(|t| (*t.transaction.digest(), Transaction::new(t, checkpoint_seq)))
+        .collect::<HashMap<TransactionDigest, Transaction>>();
     let expected_contents = checkpoint.checkpoint_contents.clone();
 
     // write to BigTable

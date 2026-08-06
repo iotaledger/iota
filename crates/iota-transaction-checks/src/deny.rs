@@ -2,12 +2,12 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::{Command, ObjectReference, UserSignature};
+use iota_sdk_types::{Command, ObjectReference, Transaction, UserSignature};
 use iota_types::{
     deny_rule_governance::DenyRuleConfig,
     error::{IotaError, IotaResult, UserInputError},
     storage::BackingPackageStore,
-    transaction::{InputObjectKind, TransactionData, TransactionDataAPI, TransactionKindExt},
+    transaction::{InputObjectKind, TransactionDataAPI, TransactionKindExt},
 };
 use tracing::instrument;
 macro_rules! deny_if_true {
@@ -26,7 +26,7 @@ macro_rules! deny_if_true {
 /// deny config.
 #[instrument(level = "trace", skip_all, fields(tx_digest = ?tx_data.digest()))]
 pub fn check_transaction_for_validation(
-    tx_data: &TransactionData,
+    tx_data: &Transaction,
     tx_signatures: &[UserSignature],
     input_object_kinds: &[InputObjectKind],
     receiving_objects: &[ObjectReference],
@@ -73,7 +73,7 @@ fn check_receiving_objects(
 #[instrument(level = "trace", skip_all)]
 fn check_disabled_features(
     filter_config: &dyn DenyRuleConfig,
-    tx_data: &TransactionData,
+    tx_data: &Transaction,
     tx_signatures: &[UserSignature],
 ) -> IotaResult {
     deny_if_true!(
@@ -109,7 +109,7 @@ fn check_disabled_features(
 }
 
 #[instrument(level = "trace", skip_all)]
-fn check_signers(filter_config: &dyn DenyRuleConfig, tx_data: &TransactionData) -> IotaResult {
+fn check_signers(filter_config: &dyn DenyRuleConfig, tx_data: &Transaction) -> IotaResult {
     if !filter_config.has_denied_addresses() {
         return Ok(());
     }
@@ -152,7 +152,7 @@ fn check_input_objects(
 #[instrument(level = "trace", skip_all)]
 fn check_package_dependencies(
     filter_config: &dyn DenyRuleConfig,
-    tx_data: &TransactionData,
+    tx_data: &Transaction,
     package_store: &dyn BackingPackageStore,
 ) -> IotaResult {
     if !filter_config.has_denied_packages() {

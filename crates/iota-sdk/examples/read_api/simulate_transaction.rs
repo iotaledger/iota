@@ -11,9 +11,9 @@ mod utils;
 
 use iota_sdk::types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{TransactionData, TransactionDataAPI},
+    transaction::TransactionDataAPI,
 };
-use iota_sdk_types::TransactionKind;
+use iota_sdk_types::{Transaction, TransactionKind};
 use utils::setup_for_write;
 
 #[tokio::main]
@@ -37,7 +37,7 @@ async fn main() -> Result<(), anyhow::Error> {
     let gas_budget = 5_000_000;
     let gas_price = client.read_api().get_reference_gas_price().await?;
 
-    let tx_data = TransactionData::new_programmable(
+    let tx_data = Transaction::new_programmable(
         sender,
         vec![gas_coin.object_ref()],
         programmable_transaction.clone(),

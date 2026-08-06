@@ -70,7 +70,7 @@ pub struct AuthContext {
     tx_inputs: Vec<MoveCallArg>,
     /// The authentication commands to be executed sequentially.
     tx_commands: Vec<MoveCommand>,
-    /// The BCS-serialized `TransactionData` bytes.
+    /// The BCS-serialized `Transaction` bytes.
     tx_data_bytes: Vec<u8>,
 }
 

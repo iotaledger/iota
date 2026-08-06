@@ -7,14 +7,16 @@ use std::{collections::HashSet, env, fs::File, io::Read, path::PathBuf};
 use expect_test::expect;
 use iota_framework::BuiltInFramework;
 use iota_move_build::{BuildConfig, check_unpublished_dependencies, gather_published_ids};
-use iota_sdk_types::{ExecutionError, ExecutionStatus, Identifier, ObjectData, ObjectId, Owner};
+use iota_sdk_types::{
+    ExecutionError, ExecutionStatus, Identifier, ObjectData, ObjectId, Owner, Transaction,
+};
 use iota_types::{
     crypto::{AccountKeyPair, get_key_pair},
     effects::TransactionEffectsAPI,
     error::{IotaError, UserInputError},
     object::ObjectRead,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{TEST_ONLY_GAS_UNIT_FOR_PUBLISH, TransactionData, TransactionDataAPI},
+    transaction::{TEST_ONLY_GAS_UNIT_FOR_PUBLISH, TransactionDataAPI},
     utils::to_sender_signed_transaction,
 };
 use move_binary_format::CompiledModule;
@@ -104,7 +106,7 @@ async fn test_publish_empty_package() {
     let gas_object_ref = gas_object.unwrap().object_ref();
 
     // empty package
-    let data = TransactionData::new_module(
+    let data = Transaction::new_module(
         sender,
         gas_object_ref,
         vec![],
@@ -124,7 +126,7 @@ async fn test_publish_empty_package() {
     );
 
     // empty module
-    let data = TransactionData::new_module(
+    let data = Transaction::new_module(
         sender,
         gas_object_ref,
         vec![vec![]],
@@ -160,7 +162,7 @@ async fn test_publish_duplicate_modules() {
     let mut modules = build_test_package("object_owner", /* with_unpublished_deps */ false);
     assert_eq!(modules.len(), 1);
     modules.push(modules[0].clone());
-    let data = TransactionData::new_module(
+    let data = Transaction::new_module(
         sender,
         gas_object_ref,
         modules,
@@ -325,7 +327,7 @@ async fn test_publish_extraneous_bytes_modules() {
     let correct_modules =
         build_test_package("object_owner", /* with_unpublished_deps */ false);
     assert_eq!(correct_modules.len(), 1);
-    let data = TransactionData::new_module(
+    let data = Transaction::new_module(
         sender,
         gas_object_ref,
         correct_modules.clone(),
@@ -346,7 +348,7 @@ async fn test_publish_extraneous_bytes_modules() {
     let mut modules = correct_modules.clone();
     modules[0].push(0);
     assert_eq!(modules.len(), 1);
-    let data = TransactionData::new_module(
+    let data = Transaction::new_module(
         sender,
         gas_object_ref,
         modules,
@@ -374,7 +376,7 @@ async fn test_publish_extraneous_bytes_modules() {
     let first_module = modules[0].clone();
     modules[0].extend(first_module);
     assert_eq!(modules.len(), 1);
-    let data = TransactionData::new_module(
+    let data = Transaction::new_module(
         sender,
         gas_object_ref,
         modules,
@@ -411,7 +413,7 @@ async fn test_publish_extraneous_bytes_modules() {
     };
     modules[0] = new_bytes;
     assert_eq!(modules.len(), 1);
-    let data = TransactionData::new_module(
+    let data = Transaction::new_module(
         sender,
         gas_object_ref,
         modules,

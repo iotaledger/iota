@@ -12,6 +12,7 @@ use fastcrypto::hash::MultisetHash;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
     CheckpointContentsDigest, CheckpointContentsV1, CheckpointDigest, Digest, RandomnessRound,
+    Transaction,
     checkpoint::{
         CheckpointContents, CheckpointSummary, CheckpointTransactionInfo, EndOfEpochData,
     },
@@ -39,7 +40,7 @@ use crate::{
     global_state_hash::GlobalStateHash,
     message_envelope::{Envelope, Message, TrustedEnvelope, VerifiedEnvelope},
     storage::ReadStore,
-    transaction::{TransactionData, TransactionDataAPI, TransactionEnvelope},
+    transaction::{TransactionDataAPI, TransactionEnvelope},
 };
 
 pub type CheckpointSequenceNumber = u64;
@@ -584,7 +585,7 @@ impl FullCheckpointContents {
     pub fn random_for_testing() -> Self {
         let (a, key): (_, AccountKeyPair) = get_key_pair();
         let transaction = TransactionEnvelope::from_data_and_signer(
-            TransactionData::new_transfer(
+            Transaction::new_transfer(
                 a,
                 random_object_ref(),
                 a,

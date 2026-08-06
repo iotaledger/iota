@@ -921,7 +921,7 @@ mod tests {
     use arc_swap::ArcSwap;
     use futures::pin_mut;
     use iota_protocol_config::{Chain, ConsensusTransactionOrdering, ProtocolConfig};
-    use iota_sdk_types::{Address, ObjectId, SenderSignedTransaction};
+    use iota_sdk_types::{Address, ObjectId, SenderSignedTransaction, Transaction};
     use iota_types::{
         base_types::{AuthorityName, random_object_ref},
         committee::Committee,
@@ -933,15 +933,12 @@ mod tests {
         supported_protocol_versions::{
             SupportedProtocolVersions, SupportedProtocolVersionsWithHashes,
         },
-        transaction::{
-            CertifiedTransaction, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionData,
-            TransactionDataAPI,
-        },
+        transaction::{CertifiedTransaction, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionDataAPI},
         utils::to_sender_signed_transaction,
     };
     use prometheus_filtered::Registry;
     use starfish_core::{
-        BlockHeaderAPI, CommitDigest, CommitRef, CommittedSubDag, TestBlockHeader, Transaction,
+        BlockHeaderAPI, CommitDigest, CommitRef, CommittedSubDag, TestBlockHeader,
         VerifiedBlockHeader, VerifiedTransactions,
     };
 
@@ -1015,7 +1012,7 @@ mod tests {
             );
             let tx_batch = VerifiedTransactions::new_for_test(
                 &header,
-                vec![Transaction::new(transaction_bytes)],
+                vec![starfish_core::Transaction::new(transaction_bytes)],
             );
             headers.push(header);
             subdag_transactions.push(tx_batch);
@@ -1154,7 +1151,7 @@ mod tests {
             let owned_ref = state.get_object(&owned_obj.id()).unwrap().object_ref();
             let gas_ref = state.get_object(&gas_obj.id()).unwrap().object_ref();
 
-            let tx_data = TransactionData::new_transfer(
+            let tx_data = Transaction::new_transfer(
                 recipient,
                 owned_ref,
                 sender,
@@ -1177,7 +1174,7 @@ mod tests {
             );
             let tx_batch = VerifiedTransactions::new_for_test(
                 &header,
-                vec![Transaction::new(transaction_bytes)],
+                vec![starfish_core::Transaction::new(transaction_bytes)],
             );
             headers.push(header);
             subdag_transactions.push(tx_batch);
@@ -1343,7 +1340,7 @@ mod tests {
     fn user_txn(gas_price: u64) -> VerifiedSequencedConsensusTransaction {
         let (committee, keypairs) = Committee::new_simple_test_committee();
         let tx = SenderSignedTransaction::new(
-            TransactionData::new_transfer(
+            Transaction::new_transfer(
                 Address::ZERO,
                 random_object_ref(),
                 Address::ZERO,

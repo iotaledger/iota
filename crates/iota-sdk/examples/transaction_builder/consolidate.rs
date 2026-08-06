@@ -14,10 +14,10 @@ use iota_sdk::{
     rpc_types::ObjectChange,
     types::{
         programmable_transaction_builder::ProgrammableTransactionBuilder,
-        transaction::{CallArg, TransactionData, TransactionDataAPI},
+        transaction::{CallArg, TransactionDataAPI},
     },
 };
-use iota_sdk_types::{Argument, Command, ObjectReference, TransactionKind};
+use iota_sdk_types::{Argument, Command, ObjectReference, Transaction, TransactionKind};
 use utils::{setup_for_write, sign_and_execute_transaction};
 
 #[tokio::main]
@@ -69,8 +69,7 @@ async fn main() -> Result<(), anyhow::Error> {
         let kind = TransactionKind::Programmable(pt);
 
         let gas_price = client.read_api().get_reference_gas_price().await?;
-        let tx_data =
-            TransactionData::new(kind, sender, gas_coin_ref.unwrap(), gas_budget, gas_price);
+        let tx_data = Transaction::new(kind, sender, gas_coin_ref.unwrap(), gas_budget, gas_price);
 
         let transaction_response = sign_and_execute_transaction(&client, &sender, tx_data).await?;
         println!("Transaction sent {}", transaction_response.digest);

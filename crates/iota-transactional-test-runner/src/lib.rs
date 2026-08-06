@@ -20,8 +20,9 @@ use iota_core::authority::{
 use iota_json_rpc::authority_state::StateRead;
 use iota_json_rpc_types::{DevInspectResults, DryRunTransactionBlockResponse, EventFilter};
 use iota_sdk_types::{
-    Address, CheckpointContentsDigest, CheckpointDigest, Event, ObjectId, TransactionDigest,
-    TransactionEffects, TransactionEvents, TransactionKind, checkpoint::CheckpointContents,
+    Address, CheckpointContentsDigest, CheckpointDigest, Event, ObjectId, Transaction,
+    TransactionDigest, TransactionEffects, TransactionEvents, TransactionKind,
+    checkpoint::CheckpointContents,
 };
 use iota_storage::key_value_store::TransactionKeyValueStore;
 use iota_types::{
@@ -36,7 +37,7 @@ use iota_types::{
     messages_checkpoint::VerifiedCheckpoint,
     object::Object,
     storage::{ObjectStore, ReadStore},
-    transaction::{InputObjects, SenderSignedTransactionAPI, TransactionData, TransactionEnvelope},
+    transaction::{InputObjects, SenderSignedTransactionAPI, TransactionEnvelope},
 };
 pub use move_transactional_test_runner::framework::{
     create_adapter, run_tasks_with_adapter, run_test_impl,
@@ -98,7 +99,7 @@ pub trait TransactionalAdapter: Send + Sync + ReadStore {
 
     async fn dry_run_transaction_block(
         &self,
-        transaction_block: TransactionData,
+        transaction_block: Transaction,
         transaction_digest: TransactionDigest,
     ) -> IotaResult<DryRunTransactionBlockResponse>;
 
@@ -174,7 +175,7 @@ impl TransactionalAdapter for ValidatorWithFullnode {
 
     async fn dry_run_transaction_block(
         &self,
-        transaction_block: TransactionData,
+        transaction_block: Transaction,
         transaction_digest: TransactionDigest,
     ) -> IotaResult<DryRunTransactionBlockResponse> {
         self.fullnode
@@ -451,7 +452,7 @@ impl TransactionalAdapter for Simulacrum<StdRng, PersistedStore> {
 
     async fn dry_run_transaction_block(
         &self,
-        _transaction_block: TransactionData,
+        _transaction_block: Transaction,
         _transaction_digest: TransactionDigest,
     ) -> IotaResult<DryRunTransactionBlockResponse> {
         unimplemented!("dry_run_transaction_block not supported in simulator mode")

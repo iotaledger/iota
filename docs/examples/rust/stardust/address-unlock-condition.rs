@@ -11,21 +11,19 @@ use anyhow::anyhow;
 use bip32::DerivationPath;
 use docs_examples::utils::{clean_keystore, fund_address, setup_keystore};
 use iota_keys::keystore::AccountKeystore;
+use iota_sdk_types::Transaction;
 use iota_sdk::{
     IotaClientBuilder,
     rpc_types::{
         IotaObjectDataFilter, IotaObjectDataOptions, IotaObjectResponseQuery,
-        IotaTransactionBlockResponseOptions,
-    },
+        IotaTransactionBlockResponseOptions},
     types::{
         dynamic_field::DynamicFieldName,
         gas_coin::GAS,
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         quorum_driver_types::ExecuteTransactionRequestType,
         stardust::output::NftOutput,
-        transaction::{CallArg, TransactionData, TransactionEnvelope},
-    },
-};
+        transaction::{CallArg, TransactionEnvelope}}};
 use iota_sdk_types::{Argument, Identifier, ObjectId, SignatureScheme, TypeTag, crypto::Intent};
 use iota_types::transaction::TransactionDataAPI;
 
@@ -243,7 +241,7 @@ async fn main() -> Result<(), anyhow::Error> {
     let gas_price = iota_client.read_api().get_reference_gas_price().await?;
 
     // Create the transaction data that will be sent to the network
-    let tx_data = TransactionData::new_programmable(
+    let tx_data = Transaction::new_programmable(
         sender,
         vec![gas_coin.object_ref()],
         pt,

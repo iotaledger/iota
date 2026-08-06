@@ -13,18 +13,16 @@ use std::{
 use anyhow::{Result, anyhow, bail};
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore};
 use iota_move_build::BuildConfig;
+use iota_sdk_types::Transaction;
 use iota_sdk::{
     IotaClient,
     rpc_types::{
         Coin, IotaObjectDataOptions, IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
-        IotaTransactionBlockResponseOptions, ObjectChange,
-    },
+        IotaTransactionBlockResponseOptions, ObjectChange},
     types::{
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         quorum_driver_types::ExecuteTransactionRequestType,
-        transaction::{TransactionData, TransactionEnvelope},
-    },
-};
+        transaction::{TransactionEnvelope}}};
 use iota_sdk_types::{
     Address, ObjectId, ObjectReference, ProgrammableTransaction, SignatureScheme, crypto::Intent,
 };
@@ -90,7 +88,7 @@ pub async fn fund_address(
     let gas_price = iota_client.read_api().get_reference_gas_price().await?;
 
     // Create a transaction data that will be sent to the network.
-    let tx_data = TransactionData::new_programmable(
+    let tx_data = Transaction::new_programmable(
         sponsor,
         vec![gas_coin.object_ref()],
         pt,
@@ -214,7 +212,7 @@ pub async fn publish_package<Keystore: AccountKeystore>(
     let gas_price = iota_client.read_api().get_reference_gas_price().await?;
 
     // Create the transaction data that will be sent to the network
-    let tx_data = TransactionData::new_programmable(
+    let tx_data = Transaction::new_programmable(
         publisher,
         vec![gas_coin.object_ref()],
         pt,
@@ -339,13 +337,13 @@ pub async fn create_transaction_data(
     iota_client: &IotaClient,
     sender: Address,
     pt: ProgrammableTransaction,
-) -> Result<TransactionData> {
+) -> Result<Transaction> {
     let gas_coin = get_coin(iota_client, sender).await?;
 
     let gas_budget = 50_000_000;
     let gas_price = iota_client.read_api().get_reference_gas_price().await?;
 
-    Ok(TransactionData::new_programmable(
+    Ok(Transaction::new_programmable(
         sender,
         vec![gas_coin.object_ref()],
         pt,

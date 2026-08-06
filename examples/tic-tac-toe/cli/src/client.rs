@@ -22,15 +22,14 @@ use iota_sdk_types::{
     SharedObjectReference, StructTag, TransactionKind,
     crypto::{Intent, UserSignature},
 };
+use iota_sdk_types::Transaction;
 use iota_types::{
     crypto::PublicKey,
     multisig::{MultiSig, MultiSigPublicKey},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{
-        CallArg, InputObjectKind, TransactionData, TransactionDataAPI, TransactionEnvelope,
-        TransactionKindExt,
-    },
-};
+        CallArg, InputObjectKind, TransactionDataAPI, TransactionEnvelope,
+        TransactionKindExt}};
 
 use crate::{
     crypto::combine_keys,
@@ -554,7 +553,7 @@ impl Client {
 
     /// Execute a PTB, expecting it to create a shared or owned Game, and return
     /// its ObjectId.
-    async fn execute_for_game(&self, data: TransactionData) -> Result<ObjectId> {
+    async fn execute_for_game(&self, data: Transaction) -> Result<ObjectId> {
         let tx = self.wallet.sign_transaction(&data);
         let IotaTransactionBlockResponse {
             object_changes: Some(object_changes),
@@ -595,11 +594,11 @@ impl Client {
         &self,
         sender: Address,
         tx: ProgrammableTransaction,
-    ) -> Result<TransactionData> {
+    ) -> Result<Transaction> {
         self.build_tx_data_with_sponsor(sender, None, tx).await
     }
 
-    /// Do gas estimation and coin selection to create a `TransactionData` from
+    /// Do gas estimation and coin selection to create a `Transaction` from
     /// a `ProgrammableTransaction`. If `sponsor` is provided, it will be
     /// used as the gas sponsor, and coin selection will fetch coins owned
     /// by this address, otherwise coins will be selected from the `sender`'
@@ -609,7 +608,7 @@ impl Client {
         sender: Address,
         sponsor: Option<Address>,
         tx: ProgrammableTransaction,
-    ) -> Result<TransactionData> {
+    ) -> Result<Transaction> {
         let client = self.client().await?;
 
         let max_budget = self.max_gas_budget().await?;
@@ -656,11 +655,11 @@ impl Client {
 
         let payment = vec![gas_coin];
         Ok(if let Some(sponsor) = sponsor {
-            TransactionData::new_with_gas_coins_allow_sponsor(
+            Transaction::new_with_gas_coins_allow_sponsor(
                 tx_kind, sender, payment, budget, gas_price, sponsor,
             )
         } else {
-            TransactionData::new_with_gas_coins(tx_kind, sender, payment, budget, gas_price)
+            Transaction::new_with_gas_coins(tx_kind, sender, payment, budget, gas_price)
         })
     }
 
@@ -710,7 +709,7 @@ impl Client {
         &self,
         sender: Address,
         admin_key: MultiSigPublicKey,
-        data: TransactionData,
+        data: Transaction,
     ) -> Result<TransactionEnvelope> {
         let sponsor_sig: UserSignature = self
             .wallet

@@ -17,11 +17,8 @@
 use std::{fs, path::PathBuf};
 
 use fastcrypto::encoding::{Base64, Encoding};
-use iota_sdk_types::{SenderSignedTransaction, UserSignature};
-use iota_types::{
-    object::Object,
-    transaction::{TransactionData, TransactionDataAPI},
-};
+use iota_sdk_types::{SenderSignedTransaction, Transaction, UserSignature};
+use iota_types::{object::Object, transaction::TransactionDataAPI};
 use iota_vm_sdk::{
     Chain, ChainContext, ExecuteOptions, ExecutionResult, InMemoryStore, LocalVm, ProtocolVersion,
     SignatureStatus, Store, VmSdkError,
@@ -47,7 +44,7 @@ struct FixtureObject {
 }
 
 impl Fixture {
-    fn transaction(&self) -> TransactionData {
+    fn transaction(&self) -> Transaction {
         bcs::from_bytes(&b64(&self.tx_b64)).expect("decode tx")
     }
 

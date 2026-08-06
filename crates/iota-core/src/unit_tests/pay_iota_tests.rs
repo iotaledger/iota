@@ -4,7 +4,9 @@
 
 use std::{collections::HashMap, sync::Arc};
 
-use iota_sdk_types::{Address, ExecutionError, ExecutionStatus, ObjectId, ObjectReference};
+use iota_sdk_types::{
+    Address, ExecutionError, ExecutionStatus, ObjectId, ObjectReference, Transaction,
+};
 use iota_types::{
     base_types::dbg_addr,
     crypto::{AccountKeyPair, get_key_pair},
@@ -13,7 +15,7 @@ use iota_types::{
     gas_coin::GasCoin,
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{TransactionData, TransactionDataAPI},
+    transaction::TransactionDataAPI,
     utils::to_sender_signed_transaction,
 };
 
@@ -401,7 +403,7 @@ async fn execute_pay_iota(
     let mut builder = ProgrammableTransactionBuilder::new();
     builder.pay_iota(recipients, amounts).unwrap();
     let pt = builder.finish();
-    let data = TransactionData::new_programmable(sender, input_coin_refs, pt, gas_budget, rgp);
+    let data = Transaction::new_programmable(sender, input_coin_refs, pt, gas_budget, rgp);
     let tx = to_sender_signed_transaction(data, &sender_key);
     let txn_result = send_and_confirm_transaction(&authority_state, tx)
         .await
@@ -451,7 +453,7 @@ async fn execute_pay_all_iota(
     let mut builder = ProgrammableTransactionBuilder::new();
     builder.pay_all_iota(recipient);
     let pt = builder.finish();
-    let data = TransactionData::new_programmable(sender, input_coins, pt, gas_budget, rgp);
+    let data = Transaction::new_programmable(sender, input_coins, pt, gas_budget, rgp);
     let tx = to_sender_signed_transaction(data, &sender_key);
     let txn_result = send_and_confirm_transaction(&authority_state, tx)
         .await

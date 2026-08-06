@@ -25,8 +25,9 @@ use iota_json_rpc_types::{
 use iota_open_rpc::Module;
 use iota_package_resolver::{PackageStore, Resolver};
 use iota_sdk_types::{
-    Address, GasPayment, ObjectId, SenderSignedTransaction, TransactionDigest, TransactionEffects,
-    TransactionExpiration, TransactionKind, TransactionV1, UserSignature, Version,
+    Address, GasPayment, ObjectId, SenderSignedTransaction, Transaction, TransactionDigest,
+    TransactionEffects, TransactionExpiration, TransactionKind, TransactionV1, UserSignature,
+    Version,
 };
 use iota_transaction_builder::TransactionBuilder;
 use iota_types::{
@@ -34,7 +35,7 @@ use iota_types::{
     error::ExecutionError,
     iota_serde::BigInt,
     object::{Object, PastObjectRead},
-    transaction::{TransactionData, TransactionDataAPI},
+    transaction::TransactionDataAPI,
 };
 use jsonrpsee::{RpcModule, core::RpcResult};
 
@@ -99,7 +100,7 @@ impl WriteApi {
         tx_bytes: Base64,
         package_resolver: &Arc<Resolver<impl PackageStore>>,
     ) -> IndexerResult<DryRunTransactionBlockResponse> {
-        let transaction_data = bcs::from_bytes::<TransactionData>(&tx_bytes.to_vec()?)?;
+        let transaction_data = bcs::from_bytes::<Transaction>(&tx_bytes.to_vec()?)?;
         let tx_digest = transaction_data.digest();
 
         let simulate_tx_response = self
@@ -221,7 +222,7 @@ impl WriteApi {
 
         let kind = bcs::from_bytes::<TransactionKind>(&tx_bytes.to_vec()?)?;
 
-        let transaction_data = TransactionData::V1(TransactionV1 {
+        let transaction_data = Transaction::V1(TransactionV1 {
             kind,
             sender: sender_address,
             gas_payment: GasPayment {
@@ -554,7 +555,7 @@ impl TxObjectResolver {
 
     pub(crate) async fn get_changes(
         &self,
-        tx: &TransactionData,
+        tx: &Transaction,
         effects: &TransactionEffects,
         tx_digest: &TransactionDigest,
     ) -> IndexerResult<(

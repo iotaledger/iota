@@ -22,12 +22,12 @@ use iota_json_rpc_types::{
 use iota_sdk::{IotaClient, IotaClientBuilder};
 use iota_sdk_crypto::{ToFromBech32, simple::SimpleKeypair};
 use iota_sdk_types::{
-    Address, ObjectId, ObjectReference, TransactionDigest, crypto::SimpleSignature,
+    Address, ObjectId, ObjectReference, Transaction, TransactionDigest, crypto::SimpleSignature,
 };
 use iota_types::{
     crypto::{AccountKeyPair, IotaSignature, get_key_pair},
     quorum_driver_types::ExecuteTransactionRequestType,
-    transaction::{TransactionData, TransactionEnvelope},
+    transaction::TransactionEnvelope,
 };
 use serde::{Serialize, de::DeserializeOwned};
 use tokio::{sync::RwLock, time::sleep};
@@ -106,7 +106,7 @@ impl RpcCommandProcessor {
         &self,
         client: &IotaClient,
         keypair: &SimpleKeypair,
-        txn_data: TransactionData,
+        txn_data: Transaction,
         request_type: ExecuteTransactionRequestType,
     ) -> IotaTransactionBlockResponse {
         let resp = sign_and_execute(client, keypair, txn_data, request_type).await;
@@ -790,7 +790,7 @@ async fn split_coins(
 pub(crate) async fn sign_and_execute(
     client: &IotaClient,
     keypair: &SimpleKeypair,
-    txn_data: TransactionData,
+    txn_data: Transaction,
     request_type: ExecuteTransactionRequestType,
 ) -> IotaTransactionBlockResponse {
     let signature = SimpleSignature::new_secure(&txn_data.intent_message(), keypair);

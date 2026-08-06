@@ -10,12 +10,12 @@ use iota_core::{
     test_utils::send_and_confirm_transaction,
 };
 use iota_move_build::BuildConfig;
-use iota_sdk_types::{ExecutionError, ExecutionStatus, ObjectId, TransactionEffects};
+use iota_sdk_types::{ExecutionError, ExecutionStatus, ObjectId, Transaction, TransactionEffects};
 use iota_types::{
     effects::TransactionEffectsAPI,
     error::IotaError,
     object::Object,
-    transaction::{TransactionData, TransactionDataAPI, TransactionEnvelope},
+    transaction::{TransactionDataAPI, TransactionEnvelope},
     utils::to_sender_signed_transaction,
 };
 use tokio::runtime::Runtime;
@@ -119,7 +119,7 @@ impl Executor {
         // let gas_obj_ref =
         // account.current_coins.last().unwrap().object_ref();
         let gas_object = account.new_gas_object(self);
-        let data = TransactionData::new_module(
+        let data = Transaction::new_module(
             account.initial_data.account.address,
             gas_object.object_ref(),
             modules,

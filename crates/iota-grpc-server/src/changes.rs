@@ -526,15 +526,12 @@ mod tests {
     /// the gas coin at its input version (0) and output version (1) so the
     /// derivation finds the mutated gas object.
     fn version_zero_gas_transaction() -> (iota_sdk_types::SenderSignedTransaction, Object, Object) {
-        use iota_sdk_types::{ObjectReference, SenderSignedTransaction};
-        use iota_types::{
-            programmable_transaction_builder::ProgrammableTransactionBuilder,
-            transaction::TransactionData,
-        };
+        use iota_sdk_types::{ObjectReference, SenderSignedTransaction, Transaction};
+        use iota_types::programmable_transaction_builder::ProgrammableTransactionBuilder;
 
         let gas_id = ObjectId::random();
         let gas_ref = ObjectReference::new(gas_id, 0u64.into(), ObjectDigest::MIN);
-        let transaction_data = TransactionData::new(
+        let transaction_data = Transaction::new(
             iota_sdk_types::TransactionKind::Programmable(
                 ProgrammableTransactionBuilder::new().finish(),
             ),

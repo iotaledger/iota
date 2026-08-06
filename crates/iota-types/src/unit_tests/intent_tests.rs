@@ -4,7 +4,7 @@
 
 use fastcrypto::traits::KeyPair;
 use iota_sdk_types::{
-    ObjectId,
+    ObjectId, Transaction,
     crypto::{
         Intent, IntentAppId, IntentMessage, IntentScope, IntentVersion, PersonalMessage,
         SimpleSignature,
@@ -19,9 +19,7 @@ use crate::{
         IotaSignature, get_key_pair,
     },
     object::Object,
-    transaction::{
-        TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionData, TransactionDataAPI, TransactionEnvelope,
-    },
+    transaction::{TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionDataAPI, TransactionEnvelope},
 };
 
 #[test]
@@ -66,7 +64,7 @@ fn test_authority_signature_intent() {
     let object_id = ObjectId::random();
     let object = Object::immutable_with_id_for_testing(object_id);
     let gas_price = 1000;
-    let data = TransactionData::new_transfer_iota(
+    let data = Transaction::new_transfer_iota(
         recipient,
         sender,
         None,

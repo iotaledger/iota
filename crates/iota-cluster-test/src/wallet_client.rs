@@ -5,10 +5,9 @@
 use iota_keys::keystore::AccountKeystore;
 use iota_sdk::{IotaClient, IotaClientBuilder, wallet_context::WalletContext};
 use iota_sdk_types::{
-    Address,
+    Address, Transaction,
     crypto::{Intent, SimpleSignature},
 };
-use iota_types::transaction::TransactionData;
 use tracing::{Instrument, info, info_span};
 
 use super::Cluster;
@@ -55,7 +54,7 @@ impl WalletClient {
         &self.fullnode_client
     }
 
-    pub fn sign(&self, txn_data: &TransactionData, desc: &str) -> SimpleSignature {
+    pub fn sign(&self, txn_data: &Transaction, desc: &str) -> SimpleSignature {
         self.get_wallet()
             .config()
             .keystore()

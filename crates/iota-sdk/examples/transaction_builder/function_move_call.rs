@@ -13,10 +13,10 @@ use iota_sdk::{
     types::{
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         quorum_driver_types::ExecuteTransactionRequestType,
-        transaction::{CallArg, TransactionData, TransactionDataAPI, TransactionEnvelope},
+        transaction::{CallArg, TransactionDataAPI, TransactionEnvelope},
     },
 };
-use iota_sdk_types::{Argument, Command, Identifier, ObjectId, crypto::Intent};
+use iota_sdk_types::{Argument, Command, Identifier, ObjectId, Transaction, crypto::Intent};
 use utils::setup_for_write;
 
 // This example shows how to use programmable transactions to chain multiple
@@ -76,7 +76,7 @@ async fn main() -> Result<(), anyhow::Error> {
     let gas_budget = 10_000_000;
     let gas_price = iota.read_api().get_reference_gas_price().await?;
     // create the transaction data that will be sent to the network
-    let tx_data = TransactionData::new_programmable(
+    let tx_data = Transaction::new_programmable(
         sender,
         vec![coin.object_ref()],
         builder,

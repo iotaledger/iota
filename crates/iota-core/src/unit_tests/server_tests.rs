@@ -9,12 +9,13 @@ use iota_network::api::{
 };
 use iota_protocol_config::{Chain, OverrideGuard, ProtocolConfig};
 // Additional imports for P-COOL tests
+use iota_sdk_types::Transaction;
+// Additional imports for P-COOL tests
 use iota_sdk_types::{
     Address, Argument, Command, Identifier, ObjectId, SplitCoins,
     crypto::{Intent, IntentMessage, IntentScope::AuthorityCapabilities},
 };
 use iota_sdk_types::{ProgrammableTransaction, TransactionDigest};
-// Additional imports for P-COOL tests
 use iota_types::{
     base_types::{AuthorityName, dbg_addr, dbg_object_id, random_object_ref},
     crypto::{
@@ -27,7 +28,7 @@ use iota_types::{
     messages_grpc::{LayoutGenerationOption, TxStatusUpdate},
     object::Object,
     supported_protocol_versions::SupportedProtocolVersions,
-    transaction::{TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionData},
+    transaction::TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
     utils::to_sender_signed_transaction,
 };
 use tokio_stream::StreamExt;
@@ -298,7 +299,7 @@ async fn build_shared_object_transaction(
 ) -> TransactionEnvelope {
     let rgp = state.reference_gas_price_for_testing().unwrap();
     let gas = state.get_object(&gas_object_id).unwrap();
-    let tx_data = TransactionData::new_move_call(
+    let tx_data = Transaction::new_move_call(
         sender,
         pkg_ref.object_id,
         Identifier::from_static("object_basics"),
@@ -433,7 +434,7 @@ async fn setup_v2_transfer_tx() -> (
     let object = authority_state.get_object(&object_id).unwrap();
     let gas = authority_state.get_object(&gas_id).unwrap();
 
-    let tx_data = TransactionData::new_transfer(
+    let tx_data = Transaction::new_transfer(
         dbg_addr(2),
         object.object_ref(),
         sender,
@@ -542,7 +543,7 @@ async fn test_v2_submit_tx_invalid_signature() {
     let gas = authority_state.get_object(&gas_id).unwrap();
     let recipient = dbg_addr(2);
 
-    let tx_data = TransactionData::new_transfer(
+    let tx_data = Transaction::new_transfer(
         recipient,
         object.object_ref(),
         sender,
@@ -607,7 +608,7 @@ async fn test_v2_submit_tx_feature_flag_disabled() {
     let gas = authority_state.get_object(&gas_id).unwrap();
     let recipient = dbg_addr(2);
 
-    let tx_data = TransactionData::new_transfer(
+    let tx_data = Transaction::new_transfer(
         recipient,
         object.object_ref(),
         sender,
@@ -665,7 +666,7 @@ async fn test_v2_submit_tx_already_executed() {
     let object = authority_state.get_object(&object_id).unwrap();
     let gas = authority_state.get_object(&gas_id).unwrap();
 
-    let tx_data = TransactionData::new_transfer(
+    let tx_data = Transaction::new_transfer(
         dbg_addr(2),
         object.object_ref(),
         sender,
@@ -783,7 +784,7 @@ async fn test_v2_submit_tx_invalid_transaction() {
             amounts: vec![], // empty — invalid
         })],
     };
-    let tx_data = TransactionData::new_programmable(
+    let tx_data = Transaction::new_programmable(
         sender,
         vec![gas.object_ref()],
         pt,
@@ -840,7 +841,7 @@ async fn test_v2_submit_tx_gas_object_validation() {
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
     let object = authority_state.get_object(&object_id).unwrap();
 
-    let tx_data = TransactionData::new_transfer(
+    let tx_data = Transaction::new_transfer(
         dbg_addr(2),
         object.object_ref(),
         sender,
@@ -898,7 +899,7 @@ async fn test_v2_submit_tx_different_gas_prices_accepted() {
     let gas1 = authority_state.get_object(&gas_id1).unwrap();
     let gas2 = authority_state.get_object(&gas_id2).unwrap();
 
-    let tx_data1 = TransactionData::new_move_call(
+    let tx_data1 = Transaction::new_move_call(
         sender,
         pkg_ref.object_id,
         Identifier::from_static("object_basics"),
@@ -912,7 +913,7 @@ async fn test_v2_submit_tx_different_gas_prices_accepted() {
     .unwrap();
     let tx1 = to_sender_signed_transaction(tx_data1, &sender_key);
 
-    let tx_data2 = TransactionData::new_move_call(
+    let tx_data2 = Transaction::new_move_call(
         sender,
         pkg_ref.object_id,
         Identifier::from_static("object_basics"),
@@ -981,7 +982,7 @@ async fn test_v2_submit_tx_oversized_transaction() {
         inputs,
         commands: vec![],
     };
-    let tx_data = TransactionData::new_programmable(
+    let tx_data = Transaction::new_programmable(
         sender,
         vec![gas.object_ref()],
         pt,
@@ -1101,7 +1102,7 @@ async fn test_v2_get_tx_status_already_executed() {
     let object = authority_state.get_object(&object_id).unwrap();
     let gas = authority_state.get_object(&gas_id).unwrap();
 
-    let tx_data = TransactionData::new_transfer(
+    let tx_data = Transaction::new_transfer(
         dbg_addr(2),
         object.object_ref(),
         sender,
@@ -1176,7 +1177,7 @@ async fn test_v2_get_tx_status_already_executed_with_details() {
     let object = authority_state.get_object(&object_id).unwrap();
     let gas = authority_state.get_object(&gas_id).unwrap();
 
-    let tx_data = TransactionData::new_transfer(
+    let tx_data = Transaction::new_transfer(
         dbg_addr(2),
         object.object_ref(),
         sender,
@@ -1253,7 +1254,7 @@ async fn test_v2_get_tx_status_multiple_queries() {
 
     // Build and execute two transactions.
     let tx1 = to_sender_signed_transaction(
-        TransactionData::new_transfer(
+        Transaction::new_transfer(
             dbg_addr(2),
             obj1.object_ref(),
             sender,
@@ -1264,7 +1265,7 @@ async fn test_v2_get_tx_status_multiple_queries() {
         &sender_key,
     );
     let tx2 = to_sender_signed_transaction(
-        TransactionData::new_transfer(
+        Transaction::new_transfer(
             dbg_addr(3),
             obj2.object_ref(),
             sender,

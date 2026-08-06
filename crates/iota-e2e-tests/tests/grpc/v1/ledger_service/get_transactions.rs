@@ -256,10 +256,10 @@ async fn get_transactions_derived_changes() {
 
 #[sim_test]
 async fn get_transactions_derived_changes_failed_transaction() {
-    use iota_sdk_types::Command;
+    use iota_sdk_types::{Command, Transaction};
     use iota_types::{
         programmable_transaction_builder::ProgrammableTransactionBuilder,
-        transaction::{CallArg, TransactionData, TransactionDataAPI as _},
+        transaction::{CallArg, TransactionDataAPI as _},
     };
 
     let (test_cluster, client) = setup_grpc_test(Some(1), None).await;
@@ -279,7 +279,7 @@ async fn get_transactions_derived_changes_failed_transaction() {
         .unwrap();
     let huge_amount = builder.pure(u64::MAX).unwrap();
     builder.command(Command::new_split_coins(coin_arg, vec![huge_amount]));
-    let transaction_data = TransactionData::new_programmable(
+    let transaction_data = Transaction::new_programmable(
         sender,
         vec![*gas_object],
         builder.finish(),

@@ -3,7 +3,7 @@
 
 //! Shared transaction preparation, execution, and event decoding.
 //!
-//! These helpers turn a [`TransactionData`] into a checked, ready-to-run
+//! These helpers turn a [`Transaction`] into a checked, ready-to-run
 //! [`PreparedTransaction`], drive it through the Move engine (plain or via a
 //! [`MoveAuthenticator`]), and decode emitted events. They operate on an
 //! [`ExecutionEnv`] and a [`BackingStore`] and never touch the [`LocalVm`]'s
@@ -13,8 +13,8 @@ use std::collections::HashSet;
 
 use iota_config::transaction_deny_config::TransactionDenyConfig;
 use iota_sdk_types::{
-    Address, Digest, Event, MoveAuthenticator, ObjectId, ObjectReference, TransactionEffects,
-    UserSignature,
+    Address, Digest, Event, MoveAuthenticator, ObjectId, ObjectReference, Transaction,
+    TransactionEffects, UserSignature,
 };
 use iota_types::{
     account_abstraction::authenticator_function::{
@@ -34,7 +34,7 @@ use iota_types::{
     storage::BackingStore,
     transaction::{
         CheckedInputObjects, InputObjectKind, InputObjects, ObjectReadResult,
-        ReceivingObjectReadResult, ReceivingObjects, TransactionData, TransactionDataAPI,
+        ReceivingObjectReadResult, ReceivingObjects, TransactionDataAPI,
         merge_authenticator_input_objects,
     },
     transaction_executor::SimulateTransactionResult,
@@ -50,7 +50,7 @@ use crate::{
 };
 
 pub(super) struct PreparedTransaction {
-    transaction: TransactionData,
+    transaction: Transaction,
     gas_status: IotaGasStatus,
     checked_input_objects: CheckedInputObjects,
     mock_gas_id: Option<ObjectId>,
@@ -59,7 +59,7 @@ pub(super) struct PreparedTransaction {
 pub(super) fn prepare_transaction(
     env: &ExecutionEnv,
     store: &dyn BackingStore,
-    mut transaction: TransactionData,
+    mut transaction: Transaction,
     mode: ExecutionMode,
     deny_config: &TransactionDenyConfig,
     tx_signatures: &[UserSignature],
@@ -480,7 +480,7 @@ pub(super) fn prepare_authenticators(
 /// function refs. The function refs are resolved from the full set of
 /// authenticators, matching the node, even when only a subset is executed.
 pub(super) fn build_auth_context_data(
-    transaction: &TransactionData,
+    transaction: &Transaction,
     prepared_auths: &[PreparedAuthenticator],
     auth_digests: (Digest, Option<Digest>),
 ) -> Result<AuthContextData, VmSdkError> {
@@ -514,7 +514,7 @@ pub(super) fn build_auth_context_data(
 pub(super) fn authenticate_only(
     env: &ExecutionEnv,
     store: &dyn BackingStore,
-    transaction: &TransactionData,
+    transaction: &Transaction,
     auths_to_run: &[PreparedAuthenticator],
     gas_status: IotaGasStatus,
     auth_context_data: AuthContextData,

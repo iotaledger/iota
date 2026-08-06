@@ -7,11 +7,10 @@ use downcast::Any;
 use fastcrypto::encoding::Base64;
 use iota_grpc_client::{Client as GrpcClient, read_mask_fields::TransactionField};
 use iota_grpc_types::v1::transaction::ExecutedTransaction;
-use iota_sdk_types::{ObjectId, TransactionDigest, UserSignature, Version};
+use iota_sdk_types::{ObjectId, Transaction, TransactionDigest, UserSignature, Version};
 use iota_types::{
-    effects::TransactionEffectsAPI,
-    full_checkpoint_content::CheckpointTransaction,
-    transaction::{TransactionData, TransactionEnvelope},
+    effects::TransactionEffectsAPI, full_checkpoint_content::CheckpointTransaction,
+    transaction::TransactionEnvelope,
 };
 
 use crate::{
@@ -260,7 +259,7 @@ impl OptimisticTransactionExecutor {
             .optimistic_tx_total_execution_and_indexing_time
             .start_timer();
         self.metrics.optimistic_tx_count.inc();
-        let tx_data: TransactionData = bcs::from_bytes(&tx_bytes.to_vec()?)?;
+        let tx_data: Transaction = bcs::from_bytes(&tx_bytes.to_vec()?)?;
         let sigs = signatures
             .into_iter()
             .map(|sig| {

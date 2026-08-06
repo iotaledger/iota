@@ -13,10 +13,8 @@
 
 use anyhow::Result;
 use fastcrypto::encoding::{Base64, Encoding};
-use iota_types::{
-    effects::TransactionEffectsAPI,
-    transaction::{TransactionData, TransactionDataAPI},
-};
+use iota_sdk_types::Transaction;
+use iota_types::{effects::TransactionEffectsAPI, transaction::TransactionDataAPI};
 use iota_vm_sdk::{Chain, ChainContext, ExecuteOptions, InMemoryStore, LocalVm, ProtocolVersion};
 
 fn main() -> Result<()> {
@@ -30,7 +28,7 @@ fn main() -> Result<()> {
     // Base64-encoded BCS for: 0x2::hash::blake2b256([0, 1, 2]).
     let tx_b64 = "AAABAAQDAAECAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgRoYXNoCmJsYWtlMmIyNTYAAQEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA6AMAAAAAAAAAypo7AAAAAAA=";
     let tx_bytes = Base64::decode(tx_b64)?;
-    let tx: TransactionData = bcs::from_bytes(&tx_bytes)?;
+    let tx: Transaction = bcs::from_bytes(&tx_bytes)?;
     println!("Sender:    {}", tx.sender());
 
     let result = vm.execute(tx, ExecuteOptions::dev_inspect())?;

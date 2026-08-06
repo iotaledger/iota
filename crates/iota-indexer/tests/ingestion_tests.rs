@@ -33,14 +33,14 @@ mod ingestion_tests {
         types::{EventIndex, ObjectStatus, TxIndex},
     };
     use iota_sdk_types::{
-        Address, Identifier, ObjectId, ObjectReference, Owner, StructTag, TransactionEffects,
-        Version,
+        Address, Identifier, ObjectId, ObjectReference, Owner, StructTag, Transaction,
+        TransactionEffects, Version,
     };
     use iota_test_transaction_builder::TestTransactionBuilder;
     use iota_types::{
         effects::TransactionEffectsAPI,
         programmable_transaction_builder::ProgrammableTransactionBuilder,
-        transaction::{CallArg, TransactionData, TransactionDataAPI, TransactionEnvelope},
+        transaction::{CallArg, TransactionDataAPI, TransactionEnvelope},
     };
     use simulacrum::Simulacrum;
     use tempfile::tempdir;
@@ -868,7 +868,7 @@ mod ingestion_tests {
     }
 
     /// Executes transaction in simulacrum, asserts success and returns effects.
-    fn execute_signed(sim: &Simulacrum, tx_data: TransactionData) -> TransactionEffects {
+    fn execute_signed(sim: &Simulacrum, tx_data: Transaction) -> TransactionEffects {
         let (sender, key) = sim.with_keystore(|ks| {
             let (s, k) = ks.accounts().next().unwrap();
             (*s, k.clone())

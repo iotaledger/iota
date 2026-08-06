@@ -20,14 +20,14 @@ use iota_json_rpc_types::{
 use iota_keys::keystore::AccountKeystore;
 use iota_metrics::spawn_monitored_task;
 use iota_sdk::wallet_context::WalletContext;
-use iota_sdk_types::{Address, ObjectId, Owner, TransactionDigest, crypto::Intent};
+use iota_sdk_types::{Address, ObjectId, Owner, Transaction, TransactionDigest, crypto::Intent};
 #[cfg(test)]
 use iota_types::transaction::SenderSignedTransactionAPI;
 use iota_types::{
     gas_coin::GasCoin,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::ExecuteTransactionRequestType,
-    transaction::{TransactionData, TransactionDataAPI, TransactionEnvelope},
+    transaction::{TransactionDataAPI, TransactionEnvelope},
 };
 use prometheus_filtered::Registry;
 use tap::tap::TapFallible;
@@ -436,7 +436,7 @@ impl SimpleFaucet {
         uuid: Uuid,
         recipient: Address,
         coin_id: ObjectId,
-        tx_data: TransactionData,
+        tx_data: Transaction,
         for_batch: bool,
     ) -> Result<IotaTransactionBlockResponse, FaucetError> {
         let signature = self
@@ -689,7 +689,7 @@ impl SimpleFaucet {
         recipient: Address,
         amounts: &[u64],
         budget: u64,
-    ) -> Result<TransactionData, anyhow::Error> {
+    ) -> Result<Transaction, anyhow::Error> {
         let recipients = vec![recipient; amounts.len()];
         let client = self.wallet.get_client().await?;
         client
@@ -742,7 +742,7 @@ impl SimpleFaucet {
         batch_requests: Vec<(Uuid, Address, Vec<u64>)>,
         signer: Address,
         budget: u64,
-    ) -> Result<TransactionData, anyhow::Error> {
+    ) -> Result<Transaction, anyhow::Error> {
         let gas_payment = self.wallet.get_object_ref(coin_id).await?;
         let gas_price = self.wallet.get_reference_gas_price().await?;
         // TODO (Jian): change to make this more efficient by changing impl to one
@@ -756,7 +756,7 @@ impl SimpleFaucet {
             builder.finish()
         };
 
-        Ok(TransactionData::new_programmable(
+        Ok(Transaction::new_programmable(
             signer,
             vec![gas_payment],
             pt,
@@ -1188,7 +1188,7 @@ mod tests {
 
     async fn execute_tx(
         ctx: &mut WalletContext,
-        tx_data: TransactionData,
+        tx_data: Transaction,
     ) -> Result<IotaTransactionBlockEffects, anyhow::Error> {
         let signature = ctx.config().keystore().sign_secure(
             &tx_data.sender(),

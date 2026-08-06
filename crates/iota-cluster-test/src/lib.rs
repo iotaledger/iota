@@ -15,13 +15,11 @@ use iota_json_rpc_types::{
     IotaTransactionBlockResponseOptions, TransactionBlockBytes,
 };
 use iota_sdk::{IotaClient, wallet_context::WalletContext};
-use iota_sdk_types::{Address, Owner, TransactionDigest};
+use iota_sdk_types::{Address, Owner, Transaction, TransactionDigest};
 use iota_test_transaction_builder::batch_make_transfer_transactions;
 use iota_types::{
-    gas_coin::GasCoin,
-    iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
-    quorum_driver_types::ExecuteTransactionRequestType,
-    transaction::{TransactionData, TransactionEnvelope},
+    gas_coin::GasCoin, iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
+    quorum_driver_types::ExecuteTransactionRequestType, transaction::TransactionEnvelope,
 };
 use jsonrpsee::{
     core::{client::ClientT, params::ArrayParams},
@@ -147,7 +145,7 @@ impl TestContext {
         &self,
         method: &str,
         params: ArrayParams,
-    ) -> anyhow::Result<TransactionData> {
+    ) -> anyhow::Result<Transaction> {
         let fn_rpc_url = self.get_fullnode_rpc_url();
         // TODO cache this?
         let rpc_client = HttpClientBuilder::default().build(fn_rpc_url)?;
@@ -157,7 +155,7 @@ impl TestContext {
 
     async fn sign_and_execute(
         &self,
-        txn_data: TransactionData,
+        txn_data: Transaction,
         desc: &str,
     ) -> IotaTransactionBlockResponse {
         let signature = self.get_context().sign(&txn_data, desc);

@@ -27,8 +27,8 @@ use iota_open_rpc::ExamplePairing;
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_sdk_types::{
     Address, CheckpointDigest, Identifier, MoveStruct, ObjectDigest, ObjectId, ObjectReference,
-    Owner, StructTag, TransactionDigest, TransactionEventsDigest, TypeTag, UserSignature, Version,
-    gas::GasCostSummary,
+    Owner, StructTag, Transaction, TransactionDigest, TransactionEventsDigest, TypeTag,
+    UserSignature, Version, gas::GasCostSummary,
 };
 use iota_types::{
     balance::Supply,
@@ -44,7 +44,7 @@ use iota_types::{
     parse_iota_struct_tag,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::ExecuteTransactionRequestType,
-    transaction::{CallArg, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionData, TransactionDataAPI},
+    transaction::{CallArg, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionDataAPI},
     utils::to_sender_signed_transaction,
 };
 use move_core_types::{
@@ -188,7 +188,7 @@ impl RpcExampleProvider {
             builder.finish()
         };
         let gas_price = 10;
-        let data = TransactionData::new_programmable(
+        let data = Transaction::new_programmable(
             signer,
             vec![ObjectReference::new(
                 gas_id,
@@ -661,7 +661,7 @@ impl RpcExampleProvider {
     fn get_transfer_data_response(
         &mut self,
     ) -> (
-        TransactionData,
+        Transaction,
         Vec<UserSignature>,
         Address,
         ObjectId,
@@ -681,7 +681,7 @@ impl RpcExampleProvider {
             ObjectDigest::new(self.rng.gen()),
         );
 
-        let data = TransactionData::new_transfer(
+        let data = Transaction::new_transfer(
             recipient,
             object_ref,
             signer,

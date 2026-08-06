@@ -7,7 +7,7 @@ use std::sync::Arc;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
     Address, Command, ExecutionError, ExecutionStatus, GasCostSummary, Identifier, ObjectId,
-    ObjectReference, Owner, TransactionEffects, TransactionEvents, TransactionKind,
+    ObjectReference, Owner, Transaction, TransactionEffects, TransactionEvents, TransactionKind,
 };
 use iota_types::{
     base_types::dbg_addr,
@@ -18,7 +18,7 @@ use iota_types::{
     messages_grpc::TransactionStatus,
     object::{GAS_VALUE_FOR_TESTING, OBJECT_START_VERSION, Object},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{CallArg, TEST_ONLY_GAS_UNIT_FOR_PUBLISH, TransactionData, TransactionDataAPI},
+    transaction::{CallArg, TEST_ONLY_GAS_UNIT_FOR_PUBLISH, TransactionDataAPI},
     utils::to_sender_signed_transaction,
 };
 use move_core_types::account_address::AccountAddress;
@@ -189,7 +189,7 @@ where
     }
     let module = Identifier::from_static("move_random");
     let function = Identifier::from_static(function);
-    let data = TransactionData::new_move_call_with_gas_coins(
+    let data = Transaction::new_move_call_with_gas_coins(
         sender,
         package,
         module,
@@ -282,7 +282,7 @@ async fn touch_gas_coins(
         .unwrap()
         .object_ref();
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
-    let data = TransactionData::new(kind, sender, gas_object_ref, 100_000_000, rgp);
+    let data = Transaction::new(kind, sender, gas_object_ref, 100_000_000, rgp);
     let tx = to_sender_signed_transaction(data, sender_key);
 
     send_and_confirm_transaction(authority_state, tx)
@@ -560,7 +560,7 @@ async fn test_transfer_iota_insufficient_gas() {
         builder.finish()
     };
     let kind = TransactionKind::Programmable(pt);
-    let data = TransactionData::new(
+    let data = Transaction::new(
         kind,
         sender,
         gas_object_ref,
@@ -624,7 +624,7 @@ async fn test_invalid_gas_owners() {
             builder.finish()
         };
         let kind = TransactionKind::Programmable(pt);
-        let data = TransactionData::new_with_gas_coins(
+        let data = Transaction::new_with_gas_coins(
             kind,
             sender,
             vec![good_gas_object, bad_gas_object],
@@ -839,7 +839,7 @@ async fn test_move_call_gas() -> IotaResult {
         CallArg::Pure(16u64.to_le_bytes().to_vec()),
         CallArg::pure(&AccountAddress::new(sender.into_bytes())),
     ];
-    let data = TransactionData::new_move_call(
+    let data = Transaction::new_move_call(
         sender,
         package_object_ref.object_id,
         module.clone(),
@@ -872,7 +872,7 @@ async fn test_move_call_gas() -> IotaResult {
     let prev_storage_cost = gas_cost.storage_cost;
 
     // Execute object deletion, and make sure we have storage rebate.
-    let data = TransactionData::new_move_call(
+    let data = Transaction::new_move_call(
         sender,
         package_object_ref.object_id,
         module.clone(),
@@ -958,7 +958,7 @@ async fn test_tx_gas_coins_input_coins() {
             builder.finish()
         };
         let kind = TransactionKind::Programmable(pt);
-        let data = TransactionData::new_with_gas_coins(
+        let data = Transaction::new_with_gas_coins(
             kind,
             sender,
             gas_coin_refs.clone(),
@@ -1035,7 +1035,7 @@ async fn execute_transfer_with_price(
         builder.finish()
     };
     let kind = TransactionKind::Programmable(pt);
-    let data = TransactionData::new(kind, sender, gas_object_ref, gas_budget, rgp);
+    let data = Transaction::new(kind, sender, gas_object_ref, gas_budget, rgp);
     let tx = to_sender_signed_transaction(data, &sender_key);
 
     let response = if run_confirm {

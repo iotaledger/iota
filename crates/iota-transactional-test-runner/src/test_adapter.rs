@@ -31,7 +31,7 @@ use iota_protocol_config::{Chain, ProtocolConfig};
 use iota_sdk_types::{
     Address, Argument, CheckpointContentsDigest, CheckpointDigest, Command, ConsensusCommitDigest,
     Event, ExecutionStatus, Identifier, MoveAuthenticatorV1, ObjectData, ObjectId, ObjectReference,
-    ProgrammableTransaction, RandomnessRound, TransactionDigest, TransactionEffects,
+    ProgrammableTransaction, RandomnessRound, Transaction, TransactionDigest, TransactionEffects,
     TransactionEvents, TransactionKind, TypeTag, UserSignature, Version,
     checkpoint::CheckpointContents, gas::GasCostSummary, move_package::MovePackage,
 };
@@ -54,8 +54,8 @@ use iota_types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     storage::{ObjectStore, ReadStore},
     transaction::{
-        CallArg, SenderSignedTransactionAPI, TransactionData, TransactionDataAPI,
-        TransactionEnvelope, VerifiedTransaction,
+        CallArg, SenderSignedTransactionAPI, TransactionDataAPI, TransactionEnvelope,
+        VerifiedTransaction,
     },
     utils::{
         to_sender_signed_transaction, to_sender_signed_transaction_with_multi_signers,
@@ -521,7 +521,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                 builder.publish_immutable(modules_bytes, dependencies);
             };
             let pt = builder.finish();
-            TransactionData::new_programmable(sender, gas, pt, gas_budget, gas_price)
+            Transaction::new_programmable(sender, gas, pt, gas_budget, gas_price)
         };
         let transaction = self.sign_txn(sender, data);
         let summary = self.execute_txn(transaction).await?;
@@ -793,7 +793,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                     let rec_arg = builder.pure(recipient).unwrap();
                     builder.command(Command::new_transfer_objects(vec![obj_arg], rec_arg));
                     let pt = builder.finish();
-                    TransactionData::new_programmable(sender, gas, pt, gas_budget, gas_price)
+                    Transaction::new_programmable(sender, gas, pt, gas_budget, gas_price)
                 });
                 let summary = self.execute_txn(transaction).await?;
                 let output = self.object_summary_output(&summary, /* summarize */ false);
@@ -842,7 +842,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                         gas_payment.unwrap_or_default(),
                         None,
                         |sender, sponsor, gas| {
-                            TransactionData::new_programmable_allow_sponsor(
+                            Transaction::new_programmable_allow_sponsor(
                                 sender,
                                 gas,
                                 ProgrammableTransaction { inputs, commands },
@@ -861,7 +861,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
 
                     let payments = self.get_payments(sponsor, gas_payment.unwrap_or_default());
 
-                    let transaction = TransactionData::new_programmable(
+                    let transaction = Transaction::new_programmable(
                         sender.address,
                         payments,
                         ProgrammableTransaction { inputs, commands },
@@ -1231,7 +1231,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                     gas_payment,
                     Some(move_authenticator),
                     |sender, sponsor, gas| {
-                        TransactionData::new_programmable_allow_sponsor(
+                        Transaction::new_programmable_allow_sponsor(
                             sender,
                             gas,
                             ProgrammableTransaction {
@@ -1634,7 +1634,7 @@ impl IotaTestAdapter {
         let pt = builder.finish();
 
         let summary = if dry_run {
-            let transaction = TransactionData::new_programmable(
+            let transaction = Transaction::new_programmable(
                 self.get_sender(Some(sender)).address,
                 vec![],
                 pt,
@@ -1643,9 +1643,8 @@ impl IotaTestAdapter {
             );
             self.dry_run(transaction).await?
         } else {
-            let data = |sender, gas| {
-                TransactionData::new_programmable(sender, gas, pt, gas_budget, gas_price)
-            };
+            let data =
+                |sender, gas| Transaction::new_programmable(sender, gas, pt, gas_budget, gas_price);
             let transaction = self.sign_txn(Some(sender), data);
             self.execute_txn(transaction).await?
         };
@@ -1684,7 +1683,7 @@ impl IotaTestAdapter {
             Address,
             // gas
             Vec<ObjectReference>,
-        ) -> TransactionData,
+        ) -> Transaction,
     ) -> TransactionEnvelope {
         let sender = self.get_sender(sender);
         self.sign_sponsor_txn(sender, None, vec![], None, move |sender, _, gas| {
@@ -1724,7 +1723,7 @@ impl IotaTestAdapter {
             Address,
             // gas
             Vec<ObjectReference>,
-        ) -> TransactionData,
+        ) -> Transaction,
     ) -> TransactionEnvelope {
         let sponsor = sponsor.map_or(sender, |a| self.get_sender(Some(a)));
 
@@ -1793,7 +1792,7 @@ impl IotaTestAdapter {
                 arguments,
             ));
             let pt = builder.finish();
-            TransactionData::new_programmable(sender, gas, pt, gas_budget, gas_price)
+            Transaction::new_programmable(sender, gas, pt, gas_budget, gas_price)
         };
         Ok(self.sign_txn(sender, data))
     }
@@ -1916,7 +1915,7 @@ impl IotaTestAdapter {
         }
     }
 
-    async fn dry_run(&mut self, transaction: TransactionData) -> anyhow::Result<TxnSummary> {
+    async fn dry_run(&mut self, transaction: Transaction) -> anyhow::Result<TxnSummary> {
         let digest = transaction.digest();
         let results = self
             .executor
@@ -2274,7 +2273,7 @@ impl IotaTestAdapter {
         let gas_price = self.gas_price;
 
         let tx = self.sign_txn(sender, |sender_addr, gas| {
-            TransactionData::new_programmable(sender_addr, gas, pt, gas_budget, gas_price)
+            Transaction::new_programmable(sender_addr, gas, pt, gas_budget, gas_price)
         });
 
         let summary = self.execute_txn(tx).await?;

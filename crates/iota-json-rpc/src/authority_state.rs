@@ -21,7 +21,7 @@ use iota_json_rpc_types::{
 };
 use iota_sdk_types::{
     Address, CheckpointContentsDigest, CheckpointDigest, ObjectId, ObjectReference, StructTag,
-    TransactionDigest, TransactionEffects, TransactionKind, TypeTag, Version,
+    Transaction, TransactionDigest, TransactionEffects, TransactionKind, TypeTag, Version,
     checkpoint::CheckpointContents,
 };
 use iota_storage::key_value_store::{
@@ -41,7 +41,7 @@ use iota_types::{
     object::{Object, ObjectRead, PastObjectRead},
     storage::{BackingPackageStore, ObjectStore, WriteKind},
     timelock::timelocked_staked_iota::TimelockedStakedIota,
-    transaction::{TransactionData, TransactionEnvelope},
+    transaction::TransactionEnvelope,
 };
 #[cfg(test)]
 use mockall::automock;
@@ -109,7 +109,7 @@ pub trait StateRead: Send + Sync {
     #[allow(clippy::type_complexity)]
     fn dry_exec_transaction(
         &self,
-        transaction: TransactionData,
+        transaction: Transaction,
         transaction_digest: TransactionDigest,
     ) -> StateReadResult<(
         DryRunTransactionBlockResponse,
@@ -319,7 +319,7 @@ impl StateRead for AuthorityState {
 
     fn dry_exec_transaction(
         &self,
-        transaction: TransactionData,
+        transaction: Transaction,
         transaction_digest: TransactionDigest,
     ) -> StateReadResult<(
         DryRunTransactionBlockResponse,

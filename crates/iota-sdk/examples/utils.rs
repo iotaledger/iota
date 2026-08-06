@@ -22,12 +22,13 @@ use iota_sdk::{
     types::{
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         quorum_driver_types::ExecuteTransactionRequestType,
-        transaction::{TransactionData, TransactionDataAPI, TransactionEnvelope},
+        transaction::{TransactionDataAPI, TransactionEnvelope},
     },
     wallet_context::WalletContext,
 };
 use iota_sdk_types::{
-    Address, Argument, Command, ObjectId, SignatureScheme, TransactionDigest, crypto::Intent,
+    Address, Argument, Command, ObjectId, SignatureScheme, Transaction, TransactionDigest,
+    crypto::Intent,
 };
 use reqwest::Client;
 use serde_json::json;
@@ -303,7 +304,7 @@ pub async fn split_coin_digest_with_network(
 
     // using the PTB that we just constructed, create the transaction data
     // that we will submit to the network
-    let tx_data = TransactionData::new_programmable(
+    let tx_data = Transaction::new_programmable(
         *sender,
         vec![coin.object_ref()],
         builder,
@@ -362,7 +363,7 @@ pub fn retrieve_wallet() -> Result<WalletContext, anyhow::Error> {
 pub async fn sign_and_execute_transaction(
     client: &IotaClient,
     sender: &Address,
-    tx_data: TransactionData,
+    tx_data: Transaction,
 ) -> Result<IotaTransactionBlockResponse, anyhow::Error> {
     let keystore = FileBasedKeystore::new(&iota_config_dir()?.join(IOTA_KEYSTORE_FILENAME))?;
     let signature = keystore.sign_secure(sender, &tx_data, Intent::iota_transaction())?;

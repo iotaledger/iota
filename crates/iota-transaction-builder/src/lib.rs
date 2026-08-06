@@ -14,7 +14,9 @@ use iota_json::IotaJsonValue;
 use iota_json_rpc_types::{
     IotaObjectDataOptions, IotaObjectResponse, IotaTypeTag, PtbInput, RPCTransactionRequestParams,
 };
-use iota_sdk_types::{Address, Command, Identifier, ObjectId, StructTag, TransactionKind};
+use iota_sdk_types::{
+    Address, Command, Identifier, ObjectId, StructTag, Transaction, TransactionKind,
+};
 use iota_types::{
     coin,
     error::UserInputError,
@@ -22,7 +24,7 @@ use iota_types::{
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{
-        CallArg, InputObjectKind, ProgrammableTransactionExt, TransactionData, TransactionDataAPI,
+        CallArg, InputObjectKind, ProgrammableTransactionExt, TransactionDataAPI,
         TransactionKindExt,
     },
 };
@@ -64,13 +66,13 @@ impl TransactionBuilder {
         gas_price: u64,
         gas_payment: impl Into<Option<Vec<ObjectId>>>,
         gas_sponsor: impl Into<Option<Address>>,
-    ) -> TransactionData {
+    ) -> Transaction {
         let gas_payment = self
             .input_refs(gas_payment.into().unwrap_or_default().as_ref())
             .await
             .unwrap_or_default();
         let gas_sponsor = gas_sponsor.into().unwrap_or(sender);
-        TransactionData::new_with_gas_coins_allow_sponsor(
+        Transaction::new_with_gas_coins_allow_sponsor(
             kind,
             sender,
             gas_payment,
@@ -92,7 +94,7 @@ impl TransactionBuilder {
         gas_price: u64,
         gas_payment: Vec<ObjectId>,
         gas_sponsor: impl Into<Option<Address>>,
-    ) -> Result<TransactionData, anyhow::Error> {
+    ) -> Result<Transaction, anyhow::Error> {
         let gas_payment = if gas_payment.is_empty() {
             let input_objs = kind
                 .input_objects()?
@@ -109,7 +111,7 @@ impl TransactionBuilder {
         } else {
             self.input_refs(&gas_payment).await?
         };
-        Ok(TransactionData::new_with_gas_coins_allow_sponsor(
+        Ok(Transaction::new_with_gas_coins_allow_sponsor(
             kind,
             sender,
             gas_payment,
@@ -140,7 +142,7 @@ impl TransactionBuilder {
         gas: impl Into<Option<ObjectId>>,
         gas_budget: u64,
         recipient: Address,
-    ) -> anyhow::Result<TransactionData> {
+    ) -> anyhow::Result<Transaction> {
         let mut builder = ProgrammableTransactionBuilder::new();
         self.single_transfer_object(&mut builder, object_id, recipient)
             .await?;
@@ -149,7 +151,7 @@ impl TransactionBuilder {
             .select_gas(signer, gas, gas_budget, vec![object_id], gas_price)
             .await?;
 
-        Ok(TransactionData::new(
+        Ok(Transaction::new(
             TransactionKind::new_programmable(builder.finish()),
             signer,
             gas,
@@ -194,10 +196,10 @@ impl TransactionBuilder {
         gas_budget: u64,
         recipient: Address,
         amount: impl Into<Option<u64>>,
-    ) -> anyhow::Result<TransactionData> {
+    ) -> anyhow::Result<Transaction> {
         let object = self.get_object_ref(iota_object_id).await?;
         let gas_price = self.0.get_reference_gas_price().await?;
-        Ok(TransactionData::new_transfer_iota(
+        Ok(Transaction::new_transfer_iota(
             recipient,
             signer,
             amount.into(),
@@ -240,7 +242,7 @@ impl TransactionBuilder {
         amounts: Vec<u64>,
         gas: impl Into<Option<ObjectId>>,
         gas_budget: u64,
-    ) -> anyhow::Result<TransactionData> {
+    ) -> anyhow::Result<Transaction> {
         let gas = gas.into();
 
         if let Some(gas) = gas {
@@ -257,7 +259,7 @@ impl TransactionBuilder {
             .select_gas(signer, gas, gas_budget, input_coins, gas_price)
             .await?;
 
-        TransactionData::new_pay(
+        Transaction::new_pay(
             signer, coin_refs, recipients, amounts, gas, gas_budget, gas_price,
         )
     }
@@ -295,7 +297,7 @@ impl TransactionBuilder {
         recipients: Vec<Address>,
         amounts: Vec<u64>,
         gas_budget: u64,
-    ) -> anyhow::Result<TransactionData> {
+    ) -> anyhow::Result<Transaction> {
         fp_ensure!(
             !input_coins.is_empty(),
             UserInputError::EmptyInputCoins.into()
@@ -306,7 +308,7 @@ impl TransactionBuilder {
         // input_coins.
         let gas_object_ref = coin_refs.remove(0);
         let gas_price = self.0.get_reference_gas_price().await?;
-        TransactionData::new_pay_iota(
+        Transaction::new_pay_iota(
             signer,
             coin_refs,
             recipients,
@@ -342,7 +344,7 @@ impl TransactionBuilder {
         input_coins: Vec<ObjectId>,
         recipient: Address,
         gas_budget: u64,
-    ) -> anyhow::Result<TransactionData> {
+    ) -> anyhow::Result<Transaction> {
         fp_ensure!(
             !input_coins.is_empty(),
             UserInputError::EmptyInputCoins.into()
@@ -353,7 +355,7 @@ impl TransactionBuilder {
         // input_coins.
         let gas_object_ref = coin_refs.remove(0);
         let gas_price = self.0.get_reference_gas_price().await?;
-        Ok(TransactionData::new_pay_all_iota(
+        Ok(Transaction::new_pay_all_iota(
             signer,
             coin_refs,
             recipient,
@@ -425,7 +427,7 @@ impl TransactionBuilder {
         gas: impl Into<Option<ObjectId>>,
         gas_budget: u64,
         gas_price: impl Into<Option<u64>>,
-    ) -> anyhow::Result<TransactionData> {
+    ) -> anyhow::Result<Transaction> {
         let gas_price = gas_price.into();
 
         let mut builder = ProgrammableTransactionBuilder::new();
@@ -456,7 +458,7 @@ impl TransactionBuilder {
             .select_gas(signer, gas, gas_budget, input_objects, gas_price)
             .await?;
 
-        Ok(TransactionData::new(
+        Ok(Transaction::new(
             TransactionKind::new_programmable(pt),
             signer,
             gas,
@@ -622,7 +624,7 @@ impl TransactionBuilder {
         split_amounts: Vec<u64>,
         gas: impl Into<Option<ObjectId>>,
         gas_budget: u64,
-    ) -> anyhow::Result<TransactionData> {
+    ) -> anyhow::Result<Transaction> {
         let coin = self
             .0
             .get_object_with_options(coin_object_id, IotaObjectDataOptions::bcs_lossless())
@@ -636,7 +638,7 @@ impl TransactionBuilder {
             .select_gas(signer, gas, gas_budget, vec![coin_object_id], gas_price)
             .await?;
 
-        TransactionData::new_move_call(
+        Transaction::new_move_call(
             signer,
             ObjectId::FRAMEWORK,
             Identifier::PAY_MODULE,
@@ -660,7 +662,7 @@ impl TransactionBuilder {
         split_count: u64,
         gas: impl Into<Option<ObjectId>>,
         gas_budget: u64,
-    ) -> anyhow::Result<TransactionData> {
+    ) -> anyhow::Result<Transaction> {
         let coin = self
             .0
             .get_object_with_options(coin_object_id, IotaObjectDataOptions::bcs_lossless())
@@ -674,7 +676,7 @@ impl TransactionBuilder {
             .select_gas(signer, gas, gas_budget, vec![coin_object_id], gas_price)
             .await?;
 
-        TransactionData::new_move_call(
+        Transaction::new_move_call(
             signer,
             ObjectId::FRAMEWORK,
             Identifier::PAY_MODULE,
@@ -730,7 +732,7 @@ impl TransactionBuilder {
         coin_to_merge: ObjectId,
         gas: impl Into<Option<ObjectId>>,
         gas_budget: u64,
-    ) -> anyhow::Result<TransactionData> {
+    ) -> anyhow::Result<Transaction> {
         let coin = self
             .0
             .get_object_with_options(primary_coin, IotaObjectDataOptions::bcs_lossless())
@@ -751,7 +753,7 @@ impl TransactionBuilder {
             )
             .await?;
 
-        TransactionData::new_move_call(
+        Transaction::new_move_call(
             signer,
             ObjectId::FRAMEWORK,
             Identifier::COIN_MODULE,
@@ -774,7 +776,7 @@ impl TransactionBuilder {
         single_transaction_params: Vec<RPCTransactionRequestParams>,
         gas: impl Into<Option<ObjectId>>,
         gas_budget: u64,
-    ) -> anyhow::Result<TransactionData> {
+    ) -> anyhow::Result<Transaction> {
         fp_ensure!(
             !single_transaction_params.is_empty(),
             UserInputError::InvalidBatchTransaction {
@@ -816,7 +818,7 @@ impl TransactionBuilder {
             .select_gas(signer, gas, gas_budget, inputs, gas_price)
             .await?;
 
-        Ok(TransactionData::new(
+        Ok(Transaction::new(
             TransactionKind::new_programmable(pt),
             signer,
             gas,

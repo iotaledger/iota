@@ -7,16 +7,14 @@
 //! only the built-in framework, no Move compiler.
 
 use iota_sdk_types::{
-    MoveStruct, ObjectId, Owner, TransactionDigest,
+    MoveStruct, ObjectId, Owner, Transaction, TransactionDigest,
     transaction::{GenesisTransaction, TransactionKind},
 };
 use iota_types::{
     effects::TransactionEffectsAPI,
     object::{MoveStructExt, OBJECT_START_VERSION, Object},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{
-        TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, TransactionData, TransactionDataAPI,
-    },
+    transaction::{TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, TransactionDataAPI},
 };
 use iota_vm_sdk::{
     Address, Chain, ChainContext, ExecuteOptions, InMemoryStore, LocalVm, ProtocolVersion, Store,
@@ -42,10 +40,10 @@ fn gas_coin(owner: Address) -> Object {
 
 /// `transfer_iota(recipient, Some(amount))`: splits a fresh coin off gas and
 /// transfers it. Mutates the gas coin and creates one new coin.
-fn transfer_tx(sender: Address, gas: &Object, recipient: Address, amount: u64) -> TransactionData {
+fn transfer_tx(sender: Address, gas: &Object, recipient: Address, amount: u64) -> Transaction {
     let mut b = ProgrammableTransactionBuilder::new();
     b.transfer_iota(recipient, Some(amount));
-    TransactionData::new_programmable(
+    Transaction::new_programmable(
         sender,
         vec![gas.object_ref()],
         b.finish(),
@@ -55,10 +53,10 @@ fn transfer_tx(sender: Address, gas: &Object, recipient: Address, amount: u64) -
 }
 
 /// The same transfer PTB without any gas payment.
-fn gasless_transfer_tx(sender: Address, recipient: Address, amount: u64) -> TransactionData {
+fn gasless_transfer_tx(sender: Address, recipient: Address, amount: u64) -> Transaction {
     let mut b = ProgrammableTransactionBuilder::new();
     b.transfer_iota(recipient, Some(amount));
-    TransactionData::new_programmable(
+    Transaction::new_programmable(
         sender,
         vec![],
         b.finish(),
@@ -150,7 +148,7 @@ fn execute_commits_deletions_to_store() {
         vec![TRANSFER_AMOUNT],
     )
     .expect("build pay PTB");
-    let tx = TransactionData::new_programmable(
+    let tx = Transaction::new_programmable(
         sender,
         vec![gas.object_ref()],
         b.finish(),
@@ -339,7 +337,7 @@ fn system_transactions_are_rejected() {
         let mut vm =
             LocalVm::new(chain_context(), InMemoryStore::with_framework()).expect("build LocalVm");
 
-        let tx = TransactionData::new_with_gas_coins(
+        let tx = Transaction::new_with_gas_coins(
             TransactionKind::Genesis(GenesisTransaction {
                 objects: vec![],
                 events: vec![],

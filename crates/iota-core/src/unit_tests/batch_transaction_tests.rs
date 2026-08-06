@@ -54,7 +54,7 @@ async fn test_batch_transaction_ok() -> anyhow::Result<()> {
             )
             .unwrap();
     }
-    let data = TransactionData::new_programmable(
+    let data = Transaction::new_programmable(
         sender,
         vec![
             authority_state
@@ -127,7 +127,7 @@ async fn test_batch_transaction_last_one_fail() -> anyhow::Result<()> {
             vec![],
         )
         .unwrap();
-    let data = TransactionData::new_programmable(
+    let data = Transaction::new_programmable(
         sender,
         vec![
             authority_state
@@ -186,7 +186,7 @@ async fn test_batch_insufficient_gas_balance() -> anyhow::Result<()> {
             )
             .unwrap();
     }
-    let data = TransactionData::new_programmable(
+    let data = Transaction::new_programmable(
         sender,
         vec![gas_object.object_ref()],
         builder.finish(),

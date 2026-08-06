@@ -7,14 +7,15 @@ use std::{collections::BTreeMap, path::Path, sync::Arc};
 use iota_move_build::{BuildConfig, CompiledPackage};
 use iota_sdk_crypto::Signer;
 use iota_sdk_types::{
-    Address, ObjectId, ObjectReference, Owner, TransactionDigest, crypto::SimpleSignature,
+    Address, ObjectId, ObjectReference, Owner, Transaction, TransactionDigest,
+    crypto::SimpleSignature,
 };
 use iota_types::{
     effects::TransactionEffectsAPI,
     error::IotaResult,
     move_package::UpgradePolicy,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{TEST_ONLY_GAS_UNIT_FOR_PUBLISH, TransactionData, TransactionDataAPI},
+    transaction::{TEST_ONLY_GAS_UNIT_FOR_PUBLISH, TransactionDataAPI},
     utils::to_sender_signed_transaction,
 };
 use move_core_types::account_address::AccountAddress;
@@ -91,7 +92,7 @@ pub async fn publish_package_on_single_authority(
     let pt = builder.finish();
 
     let rgp = state.epoch_store_for_testing().reference_gas_price();
-    let txn_data = TransactionData::new_programmable(
+    let txn_data = Transaction::new_programmable(
         sender,
         vec![gas_payment],
         pt,
@@ -138,7 +139,7 @@ pub async fn upgrade_package_on_single_authority(
     let digest = package.get_package_digest(with_unpublished_deps).to_vec();
 
     let rgp = state.epoch_store_for_testing().reference_gas_price();
-    let data = TransactionData::new_upgrade(
+    let data = Transaction::new_upgrade(
         sender,
         gas_payment,
         package_id,

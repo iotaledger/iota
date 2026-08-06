@@ -17,11 +17,11 @@ use iota_sdk_types::{
     Address, Argument, Identifier, ObjectId, ObjectReference, Owner, SharedObjectReference,
     SignatureScheme, TransactionKind, TypeTag, UserSignature,
 };
+use iota_sdk_types::Transaction;
 use iota_types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{CallArg, TransactionData, TransactionEnvelope},
-    utils::MoveAuthenticatorV1,
-};
+    transaction::{CallArg, TransactionEnvelope},
+    utils::MoveAuthenticatorV1};
 
 /// Got from iota-genesis-builder/src/stardust/test_outputs/stardust_mix.rs
 const MAIN_ADDRESS_MNEMONIC: &str = "okay pottery arch air egg very cave cash poem gown sorry mind poem crack dawn wet car pink extra crane hen bar boring salt";
@@ -235,7 +235,7 @@ pub fn swap_recipient_in_transaction(
     attacker: Address,
 ) -> TransactionEnvelope {
     match &mut transaction.0.transaction {
-        TransactionData::V1(data) => match &mut data.kind {
+        Transaction::V1(data) => match &mut data.kind {
             TransactionKind::Programmable(ptb) => {
                 ptb.inputs[0] = CallArg::Pure(bcs::to_bytes(&attacker).unwrap());
             }

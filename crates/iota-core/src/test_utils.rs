@@ -6,7 +6,7 @@ use std::{sync::Arc, time::Duration};
 
 use fastcrypto::{hash::MultisetHash, traits::KeyPair};
 use iota_sdk_types::{
-    Address, Identifier, ObjectId, ObjectReference, TransactionDigest,
+    Address, Identifier, ObjectId, ObjectReference, Transaction, TransactionDigest,
     crypto::{Intent, IntentScope},
 };
 use iota_types::{
@@ -20,7 +20,7 @@ use iota_types::{
     error::IotaError,
     transaction::{
         CallArg, CertifiedTransaction, SenderSignedTransactionAPI, SignedTransaction,
-        TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionData, TransactionDataAPI, TransactionEnvelope,
+        TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionDataAPI, TransactionEnvelope,
     },
     utils::{create_fake_transaction, to_sender_signed_transaction},
 };
@@ -172,7 +172,7 @@ pub fn make_transfer_iota_transaction(
     keypair: &AccountKeyPair,
     gas_price: u64,
 ) -> TransactionEnvelope {
-    let data = TransactionData::new_transfer_iota(
+    let data = Transaction::new_transfer_iota(
         recipient,
         sender,
         amount,
@@ -193,7 +193,7 @@ pub fn make_pay_iota_transaction(
     gas_price: u64,
     gas_budget: u64,
 ) -> TransactionEnvelope {
-    let data = TransactionData::new_pay_iota(
+    let data = Transaction::new_pay_iota(
         sender, coins, recipients, amounts, gas_object, gas_budget, gas_price,
     )
     .unwrap();
@@ -208,7 +208,7 @@ pub fn make_transfer_object_transaction(
     recipient: Address,
     gas_price: u64,
 ) -> TransactionEnvelope {
-    let data = TransactionData::new_transfer(
+    let data = Transaction::new_transfer(
         recipient,
         object_ref,
         sender,
@@ -235,7 +235,7 @@ pub fn make_transfer_object_move_transaction(
     ];
 
     to_sender_signed_transaction(
-        TransactionData::new_move_call(
+        Transaction::new_move_call(
             src,
             framework_obj_id,
             Identifier::from_static("object_basics"),
@@ -258,7 +258,7 @@ pub fn make_dummy_tx(
     sender_sec: &AccountKeyPair,
 ) -> TransactionEnvelope {
     TransactionEnvelope::from_data_and_signer(
-        TransactionData::new_transfer(
+        Transaction::new_transfer(
             receiver,
             random_object_ref(),
             sender,

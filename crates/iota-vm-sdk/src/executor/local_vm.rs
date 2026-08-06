@@ -7,14 +7,16 @@ use std::sync::{Arc, OnceLock};
 
 use iota_execution::Executor;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{Address, MoveAuthenticator, SenderSignedTransaction, TransactionEvents};
+use iota_sdk_types::{
+    Address, MoveAuthenticator, SenderSignedTransaction, Transaction, TransactionEvents,
+};
 use iota_types::{
     effects::TransactionEffectsAPI,
     gas::IotaGasStatus,
     metrics::{BytecodeVerifierMetrics, LimitsMetrics},
     signature::VerifyParams,
     signature_verification::verify_sender_signed_data_message_signatures,
-    transaction::{TransactionData, TransactionDataAPI},
+    transaction::TransactionDataAPI,
     transaction_executor::SimulateTransactionResult,
 };
 use move_bytecode_utils::{layout::TypeLayoutBuilder, module_cache::GetModule};
@@ -123,7 +125,7 @@ impl LocalVm {
     /// is reported via [`ExecutionResult::status`], not as an error.
     pub fn execute(
         &mut self,
-        tx: TransactionData,
+        tx: Transaction,
         opts: ExecuteOptions,
     ) -> Result<ExecutionResult, VmSdkError> {
         let env = ExecutionEnv::new(self, &opts.debug)?;

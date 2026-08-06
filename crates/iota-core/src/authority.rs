@@ -43,8 +43,8 @@ use iota_sdk_types::{
     Address, CheckpointContentsDigest, CheckpointDigest, Digest, EndOfEpochTransactionKind,
     ExecutionStatus, GasPayment, MoveAuthenticator, MoveStruct, ObjectDigest, ObjectId,
     ObjectReference, Owner, RandomnessRound, SenderSignedTransaction, StructTag, SystemPackage,
-    TransactionDigest, TransactionEffects, TransactionEffectsDigest, TransactionEvents,
-    TransactionExpiration, TransactionKind, TransactionV1, TypeTag, Version,
+    Transaction, TransactionDigest, TransactionEffects, TransactionEffectsDigest,
+    TransactionEvents, TransactionExpiration, TransactionKind, TransactionV1, TypeTag, Version,
     checkpoint::{CheckpointCommitment, CheckpointContents, CheckpointSummary},
     crypto::{Intent, IntentAppId, IntentMessage, IntentScope, IntentVersion},
     gas::GasCostSummary,
@@ -1112,9 +1112,8 @@ impl AuthorityState {
             // It is supposed that `MoveAuthenticator` availability is checked in
             // `SenderSignedTransaction::validity_check`.
 
-            // Serialize the TransactionData for the auth context before decomposing.
-            let tx_data_bytes =
-                bcs::to_bytes(tx).expect("TransactionData serialization cannot fail");
+            // Serialize the Transaction for the auth context before decomposing.
+            let tx_data_bytes = bcs::to_bytes(tx).expect("Transaction serialization cannot fail");
 
             let (sender_auth_digest, sponsor_auth_digest) =
                 transaction.data().compute_auth_digests()?;
@@ -1979,9 +1978,8 @@ impl AuthorityState {
                 .map(|(authenticator_input_objects, _)| authenticator_input_objects.clone())
                 .collect::<Vec<_>>();
 
-            // Serialize the TransactionData for the auth context.
-            let tx_data_bytes =
-                bcs::to_bytes(tx).expect("TransactionData serialization cannot fail");
+            // Serialize the Transaction for the auth context.
+            let tx_data_bytes = bcs::to_bytes(tx).expect("Transaction serialization cannot fail");
 
             let (sender_auth_digest, sponsor_auth_digest) =
                 transaction.data().compute_auth_digests()?;
@@ -2116,7 +2114,7 @@ impl AuthorityState {
     #[allow(clippy::type_complexity)]
     pub fn dry_exec_transaction(
         &self,
-        transaction: TransactionData,
+        transaction: Transaction,
         transaction_digest: TransactionDigest,
     ) -> IotaResult<(
         DryRunTransactionBlockResponse,
@@ -2143,7 +2141,7 @@ impl AuthorityState {
     #[allow(clippy::type_complexity)]
     pub fn dry_exec_transaction_for_benchmark(
         &self,
-        transaction: TransactionData,
+        transaction: Transaction,
         transaction_digest: TransactionDigest,
     ) -> IotaResult<(
         DryRunTransactionBlockResponse,
@@ -2160,7 +2158,7 @@ impl AuthorityState {
     fn dry_exec_transaction_impl(
         &self,
         epoch_store: &AuthorityPerEpochStore,
-        transaction: TransactionData,
+        transaction: Transaction,
         transaction_digest: TransactionDigest,
     ) -> IotaResult<(
         DryRunTransactionBlockResponse,
@@ -2351,7 +2349,7 @@ impl AuthorityState {
 
     pub fn simulate_transaction(
         &self,
-        mut transaction: TransactionData,
+        mut transaction: Transaction,
         checks: VmChecks,
     ) -> IotaResult<SimulateTransactionResult> {
         if transaction.kind().is_system() {
@@ -2529,7 +2527,7 @@ impl AuthorityState {
         // Payment might be empty here, but it's fine we'll have to deal with it later
         // after reading all the input objects.
         let payment = gas_objects.unwrap_or_default();
-        let mut transaction = TransactionData::V1(TransactionV1 {
+        let mut transaction = Transaction::V1(TransactionV1 {
             kind: transaction_kind.clone(),
             sender,
             gas_payment: GasPayment {
@@ -5909,7 +5907,7 @@ impl AuthorityState {
         &self,
         protocol_config: &ProtocolConfig,
         reference_gas_price: u64,
-        tx_data: &TransactionData,
+        tx_data: &Transaction,
         tx_input_objects: InputObjects,
         tx_receiving_objects: &ReceivingObjects,
         move_authenticators: &Vec<&MoveAuthenticator>,

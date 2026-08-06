@@ -14,7 +14,7 @@ use iota_json_rpc_types::{
 use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    Address, Command, Identifier, MoveStruct, ObjectData, ObjectId, Owner, StructTag,
+    Address, Command, Identifier, MoveStruct, ObjectData, ObjectId, Owner, StructTag, Transaction,
     TransactionDigest, TypeTag,
 };
 use iota_swarm_config::genesis_config::AccountConfig;
@@ -29,7 +29,7 @@ use iota_types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::ExecuteTransactionRequestType,
     stardust::output::{Irc27Metadata, Nft},
-    transaction::{CallArg, TransactionData, TransactionDataAPI},
+    transaction::{CallArg, TransactionDataAPI},
 };
 use move_core_types::annotated_value::MoveValue;
 use test_cluster::TestClusterBuilder;
@@ -507,7 +507,7 @@ async fn test_query_transaction_blocks() -> Result<(), anyhow::Error> {
     pt_builder.command(cmd_2);
     let pt = pt_builder.finish();
 
-    let tx_data = TransactionData::new_programmable(signer, vec![gas], pt, 10_000_000, 1000);
+    let tx_data = Transaction::new_programmable(signer, vec![gas], pt, 10_000_000, 1000);
     let signed_data = cluster.wallet.sign_transaction(&tx_data);
     let _response = client
         .quorum_driver_api()

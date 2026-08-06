@@ -15,9 +15,10 @@ use iota_sdk_types::{
     ChangeEpochV4, Command, ConsensusCommitDigest, ConsensusDeterminedVersionAssignments,
     EndOfEpochTransactionKind, ExecutionError as ExecutionFailureStatus, ExecutionStatus,
     GenesisObject, Identifier, MoveCall, ObjectDigest, ObjectId, ObjectReference, Owner,
-    ProgrammableTransaction, SenderSignedTransaction, SharedObjectReference, TransactionDigest,
-    TransactionEffects, TransactionEvents, TransactionEventsDigest, TransactionKind,
-    TransferObjects, TypeTag, UserSignature, Version, VersionAssignment, gas::GasCostSummary,
+    ProgrammableTransaction, SenderSignedTransaction, SharedObjectReference, Transaction,
+    TransactionDigest, TransactionEffects, TransactionEvents, TransactionEventsDigest,
+    TransactionKind, TransferObjects, TypeTag, UserSignature, Version, VersionAssignment,
+    gas::GasCostSummary,
 };
 use iota_types::{
     base_types::EpochId,
@@ -32,7 +33,7 @@ use iota_types::{
     parse_iota_type_tag,
     quorum_driver_types::ExecuteTransactionRequestType as NativeExecuteTransactionRequestType,
     storage::{DeleteKind, WriteKind},
-    transaction::{CallArg, InputObjectKind, TransactionData, TransactionDataAPI},
+    transaction::{CallArg, InputObjectKind, TransactionDataAPI},
 };
 use move_binary_format::CompiledModule;
 use move_bytecode_utils::module_cache::GetModule;
@@ -1697,7 +1698,7 @@ impl IotaTransactionBlockData {
     }
 
     fn try_from_inner(
-        data: TransactionData,
+        data: Transaction,
         transaction: IotaTransactionBlockKind,
     ) -> Result<Self, anyhow::Error> {
         let message_version = data.message_version();
@@ -1716,13 +1717,13 @@ impl IotaTransactionBlockData {
                 gas_data,
             })),
             _ => Err(anyhow::anyhow!(
-                "Support for TransactionData version {message_version} not implemented"
+                "Support for Transaction version {message_version} not implemented"
             )),
         }
     }
 
     pub fn try_from_with_module_cache(
-        data: TransactionData,
+        data: Transaction,
         module_cache: &impl GetModule,
         tx_digest: TransactionDigest,
     ) -> Result<Self, anyhow::Error> {
@@ -1735,7 +1736,7 @@ impl IotaTransactionBlockData {
     }
 
     pub async fn try_from_with_package_resolver(
-        data: TransactionData,
+        data: Transaction,
         package_resolver: &Resolver<impl PackageStore>,
         tx_digest: TransactionDigest,
     ) -> Result<Self, anyhow::Error> {
@@ -2478,7 +2479,7 @@ pub struct TransactionBlockBytes {
 }
 
 impl TransactionBlockBytes {
-    pub fn from_data(data: TransactionData) -> Result<Self, anyhow::Error> {
+    pub fn from_data(data: Transaction) -> Result<Self, anyhow::Error> {
         Ok(Self {
             tx_bytes: Base64::from_bytes(bcs::to_bytes(&data)?.as_slice()),
             gas: data.gas().to_vec(),
@@ -2490,8 +2491,8 @@ impl TransactionBlockBytes {
         })
     }
 
-    pub fn to_data(self) -> Result<TransactionData, anyhow::Error> {
-        bcs::from_bytes::<TransactionData>(&self.tx_bytes.to_vec().map_err(|e| anyhow::anyhow!(e))?)
+    pub fn to_data(self) -> Result<Transaction, anyhow::Error> {
+        bcs::from_bytes::<Transaction>(&self.tx_bytes.to_vec().map_err(|e| anyhow::anyhow!(e))?)
             .map_err(|e| anyhow::anyhow!(e))
     }
 }
@@ -2646,7 +2647,7 @@ pub enum IotaObjectArg {
 #[derive(Clone)]
 pub struct EffectsWithInput {
     pub effects: IotaTransactionBlockEffects,
-    pub input: TransactionData,
+    pub input: Transaction,
 }
 
 impl From<EffectsWithInput> for IotaTransactionBlockEffects {

@@ -4,15 +4,13 @@
 
 use iota_core::test_utils::send_and_confirm_transaction;
 use iota_sdk_types::{
-    Address, Identifier, ObjectId, ProgrammableTransaction, StructTag, TransactionEffects,
-    TransactionKind, TypeTag,
+    Address, Identifier, ObjectId, ProgrammableTransaction, StructTag, Transaction,
+    TransactionEffects, TransactionKind, TypeTag,
 };
 use iota_types::{
-    effects::TransactionEffectsAPI,
-    error::IotaError,
+    effects::TransactionEffectsAPI, error::IotaError,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{TransactionData, TransactionDataAPI},
-    utils::to_sender_signed_transaction,
+    transaction::TransactionDataAPI, utils::to_sender_signed_transaction,
 };
 use proptest::{arbitrary::*, prelude::*};
 
@@ -161,7 +159,7 @@ pub fn run_pt_effects(
     let gas_object = account.new_gas_object(exec);
     let gas_object_ref = gas_object.object_ref();
     let kind = TransactionKind::Programmable(pt);
-    let tx_data = TransactionData::new(
+    let tx_data = Transaction::new(
         kind,
         account.initial_data.account.address,
         gas_object_ref,

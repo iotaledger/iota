@@ -12,9 +12,9 @@ use iota_grpc_types::{
     },
 };
 use iota_macros::sim_test;
-use iota_sdk_types::Address;
+use iota_sdk_types::{Address, Transaction};
 use iota_test_transaction_builder::make_transfer_iota_transaction;
-use iota_types::transaction::{TransactionData, TransactionDataAPI};
+use iota_types::transaction::TransactionDataAPI;
 
 use super::build_item;
 use crate::{
@@ -67,7 +67,7 @@ async fn test_response_headers() {
         let gas_obj = gas.last().unwrap();
 
         // Build a simple transfer transaction with a very high gas budget
-        let tx_data = TransactionData::new_transfer(
+        let tx_data = Transaction::new_transfer(
             recipient,
             *obj_to_send,
             sender,

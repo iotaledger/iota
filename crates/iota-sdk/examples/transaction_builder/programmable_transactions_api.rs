@@ -22,9 +22,9 @@ mod utils;
 
 use iota_sdk::types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{TransactionData, TransactionDataAPI},
+    transaction::TransactionDataAPI,
 };
-use iota_sdk_types::{Argument, Command};
+use iota_sdk_types::{Argument, Command, Transaction};
 use utils::{setup_for_write, sign_and_execute_transaction};
 
 #[tokio::main]
@@ -65,7 +65,7 @@ async fn main() -> Result<(), anyhow::Error> {
     let gas_budget = 5_000_000;
     let gas_price = client.read_api().get_reference_gas_price().await?;
     // Create the transaction data that will be sent to the network
-    let tx_data = TransactionData::new_programmable(
+    let tx_data = Transaction::new_programmable(
         sender,
         vec![coin.object_ref()],
         transaction,

@@ -25,7 +25,7 @@ use iota_package_resolver::{
     Package, PackageStore, Resolver, error::Error as PackageResolverError,
 };
 use iota_sdk_types::{
-    Address, ObjectId, TransactionDigest, TransactionKind, UserSignature,
+    Address, ObjectId, Transaction, TransactionDigest, TransactionKind, UserSignature,
     crypto::{Intent, IntentAppId, IntentMessage, IntentScope, IntentVersion},
 };
 use iota_transaction_builder::TransactionBuilder;
@@ -36,7 +36,7 @@ use iota_types::{
         ExecuteTransactionRequestType, ExecuteTransactionRequestV1, ExecuteTransactionResponseV1,
     },
     storage::PostExecutionPackageResolver,
-    transaction::{InputObjectKind, TransactionData, TransactionDataAPI, TransactionEnvelope},
+    transaction::{InputObjectKind, TransactionDataAPI, TransactionEnvelope},
 };
 use jsonrpsee::{RpcModule, core::RpcResult};
 use tracing::{Instrument, instrument};
@@ -100,7 +100,7 @@ impl TransactionExecutionApi {
         IotaRpcInputError,
     > {
         let opts = opts.unwrap_or_default();
-        let tx_data: TransactionData = self.convert_bytes(tx_bytes)?;
+        let tx_data: Transaction = self.convert_bytes(tx_bytes)?;
         let sender = tx_data.sender();
         let input_objs = tx_data.input_objects().unwrap_or_default();
 
@@ -317,8 +317,8 @@ impl TransactionExecutionApi {
     pub fn prepare_dry_run_transaction_block(
         &self,
         tx_bytes: Base64,
-    ) -> Result<(TransactionData, TransactionDigest, Vec<InputObjectKind>), IotaRpcInputError> {
-        let tx_data: TransactionData = self.convert_bytes(tx_bytes)?;
+    ) -> Result<(Transaction, TransactionDigest, Vec<InputObjectKind>), IotaRpcInputError> {
+        let tx_data: Transaction = self.convert_bytes(tx_bytes)?;
         let input_objs = tx_data.input_objects()?;
         let intent_msg = IntentMessage::new(
             Intent {

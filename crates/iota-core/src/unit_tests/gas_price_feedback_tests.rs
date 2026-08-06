@@ -10,7 +10,8 @@ use iota_protocol_config::{
 use iota_sdk_types::{
     Address, CancelledTransaction, ConsensusDeterminedVersionAssignments, ExecutionError,
     ExecutionStatus, ObjectId, ObjectReference, ProgrammableTransaction, SharedObjectReference,
-    TransactionEffects, TransactionKind, UnchangedSharedKind, Version, VersionAssignment,
+    Transaction, TransactionEffects, TransactionKind, UnchangedSharedKind, Version,
+    VersionAssignment,
 };
 use iota_types::{
     crypto::{AccountKeyPair, get_key_pair},
@@ -18,9 +19,7 @@ use iota_types::{
     executable_transaction::VerifiedExecutableTransaction,
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{
-        CallArg, TransactionData, TransactionDataAPI, TransactionEnvelope, VerifiedCertificate,
-    },
+    transaction::{CallArg, TransactionDataAPI, TransactionEnvelope, VerifiedCertificate},
     utils::to_sender_signed_transaction,
 };
 use rand::seq::SliceRandom;
@@ -192,7 +191,7 @@ impl GasPriceFeedbackTester {
             .unwrap()
             .object_ref();
 
-        let transaction_data = TransactionData::new_programmable(
+        let transaction_data = Transaction::new_programmable(
             *sender,
             vec![gas_object_ref],
             pt,
@@ -230,7 +229,7 @@ impl GasPriceFeedbackTester {
             .unwrap()
             .object_ref();
 
-        let transaction_data = TransactionData::new_programmable(
+        let transaction_data = Transaction::new_programmable(
             self.sender,
             vec![gas_object_ref],
             pt,

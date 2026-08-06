@@ -8,7 +8,7 @@ use fastcrypto::traits::KeyPair;
 use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    Identifier, ObjectId, SharedObjectReference,
+    Identifier, ObjectId, SharedObjectReference, Transaction,
     checkpoint::{CheckpointContents, CheckpointSummary},
     gas::GasCostSummary,
 };
@@ -21,8 +21,7 @@ use iota_types::{
     },
     object::Object,
     transaction::{
-        CallArg, CertifiedTransaction, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS, TransactionData,
-        TransactionDataAPI,
+        CallArg, CertifiedTransaction, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS, TransactionDataAPI,
     },
     utils::{make_committee_key_num, to_sender_signed_transaction},
 };
@@ -77,7 +76,7 @@ pub async fn test_certificates(
         let module = "object_basics";
         let function = "create";
 
-        let data = TransactionData::new_move_call(
+        let data = Transaction::new_move_call(
             sender,
             ObjectId::FRAMEWORK,
             Identifier::from_static(module),

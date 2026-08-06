@@ -788,7 +788,8 @@ pub mod tests {
         Request, Response, Variables,
         extensions::{Extension, ExtensionContext, NextExecute},
     };
-    use iota_types::transaction::{TransactionData, TransactionDataAPI};
+    use iota_sdk_types::Transaction;
+    use iota_types::transaction::TransactionDataAPI;
     use serde_json::json;
     use uuid::Uuid;
 
@@ -969,7 +970,7 @@ pub mod tests {
             .get_one_gas_object_owned_by_address(addresses[0])
             .await
             .unwrap();
-        let tx_data = TransactionData::new_transfer_iota(
+        let tx_data = Transaction::new_transfer_iota(
             addresses[1],
             addresses[0],
             Some(1000),

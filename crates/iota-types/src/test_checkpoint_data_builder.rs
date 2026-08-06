@@ -7,8 +7,8 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
     Address, EndOfEpochTransactionKind, Event, Identifier, MoveStruct, ObjectId, ObjectReference,
-    Owner, SenderSignedTransaction, SharedObjectReference, StructTag, TransactionDigest,
-    TransactionEffects, TransactionEvents, TransactionKind, TypeTag, Version,
+    Owner, SenderSignedTransaction, SharedObjectReference, StructTag, Transaction,
+    TransactionDigest, TransactionEffects, TransactionEvents, TransactionKind, TypeTag, Version,
     checkpoint::{CheckpointContents, CheckpointSummary, EndOfEpochData},
 };
 use tap::Pipe;
@@ -25,7 +25,7 @@ use crate::{
     },
     object::{GAS_VALUE_FOR_TESTING, MoveStructExt, Object},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{CallArg, TransactionData, TransactionDataAPI, TransactionEnvelope},
+    transaction::{CallArg, TransactionDataAPI, TransactionEnvelope},
 };
 
 /// A builder for creating test checkpoint data.
@@ -438,7 +438,7 @@ impl TestCheckpointDataBuilder {
         }
 
         let pt = pt_builder.finish();
-        let tx_data = TransactionData::new(TransactionKind::Programmable(pt), sender, gas, 1, 1);
+        let tx_data = Transaction::new(TransactionKind::Programmable(pt), sender, gas, 1, 1);
         let tx = TransactionEnvelope::new(SenderSignedTransaction::new(tx_data, vec![]));
 
         let wrapped_objects: Vec<_> = wrapped_objects
@@ -557,7 +557,7 @@ impl TestCheckpointDataBuilder {
         // TODO: need the system state object wrapper and dynamic field object to
         // "correctly" mock advancing epoch, at least to satisfy kv_epoch_starts
         // pipeline.
-        let end_of_epoch_tx = TransactionData::new(
+        let end_of_epoch_tx = Transaction::new(
             TransactionKind::EndOfEpoch(vec![tx_kind]),
             Address::ZERO,
             random_object_ref(),

@@ -11,6 +11,7 @@ use anyhow::anyhow;
 use bip32::DerivationPath;
 use docs_examples::utils::{clean_keystore, setup_keystore};
 use iota_keys::keystore::AccountKeystore;
+use iota_sdk_types::Transaction;
 use iota_sdk::{
     IotaClientBuilder,
     rpc_types::{IotaObjectDataOptions, IotaTransactionBlockResponseOptions},
@@ -18,9 +19,7 @@ use iota_sdk::{
         gas_coin::GAS,
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         quorum_driver_types::ExecuteTransactionRequestType,
-        transaction::{CallArg, TransactionData, TransactionEnvelope},
-    },
-};
+        transaction::{CallArg, TransactionEnvelope}}};
 use iota_sdk_types::{Argument, Identifier, ObjectId, SignatureScheme, crypto::Intent};
 use iota_types::transaction::TransactionDataAPI;
 
@@ -146,7 +145,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
     // Create the transaction data that will be sent to the network and allow
     // sponsoring
-    let tx_data = TransactionData::new_programmable_allow_sponsor(
+    let tx_data = Transaction::new_programmable_allow_sponsor(
         sender,
         vec![gas_coin.object_ref()],
         pt,

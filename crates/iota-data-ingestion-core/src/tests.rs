@@ -14,8 +14,8 @@ use std::{
 use async_trait::async_trait;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    Address, ObjectDigest, ObjectId, ObjectReference, RandomnessStateUpdate, TransactionEffects,
-    TransactionKind, Version,
+    Address, ObjectDigest, ObjectId, ObjectReference, RandomnessStateUpdate, Transaction,
+    TransactionEffects, TransactionKind, Version,
     checkpoint::{CheckpointContents, CheckpointSummary},
     gas::GasCostSummary,
 };
@@ -29,7 +29,7 @@ use iota_types::{
         CertifiedCheckpointSummary, CheckpointContentsExt, CheckpointSequenceNumber,
         CheckpointSummaryExt, SignedCheckpointSummary,
     },
-    transaction::{TransactionData, TransactionDataAPI, TransactionEnvelope},
+    transaction::{TransactionDataAPI, TransactionEnvelope},
     utils::make_committee_key,
 };
 use prometheus_filtered::Registry;
@@ -438,7 +438,7 @@ async fn basic_flow_with_custom_callback() {
         .unwrap();
     let tmp_dir = iota_common::tempdir();
 
-    let tx_data = TransactionData::new(
+    let tx_data = Transaction::new(
         TransactionKind::RandomnessStateUpdate(RandomnessStateUpdate {
             epoch: 0,
             randomness_round: 0.into(),

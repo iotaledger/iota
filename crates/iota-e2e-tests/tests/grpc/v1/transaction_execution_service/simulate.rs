@@ -17,10 +17,10 @@ use iota_grpc_types::{
     },
 };
 use iota_macros::sim_test;
-use iota_sdk_types::{Address, Command};
+use iota_sdk_types::{Address, Command, Transaction};
 use iota_types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{CallArg, TransactionData, TransactionDataAPI},
+    transaction::{CallArg, TransactionDataAPI},
 };
 use prost_types::FieldMask;
 
@@ -143,7 +143,7 @@ async fn simulate_transaction_derived_changes() {
     builder
         .pay(vec![*coin_to_split], vec![recipient], vec![1000])
         .unwrap();
-    let transaction_data = TransactionData::new_programmable(
+    let transaction_data = Transaction::new_programmable(
         sender,
         vec![*gas_object],
         builder.finish(),
@@ -203,7 +203,7 @@ async fn simulate_transaction_zero_gas_budget_uses_max() {
     let gas_obj = gas.last().unwrap();
 
     // Build a transfer transaction with gas budget = 0
-    let tx_data = TransactionData::new_transfer(
+    let tx_data = Transaction::new_transfer(
         recipient,
         *obj_to_send,
         sender,
@@ -242,7 +242,7 @@ async fn simulate_transaction_zero_gas_budget_uses_max() {
         .as_ref()
         .unwrap();
 
-    let returned_tx: TransactionData = bcs::from_bytes(&bcs_data.data).unwrap();
+    let returned_tx: Transaction = bcs::from_bytes(&bcs_data.data).unwrap();
     assert!(
         returned_tx.gas_data().budget > 0,
         "gas budget should have been replaced with max_tx_gas, but was 0"
@@ -264,7 +264,7 @@ async fn simulate_transaction_below_min_gas_budget_returns_error() {
 
     // Build a transfer transaction with a gas budget below the minimum
     // (min = base_tx_cost_fixed * gas_price = 1000 * 1000 = 1_000_000 NANOS)
-    let tx_data = TransactionData::new_transfer(
+    let tx_data = Transaction::new_transfer(
         recipient,
         *obj_to_send,
         sender,
@@ -322,7 +322,7 @@ async fn simulate_transaction_readmask_scenarios() {
     builder.transfer_arg(sender, split_result);
     let pt = builder.finish();
 
-    let tx_data = TransactionData::new_programmable(
+    let tx_data = Transaction::new_programmable(
         sender,
         vec![*gas_obj],
         pt,
@@ -351,7 +351,7 @@ async fn simulate_transaction_readmask_scenarios() {
         vec![huge_amount],
     ));
     let failing_pt = failing_builder.finish();
-    let failing_tx_data = TransactionData::new_programmable(
+    let failing_tx_data = Transaction::new_programmable(
         sender,
         vec![*gas_obj],
         failing_pt,
@@ -699,9 +699,9 @@ async fn simulate_transaction_batch() {
 
     // Build two distinct simulation transactions
     let tx_data1 =
-        TransactionData::new_transfer(Address::random(), *obj, sender, *gas_obj, 10_000_000, 1000);
+        Transaction::new_transfer(Address::random(), *obj, sender, *gas_obj, 10_000_000, 1000);
     let tx_data2 =
-        TransactionData::new_transfer(Address::random(), *obj, sender, *gas_obj, 10_000_000, 1000);
+        Transaction::new_transfer(Address::random(), *obj, sender, *gas_obj, 10_000_000, 1000);
 
     let items = vec![
         build_simulate_item(
@@ -749,7 +749,7 @@ async fn simulate_transaction_batch_partial_failure() {
 
     // First item: valid transaction
     let tx_data =
-        TransactionData::new_transfer(Address::random(), *obj, sender, *gas_obj, 10_000_000, 1000);
+        Transaction::new_transfer(Address::random(), *obj, sender, *gas_obj, 10_000_000, 1000);
     let valid_item = build_simulate_item(
         ProtoTransaction::default()
             .with_bcs(BcsData::default().with_data(bcs::to_bytes(&tx_data).unwrap())),

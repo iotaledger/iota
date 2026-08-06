@@ -64,7 +64,7 @@ fn test_signed_values() {
     let committee = Committee::new_for_testing_with_normalized_voting_power(0, authorities);
     let gas_price = 10;
     let transaction = TransactionEnvelope::from_data_and_signer(
-        TransactionData::new_transfer(
+        Transaction::new_transfer(
             _a2,
             random_object_ref(),
             a_sender,
@@ -79,7 +79,7 @@ fn test_signed_values() {
 
     let bad_transaction =
         VerifiedTransaction::new_unchecked(TransactionEnvelope::from_data_and_signer(
-            TransactionData::new_transfer(
+            Transaction::new_transfer(
                 _a2,
                 random_object_ref(),
                 a_sender,
@@ -158,7 +158,7 @@ fn test_certificates() {
     let committee = Committee::new_for_testing_with_normalized_voting_power(0, authorities);
     let gas_price = 10;
     let transaction = TransactionEnvelope::from_data_and_signer(
-        TransactionData::new_transfer(
+        Transaction::new_transfer(
             a2,
             random_object_ref(),
             a_sender,
@@ -506,7 +506,7 @@ fn test_digest_caching() {
 
     let gas_price = 10;
     let transaction = TransactionEnvelope::from_data_and_signer(
-        TransactionData::new_transfer(
+        Transaction::new_transfer(
             sa1,
             random_object_ref(),
             sa2,
@@ -584,7 +584,7 @@ fn test_user_signature_committed_in_transactions() {
     let (a_sender2, sender_sec2): (_, AccountKeyPair) = get_key_pair();
 
     let gas_price = 10;
-    let tx_data = TransactionData::new_transfer(
+    let tx_data = Transaction::new_transfer(
         a_sender2,
         random_object_ref(),
         a_sender,
@@ -605,11 +605,11 @@ fn test_user_signature_committed_in_transactions() {
     let tx_digest_b = transaction_b.digest();
     let tx_digest_c = transaction_c.digest();
 
-    // The digest is the same for the same TransactionData even though the signature
+    // The digest is the same for the same Transaction even though the signature
     // is different.
     assert_eq!(tx_digest_a, tx_digest_b);
 
-    // The digest is the different for different TransactionData even though the
+    // The digest is the different for different Transaction even though the
     // signer is the same.
     assert_ne!(tx_digest_a, tx_digest_c);
     assert_ne!(tx_digest_b, tx_digest_c);
@@ -637,7 +637,7 @@ fn test_user_signature_committed_in_signed_transactions() {
 
     let epoch = 0;
     let gas_price = 10;
-    let tx_data = TransactionData::new_transfer(
+    let tx_data = Transaction::new_transfer(
         a_sender2,
         random_object_ref(),
         a_sender,
@@ -714,7 +714,7 @@ fn test_user_signature_committed_in_signed_transactions() {
 }
 
 fn signature_from_signer(
-    data: TransactionData,
+    data: Transaction,
     intent: Intent,
     signer: &impl Signer<SimpleSignature>,
 ) -> SimpleSignature {
@@ -744,7 +744,7 @@ fn test_sponsored_transaction_message() {
         price: gas_price,
         budget: gas_price * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
     };
-    let tx_data = TransactionData::new_with_gas_data(kind, sender, gas_data.clone());
+    let tx_data = Transaction::new_with_gas_data(kind, sender, gas_data.clone());
     let intent = Intent::iota_transaction();
     let sender_sig: UserSignature =
         signature_from_signer(tx_data.clone(), intent, &sender_kp).into();
@@ -843,7 +843,7 @@ fn test_sponsored_transaction_validity_check() {
         builder.finish()
     };
     let kind = TransactionKind::new_programmable(pt);
-    TransactionData::new_with_gas_data(kind, sender, gas_data.clone())
+    Transaction::new_with_gas_data(kind, sender, gas_data.clone())
         .validity_check(&ProtocolConfig::get_for_max_version_UNSAFE())
         .unwrap();
 
@@ -861,7 +861,7 @@ fn test_sponsored_transaction_validity_check() {
         builder.finish()
     };
     let kind = TransactionKind::new_programmable(pt);
-    TransactionData::new_with_gas_data(kind, sender, gas_data.clone())
+    Transaction::new_with_gas_data(kind, sender, gas_data.clone())
         .validity_check(&ProtocolConfig::get_for_max_version_UNSAFE())
         .unwrap();
 
@@ -871,7 +871,7 @@ fn test_sponsored_transaction_validity_check() {
         builder.finish()
     };
     let kind = TransactionKind::new_programmable(pt);
-    TransactionData::new_with_gas_data(kind, sender, gas_data.clone())
+    Transaction::new_with_gas_data(kind, sender, gas_data.clone())
         .validity_check(&ProtocolConfig::get_for_max_version_UNSAFE())
         .unwrap();
 
@@ -888,7 +888,7 @@ fn test_sponsored_transaction_validity_check() {
         builder.finish()
     };
     let kind = TransactionKind::new_programmable(pt);
-    TransactionData::new_with_gas_data(kind, sender, gas_data.clone())
+    Transaction::new_with_gas_data(kind, sender, gas_data.clone())
         .validity_check(&ProtocolConfig::get_for_max_version_UNSAFE())
         .unwrap();
 
@@ -899,7 +899,7 @@ fn test_sponsored_transaction_validity_check() {
         builder.finish()
     };
     let kind = TransactionKind::new_programmable(pt);
-    TransactionData::new_with_gas_data(kind, sender, gas_data.clone())
+    Transaction::new_with_gas_data(kind, sender, gas_data.clone())
         .validity_check(&ProtocolConfig::get_for_max_version_UNSAFE())
         .unwrap();
 
@@ -910,7 +910,7 @@ fn test_sponsored_transaction_validity_check() {
         builder.finish()
     };
     let kind = TransactionKind::new_programmable(pt);
-    TransactionData::new_with_gas_data(kind, sender, gas_data.clone())
+    Transaction::new_with_gas_data(kind, sender, gas_data.clone())
         .validity_check(&ProtocolConfig::get_for_max_version_UNSAFE())
         .unwrap();
 
@@ -921,7 +921,7 @@ fn test_sponsored_transaction_validity_check() {
         builder.finish()
     };
     let kind = TransactionKind::new_programmable(pt);
-    TransactionData::new_with_gas_data(kind, sender, gas_data)
+    Transaction::new_with_gas_data(kind, sender, gas_data)
         .validity_check(&ProtocolConfig::get_for_max_version_UNSAFE())
         .unwrap();
 }
@@ -944,7 +944,7 @@ fn verify_sender_signature_correctly_with_flag() {
     let sender_kp = SimpleKeypair::from(get_key_pair::<Secp256k1PrivateKey>().1);
     // and creates a corresponding transaction
     let gas_price = 10;
-    let tx_data = TransactionData::new_transfer(
+    let tx_data = Transaction::new_transfer(
         receiver_address,
         random_object_ref(),
         (&PublicKey::from(&sender_kp)).into(),
@@ -1136,7 +1136,7 @@ fn test_move_input_objects() {
         type_args,
         args,
     ));
-    let data = TransactionData::new_programmable(
+    let data = Transaction::new_programmable(
         Address::random(),
         vec![gas_object_ref],
         builder.finish(),
@@ -1246,7 +1246,7 @@ fn test_unique_input_objects() {
     ));
     let pt = builder.finish();
     let kind = TransactionKind::new_programmable(pt);
-    let transaction_data = TransactionData::new_with_gas_data(kind, sender, gas_data);
+    let transaction_data = Transaction::new_with_gas_data(kind, sender, gas_data);
 
     let input_objects = transaction_data.input_objects().unwrap();
     let input_objects_map: BTreeSet<_> = input_objects.iter().cloned().collect();
@@ -1268,7 +1268,7 @@ fn test_certificate_digest() {
     let gas_price = 10;
     let make_tx = |sender, sender_sec: AccountKeyPair| {
         TransactionEnvelope::from_data_and_signer(
-            TransactionData::new_transfer(
+            Transaction::new_transfer(
                 receiver,
                 random_object_ref(),
                 sender,

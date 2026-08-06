@@ -375,7 +375,7 @@ mod tests {
 
     /// Helper data structure to store transaction data used for sequencing.
     #[derive(Debug)]
-    struct TransactionData {
+    struct Transaction {
         /// Index of transaction in the set ordered by gas price in
         /// descending order. Used for debugging purposes.
         order_idx: usize,
@@ -384,12 +384,12 @@ mod tests {
         input_shared_objects: Vec<(ObjectId, /* mutability */ bool)>,
     }
 
-    /// Build a set of `TransactionData` with two shared objects for tests.
+    /// Build a set of `Transaction` with two shared objects for tests.
     fn build_transactions_data_for_test(
         maxgp: u64,
         object_1: ObjectId,
         object_2: ObjectId,
-    ) -> Vec<TransactionData> {
+    ) -> Vec<Transaction> {
         [
             // (gas price, gas budget, input shared objects)
             (maxgp, 3_000_000, vec![(object_1, true), (object_2, false)]), //  0
@@ -408,7 +408,7 @@ mod tests {
         ]
         .into_iter()
         .enumerate()
-        .map(|(idx, (price, budget, objects))| TransactionData {
+        .map(|(idx, (price, budget, objects))| Transaction {
             order_idx: idx,
             gas_price: price,
             gas_budget: budget,
@@ -421,7 +421,7 @@ mod tests {
     /// then try sequencing it by `shared_object_congestion_tracker`.
     /// Returns the transaction itself and a result of its sequencing.
     fn build_and_try_sequencing_transaction(
-        tx_data: &TransactionData,
+        tx_data: &Transaction,
         shared_object_congestion_tracker: &mut SharedObjectCongestionTracker,
     ) -> (VerifiedExecutableTransaction, SequencingResult) {
         let transaction = build_transaction(
@@ -460,7 +460,7 @@ mod tests {
     /// scheduled. Returns execution start time of the transaction if
     /// it is scheduled, otherwise returns `None`.
     fn try_schedule(
-        tx_data: &TransactionData,
+        tx_data: &Transaction,
         shared_object_congestion_tracker: &mut SharedObjectCongestionTracker,
         suggested_gas_price_calculator: &mut SuggestedGasPriceCalculator,
     ) -> Option<ExecutionTime> {
@@ -484,7 +484,7 @@ mod tests {
     /// deferred. Returns congested objects and suggested gas price if
     /// the transaction is deferred, otherwise returns `None`.
     fn try_defer(
-        tx_data: &TransactionData,
+        tx_data: &Transaction,
         shared_object_congestion_tracker: &mut SharedObjectCongestionTracker,
         suggested_gas_price_calculator: &mut SuggestedGasPriceCalculator,
     ) -> Option<(Vec<ObjectId>, u64)> {
