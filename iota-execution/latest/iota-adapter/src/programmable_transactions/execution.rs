@@ -77,7 +77,7 @@ mod checked {
             ensure_serialized_size,
         },
         gas_charger::GasCharger,
-        programmable_transactions::{context::*, package_metadata::*},
+        programmable_transactions::{context::*, data_store::IotaDataStore, package_metadata::*},
     };
 
     /// Executes a `ProgrammableTransaction` in the specified `ExecutionMode`,
