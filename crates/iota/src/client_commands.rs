@@ -2870,13 +2870,6 @@ fn serialize_key_scheme<S: serde::Serializer>(
     serializer.serialize_str(&lowercase_key_scheme(*value))
 }
 
-fn serialize_as_display<S: serde::Serializer>(
-    value: &impl Display,
-    serializer: S,
-) -> Result<S::Ok, S::Error> {
-    serializer.collect_str(value)
-}
-
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ObjectOutput {
