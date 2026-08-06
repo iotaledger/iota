@@ -31,7 +31,10 @@ use tokio::test;
 use super::{KeyToolCommand, write_keypair_to_file};
 use crate::{
     key_identity::KeyIdentity,
-    keytool::{CommandOutput, read_authority_keypair_from_file, read_keypair_from_file},
+    keytool::{
+        CommandOutput, lowercase_key_scheme, read_authority_keypair_from_file,
+        read_keypair_from_file,
+    },
     signing::sign_secure,
 };
 
@@ -923,4 +926,31 @@ async fn test_decode_sig() -> Result<(), anyhow::Error> {
     }
 
     Ok(())
+}
+
+/// The CLI takes a key scheme as a lowercase argument and echoes it back in its
+/// output, so every spelling it prints must parse as an argument again.
+#[test]
+async fn test_lowercase_key_scheme_parses_as_a_cli_argument() {
+    for scheme in [
+        SignatureScheme::Ed25519,
+        SignatureScheme::Secp256k1,
+        SignatureScheme::Secp256r1,
+        SignatureScheme::Multisig,
+        SignatureScheme::Bls12381,
+        SignatureScheme::PasskeyAuthenticator,
+        SignatureScheme::MoveAuthenticator,
+    ] {
+        let spelling = lowercase_key_scheme(scheme);
+        assert_eq!(
+            spelling,
+            spelling.to_lowercase(),
+            "{scheme} must be lowercase"
+        );
+        assert_eq!(
+            SignatureScheme::from_str(&spelling),
+            std::result::Result::Ok(scheme),
+            "{spelling} must parse back to {scheme}"
+        );
+    }
 }
