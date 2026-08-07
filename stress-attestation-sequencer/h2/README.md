@@ -185,9 +185,16 @@ results/<LABEL>/
 - `aggregate.py` — pools every label's iterations into one A-vs-B table per
   mode pair (`results/summary.md`): success tps (checkpoint-included minus
   cancelled), cancelled rate, pooled checkpoint-lag quantiles, skipped leader
-  rounds, and the safety verdict (counters + validator crash scan). Standard
+  rounds, and the safety verdict (counters + validator crash scan). The same
+  rows land as scalars in `results/summary.csv` for `plot.py`. Standard
   library only; the machinery shared with `../h1/aggregate.py` lives in
   `../aggregate.py`.
+- `plot.py` — renders the mode-comparison figures from `summary.csv` into
+  `results/summary_plots/`: checkpoint lag and cancelled fraction against the
+  admitted rate (tx/commit × commits/s, with Run A as one vertical line),
+  annotated per-cell heatmaps of the same scalars, the throughput-vs-lag
+  tradeoff, and lag against admitted/drain utilization.
+  Needs matplotlib, so run it from a `venv` such as `../h1/.venv`.
 - `probe.sh` — run one `(SLOW_N, SLOW_SIZE)` point: start the network or reuse a
   running one, scrape metrics, append a CSV row, and optionally tear down
   the network (by default, it leaves the network up).
@@ -214,9 +221,11 @@ The results so far are written up in `probe-test.md`.
   `probe.sh` needs to start the network with a limit no probe transaction can
   reach (e.g. `MAX_ACCUMULATED_TXN_COST=50000000`), then the sweep re-run and
   the `drains` column in `matrix.sh` filled in.
-- **Write the plots.** `aggregate.py` covers the tables; H2 still has no
-  `plot.py` (adapt `../h1/plot.py` for two modes instead of attestation
-  off/on). Metrics worth curves beyond what the table reduces to scalars:
+- **Per-cell time series for the marginal cells.** The pooled lag p95 cannot
+  distinguish a queue that is high but stable from one growing without
+  bound — a lag-over-time curve can. Worth adapting `../h1/plot.py`'s
+  dashboard replay as a drill-down for a few chosen cells (the knife-edge
+  ones), not for the whole grid. Also still unplotted:
   `consensus_handler_transaction_deferral_rounds` and
   `consensus_handler_scheduled_transactions_per_object_per_commit`.
 - **Add a run whose transactions do not all cost the same.** The grid is all

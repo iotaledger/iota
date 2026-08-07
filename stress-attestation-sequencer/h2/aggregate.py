@@ -26,11 +26,17 @@ first seconds and the nominal window would understate the rate.
 The experiment-agnostic machinery is shared with h1 in ../aggregate.py.
 Pure stdlib.
 
+Besides the markdown, the same rows are written as scalars to summary.csv
+(one row per label, a_*/b_* column pairs) — the input plot.py draws from,
+so the pooling arithmetic lives only here.
+
 Usage: aggregate.py [results_dir] [out.md]
   results_dir: the results root holding label dirs (default .), or a single
-               label dir. out.md defaults to <results_dir>/summary.md.
+               label dir. out.md defaults to <results_dir>/summary.md; the
+               CSV lands next to it with the same basename.
 """
 
+import csv
 import glob
 import json
 import os
@@ -148,6 +154,9 @@ def aggregate_arm(runs):
         "lag50": hquantile(0.5, lag),
         "lag95": hquantile(0.95, lag),
         "skips": skipped_rounds(runs),
+        # consensus commits per second — what turns a per-commit limit into an
+        # admitted rate (tx/commit x commits/s), so plot.py needs it per arm.
+        "commit_rate": rate_mean(runs, "consensus_committed_subdags"),
         "safety": {
             m: series_max([r.get("series", {}) for r in runs], m)
             for m, _ in SAFETY_COUNTERS
@@ -314,7 +323,42 @@ def main():
                 L.append(f"> - {x}")
     with open(out, "w") as f:
         f.write("\n".join(L) + "\n")
+
+    # The same rows as scalars, for plot.py.
+    csv_path = os.path.splitext(out)[0] + ".csv"
+    arm_cols = (
+        "succ_tps", "cancelled_per_s", "lag_p50_s", "lag_p95_s",
+        "commit_rate", "skipped_rounds", "over_max_deferrals",
+    )
+    arm_keys = ("succ", "canc", "lag50", "lag95", "commit_rate", "skips")
+
+    def cell(v):
+        return "" if v is None else f"{v:.6g}"
+
+    with open(csv_path, "w", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(
+            ["label", "units_per_tx", "limit_b", "tx_per_commit", "iters",
+             "mode_a", "mode_b", "target_qps"]
+            + [f"a_{c}" for c in arm_cols]
+            + [f"b_{c}" for c in arm_cols]
+            + ["safety_ok"]
+        )
+        for r in rows:
+            vals = []
+            for arm in "ab":
+                vals += [cell(r[arm][k]) for k in arm_keys]
+                vals.append(cell(r["over_max"][arm]))
+            w.writerow(
+                [r["label"], cell(r["units"]), cell(r["limit_b"]),
+                 cell(r["txcmt"]), r["iters"], r["cfg"].get("mode_a", ""),
+                 r["cfg"].get("mode_b", ""), r["cfg"].get("target_qps", "")]
+                + vals
+                + [int(not safety_failed(r))]
+            )
+
     print(f"{len(rows)} label(s) -> {out}", file=sys.stderr)
+    print(f"scalar table -> {csv_path}", file=sys.stderr)
     if failed:
         print(f"SAFETY: {len(failed)} label(s) flagged", file=sys.stderr)
 
