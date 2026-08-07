@@ -738,10 +738,14 @@ pub struct AuthorityPerEpochStore {
     /// boundary before any announcement of the new epoch lands.
     active_transaction_deny_rules: ArcSwap<DenyRuleSet>,
 
-    /// The deny rule state last written to the `TransactionDenyRules` object,
-    /// as far as this validator knows: seeded from the object at epoch start,
-    /// advanced on each injected update. The base the injection diff is
-    /// computed against.
+    /// The state the scheduled deny-rule updates bring the
+    /// `TransactionDenyRules` object to: seeded from the object at epoch
+    /// start, advanced when a commit schedules updates — the only
+    /// commit-deterministic point; execution completion is not, and must not
+    /// feed back in. The base the injection diff is computed against. An
+    /// execution failure (an invariant violation — the update is built to
+    /// exclude every expected failure) leaves the object behind this state
+    /// until the epoch boundary re-seeds it.
     mirrored_transaction_deny_rules: ArcSwap<DenyRuleSet>,
 
     /// Pre-consensus soft locks for owned objects (P-COOL flow).
@@ -926,10 +930,11 @@ pub struct AuthorityEpochTables {
     /// generation overwrites an older one from the same authority.
     deny_rule_proposals: DBMap<AuthorityName, TransactionDenyRuleProposal>,
 
-    /// The deny rule state last written to the `TransactionDenyRules` object,
-    /// as of the last flushed commit. Single row keyed by `()`, written in the
-    /// flush batch so a restart resumes at the flush position and consensus
-    /// replays the rest. Absent until the epoch's first injection.
+    /// The state the scheduled deny-rule updates bring the
+    /// `TransactionDenyRules` object to, as of the last flushed commit.
+    /// Single row keyed by `()`, written in the flush batch so a restart
+    /// resumes at the flush position and consensus replays the rest. Present
+    /// from epoch-store construction whenever the object exists.
     mirrored_deny_rules: DBMap<(), DenyRuleSet>,
 
     /// Contains a single key, which overrides the value of
@@ -3111,8 +3116,8 @@ impl AuthorityPerEpochStore {
         self.active_transaction_deny_rules.load_full()
     }
 
-    /// Returns the deny rule state last known to be written to the
-    /// `TransactionDenyRules` object.
+    /// Returns the state the scheduled deny-rule updates bring the
+    /// `TransactionDenyRules` object to.
     pub fn get_mirrored_transaction_deny_rules(&self) -> Arc<DenyRuleSet> {
         self.mirrored_transaction_deny_rules.load_full()
     }
