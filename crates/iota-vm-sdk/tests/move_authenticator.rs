@@ -17,9 +17,9 @@
 use std::{fs, path::PathBuf};
 
 use fastcrypto::encoding::{Base64, Encoding};
-use iota_sdk_types::{SenderSignedTransaction, UserSignature};
+use iota_sdk_types::{MoveStruct, SenderSignedTransaction, TransactionDigest, UserSignature};
 use iota_types::{
-    object::Object,
+    object::{MoveStructExt, Object},
     transaction::{TransactionData, TransactionDataAPI},
 };
 use iota_vm_sdk::{
@@ -45,6 +45,10 @@ struct Fixture {
 struct FixtureObject {
     bcs_b64: String,
 }
+
+/// Comfortably above `max_tx_gas`, so a coin holding it backs any budget a
+/// simulation can resolve to.
+const FUNDED_GAS_COIN_VALUE: u64 = 1_000_000_000_000;
 
 impl Fixture {
     fn transaction(&self) -> TransactionData {
@@ -92,6 +96,26 @@ fn chain_context(f: &Fixture) -> ChainContext {
         .with_reference_gas_price(f.reference_gas_price)
         .with_epoch_id(f.epoch_id)
         .with_epoch_timestamp_ms(f.epoch_timestamp_ms)
+}
+
+/// Replace the balance of every gas coin `tx` pays with, so the coins can back
+/// a budget of `max_tx_gas`.
+///
+/// The fixtures carry the coin balance they were captured with, which need not
+/// cover the protocol maximum a zero declared budget resolves to.
+fn fund_gas_coins_for_max_budget(vm: &mut LocalVm, tx: &TransactionData) {
+    for gas_ref in tx.gas() {
+        let coin = vm
+            .store()
+            .get_object(&gas_ref.object_id, None)
+            .expect("store lookup")
+            .expect("fixture carries the gas coin it pays with");
+        vm.store_mut().insert(Object::new_move(
+            MoveStruct::new_gas_coin(coin.version(), coin.id(), FUNDED_GAS_COIN_VALUE),
+            coin.owner,
+            TransactionDigest::ZERO,
+        ));
+    }
 }
 
 /// The fixture's `MoveAuthenticator` signature.
@@ -214,6 +238,10 @@ fn move_authenticator_dev_inspect_rerun_ignores_zero_declared_budget() {
     let mut tx = f.transaction();
     tx.gas_data_mut().budget = 0;
     let mut vm = f.vm();
+    // A zero budget resolves to as much as the gas coins can back, up to
+    // `max_tx_gas`, so top up the fixture's coin — otherwise it resolves to that
+    // smaller balance rather than the maximum this test is about.
+    fund_gas_coins_for_max_budget(&mut vm, &tx);
 
     // First run: the free-access authenticator accepts and `add_field`
     // succeeds — dev-inspect meters at the dev-inspect budget, not the

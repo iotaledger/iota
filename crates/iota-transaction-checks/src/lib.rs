@@ -167,20 +167,23 @@ mod checked {
         Ok((gas_status, input_objects.into_checked()))
     }
 
-    /// WARNING! This should only be used for the dev-inspect transaction. This
-    /// transaction type bypasses many of the normal object checks
+    /// WARNING! Only for simulating a transaction with
+    /// [`VmChecks::Disabled`](iota_types::transaction_executor::VmChecks::Disabled).
+    /// This bypasses many of the normal object checks. A simulation with
+    /// `VmChecks::Enabled` goes through [`check_transaction_input`] instead,
+    /// the same as a transaction bound for execution.
     #[instrument(level = "trace", skip_all)]
-    pub fn check_dev_inspect_input(
+    pub fn check_simulation_input(
         config: &ProtocolConfig,
         kind: &TransactionKind,
         input_objects: InputObjects,
-        // TODO: check ReceivingObjects for dev inspect?
+        // TODO: check ReceivingObjects when simulating?
         _receiving_objects: ReceivingObjects,
     ) -> IotaResult<CheckedInputObjects> {
         kind.validity_check(config)?;
         if kind.is_system() {
             return Err(UserInputError::Unsupported(format!(
-                "Transaction kind {kind} is not supported in dev-inspect"
+                "Transaction kind {kind} is not supported in a simulation"
             ))
             .into());
         }

@@ -50,7 +50,10 @@ macro_rules! assert_matches {
 }
 
 use fastcrypto::traits::AggregateAuthenticator;
-use iota_sdk_types::ConsensusCommitDigest;
+use iota_sdk_types::{
+    ConsensusCommitDigest,
+    crypto::{IntentAppId, IntentVersion},
+};
 use iota_types::{
     messages_grpc::HandleCertificateRequestV1,
     programmable_transaction_builder::ProgrammableTransactionBuilder,

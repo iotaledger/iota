@@ -19,6 +19,7 @@ use iota_grpc_types::{
 use iota_macros::sim_test;
 use iota_sdk_types::{Address, Command};
 use iota_types::{
+    effects::TransactionEffectsAPI,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{CallArg, TransactionData, TransactionDataAPI},
 };
@@ -190,7 +191,7 @@ async fn simulate_transaction_derived_changes() {
 }
 
 #[sim_test]
-async fn simulate_transaction_zero_gas_budget_uses_max() {
+async fn simulate_transaction_zero_gas_budget_reports_the_gas_charged() {
     let (test_cluster, client) = setup_grpc_test(Some(1), None).await;
 
     let mut exec_client = client.execution_service_client();
@@ -208,7 +209,7 @@ async fn simulate_transaction_zero_gas_budget_uses_max() {
         *obj_to_send,
         sender,
         *gas_obj,
-        0,    // zero gas budget — server should replace with max_tx_gas
+        0,    // zero gas budget — the server estimates and reports the cost
         1000, // gas price
     );
 
@@ -229,8 +230,8 @@ async fn simulate_transaction_zero_gas_budget_uses_max() {
 
     let simulated = first_simulated_transaction(&response);
 
-    // Verify that the returned transaction has a non-zero gas budget (replaced with
-    // max_tx_gas)
+    // Verify that the returned transaction reports the gas the simulation charged
+    // in place of the zero the caller sent.
     let bcs_data = simulated
         .executed_transaction
         .as_ref()
@@ -245,7 +246,131 @@ async fn simulate_transaction_zero_gas_budget_uses_max() {
     let returned_tx: TransactionData = bcs::from_bytes(&bcs_data.data).unwrap();
     assert!(
         returned_tx.gas_data().budget > 0,
-        "gas budget should have been replaced with max_tx_gas, but was 0"
+        "the budget should have been replaced with the gas the simulation charged, but was 0"
+    );
+    // Only the computation half of the cost scales with the price, so the budget
+    // above cannot be read without the price it was charged at.
+    assert_eq!(
+        returned_tx.gas_data().price,
+        1000,
+        "the price the caller sent should be reported back"
+    );
+
+    // The same with the price left at zero, which the simulation fills in from the
+    // epoch: the response has to report what it charged at, not the zero.
+    let tx_data = TransactionData::new_transfer(
+        recipient,
+        *obj_to_send,
+        sender,
+        *gas_obj,
+        0, // zero gas budget
+        0, // zero gas price
+    );
+    let item = SimulateTransactionItem::default()
+        .with_transaction(
+            ProtoTransaction::default()
+                .with_bcs(BcsData::default().with_data(bcs::to_bytes(&tx_data).unwrap())),
+        )
+        .with_tx_checks(vec![TransactionCheckModes::DisableVmChecks as i32]);
+    let response = exec_client
+        .simulate_transactions(SimulateTransactionsRequest::default().with_transactions(vec![item]))
+        .await
+        .unwrap()
+        .into_inner();
+
+    let bcs_data = first_simulated_transaction(&response)
+        .executed_transaction
+        .as_ref()
+        .unwrap()
+        .transaction
+        .as_ref()
+        .unwrap()
+        .bcs
+        .as_ref()
+        .unwrap();
+    let returned_tx: TransactionData = bcs::from_bytes(&bcs_data.data).unwrap();
+    assert_eq!(
+        returned_tx.gas_data().price,
+        test_cluster.get_reference_gas_price().await,
+        "the price the simulation filled in should be reported back"
+    );
+    assert!(returned_tx.gas_data().budget > 0);
+}
+
+/// A transaction with no gas payment is simulated against a mock gas coin, and
+/// the response reports the transaction that ran, mock coin included. The
+/// effects charge gas to that coin, so reporting the payment as sent — empty —
+/// leaves the caller no way to tell which object they refer to.
+///
+/// With a budget the caller declared, the reported transaction is exactly the
+/// one that ran and hashes to the digest the effects are keyed by. That does
+/// not hold for a zero budget, which comes back as the gas charged instead: see
+/// `simulate_transaction_zero_gas_budget_reports_the_gas_charged`.
+#[sim_test]
+async fn simulate_transaction_gasless_reports_the_transaction_that_ran() {
+    let (test_cluster, client) = setup_grpc_test(Some(1), None).await;
+
+    let mut exec_client = client.execution_service_client();
+
+    let (sender, gas) = test_cluster.wallet.get_one_account().await.unwrap();
+    let obj_to_send = gas.first().unwrap();
+    let reference_gas_price = test_cluster.get_reference_gas_price().await;
+
+    // No gas payment, but a declared price and budget, so that the only thing the
+    // simulation fills in is the payment.
+    let mut tx_data = TransactionData::new_transfer(
+        Address::random(),
+        *obj_to_send,
+        sender,
+        *gas.last().unwrap(),
+        reference_gas_price * 10_000_000,
+        reference_gas_price,
+    );
+    tx_data.gas_data_mut().objects = vec![];
+
+    let item = build_simulate_item(
+        ProtoTransaction::default()
+            .with_bcs(BcsData::default().with_data(bcs::to_bytes(&tx_data).unwrap())),
+    );
+    let response = exec_client
+        .simulate_transactions(SimulateTransactionsRequest::default().with_transactions(vec![item]))
+        .await
+        .unwrap()
+        .into_inner();
+
+    let executed = first_simulated_transaction(&response)
+        .executed_transaction
+        .as_ref()
+        .unwrap();
+    let returned_tx: TransactionData = bcs::from_bytes(
+        &executed
+            .transaction
+            .as_ref()
+            .unwrap()
+            .bcs
+            .as_ref()
+            .unwrap()
+            .data,
+    )
+    .unwrap();
+
+    // The mock gas coin the run charged gas to is named in the reported payment.
+    assert_eq!(
+        returned_tx.gas_data().objects.len(),
+        1,
+        "the mock gas coin should be reported in the gas payment"
+    );
+    // Nothing else was filled in, so the reported transaction is the one that ran.
+    let effects = executed.effects.as_ref().unwrap().effects().unwrap();
+    assert_eq!(
+        returned_tx.digest(),
+        *effects.transaction_digest(),
+        "the reported transaction should hash to the digest the effects are keyed by"
+    );
+    assert_eq!(
+        returned_tx.gas_data().objects[0].object_id,
+        effects.gas_object().0.object_id,
+        "the reported gas payment should name the object the effects charged"
     );
 }
 
