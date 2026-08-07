@@ -2645,16 +2645,20 @@ mod tests {
 
         // We should be in commit lag mode, but since there are missing blocks within
         // the acceptable round thresholds those ones should be fetched. Nothing above.
-        let mut added_block_headers = core_dispatcher.get_and_drain_block_headers().await;
+        let added_block_headers = core_dispatcher.get_and_drain_block_headers().await;
 
-        // A header served by several peers is delivered once per peer; the
-        // block manager, not the synchronizer, filters duplicates.
-        added_block_headers.sort_by_key(|block| block.reference());
-        added_block_headers.dedup_by_key(|block| block.reference());
-        expected_blocks.sort_by_key(|block| block.reference());
-        expected_blocks.dedup_by_key(|block| block.reference());
-
-        assert_eq!(added_block_headers, expected_blocks);
+        // Compare as sets: a header served by several peers is delivered once
+        // per peer; the block manager, not the synchronizer, filters
+        // duplicates.
+        let added_refs: BTreeSet<_> = added_block_headers
+            .iter()
+            .map(|block| block.reference())
+            .collect();
+        let expected_refs: BTreeSet<_> = expected_blocks
+            .iter()
+            .map(|block| block.reference())
+            .collect();
+        assert_eq!(added_refs, expected_refs);
     }
 
     #[tokio::test(flavor = "current_thread", start_paused = true)]
