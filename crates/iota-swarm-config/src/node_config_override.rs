@@ -59,8 +59,10 @@ impl fmt::Display for OverrideScope {
 /// structure need quoting (e.g. `'[::1]:9000'`), and `null` or an empty
 /// value clears an optional field.
 ///
-/// List elements cannot be addressed by index; a list can only be replaced as
-/// a whole, by passing the new list as the YAML value.
+/// A mapping value merges with the section's current fields, so unmentioned
+/// fields keep their values. List elements cannot be addressed by index; a
+/// list can only be replaced as a whole, by passing the new list as the YAML
+/// value.
 #[derive(Clone, Debug)]
 pub struct NodeConfigOverride {
     pub scope: OverrideScope,
@@ -166,7 +168,7 @@ impl NodeConfigOverride {
             }
             cursor = mapping.get_mut(&key).expect("key inserted above");
         }
-        *cursor = self.value.clone();
+        merge_value(cursor, self.value.clone());
 
         // Serde silently drops unknown fields, so collect what it ignores to
         // catch typos anywhere in the path or the value.
@@ -230,6 +232,24 @@ impl NodeConfigOverride {
 
         *config = new_config;
         Ok(())
+    }
+}
+
+/// Merge `value` into `target`: mappings merge recursively so unmentioned
+/// fields keep their current values; any other value replaces the old one.
+fn merge_value(target: &mut Value, value: Value) {
+    match (target, value) {
+        (Value::Mapping(target), Value::Mapping(value)) => {
+            for (key, value) in value {
+                match target.get_mut(&key) {
+                    Some(existing) => merge_value(existing, value),
+                    None => {
+                        target.insert(key, value);
+                    }
+                }
+            }
+        }
+        (target, value) => *target = value,
     }
 }
 
@@ -645,6 +665,36 @@ mod tests {
         let config_override: NodeConfigOverride = "p2p-config.seed-peers=[]".parse().unwrap();
         config_override.apply_to(&mut config).unwrap();
         assert!(config.p2p_config.seed_peers.is_empty());
+    }
+
+    #[test]
+    fn section_override_merges_with_existing_fields() {
+        let mut config = test_config();
+        // What --disable-fullnode-pruning sets on the built config.
+        config.authority_store_pruning_config.num_epochs_to_retain = u64::MAX;
+
+        let config_override: NodeConfigOverride =
+            "authority-store-pruning-config={enable-compaction-filter: true}"
+                .parse()
+                .unwrap();
+        config_override.apply_to(&mut config).unwrap();
+        assert!(
+            config
+                .authority_store_pruning_config
+                .enable_compaction_filter
+        );
+        // Unmentioned fields keep their values instead of resetting to their
+        // serde defaults.
+        assert_eq!(
+            config.authority_store_pruning_config.num_epochs_to_retain,
+            u64::MAX
+        );
+        assert_eq!(
+            config
+                .authority_store_pruning_config
+                .num_latest_epoch_dbs_to_retain,
+            3
+        );
     }
 
     #[test]

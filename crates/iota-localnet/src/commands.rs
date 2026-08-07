@@ -274,7 +274,9 @@ pub enum LocalnetCommand {
         /// validators), or `validator-<N>`; the path uses the field names
         /// from the node config YAML. Repeatable; later overrides win.
         /// Values are YAML — quote values that would parse as structure
-        /// (e.g. `'[::1]:9000'`); `null` or an empty value clears a field.
+        /// (e.g. `'[::1]:9000'`); `null` or an empty value clears a field; a
+        /// mapping merges with the section's current fields, a list replaces
+        /// the whole list.
         ///
         /// Warning: overriding per-node values (e.g. `db-path`) for every
         /// node or clearing `p2p-config.seed-peers` breaks the network.
