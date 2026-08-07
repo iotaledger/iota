@@ -6777,6 +6777,7 @@ dependencies = [
  "iota-keys",
  "iota-macros",
  "iota-metrics",
+ "iota-names",
  "iota-protocol-config",
  "iota-sdk",
  "iota-sdk-crypto",

@@ -225,8 +225,8 @@ impl NodeConfigOverride {
 
         if new_config.enable_grpc_api && new_config.grpc_api_config.is_none() {
             bail!(
-                "`{self}` leaves the gRPC API enabled without a `grpc-api-config`, a state the \
-                 node refuses to start in"
+                "`{self}` leaves the gRPC API enabled without a `grpc-api-config`, a state a \
+                 fullnode refuses to start in"
             );
         }
 

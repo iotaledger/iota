@@ -32,6 +32,7 @@ use iota_indexer::{
     test_utils::{IndexerTypeConfig, start_test_indexer},
 };
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore, Keystore};
+use iota_names::config::IotaNamesConfig;
 use iota_sdk::iota_client_config::{IotaClientConfig, IotaEnv};
 use iota_sdk_crypto::simple::SimpleKeypair;
 use iota_sdk_types::Address;
@@ -691,16 +692,14 @@ async fn start(
     // and it runs on a blocking task where that is even less legible.
     if !node_config_overrides.is_empty() {
         let fullnode_config = (!no_full_node).then(|| {
-            let mut builder = FullnodeConfigBuilder::new()
-                .with_config_directory(config_path.clone())
-                .with_iota_names_config(fullnode_iota_names_config)
-                .with_data_ingestion_dir(fullnode_data_ingestion_dir)
-                .with_disable_pruning(disable_fullnode_pruning)
-                .with_enable_grpc_api(fullnode_enable_grpc_api || fullnode_grpc_required);
-            if let Some(grpc_api_config) = fullnode_grpc_api_config {
-                builder = builder.with_grpc_api_config(grpc_api_config);
-            }
-            builder.build_from_parts(&mut OsRng, &[], Genesis::new_empty())
+            throwaway_fullnode_config(
+                &config_path,
+                fullnode_iota_names_config,
+                fullnode_data_ingestion_dir,
+                disable_fullnode_pruning,
+                fullnode_enable_grpc_api || fullnode_grpc_required,
+                fullnode_grpc_api_config,
+            )
         });
         validate_node_config_overrides(
             &node_config_overrides,
@@ -1255,6 +1254,30 @@ fn with_grpc_overrides(input: String) -> Result<[NodeConfigOverride; 2], anyhow:
     ])
 }
 
+/// Build the throwaway fullnode config that override validation runs against.
+///
+/// The single construction site for that config: every fullnode setting
+/// `start` feeds into the swarm builder must be passed in here too.
+fn throwaway_fullnode_config(
+    config_directory: &Path,
+    iota_names_config: Option<IotaNamesConfig>,
+    data_ingestion_dir: Option<PathBuf>,
+    disable_pruning: bool,
+    enable_grpc_api: bool,
+    grpc_api_config: Option<GrpcApiConfig>,
+) -> NodeConfig {
+    let mut builder = FullnodeConfigBuilder::new()
+        .with_config_directory(config_directory.to_path_buf())
+        .with_iota_names_config(iota_names_config)
+        .with_data_ingestion_dir(data_ingestion_dir)
+        .with_disable_pruning(disable_pruning)
+        .with_enable_grpc_api(enable_grpc_api);
+    if let Some(grpc_api_config) = grpc_api_config {
+        builder = builder.with_grpc_api_config(grpc_api_config);
+    }
+    builder.build_from_parts(&mut OsRng, &[], Genesis::new_empty())
+}
+
 /// Check that each override applies cleanly to a throwaway config of every
 /// node its scope covers.
 ///
@@ -1376,21 +1399,26 @@ pub fn parse_host_port(
 mod tests {
     use super::*;
 
-    fn throwaway_fullnode_config(config_directory: &Path) -> Option<NodeConfig> {
-        Some(
-            FullnodeConfigBuilder::new()
-                .with_config_directory(config_directory.to_path_buf())
-                .build_from_parts(&mut OsRng, &[], Genesis::new_empty()),
-        )
+    fn plain_fullnode_config(config_directory: &Path) -> Option<NodeConfig> {
+        Some(throwaway_fullnode_config(
+            config_directory,
+            None,
+            None,
+            false,
+            false,
+            None,
+        ))
     }
 
-    fn grpc_enabled_throwaway_fullnode_config(config_directory: &Path) -> Option<NodeConfig> {
-        Some(
-            FullnodeConfigBuilder::new()
-                .with_config_directory(config_directory.to_path_buf())
-                .with_enable_grpc_api(true)
-                .build_from_parts(&mut OsRng, &[], Genesis::new_empty()),
-        )
+    fn grpc_enabled_fullnode_config(config_directory: &Path) -> Option<NodeConfig> {
+        Some(throwaway_fullnode_config(
+            config_directory,
+            None,
+            None,
+            false,
+            true,
+            None,
+        ))
     }
 
     #[test]
@@ -1406,7 +1434,7 @@ mod tests {
                 &[config_override],
                 dir.path(),
                 &[],
-                throwaway_fullnode_config(dir.path()),
+                plain_fullnode_config(dir.path()),
                 false,
                 false,
                 1,
@@ -1424,7 +1452,7 @@ mod tests {
                 &[config_override],
                 dir.path(),
                 &[],
-                throwaway_fullnode_config(dir.path()),
+                plain_fullnode_config(dir.path()),
                 false,
                 false,
                 1,
@@ -1469,7 +1497,7 @@ mod tests {
                 std::slice::from_ref(&clear),
                 dir.path(),
                 &[],
-                throwaway_fullnode_config(dir.path()),
+                plain_fullnode_config(dir.path()),
                 false,
                 false,
                 1
@@ -1485,7 +1513,7 @@ mod tests {
             &[clear, restore],
             dir.path(),
             &[],
-            throwaway_fullnode_config(dir.path()),
+            plain_fullnode_config(dir.path()),
             false,
             false,
             1,
@@ -1512,7 +1540,7 @@ mod tests {
                 &overrides,
                 dir.path(),
                 &[],
-                throwaway_fullnode_config(dir.path()),
+                plain_fullnode_config(dir.path()),
                 false,
                 false,
                 2
@@ -1538,7 +1566,7 @@ mod tests {
             &overrides,
             dir.path(),
             &[],
-            throwaway_fullnode_config(dir.path()),
+            plain_fullnode_config(dir.path()),
             false,
             false,
             1,
@@ -1567,7 +1595,7 @@ mod tests {
             &[edit],
             dir.path(),
             std::slice::from_ref(&validator_config),
-            throwaway_fullnode_config(dir.path()),
+            plain_fullnode_config(dir.path()),
             false,
             false,
             1,
@@ -1584,7 +1612,7 @@ mod tests {
                 &[clear],
                 dir.path(),
                 &[validator_config],
-                throwaway_fullnode_config(dir.path()),
+                plain_fullnode_config(dir.path()),
                 false,
                 false,
                 1,
@@ -1602,7 +1630,7 @@ mod tests {
                 &[config_override],
                 dir.path(),
                 &[],
-                grpc_enabled_throwaway_fullnode_config(dir.path()),
+                grpc_enabled_fullnode_config(dir.path()),
                 true,
                 false,
                 1
@@ -1614,12 +1642,14 @@ mod tests {
     #[test]
     fn clearing_a_required_data_ingestion_dir_fails() {
         let dir = tempdir().unwrap();
-        let fullnode_config = Some(
-            FullnodeConfigBuilder::new()
-                .with_config_directory(dir.path().to_path_buf())
-                .with_data_ingestion_dir(Some(dir.path().join("ingestion")))
-                .build_from_parts(&mut OsRng, &[], Genesis::new_empty()),
-        );
+        let fullnode_config = Some(throwaway_fullnode_config(
+            dir.path(),
+            None,
+            Some(dir.path().join("ingestion")),
+            false,
+            false,
+            None,
+        ));
         let config_override = "fullnode:checkpoint-executor-config.data-ingestion-dir=null"
             .parse()
             .unwrap();
@@ -1642,7 +1672,7 @@ mod tests {
         let dir = tempdir().unwrap();
         for (input, expected) in [("[::1]:50051", "[::1]:50051"), ("50051", "0.0.0.0:50051")] {
             let overrides = with_grpc_overrides(input.to_string()).unwrap();
-            let mut config = throwaway_fullnode_config(dir.path()).unwrap();
+            let mut config = plain_fullnode_config(dir.path()).unwrap();
             for config_override in &overrides {
                 config_override.apply_to(&mut config).unwrap();
             }
