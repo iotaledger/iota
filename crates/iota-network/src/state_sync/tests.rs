@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::HashMap, time::Duration};
+use std::{collections::HashMap, num::NonZeroUsize, time::Duration};
 
 use anemo::{PeerId, Request};
 use anyhow::anyhow;
@@ -335,7 +335,8 @@ async fn test_state_sync_using_checkpoint_archive() -> anyhow::Result<()> {
         std::fs::write(temp_dir.path().join("MANIFEST"), &manifest_bytes[..])?;
     }
     let checkpoint_archive_config = CheckpointArchiveConfig {
-        download_concurrency: 1,
+        download_concurrency: NonZeroUsize::new(1).unwrap(),
+        verify_concurrency: NonZeroUsize::new(2).unwrap(),
         url: format!("file://{}", temp_dir.path().display()),
     };
     // Build and connect two nodes where Node 1 will be given access to an archive

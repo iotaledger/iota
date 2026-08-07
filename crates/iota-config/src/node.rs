@@ -1110,8 +1110,12 @@ pub struct MetricsConfig {
     pub groups: Option<MetricGroups>,
 }
 
-fn default_checkpoint_archive_download_concurrency() -> usize {
-    10
+fn default_checkpoint_archive_download_concurrency() -> NonZeroUsize {
+    NonZeroUsize::new(10).unwrap()
+}
+
+fn default_checkpoint_archive_verify_concurrency() -> NonZeroUsize {
+    std::thread::available_parallelism().unwrap_or(NonZeroUsize::new(4).unwrap())
 }
 
 /// Configuration for backfilling checkpoint contents from the
@@ -1123,7 +1127,11 @@ pub struct CheckpointArchiveConfig {
     pub url: String,
     /// Non-zero number of checkpoints to download in parallel.
     #[serde(default = "default_checkpoint_archive_download_concurrency")]
-    pub download_concurrency: usize,
+    pub download_concurrency: NonZeroUsize,
+    /// Non-zero number of downloaded checkpoints to verify in parallel.
+    /// Defaults to the number of CPU cores.
+    #[serde(default = "default_checkpoint_archive_verify_concurrency")]
+    pub verify_concurrency: NonZeroUsize,
 }
 
 /// Configuration for the per-epoch state-snapshot publisher.
