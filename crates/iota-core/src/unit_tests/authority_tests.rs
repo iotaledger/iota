@@ -6985,10 +6985,7 @@ async fn survivor_executes(use_execution_scheduler: bool) {
         std::time::Duration::from_secs(20),
         authority
             .get_transaction_cache_reader()
-            .try_notify_read_executed_effects(
-                "test::pcool_conflict_winner_executes",
-                &[*verified_tx1.digest()],
-            ),
+            .try_notify_read_executed_effects("", &[*verified_tx1.digest()]),
     )
     .await
     .expect("conflict winner did not execute within 20s after being enqueued")
