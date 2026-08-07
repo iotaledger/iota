@@ -9,6 +9,7 @@ use std::{
 
 use iota_json_rpc_api::{ReadApiClient, WriteApiClient};
 use iota_json_rpc_types::{IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions};
+use iota_sdk_types::TransactionDigest;
 use iota_types::{
     quorum_driver_types::ExecuteTransactionRequestType, transaction::TransactionEnvelope,
 };
@@ -35,11 +36,24 @@ impl QuorumDriverApi {
     /// Execute a transaction with a FullNode client.
     ///
     /// The request type defaults to
-    /// [`ExecuteTransactionRequestType::WaitForLocalExecution`].
+    /// [`ExecuteTransactionRequestType::WaitForLocalExecution`] when
+    /// `options` require effects (see
+    /// [`IotaTransactionBlockResponseOptions::require_effects`]), and to
+    /// [`ExecuteTransactionRequestType::WaitForEffectsCert`] otherwise.
     ///
-    /// When `WaitForLocalExecution` is used, but the returned
-    /// `confirmed_local_execution` is false, the client will wait for some time
-    /// before returning [Error::FailToConfirmTransactionStatus].
+    /// Under `WaitForLocalExecution` the returned response is guaranteed to be
+    /// queryable on the node that served the request. Whenever the node does
+    /// not confirm local execution — whether because it does not honor the
+    /// request type, or because it honors it but cannot confirm in time — the
+    /// client polls until the transaction becomes visible; if that does not
+    /// happen within the timeout, the call fails with
+    /// [`Error::FailToConfirmTransactionStatus`].
+    ///
+    /// `checkpoint` and `timestamp_ms` are never populated on the returned
+    /// response, on either path; only the read API populates them. Errors
+    /// from the node are propagated to the caller as-is, including a
+    /// finality timeout the node itself may raise while waiting for local
+    /// execution.
     pub async fn execute_transaction_block(
         &self,
         tx: TransactionEnvelope,
@@ -50,61 +64,71 @@ impl QuorumDriverApi {
         let request_type = request_type
             .into()
             .unwrap_or_else(|| options.default_execution_request_type());
+        let wait_for_local_execution = matches!(
+            request_type,
+            ExecuteTransactionRequestType::WaitForLocalExecution
+        );
 
         let start = Instant::now();
-        let response = self
+        let mut response = self
             .api
             .http
             .execute_transaction_block(
-                tx_bytes.clone(),
-                signatures.clone(),
+                tx_bytes,
+                signatures,
                 Some(options.clone()),
-                // Ignore the request type as we emulate WaitForLocalExecution below.
-                // It will default to WaitForEffectsCert on the RPC nodes.
-                None,
+                Some(request_type.into()),
             )
             .await?;
 
-        if let ExecuteTransactionRequestType::WaitForEffectsCert = request_type {
+        if !wait_for_local_execution || response.confirmed_local_execution == Some(true) {
             return Ok(response);
         }
 
-        // JSON-RPC ignores WaitForLocalExecution, so simulate it by polling for the
-        // transaction.
+        self.wait_until_visible(*tx.digest(), &options, start)
+            .await?;
+        response.confirmed_local_execution = Some(true);
+        Ok(response)
+    }
+
+    /// Waits for `digest` to become queryable on the node, for nodes that
+    /// answer `WaitForLocalExecution` without confirming local execution.
+    /// The response is discarded; this is a barrier, not a data source.
+    async fn wait_until_visible(
+        &self,
+        digest: TransactionDigest,
+        options: &IotaTransactionBlockResponseOptions,
+        start: Instant,
+    ) -> IotaRpcResult<()> {
+        // In simtests, fullnodes can stop receiving checkpoints for > 30s.
         let wait_for_local_execution_timeout: Duration = if cfg!(msim) {
-            // In simtests, fullnodes can stop receiving checkpoints for > 30s.
             Duration::from_secs(120)
         } else {
             Duration::from_secs(60)
         };
-        let mut poll_response = tokio::time::timeout(wait_for_local_execution_timeout, async {
+        tokio::time::timeout(wait_for_local_execution_timeout, async {
             let mut backoff = iota_common::backoff::ExponentialBackoff::new(
                 WAIT_FOR_LOCAL_EXECUTION_MIN_INTERVAL,
                 WAIT_FOR_LOCAL_EXECUTION_MAX_INTERVAL,
             );
             loop {
-                // Intentionally waiting for a short delay (MIN_INTERVAL) before the 1st
-                // iteration, to leave time for the checkpoint containing the
-                // transaction to be certified, propagate to the full node, and
-                // get executed.
+                // Wait before the first request too, to leave time for the
+                // checkpoint containing the transaction to be certified,
+                // propagate to the full node, and get executed.
                 tokio::time::sleep(backoff.next().unwrap()).await;
 
-                if let Ok(poll_response) = self
+                if self
                     .api
                     .http
-                    .get_transaction_block(*tx.digest(), Some(options.clone()))
+                    .get_transaction_block(digest, Some(options.clone()))
                     .await
+                    .is_ok()
                 {
-                    break poll_response;
+                    return;
                 }
             }
         })
         .await
-        .map_err(|_| {
-            Error::FailToConfirmTransactionStatus(*tx.digest(), start.elapsed().as_secs())
-        })?;
-
-        poll_response.confirmed_local_execution = Some(true);
-        Ok(poll_response)
+        .map_err(|_| Error::FailToConfirmTransactionStatus(digest, start.elapsed().as_secs()))
     }
 }
