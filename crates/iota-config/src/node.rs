@@ -221,7 +221,8 @@ pub struct NodeConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub run_with_range: Option<RunWithRange>,
 
-    // For killswitch use None
+    // For killswitch use None. A node that also sets `firewall_config` must
+    // drop that too; `validate` rejects a firewall without a policy.
     #[serde(
         skip_serializing_if = "Option::is_none",
         default = "default_traffic_controller_policy_config"
@@ -793,6 +794,69 @@ impl NodeConfig {
 
     pub fn jsonrpc_server_type(&self) -> ServerType {
         self.jsonrpc_server_type.unwrap_or(ServerType::Http)
+    }
+
+    /// A config selects the validator role exactly when it has a consensus
+    /// config.
+    pub fn is_validator(&self) -> bool {
+        self.consensus_config.is_some()
+    }
+
+    /// Check the startup invariants centralized here. Call this before
+    /// starting a node, and after assembling or patching a config.
+    ///
+    /// This performs no I/O and is not an exhaustive check that every
+    /// subsystem-specific value can be initialized.
+    ///
+    /// # Errors
+    ///
+    /// An error means a checked invariant is broken: no node could start with
+    /// this config as it stands, or would start ignoring part of it.
+    pub fn validate(&self) -> Result<()> {
+        // Validators do not expose the gRPC API, so these two fields are only
+        // checked on a fullnode. An absent `grpc-api-config` key deserializes
+        // to a default config, so this mostly guards configs assembled in
+        // process, such as by the builders and the override engine.
+        if !self.is_validator() && self.enable_grpc_api && self.grpc_api_config.is_none() {
+            anyhow::bail!(
+                "`enable-grpc-api` is set but `grpc-api-config` is missing; set \
+                 `grpc-api-config` or turn off `enable-grpc-api`"
+            );
+        }
+        // Snapshot publication is a fullnode-only role.
+        if self.is_validator()
+            && self
+                .state_snapshot_write_config
+                .object_store_config
+                .is_some()
+        {
+            anyhow::bail!(
+                "`state-snapshot-write-config.object-store-config` is set, but snapshot upload \
+                 is only supported on fullnodes; remove the setting or move the upload to a \
+                 fullnode"
+            );
+        }
+        // The uploader builds the store at startup, which needs a backend.
+        if self
+            .state_snapshot_write_config
+            .object_store_config
+            .as_ref()
+            .is_some_and(|store| store.object_store.is_none())
+        {
+            anyhow::bail!(
+                "`state-snapshot-write-config.object-store-config` has no `object-store`; \
+                 snapshot upload needs a storage backend"
+            );
+        }
+        // The firewall is driven by the traffic controller, which only runs
+        // when a policy is configured.
+        if self.firewall_config.is_some() && self.policy_config.is_none() {
+            anyhow::bail!(
+                "`firewall-config` is set but `policy-config` is not; the firewall is silently \
+                 ignored without a `policy-config`"
+            );
+        }
+        Ok(())
     }
 }
 
@@ -1556,13 +1620,16 @@ mod tests {
 
     use fastcrypto::traits::KeyPair;
     use iota_keys::keypair_file::{write_authority_keypair_to_file, write_keypair_to_file};
-    use iota_types::crypto::{
-        AuthorityKeyPair, NetworkKeyPair, get_key_pair_from_rng, network_to_simple_keypair,
+    use iota_types::{
+        crypto::{
+            AuthorityKeyPair, NetworkKeyPair, get_key_pair_from_rng, network_to_simple_keypair,
+        },
+        traffic_control::RemoteFirewallConfig,
     };
     use rand::{SeedableRng, rngs::StdRng};
 
-    use super::Genesis;
-    use crate::NodeConfig;
+    use super::{Genesis, GrpcApiConfig, ObjectStoreConfig};
+    use crate::{NodeConfig, object_storage_config::ObjectStoreType};
 
     #[test]
     fn serialize_genesis_from_file() {
@@ -1579,6 +1646,99 @@ mod tests {
         const TEMPLATE: &str = include_str!("../data/fullnode-template.yaml");
 
         let _template: NodeConfig = serde_yaml::from_str(TEMPLATE).unwrap();
+    }
+
+    #[test]
+    fn validate_requires_a_grpc_config_when_the_api_is_enabled() {
+        const TEMPLATE: &str = include_str!("../data/fullnode-template.yaml");
+
+        let mut config: NodeConfig = serde_yaml::from_str(TEMPLATE).unwrap();
+        config.grpc_api_config = None;
+        config.validate().unwrap();
+
+        config.enable_grpc_api = true;
+        let err = config.validate().unwrap_err().to_string();
+        assert!(err.contains("`grpc-api-config` is missing"), "{err}");
+
+        config.grpc_api_config = Some(GrpcApiConfig::default());
+        config.validate().unwrap();
+
+        // Validators do not expose the gRPC API; the check does not apply.
+        config.grpc_api_config = None;
+        config.consensus_config = Some(consensus_config());
+        config.validate().unwrap();
+    }
+
+    #[test]
+    fn an_absent_grpc_api_config_deserializes_to_the_default_one() {
+        const TEMPLATE: &str = include_str!("../data/fullnode-template.yaml");
+
+        // The shape a fullnode config file has in practice: the API is turned
+        // on and `grpc-api-config` is left out.
+        let config: NodeConfig =
+            serde_yaml::from_str(&format!("{TEMPLATE}\nenable-grpc-api: true\n")).unwrap();
+
+        assert!(config.grpc_api_config.is_some());
+        config.validate().unwrap();
+    }
+
+    fn consensus_config() -> super::ConsensusConfig {
+        serde_yaml::from_str("db-path: consensus-db").unwrap()
+    }
+
+    fn object_store_config() -> ObjectStoreConfig {
+        ObjectStoreConfig {
+            object_store: Some(ObjectStoreType::File),
+            directory: Some(PathBuf::from("/opt/iota/snapshots")),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn validate_rejects_snapshot_upload_on_a_validator() {
+        const TEMPLATE: &str = include_str!("../data/fullnode-template.yaml");
+
+        let mut config: NodeConfig = serde_yaml::from_str(TEMPLATE).unwrap();
+        config.state_snapshot_write_config.object_store_config = Some(object_store_config());
+        config.validate().unwrap();
+
+        config.consensus_config = Some(consensus_config());
+        let err = config.validate().unwrap_err().to_string();
+        assert!(err.contains("snapshot upload"), "{err}");
+    }
+
+    #[test]
+    fn validate_rejects_a_snapshot_store_without_a_backend() {
+        const TEMPLATE: &str = include_str!("../data/fullnode-template.yaml");
+
+        let mut config: NodeConfig = serde_yaml::from_str(TEMPLATE).unwrap();
+        config.state_snapshot_write_config.object_store_config = Some(ObjectStoreConfig::default());
+
+        let err = config.validate().unwrap_err().to_string();
+        assert!(err.contains("storage backend"), "{err}");
+    }
+
+    #[test]
+    fn validate_rejects_a_firewall_without_a_policy() {
+        const TEMPLATE: &str = include_str!("../data/fullnode-template.yaml");
+
+        let mut config: NodeConfig = serde_yaml::from_str(TEMPLATE).unwrap();
+        config.firewall_config = Some(RemoteFirewallConfig {
+            remote_fw_url: "http://localhost:65000".to_owned(),
+            destination_port: 8080,
+            delegate_spam_blocking: false,
+            delegate_error_blocking: false,
+            drain_path: PathBuf::from("/tmp/drain"),
+            drain_timeout_secs: 300,
+        });
+
+        // The template omits `policy-config`, which serde fills with the
+        // default policy, so the firewall is driven.
+        config.validate().unwrap();
+
+        config.policy_config = None;
+        let err = config.validate().unwrap_err().to_string();
+        assert!(err.contains("`firewall-config` is set"), "{err}");
     }
 
     #[test]
