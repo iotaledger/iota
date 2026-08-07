@@ -926,12 +926,10 @@ pub struct AuthorityEpochTables {
     /// generation overwrites an older one from the same authority.
     deny_rule_proposals: DBMap<AuthorityName, TransactionDenyRuleProposal>,
 
-    /// The deny rule state last written to the `TransactionDenyRules` object
-    /// by injected updates, as of the last flushed commit. Single row keyed by
-    /// `()`; written atomically with the flush batch so a restart resumes with
-    /// the mirror exactly at the flush position (unflushed commits are
-    /// re-processed by consensus replay). Absent until the first injection of
-    /// the epoch.
+    /// The deny rule state last written to the `TransactionDenyRules` object,
+    /// as of the last flushed commit. Single row keyed by `()`, written in the
+    /// flush batch so a restart resumes at the flush position and consensus
+    /// replays the rest. Absent until the epoch's first injection.
     mirrored_deny_rules: DBMap<(), DenyRuleSet>,
 
     /// Contains a single key, which overrides the value of
@@ -3120,10 +3118,9 @@ impl AuthorityPerEpochStore {
     }
 
     /// The mirrored deny rule state to start from when the epoch store opens.
-    /// A persisted row (mid-epoch restart) wins over the epoch-start seed: it
-    /// carries the advances from every flushed injection, and consensus
-    /// replay re-applies only the unflushed tail. On a fresh epoch the row is
-    /// absent and the seed is the object state at the boundary.
+    /// A persisted row (mid-epoch restart) wins over the epoch-start seed,
+    /// which does not cover advances from flushed commits. On a fresh epoch
+    /// the row is absent and the seed is the object state at the boundary.
     fn initial_mirrored_deny_rules(
         tables: &AuthorityEpochTables,
         epoch_start_configuration: &EpochStartConfiguration,
@@ -4257,17 +4254,14 @@ impl AuthorityPerEpochStore {
 
     /// Injects `TransactionDenyRulesUpdate` system transactions bringing the
     /// on-chain object to the current proposal aggregate: additions always,
-    /// removals only once enough of the committee has announced this epoch
-    /// and the round floor has passed. A diff larger than
+    /// removals only once enough of the committee has announced this epoch and
+    /// the round floor has passed. A diff larger than
     /// `deny_rule_update_max_entries_per_tx` is split into disjoint chunks of
-    /// the sorted diff — deterministic on every validator — each carrying the
-    /// absolute switch states, so application is order-free and a re-sent
-    /// chunk is a no-op. Advances the mirrored state to the injected target
-    /// in the same commit output that persists it. Each scheduled update
-    /// becomes a checkpoint root: user transactions cannot take the deny-rules
-    /// object as an input, so nothing else in the commit depends on an update,
-    /// and one without a root of its own would execute on validators but never
-    /// reach a checkpoint.
+    /// the sorted diff, each carrying the absolute switch states, so a re-sent
+    /// chunk is a no-op. Advances the mirrored state to the injected target in
+    /// the same commit output that persists it. Each scheduled update becomes
+    /// a checkpoint root: nothing else in the commit can depend on the object,
+    /// so an update without a root of its own would never be checkpointed.
     pub(crate) fn add_deny_rule_update_transactions(
         &self,
         output: &mut ConsensusCommitOutput,
@@ -4301,9 +4295,8 @@ impl AuthorityPerEpochStore {
         let aggregate = Self::compute_active_transaction_deny_rules(&proposals, self.committee());
         let mirror = self.mirrored_transaction_deny_rules.load_full();
 
-        // Removals wait until enough of the committee has re-announced its
-        // configuration this epoch, so entries do not drop out just because
-        // announcements are still arriving. Additions apply immediately.
+        // Removals wait for enough of the committee to re-announce, so entries
+        // do not drop out while announcements are still arriving.
         let announced_stake: StakeUnit = proposals
             .keys()
             .map(|authority| self.committee().weight(authority))
@@ -4354,10 +4347,8 @@ impl AuthorityPerEpochStore {
                 *transaction.digest(),
             ));
         }
-        // A skipped chunk (epoch closing) leaves the object behind the
-        // aggregate; keeping the mirror behind too makes the next commit
-        // re-derive the same delta, and the tolerant Move ops absorb any
-        // chunk that did execute.
+        // Holding the mirror back when a chunk was skipped (epoch closing) makes
+        // the next commit re-derive the same delta; re-application is a no-op.
         if all_scheduled {
             self.metrics.deny_rule_updates_injected.inc();
             self.metrics
@@ -4365,11 +4356,9 @@ impl AuthorityPerEpochStore {
                 .inc_by(chunk_count as u64);
             output.record_mirrored_deny_rules(target.clone());
             self.mirrored_transaction_deny_rules.store(Arc::new(target));
-            // Re-derive enforcement from the advanced mirror: the recompute in
-            // `push_consensus_output` only runs for commits that record
-            // proposals, so without this a removal that unlocks on a
-            // proposal-free commit would stay enforced until the next
-            // proposal arrives, though the object already dropped it.
+            // The recompute in `push_consensus_output` only runs for commits
+            // that record proposals, so a removal unlocking on a proposal-free
+            // commit would otherwise stay enforced after the object dropped it.
             self.store_active_transaction_deny_rules(&proposals);
         }
 
@@ -6071,15 +6060,12 @@ pub(crate) fn union_deny_rule_sets(mut rules: DenyRuleSet, other: &DenyRuleSet) 
 
 /// Computes the `TransactionDenyRulesUpdate` transactions that bring the
 /// on-chain object from `mirror` to `aggregate`: additions and switch
-/// activations always, entry removals and switch deactivations only when
-/// `removals_unlocked` — until then a mirrored switch stays on even though
-/// the (still incomplete) aggregate no longer carries it. A delta larger
-/// than `max_entries_per_tx` is split into disjoint chunks of the sorted
-/// delta, each carrying the absolute switch states. Returns the chunks
-/// (empty when the object is already up to date) and the state the object
-/// holds once they have executed — the next mirror. Pure function of its
-/// inputs, so every validator derives the same transactions at the same
-/// commit.
+/// activations always, removals and switch deactivations only when
+/// `removals_unlocked`. A delta larger than `max_entries_per_tx` is split into
+/// disjoint chunks of the sorted delta, each carrying the absolute switch
+/// states. Returns the chunks (empty when the object is up to date) and the
+/// state the object holds once they have executed — the next mirror. Pure, so
+/// every validator derives the same transactions at the same commit.
 pub(crate) fn compute_deny_rule_update_chunks(
     aggregate: &DenyRuleSet,
     mirror: &DenyRuleSet,
