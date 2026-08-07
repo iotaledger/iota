@@ -6,13 +6,11 @@ use std::{sync::Arc, time::Duration};
 use arc_swap::ArcSwap;
 use fastcrypto::traits::KeyPair;
 use futures::FutureExt;
+use iota_core::epoch_start_consensus_committee::EpochStartConsensusCommittee;
 use iota_metrics::{RegistryService, monitored_mpsc::unbounded_channel};
 use iota_sdk_types::checkpoint::{CheckpointContents, CheckpointSummary};
 use iota_swarm_config::network_config_builder::ConfigBuilder;
-use iota_types::{
-    iota_system_state::epoch_start_iota_system_state::EpochStartSystemStateTrait,
-    messages_checkpoint::CertifiedCheckpointSummary,
-};
+use iota_types::messages_checkpoint::CertifiedCheckpointSummary;
 use prometheus_filtered::Registry;
 use starfish_core::{
     CommitDigest as StarfishCommitDigest, CommitRef as StarfishCommitRef,
