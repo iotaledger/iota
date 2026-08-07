@@ -539,9 +539,9 @@ mod tests {
             // A typo in the path.
             "authority-store-pruning-config.num-epochs-to-retan=5",
             // A typo with a null value.
-            "metrcis=null",
+            "not-a-field=null",
             // A typo under an optional section.
-            "metrics.push-intrval-seconds=10",
+            "metrics.not-a-field=10",
             // A value of the wrong type.
             "authority-store-pruning-config.num-epochs-to-retain=not-a-number",
         ] {
