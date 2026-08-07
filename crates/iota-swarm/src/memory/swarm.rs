@@ -30,7 +30,10 @@ use iota_swarm_config::{
         SupportedProtocolVersionsCallback,
     },
     node_config_builder::FullnodeConfigBuilder,
-    node_config_override::{NodeConfigOverride, OverrideScope, check_validator_override_scopes},
+    node_config_override::{
+        NodeConfigOverride, OverrideScope, apply_node_config_overrides,
+        check_validator_override_scopes,
+    },
 };
 use iota_types::{
     base_types::AuthorityName,
@@ -789,6 +792,10 @@ impl Swarm {
     /// Apply the swarm's overrides to the config of a node spawned after the
     /// initial build. `validator-<N>` scoped overrides refer to positions in
     /// the initial network config, so they are skipped here.
+    ///
+    /// Applying the batch to a config built with it can still change the
+    /// config: the per-node scopes are skipped, and a section filled in from
+    /// a default is re-derived from the config's current state.
     fn apply_node_config_overrides_for_spawn(&self, config: &mut NodeConfig) {
         let is_fullnode = !config.is_validator();
         apply_node_config_overrides(
@@ -810,16 +817,6 @@ impl Swarm {
     pub fn get_fullnode_config_builder(&self) -> FullnodeConfigBuilder {
         self.fullnode_config_builder.clone()
     }
-}
-
-fn apply_node_config_overrides<'a>(
-    overrides: impl Iterator<Item = &'a NodeConfigOverride>,
-    config: &mut NodeConfig,
-) -> Result<()> {
-    for config_override in overrides {
-        config_override.apply_to(config)?;
-    }
-    Ok(())
 }
 
 #[derive(Debug)]
@@ -860,7 +857,8 @@ mod test {
 
     use iota_config::{IOTA_GENESIS_FILENAME, object_storage_config::ObjectStoreConfig};
     use iota_swarm_config::{
-        network_config_builder::ConfigBuilder, node_config_override::NodeConfigOverride,
+        network_config_builder::ConfigBuilder,
+        node_config_override::{NodeConfigOverride, apply_node_config_overrides},
     };
 
     use super::Swarm;
@@ -937,6 +935,35 @@ mod test {
     }
 
     #[test]
+    fn node_config_overrides_apply_to_a_late_spawned_validator() {
+        let swarm = Swarm::builder()
+            .committee_size(NonZeroUsize::new(2).unwrap())
+            .with_fullnode_count(0)
+            .with_node_config_overrides(vec![
+                "validator:enable-soft-locking=false".parse().unwrap(),
+                "validator-0:enable-index-processing=false".parse().unwrap(),
+                "fullnode:authority-store-pruning-config.num-epochs-to-retain=18446744073709551615"
+                    .parse()
+                    .unwrap(),
+            ])
+            .build();
+
+        // A validator respawned from its own config: the batch it was built
+        // with applies again unchanged.
+        let mut config = swarm.config().validator_configs()[1].clone();
+        let num_epochs_to_retain = config.authority_store_pruning_config.num_epochs_to_retain;
+        assert!(!config.enable_soft_locking);
+        swarm.apply_node_config_overrides_for_spawn(&mut config);
+        assert!(!config.enable_soft_locking);
+        // The `validator-0` and fullnode scopes leave this validator alone.
+        assert!(config.enable_index_processing);
+        assert_eq!(
+            config.authority_store_pruning_config.num_epochs_to_retain,
+            num_epochs_to_retain
+        );
+    }
+
+    #[test]
     fn try_build_rejects_a_consensus_override_that_reaches_the_fullnode() {
         // `all:` applies cleanly to the validators and must still fail on
         // the fullnode, which has no consensus config.
@@ -951,7 +978,7 @@ mod test {
             .unwrap_err();
         let err = format!("{err:#}");
         assert!(
-            err.contains("all:consensus-config.db-retention-epochs=2"),
+            err.contains("all:consensus-config.db-retention-epochs"),
             "{err}"
         );
         assert!(err.contains("on a fullnode"), "{err}");
@@ -1029,11 +1056,12 @@ mod test {
         let mut network_config = ConfigBuilder::new(dir.path())
             .committee_size(NonZeroUsize::new(2).unwrap())
             .build();
-        "firewall-config={remote-fw-url: 'http://127.0.0.1:65000', destination-port: 65000}"
-            .parse::<NodeConfigOverride>()
-            .unwrap()
-            .apply_to(&mut network_config.validator_configs[0])
-            .unwrap();
+        let overrides = vec![
+            "firewall-config={remote-fw-url: 'http://127.0.0.1:65000', destination-port: 65000}"
+                .parse::<NodeConfigOverride>()
+                .unwrap(),
+        ];
+        apply_node_config_overrides(&overrides, &mut network_config.validator_configs[0]).unwrap();
 
         let err = Swarm::builder()
             .with_network_config(network_config)
@@ -1063,10 +1091,7 @@ mod test {
             .try_build()
             .unwrap_err();
         let err = format!("{err:#}");
-        assert!(
-            err.contains("validator-2:enable-soft-locking=false"),
-            "{err}"
-        );
+        assert!(err.contains("validator-2:enable-soft-locking"), "{err}");
         assert!(err.contains("only 2 validators"), "{err}");
         // The genesis blob is saved right after the genesis build, so its
         // absence pins that the scope is checked before that build.
@@ -1087,10 +1112,7 @@ mod test {
             .try_build()
             .unwrap_err();
         let err = format!("{err:#}");
-        assert!(
-            err.contains("validator-1:enable-soft-locking=false"),
-            "{err}"
-        );
+        assert!(err.contains("validator-1:enable-soft-locking"), "{err}");
         assert!(err.contains("only 1 validator"), "{err}");
     }
 

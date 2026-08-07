@@ -1355,7 +1355,8 @@ fn default_authority_overload_config() -> AuthorityOverloadConfig {
     AuthorityOverloadConfig::default()
 }
 
-fn default_traffic_controller_policy_config() -> Option<PolicyConfig> {
+/// The `policy-config` a config that omits the field is read with.
+pub fn default_traffic_controller_policy_config() -> Option<PolicyConfig> {
     Some(PolicyConfig::default_dos_protection_policy())
 }
 

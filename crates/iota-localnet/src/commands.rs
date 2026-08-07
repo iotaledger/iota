@@ -1317,6 +1317,8 @@ pub fn parse_host_port(
 
 #[cfg(test)]
 mod tests {
+    use iota_swarm_config::node_config_override::apply_node_config_overrides;
+
     use super::*;
 
     #[test]
@@ -1394,11 +1396,8 @@ mod tests {
     fn overriding_the_grpc_api_off_fails_the_grpc_requirement() {
         let dir = tempdir().unwrap();
         let mut fullnode_config = built_fullnode_config(dir.path(), true, None);
-        "fullnode:enable-grpc-api=false"
-            .parse::<NodeConfigOverride>()
-            .unwrap()
-            .apply_to(&mut fullnode_config)
-            .unwrap();
+        let overrides = vec!["fullnode:enable-grpc-api=false".parse().unwrap()];
+        apply_node_config_overrides(&overrides, &mut fullnode_config).unwrap();
 
         let err = check_service_requirements(&fullnode_config, true, false)
             .unwrap_err()
@@ -1411,11 +1410,12 @@ mod tests {
         let dir = tempdir().unwrap();
         let mut fullnode_config =
             built_fullnode_config(dir.path(), false, Some(dir.path().join("ingestion")));
-        "fullnode:checkpoint-executor-config.data-ingestion-dir=null"
-            .parse::<NodeConfigOverride>()
-            .unwrap()
-            .apply_to(&mut fullnode_config)
-            .unwrap();
+        let overrides = vec![
+            "fullnode:checkpoint-executor-config.data-ingestion-dir=null"
+                .parse()
+                .unwrap(),
+        ];
+        apply_node_config_overrides(&overrides, &mut fullnode_config).unwrap();
 
         let err = check_service_requirements(&fullnode_config, false, true)
             .unwrap_err()
