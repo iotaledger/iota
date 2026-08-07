@@ -4,6 +4,7 @@
 
 use std::{net::SocketAddr, num::NonZeroUsize, path::PathBuf};
 
+use anyhow::anyhow;
 use fastcrypto::{
     encoding::{Encoding, Hex},
     traits::KeyPair,
@@ -443,12 +444,37 @@ impl FullnodeConfigBuilder {
         self
     }
 
+    /// Build the fullnode config against the given validator configs.
+    ///
+    /// # Panics
+    ///
+    /// Panics if [`Self::try_build_from_parts`] returns an error.
     pub fn build_from_parts<R: rand::RngCore + rand::CryptoRng>(
         self,
         rng: &mut R,
         validator_configs: &[NodeConfig],
         genesis: iota_config::node::Genesis,
     ) -> NodeConfig {
+        self.try_build_from_parts(rng, validator_configs, genesis)
+            .unwrap_or_else(|err| panic!("{err:#}"))
+    }
+
+    /// Build the fullnode config against the given validator configs.
+    ///
+    /// Fails if a validator config has no `p2p-config.external-address`,
+    /// which the fullnode's seed peers are derived from.
+    ///
+    /// # Panics
+    ///
+    /// Panics on failures the config cannot be built without: creating the
+    /// temporary config directory, allocating a local port, or parsing a
+    /// generated network address.
+    pub fn try_build_from_parts<R: rand::RngCore + rand::CryptoRng>(
+        self,
+        rng: &mut R,
+        validator_configs: &[NodeConfig],
+        genesis: iota_config::node::Genesis,
+    ) -> anyhow::Result<NodeConfig> {
         // Take advantage of ValidatorGenesisConfigBuilder to build the keypairs and
         // addresses, even though this is a fullnode.
         let validator_config = ValidatorGenesisConfigBuilder::new().build(rng);
@@ -470,13 +496,23 @@ impl FullnodeConfigBuilder {
         let p2p_config = {
             let seed_peers = validator_configs
                 .iter()
-                .map(|config| SeedPeer {
-                    peer_id: Some(anemo::PeerId(
-                        config.network_key_pair().public().0.to_bytes(),
-                    )),
-                    address: config.p2p_config.external_address.clone().unwrap(),
+                .enumerate()
+                .map(|(index, config)| {
+                    let address = config.p2p_config.external_address.clone().ok_or_else(|| {
+                        anyhow!(
+                            "validator {index} has no `p2p-config.external-address`, which the \
+                             fullnode needs to derive its seed peers: either its config never set \
+                             one or it was cleared"
+                        )
+                    })?;
+                    Ok(SeedPeer {
+                        peer_id: Some(anemo::PeerId(
+                            config.network_key_pair().public().0.to_bytes(),
+                        )),
+                        address,
+                    })
                 })
-                .collect();
+                .collect::<anyhow::Result<Vec<_>>>()?;
 
             P2pConfig {
                 listen_address: self.p2p_listen_address.unwrap_or_else(|| {
@@ -503,11 +539,13 @@ impl FullnodeConfigBuilder {
             }
         };
 
-        let json_rpc_address = self.rpc_addr.unwrap_or_else(|| {
-            let rpc_port = self
-                .rpc_port
-                .unwrap_or_else(|| local_ip_utils::get_available_port(&ip));
-            format!("{ip}:{rpc_port}").parse().unwrap()
+        let json_rpc_address = self.json_rpc_address.unwrap_or_else(|| {
+            self.rpc_addr.unwrap_or_else(|| {
+                let rpc_port = self
+                    .rpc_port
+                    .unwrap_or_else(|| local_ip_utils::get_available_port(&ip));
+                format!("{ip}:{rpc_port}").parse().unwrap()
+            })
         });
 
         let grpc_api_config = self.grpc_api_config.or_else(|| {
@@ -534,7 +572,7 @@ impl FullnodeConfigBuilder {
             pruning_config.set_num_epochs_to_retain(u64::MAX);
         };
 
-        NodeConfig {
+        Ok(NodeConfig {
             authority_key_pair: AuthorityKeyPairWithPath::new(validator_config.authority_key_pair),
             account_key_pair: KeyPairWithPath::new(validator_config.account_key_pair),
             protocol_key_pair: KeyPairWithPath::new(network_to_simple_keypair(
@@ -551,11 +589,11 @@ impl FullnodeConfigBuilder {
                 .unwrap_or(validator_config.network_address),
             metrics_address: self
                 .metrics_address
-                .unwrap_or(local_ip_utils::new_local_tcp_socket_for_testing()),
+                .unwrap_or_else(local_ip_utils::new_local_tcp_socket_for_testing),
             admin_interface_address: self
                 .admin_interface_address
-                .unwrap_or(local_ip_utils::new_local_tcp_socket_for_testing()),
-            json_rpc_address: self.json_rpc_address.unwrap_or(json_rpc_address),
+                .unwrap_or_else(local_ip_utils::new_local_tcp_socket_for_testing),
+            json_rpc_address,
             consensus_config: None,
             enable_index_processing: default_enable_index_processing(),
             genesis,
@@ -602,21 +640,45 @@ impl FullnodeConfigBuilder {
             grpc_api_config,
             chain_override_for_testing: self.chain_override,
             validator_client_monitor_config: None,
-        }
+        })
     }
 
+    /// Build the fullnode config against the given network config.
+    ///
+    /// # Panics
+    ///
+    /// Panics if [`Self::try_build`] returns an error.
     pub fn build<R: rand::RngCore + rand::CryptoRng>(
         self,
         rng: &mut R,
         network_config: &NetworkConfig,
     ) -> NodeConfig {
+        self.try_build(rng, network_config)
+            .unwrap_or_else(|err| panic!("{err:#}"))
+    }
+
+    /// Build the fullnode config against the given network config.
+    ///
+    /// Fails if a validator config has no `p2p-config.external-address`,
+    /// which the fullnode's seed peers are derived from.
+    ///
+    /// # Panics
+    ///
+    /// Panics on failures the config cannot be built without: creating the
+    /// temporary config directory, allocating a local port, or parsing a
+    /// generated network address.
+    pub fn try_build<R: rand::RngCore + rand::CryptoRng>(
+        self,
+        rng: &mut R,
+        network_config: &NetworkConfig,
+    ) -> anyhow::Result<NodeConfig> {
         let genesis = self
             .genesis
             .as_ref()
             .or_else(|| network_config.get_validator_genesis())
             .cloned()
             .unwrap_or_else(|| iota_config::node::Genesis::new(network_config.genesis.clone()));
-        self.build_from_parts(rng, network_config.validator_configs(), genesis)
+        self.try_build_from_parts(rng, network_config.validator_configs(), genesis)
     }
 }
 
@@ -629,4 +691,25 @@ fn get_key_path(key_pair: &AuthorityKeyPair) -> String {
     // being unique.
     key_path.truncate(12);
     key_path
+}
+
+#[cfg(test)]
+mod tests {
+    use rand::rngs::OsRng;
+
+    use super::*;
+
+    #[test]
+    fn fullnode_build_needs_validator_p2p_external_addresses() {
+        let mut validator = ValidatorConfigBuilder::new()
+            .build_without_genesis(ValidatorGenesisConfigBuilder::new().build(&mut OsRng));
+        validator.p2p_config.external_address = None;
+
+        let err = FullnodeConfigBuilder::new()
+            .try_build_from_parts(&mut OsRng, &[validator], Genesis::new_empty())
+            .unwrap_err();
+        let err = format!("{err:#}");
+        assert!(err.contains("validator 0"), "{err}");
+        assert!(err.contains("seed peers"), "{err}");
+    }
 }
