@@ -12,7 +12,9 @@ use iota_sdk_types::{Address, ObjectId, ObjectReference, Owner, TransactionDiges
 use iota_types::{
     crypto::{AccountKeyPair, get_key_pair},
     error::{IotaError, UserInputError},
-    executable_transaction::VerifiedExecutableTransaction,
+    executable_transaction::{
+        CertificateProof, ExecutableTransaction, VerifiedExecutableTransaction,
+    },
     messages_consensus::{ConsensusTransaction, ConsensusTransactionKind},
     object::Object,
     transaction::{TransactionKey, VerifiedTransaction},
@@ -1996,4 +1998,211 @@ async fn post_consensus_validation_applies_relaxed_rules() {
         "previously denied sender must be kept after withdrawal"
     );
     assert_eq!(locks.len(), 2);
+}
+
+// ---------------------------------------------------------------------------
+// Cross-epoch replay of a consumed owned input
+// ---------------------------------------------------------------------------
+
+/// An owned input consumed in a previous epoch passes every post-consensus
+/// check and then fails at execution.
+///
+/// Within an epoch, Check #4 catches the replay: the consuming transaction
+/// holds the lock on that exact reference. The lock tables live in the
+/// per-epoch database, so after a reconfiguration the lock is gone. The
+/// Check #5 load then succeeds as well, as long as the historical
+/// `(id, version)` entry has not been pruned locally, because it reads the
+/// exact named version rather than the live one.
+///
+/// The transaction is therefore kept, scheduled, and only rejected by the
+/// liveness check inside `execute_certificate`
+/// (`try_check_owned_objects_are_live`). In production the execution driver
+/// turns that error into `fatal!`, so the node dies; a peer that has already
+/// pruned the entry drops the transaction at Check #5 instead, and the two
+/// committed sets differ.
+///
+/// This test asserts both halves of that sequence: the transaction survives
+/// post-consensus validation, and execution then returns the liveness error
+/// that production escalates to `fatal!`.
+#[tokio::test]
+async fn cross_epoch_replay_of_consumed_input_reaches_execution() {
+    telemetry_subscribers::init_for_testing();
+
+    let guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(true);
+        config
+    });
+
+    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let recipient = get_key_pair::<AccountKeyPair>().0;
+
+    let object_id = ObjectId::random();
+    let gas_first_id = ObjectId::random();
+    let gas_replay_id = ObjectId::random();
+
+    let (authority, _) = init_state_with_objects_and_object_basics(vec![
+        Object::with_id_owner_for_testing(object_id, sender),
+        Object::with_id_owner_for_testing(gas_first_id, sender),
+        Object::with_id_owner_for_testing(gas_replay_id, sender),
+    ])
+    .await;
+
+    let rgp = authority.reference_gas_price_for_testing().unwrap();
+    let epoch_store = authority.epoch_store_for_testing();
+
+    // Epoch N: spend the owned object. Its reference is consumed from here on.
+    let consumed_ref = authority.get_object(&object_id).unwrap().object_ref();
+    let gas_first_ref = authority.get_object(&gas_first_id).unwrap().object_ref();
+    let tx_spend = make_transfer_object_transaction(
+        consumed_ref,
+        gas_first_ref,
+        sender,
+        &sender_key,
+        recipient,
+        rgp,
+    );
+    let verified_spend = epoch_store.verify_transaction(tx_spend).unwrap();
+
+    let mut transactions = vec![make_user_tx_v1_verified(verified_spend.clone())];
+    let (dropped, locks, _) = post_consensus_validation::validate_and_resolve_conflicts(
+        &authority,
+        &epoch_store,
+        &mut transactions,
+    )
+    .await
+    .unwrap();
+    assert!(dropped.is_empty(), "the spending transaction must be kept");
+    assert_eq!(locks.get(&consumed_ref), Some(verified_spend.digest()));
+
+    // The consensus handler stores the locks the commit acquired, which is what
+    // Check #4 reads for later commits in this epoch.
+    seed_quarantined_lock(&epoch_store, consumed_ref, *verified_spend.digest());
+
+    authority
+        .try_execute_immediately(
+            &consensus_ordered_executable(&verified_spend, epoch_store.epoch()),
+            None,
+            &epoch_store,
+        )
+        .unwrap();
+
+    // Preconditions: the reference is no longer live, but the historical entry
+    // is still in the store, since nothing prunes it in this test.
+    assert!(
+        authority
+            .get_object_cache_reader()
+            .try_check_owned_objects_are_live(&[consumed_ref])
+            .is_err(),
+        "precondition: the spent reference must no longer be live"
+    );
+    assert!(
+        authority
+            .get_object_cache_reader()
+            .try_get_object_by_key(&consumed_ref.object_id, consumed_ref.version)
+            .unwrap()
+            .is_some(),
+        "precondition: the historical entry must still be readable at its named version"
+    );
+
+    // Within the epoch, the replay is caught by Check #4: the spending
+    // transaction holds the lock on that exact reference.
+    let gas_replay_ref = authority.get_object(&gas_replay_id).unwrap().object_ref();
+    let tx_replay = make_transfer_object_transaction(
+        consumed_ref,
+        gas_replay_ref,
+        sender,
+        &sender_key,
+        recipient,
+        rgp,
+    );
+    let verified_replay_same_epoch = epoch_store.verify_transaction(tx_replay.clone()).unwrap();
+
+    let mut transactions = vec![make_user_tx_v1_verified(verified_replay_same_epoch)];
+    let (dropped, _, _) = post_consensus_validation::validate_and_resolve_conflicts(
+        &authority,
+        &epoch_store,
+        &mut transactions,
+    )
+    .await
+    .unwrap();
+    assert!(
+        transactions.is_empty(),
+        "within the epoch the replay must be dropped"
+    );
+    assert!(
+        matches!(dropped[0].1, IotaError::ObjectLockConflict { .. }),
+        "expected the Check #4 lock conflict within the epoch, got {:?}",
+        dropped[0].1
+    );
+
+    // `reconfigure_for_testing` applies its own config override (carrying the
+    // current epoch store's config, including the flag set above, into the next
+    // epoch) and panics if another override is still installed.
+    drop(guard);
+
+    // Reconfiguration: the new epoch store starts with empty lock tables, so
+    // the lock the spending transaction took is gone.
+    authority.reconfigure_for_testing().await;
+    let epoch_store = authority.epoch_store_for_testing();
+
+    // Epoch N+1: the very same replay is now processed against empty lock
+    // tables.
+    let verified_replay = epoch_store.verify_transaction(tx_replay).unwrap();
+
+    let mut transactions = vec![make_user_tx_v1_verified(verified_replay.clone())];
+    let (dropped, locks, _) = post_consensus_validation::validate_and_resolve_conflicts(
+        &authority,
+        &epoch_store,
+        &mut transactions,
+    )
+    .await
+    .unwrap();
+
+    assert!(
+        dropped.is_empty(),
+        "the replay passes every post-consensus check, but was dropped: {dropped:?}"
+    );
+    assert_eq!(
+        transactions.len(),
+        1,
+        "the replay must remain in the committed set"
+    );
+    assert_eq!(
+        locks.get(&consumed_ref),
+        Some(verified_replay.digest()),
+        "the replay takes the lock on the consumed reference in the new epoch"
+    );
+
+    // Kept post-consensus, so the scheduler releases it and execution runs the
+    // liveness check, which is the first and only place that rejects it. In
+    // production this error reaches `fatal!` in the execution driver.
+    let error = authority
+        .try_execute_immediately(
+            &consensus_ordered_executable(&verified_replay, epoch_store.epoch()),
+            None,
+            &epoch_store,
+        )
+        .expect_err("execution must reject the consumed reference");
+
+    assert!(
+        matches!(
+            error,
+            IotaError::UserInput {
+                error: UserInputError::ObjectVersionUnavailableForConsumption { .. }
+            }
+        ),
+        "expected the execution-time liveness failure, got {error:?}"
+    );
+}
+
+/// Builds the executable transaction the P-COOL flow schedules for a
+/// transaction that consensus ordered and post-consensus validation kept.
+fn consensus_ordered_executable(
+    tx: &VerifiedTransaction,
+    epoch: u64,
+) -> VerifiedExecutableTransaction {
+    VerifiedExecutableTransaction::new_unchecked(ExecutableTransaction::new_from_data_and_sig(
+        tx.data().clone(),
+        CertificateProof::ConsensusOrdered(epoch),
+    ))
 }
