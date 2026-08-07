@@ -986,7 +986,8 @@ impl Core {
         }
 
         // Strong-vote payload metrics: distribution of the `missing` set size,
-        // and per-leader counter when the payload is a blame (non-empty).
+        // and per-leader and per-missing-author counters when the payload is a
+        // blame (non-empty).
         if let Some(sv) = strong_vote.as_ref() {
             let node_metrics = &self.context.metrics.node_metrics;
             node_metrics
@@ -1002,6 +1003,13 @@ impl Core {
                     .strong_blames_emitted_for_leader
                     .with_label_values(&[leader])
                     .inc();
+                for missing_author in sv.missing.iter() {
+                    let hostname = &self.context.committee.authority(missing_author).hostname;
+                    node_metrics
+                        .strong_vote_missing_by_author
+                        .with_label_values(&[hostname])
+                        .inc();
+                }
             }
         }
 
