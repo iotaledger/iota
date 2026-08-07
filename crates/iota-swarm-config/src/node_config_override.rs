@@ -49,20 +49,11 @@ impl fmt::Display for OverrideScope {
 
 /// A single `[scope:]<path>=<value>` override for a [`NodeConfig`].
 ///
-/// `scope` is `all` (default), `fullnode`, `validator` (every validator), or
-/// `validator-<N>`. `path` is a dot-separated list of the field names as they
-/// appear in the node config YAML (kebab-case for most sections), and `value`
-/// is parsed as YAML, e.g.
-/// `fullnode:authority-store-pruning-config.num-epochs-to-retain=5`.
-///
-/// Because the value is YAML, values that would otherwise parse as YAML
-/// structure need quoting (e.g. `'[::1]:9000'`), and `null` or an empty
-/// value clears an optional field.
-///
-/// A mapping value merges with the section's current fields, so unmentioned
-/// fields keep their values. List elements cannot be addressed by index; a
-/// list can only be replaced as a whole, by passing the new list as the YAML
-/// value.
+/// `scope` is `all` (default), `fullnode`, `validator` (all validators), or
+/// `validator-<N>`; `path` is a dot-separated list of field names as they
+/// appear in the config YAML; `value` is YAML — `null` clears a field, a
+/// mapping merges with the section's current fields, a list is replaced as
+/// a whole.
 #[derive(Clone, Debug)]
 pub struct NodeConfigOverride {
     pub scope: OverrideScope,
