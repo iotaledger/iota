@@ -191,15 +191,18 @@ impl NodeConfigOverride {
         // default, so the round trip would set them behind the user's back.
         // Keep the old value unless the override needs the deserialized
         // default in place: a newly created firewall config only takes effect
-        // alongside a policy config, and an enabled gRPC API needs a config.
-        // `apply_leaves_untouched_fields_unchanged` guards the list.
+        // alongside a policy config, and on a fullnode an enabled gRPC API
+        // needs a config. `apply_leaves_untouched_fields_unchanged` guards
+        // the list.
         let firewall_config_created =
             config.firewall_config.is_none() && new_config.firewall_config.is_some();
         if !(self.targets(&["policy-config"]) || firewall_config_created) {
             new_config.policy_config = config.policy_config.clone();
         }
         if !(self.targets(&["grpc-api-config"])
-            || (self.targets(&["enable-grpc-api"]) && new_config.enable_grpc_api))
+            || (self.targets(&["enable-grpc-api"])
+                && new_config.enable_grpc_api
+                && new_config.consensus_config.is_none()))
         {
             new_config.grpc_api_config = config.grpc_api_config.clone();
         }
@@ -214,12 +217,11 @@ impl NodeConfigOverride {
                 .periodic_compaction_threshold_days;
         }
 
-        if new_config.enable_grpc_api && new_config.grpc_api_config.is_none() {
-            bail!(
-                "`{self}` leaves the gRPC API enabled without a `grpc-api-config`, a state a \
-                 fullnode refuses to start in"
-            );
-        }
+        // The base config may already have been invalid, so the wording
+        // does not claim the override caused it.
+        new_config.validate().with_context(|| {
+            format!("with `{self}` applied, no node could start with this config")
+        })?;
 
         *config = new_config;
         Ok(())
@@ -600,9 +602,26 @@ mod tests {
         assert!(config.enable_grpc_api);
         assert!(config.grpc_api_config.is_some());
 
-        // Clearing the config while the API is enabled is rejected.
-        assert!(clear.apply_to(&mut config).is_err());
+        // Clearing the config while the API is enabled is rejected, with
+        // the startup invariant as the cause.
+        let err = format!("{:#}", clear.apply_to(&mut config).unwrap_err());
+        assert!(
+            err.contains("`enable-grpc-api` is set but `grpc-api-config` is missing"),
+            "{err}"
+        );
+        assert!(err.contains("no node could start with"), "{err}");
         assert!(config.grpc_api_config.is_some());
+    }
+
+    #[test]
+    fn enabling_the_grpc_api_on_a_validator_does_not_create_a_config() {
+        // Validators do not expose the gRPC API, so enabling it neither
+        // requires nor materializes a config there.
+        let mut config = validator_test_config();
+        let enable: NodeConfigOverride = "enable-grpc-api=true".parse().unwrap();
+        enable.apply_to(&mut config).unwrap();
+        assert!(config.enable_grpc_api);
+        assert!(config.grpc_api_config.is_none());
     }
 
     #[test]
@@ -626,17 +645,25 @@ mod tests {
         assert!(config.firewall_config.is_none());
         assert!(config.policy_config.is_none());
 
-        // An edit to an existing firewall config must not resurrect a policy
-        // config that was explicitly cleared.
+        // An edit to an existing firewall config must not reset the policy
+        // config to the serde default.
         let mut config = test_config();
         set.apply_to(&mut config).unwrap();
-        let clear_policy: NodeConfigOverride = "policy-config=null".parse().unwrap();
-        clear_policy.apply_to(&mut config).unwrap();
-        assert!(config.policy_config.is_none());
+        let edit_policy: NodeConfigOverride = "policy-config.channel-capacity=42".parse().unwrap();
+        edit_policy.apply_to(&mut config).unwrap();
         let edit: NodeConfigOverride = "firewall-config.destination-port=65001".parse().unwrap();
         edit.apply_to(&mut config).unwrap();
         assert_eq!(config.firewall_config.unwrap().destination_port, 65001);
-        assert!(config.policy_config.is_none());
+        assert_eq!(config.policy_config.unwrap().channel_capacity, 42);
+
+        // Clearing the policy config leaves the firewall inert, so it is
+        // rejected while one is set.
+        let mut config = test_config();
+        set.apply_to(&mut config).unwrap();
+        let clear_policy: NodeConfigOverride = "policy-config=null".parse().unwrap();
+        let err = clear_policy.apply_to(&mut config).unwrap_err();
+        let err = format!("{err:#}");
+        assert!(err.contains("`firewall-config` is set"), "{err}");
     }
 
     #[test]
