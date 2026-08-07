@@ -54,11 +54,11 @@ impl WalletClient {
         &self.fullnode_client
     }
 
-    pub fn sign(&self, txn: &Transaction, desc: &str) -> SimpleSignature {
+    pub fn sign(&self, tx: &Transaction, desc: &str) -> SimpleSignature {
         self.get_wallet()
             .config()
             .keystore()
-            .sign_secure(&self.address, txn, Intent::iota_transaction())
+            .sign_secure(&self.address, tx, Intent::iota_transaction())
             .unwrap_or_else(|e| panic!("failed to sign transaction for {desc}. {e}"))
     }
 }

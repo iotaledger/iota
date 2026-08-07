@@ -153,13 +153,13 @@ impl TestContext {
         TransactionBlockBytes::to_data(rpc_client.request(method, params).await?)
     }
 
-    async fn sign_and_execute(&self, txn: Transaction, desc: &str) -> IotaTransactionBlockResponse {
-        let signature = self.get_context().sign(&txn, desc);
+    async fn sign_and_execute(&self, tx: Transaction, desc: &str) -> IotaTransactionBlockResponse {
+        let signature = self.get_context().sign(&tx, desc);
         let resp = self
             .get_fullnode_client()
             .quorum_driver_api()
             .execute_transaction_block(
-                TransactionEnvelope::from_data(txn, vec![signature]),
+                TransactionEnvelope::from_data(tx, vec![signature]),
                 IotaTransactionBlockResponseOptions::new()
                     .with_object_changes()
                     .with_balance_changes()

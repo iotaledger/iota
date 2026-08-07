@@ -184,15 +184,15 @@ impl TransactionSponsorship {
     pub fn sign_transaction(
         &self,
         accounts: &AccountTriple,
-        txn: Transaction,
+        tx: Transaction,
     ) -> TransactionEnvelope {
         match self {
             TransactionSponsorship::None => {
-                to_sender_signed_transaction(txn, &accounts.account_1.initial_data.account.key)
+                to_sender_signed_transaction(tx, &accounts.account_1.initial_data.account.key)
             }
             TransactionSponsorship::Good | TransactionSponsorship::WrongGasOwner => {
                 to_sender_signed_transaction_with_multi_signers(
-                    txn,
+                    tx,
                     vec![
                         &accounts.account_1.initial_data.account.key,
                         &accounts.account_3.initial_data.account.key,

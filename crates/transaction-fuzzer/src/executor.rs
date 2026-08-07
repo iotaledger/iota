@@ -103,9 +103,9 @@ impl Executor {
         self.state.insert_genesis_objects(objects);
     }
 
-    pub fn execute_transaction(&mut self, txn: TransactionEnvelope) -> ExecutionResult {
+    pub fn execute_transaction(&mut self, tx: TransactionEnvelope) -> ExecutionResult {
         self.rt
-            .block_on(send_and_confirm_transaction(&self.state, None, txn))
+            .block_on(send_and_confirm_transaction(&self.state, None, tx))
             .map(|(_, effects)| effects.into_data().status().clone())
     }
 
