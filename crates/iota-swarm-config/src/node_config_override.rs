@@ -391,6 +391,12 @@ mod tests {
         let validator: NodeConfigOverride =
             "validator-2:enable-soft-locking=false".parse().unwrap();
         assert_eq!(validator.scope, OverrideScope::Validator(2));
+
+        let all_validators: NodeConfigOverride =
+            "validator:enable-soft-locking=false".parse().unwrap();
+        assert_eq!(all_validators.scope, OverrideScope::AllValidators);
+        assert!(all_validators.applies_to_validator(3));
+        assert!(!all_validators.applies_to_fullnode());
     }
 
     #[test]
@@ -686,11 +692,8 @@ mod tests {
                 .num_latest_epoch_dbs_to_retain,
             3
         );
-    }
-
-    #[test]
-    fn whole_section_override_sets_only_fields_the_value_mentions() {
-        let mut config = test_config();
+        // Including `periodic-compaction-threshold-days`, whose `None` does
+        // not survive the round trip on its own (serde default `Some(1)`).
         assert_eq!(
             config
                 .authority_store_pruning_config
@@ -698,25 +701,7 @@ mod tests {
             None
         );
 
-        // The unmentioned field keeps its value instead of taking the serde
-        // field default `Some(1)`.
-        let config_override: NodeConfigOverride =
-            "authority-store-pruning-config={num-epochs-to-retain: 5}"
-                .parse()
-                .unwrap();
-        config_override.apply_to(&mut config).unwrap();
-        assert_eq!(
-            config.authority_store_pruning_config.num_epochs_to_retain,
-            5
-        );
-        assert_eq!(
-            config
-                .authority_store_pruning_config
-                .periodic_compaction_threshold_days,
-            None
-        );
-
-        // A field the value mentions is set.
+        // A mentioned field is set, even one on the restore list.
         let config_override: NodeConfigOverride =
             "authority-store-pruning-config={periodic-compaction-threshold-days: 7}"
                 .parse()
@@ -746,6 +731,13 @@ mod tests {
         assert_eq!(
             config_override.to_string(),
             "validator-2:enable-soft-locking=false"
+        );
+
+        let config_override: NodeConfigOverride =
+            "validator:enable-soft-locking=false".parse().unwrap();
+        assert_eq!(
+            config_override.to_string(),
+            "validator:enable-soft-locking=false"
         );
 
         let config_override: NodeConfigOverride =
@@ -786,18 +778,5 @@ mod tests {
         let clear: NodeConfigOverride = "consensus-config=null".parse().unwrap();
         assert!(clear.apply_to(&mut config).is_err());
         assert!(config.consensus_config.is_some());
-    }
-
-    #[test]
-    fn parse_validator_scope_covers_all_validators() {
-        let config_override: NodeConfigOverride =
-            "validator:enable-soft-locking=false".parse().unwrap();
-        assert_eq!(config_override.scope, OverrideScope::AllValidators);
-        assert!(config_override.applies_to_validator(3));
-        assert!(!config_override.applies_to_fullnode());
-        assert_eq!(
-            config_override.to_string(),
-            "validator:enable-soft-locking=false"
-        );
     }
 }
