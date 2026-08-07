@@ -14,6 +14,7 @@ use iota_sdk_types::{
     crypto::{Intent, IntentMessage, IntentScope::AuthorityCapabilities},
 };
 use iota_sdk_types::{ProgrammableTransaction, TransactionDigest};
+// Additional imports for P-COOL tests
 use iota_types::{
     base_types::{AuthorityName, dbg_addr, dbg_object_id, random_object_ref},
     crypto::{
