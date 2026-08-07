@@ -9,10 +9,8 @@ use iota_network::api::{
 };
 use iota_protocol_config::{Chain, OverrideGuard, ProtocolConfig};
 // Additional imports for P-COOL tests
-use iota_sdk_types::Transaction;
-// Additional imports for P-COOL tests
 use iota_sdk_types::{
-    Address, Argument, Command, Identifier, ObjectId, SplitCoins,
+    Address, Argument, Command, Identifier, ObjectId, SplitCoins, Transaction,
     crypto::{Intent, IntentMessage, IntentScope::AuthorityCapabilities},
 };
 use iota_sdk_types::{ProgrammableTransaction, TransactionDigest};
