@@ -4,22 +4,6 @@
 //! Publish a Move package and call into it with `MoveAuthenticator`-signed
 //! transactions, entirely offline.
 //!
-//! The account is set up first, with two ordinary unsigned runs: publish
-//! `examples/move/account` (whose `init` shares an `Account`) and call its
-//! `link_auth` to attach the `#[authenticator]` function to that `Account`.
-//! From then on the account object's address is the sender, and every
-//! transaction is authorized by running that Move function in the VM:
-//!
-//! 1. publish `examples/move/view_functions` — its `init` shares a `Counter`;
-//! 2. call `counter::increment` on the shared `Counter`.
-//!
-//! Two unsigned dev-inspect runs of the `#[view]` function `counter::value`
-//! read the counter before and after the increment.
-//!
-//! Every state-changing run uses `ExecutionMode::Execute`, so each
-//! transaction's effects are committed to the [`InMemoryStore`] and are visible
-//! to the next one.
-//!
 //! The `increment` run is traced, and everything the Move trace debugger needs
 //! is written next to this file, wherever the example is run from:
 //!
