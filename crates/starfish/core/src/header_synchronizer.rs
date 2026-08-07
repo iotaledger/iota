@@ -930,11 +930,12 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
 
         for serialized_block_header in serialized_block_headers {
             let block_header_digest = VerifiedBlockHeader::compute_digest(&serialized_block_header);
-            // Check if this block header has already been verified
-            if verified_cache.lock().get(&block_header_digest).is_some() {
-                skipped_count += 1;
-                continue; // Skip already verified block headers
-            }
+            // A cache hit only skips the signature check. The header is still
+            // returned: it may have been dropped after the earlier
+            // verification (gap-fill window, far-future bound, per-slot cap),
+            // and the block manager filters real duplicates against its own
+            // state.
+            let already_verified = verified_cache.lock().get(&block_header_digest).is_some();
 
             let signed_block_header: SignedBlockHeader = bcs::from_bytes(&serialized_block_header)
                 .map_err(ConsensusError::MalformedHeader)
@@ -943,24 +944,31 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                     misbehavior_store.record_faulty_block(peer_index, peer_index, e);
                 })?;
 
-            if let Err(e) = block_verifier.verify(&signed_block_header) {
-                // TODO: we might want to use a different metric to track the invalid "served"
-                // blocks from the invalid "proposed" ones.
-                let hostname = context.committee.authority(peer_index).hostname.clone();
+            if already_verified {
+                skipped_count += 1;
+            } else {
+                if let Err(e) = block_verifier.verify(&signed_block_header) {
+                    // TODO: we might want to use a different metric to track the invalid "served"
+                    // blocks from the invalid "proposed" ones.
+                    let hostname = context.committee.authority(peer_index).hostname.clone();
 
-                context
-                    .metrics
-                    .node_metrics
-                    .synchronizer_invalid_block_headers
-                    .with_label_values(&[hostname.as_str(), "synchronizer", e.name()])
-                    .inc();
-                misbehavior_store.record_faulty_block(peer_index, signed_block_header.author(), &e);
-                warn!("Invalid block received from {}: {}", peer_index, e);
-                return Err(e);
+                    context
+                        .metrics
+                        .node_metrics
+                        .synchronizer_invalid_block_headers
+                        .with_label_values(&[hostname.as_str(), "synchronizer", e.name()])
+                        .inc();
+                    misbehavior_store.record_faulty_block(
+                        peer_index,
+                        signed_block_header.author(),
+                        &e,
+                    );
+                    warn!("Invalid block received from {}: {}", peer_index, e);
+                    return Err(e);
+                }
+
+                verified_cache.lock().put(block_header_digest, ());
             }
-
-            // Add block header to verified cache after successful verification
-            verified_cache.lock().put(block_header_digest, ());
 
             let verified_block_header = VerifiedBlockHeader::new_verified_with_digest(
                 signed_block_header,
@@ -2639,7 +2647,10 @@ mod tests {
         // the acceptable round thresholds those ones should be fetched. Nothing above.
         let mut added_block_headers = core_dispatcher.get_and_drain_block_headers().await;
 
+        // A header served by several peers is delivered once per peer; the
+        // block manager, not the synchronizer, filters duplicates.
         added_block_headers.sort_by_key(|block| block.reference());
+        added_block_headers.dedup_by_key(|block| block.reference());
         expected_blocks.sort_by_key(|block| block.reference());
         expected_blocks.dedup_by_key(|block| block.reference());
 
@@ -3411,8 +3422,9 @@ mod tests {
         // Check blocks were unlocked
         assert_eq!(inflight_blocks_map.num_of_locked_headers(), 0);
 
-        // PART 2: Verify LruCache prevents duplicate processing
-        // Try to process the same block headers again (simulating duplicate fetch)
+        // PART 2: a repeated fetch skips signature verification via the cache
+        // but still delivers the headers; the block manager is what filters
+        // real duplicates.
         let blocks_guard_second = inflight_blocks_map
             .lock_headers(expected_block_refs.clone(), peer_index, SyncMethod::Live)
             .expect("Failed to lock blocks for second call");
@@ -3441,13 +3453,26 @@ mod tests {
 
         assert!(result_second.is_ok());
 
-        // Verify NO block headers were sent to core on the second call
-        // because they were already in the LruCache
         let added_block_headers_second_call = core_dispatcher.get_and_drain_block_headers().await;
-        assert!(
-            added_block_headers_second_call.is_empty(),
-            "Expected no block headers to be added on second call due to LruCache, but got {} headers",
-            added_block_headers_second_call.len()
+        assert_eq!(
+            added_block_headers_second_call
+                .iter()
+                .map(|b| b.reference())
+                .collect::<BTreeSet<_>>(),
+            expected_block_refs,
+            "cached headers must still be delivered on a repeated fetch"
+        );
+        assert_eq!(
+            context
+                .metrics
+                .node_metrics
+                .synchronizer_skipped_block_headers_by_peer
+                .with_label_values(&[
+                    context.committee.authority(peer_index).hostname.as_str(),
+                    "live",
+                ])
+                .get(),
+            expected_block_refs.len() as u64,
         );
 
         // Verify the cache contains all the block header digests
@@ -3728,5 +3753,123 @@ mod tests {
         let crate::misbehavior_store::MisbehaviorCounts::V1(counts) =
             &misbehavior_store.snapshot_totals()[peer_index.value()];
         assert_eq!(counts.faulty_blocks_unprovable, 1);
+    }
+
+    /// A header dropped as an unrequested extra stays fetchable: a later
+    /// fetch that names it by digest still delivers it to the core, even
+    /// though its signature verification is already cached.
+    #[tokio::test]
+    async fn test_dropped_extra_is_delivered_when_requested() {
+        let (context, _) = Context::new_for_test(4);
+        let context = Arc::new(context);
+        let block_verifier = Arc::new(NoopBlockVerifier {});
+        let core_dispatcher = Arc::new(MockCoreThreadDispatcher::default());
+        let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
+        let store = Arc::new(MemStore::new());
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
+        let (commands_sender, _commands_receiver) =
+            monitored_mpsc::channel("consensus_synchronizer_commands", 1000);
+        let network_client = Arc::new(MockNetworkClient::default());
+        let transactions_synchronizer = TransactionsSynchronizer::start(
+            network_client.clone(),
+            context.clone(),
+            core_dispatcher.clone(),
+            dag_state.clone(),
+            block_verifier.clone(),
+        );
+
+        // First response: the requested header plus an extra from an authority
+        // we did not request from — a window violation that drops the extra
+        // after its signature has been verified and cached.
+        let requested = VerifiedBlockHeader::new_for_test(TestBlockHeader::new(50, 1).build());
+        let extra = VerifiedBlockHeader::new_for_test(TestBlockHeader::new(30, 3).build());
+
+        let peer_index = AuthorityIndex::new_for_test(2);
+        let inflight_blocks_map = InflightBlockHeadersMap::new();
+        let blocks_guard = inflight_blocks_map
+            .lock_headers(
+                [requested.reference()].into_iter().collect(),
+                peer_index,
+                SyncMethod::Live,
+            )
+            .expect("Failed to lock blocks");
+        let verified_cache = Arc::new(parking_lot::Mutex::new(lru::LruCache::new(
+            NonZero::new(1000).unwrap(),
+        )));
+        let misbehavior_store = Arc::new(MisbehaviorStore::new(&context));
+
+        let result = HeaderSynchronizer::<
+            MockNetworkClient,
+            NoopBlockVerifier,
+            MockCoreThreadDispatcher,
+        >::process_fetched_headers_from_authority(
+            vec![requested.serialized().clone(), extra.serialized().clone()],
+            peer_index,
+            blocks_guard,
+            vec![5; context.committee.size()],
+            core_dispatcher.clone(),
+            dag_state.clone(),
+            block_verifier.clone(),
+            verified_cache.clone(),
+            commit_vote_monitor.clone(),
+            transactions_synchronizer.clone(),
+            context.clone(),
+            commands_sender.clone(),
+            "live",
+            misbehavior_store.clone(),
+        )
+        .await;
+        assert!(result.is_ok());
+        assert_eq!(
+            core_dispatcher
+                .get_and_drain_block_headers()
+                .await
+                .iter()
+                .map(|b| b.reference())
+                .collect::<Vec<_>>(),
+            vec![requested.reference()],
+        );
+
+        // Second fetch names the dropped header by digest.
+        let blocks_guard = inflight_blocks_map
+            .lock_headers(
+                [extra.reference()].into_iter().collect(),
+                peer_index,
+                SyncMethod::Live,
+            )
+            .expect("Failed to lock blocks");
+
+        let result = HeaderSynchronizer::<
+            MockNetworkClient,
+            NoopBlockVerifier,
+            MockCoreThreadDispatcher,
+        >::process_fetched_headers_from_authority(
+            vec![extra.serialized().clone()],
+            peer_index,
+            blocks_guard,
+            vec![5; context.committee.size()],
+            core_dispatcher.clone(),
+            dag_state.clone(),
+            block_verifier,
+            verified_cache,
+            commit_vote_monitor,
+            transactions_synchronizer,
+            context.clone(),
+            commands_sender,
+            "live",
+            misbehavior_store,
+        )
+        .await;
+        assert!(result.is_ok());
+        assert_eq!(
+            core_dispatcher
+                .get_and_drain_block_headers()
+                .await
+                .iter()
+                .map(|b| b.reference())
+                .collect::<Vec<_>>(),
+            vec![extra.reference()],
+            "a header dropped after verification must still be delivered when requested"
+        );
     }
 }
