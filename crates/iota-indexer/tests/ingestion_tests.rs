@@ -40,7 +40,7 @@ mod ingestion_tests {
     use iota_types::{
         effects::TransactionEffectsAPI,
         programmable_transaction_builder::ProgrammableTransactionBuilder,
-        transaction::{CallArg, TransactionDataAPI, TransactionEnvelope},
+        transaction::{CallArg, TransactionAPI, TransactionEnvelope},
     };
     use simulacrum::Simulacrum;
     use tempfile::tempdir;

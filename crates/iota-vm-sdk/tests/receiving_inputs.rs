@@ -18,7 +18,7 @@ use iota_types::{
     error::{IotaError, UserInputError},
     object::{MoveStructExt, OBJECT_START_VERSION, Object},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{CallArg, TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, TransactionDataAPI},
+    transaction::{CallArg, TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, TransactionAPI},
 };
 use iota_vm_sdk::{
     Address, Chain, ChainContext, ExecuteOptions, InMemoryStore, LocalVm, ProtocolVersion, Store,

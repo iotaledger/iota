@@ -951,7 +951,7 @@ impl TransactionKindExt for TransactionKind {
 ///
 /// Note: The `iota-rust-sdk` crate (`iota-sdk-types`) defines additional
 /// client-facing methods on [`Transaction`] itself.
-pub trait TransactionDataAPI {
+pub trait TransactionAPI {
     /// Returns the address of the transaction sender.
     fn sender(&self) -> Address;
 
@@ -1246,7 +1246,7 @@ pub trait TransactionDataAPI {
     fn execution_parts(&self) -> (TransactionKind, Address, GasPayment);
 }
 
-impl TransactionDataAPI for Transaction {
+impl TransactionAPI for Transaction {
     fn sender(&self) -> Address {
         match self {
             Self::V1(v1) => v1.sender,

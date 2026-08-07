@@ -9,8 +9,8 @@ use iota_sdk_types::{
 };
 use iota_types::{
     effects::TransactionEffectsAPI, error::IotaError,
-    programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::TransactionDataAPI, utils::to_sender_signed_transaction,
+    programmable_transaction_builder::ProgrammableTransactionBuilder, transaction::TransactionAPI,
+    utils::to_sender_signed_transaction,
 };
 use proptest::{arbitrary::*, prelude::*};
 

@@ -10,7 +10,7 @@ use iota_types::{
     crypto::{AccountKeyPair, get_key_pair},
     object::{MoveStructExt, Object},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, TransactionDataAPI},
+    transaction::{TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, TransactionAPI},
     utils::to_sender_signed_transaction,
 };
 use iota_vm_sdk::{

@@ -26,7 +26,7 @@ use iota_types::{
     multisig::{BitmapUnit, MultiSig, MultiSigPublicKey},
     transaction::{
         CallArg, DEFAULT_VALIDATOR_GAS_PRICE, TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE,
-        TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionDataAPI, TransactionEnvelope,
+        TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI, TransactionEnvelope,
     },
     utils::to_sender_signed_transaction,
 };

@@ -38,9 +38,7 @@ use iota_types::{
         network_to_simple_keypair,
     },
     multiaddr::{Multiaddr, Protocol},
-    transaction::{
-        CallArg, TEST_ONLY_GAS_UNIT_FOR_GENERIC, TransactionDataAPI, TransactionEnvelope,
-    },
+    transaction::{CallArg, TEST_ONLY_GAS_UNIT_FOR_GENERIC, TransactionAPI, TransactionEnvelope},
 };
 use tracing::info;
 

@@ -45,7 +45,7 @@ use iota_types::{
     transaction::{
         CallArg, CertifiedTransaction, SignedTransaction,
         TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS,
-        TransactionDataAPI, TransactionEnvelope, VerifiedTransaction,
+        TransactionAPI, TransactionEnvelope, VerifiedTransaction,
     },
     utils::{create_fake_transaction, to_sender_signed_transaction},
 };

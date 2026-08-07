@@ -10,7 +10,6 @@ use std::str::FromStr;
 use anyhow::anyhow;
 use docs_examples::utils::{clean_keystore, setup_keystore};
 use iota_keys::keystore::AccountKeystore;
-use iota_sdk_types::Transaction;
 use iota_sdk::{
     IotaClientBuilder,
     rpc_types::{IotaData, IotaObjectDataOptions, IotaTransactionBlockResponseOptions},
@@ -19,9 +18,13 @@ use iota_sdk::{
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         quorum_driver_types::ExecuteTransactionRequestType,
         stardust::output::BasicOutput,
-        transaction::{CallArg, TransactionEnvelope}}};
-use iota_sdk_types::{Argument, Identifier, ObjectId, SignatureScheme, TypeTag, crypto::Intent};
-use iota_types::transaction::TransactionDataAPI;
+        transaction::{CallArg, TransactionEnvelope},
+    },
+};
+use iota_sdk_types::{
+    Argument, Identifier, ObjectId, SignatureScheme, Transaction, TypeTag, crypto::Intent,
+};
+use iota_types::transaction::TransactionAPI;
 
 /// Got from iota-genesis-builder/src/stardust/test_outputs/stardust_mix.rs
 const MAIN_ADDRESS_MNEMONIC: &str = "rain flip mad lamp owner siren tower buddy wolf shy tray exit glad come dry tent they pond wrist web cliff mixed seek drum";

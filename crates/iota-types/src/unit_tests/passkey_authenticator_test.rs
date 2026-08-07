@@ -34,7 +34,7 @@ use crate::{
     crypto::{DefaultHash, PublicKey},
     object::Object,
     signature::AuthenticatorTrait,
-    transaction::{TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionDataAPI},
+    transaction::{TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI},
 };
 
 /// Helper struct to initialize passkey client.

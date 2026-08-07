@@ -55,7 +55,7 @@ use iota_types::{
     supported_protocol_versions::{SupportedProtocolVersions, SupportedProtocolVersionsWithHashes},
     transaction::{
         CallArg, SenderSignedTransactionAPI, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS,
-        TEST_ONLY_GAS_UNIT_FOR_PUBLISH, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionDataAPI,
+        TEST_ONLY_GAS_UNIT_FOR_PUBLISH, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI,
         TransactionEnvelope, VerifiedCertificate, VerifiedTransaction,
     },
     utils::{to_sender_signed_transaction, to_sender_signed_transaction_with_multi_signers},

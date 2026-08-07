@@ -14,7 +14,7 @@ use iota_types::{
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
     iota_sdk_types_conversions::struct_tag_core_to_sdk,
     object::{Object, bounded_visitor::BoundedVisitor},
-    transaction::{SenderSignedTransactionAPI, TransactionDataAPI},
+    transaction::{SenderSignedTransactionAPI, TransactionAPI},
 };
 use move_core_types::annotated_value::{MoveStruct, MoveTypeLayout, MoveValue};
 

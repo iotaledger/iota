@@ -9,7 +9,7 @@ use iota_sdk::{
     types::{
         base_types::ObjectType,
         object::{MoveStructExt, Object},
-        transaction::{InputObjectKind, TransactionDataAPI},
+        transaction::{InputObjectKind, TransactionAPI},
     },
 };
 use iota_sdk_types::{MoveStruct, ObjectId, Transaction};

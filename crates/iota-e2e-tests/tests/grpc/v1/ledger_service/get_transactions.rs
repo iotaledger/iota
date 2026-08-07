@@ -204,7 +204,7 @@ async fn get_transactions_readmask_scenarios() {
 #[sim_test]
 async fn get_transactions_derived_changes() {
     use iota_test_transaction_builder::make_transfer_iota_transaction;
-    use iota_types::transaction::TransactionDataAPI as _;
+    use iota_types::transaction::TransactionAPI as _;
 
     let (test_cluster, client) = setup_grpc_test(Some(1), None).await;
 
@@ -259,7 +259,7 @@ async fn get_transactions_derived_changes_failed_transaction() {
     use iota_sdk_types::{Command, Transaction};
     use iota_types::{
         programmable_transaction_builder::ProgrammableTransactionBuilder,
-        transaction::{CallArg, TransactionDataAPI as _},
+        transaction::{CallArg, TransactionAPI as _},
     };
 
     let (test_cluster, client) = setup_grpc_test(Some(1), None).await;

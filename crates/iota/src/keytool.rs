@@ -52,7 +52,7 @@ use iota_types::{
     move_authenticator::MoveAuthenticatorExt,
     multisig::{MultiSig, MultiSigPublicKey, MultisigMember, ThresholdUnit, WeightUnit},
     signature::{AuthenticatorTrait, VerifyParams},
-    transaction::TransactionDataAPI,
+    transaction::TransactionAPI,
 };
 use json_to_table::{Orientation, json_to_table};
 use serde::Serialize;

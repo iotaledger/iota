@@ -16,7 +16,7 @@ use iota_types::{
     error::{IotaError, UserInputError},
     object::ObjectRead,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{TEST_ONLY_GAS_UNIT_FOR_PUBLISH, TransactionDataAPI},
+    transaction::{TEST_ONLY_GAS_UNIT_FOR_PUBLISH, TransactionAPI},
     utils::to_sender_signed_transaction,
 };
 use move_binary_format::CompiledModule;

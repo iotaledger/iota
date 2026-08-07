@@ -22,7 +22,7 @@ use iota_types::{
     error::{IotaError, IotaResult, UserInputError},
     messages_grpc::HandleTransactionResponse,
     transaction::{
-        CallArg, CertifiedTransaction, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionDataAPI,
+        CallArg, CertifiedTransaction, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI,
         VerifiedCertificate, VerifiedTransaction,
     },
     utils::{

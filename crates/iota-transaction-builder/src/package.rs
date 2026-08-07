@@ -12,7 +12,7 @@ use iota_sdk_types::{
 };
 use iota_types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{CallArg, TransactionDataAPI},
+    transaction::{CallArg, TransactionAPI},
 };
 
 use crate::TransactionBuilder;

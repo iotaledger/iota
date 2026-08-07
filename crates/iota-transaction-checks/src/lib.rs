@@ -29,7 +29,7 @@ mod checked {
         transaction::{
             CheckedInputObjects, InputObjectKind, InputObjects, ObjectReadResult,
             ObjectReadResultKind, ProgrammableTransactionExt, ReceivingObjectReadResult,
-            ReceivingObjects, TransactionDataAPI, TransactionKindExt,
+            ReceivingObjects, TransactionAPI, TransactionKindExt,
         },
     };
     use tracing::{error, instrument};

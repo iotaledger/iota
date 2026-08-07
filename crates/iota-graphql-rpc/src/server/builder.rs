@@ -789,7 +789,7 @@ pub mod tests {
         extensions::{Extension, ExtensionContext, NextExecute},
     };
     use iota_sdk_types::Transaction;
-    use iota_types::transaction::TransactionDataAPI;
+    use iota_types::transaction::TransactionAPI;
     use serde_json::json;
     use uuid::Uuid;
 

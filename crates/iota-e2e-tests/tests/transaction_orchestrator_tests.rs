@@ -31,7 +31,7 @@ use iota_types::{
         ExecuteTransactionResponseV1, FinalizedEffects, IsTransactionExecutedLocally,
         QuorumDriverError,
     },
-    transaction::{TransactionDataAPI, TransactionEnvelope},
+    transaction::{TransactionAPI, TransactionEnvelope},
 };
 use test_cluster::{TestClusterBuilder, override_pcool_flow};
 use tokio::time::timeout;

@@ -54,7 +54,7 @@ use iota_types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     storage::{ObjectStore, ReadStore},
     transaction::{
-        CallArg, SenderSignedTransactionAPI, TransactionDataAPI, TransactionEnvelope,
+        CallArg, SenderSignedTransactionAPI, TransactionAPI, TransactionEnvelope,
         VerifiedTransaction,
     },
     utils::{

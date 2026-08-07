@@ -27,7 +27,7 @@ use iota_types::{
     gas_coin::GasCoin,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::ExecuteTransactionRequestType,
-    transaction::{TransactionDataAPI, TransactionEnvelope},
+    transaction::{TransactionAPI, TransactionEnvelope},
 };
 use prometheus_filtered::Registry;
 use tap::tap::TapFallible;
@@ -1181,7 +1181,7 @@ mod tests {
     use iota_json_rpc_types::{IotaExecutionStatus, IotaTransactionBlockEffects};
     use iota_sdk::wallet_context::WalletContext;
     use iota_sdk_types::{SenderSignedTransaction, crypto::Intent};
-    use iota_types::transaction::TransactionDataAPI;
+    use iota_types::transaction::TransactionAPI;
     use test_cluster::TestClusterBuilder;
 
     use super::*;

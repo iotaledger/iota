@@ -933,7 +933,7 @@ mod tests {
         supported_protocol_versions::{
             SupportedProtocolVersions, SupportedProtocolVersionsWithHashes,
         },
-        transaction::{CertifiedTransaction, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionDataAPI},
+        transaction::{CertifiedTransaction, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI},
         utils::to_sender_signed_transaction,
     };
     use prometheus_filtered::Registry;

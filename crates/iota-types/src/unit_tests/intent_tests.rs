@@ -19,7 +19,7 @@ use crate::{
         IotaSignature, get_key_pair,
     },
     object::Object,
-    transaction::{TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionDataAPI, TransactionEnvelope},
+    transaction::{TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI, TransactionEnvelope},
 };
 
 #[test]

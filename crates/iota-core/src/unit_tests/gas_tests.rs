@@ -18,7 +18,7 @@ use iota_types::{
     messages_grpc::TransactionStatus,
     object::{GAS_VALUE_FOR_TESTING, OBJECT_START_VERSION, Object},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{CallArg, TEST_ONLY_GAS_UNIT_FOR_PUBLISH, TransactionDataAPI},
+    transaction::{CallArg, TEST_ONLY_GAS_UNIT_FOR_PUBLISH, TransactionAPI},
     utils::to_sender_signed_transaction,
 };
 use move_core_types::account_address::AccountAddress;

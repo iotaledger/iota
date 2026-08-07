@@ -29,7 +29,7 @@ use iota_types::{
         CertifiedCheckpointSummary, CheckpointContentsExt, CheckpointSequenceNumber,
         CheckpointSummaryExt, SignedCheckpointSummary,
     },
-    transaction::{TransactionDataAPI, TransactionEnvelope},
+    transaction::{TransactionAPI, TransactionEnvelope},
     utils::make_committee_key,
 };
 use prometheus_filtered::Registry;

@@ -6,9 +6,7 @@ use async_trait::async_trait;
 use futures::future::join_all;
 use iota_sdk_crypto::{ToFromBech32, simple::SimpleKeypair};
 use iota_sdk_types::{Address, Transaction};
-use iota_types::{
-    quorum_driver_types::ExecuteTransactionRequestType, transaction::TransactionDataAPI,
-};
+use iota_types::{quorum_driver_types::ExecuteTransactionRequestType, transaction::TransactionAPI};
 use tracing::debug;
 
 use crate::payload::{

@@ -49,7 +49,7 @@ use iota_types::{
         iota_system_state_summary::{IotaSystemStateSummary, IotaValidatorSummary},
     },
     multiaddr::Multiaddr,
-    transaction::{CallArg, TransactionDataAPI, TransactionEnvelope},
+    transaction::{CallArg, TransactionAPI, TransactionEnvelope},
 };
 use serde::Serialize;
 use tabled::{

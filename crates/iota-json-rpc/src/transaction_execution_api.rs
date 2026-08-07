@@ -36,7 +36,7 @@ use iota_types::{
         ExecuteTransactionRequestType, ExecuteTransactionRequestV1, ExecuteTransactionResponseV1,
     },
     storage::PostExecutionPackageResolver,
-    transaction::{InputObjectKind, TransactionDataAPI, TransactionEnvelope},
+    transaction::{InputObjectKind, TransactionAPI, TransactionEnvelope},
 };
 use jsonrpsee::{RpcModule, core::RpcResult};
 use tracing::{Instrument, instrument};

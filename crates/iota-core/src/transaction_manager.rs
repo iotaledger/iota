@@ -22,7 +22,7 @@ use iota_types::{
     fp_bail, fp_ensure,
     message_envelope::Message,
     storage::InputKey,
-    transaction::{SenderSignedTransactionAPI, TransactionDataAPI, VerifiedCertificate},
+    transaction::{SenderSignedTransactionAPI, TransactionAPI, VerifiedCertificate},
 };
 use lru::LruCache;
 use parking_lot::RwLock;

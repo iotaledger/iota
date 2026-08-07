@@ -33,7 +33,7 @@ use iota_types::{
     parse_iota_type_tag,
     quorum_driver_types::ExecuteTransactionRequestType as NativeExecuteTransactionRequestType,
     storage::{DeleteKind, WriteKind},
-    transaction::{CallArg, InputObjectKind, TransactionDataAPI},
+    transaction::{CallArg, InputObjectKind, TransactionAPI},
 };
 use move_binary_format::CompiledModule;
 use move_bytecode_utils::module_cache::GetModule;

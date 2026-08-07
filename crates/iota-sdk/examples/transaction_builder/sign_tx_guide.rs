@@ -21,7 +21,7 @@ use iota_sdk::{
     types::{
         crypto::{IotaSignature, PublicKey, get_key_pair_from_rng},
         programmable_transaction_builder::ProgrammableTransactionBuilder,
-        transaction::TransactionDataAPI,
+        transaction::TransactionAPI,
     },
 };
 use iota_sdk_crypto::{

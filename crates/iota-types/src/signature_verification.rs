@@ -17,7 +17,7 @@ use prometheus_filtered::IntCounter;
 use crate::{
     error::{IotaError, IotaResult},
     signature::{AuthenticatorTrait, VerifyParams},
-    transaction::{SenderSignedTransactionAPI, TransactionDataAPI},
+    transaction::{SenderSignedTransactionAPI, TransactionAPI},
 };
 
 // Cache up to this many verified certs. We will need to tune this number in the

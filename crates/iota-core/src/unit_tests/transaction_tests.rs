@@ -20,7 +20,7 @@ use iota_types::{
     crypto::{AccountKeyPair, IotaSignature, get_key_pair},
     error::{IotaError, UserInputError},
     messages_grpc::HandleSoftBundleCertificatesRequestV1,
-    transaction::TransactionDataAPI,
+    transaction::TransactionAPI,
     utils::to_sender_signed_transaction,
 };
 use starfish_core::{BlockRef, BlockStatus};

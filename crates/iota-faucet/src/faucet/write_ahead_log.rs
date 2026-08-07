@@ -133,7 +133,7 @@ mod tests {
     use iota_sdk_types::ObjectReference;
     use iota_types::{
         base_types::random_object_ref,
-        transaction::{TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionDataAPI},
+        transaction::{TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI},
     };
 
     use super::*;

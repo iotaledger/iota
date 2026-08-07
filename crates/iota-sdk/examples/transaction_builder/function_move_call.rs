@@ -13,7 +13,7 @@ use iota_sdk::{
     types::{
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         quorum_driver_types::ExecuteTransactionRequestType,
-        transaction::{CallArg, TransactionDataAPI, TransactionEnvelope},
+        transaction::{CallArg, TransactionAPI, TransactionEnvelope},
     },
 };
 use iota_sdk_types::{Argument, Command, Identifier, ObjectId, Transaction, crypto::Intent};

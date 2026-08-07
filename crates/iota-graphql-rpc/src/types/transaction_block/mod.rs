@@ -20,7 +20,7 @@ use iota_sdk_types::{
     SenderSignedTransaction as NativeSenderSignedTransaction, Transaction as NativeTransactionData,
     TransactionEffects as NativeTransactionEffects, TransactionExpiration,
 };
-use iota_types::{message_envelope::Message, transaction::TransactionDataAPI};
+use iota_types::{message_envelope::Message, transaction::TransactionAPI};
 use serde::{Deserialize, Serialize};
 
 use crate::{

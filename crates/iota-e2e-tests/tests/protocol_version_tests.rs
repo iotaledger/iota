@@ -90,7 +90,7 @@ mod sim_only_tests {
         object::Object,
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         supported_protocol_versions::SupportedProtocolVersions,
-        transaction::{CallArg, TEST_ONLY_GAS_UNIT_FOR_GENERIC, TransactionDataAPI},
+        transaction::{CallArg, TEST_ONLY_GAS_UNIT_FOR_GENERIC, TransactionAPI},
     };
     use move_binary_format::CompiledModule;
     use test_cluster::TestCluster;

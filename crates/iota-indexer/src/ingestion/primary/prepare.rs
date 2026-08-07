@@ -24,7 +24,7 @@ use iota_types::{
         CertifiedCheckpointSummary, CheckpointContentsExt, CheckpointSequenceNumber,
     },
     object::Object,
-    transaction::TransactionDataAPI,
+    transaction::TransactionAPI,
 };
 use itertools::Itertools;
 use tracing::{info, warn};

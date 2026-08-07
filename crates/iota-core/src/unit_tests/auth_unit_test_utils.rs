@@ -15,7 +15,7 @@ use iota_types::{
     error::IotaResult,
     move_package::UpgradePolicy,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{TEST_ONLY_GAS_UNIT_FOR_PUBLISH, TransactionDataAPI},
+    transaction::{TEST_ONLY_GAS_UNIT_FOR_PUBLISH, TransactionAPI},
     utils::to_sender_signed_transaction,
 };
 use move_core_types::account_address::AccountAddress;

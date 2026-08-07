@@ -15,7 +15,7 @@ use iota_types::{
     effects::TransactionEffectsAPI,
     error::IotaError,
     object::Object,
-    transaction::{TransactionDataAPI, TransactionEnvelope},
+    transaction::{TransactionAPI, TransactionEnvelope},
     utils::to_sender_signed_transaction,
 };
 use tokio::runtime::Runtime;

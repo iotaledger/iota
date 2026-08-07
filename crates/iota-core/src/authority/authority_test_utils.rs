@@ -20,7 +20,7 @@ use iota_types::{
     object::Object,
     transaction::{
         CertifiedTransaction, SenderSignedTransactionAPI, TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
-        TransactionDataAPI, TransactionEnvelope, VerifiedCertificate, VerifiedSignedTransaction,
+        TransactionAPI, TransactionEnvelope, VerifiedCertificate, VerifiedSignedTransaction,
         VerifiedTransaction,
     },
     utils::to_sender_signed_transaction,

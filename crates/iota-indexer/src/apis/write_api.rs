@@ -35,7 +35,7 @@ use iota_types::{
     error::ExecutionError,
     iota_serde::BigInt,
     object::{Object, PastObjectRead},
-    transaction::TransactionDataAPI,
+    transaction::TransactionAPI,
 };
 use jsonrpsee::{RpcModule, core::RpcResult};
 

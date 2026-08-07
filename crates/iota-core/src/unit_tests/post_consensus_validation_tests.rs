@@ -940,7 +940,7 @@ async fn test_winner_blocks_multiple_losers() {
     let gas3 = authority.get_object(&gas3_id).unwrap();
 
     use iota_sdk_types::{Identifier, Transaction};
-    use iota_types::transaction::{CallArg, TransactionDataAPI};
+    use iota_types::transaction::{CallArg, TransactionAPI};
 
     let tx1 = Transaction::new_move_call(
         sender,

@@ -15,7 +15,7 @@ use iota_types::{
     gas_coin::GasCoin,
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::TransactionDataAPI,
+    transaction::TransactionAPI,
     utils::to_sender_signed_transaction,
 };
 

@@ -20,7 +20,7 @@ use iota_types::{
     error::IotaError,
     transaction::{
         CallArg, CertifiedTransaction, SenderSignedTransactionAPI, SignedTransaction,
-        TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionDataAPI, TransactionEnvelope,
+        TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI, TransactionEnvelope,
     },
     utils::{create_fake_transaction, to_sender_signed_transaction},
 };

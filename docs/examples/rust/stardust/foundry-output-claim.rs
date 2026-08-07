@@ -8,22 +8,25 @@
 use anyhow::anyhow;
 use docs_examples::utils::{clean_keystore, fund_address, setup_keystore};
 use iota_keys::keystore::AccountKeystore;
-use iota_sdk_types::Transaction;
 use iota_sdk::{
     IotaClientBuilder,
     rpc_types::{
-        IotaObjectDataOptions, IotaObjectResponseQuery, IotaTransactionBlockResponseOptions},
+        IotaObjectDataOptions, IotaObjectResponseQuery, IotaTransactionBlockResponseOptions,
+    },
     types::{
         coin_manager::CoinManagerTreasuryCap,
         dynamic_field::DynamicFieldName,
         gas_coin::GAS,
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         quorum_driver_types::ExecuteTransactionRequestType,
-        transaction::{CallArg, TransactionEnvelope}}};
-use iota_sdk_types::{
-    Argument, Identifier, ObjectId, SignatureScheme, StructTag, TypeTag, crypto::Intent,
+        transaction::{CallArg, TransactionEnvelope},
+    },
 };
-use iota_types::transaction::TransactionDataAPI;
+use iota_sdk_types::{
+    Argument, Identifier, ObjectId, SignatureScheme, StructTag, Transaction, TypeTag,
+    crypto::Intent,
+};
+use iota_types::transaction::TransactionAPI;
 
 /// Got from iota-genesis-builder/src/stardust/test_outputs/alias_ownership.rs
 const MAIN_ADDRESS_MNEMONIC: &str = "few hood high omit camp keep burger give happy iron evolve draft few dawn pulp jazz box dash load snake gown bag draft car";

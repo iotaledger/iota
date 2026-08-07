@@ -35,7 +35,7 @@ use iota_types::{
     object::Object,
     transaction::{
         CertifiedTransaction, DEFAULT_VALIDATOR_GAS_PRICE, SenderSignedTransactionAPI,
-        TransactionDataAPI, TransactionEnvelope, VerifiedCertificate, VerifiedTransaction,
+        TransactionAPI, TransactionEnvelope, VerifiedCertificate, VerifiedTransaction,
     },
 };
 

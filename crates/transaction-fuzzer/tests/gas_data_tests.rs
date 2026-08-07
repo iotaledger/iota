@@ -5,7 +5,7 @@
 use iota_sdk_types::{Transaction, TransactionKind};
 use iota_types::{
     base_types::dbg_addr, programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::TransactionDataAPI, utils::to_sender_signed_transaction,
+    transaction::TransactionAPI, utils::to_sender_signed_transaction,
 };
 use proptest::{arbitrary::*, test_runner::TestCaseError};
 use tracing::debug;

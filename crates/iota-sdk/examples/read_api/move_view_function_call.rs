@@ -28,7 +28,7 @@ use iota_sdk::{
     rpc_types::{IotaTransactionBlockEffectsAPI, IotaTypeTag, ObjectChange},
     types::{
         programmable_transaction_builder::ProgrammableTransactionBuilder,
-        transaction::TransactionDataAPI,
+        transaction::TransactionAPI,
     },
 };
 use iota_sdk_types::{Argument, Command, Identifier, Owner, Transaction, TypeTag};

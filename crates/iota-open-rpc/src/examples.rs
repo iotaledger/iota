@@ -44,7 +44,7 @@ use iota_types::{
     parse_iota_struct_tag,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::ExecuteTransactionRequestType,
-    transaction::{CallArg, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionDataAPI},
+    transaction::{CallArg, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI},
     utils::to_sender_signed_transaction,
 };
 use move_core_types::{

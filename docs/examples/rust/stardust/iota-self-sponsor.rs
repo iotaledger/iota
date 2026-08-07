@@ -11,7 +11,6 @@ use anyhow::anyhow;
 use bip32::DerivationPath;
 use docs_examples::utils::{clean_keystore, setup_keystore};
 use iota_keys::keystore::AccountKeystore;
-use iota_sdk_types::Transaction;
 use iota_sdk::{
     IotaClientBuilder,
     rpc_types::{IotaObjectDataOptions, IotaTransactionBlockResponseOptions},
@@ -19,9 +18,13 @@ use iota_sdk::{
         gas_coin::GAS,
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         quorum_driver_types::ExecuteTransactionRequestType,
-        transaction::{CallArg, TransactionEnvelope}}};
-use iota_sdk_types::{Argument, Identifier, ObjectId, SignatureScheme, crypto::Intent};
-use iota_types::transaction::TransactionDataAPI;
+        transaction::{CallArg, TransactionEnvelope},
+    },
+};
+use iota_sdk_types::{
+    Argument, Identifier, ObjectId, SignatureScheme, Transaction, crypto::Intent,
+};
+use iota_types::transaction::TransactionAPI;
 
 pub const IOTA_COIN_TYPE: u32 = 4218;
 

@@ -18,7 +18,7 @@ use crate::{
     messages_checkpoint::CertifiedCheckpointSummary,
     object::Object,
     storage::{BackingPackageStore, EpochInfo, error::Error as StorageError},
-    transaction::{TransactionDataAPI, TransactionEnvelope},
+    transaction::{TransactionAPI, TransactionEnvelope},
 };
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

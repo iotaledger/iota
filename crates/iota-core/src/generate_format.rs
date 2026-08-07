@@ -42,7 +42,7 @@ use iota_types::{
     multisig::{MultiSig, MultiSigPublicKey, MultisigMember},
     object::{MoveStructExt, ObjectInner},
     storage::DeleteKind,
-    transaction::{CallArg, TransactionDataAPI, TransactionEnvelope},
+    transaction::{CallArg, TransactionAPI, TransactionEnvelope},
 };
 use move_core_types::{account_address::AccountAddress, language_storage::ModuleId};
 use pretty_assertions::assert_str_eq;

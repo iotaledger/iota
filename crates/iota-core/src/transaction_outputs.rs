@@ -12,7 +12,7 @@ use iota_types::{
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
     inner_temporary_store::{InnerTemporaryStore, WrittenObjects},
     storage::{MarkerValue, ObjectKey},
-    transaction::{TransactionDataAPI, VerifiedTransaction},
+    transaction::{TransactionAPI, VerifiedTransaction},
 };
 
 /// TransactionOutputs

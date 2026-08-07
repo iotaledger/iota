@@ -14,7 +14,7 @@ use iota_types::{
     error::{IotaError, UserInputError},
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{TransactionDataAPI, TransactionEnvelope},
+    transaction::{TransactionAPI, TransactionEnvelope},
     utils::{to_sender_signed_transaction, to_sender_signed_transaction_with_multi_signers},
 };
 use once_cell::sync::Lazy;

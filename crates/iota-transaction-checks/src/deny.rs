@@ -7,7 +7,7 @@ use iota_types::{
     deny_rule_governance::DenyRuleConfig,
     error::{IotaError, IotaResult, UserInputError},
     storage::BackingPackageStore,
-    transaction::{InputObjectKind, TransactionDataAPI, TransactionKindExt},
+    transaction::{InputObjectKind, TransactionAPI, TransactionKindExt},
 };
 use tracing::instrument;
 macro_rules! deny_if_true {

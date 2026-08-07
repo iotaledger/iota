@@ -14,7 +14,7 @@ use iota_sdk::{
     rpc_types::ObjectChange,
     types::{
         programmable_transaction_builder::ProgrammableTransactionBuilder,
-        transaction::{CallArg, TransactionDataAPI},
+        transaction::{CallArg, TransactionAPI},
     },
 };
 use iota_sdk_types::{Argument, Command, ObjectReference, Transaction, TransactionKind};

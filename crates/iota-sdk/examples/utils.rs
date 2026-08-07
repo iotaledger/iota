@@ -22,7 +22,7 @@ use iota_sdk::{
     types::{
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         quorum_driver_types::ExecuteTransactionRequestType,
-        transaction::{TransactionDataAPI, TransactionEnvelope},
+        transaction::{TransactionAPI, TransactionEnvelope},
     },
     wallet_context::WalletContext,
 };

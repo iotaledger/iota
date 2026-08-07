@@ -18,7 +18,7 @@ use iota_sdk_crypto::simple::SimpleKeypair;
 use iota_sdk_types::{Address, ObjectId, ObjectReference, StructTag, Transaction, crypto::Intent};
 use iota_types::{
     gas_coin::GasCoin,
-    transaction::{TransactionDataAPI, TransactionEnvelope},
+    transaction::{TransactionAPI, TransactionEnvelope},
 };
 use tokio::sync::RwLock;
 use tracing::warn;

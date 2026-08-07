@@ -58,7 +58,7 @@ use iota_types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     signature::VerifyParams,
     storage::{EpochInfoV2, ObjectStore, ReadStore, TransactionInfo},
-    transaction::{TransactionDataAPI, TransactionEnvelope, VerifiedTransaction},
+    transaction::{TransactionAPI, TransactionEnvelope, VerifiedTransaction},
 };
 use rand::rngs::OsRng;
 
@@ -948,7 +948,7 @@ mod tests {
     use std::time::Duration;
 
     use iota_types::{
-        effects::TransactionEffectsAPI, gas_coin::GasCoin, transaction::TransactionDataAPI,
+        effects::TransactionEffectsAPI, gas_coin::GasCoin, transaction::TransactionAPI,
     };
     use rand::{SeedableRng, rngs::StdRng};
 

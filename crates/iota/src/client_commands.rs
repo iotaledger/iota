@@ -76,7 +76,7 @@ use iota_types::{
     parse_iota_type_tag,
     quorum_driver_types::ExecuteTransactionRequestType,
     transaction::{
-        CallArg, InputObjectKind, TransactionDataAPI, TransactionEnvelope, TransactionKindExt,
+        CallArg, InputObjectKind, TransactionAPI, TransactionEnvelope, TransactionKindExt,
     },
 };
 use json_to_table::json_to_table;

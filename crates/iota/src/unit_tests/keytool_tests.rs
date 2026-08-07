@@ -20,7 +20,7 @@ use iota_sdk_types::{
 };
 use iota_types::{
     crypto::{AuthorityKeyPair, EncodeDecodeBase64, get_key_pair, get_key_pair_from_rng},
-    transaction::{TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionDataAPI},
+    transaction::{TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI},
 };
 use rand::{SeedableRng, rngs::StdRng};
 use tempfile::TempDir;

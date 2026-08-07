@@ -8,7 +8,7 @@ use iota_sdk_types::{ExecutionError, ExecutionStatus, ObjectId, Transaction, Tra
 use iota_types::{
     effects::{InputSharedObject, TransactionEffectsAPI},
     messages_checkpoint::{CheckpointTimestamp, VerifiedCheckpoint},
-    transaction::TransactionDataAPI,
+    transaction::TransactionAPI,
 };
 use moka::{ops::compute::Op, sync::Cache};
 

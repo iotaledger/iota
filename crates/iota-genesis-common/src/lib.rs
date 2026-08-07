@@ -17,7 +17,7 @@ use iota_types::{
     messages_checkpoint::CheckpointTimestamp,
     metrics::LimitsMetrics,
     object::Object,
-    transaction::{CheckedInputObjects, TransactionDataAPI, TransactionEnvelope},
+    transaction::{CheckedInputObjects, TransactionAPI, TransactionEnvelope},
 };
 pub use migration_tx_data_ext::MigrationTxDataExt;
 use prometheus_filtered::Registry;

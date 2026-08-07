@@ -44,7 +44,7 @@ use iota_types::{
     quorum_driver_types::QuorumDriverResponse,
     storage::WriteKind,
     transaction::{
-        CallArg, TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, TransactionDataAPI,
+        CallArg, TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, TransactionAPI,
         TransactionEnvelope,
     },
 };

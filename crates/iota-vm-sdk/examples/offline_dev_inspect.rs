@@ -14,7 +14,7 @@
 use anyhow::Result;
 use fastcrypto::encoding::{Base64, Encoding};
 use iota_sdk_types::Transaction;
-use iota_types::{effects::TransactionEffectsAPI, transaction::TransactionDataAPI};
+use iota_types::{effects::TransactionEffectsAPI, transaction::TransactionAPI};
 use iota_vm_sdk::{Chain, ChainContext, ExecuteOptions, InMemoryStore, LocalVm, ProtocolVersion};
 
 fn main() -> Result<()> {

@@ -25,7 +25,7 @@ use crate::{
     multisig::{MultiSig, MultiSigPublicKey, MultisigMember},
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionDataAPI, TransactionEnvelope},
+    transaction::{TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI, TransactionEnvelope},
 };
 
 pub fn make_committee_key<R>(rand: &mut R) -> (Vec<AuthorityKeyPair>, Committee)

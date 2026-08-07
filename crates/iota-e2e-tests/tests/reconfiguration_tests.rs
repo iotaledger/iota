@@ -38,7 +38,7 @@ use iota_types::{
     messages_consensus::{AuthorityCapabilitiesV1, SignedAuthorityCapabilitiesV1},
     messages_grpc::{HandleCapabilityNotificationRequestV1, HandleCertificateRequestV1},
     supported_protocol_versions::SupportedProtocolVersions,
-    transaction::{TransactionDataAPI, VerifiedTransaction},
+    transaction::{TransactionAPI, VerifiedTransaction},
 };
 use rand::{
     SeedableRng,

@@ -48,7 +48,7 @@ use iota_types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     storage::WriteKind,
     transaction::{
-        CallArg, TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, TransactionDataAPI,
+        CallArg, TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, TransactionAPI,
         TransactionEnvelope,
     },
 };

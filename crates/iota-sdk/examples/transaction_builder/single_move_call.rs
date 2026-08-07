@@ -10,8 +10,7 @@ mod utils;
 
 use iota_json::IotaJsonValue;
 use iota_sdk::types::{
-    programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::TransactionDataAPI,
+    programmable_transaction_builder::ProgrammableTransactionBuilder, transaction::TransactionAPI,
 };
 use iota_sdk_types::Transaction;
 use serde_json::json;

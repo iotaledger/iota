@@ -34,7 +34,7 @@ use iota_types::{
     storage::BackingStore,
     transaction::{
         CheckedInputObjects, InputObjectKind, InputObjects, ObjectReadResult,
-        ReceivingObjectReadResult, ReceivingObjects, TransactionDataAPI,
+        ReceivingObjectReadResult, ReceivingObjects, TransactionAPI,
         merge_authenticator_input_objects,
     },
     transaction_executor::SimulateTransactionResult,

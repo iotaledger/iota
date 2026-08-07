@@ -21,7 +21,7 @@ use iota_types::{
     },
     object::Object,
     transaction::{
-        CallArg, CertifiedTransaction, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS, TransactionDataAPI,
+        CallArg, CertifiedTransaction, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS, TransactionAPI,
     },
     utils::{make_committee_key_num, to_sender_signed_transaction},
 };

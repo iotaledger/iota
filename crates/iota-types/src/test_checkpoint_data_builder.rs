@@ -25,7 +25,7 @@ use crate::{
     },
     object::{GAS_VALUE_FOR_TESTING, MoveStructExt, Object},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{CallArg, TransactionDataAPI, TransactionEnvelope},
+    transaction::{CallArg, TransactionAPI, TransactionEnvelope},
 };
 
 /// A builder for creating test checkpoint data.
@@ -699,7 +699,7 @@ mod tests {
     use super::*;
     use crate::{
         ObjectId,
-        transaction::{TransactionDataAPI, TransactionKindExt},
+        transaction::{TransactionAPI, TransactionKindExt},
     };
     #[test]
     fn test_basic_checkpoint_builder() {

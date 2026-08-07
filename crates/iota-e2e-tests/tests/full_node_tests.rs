@@ -41,7 +41,7 @@ use iota_types::{
     storage::ObjectStore,
     transaction::{
         CallArg, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS, TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
-        TransactionDataAPI,
+        TransactionAPI,
     },
     utils::{to_sender_signed_transaction, to_sender_signed_transaction_with_multi_signers},
 };

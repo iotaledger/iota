@@ -8,8 +8,7 @@ use iota_move_build::{BuildConfig, IotaPackageHooks};
 use iota_sdk::IotaClient;
 use iota_sdk_types::{Transaction, TransactionKind};
 use iota_types::{
-    programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::TransactionDataAPI,
+    programmable_transaction_builder::ProgrammableTransactionBuilder, transaction::TransactionAPI,
 };
 use test_cluster::TestClusterBuilder;
 

@@ -19,17 +19,17 @@ use iota_sdk::{
 };
 use iota_sdk_types::{
     Address, Identifier, ObjectId, ObjectReference, Owner, ProgrammableTransaction,
-    SharedObjectReference, StructTag, TransactionKind,
+    SharedObjectReference, StructTag, Transaction, TransactionKind,
     crypto::{Intent, UserSignature},
 };
-use iota_sdk_types::Transaction;
 use iota_types::{
     crypto::PublicKey,
     multisig::{MultiSig, MultiSigPublicKey},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{
-        CallArg, InputObjectKind, TransactionDataAPI, TransactionEnvelope,
-        TransactionKindExt}};
+        CallArg, InputObjectKind, TransactionAPI, TransactionEnvelope, TransactionKindExt,
+    },
+};
 
 use crate::{
     crypto::combine_keys,

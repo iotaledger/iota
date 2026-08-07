@@ -20,7 +20,7 @@ use iota_macros::sim_test;
 use iota_sdk_types::{Address, Command, Transaction};
 use iota_types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{CallArg, TransactionDataAPI},
+    transaction::{CallArg, TransactionAPI},
 };
 use prost_types::FieldMask;
 

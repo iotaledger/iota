@@ -500,7 +500,7 @@ mod tests {
         effects::{TestEffectsBuilder, TransactionEffectsAPIForTesting as _},
         full_checkpoint_content::CheckpointTransaction,
         test_checkpoint_data_builder::TestCheckpointDataBuilder,
-        transaction::TransactionDataAPI as _,
+        transaction::TransactionAPI as _,
     };
 
     use super::*;

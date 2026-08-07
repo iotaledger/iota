@@ -53,7 +53,7 @@ use iota_types::{
     transaction::{
         TEST_ONLY_GAS_UNIT_FOR_GENERIC, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS,
         TEST_ONLY_GAS_UNIT_FOR_PUBLISH, TEST_ONLY_GAS_UNIT_FOR_SPLIT_COIN,
-        TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionDataAPI,
+        TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI,
     },
 };
 use move_package::{BuildConfig as MoveBuildConfig, lock_file::schema::ManagedPackage};
