@@ -7100,7 +7100,7 @@ async fn execution_scheduler_counts_executing_transaction() {
         std::time::Duration::from_secs(20),
         authority
             .get_transaction_cache_reader()
-            .try_notify_read_executed_effects(&[digest]),
+            .try_notify_read_executed_effects("", &[digest]),
     )
     .await
     .expect("transaction did not finish executing within 20s")
@@ -7264,7 +7264,7 @@ async fn duplicate_enqueue_executes_once(use_execution_scheduler: bool) {
         std::time::Duration::from_secs(20),
         authority
             .get_transaction_cache_reader()
-            .try_notify_read_executed_effects(&[digest]),
+            .try_notify_read_executed_effects("", &[digest]),
     )
     .await
     .expect("transaction did not finish executing within 20s")
