@@ -261,40 +261,23 @@ pub enum LocalnetCommand {
         /// Start the network without a fullnode
         #[arg(long)]
         no_full_node: bool,
-        /// Disable pruning on the fullnode so that all historical data (e.g.
-        /// old object versions) is retained. Useful for tests and tools that
-        /// query historical state via JSON-RPC.
-        ///
-        /// The flag only applies to the current run: it is not persisted, so
-        /// omitting it on a later start resumes pruning, and data that was
-        /// already pruned is not restored.
+        /// Disable pruning on the fullnode so historical data (e.g. old
+        /// object versions) stays queryable via JSON-RPC. Applies to the
+        /// current run only; already pruned data is not restored.
         #[arg(long, conflicts_with = "no_full_node")]
         disable_fullnode_pruning: bool,
-        /// Override a value in the generated node configs, in the form
-        /// `[scope:]<path>=<value>` where scope is `all` (default),
-        /// `fullnode`, `validator` (every validator), or `validator-<N>`,
-        /// and path is a dot-separated list of the field names as they
-        /// appear in the node config YAML (kebab-case for most sections).
-        /// Can be repeated; overrides are applied in the given order, after
-        /// all other configuration. They apply to the current run only and
-        /// are not written back to the config files. Example:
+        /// Override a value in the generated node configs for this run, e.g.
         /// `--node-config-override
-        /// fullnode:authority-store-pruning-config.num-epochs-to-retain=5`
+        /// fullnode:authority-store-pruning-config.num-epochs-to-retain=5`.
         ///
-        /// The value is parsed as YAML: quote values that would otherwise
-        /// parse as YAML structure (e.g. `'[::1]:9000'`), and use `null` or
-        /// an empty value to clear an optional field. An absent optional
-        /// section whose fields have no defaults can only be created by
-        /// passing the whole section as a mapping.
+        /// Scope is `all` (default), `fullnode`, `validator` (all
+        /// validators), or `validator-<N>`; the path uses the field names
+        /// from the node config YAML. Repeatable; later overrides win.
+        /// Values are YAML — quote values that would parse as structure
+        /// (e.g. `'[::1]:9000'`); `null` or an empty value clears a field.
         ///
-        /// List elements cannot be addressed by index; a list can only be
-        /// replaced as a whole.
-        ///
-        /// Warning: values that have to stay per-node or consistent with
-        /// genesis (e.g. `db-path`, a validator's `network-address`) break the
-        /// network when overridden for every node, and clearing values the
-        /// nodes need to reach each other (e.g. `p2p-config.seed-peers`)
-        /// silently stops them from syncing.
+        /// Warning: overriding per-node values (e.g. `db-path`) for every
+        /// node or clearing `p2p-config.seed-peers` breaks the network.
         #[arg(long, value_name = "[SCOPE:]PATH=VALUE")]
         node_config_override: Vec<NodeConfigOverride>,
         /// Set the number of validators in the network.
