@@ -4,8 +4,9 @@
 
 #[cfg(not(msim))]
 use std::fs::{read_to_string, write};
-use std::{fs::read_dir, net::SocketAddr, path::Path, time::Duration};
+use std::{fs::read_dir, net::SocketAddr, num::NonZeroUsize, path::Path, time::Duration};
 
+use clap::Parser;
 use iota_config::{
     IOTA_CLIENT_CONFIG, IOTA_FULLNODE_CONFIG, IOTA_GENESIS_FILENAME, IOTA_KEYSTORE_FILENAME,
     IOTA_NETWORK_CONFIG, PersistedConfig,
@@ -13,12 +14,12 @@ use iota_config::{
 use iota_keys::keystore::AccountKeystore;
 #[cfg(feature = "indexer")]
 use iota_localnet::commands::IndexerFeatureArgs;
-use iota_localnet::commands::{LocalnetCommand, parse_host_port};
+use iota_localnet::commands::{LocalnetCommand, parse_host_port, render_node_configs};
 use iota_macros::sim_test;
 use iota_sdk::iota_client_config::IotaClientConfig;
+use iota_swarm::memory::Swarm;
 use iota_swarm_config::{
     genesis_config::DEFAULT_NUMBER_OF_AUTHORITIES, network_config::NetworkConfigLight,
-    node_config_override::NodeConfigOverride,
 };
 
 /// A `genesis` command that leaves every field but the ones passed in at the
@@ -44,7 +45,8 @@ fn genesis_command(working_dir: &Path, committee_size: usize) -> LocalnetCommand
 fn start_command(
     config_dir: &Path,
     disable_fullnode_pruning: bool,
-    node_config_override: Vec<NodeConfigOverride>,
+    node_config_override: Vec<String>,
+    print_config: bool,
 ) -> LocalnetCommand {
     LocalnetCommand::Start {
         #[cfg(feature = "indexer")]
@@ -53,6 +55,7 @@ fn start_command(
         no_full_node: false,
         disable_fullnode_pruning,
         node_config_override,
+        print_config,
         force_regenesis: false,
         with_faucet: None,
         faucet_amount: None,
@@ -136,7 +139,8 @@ async fn test_start_reports_a_failing_node_config_override() -> Result<(), anyho
         false,
         // One character off, so the override fails when it is applied to
         // the built config.
-        vec!["fullnode:enable-index-processng=false".parse()?],
+        vec!["fullnode:enable-index-processng=false".to_owned()],
+        false,
     )
     .execute()
     .await
@@ -164,9 +168,10 @@ async fn test_start() -> Result<(), anyhow::Error> {
                 // match what --disable-fullnode-pruning and the defaults
                 // already set, so the started network is unaffected.
                 "fullnode:authority-store-pruning-config.num-epochs-to-retain=18446744073709551615"
-                    .parse()?,
-                "validator:enable-soft-locking=true".parse()?,
+                    .to_owned(),
+                "validator:enable-soft-locking=true".to_owned(),
             ],
+            false,
         )
         .execute(),
     )
@@ -231,7 +236,7 @@ async fn test_start_rejects_a_persisted_config_no_node_could_start_with()
 
     let err = tokio::time::timeout(
         Duration::from_secs(30),
-        start_command(working_dir, false, vec![]).execute(),
+        start_command(working_dir, false, vec![], false).execute(),
     )
     .await
     .expect("start must reject the config instead of launching a network")
@@ -275,7 +280,7 @@ async fn test_start_rejects_a_persisted_fullnode_config_with_a_consensus_config(
 
     let err = tokio::time::timeout(
         Duration::from_secs(30),
-        start_command(working_dir, false, vec![]).execute(),
+        start_command(working_dir, false, vec![], false).execute(),
     )
     .await
     .expect("start must reject the config instead of launching a network")
@@ -284,6 +289,312 @@ async fn test_start_rejects_a_persisted_fullnode_config_with_a_consensus_config(
     let err = format!("{err:#}");
     assert!(err.contains(IOTA_FULLNODE_CONFIG), "{err}");
     assert!(err.contains("which makes it a validator config"), "{err}");
+
+    tmp_dir.close()?;
+    Ok(())
+}
+
+// A plain tokio test: `--print-config` starts no nodes, so it needs no
+// simulator and must also run where `#[sim_test]`s are skipped. It is
+// excluded under msim because the start path calls
+// `tokio::task::spawn_blocking`, which the simulator runs on the current
+// simulator node — a plain tokio test has none.
+#[cfg(not(msim))]
+#[tokio::test]
+async fn test_start_with_print_config_returns_without_launching() -> Result<(), anyhow::Error> {
+    let tmp_dir = iota_common::tempdir();
+    let working_dir = tmp_dir.path();
+
+    // Unlike a started network, which runs until killed, --print-config
+    // must complete on its own.
+    tokio::time::timeout(
+        Duration::from_secs(120),
+        start_command(
+            working_dir,
+            false,
+            vec!["fullnode:enable-index-processing=false".to_owned()],
+            true,
+        )
+        .execute(),
+    )
+    .await
+    .expect("--print-config must return without launching the network")?;
+
+    // The run still generated a genesis in the empty directory and
+    // persisted the network configuration there.
+    let files = read_dir(working_dir)?
+        .flat_map(|r| r.map(|file| file.file_name().to_str().unwrap().to_owned()))
+        .collect::<Vec<_>>();
+    assert!(files.contains(&IOTA_GENESIS_FILENAME.to_string()));
+    assert!(files.contains(&IOTA_NETWORK_CONFIG.to_string()));
+
+    tmp_dir.close()?;
+    Ok(())
+}
+
+// A plain tokio test for the same reason as the test above: building the
+// swarm allocates network addresses but starts no nodes.
+#[cfg(not(msim))]
+#[tokio::test]
+async fn test_print_config_renders_every_node() -> Result<(), anyhow::Error> {
+    let swarm = Swarm::builder()
+        .committee_size(NonZeroUsize::new(2).unwrap())
+        .with_fullnode_count(1)
+        .with_node_config_overrides(vec![
+            "fullnode:enable-index-processing=false".parse()?,
+            "validator-0:enable-soft-locking=false".parse()?,
+        ])
+        .try_build()?;
+
+    let output = render_node_configs(&swarm)?;
+    for header in ["validator-0", "validator-1", "fullnode"] {
+        assert_eq!(
+            output.matches(&format!("# ===== {header} =====")).count(),
+            1,
+            "{output}"
+        );
+    }
+    // Only the fullnode is overridden, and only its section lists the
+    // field the override set.
+    assert_eq!(
+        output.matches("enable-index-processing: false").count(),
+        1,
+        "{output}"
+    );
+    assert_eq!(
+        output
+            .matches("#   enable-index-processing (from `fullnode:enable-index-processing`)")
+            .count(),
+        1,
+        "{output}"
+    );
+    // A `validator-<N>` scope is listed under that validator only.
+    let validator_0 = output
+        .split("# ===== validator-1 =====")
+        .next()
+        .unwrap_or_else(|| panic!("no validator-0 section: {output}"));
+    assert!(
+        validator_0.contains("#   enable-soft-locking (from `validator-0:enable-soft-locking`)"),
+        "{output}"
+    );
+    assert_eq!(
+        output
+            .matches("(from `validator-0:enable-soft-locking`)")
+            .count(),
+        1,
+        "{output}"
+    );
+    // Fields the nodes leave unset are printed as explicit nulls, so the
+    // output cannot read as if their serde defaults applied.
+    assert_eq!(output.matches("policy-config: ~").count(), 3, "{output}");
+    assert_eq!(output.matches("grpc-api-config: ~").count(), 3, "{output}");
+    // Every node on this path references the persisted genesis.blob, so
+    // the paths print; only an embedded genesis is omitted.
+    assert_eq!(output.matches("genesis: (omitted)").count(), 0, "{output}");
+    assert_eq!(
+        output.matches("genesis-file-location:").count(),
+        3,
+        "{output}"
+    );
+    Ok(())
+}
+
+// A plain tokio test for the same reason as the test above.
+#[cfg(not(msim))]
+#[tokio::test]
+async fn test_print_config_renders_all_fullnodes() -> Result<(), anyhow::Error> {
+    let swarm = Swarm::builder()
+        .committee_size(NonZeroUsize::new(1).unwrap())
+        .with_fullnode_count(2)
+        .try_build()?;
+
+    // With more than one fullnode the headings are numbered, and no node
+    // is dropped from the output.
+    let output = render_node_configs(&swarm)?;
+    for header in ["validator-0", "fullnode-0", "fullnode-1"] {
+        assert_eq!(
+            output.matches(&format!("# ===== {header} =====")).count(),
+            1,
+            "{output}"
+        );
+    }
+    // The order does not depend on how the swarm stores its nodes.
+    assert_eq!(render_node_configs(&swarm)?, output);
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_start_rejects_print_config_with_the_faucet_flag() -> Result<(), anyhow::Error> {
+    let tmp_dir = iota_common::tempdir();
+    let err = LocalnetCommand::try_parse_from([
+        "iota-localnet",
+        "start",
+        "--network.config",
+        tmp_dir.path().to_str().unwrap(),
+        "--print-config",
+        "--with-faucet",
+    ])?
+    .execute()
+    .await
+    .unwrap_err()
+    .to_string();
+    assert!(
+        err.contains("--print-config renders the node configs and exits"),
+        "{err}"
+    );
+
+    tmp_dir.close()?;
+    Ok(())
+}
+
+// Runs the built binary because only a real process has separate output
+// streams. Excluded under msim, which does not run one.
+#[cfg(not(msim))]
+#[test]
+fn test_start_reports_errors_on_stderr() -> Result<(), anyhow::Error> {
+    let tmp_dir = iota_common::tempdir();
+    let output = std::process::Command::new(env!("CARGO_BIN_EXE_iota-localnet"))
+        .args([
+            "start",
+            "--network.config",
+            tmp_dir.path().to_str().unwrap(),
+            "--print-config",
+            "--with-faucet",
+        ])
+        .output()?;
+    assert!(!output.status.success());
+    // Under --print-config stdout carries the rendered configs, so an
+    // error must not land in it.
+    assert!(
+        String::from_utf8_lossy(&output.stderr).contains("--print-config renders the node configs"),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(output.stdout.is_empty(), "{:?}", output.stdout);
+
+    tmp_dir.close()?;
+    Ok(())
+}
+
+// Runs the built binary because only it shows what clap prints: an
+// override is parsed after clap so a rejected one is never echoed, and
+// nothing but a real process proves that. Excluded under msim, which does
+// not run one.
+#[cfg(not(msim))]
+#[test]
+fn test_start_does_not_echo_a_rejected_node_config_override() -> Result<(), anyhow::Error> {
+    let tmp_dir = iota_common::tempdir();
+    for (config_override, message) in [
+        (
+            "metrics.push-url:https://user:hunter2-token@example.com/push",
+            "expected `[scope:]<path>=<value>`",
+        ),
+        (
+            "metrics.push-url=*hunter2-token",
+            "invalid YAML value for `metrics.push-url`",
+        ),
+    ] {
+        let output = std::process::Command::new(env!("CARGO_BIN_EXE_iota-localnet"))
+            .args([
+                "start",
+                "--network.config",
+                tmp_dir.path().to_str().unwrap(),
+                "--node-config-override",
+                config_override,
+            ])
+            .output()?;
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        // A rejected override ends the run before it starts anything.
+        assert_eq!(output.status.code(), Some(1), "{stdout}{stderr}");
+        assert!(!stderr.contains("hunter2-token"), "{stderr}");
+        assert!(!stdout.contains("hunter2-token"), "{stdout}");
+        assert!(stderr.contains(message), "{stderr}");
+    }
+
+    tmp_dir.close()?;
+    Ok(())
+}
+
+// Runs the built binary because the rendered configs go to stdout, which
+// an in-process call cannot capture. Excluded under msim, which does not
+// run the real process.
+#[cfg(all(not(msim), feature = "indexer"))]
+#[test]
+fn test_print_config_renders_the_indexer_wiring() -> Result<(), anyhow::Error> {
+    let tmp_dir = iota_common::tempdir();
+    let output = std::process::Command::new(env!("CARGO_BIN_EXE_iota-localnet"))
+        .args([
+            "start",
+            "--network.config",
+            tmp_dir.path().to_str().unwrap(),
+            "--print-config",
+            "--with-indexer",
+        ])
+        .output()?;
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        output.status.success(),
+        "{stdout}{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    // --with-indexer changes the built fullnode config, so the rendered
+    // config must show what the indexer run would use.
+    let fullnode = stdout
+        .split("# ===== fullnode =====")
+        .nth(1)
+        .unwrap_or_else(|| panic!("no fullnode section: {stdout}"));
+    let fullnode: serde_yaml::Value = serde_yaml::from_str(fullnode)?;
+    assert_eq!(fullnode["enable-grpc-api"], serde_yaml::Value::Bool(true));
+    let data_ingestion_dir = fullnode["checkpoint-executor-config"]["data-ingestion-dir"]
+        .as_str()
+        .unwrap_or_else(|| panic!("no data-ingestion-dir: {stdout}"))
+        .to_owned();
+    // The directory the run allocated itself is gone once it exits.
+    assert!(
+        !std::path::Path::new(&data_ingestion_dir).exists(),
+        "{data_ingestion_dir} outlived the run"
+    );
+
+    tmp_dir.close()?;
+    Ok(())
+}
+
+// Runs the built binary for the same reason as the test above.
+#[cfg(all(not(msim), feature = "indexer"))]
+#[test]
+fn test_print_config_renders_a_config_a_service_rejects() -> Result<(), anyhow::Error> {
+    let tmp_dir = iota_common::tempdir();
+    let output = std::process::Command::new(env!("CARGO_BIN_EXE_iota-localnet"))
+        .args([
+            "start",
+            "--network.config",
+            tmp_dir.path().to_str().unwrap(),
+            "--print-config",
+            "--with-indexer",
+            "--node-config-override",
+            "fullnode:enable-grpc-api=false",
+        ])
+        .output()?;
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(!output.status.success(), "{stdout}{stderr}");
+
+    // The config the override broke is rendered before the error that
+    // rejects it, so the flag can show what the error is about.
+    assert!(stdout.contains("# ===== fullnode ====="), "{stdout}");
+    assert!(stdout.contains("enable-grpc-api: false"), "{stdout}");
+    // The error goes to stderr, so redirected output is only the
+    // rendered configs.
+    assert!(
+        stderr.contains("require a fullnode with the gRPC API enabled"),
+        "{stderr}"
+    );
+    assert!(
+        !stdout.contains("require a fullnode with the gRPC API enabled"),
+        "{stdout}"
+    );
 
     tmp_dir.close()?;
     Ok(())

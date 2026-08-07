@@ -32,7 +32,7 @@ use iota_swarm_config::{
     node_config_builder::FullnodeConfigBuilder,
     node_config_override::{
         NodeConfigOverride, OverrideScope, apply_node_config_overrides,
-        check_validator_override_scopes,
+        check_validator_override_scopes, overrides_for_fullnode, overrides_for_validator,
     },
 };
 use iota_types::{
@@ -552,9 +552,7 @@ impl<R: rand::RngCore + rand::CryptoRng> SwarmBuilder<R> {
                 "validator {index} has no consensus-config"
             );
             apply_node_config_overrides(
-                self.node_config_overrides
-                    .iter()
-                    .filter(|config_override| config_override.applies_to_validator(index)),
+                overrides_for_validator(&self.node_config_overrides, index),
                 validator,
             )
             .with_context(|| {
@@ -637,9 +635,7 @@ impl<R: rand::RngCore + rand::CryptoRng> SwarmBuilder<R> {
                 .try_build(&mut OsRng, &network_config)
                 .context("failed to build the fullnode config")?;
             apply_node_config_overrides(
-                self.node_config_overrides
-                    .iter()
-                    .filter(|config_override| config_override.applies_to_fullnode()),
+                overrides_for_fullnode(&self.node_config_overrides),
                 &mut config,
             )
             .with_context(|| format!("failed to apply node config overrides to fullnode {idx}"))?;
@@ -797,25 +793,29 @@ impl Swarm {
     /// config: the per-node scopes are skipped, and a section filled in from
     /// a default is re-derived from the config's current state.
     fn apply_node_config_overrides_for_spawn(&self, config: &mut NodeConfig) {
-        let is_fullnode = !config.is_validator();
-        apply_node_config_overrides(
-            self.node_config_overrides.iter().filter(|config_override| {
-                if is_fullnode {
-                    config_override.applies_to_fullnode()
-                } else {
+        let overrides: Vec<&NodeConfigOverride> = if !config.is_validator() {
+            overrides_for_fullnode(&self.node_config_overrides).collect()
+        } else {
+            self.node_config_overrides
+                .iter()
+                .filter(|config_override| {
                     matches!(
                         config_override.scope,
                         OverrideScope::All | OverrideScope::AllValidators
                     )
-                }
-            }),
-            config,
-        )
-        .unwrap_or_else(|err| panic!("{err:#}"));
+                })
+                .collect()
+        };
+        apply_node_config_overrides(overrides, config).unwrap_or_else(|err| panic!("{err:#}"));
     }
 
     pub fn get_fullnode_config_builder(&self) -> FullnodeConfigBuilder {
         self.fullnode_config_builder.clone()
+    }
+
+    /// The node config overrides the swarm was built with.
+    pub fn node_config_overrides(&self) -> &[NodeConfigOverride] {
+        &self.node_config_overrides
     }
 }
 
@@ -1145,11 +1145,15 @@ mod test {
         let mut network_config = ConfigBuilder::new(dir.path())
             .committee_size(NonZeroUsize::new(1).unwrap())
             .build();
-        "firewall-config={remote-fw-url: 'http://127.0.0.1:65000', destination-port: 65000}"
-            .parse::<NodeConfigOverride>()
-            .unwrap()
-            .apply_to(&mut network_config.validator_configs[0])
-            .unwrap();
+        let config_override: NodeConfigOverride =
+            "firewall-config={remote-fw-url: 'http://127.0.0.1:65000', destination-port: 65000}"
+                .parse()
+                .unwrap();
+        apply_node_config_overrides(
+            std::slice::from_ref(&config_override),
+            &mut network_config.validator_configs[0],
+        )
+        .unwrap();
 
         let swarm = Swarm::builder()
             .with_network_config(network_config)

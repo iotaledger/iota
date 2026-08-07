@@ -33,13 +33,17 @@ use iota_keys::keystore::{AccountKeystore, FileBasedKeystore, Keystore};
 use iota_sdk::iota_client_config::{IotaClientConfig, IotaEnv};
 use iota_sdk_crypto::simple::SimpleKeypair;
 use iota_sdk_types::Address;
-use iota_swarm::memory::Swarm;
+use iota_swarm::memory::{Node, Swarm};
 use iota_swarm_config::{
     genesis_config::GenesisConfig,
     network_config::{NetworkConfig, NetworkConfigLight},
     network_config_builder::ConfigBuilder,
     node_config_builder::FullnodeConfigBuilder,
-    node_config_override::{NodeConfigOverride, OverrideScope},
+    node_config_override::{
+        KEY_PAIR_FIELDS, NodeConfigOverride, OverrideScope, overrides_for_fullnode,
+        overrides_for_validator, sections_filled_in_from_defaults, seed_absent_defaults,
+        winning_field_paths,
+    },
 };
 use rand::rngs::OsRng;
 use tempfile::tempdir;
@@ -280,8 +284,36 @@ pub enum LocalnetCommand {
         ///
         /// Warning: overriding per-node values (e.g. `db-path`) for every
         /// node or clearing `p2p-config.seed-peers` breaks the network.
+        // Taken as a string and parsed in `start`: clap reports a rejected
+        // value by echoing the whole argument, which may carry a credential.
         #[arg(long, value_name = "[SCOPE:]PATH=VALUE")]
-        node_config_override: Vec<NodeConfigOverride>,
+        node_config_override: Vec<String>,
+        /// Print each node's final config, with the node config overrides
+        /// applied and the fields they set listed, then exit without
+        /// starting the nodes. The output contains every value from the
+        /// config verbatim, except the key pairs and an embedded genesis,
+        /// which are omitted for readability (a genesis file reference
+        /// keeps its path); review the output before sharing it. The
+        /// output is for inspection, not a loadable config file.
+        ///
+        /// Generated configs get network addresses other than
+        /// `json-rpc-address` allocated fresh on every run; validators
+        /// from a persisted network.yaml keep theirs. Under
+        /// `--force-regenesis` the printed `db-path`s point into a
+        /// temporary directory that is removed on exit. The listed fields
+        /// are the ones the overrides name, so a whole-section override
+        /// followed by an edit inside that section lists both.
+        #[cfg_attr(
+            feature = "indexer",
+            doc = "The data-ingestion directory `--with-indexer` allocates is temporary and \
+                   removed on exit; pass `--data-ingestion-dir` to render the path a real run \
+                   would use."
+        )]
+        /// If the configuration directory has no genesis, one is generated
+        /// and a full network configuration, key files included, is
+        /// persisted there. Cannot be combined with `--with-faucet`.
+        #[arg(long)]
+        print_config: bool,
         /// Set the number of validators in the network.
         /// If a genesis was already generated with a specific number of
         /// validators, this will not override it; the user should recreate the
@@ -360,6 +392,7 @@ impl LocalnetCommand {
                 no_full_node,
                 disable_fullnode_pruning,
                 node_config_override,
+                print_config,
                 committee_size,
                 epoch_duration_ms,
             } => {
@@ -379,6 +412,7 @@ impl LocalnetCommand {
                     no_full_node,
                     disable_fullnode_pruning,
                     node_config_override,
+                    print_config,
                     committee_size,
                 )
                 .await
@@ -429,9 +463,17 @@ async fn start(
     #[cfg(feature = "indexer")] mut data_ingestion_dir: Option<PathBuf>,
     no_full_node: bool,
     disable_fullnode_pruning: bool,
-    mut node_config_overrides: Vec<NodeConfigOverride>,
+    node_config_override: Vec<String>,
+    print_config: bool,
     committee_size: Option<usize>,
 ) -> Result<(), anyhow::Error> {
+    // Parsed here rather than by clap, whose error would echo the whole
+    // argument; these errors name the path only.
+    let mut node_config_overrides = node_config_override
+        .iter()
+        .map(|input| input.parse::<NodeConfigOverride>())
+        .collect::<Result<Vec<_>, _>>()?;
+
     if force_regenesis {
         ensure!(
             config_dir.is_none(),
@@ -454,6 +496,17 @@ async fn start(
         pg_password,
         pruning_options,
     } = indexer_feature_args;
+
+    if print_config {
+        // The faucet is the only service whose flag changes nothing in
+        // the node configs, so under --print-config it would neither start
+        // nor show up. Flags that only tune a run (--faucet-amount,
+        // --pg-*) ask for no service and are ignored instead.
+        ensure!(
+            with_faucet.is_none(),
+            "--print-config renders the node configs and exits; drop --with-faucet"
+        );
+    }
 
     #[cfg(feature = "indexer")]
     if with_graphql.is_some() {
@@ -665,10 +718,22 @@ async fn start(
     // the indexer requires to set the fullnode's data ingestion directory
     // note that this overrides the default configuration that is set when running
     // the genesis command, which sets data_ingestion_dir to None.
+    //
+    // Under --print-config the directory is only rendered, so it is bound
+    // here and deleted when `start` returns instead of being left behind.
     #[cfg(feature = "indexer")]
-    if with_indexer.is_some() && data_ingestion_dir.is_none() {
-        data_ingestion_dir = Some(tempdir()?.keep())
-    }
+    let _auto_data_ingestion_dir = if with_indexer.is_some() && data_ingestion_dir.is_none() {
+        let dir = tempdir()?;
+        if print_config {
+            data_ingestion_dir = Some(dir.path().to_owned());
+            Some(dir)
+        } else {
+            data_ingestion_dir = Some(dir.keep());
+            None
+        }
+    } else {
+        None
+    };
     #[cfg(feature = "indexer")]
     let fullnode_data_ingestion_required = with_indexer.is_some();
     #[cfg(not(feature = "indexer"))]
@@ -695,18 +760,27 @@ async fn start(
     }
 
     let mut swarm = tokio::task::spawn_blocking(move || swarm_builder.try_build()).await??;
-    match swarm.fullnodes().next() {
+    let service_requirements = match swarm.fullnodes().next() {
         Some(fullnode) => check_service_requirements(
             &fullnode.config(),
             fullnode_grpc_required,
             fullnode_data_ingestion_required,
-        )?,
-        None => ensure!(
-            !fullnode_grpc_required && !fullnode_data_ingestion_required,
+        ),
+        None if fullnode_grpc_required || fullnode_data_ingestion_required => Err(anyhow!(
             "The indexer and GraphQL services need a fullnode to talk to; do not pass \
              --with-indexer or --with-graphql together with --no-full-node."
-        ),
+        )),
+        None => Ok(()),
+    };
+
+    if print_config {
+        // Print before reporting a requirement the config fails, so the
+        // output shows the config the error is about.
+        print!("{}", render_node_configs(&swarm)?);
+        return service_requirements;
     }
+    service_requirements?;
+
     swarm.launch().await?;
     // Let nodes connect to one another
     tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
@@ -1248,7 +1322,8 @@ fn check_fullnode_override_scopes(
     for config_override in node_config_overrides {
         ensure!(
             has_fullnode || config_override.scope != OverrideScope::Fullnode,
-            "`{config_override}` is fullnode-scoped, but this network has no fullnode"
+            "`{}` is fullnode-scoped, but this network has no fullnode",
+            config_override.scoped_field_path()
         );
     }
     Ok(())
@@ -1277,6 +1352,114 @@ fn check_service_requirements(
         --with-indexer."
     );
     Ok(())
+}
+
+const OMITTED: &str = "(omitted)";
+
+/// Render the final config of each validator in `swarm`, in network
+/// config order, then of each of its fullnodes.
+pub fn render_node_configs(swarm: &Swarm) -> Result<String, anyhow::Error> {
+    let node_config_overrides = swarm.node_config_overrides();
+    let mut output = String::new();
+    for (index, validator) in swarm.config().validator_configs().iter().enumerate() {
+        output.push_str(&render_node_config(
+            &format!("validator-{index}"),
+            validator,
+            overrides_for_validator(node_config_overrides, index),
+        )?);
+    }
+    // The swarm keeps its nodes in a map, so sort them to render the same
+    // order on every run.
+    let mut fullnodes: Vec<&Node> = swarm.fullnodes().collect();
+    fullnodes.sort_by_key(|fullnode| fullnode.name());
+    for (index, fullnode) in fullnodes.iter().enumerate() {
+        let name = if fullnodes.len() == 1 {
+            "fullnode".to_owned()
+        } else {
+            format!("fullnode-{index}")
+        };
+        output.push_str(&render_node_config(
+            &name,
+            &fullnode.config(),
+            overrides_for_fullnode(node_config_overrides),
+        )?);
+    }
+    Ok(output)
+}
+
+/// Render one node's final config as YAML, headed by the node's name and
+/// followed by the fields the given overrides set, later overrides
+/// winning per field, and the sections they fill in from a default. Every
+/// value is rendered verbatim, except the key pairs and an embedded
+/// genesis, which are omitted because they are long and unreadable rather
+/// than to keep anything out of the output; a genesis file reference
+/// keeps its path.
+///
+/// The listed sections are derived from the overrides alone, so a section
+/// the config already carried can be listed as filled in from a default.
+fn render_node_config<'a>(
+    name: &str,
+    config: &NodeConfig,
+    node_config_overrides: impl IntoIterator<Item = &'a NodeConfigOverride>,
+) -> Result<String, anyhow::Error> {
+    let node_config_overrides: Vec<&NodeConfigOverride> =
+        node_config_overrides.into_iter().collect();
+    let mut output = format!("# ===== {name} =====\n");
+    let mut config = serde_yaml::to_value(config)?;
+    seed_absent_defaults(&mut config);
+    omit_key_pairs_and_genesis(&mut config);
+    output.push_str(&serde_yaml::to_string(&config)?);
+    let fields = winning_field_paths(node_config_overrides.iter().copied());
+    if !fields.is_empty() {
+        output.push_str("# fields set by node config overrides:\n");
+        for (field_path, config_override) in fields {
+            // The override's value is not echoed: it may carry a secret,
+            // and the winning value is visible in the YAML above.
+            output.push_str(&format!(
+                "#   {field_path} (from `{}`)\n",
+                config_override.scoped_field_path()
+            ));
+        }
+    }
+    // A section the overrides only fill in indirectly is in the YAML above
+    // without a field of its own in the list; keep the ones this node has,
+    // and the engine never fills in `grpc-api-config` on a validator.
+    let is_validator = config
+        .get("consensus-config")
+        .is_some_and(|value| !value.is_null());
+    let sections: Vec<&str> = sections_filled_in_from_defaults(node_config_overrides)
+        .into_iter()
+        .filter(|section| config.get(section).is_some_and(|value| !value.is_null()))
+        .filter(|section| !(is_validator && *section == "grpc-api-config"))
+        .collect();
+    if !sections.is_empty() {
+        output.push_str(
+            "# sections the overrides fill in from their default when a config leaves \
+                       them unset:\n",
+        );
+        for section in sections {
+            output.push_str(&format!("#   {section}\n"));
+        }
+    }
+    Ok(output)
+}
+
+/// Replace the top-level key pair fields and an in-place genesis of a
+/// serialized [`NodeConfig`] with [`OMITTED`]: the key pairs are opaque
+/// strings and an embedded genesis is a multi-megabyte inline blob, so
+/// both only make the rendered config harder to read. A genesis that is
+/// a file reference keeps its path; every other value is left as it is.
+fn omit_key_pairs_and_genesis(config: &mut serde_yaml::Value) {
+    for field in KEY_PAIR_FIELDS {
+        if let Some(value) = config.get_mut(*field) {
+            *value = OMITTED.into();
+        }
+    }
+    if let Some(genesis) = config.get_mut("genesis") {
+        if !genesis.is_null() && genesis.get("genesis-file-location").is_none() {
+            *genesis = OMITTED.into();
+        }
+    }
 }
 
 /// Prepend a comment header to a saved YAML config file.
@@ -1429,9 +1612,8 @@ mod tests {
         for (input, expected) in [("[::1]:50051", "[::1]:50051"), ("50051", "0.0.0.0:50051")] {
             let overrides = with_grpc_overrides(input.to_string()).unwrap();
             let mut config = built_fullnode_config(dir.path(), false, None);
-            for config_override in &overrides {
-                config_override.apply_to(&mut config).unwrap();
-            }
+            // One batch, as `start` hands them to the swarm builder.
+            apply_node_config_overrides(&overrides, &mut config).unwrap();
             assert!(config.enable_grpc_api, "{input}");
             assert_eq!(
                 config.grpc_api_config.unwrap().address,
@@ -1439,6 +1621,103 @@ mod tests {
                 "{input}"
             );
         }
+    }
+
+    #[test]
+    fn render_node_config_lists_the_overridden_fields() {
+        // Rendering does not apply the overrides: the config value below
+        // and the field list are set up and asserted independently.
+        let dir = tempdir().unwrap();
+        let mut config = built_fullnode_config(dir.path(), false, None);
+        config.enable_index_processing = false;
+        let config_override: NodeConfigOverride =
+            "fullnode:enable-index-processing=false".parse().unwrap();
+
+        let output = render_node_config("fullnode", &config, [&config_override]).unwrap();
+        assert!(output.starts_with("# ===== fullnode =====\n"), "{output}");
+        // The key pairs and the embedded genesis are omitted for
+        // readability; a genesis file reference keeps its path.
+        assert!(output.contains("authority-key-pair: (omitted)"), "{output}");
+        assert!(!output.contains("iotaprivkey"), "{output}");
+        assert!(output.contains("genesis: (omitted)"), "{output}");
+        let mut config_with_file = built_fullnode_config(dir.path(), false, None);
+        config_with_file.genesis = Genesis::new_from_file("/opt/iota/genesis.blob");
+        let output_with_file =
+            render_node_config("fullnode", &config_with_file, [&config_override]).unwrap();
+        assert!(
+            output_with_file.contains("genesis-file-location: /opt/iota/genesis.blob"),
+            "{output_with_file}"
+        );
+        assert!(
+            !output_with_file.contains("genesis: (omitted)"),
+            "{output_with_file}"
+        );
+        // The config carries the value because the test set it.
+        assert!(
+            output.contains("enable-index-processing: false"),
+            "{output}"
+        );
+        // The list names the override that would set it.
+        assert!(
+            output
+                .contains("#   enable-index-processing (from `fullnode:enable-index-processing`)"),
+            "{output}"
+        );
+
+        // Without overrides there is no trailing field list.
+        let output = render_node_config("validator-0", &config, Vec::new()).unwrap();
+        assert!(!output.contains("fields set by"), "{output}");
+    }
+
+    #[test]
+    fn render_node_config_names_the_sections_filled_in_from_a_default() {
+        // The firewall override sets no field of `policy-config`, so
+        // without this the filled-in section has nothing pointing at it.
+        let dir = tempdir().unwrap();
+        let mut config = built_fullnode_config(dir.path(), false, None);
+        let overrides: Vec<NodeConfigOverride> = vec![
+            "fullnode:firewall-config={remote-fw-url: 'http://127.0.0.1:65000', \
+             destination-port: 65000}"
+                .parse()
+                .unwrap(),
+        ];
+        apply_node_config_overrides(&overrides, &mut config).unwrap();
+
+        let output = render_node_config("fullnode", &config, &overrides).unwrap();
+        assert!(
+            output.contains(
+                "# sections the overrides fill in from their default when a config leaves them \
+                 unset:\n#   policy-config\n"
+            ),
+            "{output}"
+        );
+
+        // A node that does not carry the section is not told about it.
+        let config = built_fullnode_config(dir.path(), false, None);
+        let output = render_node_config("fullnode", &config, &overrides).unwrap();
+        assert!(
+            !output.contains("sections the overrides fill in"),
+            "{output}"
+        );
+    }
+
+    #[test]
+    fn render_node_config_does_not_echo_override_values() {
+        // The override is not applied, so its value can only reach the
+        // output through the field list.
+        let dir = tempdir().unwrap();
+        let config = built_fullnode_config(dir.path(), false, None);
+        let config_override: NodeConfigOverride =
+            "fullnode:metrics.push-url=https://user:a-very-secret-key@example.com/metrics"
+                .parse()
+                .unwrap();
+
+        let output = render_node_config("fullnode", &config, [&config_override]).unwrap();
+        assert!(!output.contains("a-very-secret-key"), "{output}");
+        assert!(
+            output.contains("#   metrics.push-url (from `fullnode:metrics.push-url`)"),
+            "{output}"
+        );
     }
 
     #[test]

@@ -53,6 +53,9 @@ iota-localnet start [OPTIONS]
 | `--epoch-duration-ms <MS>` | Epoch duration in milliseconds (default: `60000`). Only with `--force-regenesis` or auto-generated genesis. |
 | `--committee-size <N>` | Number of validators in the network (default: `1`). |
 | `--no-full-node` | Start the network without a fullnode. |
+| `--disable-fullnode-pruning` | Keep all epoch data on the fullnode for this run. Already pruned data is not restored. |
+| `--node-config-override <[SCOPE:]PATH=VALUE>` | Override a value in the generated node configs for this run, e.g. `fullnode:enable-index-processing=false`. Scope is `all` (default), `fullnode`, `validator`, or `validator-<N>`; the value is YAML. Repeatable; later overrides win by declaration order, not by scope, so a later `validator:` beats an earlier `validator-0:`. |
+| `--print-config` | Print each node's final config with the overrides applied, then exit without starting the nodes. The output contains every value from the config verbatim, except the key pairs and an embedded genesis, which are omitted for readability (a genesis file reference keeps its path); review the output before sharing it. If the configuration directory has no genesis, one is generated and persisted there, key files included. Cannot be combined with `--with-faucet`. Generated configs get network addresses other than `json-rpc-address` allocated fresh on every run; validators from a persisted network.yaml keep theirs. |
 | `--local-migration-snapshots <PATH>...` | Paths to local migration snapshot files. |
 | `--remote-migration-snapshots <URL>...` | Remotely stored migration snapshot URLs. |
 | `--delegator <ADDRESS>` | Specify the delegator address. |

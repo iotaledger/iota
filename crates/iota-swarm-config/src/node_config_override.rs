@@ -9,19 +9,22 @@ use anyhow::{Context, anyhow, bail, ensure};
 use iota_config::NodeConfig;
 use serde_yaml::{Mapping, Value};
 
-/// Node config fields that must not be overridden because they carry node
-/// identity or data that has to stay consistent across the network.
-///
-/// All of them are top-level [`NodeConfig`] fields without serde aliases, so
-/// checking the first path segment of an override is sufficient.
-const PROTECTED_FIELDS: &[&str] = &[
+/// The key pair fields of a [`NodeConfig`]: they carry node identity, must
+/// not be overridden, and consumers that render configs omit them.
+pub const KEY_PAIR_FIELDS: &[&str] = &[
     "authority-key-pair",
     "protocol-key-pair",
     "account-key-pair",
     "network-key-pair",
-    "genesis",
-    "migration-tx-data-path",
 ];
+
+/// Further fields that must not be overridden because they have to stay
+/// consistent across the network.
+///
+/// These and [`KEY_PAIR_FIELDS`] are top-level [`NodeConfig`] fields without
+/// serde aliases, so checking the first path segment of an override is
+/// sufficient.
+const PROTECTED_FIELDS: &[&str] = &["genesis", "migration-tx-data-path"];
 
 /// Which nodes a [`NodeConfigOverride`] applies to.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -86,21 +89,120 @@ pub fn check_validator_override_scopes(
     Ok(())
 }
 
+/// The overrides that apply to the validator at `index` in the network
+/// config, in the given order.
+pub fn overrides_for_validator(
+    overrides: &[NodeConfigOverride],
+    index: usize,
+) -> impl Iterator<Item = &NodeConfigOverride> {
+    overrides
+        .iter()
+        .filter(move |config_override| config_override.applies_to_validator(index))
+}
+
+/// The overrides that apply to a fullnode, in the given order.
+pub fn overrides_for_fullnode(
+    overrides: &[NodeConfigOverride],
+) -> impl Iterator<Item = &NodeConfigOverride> {
+    overrides
+        .iter()
+        .filter(|config_override| config_override.applies_to_fullnode())
+}
+
+/// The fields the given overrides set, each with the override that wins
+/// it: later overrides shadow earlier entries for the same field and for
+/// anything nested inside it.
+pub fn winning_field_paths<'a>(
+    overrides: impl IntoIterator<Item = &'a NodeConfigOverride>,
+) -> Vec<(String, &'a NodeConfigOverride)> {
+    let mut fields: Vec<(String, &'a NodeConfigOverride)> = Vec::new();
+    for config_override in overrides {
+        for field_path in config_override.field_paths() {
+            fields.retain(|(path, _)| {
+                *path != field_path && !path.starts_with(&format!("{field_path}."))
+            });
+            fields.push((field_path, config_override));
+        }
+    }
+    fields
+}
+
+/// The sections the given overrides fill in from their default on a node
+/// whose config has none: `grpc-api-config` when an override turns the
+/// gRPC API on, `policy-config` when one edits that section or sets a
+/// `firewall-config`. [`apply_node_config_overrides`] also weighs what the
+/// config already carries, so it may fill in fewer of them.
+pub fn sections_filled_in_from_defaults<'a>(
+    overrides: impl IntoIterator<Item = &'a NodeConfigOverride>,
+) -> Vec<&'static str> {
+    let overrides: Vec<&NodeConfigOverride> = overrides.into_iter().collect();
+    let last_on = |field: &str| {
+        overrides
+            .iter()
+            .rev()
+            .find(|config_override| config_override.path.first().is_some_and(|s| s == field))
+    };
+    let replaces_whole_section = |field: &str| {
+        last_on(field).is_some_and(|config_override| {
+            config_override.path == [field] && !config_override.value.is_mapping()
+        })
+    };
+    let edits_policy_config = overrides.iter().any(|config_override| {
+        config_override
+            .path
+            .first()
+            .is_some_and(|s| s == "policy-config")
+            && (config_override.path.len() > 1 || config_override.value.is_mapping())
+    });
+    let sets_firewall_config =
+        last_on("firewall-config").is_some_and(|config_override| !config_override.value.is_null());
+    let mut sections = Vec::new();
+    if last_on("enable-grpc-api")
+        .is_some_and(|config_override| config_override.value == Value::Bool(true))
+        && !replaces_whole_section("grpc-api-config")
+    {
+        sections.push("grpc-api-config");
+    }
+    if (edits_policy_config || sets_firewall_config) && !replaces_whole_section("policy-config") {
+        sections.push("policy-config");
+    }
+    sections
+}
+
 impl NodeConfigOverride {
-    pub fn applies_to_validator(&self, index: usize) -> bool {
+    fn applies_to_validator(&self, index: usize) -> bool {
         matches!(
             self.scope,
             OverrideScope::All | OverrideScope::AllValidators
         ) || self.scope == OverrideScope::Validator(index)
     }
 
-    pub fn applies_to_fullnode(&self) -> bool {
+    fn applies_to_fullnode(&self) -> bool {
         matches!(self.scope, OverrideScope::All | OverrideScope::Fullnode)
     }
 
     /// The override's scope and field path, without its value.
     pub fn scoped_field_path(&self) -> String {
         format!("{}:{}", self.scope, self.path.join("."))
+    }
+
+    /// The dot-joined paths of the fields this override sets, one per leaf
+    /// of its value; an empty mapping names the section itself.
+    fn field_paths(&self) -> Vec<String> {
+        fn collect(prefix: String, value: &Value, paths: &mut Vec<String>) {
+            match value.as_mapping().filter(|mapping| !mapping.is_empty()) {
+                Some(mapping) => {
+                    for (key, value) in mapping {
+                        let segment = key.as_str().unwrap_or_default();
+                        collect(format!("{prefix}.{segment}"), value, paths);
+                    }
+                }
+                None => paths.push(prefix),
+            }
+        }
+        let mut paths = Vec::new();
+        collect(self.path.join("."), &self.value, &mut paths);
+        paths
     }
 
     /// Whether an unknown field reported at the dot-joined `field_path`
@@ -112,21 +214,16 @@ impl NodeConfigOverride {
             || field_path.starts_with(&format!("{path}."))
             || path.starts_with(&format!("{field_path}."))
     }
-
-    /// Apply this single override to `config`; see
-    /// [`apply_node_config_overrides`].
-    pub fn apply_to(&self, config: &mut NodeConfig) -> anyhow::Result<()> {
-        apply_node_config_overrides(std::iter::once(self), config)
-    }
 }
 
 /// Fields that serde fills with a default when absent from the YAML.
 ///
 /// The serialized config omits them when `None`, so an explicit `null`
 /// keeps them unset across the round trip and an override cannot set them
-/// behind the user's back. This only works for `Option` fields under
-/// always-serialized sections; the list is guarded by
-/// `apply_leaves_untouched_fields_unchanged`.
+/// behind the user's back; [`seed_absent_defaults`] inserts those nulls,
+/// for this crate and for consumers that render a config. This only works
+/// for `Option` fields under always-serialized sections; the list is
+/// guarded by `apply_leaves_untouched_fields_unchanged`.
 const FIELDS_DEFAULTED_WHEN_ABSENT: &[&[&str]] = &[
     &["grpc-api-config"],
     &["policy-config"],
@@ -400,7 +497,9 @@ pub fn apply_node_config_overrides<'a>(
     Ok(())
 }
 
-/// Insert an explicit `null` at `field_path` when the field is absent.
+/// Insert an explicit `null` at `field_path` in a serialized config when
+/// the field is absent, leaving `root` unchanged when the section holding
+/// the field is itself unset.
 fn insert_null_if_absent(root: &mut Value, field_path: &[&str]) {
     let mut cursor = root;
     let (last, parents) = field_path.split_last().expect("field paths are not empty");
@@ -424,7 +523,7 @@ fn insert_null_if_absent(root: &mut Value, field_path: &[&str]) {
 /// Insert an explicit `null` in `root`, a serialized [`NodeConfig`], for
 /// every field it omits that serde would otherwise fill with a default, so
 /// the field is not read back as that default.
-fn seed_absent_defaults(root: &mut Value) {
+pub fn seed_absent_defaults(root: &mut Value) {
     for field_path in FIELDS_DEFAULTED_WHEN_ABSENT {
         insert_null_if_absent(root, field_path);
     }
@@ -607,7 +706,9 @@ impl FromStr for NodeConfigOverride {
                 path = path.join(".")
             );
         }
-        if PROTECTED_FIELDS.contains(&path[0].as_str()) {
+        if KEY_PAIR_FIELDS.contains(&path[0].as_str())
+            || PROTECTED_FIELDS.contains(&path[0].as_str())
+        {
             bail!("`{}` cannot be overridden", path[0]);
         }
         // An empty value means null, like an empty value in a YAML file.
@@ -656,6 +757,13 @@ mod tests {
         genesis_config::ValidatorGenesisConfigBuilder,
         node_config_builder::{FullnodeConfigBuilder, ValidatorConfigBuilder},
     };
+
+    impl NodeConfigOverride {
+        /// Shorthand for a batch of one, which most tests here apply.
+        fn apply_to(&self, config: &mut NodeConfig) -> anyhow::Result<()> {
+            apply_node_config_overrides(std::slice::from_ref(self), config)
+        }
+    }
 
     fn test_config() -> NodeConfig {
         FullnodeConfigBuilder::new().build_from_parts(&mut OsRng, &[], Genesis::new_empty())
@@ -721,10 +829,10 @@ mod tests {
     }
 
     #[test]
-    fn protected_fields_exist_on_node_config() {
+    fn fields_that_cannot_be_overridden_exist_on_node_config() {
         let root = serde_yaml::to_value(test_config()).unwrap();
         let mapping = root.as_mapping().unwrap();
-        for field in PROTECTED_FIELDS {
+        for field in KEY_PAIR_FIELDS.iter().chain(PROTECTED_FIELDS) {
             assert!(mapping.contains_key(&Value::from(*field)), "{field}");
         }
     }
@@ -1283,6 +1391,41 @@ mod tests {
     }
 
     #[test]
+    fn sections_filled_in_from_defaults_agrees_with_apply() {
+        // The list is read off the batch alone, so it has to match what the
+        // engine fills in on a config that carries neither section.
+        const FIREWALL: &str =
+            "firewall-config={remote-fw-url: 'http://127.0.0.1:65000', destination-port: 65000}";
+        for inputs in [
+            vec!["enable-grpc-api=true"],
+            vec!["enable-grpc-api=false"],
+            vec!["policy-config.dry-run=false"],
+            vec!["policy-config="],
+            vec![FIREWALL],
+            vec![FIREWALL, "firewall-config="],
+        ] {
+            let mut config = test_config();
+            assert!(config.grpc_api_config.is_none());
+            assert!(config.policy_config.is_none());
+            let overrides: Vec<NodeConfigOverride> =
+                inputs.iter().map(|input| input.parse().unwrap()).collect();
+            apply_node_config_overrides(&overrides, &mut config).unwrap();
+
+            let sections = sections_filled_in_from_defaults(&overrides);
+            assert_eq!(
+                sections.contains(&"grpc-api-config"),
+                config.grpc_api_config.is_some(),
+                "{inputs:?}"
+            );
+            assert_eq!(
+                sections.contains(&"policy-config"),
+                config.policy_config.is_some(),
+                "{inputs:?}"
+            );
+        }
+    }
+
+    #[test]
     fn an_override_that_does_not_merge_into_a_materialized_default_is_rejected() {
         // Merging a mapping into the default keeps the default's fields
         // the override does not mention, which for an enum means two
@@ -1715,6 +1858,76 @@ mod tests {
                 "{dotted_input}"
             );
         }
+    }
+
+    #[test]
+    fn field_paths_lists_one_path_per_leaf() {
+        let config_override: NodeConfigOverride =
+            "p2p-config={external-address: null, seed-peers: []}"
+                .parse()
+                .unwrap();
+        assert_eq!(
+            config_override.field_paths(),
+            ["p2p-config.external-address", "p2p-config.seed-peers"]
+        );
+
+        let config_override: NodeConfigOverride = "enable-index-processing=false".parse().unwrap();
+        assert_eq!(config_override.field_paths(), ["enable-index-processing"]);
+
+        // An empty mapping still names the section itself.
+        let config_override: NodeConfigOverride = "metrics={}".parse().unwrap();
+        assert_eq!(config_override.field_paths(), ["metrics"]);
+
+        let config_override: NodeConfigOverride =
+            "p2p-config={state-sync: {interval-period-ms: 5}}"
+                .parse()
+                .unwrap();
+        assert_eq!(
+            config_override.field_paths(),
+            ["p2p-config.state-sync.interval-period-ms"]
+        );
+    }
+
+    #[test]
+    fn winning_field_paths_keeps_the_last_override_per_field() {
+        fn winners(overrides: [&NodeConfigOverride; 2]) -> Vec<(String, String)> {
+            winning_field_paths(overrides)
+                .into_iter()
+                .map(|(field_path, config_override)| (field_path, config_override.to_string()))
+                .collect()
+        }
+        let set_ten: NodeConfigOverride = "metrics.push-interval-seconds=10".parse().unwrap();
+        let set_twenty: NodeConfigOverride = "metrics.push-interval-seconds=20".parse().unwrap();
+        let clear: NodeConfigOverride = "metrics=null".parse().unwrap();
+
+        // A later override on the same field replaces the earlier entry...
+        assert_eq!(
+            winners([&set_ten, &set_twenty]),
+            [(
+                "metrics.push-interval-seconds".to_owned(),
+                "all:metrics.push-interval-seconds=20".to_owned(),
+            )]
+        );
+
+        // ...and a later override of a whole section drops the entries
+        // nested inside it.
+        assert_eq!(
+            winners([&set_ten, &clear]),
+            [("metrics".to_owned(), "all:metrics=~".to_owned())]
+        );
+
+        // In the reverse order both steps are listed: the clear reset the
+        // section and the later override set one field of it.
+        assert_eq!(
+            winners([&clear, &set_ten]),
+            [
+                ("metrics".to_owned(), "all:metrics=~".to_owned()),
+                (
+                    "metrics.push-interval-seconds".to_owned(),
+                    "all:metrics.push-interval-seconds=10".to_owned(),
+                ),
+            ]
+        );
     }
 
     #[test]

@@ -4,7 +4,6 @@
 use clap::*;
 use colored::Colorize;
 use iota_localnet::commands::LocalnetCommand;
-use iota_types::exit_main;
 use tracing::debug;
 
 // Define the `GIT_REVISION` and `VERSION` consts
@@ -44,5 +43,10 @@ async fn main() {
         ),
     };
     debug!("iota-localnet version: {VERSION}");
-    exit_main!(args.command.execute().await);
+    // `start --print-config` writes the node configs to stdout, so errors
+    // go to stderr to keep that stream a payload.
+    if let Err(err) = args.command.execute().await {
+        eprintln!("{}", format!("{err:?}").bold().red());
+        std::process::exit(1);
+    }
 }
