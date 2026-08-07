@@ -17,8 +17,8 @@ use futures::{StreamExt, stream::FuturesUnordered};
 use iota_config::genesis::Genesis;
 use iota_framework::BuiltInFramework;
 use iota_json_rpc_types::{
-    DevInspectResults, DryRunTransactionBlockResponse, IotaArgument, IotaExecutionResult,
-    IotaExecutionStatus, IotaTransactionBlockEffectsAPI, IotaTypeTag,
+    IotaExecutionStatus, IotaTransactionBlockEffects, IotaTransactionBlockEffectsAPI,
+    IotaTransactionBlockEvents,
 };
 use iota_macros::sim_test;
 use iota_protocol_config::{
@@ -29,8 +29,8 @@ use iota_sdk_types::{
     ConsensusDeterminedVersionAssignments, Digest, EpochId, ExecutionError, ExecutionStatus,
     GasPayment, Identifier, MoveStruct, ObjectData, ObjectDigest, ObjectId, ObjectReference, Owner,
     ProgrammableTransaction, SharedObjectReference, StructTag, Transaction, TransactionDigest,
-    TransactionEffects, TransactionKind, TypeTag, Version, VersionAssignment,
-    crypto::SimpleSignature,
+    TransactionEffects, TransactionExpiration, TransactionKind, TransactionV1, TypeTag, Version,
+    VersionAssignment, crypto::SimpleSignature,
 };
 use iota_types::{
     base_types::{AuthorityName, TxContext, dbg_addr, dbg_object_id, random_object_ref},
@@ -46,6 +46,8 @@ use iota_types::{
     executable_transaction::VerifiedExecutableTransaction,
     execution::SharedInput,
     gas_coin::{GasCoin, SIMULATION_GAS_COIN_VALUE},
+    in_memory_storage::InMemoryStorage,
+    inner_temporary_store::PackageStoreWithFallback,
     iota_system_state::{IotaSystemStateTrait, IotaSystemStateWrapper},
     messages_consensus::{AuthorityCapabilitiesV1, ConsensusTransaction, ConsensusTransactionKind},
     messages_grpc::{LayoutGenerationOption, ObjectInfoRequest, TransactionInfoRequest},
@@ -58,6 +60,7 @@ use iota_types::{
         TEST_ONLY_GAS_UNIT_FOR_PUBLISH, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI,
         TransactionEnvelope, VerifiedCertificate, VerifiedTransaction,
     },
+    transaction_executor::{SimulateTransactionResult, VmChecks},
     utils::{to_sender_signed_transaction, to_sender_signed_transaction_with_multi_signers},
 };
 use move_binary_format::{
@@ -232,13 +235,11 @@ async fn test_dry_run_transaction_block() {
         construct_shared_object_transaction_with_version(None).await;
     let initial_shared_object_version = validator.get_object(&shared_object_id).unwrap().version();
 
-    let transaction_digest = *transaction.digest();
-
-    let (response, _, _, _) = fullnode
-        .dry_exec_transaction(transaction.data().transaction().clone(), transaction_digest)
+    let result = fullnode
+        .simulate_transaction(transaction.data().transaction().clone(), VmChecks::Enabled)
         .unwrap();
-    assert_eq!(*response.effects.status(), IotaExecutionStatus::Success);
-    let gas_usage = response.effects.gas_cost_summary();
+    assert_eq!(result.effects.status(), &ExecutionStatus::Success);
+    let gas_usage = result.effects.gas_cost_summary().clone();
 
     // Make sure that objects are not mutated after dry run.
     let gas_object_version = fullnode.get_object(&gas_object_id).unwrap().version();
@@ -254,12 +255,12 @@ async fn test_dry_run_transaction_block() {
         tx.gas_budget(),
         tx.gas_price(),
     );
-    let (response, _, _, _) = fullnode
-        .dry_exec_transaction(txn, transaction_digest)
+    let result = fullnode
+        .simulate_transaction(txn, VmChecks::Enabled)
         .unwrap();
-    let gas_usage_no_gas = response.effects.gas_cost_summary();
-    assert_eq!(*response.effects.status(), IotaExecutionStatus::Success);
-    assert_eq!(gas_usage, gas_usage_no_gas);
+    let gas_usage_no_gas = result.effects.gas_cost_summary();
+    assert_eq!(result.effects.status(), &ExecutionStatus::Success);
+    assert_eq!(&gas_usage, gas_usage_no_gas);
 }
 
 #[tokio::test]
@@ -284,10 +285,10 @@ async fn test_dry_run_no_gas_big_transfer() {
 
     let signed = to_sender_signed_transaction(tx, &sender_key);
 
-    let (dry_run_res, _, _, _) = fullnode
-        .dry_exec_transaction(signed.data().transaction().clone(), *signed.digest())
+    let result = fullnode
+        .simulate_transaction(signed.data().transaction().clone(), VmChecks::Enabled)
         .unwrap();
-    assert_eq!(*dry_run_res.effects.status(), IotaExecutionStatus::Success);
+    assert_eq!(result.effects.status(), &ExecutionStatus::Success);
 }
 
 #[tokio::test]
@@ -298,8 +299,10 @@ async fn test_dev_inspect_object_by_bytes() {
         init_state_with_ids_and_object_basics_with_fullnode(vec![(sender, gas_object_id)]).await;
 
     // test normal call
-    let DevInspectResults {
-        effects, results, ..
+    let SimulateTransactionResult {
+        effects,
+        execution_result,
+        ..
     } = call_dev_inspect(
         &fullnode,
         &sender,
@@ -321,13 +324,10 @@ async fn test_dev_inspect_object_by_bytes() {
     assert!(effects.gas_cost_summary().computation_cost > 0);
     assert!(effects.gas_cost_summary().computation_cost_burned > 0);
 
-    let mut results = results.unwrap();
+    let mut results = execution_result.unwrap();
     assert_eq!(results.len(), 1);
     let exec_results = results.pop().unwrap();
-    let IotaExecutionResult {
-        mutable_reference_outputs,
-        return_values,
-    } = exec_results;
+    let (mutable_reference_outputs, return_values) = exec_results;
     assert!(mutable_reference_outputs.is_empty());
     assert!(return_values.is_empty());
     let dev_inspect_gas_summary = effects.gas_cost_summary().clone();
@@ -363,8 +363,10 @@ async fn test_dev_inspect_object_by_bytes() {
     assert_eq!(effects.gas_cost_summary(), &dev_inspect_gas_summary);
 
     // use the created object directly, via its bytes
-    let DevInspectResults {
-        effects, results, ..
+    let SimulateTransactionResult {
+        effects,
+        execution_result,
+        ..
     } = call_dev_inspect(
         &fullnode,
         &sender,
@@ -387,13 +389,10 @@ async fn test_dev_inspect_object_by_bytes() {
     assert!(effects.gas_cost_summary().computation_cost > 0);
     assert!(effects.gas_cost_summary().computation_cost_burned > 0);
 
-    let mut results = results.unwrap();
+    let mut results = execution_result.unwrap();
     assert_eq!(results.len(), 1);
     let exec_results = results.pop().unwrap();
-    let IotaExecutionResult {
-        mutable_reference_outputs,
-        return_values,
-    } = exec_results;
+    let (mutable_reference_outputs, return_values) = exec_results;
     assert_eq!(mutable_reference_outputs.len(), 1);
     assert!(return_values.is_empty());
     let updated_reference_bytes = &mutable_reference_outputs[0].1;
@@ -461,8 +460,10 @@ async fn test_dev_inspect_unowned_object() {
     assert_eq!(created_object.owner, Owner::Address(bob));
 
     // alice uses the object with dev inspect, despite not being the owner
-    let DevInspectResults {
-        effects, results, ..
+    let SimulateTransactionResult {
+        effects,
+        execution_result,
+        ..
     } = call_dev_inspect(
         &fullnode,
         &alice,
@@ -484,13 +485,10 @@ async fn test_dev_inspect_unowned_object() {
     assert!(effects.gas_cost_summary().computation_cost > 0);
     assert!(effects.gas_cost_summary().computation_cost_burned > 0);
 
-    let mut results = results.unwrap();
+    let mut results = execution_result.unwrap();
     assert_eq!(results.len(), 1);
     let exec_results = results.pop().unwrap();
-    let IotaExecutionResult {
-        mutable_reference_outputs,
-        return_values,
-    } = exec_results;
+    let (mutable_reference_outputs, return_values) = exec_results;
     assert_eq!(mutable_reference_outputs.len(), 1);
     assert!(return_values.is_empty());
 }
@@ -557,20 +555,19 @@ async fn test_dev_inspect_dynamic_field() {
         )],
     };
     let kind = TransactionKind::new_programmable(pt);
-    let DevInspectResults { error, .. } = fullnode
-        .dev_inspect_transaction_block(sender, kind, None, None, None, None, None, None)
-        .await
-        .unwrap();
+    let result = dev_inspect(&fullnode, sender, kind, None).unwrap();
     // produces an error
-    let err = error.unwrap();
+    let err = result.execution_result.unwrap_err().to_string();
     assert!(
         err.contains("CircularObjectOwnership"),
         "unexpected error: {err}"
     );
 
     // add a dynamic field to an object
-    let DevInspectResults {
-        effects, results, ..
+    let SimulateTransactionResult {
+        effects,
+        execution_result,
+        ..
     } = call_dev_inspect(
         &fullnode,
         &sender,
@@ -585,7 +582,7 @@ async fn test_dev_inspect_dynamic_field() {
     )
     .await
     .unwrap();
-    let mut results = results.unwrap();
+    let mut results = execution_result.unwrap();
     assert_eq!(effects.created().len(), 1);
     // random gas is mutated
     assert_eq!(effects.mutated().len(), 1);
@@ -596,10 +593,7 @@ async fn test_dev_inspect_dynamic_field() {
 
     assert_eq!(results.len(), 1);
     let exec_results = results.pop().unwrap();
-    let IotaExecutionResult {
-        mutable_reference_outputs,
-        return_values,
-    } = exec_results;
+    let (mutable_reference_outputs, return_values) = exec_results;
     assert_eq!(mutable_reference_outputs.len(), 1);
     assert!(return_values.is_empty());
 }
@@ -641,7 +635,9 @@ async fn test_dev_inspect_return_values() {
         .to_vec();
 
     // mutably borrow a value from it's bytes
-    let DevInspectResults { results, .. } = call_dev_inspect(
+    let SimulateTransactionResult {
+        execution_result, ..
+    } = call_dev_inspect(
         &fullnode,
         &sender,
         &object_basics.object_id,
@@ -652,23 +648,21 @@ async fn test_dev_inspect_return_values() {
     )
     .await
     .unwrap();
-    let mut results = results.unwrap();
+    let mut results = execution_result.unwrap();
     assert_eq!(results.len(), 1);
     let exec_results = results.pop().unwrap();
-    let IotaExecutionResult {
-        mutable_reference_outputs,
-        mut return_values,
-    } = exec_results;
+    let (mutable_reference_outputs, mut return_values) = exec_results;
     assert_eq!(mutable_reference_outputs.len(), 1);
     assert_eq!(return_values.len(), 1);
     let (return_value_1, return_type) = return_values.pop().unwrap();
     let deserialized_rv1: u64 = bcs::from_bytes(&return_value_1).unwrap();
     assert_eq!(init_value, deserialized_rv1);
-    let type_tag: TypeTag = return_type.try_into().unwrap();
-    assert!(matches!(type_tag, TypeTag::U64));
+    assert!(matches!(return_type, TypeTag::U64));
 
     // borrow a value from it's bytes
-    let DevInspectResults { results, .. } = call_dev_inspect(
+    let SimulateTransactionResult {
+        execution_result, ..
+    } = call_dev_inspect(
         &fullnode,
         &sender,
         &object_basics.object_id,
@@ -679,23 +673,21 @@ async fn test_dev_inspect_return_values() {
     )
     .await
     .unwrap();
-    let mut results = results.unwrap();
+    let mut results = execution_result.unwrap();
     assert_eq!(results.len(), 1);
     let exec_results = results.pop().unwrap();
-    let IotaExecutionResult {
-        mutable_reference_outputs,
-        mut return_values,
-    } = exec_results;
+    let (mutable_reference_outputs, mut return_values) = exec_results;
     assert!(mutable_reference_outputs.is_empty());
     assert_eq!(return_values.len(), 1);
     let (return_value_1, return_type) = return_values.pop().unwrap();
     let deserialized_rv1: u64 = bcs::from_bytes(&return_value_1).unwrap();
     assert_eq!(init_value, deserialized_rv1);
-    let type_tag: TypeTag = return_type.try_into().unwrap();
-    assert!(matches!(type_tag, TypeTag::U64));
+    assert!(matches!(return_type, TypeTag::U64));
 
     // read one value from it's bytes
-    let DevInspectResults { results, .. } = call_dev_inspect(
+    let SimulateTransactionResult {
+        execution_result, ..
+    } = call_dev_inspect(
         &fullnode,
         &sender,
         &object_basics.object_id,
@@ -706,20 +698,16 @@ async fn test_dev_inspect_return_values() {
     )
     .await
     .unwrap();
-    let mut results = results.unwrap();
+    let mut results = execution_result.unwrap();
     assert_eq!(results.len(), 1);
     let exec_results = results.pop().unwrap();
-    let IotaExecutionResult {
-        mutable_reference_outputs,
-        mut return_values,
-    } = exec_results;
+    let (mutable_reference_outputs, mut return_values) = exec_results;
     assert!(mutable_reference_outputs.is_empty());
     assert_eq!(return_values.len(), 1);
     let (return_value_1, return_type) = return_values.pop().unwrap();
     let deserialized_rv1: u64 = bcs::from_bytes(&return_value_1).unwrap();
     assert_eq!(init_value, deserialized_rv1);
-    let type_tag: TypeTag = return_type.try_into().unwrap();
-    assert!(matches!(type_tag, TypeTag::U64));
+    assert!(matches!(return_type, TypeTag::U64));
 
     // An unused value without drop is an error normally
     let effects = call_move_(
@@ -749,7 +737,9 @@ async fn test_dev_inspect_return_values() {
     );
 
     // An unused value without drop is not an error in dev inspect
-    let DevInspectResults { results, .. } = call_dev_inspect(
+    let SimulateTransactionResult {
+        execution_result, ..
+    } = call_dev_inspect(
         &fullnode,
         &sender,
         &object_basics.object_id,
@@ -760,13 +750,10 @@ async fn test_dev_inspect_return_values() {
     )
     .await
     .unwrap();
-    let mut results = results.unwrap();
+    let mut results = execution_result.unwrap();
     assert_eq!(results.len(), 1);
     let exec_results = results.pop().unwrap();
-    let IotaExecutionResult {
-        mutable_reference_outputs,
-        mut return_values,
-    } = exec_results;
+    let (mutable_reference_outputs, mut return_values) = exec_results;
     assert!(mutable_reference_outputs.is_empty());
     assert_eq!(return_values.len(), 1);
     let (_return_value, return_type) = return_values.pop().unwrap();
@@ -776,7 +763,6 @@ async fn test_dev_inspect_return_values() {
         Identifier::from_static("Wrapper"),
         vec![],
     )));
-    let return_type: TypeTag = return_type.try_into().unwrap();
     assert_eq!(return_type, expected_type);
 }
 
@@ -796,22 +782,17 @@ async fn test_dev_inspect_gas_coin_argument() {
         builder.finish()
     };
     let kind = TransactionKind::new_programmable(pt);
-    let results = fullnode
-        .dev_inspect_transaction_block(sender, kind, None, None, None, None, None, None)
-        .await
+    let results = dev_inspect(&fullnode, sender, kind, None)
         .unwrap()
-        .results
+        .execution_result
         .unwrap();
     assert_eq!(results.len(), 2);
     // Split results
-    let IotaExecutionResult {
-        mutable_reference_outputs,
-        return_values,
-    } = &results[0];
+    let (mutable_reference_outputs, return_values) = &results[0];
     // check argument is the gas coin updated
     assert_eq!(mutable_reference_outputs.len(), 1);
     let (arg, arg_value, arg_type) = &mutable_reference_outputs[0];
-    assert_eq!(arg, &IotaArgument::GasCoin);
+    assert_eq!(arg, &Argument::Gas);
     check_coin_value(
         arg_value,
         arg_type,
@@ -823,12 +804,162 @@ async fn test_dev_inspect_gas_coin_argument() {
     check_coin_value(ret_value, ret_type, amount);
 
     // Transfer results
-    let IotaExecutionResult {
-        mutable_reference_outputs,
-        return_values,
-    } = &results[1];
+    let (mutable_reference_outputs, return_values) = &results[1];
     assert!(mutable_reference_outputs.is_empty());
     assert!(return_values.is_empty());
+}
+
+/// A gas budget supplied by the caller is metered against, rather than being
+/// replaced by `max_tx_gas`.
+#[tokio::test]
+async fn test_dev_inspect_uses_supplied_gas_budget() {
+    let (validator, fullnode, _object_basics) =
+        init_state_with_ids_and_object_basics_with_fullnode(vec![]).await;
+    let epoch_store = validator.epoch_store_for_testing();
+    let max_tx_gas = epoch_store.protocol_config().max_tx_gas();
+    let gas_budget = max_tx_gas / 2;
+    assert_ne!(gas_budget, max_tx_gas);
+
+    let sender = Address::random();
+    let recipient = Address::random();
+    let amount = 500;
+    let pt = {
+        let mut builder = ProgrammableTransactionBuilder::new();
+        builder.pay_iota(vec![recipient], vec![amount]).unwrap();
+        builder.finish()
+    };
+    let kind = TransactionKind::new_programmable(pt);
+    let results = dev_inspect_with_budget(&fullnode, sender, kind, None, Some(gas_budget))
+        .unwrap()
+        .execution_result
+        .unwrap();
+
+    // The gas coin is debited by the supplied budget, not by `max_tx_gas`.
+    assert_eq!(results.len(), 2);
+    let (mutable_reference_outputs, _) = &results[0];
+    assert_eq!(mutable_reference_outputs.len(), 1);
+    let (arg, arg_value, arg_type) = &mutable_reference_outputs[0];
+    assert_eq!(arg, &Argument::Gas);
+    check_coin_value(
+        arg_value,
+        arg_type,
+        SIMULATION_GAS_COIN_VALUE - gas_budget - amount,
+    );
+}
+
+/// An unset gas budget becomes as much as the gas coins can back, up to
+/// `max_tx_gas`, so a coin holding less than the maximum still gets an estimate
+/// rather than being rejected over a budget the caller never asked for.
+///
+/// The budget is still held back for the whole programmable transaction, so
+/// capping it to the balance leaves a transaction that also pays out of its own
+/// gas coin nothing to pay with — that caller has to declare a budget, as it
+/// would on chain.
+#[tokio::test]
+async fn test_simulate_unset_gas_budget_is_capped_by_the_gas_coin_balance() {
+    let sender = Address::random();
+    let recipient = Address::random();
+    let (validator, fullnode, object_basics) =
+        init_state_with_ids_and_object_basics_with_fullnode(vec![]).await;
+
+    let protocol_config = validator
+        .epoch_store_for_testing()
+        .protocol_config()
+        .clone();
+    let max_tx_gas = protocol_config.max_tx_gas();
+    let min_gas_budget =
+        protocol_config.base_tx_cost_fixed() * fullnode.reference_gas_price_for_testing().unwrap();
+
+    // A transfer out of the gas coin, which competes with the budget execution
+    // holds back, and a Move call that leaves the gas coin's balance alone.
+    let paying_from_gas_coin = || {
+        let mut builder = ProgrammableTransactionBuilder::new();
+        builder.pay_iota(vec![recipient], vec![500]).unwrap();
+        TransactionKind::new_programmable(builder.finish())
+    };
+    let leaving_gas_coin_alone = || {
+        TransactionKind::new_programmable(ProgrammableTransaction {
+            inputs: vec![CallArg::pure(&(32_u64)), CallArg::pure(&sender)],
+            commands: vec![Command::new_move_call(
+                object_basics.object_id,
+                Identifier::from_static("object_basics"),
+                Identifier::from_static("create"),
+                vec![],
+                vec![Argument::Input(0), Argument::Input(1)],
+            )],
+        })
+    };
+
+    let simulate = |gas_balance: u64, kind: TransactionKind, checks| {
+        let gas_object = Object::new_gas_with_balance_and_owner_for_testing(gas_balance, sender);
+        let gas_object_ref = gas_object.object_ref();
+        validator.insert_genesis_object(gas_object.clone());
+        fullnode.insert_genesis_object(gas_object);
+
+        fullnode.simulate_transaction(
+            Transaction::V1(TransactionV1 {
+                kind,
+                sender,
+                gas_payment: GasPayment {
+                    objects: vec![gas_object_ref],
+                    owner: sender,
+                    price: 0,
+                    budget: 0,
+                },
+                expiration: TransactionExpiration::None,
+            }),
+            checks,
+        )
+    };
+
+    for checks in [VmChecks::Enabled, VmChecks::Disabled] {
+        // A coin backing `max_tx_gas` with room to spare: the budget stays at the
+        // protocol maximum, leaving the rest of the balance for the transfer.
+        let result = simulate(max_tx_gas * 4, paying_from_gas_coin(), checks)
+            .unwrap_or_else(|e| panic!("{checks:?} should simulate a well-funded coin: {e}"));
+        assert!(result.effects.status().is_success(), "{checks:?}");
+        // The supplied coin was used rather than a mock one being minted.
+        assert!(result.mock_gas_id.is_none(), "{checks:?}");
+
+        // A coin below `max_tx_gas` still reports what the transaction costs, as
+        // long as the transaction does not also spend the coin down. Being able to
+        // estimate without holding `max_tx_gas` is the point of the cap.
+        let result = simulate(max_tx_gas / 2, leaving_gas_coin_alone(), checks)
+            .unwrap_or_else(|e| panic!("{checks:?} should simulate a coin under the maximum: {e}"));
+        assert!(result.effects.status().is_success(), "{checks:?}");
+        let gas_used = result.effects.gas_cost_summary().net_gas_usage();
+        assert!(gas_used > 0, "{checks:?}: the run should report a cost");
+        assert!(
+            (gas_used as u64) < max_tx_gas / 2,
+            "{checks:?}: the cost should sit inside the coin's balance"
+        );
+
+        // The same coin cannot also pay out of itself: the capped budget is held
+        // back for the whole programmable transaction, so the transfer runs out of
+        // balance. Such a caller has to name a budget it can cover, as it would
+        // for a real transaction.
+        let result = simulate(max_tx_gas / 2, paying_from_gas_coin(), checks)
+            .unwrap_or_else(|e| panic!("{checks:?} should run rather than reject: {e}"));
+        assert!(
+            !result.effects.status().is_success(),
+            "{checks:?}: paying out of a capped gas coin should fail during execution"
+        );
+
+        // A balance under the smallest budget a transaction may declare is
+        // reported against the balance, not against a budget the caller never set.
+        let Err(error) = simulate(min_gas_budget - 1, leaving_gas_coin_alone(), checks) else {
+            panic!("{checks:?} should reject a balance below the minimum budget");
+        };
+        assert!(
+            matches!(
+                error,
+                IotaError::UserInput {
+                    error: UserInputError::GasBalanceTooLow { .. }
+                }
+            ),
+            "unexpected error for {checks:?}: {error:?}"
+        );
+    }
 }
 
 #[tokio::test]
@@ -845,10 +976,9 @@ async fn test_dev_inspect_gas_price() {
         builder.finish()
     };
     let kind = TransactionKind::new_programmable(pt);
-    let error = fullnode
-        .dev_inspect_transaction_block(sender, kind.clone(), Some(1), None, None, None, None, None)
-        .await
-        .unwrap_err();
+    let Err(error) = dev_inspect(&fullnode, sender, kind.clone(), Some(1)) else {
+        panic!("a gas price below the reference gas price should be rejected")
+    };
     assert!(
         matches!(
             UserInputError::try_from(error.clone()).unwrap(),
@@ -857,21 +987,13 @@ async fn test_dev_inspect_gas_price() {
         "{}",
         error
     );
-    let epoch_store = fullnode.epoch_store_for_testing();
-    let protocol_config = epoch_store.protocol_config();
-    let error = fullnode
-        .dev_inspect_transaction_block(
-            sender,
-            kind,
-            Some(protocol_config.max_gas_price() + 1),
-            None,
-            None,
-            None,
-            None,
-            None,
-        )
-        .await
-        .unwrap_err();
+    let max_gas_price = fullnode
+        .epoch_store_for_testing()
+        .protocol_config()
+        .max_gas_price();
+    let Err(error) = dev_inspect(&fullnode, sender, kind, Some(max_gas_price + 1)) else {
+        panic!("a gas price above the maximum should be rejected")
+    };
     assert!(
         matches!(
             UserInputError::try_from(error.clone()).unwrap(),
@@ -882,11 +1004,10 @@ async fn test_dev_inspect_gas_price() {
     );
 }
 
-fn check_coin_value(actual_value: &[u8], actual_type: &IotaTypeTag, expected_value: u64) {
-    let actual_type: TypeTag = actual_type.clone().try_into().unwrap();
+fn check_coin_value(actual_value: &[u8], actual_type: &TypeTag, expected_value: u64) {
     assert_eq!(
         actual_type,
-        TypeTag::Struct(Box::new(StructTag::new_gas_coin()))
+        &TypeTag::Struct(Box::new(StructTag::new_gas_coin()))
     );
     let actual_coin: GasCoin = bcs::from_bytes(actual_value).unwrap();
     assert_eq!(actual_coin.value(), expected_value);
@@ -914,18 +1035,12 @@ async fn test_dev_inspect_uses_unbound_object() {
     };
     let kind = TransactionKind::new_programmable(pt);
 
-    let result = fullnode
-        .dev_inspect_transaction_block(
-            sender,
-            kind,
-            Some(fullnode.reference_gas_price_for_testing().unwrap()),
-            None,
-            None,
-            None,
-            None,
-            None,
-        )
-        .await;
+    let result = dev_inspect(
+        &fullnode,
+        sender,
+        kind,
+        Some(fullnode.reference_gas_price_for_testing().unwrap()),
+    );
     let Err(err) = result else { panic!() };
     assert!(matches!(
         err,
@@ -963,9 +1078,8 @@ async fn test_dev_inspect_on_validator() {
 async fn test_dry_run_on_validator() {
     let (validator, _fullnode, transaction, _gas_object_id, _shared_object_id) =
         construct_shared_object_transaction_with_version(None).await;
-    let transaction_digest = *transaction.digest();
-    let response = validator
-        .dry_exec_transaction(transaction.data().transaction().clone(), transaction_digest);
+    let response =
+        validator.simulate_transaction(transaction.data().transaction().clone(), VmChecks::Enabled);
     assert!(response.is_err());
 }
 
@@ -1068,11 +1182,8 @@ async fn test_dry_run_dev_inspect_dynamic_field_too_new() {
     let kind = TransactionKind::new_programmable(pt.clone());
     let rgp = fullnode.reference_gas_price_for_testing().unwrap();
     // dev inspect
-    let DevInspectResults { effects, .. } = fullnode
-        .dev_inspect_transaction_block(sender, kind, Some(rgp), None, None, None, None, None)
-        .await
-        .unwrap();
-    assert_eq!(effects.deleted().len(), 0);
+    let result = dev_inspect(&fullnode, sender, kind, Some(rgp)).unwrap();
+    assert_eq!(result.effects.deleted().len(), 0);
     // dry run
     let rgp = fullnode.reference_gas_price_for_testing().unwrap();
     let tx = Transaction::new_programmable(
@@ -1082,21 +1193,92 @@ async fn test_dry_run_dev_inspect_dynamic_field_too_new() {
         rgp * TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS,
         rgp,
     );
-    let transaction = to_sender_signed_transaction(tx.clone(), &sender_key);
-    let digest = *transaction.digest();
-    let DryRunTransactionBlockResponse {
-        effects,
-        execution_error_source,
-        ..
-    } = fullnode.dry_exec_transaction(tx, digest).unwrap().0;
-    assert_eq!(effects.deleted().len(), 0);
-    assert_eq!(execution_error_source, Some("VMError with status ABORTED with sub status 1 at location Module ModuleId { address: 0000000000000000000000000000000000000000000000000000000000000002, name: Identifier(\"dynamic_field\") } at code offset 0 in function definition 13".to_string()));
+    let result = fullnode
+        .simulate_transaction(tx, VmChecks::Enabled)
+        .unwrap();
+    assert_eq!(result.effects.deleted().len(), 0);
+    assert_eq!(execution_error_source(&result), Some("VMError with status ABORTED with sub status 1 at location Module ModuleId { address: 0000000000000000000000000000000000000000000000000000000000000002, name: Identifier(\"dynamic_field\") } at code offset 0 in function definition 13".to_string()));
+}
+
+/// A gas payment that names an object which is not a gas coin is rejected, in
+/// either check mode.
+#[tokio::test]
+async fn test_simulate_rejects_a_gas_payment_that_is_not_a_gas_coin() {
+    let sender = Address::random();
+    let recipient = Address::random();
+    let (validator, fullnode, _object_basics) =
+        init_state_with_ids_and_object_basics_with_fullnode(vec![]).await;
+
+    let max_tx_gas = validator
+        .epoch_store_for_testing()
+        .protocol_config()
+        .max_tx_gas();
+
+    // A funded gas coin, so the combined balance covers any budget.
+    let funded_coin = Object::new_gas_with_balance_and_owner_for_testing(max_tx_gas * 4, sender);
+    // An owned object of the same sender that is not a coin at all.
+    let not_a_coin_id = ObjectId::random();
+    let not_a_coin = Object::new_move(
+        MoveStruct::new(
+            StructTag::new(
+                Address::FRAMEWORK,
+                Identifier::from_static("object_basics"),
+                Identifier::from_static("Object"),
+                vec![],
+            )
+            .into(),
+            OBJECT_START_VERSION,
+            // A Move object's contents lead with its own id.
+            bcs::to_bytes(&(not_a_coin_id, 7u64)).unwrap(),
+        )
+        .unwrap(),
+        Owner::Address(sender),
+        TransactionDigest::GENESIS_MARKER,
+    );
+
+    for object in [funded_coin.clone(), not_a_coin.clone()] {
+        validator.insert_genesis_object(object.clone());
+        fullnode.insert_genesis_object(object);
+    }
+
+    let pt = {
+        let mut builder = ProgrammableTransactionBuilder::new();
+        builder.pay_iota(vec![recipient], vec![500]).unwrap();
+        builder.finish()
+    };
+
+    for checks in [VmChecks::Enabled, VmChecks::Disabled] {
+        let transaction = Transaction::V1(TransactionV1 {
+            kind: TransactionKind::new_programmable(pt.clone()),
+            sender,
+            gas_payment: GasPayment {
+                objects: vec![funded_coin.object_ref(), not_a_coin.object_ref()],
+                owner: sender,
+                price: 0,
+                budget: 0,
+            },
+            expiration: TransactionExpiration::None,
+        });
+
+        let Err(error) = fullnode.simulate_transaction(transaction, checks) else {
+            panic!("{checks:?} should reject a gas payment that is not a gas coin");
+        };
+        assert!(
+            matches!(
+                error,
+                IotaError::UserInput {
+                    error: UserInputError::InvalidGasObject { object_id }
+                } if object_id == not_a_coin_id
+            ),
+            "unexpected error for {checks:?}: {error:?}"
+        );
+    }
 }
 
 // tests using a gas coin with version MAX - 1
 #[tokio::test]
 async fn test_dry_run_dev_inspect_max_gas_version() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, _sender_key): (_, AccountKeyPair) = get_key_pair();
     let gas_object_id = ObjectId::random();
     let (validator, fullnode) = init_state_validator_with_fullnode().await;
     let (validator, object_basics) = publish_object_basics(validator).await;
@@ -1122,11 +1304,8 @@ async fn test_dry_run_dev_inspect_max_gas_version() {
     };
     let kind = TransactionKind::new_programmable(pt.clone());
     // dev inspect
-    let DevInspectResults { effects, .. } = fullnode
-        .dev_inspect_transaction_block(sender, kind, Some(rgp + 100), None, None, None, None, None)
-        .await
-        .unwrap();
-    assert_eq!(effects.status(), &IotaExecutionStatus::Success);
+    let result = dev_inspect(&fullnode, sender, kind, Some(rgp + 100)).unwrap();
+    assert_eq!(result.effects.status(), &ExecutionStatus::Success);
 
     // dry run
     let tx = Transaction::new_programmable(
@@ -1136,11 +1315,10 @@ async fn test_dry_run_dev_inspect_max_gas_version() {
         rgp * TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS,
         rgp,
     );
-    let transaction = to_sender_signed_transaction(tx.clone(), &sender_key);
-    let digest = *transaction.digest();
-    let DryRunTransactionBlockResponse { effects, .. } =
-        fullnode.dry_exec_transaction(tx, digest).unwrap().0;
-    assert_eq!(effects.status(), &IotaExecutionStatus::Success);
+    let result = fullnode
+        .simulate_transaction(tx, VmChecks::Enabled)
+        .unwrap();
+    assert_eq!(result.effects.status(), &ExecutionStatus::Success);
 }
 
 #[tokio::test]
@@ -4432,7 +4610,7 @@ pub async fn call_dev_inspect(
     function: &str,
     type_arguments: Vec<TypeTag>,
     test_args: Vec<TestCallArg>,
-) -> IotaResult<DevInspectResults> {
+) -> IotaResult<SimulateTransactionResult> {
     let mut builder = ProgrammableTransactionBuilder::new();
     let mut arguments = Vec::with_capacity(test_args.len());
     for a in test_args {
@@ -4448,9 +4626,78 @@ pub async fn call_dev_inspect(
     ));
     let kind = TransactionKind::new_programmable(builder.finish());
     let rgp = authority.reference_gas_price_for_testing().unwrap();
-    authority
-        .dev_inspect_transaction_block(*sender, kind, Some(rgp), None, None, None, None, None)
-        .await
+    dev_inspect(authority, *sender, kind, Some(rgp))
+}
+
+/// Assemble the transaction a dev inspect runs, filling in the gas payment the
+/// way the RPC layer does, and simulate it with the Move VM checks relaxed.
+pub fn dev_inspect(
+    authority: &AuthorityState,
+    sender: Address,
+    kind: TransactionKind,
+    gas_price: Option<u64>,
+) -> IotaResult<SimulateTransactionResult> {
+    dev_inspect_with_budget(authority, sender, kind, gas_price, None)
+}
+
+/// Same as [`dev_inspect`], but with control over the gas budget, which is
+/// otherwise left at zero for the simulation to fill in.
+pub fn dev_inspect_with_budget(
+    authority: &AuthorityState,
+    sender: Address,
+    kind: TransactionKind,
+    gas_price: Option<u64>,
+    gas_budget: Option<u64>,
+) -> IotaResult<SimulateTransactionResult> {
+    let epoch_store = authority.epoch_store_for_testing();
+    let transaction = Transaction::V1(TransactionV1 {
+        kind,
+        sender,
+        gas_payment: GasPayment {
+            // Left unset the same way the RPC layer leaves them, so that the
+            // simulation fills them in.
+            objects: vec![],
+            owner: sender,
+            price: gas_price.unwrap_or_default(),
+            budget: gas_budget.unwrap_or_default(),
+        },
+        expiration: TransactionExpiration::None,
+    });
+    authority.simulate_transaction_in_epoch(&epoch_store, transaction, VmChecks::Disabled)
+}
+
+/// Resolve a simulation's events for display the way the RPC layer does: over
+/// the objects the simulation wrote, falling back to the authority's store, so
+/// that events of a package published by the transaction itself resolve too.
+fn simulated_events(
+    authority: &AuthorityState,
+    result: &SimulateTransactionResult,
+) -> IotaTransactionBlockEvents {
+    let epoch_store = authority.epoch_store_for_testing();
+    let written = InMemoryStorage::new(result.output_objects.values().cloned().collect());
+    let mut layout_resolver =
+        epoch_store
+            .executor()
+            .type_layout_resolver(Box::new(PackageStoreWithFallback::new(
+                &written,
+                authority.get_backing_package_store(),
+            )));
+    IotaTransactionBlockEvents::try_from(
+        result.events.clone().unwrap_or_default(),
+        *result.effects.transaction_digest(),
+        None,
+        layout_resolver.as_mut(),
+    )
+    .unwrap()
+}
+
+/// The source of a simulation's execution error, as the RPC layer reports it.
+fn execution_error_source(result: &SimulateTransactionResult) -> Option<String> {
+    result
+        .execution_result
+        .as_ref()
+        .err()
+        .and_then(|e| e.source().as_ref().map(|e| e.to_string()))
 }
 
 /// This function creates a transaction that calls a
@@ -5640,19 +5887,14 @@ async fn test_for_inc_201_dev_inspect() {
         BuiltInFramework::all_package_ids(),
     ));
     let kind = TransactionKind::new_programmable(builder.finish());
-    let DevInspectResults { events, .. } = fullnode
-        .dev_inspect_transaction_block(
-            sender,
-            kind,
-            Some(fullnode.reference_gas_price_for_testing().unwrap() + 1000),
-            None,
-            None,
-            None,
-            None,
-            None,
-        )
-        .await
-        .unwrap();
+    let result = dev_inspect(
+        &fullnode,
+        sender,
+        kind,
+        Some(fullnode.reference_gas_price_for_testing().unwrap() + 1000),
+    )
+    .unwrap();
+    let events = simulated_events(&fullnode, &result);
 
     assert_eq!(1, events.data.len());
     assert_eq!(
@@ -5693,18 +5935,12 @@ async fn test_for_inc_201_dry_run() {
     );
 
     let signed = to_sender_signed_transaction(txn, &sender_key);
-    let (
-        DryRunTransactionBlockResponse {
-            events, effects, ..
-        },
-        _,
-        _,
-        _,
-    ) = fullnode
-        .dry_exec_transaction(signed.data().transaction().clone(), *signed.digest())
+    let result = fullnode
+        .simulate_transaction(signed.data().transaction().clone(), VmChecks::Enabled)
         .unwrap();
-    assert_eq!(effects.status(), &IotaExecutionStatus::Success);
+    assert_eq!(result.effects.status(), &ExecutionStatus::Success);
 
+    let events = simulated_events(&fullnode, &result);
     assert_eq!(1, events.data.len());
     assert_eq!(
         "PublishEvent".to_string(),
@@ -5742,18 +5978,10 @@ async fn test_function_not_found() {
     );
 
     let signed = to_sender_signed_transaction(txn, &sender_key);
-    let (
-        DryRunTransactionBlockResponse {
-            effects,
-            execution_error_source,
-            ..
-        },
-        _,
-        _,
-        _,
-    ) = fullnode
-        .dry_exec_transaction(signed.data().transaction().clone(), *signed.digest())
+    let result = fullnode
+        .simulate_transaction(signed.data().transaction().clone(), VmChecks::Enabled)
         .unwrap();
+    let effects: IotaTransactionBlockEffects = result.effects.clone().try_into().unwrap();
     assert_eq!(
         effects.status(),
         &IotaExecutionStatus::Failure {
@@ -5761,7 +5989,7 @@ async fn test_function_not_found() {
         }
     );
 
-    assert_eq!(execution_error_source, Some("Could not resolve function 'bad_function' in module 0000000000000000000000000000000000000000000000000000000000000001::option".to_string()),)
+    assert_eq!(execution_error_source(&result), Some("Could not resolve function 'bad_function' in module 0000000000000000000000000000000000000000000000000000000000000001::option".to_string()),)
 }
 
 #[tokio::test]
@@ -5795,18 +6023,10 @@ async fn test_arity_mismatch() {
     );
 
     let signed = to_sender_signed_transaction(txn, &sender_key);
-    let (
-        DryRunTransactionBlockResponse {
-            effects,
-            execution_error_source,
-            ..
-        },
-        _,
-        _,
-        _,
-    ) = authority
-        .dry_exec_transaction(signed.data().transaction().clone(), *signed.digest())
+    let result = authority
+        .simulate_transaction(signed.data().transaction().clone(), VmChecks::Enabled)
         .unwrap();
+    let effects: IotaTransactionBlockEffects = result.effects.clone().try_into().unwrap();
     assert_eq!(
         effects.status(),
         &IotaExecutionStatus::Failure {
@@ -5815,7 +6035,7 @@ async fn test_arity_mismatch() {
     );
 
     assert_eq!(
-        execution_error_source,
+        execution_error_source(&result),
         Some("Expected 1 argument calling function 'is_none', but found 0".to_string()),
     )
 }

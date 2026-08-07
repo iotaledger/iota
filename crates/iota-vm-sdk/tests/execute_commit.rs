@@ -7,11 +7,12 @@
 //! only the built-in framework, no Move compiler.
 
 use iota_sdk_types::{
-    MoveStruct, ObjectId, Owner, Transaction, TransactionDigest,
+    Identifier, MoveStruct, ObjectId, Owner, StructTag, Transaction, TransactionDigest,
     transaction::{GenesisTransaction, TransactionKind},
 };
 use iota_types::{
     effects::TransactionEffectsAPI,
+    error::{IotaError, UserInputError},
     object::{MoveStructExt, OBJECT_START_VERSION, Object},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, TransactionAPI},
@@ -22,6 +23,9 @@ use iota_vm_sdk::{
 };
 
 const GAS_PRICE: u64 = 1000;
+/// Mirrors `ProtocolConfig::base_tx_cost_fixed`, the floor an unset budget is
+/// raised to when the gas coins hold less.
+const BASE_TX_COST_FIXED: u64 = 1000;
 const GAS_COIN_VALUE: u64 = 1_000_000_000_000;
 const TRANSFER_AMOUNT: u64 = 1000;
 
@@ -294,10 +298,11 @@ fn dev_inspect_and_dry_run_fund_gasless_transactions_with_mock_coin() {
     }
 }
 
-/// Dev-inspect meters at `max_tx_gas` even when a real gas coin with a lower
-/// declared budget is supplied, matching the node's dev-inspect entry point.
+/// A zero budget is filled in from the epoch even when a real gas coin is
+/// supplied, so a dev inspect whose gas is not yet settled still runs. The coin
+/// is used as-is rather than being replaced by a mock one.
 #[test]
-fn dev_inspect_with_real_gas_coin_ignores_declared_budget() {
+fn dev_inspect_with_real_gas_coin_fills_in_a_zero_budget() {
     let sender = Address::ZERO;
     let recipient = Address::from(ObjectId::random());
 
@@ -321,6 +326,155 @@ fn dev_inspect_with_real_gas_coin_ignores_declared_budget() {
         result.mock_gas_id.is_none(),
         "a supplied gas coin must be used as-is"
     );
+}
+
+/// A budget the caller does declare is metered against, rather than being
+/// replaced by `max_tx_gas`: a budget too small for the transfer runs out of
+/// gas.
+#[test]
+fn dev_inspect_meters_against_a_declared_budget() {
+    let sender = Address::ZERO;
+    let recipient = Address::from(ObjectId::random());
+
+    let gas = gas_coin(sender);
+    let mut store = InMemoryStore::with_framework();
+    store.insert(gas.clone());
+    let mut vm = LocalVm::new(chain_context(), store).expect("build LocalVm");
+
+    let mut tx = transfer_tx(sender, &gas, recipient, TRANSFER_AMOUNT);
+    tx.gas_data_mut().budget = GAS_PRICE;
+
+    let result = vm
+        .execute(tx, ExecuteOptions::dev_inspect())
+        .expect("dev-inspect must not error");
+    assert!(
+        !result.status.is_success(),
+        "a budget too small for the transfer should not succeed, got {:?}",
+        result.status
+    );
+}
+
+/// A gas coin that cannot back the budget is rejected up front, the same way
+/// the node rejects it.
+///
+/// An unset budget is capped at what the coins hold, so it takes a coin holding
+/// less than the smallest budget a transaction may declare to get here: the cap
+/// is raised back to that minimum, and the coin cannot cover even that.
+#[test]
+fn dev_inspect_rejects_a_gas_coin_that_cannot_back_the_budget() {
+    let sender = Address::ZERO;
+    let recipient = Address::from(ObjectId::random());
+
+    let underfunded_balance = GAS_PRICE;
+    let gas = Object::new_move(
+        MoveStruct::new_gas_coin(
+            OBJECT_START_VERSION,
+            ObjectId::random(),
+            underfunded_balance,
+        ),
+        Owner::Address(sender),
+        TransactionDigest::ZERO,
+    );
+    let mut store = InMemoryStore::with_framework();
+    store.insert(gas.clone());
+    let mut vm = LocalVm::new(chain_context(), store).expect("build LocalVm");
+
+    // Left at zero, so the budget is filled in: capped at the coin's balance,
+    // then raised to `base_tx_cost_fixed * gas_price`, which the coin above still
+    // cannot cover.
+    let mut tx = transfer_tx(sender, &gas, recipient, TRANSFER_AMOUNT);
+    tx.gas_data_mut().budget = 0;
+    let min_gas_budget = u128::from(BASE_TX_COST_FIXED) * u128::from(GAS_PRICE);
+    assert!(u128::from(underfunded_balance) < min_gas_budget);
+
+    let err = vm
+        .execute(tx, ExecuteOptions::dev_inspect())
+        .expect_err("a gas coin that cannot back the budget must be rejected");
+    assert!(
+        matches!(
+            &err,
+            VmSdkError::Validation(e)
+                if matches!(
+                    &e.source,
+                    IotaError::UserInput {
+                        error: UserInputError::GasBalanceTooLow { gas_balance, needed_gas_amount },
+                    } if *gas_balance == u128::from(underfunded_balance)
+                        && *needed_gas_amount == min_gas_budget
+                )
+        ),
+        "got {err:?}"
+    );
+}
+
+/// A gas payment naming an object that is not a gas coin is rejected, even when
+/// another coin in the payment covers the budget on its own.
+#[test]
+fn dev_inspect_rejects_a_gas_payment_that_is_not_a_gas_coin() {
+    let sender = Address::ZERO;
+    let recipient = Address::from(ObjectId::random());
+
+    let funded_coin = gas_coin(sender);
+    let not_a_coin = Object::new_move(
+        MoveStruct::new(
+            StructTag::new(
+                Address::FRAMEWORK,
+                Identifier::from_static("object_basics"),
+                Identifier::from_static("Object"),
+                vec![],
+            )
+            .into(),
+            OBJECT_START_VERSION,
+            // A Move object's contents lead with its own id.
+            bcs::to_bytes(&(ObjectId::random(), 7u64)).unwrap(),
+        )
+        .unwrap(),
+        Owner::Address(sender),
+        TransactionDigest::ZERO,
+    );
+
+    let mut store = InMemoryStore::with_framework();
+    store.insert(funded_coin.clone());
+    store.insert(not_a_coin.clone());
+    let mut vm = LocalVm::new(chain_context(), store).expect("build LocalVm");
+
+    let mut tx = transfer_tx(sender, &funded_coin, recipient, TRANSFER_AMOUNT);
+    tx.gas_data_mut().objects = vec![funded_coin.object_ref(), not_a_coin.object_ref()];
+
+    let err = vm
+        .execute(tx, ExecuteOptions::dev_inspect())
+        .expect_err("a gas payment that is not a gas coin must be rejected");
+    assert!(matches!(err, VmSdkError::Validation(_)), "got {err:?}");
+}
+
+#[test]
+fn dev_inspect_rejects_more_gas_coins_than_the_protocol_allows() {
+    let sender = Address::ZERO;
+    let recipient = Address::from(ObjectId::random());
+
+    let funded_coin = gas_coin(sender);
+    let mut store = InMemoryStore::with_framework();
+    store.insert(funded_coin.clone());
+
+    let max_gas_payment_objects =
+        iota_protocol_config::ProtocolConfig::get_for_version(ProtocolVersion::MAX, Chain::Unknown)
+            .max_gas_payment_objects() as usize;
+    let extra_coins: Vec<Object> = (0..max_gas_payment_objects)
+        .map(|_| gas_coin(sender))
+        .collect();
+    for coin in &extra_coins {
+        store.insert(coin.clone());
+    }
+    let mut vm = LocalVm::new(chain_context(), store).expect("build LocalVm");
+
+    let mut tx = transfer_tx(sender, &funded_coin, recipient, TRANSFER_AMOUNT);
+    tx.gas_data_mut().objects = std::iter::once(funded_coin.object_ref())
+        .chain(extra_coins.iter().map(|coin| coin.object_ref()))
+        .collect();
+
+    let err = vm
+        .execute(tx, ExecuteOptions::dev_inspect())
+        .expect_err("a gas payment over the protocol cap must be rejected");
+    assert!(matches!(err, VmSdkError::Validation(_)), "got {err:?}");
 }
 
 /// System transactions are rejected in every mode.

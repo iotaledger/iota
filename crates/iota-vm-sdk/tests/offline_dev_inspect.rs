@@ -71,10 +71,10 @@ fn dev_inspect_runs_offline_and_leaves_store_unchanged() {
     );
 }
 
-/// Dev-inspect meters at `max_tx_gas`, not the transaction's declared budget,
-/// so a zero-budget transaction (gas not yet settled — the common dev-inspect
-/// case) still runs, matching the node. Metering at the budget would abort this
-/// with `InsufficientGas`.
+/// A zero gas budget is filled in from the epoch's maximum, so a transaction
+/// whose gas is not yet settled — the common dev-inspect case — still runs,
+/// matching the node. Metering against the zero would abort this with
+/// `InsufficientGas`.
 #[test]
 fn dev_inspect_succeeds_with_zero_gas_budget() {
     let tx_bytes = Base64::decode(BLAKE2B_TX_B64).expect("base64 decode");
@@ -89,6 +89,28 @@ fn dev_inspect_succeeds_with_zero_gas_budget() {
     assert!(
         result.status.is_success(),
         "zero-budget dev-inspect must succeed, got {:?}",
+        result.status
+    );
+}
+
+/// A zero gas price is filled in from the epoch's reference gas price, which
+/// otherwise rejects the transaction outright: a price below the reference is a
+/// `GasPriceUnderRGP` user input error, not a failed run.
+#[test]
+fn dev_inspect_succeeds_with_zero_gas_price() {
+    let tx_bytes = Base64::decode(BLAKE2B_TX_B64).expect("base64 decode");
+    let mut tx: Transaction = bcs::from_bytes(&tx_bytes).expect("decode tx");
+    tx.gas_data_mut().price = 0;
+    tx.gas_data_mut().budget = 0;
+
+    let mut vm =
+        LocalVm::new(chain_context(), InMemoryStore::with_framework()).expect("build LocalVm");
+    let result = vm
+        .execute(tx, ExecuteOptions::dev_inspect())
+        .expect("zero-price dev-inspect must not error");
+    assert!(
+        result.status.is_success(),
+        "zero-price dev-inspect must succeed, got {:?}",
         result.status
     );
 }
