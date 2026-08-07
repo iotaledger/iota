@@ -10,7 +10,7 @@ use std::{
     sync::Arc,
 };
 
-use anyhow::{anyhow, bail, ensure};
+use anyhow::{Context, anyhow, bail, ensure};
 use clap::*;
 use colored::Colorize;
 use fastcrypto::traits::KeyPair;
@@ -41,7 +41,7 @@ use iota_swarm_config::{
     network_config::{NetworkConfig, NetworkConfigLight},
     network_config_builder::ConfigBuilder,
     node_config_builder::{FullnodeConfigBuilder, ValidatorConfigBuilder},
-    node_config_override::{NodeConfigOverride, OverrideScope},
+    node_config_override::{NodeConfigOverride, OverrideScope, check_validator_override_scopes},
 };
 use rand::rngs::OsRng;
 use tempfile::tempdir;
@@ -71,12 +71,17 @@ const VALIDATOR_CONFIG_NOTE: &str = "\
 # `iota-localnet start` does not read this file; it loads validator configs
 # from network.yaml. Change values at start time with
 # `iota-localnet start --node-config-override [scope:]<path>=<value>`.
+# The file remains a complete config for running a standalone `iota-node`.
 ";
 
 const SSFN_CONFIG_NOTE: &str = "\
 # `iota-localnet start` does not read this file; it does not run state sync
-# fullnodes. The file is a complete config for running a standalone `iota-node`.
+# fullnodes. The file's genesis and db paths assume the standard container
+# layout under /opt/iota.
 ";
+
+const GRPC_REQUIRED: &str = "The indexer and GraphQL services require a fullnode with the gRPC API enabled; do not \
+     disable `enable-grpc-api` together with --with-indexer or --with-graphql.";
 
 #[cfg(feature = "indexer")]
 #[derive(Args)]
@@ -216,12 +221,9 @@ pub enum LocalnetCommand {
         /// request. Defaults to 5.
         #[arg(long)]
         faucet_coin_count: Option<usize>,
-        /// DEPRECATED: use `--node-config-override
-        /// fullnode:enable-grpc-api=true` and optionally
-        /// `--node-config-override
-        /// fullnode:grpc-api-config.address=<HOST:PORT>` instead.
-        /// Removal is tracked in
-        /// <https://github.com/iotaledger/iota/issues/12490>.
+        /// DEPRECATED: alias for `--node-config-override
+        /// fullnode:enable-grpc-api=true` plus `--node-config-override
+        /// fullnode:grpc-api-config.address=<HOST:PORT>`.
         ///
         /// Start the gRPC API server with default host and port: 0.0.0.0:50051.
         /// This flag accepts also a port, a host, or both (e.g.,
@@ -262,23 +264,37 @@ pub enum LocalnetCommand {
         /// Disable pruning on the fullnode so that all historical data (e.g.
         /// old object versions) is retained. Useful for tests and tools that
         /// query historical state via JSON-RPC.
+        ///
+        /// The flag only applies to the current run: it is not persisted, so
+        /// omitting it on a later start resumes pruning, and data that was
+        /// already pruned is not restored.
         #[arg(long, conflicts_with = "no_full_node")]
         disable_fullnode_pruning: bool,
         /// Override a value in the generated node configs, in the form
         /// `[scope:]<path>=<value>` where scope is `all` (default),
-        /// `fullnode`, or `validator-<N>`, and path is a dot-separated list
-        /// of the kebab-case field names used in the node config YAML.
+        /// `fullnode`, `validator` (every validator), or `validator-<N>`,
+        /// and path is a dot-separated list of the field names as they
+        /// appear in the node config YAML (kebab-case for most sections).
         /// Can be repeated; overrides are applied in the given order, after
-        /// all other configuration. Example:
+        /// all other configuration. They apply to the current run only and
+        /// are not written back to the config files. Example:
         /// `--node-config-override
         /// fullnode:authority-store-pruning-config.num-epochs-to-retain=5`
+        ///
+        /// The value is parsed as YAML: quote values that would otherwise
+        /// parse as YAML structure (e.g. `'[::1]:9000'`), and use `null` or
+        /// an empty value to clear an optional field. An absent optional
+        /// section whose fields have no defaults can only be created by
+        /// passing the whole section as a mapping.
         ///
         /// List elements cannot be addressed by index; a list can only be
         /// replaced as a whole.
         ///
         /// Warning: values that have to stay per-node or consistent with
         /// genesis (e.g. `db-path`, a validator's `network-address`) break the
-        /// network when overridden for every node.
+        /// network when overridden for every node, and clearing values the
+        /// nodes need to reach each other (e.g. `p2p-config.seed-peers`)
+        /// silently stops them from syncing.
         #[arg(long, value_name = "[SCOPE:]PATH=VALUE")]
         node_config_override: Vec<NodeConfigOverride>,
         /// Set the number of validators in the network.
@@ -442,15 +458,6 @@ async fn start(
         ensure!(!no_full_node, "Cannot enable gRPC without a fullnode.");
     }
 
-    if no_full_node {
-        ensure!(
-            node_config_overrides
-                .iter()
-                .all(|config_override| config_override.scope != OverrideScope::Fullnode),
-            "Cannot use fullnode-scoped node config overrides without a fullnode."
-        );
-    }
-
     #[cfg(feature = "indexer")]
     let IndexerFeatureArgs {
         mut with_indexer,
@@ -498,20 +505,19 @@ async fn start(
                 .yellow()
                 .bold()
         );
-        let grpc_address = parse_host_port(input, DEFAULT_GRPC_PORT)
-            .map_err(|_| anyhow!("Invalid gRPC host and port"))?;
-        node_config_overrides.splice(
-            0..0,
-            [
-                "fullnode:enable-grpc-api=true".parse()?,
-                format!("fullnode:grpc-api-config.address={grpc_address}").parse()?,
-            ],
-        );
+        node_config_overrides.splice(0..0, with_grpc_overrides(input)?);
     }
 
-    // Reject bad overrides here: the swarm builder panics instead of erroring,
-    // and it runs on a blocking task where that is even less legible.
-    validate_node_config_overrides(&node_config_overrides, &config_path)?;
+    // Fullnode settings the branches below feed into the swarm builder,
+    // mirrored so the throwaway config used for override validation matches
+    // the config the overrides will be applied to.
+    let mut fullnode_iota_names_config = None;
+    let mut fullnode_enable_grpc_api = false;
+    let mut fullnode_grpc_api_config = None;
+    // Real validator configs when the network is loaded from disk; empty in
+    // force-regenesis mode, where they only exist at build time.
+    let mut validator_configs_for_validation: Vec<NodeConfig> = Vec::new();
+    let num_validators;
 
     let mut swarm_builder = Swarm::builder();
 
@@ -524,7 +530,7 @@ async fn start(
     if force_regenesis {
         let committee_size = NonZeroUsize::new(committee_size.unwrap_or(DEFAULT_COMMITTEE_SIZE))
             .ok_or_else(|| anyhow!("Committee size must be at least 1."))?;
-        check_validator_override_scopes(&node_config_overrides, committee_size.get())?;
+        num_validators = committee_size.get();
 
         swarm_builder = swarm_builder.committee_size(committee_size);
         let genesis_config = GenesisConfig::custom_genesis(1, 100);
@@ -583,7 +589,7 @@ async fn start(
                 "Cannot open IOTA network config file at {network_config_path:?}"
             ))
         })?;
-        check_validator_override_scopes(&node_config_overrides, validator_configs.len())?;
+        num_validators = validator_configs.len();
         let first_validator_config = validator_configs.first().ok_or(anyhow!(
             "IOTA network config file must contain at least one validator config"
         ))?;
@@ -630,6 +636,11 @@ async fn start(
                 migration_tx_data_path.eq(&fullnode_migration_tx_data_path),
                 "Fullnode must use the same migration blob as validators in IOTA network config"
             );
+            fullnode_iota_names_config = iota_names_config.clone();
+            fullnode_enable_grpc_api = enable_grpc_api;
+            if enable_grpc_api {
+                fullnode_grpc_api_config = grpc_api_config.clone();
+            }
             swarm_builder = swarm_builder.with_fullnode_db_path(db_path);
 
             if let Some(iota_names_config) = iota_names_config {
@@ -650,6 +661,7 @@ async fn start(
             }
         }
 
+        validator_configs_for_validation = validator_configs.clone();
         let network_config = NetworkConfig {
             validator_configs,
             account_keys,
@@ -661,12 +673,14 @@ async fn start(
             .with_network_config(network_config);
     }
 
-    swarm_builder = swarm_builder.with_node_config_overrides(node_config_overrides);
-
     // the indexer and GraphQL services communicate with the fullnode via gRPC, we
     // must enable it by default.
     #[cfg(feature = "indexer")]
-    if with_indexer.is_some() || with_graphql.is_some() {
+    let fullnode_grpc_required = with_indexer.is_some() || with_graphql.is_some();
+    #[cfg(not(feature = "indexer"))]
+    let fullnode_grpc_required = false;
+    #[cfg(feature = "indexer")]
+    if fullnode_grpc_required {
         // the gRPC api uses default values if config is not provided,
         // allowing to not override it when provided in fullnode config.
         swarm_builder = swarm_builder.with_fullnode_enable_grpc_api(true);
@@ -679,6 +693,42 @@ async fn start(
     if with_indexer.is_some() && data_ingestion_dir.is_none() {
         data_ingestion_dir = Some(tempdir()?.keep())
     }
+    #[cfg(feature = "indexer")]
+    let fullnode_data_ingestion_required = with_indexer.is_some();
+    #[cfg(not(feature = "indexer"))]
+    let fullnode_data_ingestion_required = false;
+    #[cfg(feature = "indexer")]
+    let fullnode_data_ingestion_dir = data_ingestion_dir.clone();
+    #[cfg(not(feature = "indexer"))]
+    let fullnode_data_ingestion_dir = None;
+
+    // Reject bad overrides here: the swarm builder panics instead of erroring,
+    // and it runs on a blocking task where that is even less legible.
+    if !node_config_overrides.is_empty() {
+        let fullnode_config = (!no_full_node).then(|| {
+            let mut builder = FullnodeConfigBuilder::new()
+                .with_config_directory(config_path.clone())
+                .with_iota_names_config(fullnode_iota_names_config)
+                .with_data_ingestion_dir(fullnode_data_ingestion_dir)
+                .with_disable_pruning(disable_fullnode_pruning)
+                .with_enable_grpc_api(fullnode_enable_grpc_api || fullnode_grpc_required);
+            if let Some(grpc_api_config) = fullnode_grpc_api_config {
+                builder = builder.with_grpc_api_config(grpc_api_config);
+            }
+            builder.build_from_parts(&mut OsRng, &[], Genesis::new_empty())
+        });
+        validate_node_config_overrides(
+            &node_config_overrides,
+            &config_path,
+            &validator_configs_for_validation,
+            fullnode_config,
+            fullnode_grpc_required,
+            fullnode_data_ingestion_required,
+            num_validators,
+        )?;
+    }
+
+    swarm_builder = swarm_builder.with_node_config_overrides(node_config_overrides);
 
     #[cfg(feature = "indexer")]
     if let Some(ref dir) = data_ingestion_dir {
@@ -713,7 +763,8 @@ async fn start(
     let fullnode_url = format!("http://{fullnode_url}");
     info!("Fullnode URL: {}", fullnode_url);
 
-    if let Some(grpc_url) = swarm.fullnodes().next().and_then(|node| {
+    // `None` when there is no fullnode or its gRPC API is disabled.
+    let fullnode_grpc_address = swarm.fullnodes().next().and_then(|node| {
         let config = node.config();
         config.enable_grpc_api.then(|| {
             config
@@ -722,8 +773,9 @@ async fn start(
                 .map(|grpc| grpc.address)
                 .unwrap_or_else(|| GrpcApiConfig::default().address)
         })
-    }) {
-        info!("gRPC URL: http://{grpc_url}");
+    });
+    if let Some(grpc_address) = fullnode_grpc_address {
+        info!("gRPC URL: http://{grpc_address}");
     }
 
     #[cfg(feature = "indexer")]
@@ -741,23 +793,18 @@ async fn start(
     #[cfg(feature = "indexer")]
     let pg_address = format!("postgres://{pg_user}:{pg_password}@{pg_host}:{pg_port}/{pg_db_name}");
 
+    // The indexer and GraphQL services talk to the fullnode via gRPC; it is
+    // enabled by default for them, so `None` here means an override disabled
+    // it (or there is no fullnode).
     #[cfg(feature = "indexer")]
-    let fullnode_grpc_url = {
-        let socket_addr = swarm
-            .fullnodes()
-            .next()
-            .and_then(|node| {
-                node.config()
-                    .grpc_api_config
-                    .as_ref()
-                    .map(|grpc| grpc.address)
-            })
-            .unwrap_or_else(|| GrpcApiConfig::default().address);
-        format!("http://{socket_addr}")
-    };
+    let fullnode_grpc_url =
+        fullnode_grpc_address.map(|grpc_address| format!("http://{grpc_address}"));
 
     #[cfg(feature = "indexer")]
     if let Some(input) = with_indexer {
+        let fullnode_grpc_url = fullnode_grpc_url
+            .clone()
+            .ok_or_else(|| anyhow!(GRPC_REQUIRED))?;
         let indexer_address = parse_host_port(input, DEFAULT_INDEXER_PORT)
             .map_err(|_| anyhow!("Invalid indexer host and port"))?;
         tracing::info!("Starting the indexer service at {indexer_address}");
@@ -801,6 +848,7 @@ async fn start(
 
     #[cfg(feature = "indexer")]
     if let Some(input) = with_graphql {
+        let fullnode_grpc_url = fullnode_grpc_url.ok_or_else(|| anyhow!(GRPC_REQUIRED))?;
         let graphql_address = parse_host_port(input, DEFAULT_GRAPHQL_PORT)
             .map_err(|_| anyhow!("Invalid graphql host and port"))?;
         tracing::info!("Starting the GraphQL service at {graphql_address}");
@@ -1210,54 +1258,110 @@ async fn genesis(
     Ok(())
 }
 
-/// Fail if a `validator-<N>` scoped override names a validator the network
-/// does not have.
-fn check_validator_override_scopes(
-    node_config_overrides: &[NodeConfigOverride],
-    num_validators: usize,
-) -> Result<(), anyhow::Error> {
-    for config_override in node_config_overrides {
-        if let OverrideScope::Validator(index) = config_override.scope {
-            ensure!(
-                index < num_validators,
-                "`{config_override}` targets validator {index}, but the network has only \
-                {num_validators} validators"
-            );
-        }
-    }
-    Ok(())
+/// Translate the deprecated `--with-grpc` value into node config overrides.
+fn with_grpc_overrides(input: String) -> Result<[NodeConfigOverride; 2], anyhow::Error> {
+    let grpc_address = parse_host_port(input, DEFAULT_GRPC_PORT)
+        .map_err(|_| anyhow!("Invalid gRPC host and port"))?;
+    Ok([
+        "fullnode:enable-grpc-api=true".parse()?,
+        // Quoted: an IPv6 address like `[::1]:50051` is YAML structure
+        // when unquoted.
+        format!("fullnode:grpc-api-config.address='{grpc_address}'").parse()?,
+    ])
 }
 
 /// Check that each override applies cleanly to a throwaway config of every
-/// node shape its scope covers.
+/// node its scope covers.
+///
+/// `validator_configs` are the real validator configs when the network is
+/// loaded from disk (a freshly built throwaway config stands in for missing
+/// entries); `fullnode_config` is the throwaway config for the fullnode
+/// (`None` with `--no-full-node`); the two `fullnode_*_required` flags mark
+/// what the indexer and GraphQL services need the fullnode config to keep.
 fn validate_node_config_overrides(
     node_config_overrides: &[NodeConfigOverride],
     config_directory: &Path,
+    validator_configs: &[NodeConfig],
+    mut fullnode_config: Option<NodeConfig>,
+    fullnode_grpc_required: bool,
+    fullnode_data_ingestion_required: bool,
+    num_validators: usize,
 ) -> Result<(), anyhow::Error> {
-    let mut fullnode_config = FullnodeConfigBuilder::new()
-        .with_config_directory(config_directory.to_path_buf())
-        .build_from_parts(&mut OsRng, &[], Genesis::new_empty());
-    let mut validator_config = ValidatorConfigBuilder::new()
-        .with_config_directory(config_directory.to_path_buf())
-        .build_without_genesis(ValidatorGenesisConfigBuilder::new().build(&mut OsRng));
+    check_validator_override_scopes(node_config_overrides, num_validators)?;
+    ensure!(
+        fullnode_config.is_some()
+            || node_config_overrides
+                .iter()
+                .all(|config_override| config_override.scope != OverrideScope::Fullnode),
+        "Cannot use fullnode-scoped node config overrides without a fullnode."
+    );
+
     for config_override in node_config_overrides {
-        if config_override.applies_to_fullnode() {
-            config_override.apply_to(&mut fullnode_config)?;
+        if let Some(fullnode_config) = fullnode_config.as_mut() {
+            if config_override.applies_to_fullnode() {
+                config_override.apply_to(fullnode_config)?;
+            }
         }
-        if matches!(
-            config_override.scope,
-            OverrideScope::All | OverrideScope::Validator(_)
-        ) {
-            config_override.apply_to(&mut validator_config)?;
+    }
+    if let Some(fullnode_config) = &fullnode_config {
+        ensure!(
+            !fullnode_grpc_required || fullnode_config.enable_grpc_api,
+            GRPC_REQUIRED
+        );
+        ensure!(
+            !fullnode_data_ingestion_required
+                || fullnode_config
+                    .checkpoint_executor_config
+                    .data_ingestion_dir
+                    .is_some(),
+            "The indexer ingests checkpoints from the fullnode's data-ingestion directory; do \
+            not clear `checkpoint-executor-config.data-ingestion-dir` together with \
+            --with-indexer."
+        );
+    }
+
+    // Each validator receives a different subset of the overrides, so check
+    // every validator's config.
+    let throwaway_validator_config = (validator_configs.len() < num_validators).then(|| {
+        ValidatorConfigBuilder::new()
+            .with_config_directory(config_directory.to_path_buf())
+            .build_without_genesis(ValidatorGenesisConfigBuilder::new().build(&mut OsRng))
+    });
+    for index in 0..num_validators {
+        let mut validator_config = match validator_configs.get(index) {
+            Some(config) => config.clone(),
+            None => throwaway_validator_config
+                .as_ref()
+                .expect("throwaway config is built when real configs are missing")
+                .clone(),
+        };
+        for config_override in node_config_overrides {
+            if config_override.applies_to_validator(index) {
+                config_override.apply_to(&mut validator_config)?;
+            }
         }
+        // The fullnode derives its seed peers from the validators' external
+        // addresses; the swarm builder panics without them.
+        ensure!(
+            fullnode_config.is_none() || validator_config.p2p_config.external_address.is_some(),
+            "the node config overrides clear `p2p-config.external-address` on a validator, which \
+            the fullnode needs to derive its seed peers"
+        );
     }
     Ok(())
 }
 
 /// Prepend a comment header to a saved YAML config file.
 fn prepend_note(path: &Path, note: &str) -> Result<(), anyhow::Error> {
-    let config = fs::read_to_string(path)?;
-    fs::write(path, format!("{note}{config}"))?;
+    let config =
+        fs::read_to_string(path).with_context(|| format!("cannot read config file at {path:?}"))?;
+    // Write to a temporary file and rename so a crash cannot truncate the
+    // just-generated config.
+    let temporary_path = path.with_extension("yaml.tmp");
+    fs::write(&temporary_path, format!("{note}{config}"))
+        .with_context(|| format!("cannot write config file at {temporary_path:?}"))?;
+    fs::rename(&temporary_path, path)
+        .with_context(|| format!("cannot rename {temporary_path:?} to {path:?}"))?;
     Ok(())
 }
 
@@ -1287,21 +1391,298 @@ pub fn parse_host_port(
 mod tests {
     use super::*;
 
-    #[test]
-    fn validator_scoped_override_of_validator_only_section_passes() {
-        let dir = tempdir().unwrap();
-        let config_override = "validator-0:consensus-config.db-retention-epochs=2"
-            .parse()
-            .unwrap();
-        validate_node_config_overrides(&[config_override], dir.path()).unwrap();
+    fn throwaway_fullnode_config(config_directory: &Path) -> Option<NodeConfig> {
+        Some(
+            FullnodeConfigBuilder::new()
+                .with_config_directory(config_directory.to_path_buf())
+                .build_from_parts(&mut OsRng, &[], Genesis::new_empty()),
+        )
+    }
+
+    fn grpc_enabled_throwaway_fullnode_config(config_directory: &Path) -> Option<NodeConfig> {
+        Some(
+            FullnodeConfigBuilder::new()
+                .with_config_directory(config_directory.to_path_buf())
+                .with_enable_grpc_api(true)
+                .build_from_parts(&mut OsRng, &[], Genesis::new_empty()),
+        )
     }
 
     #[test]
-    fn fullnode_scoped_override_of_validator_only_section_fails() {
+    fn consensus_config_override_scopes() {
         let dir = tempdir().unwrap();
-        let config_override = "fullnode:consensus-config.db-retention-epochs=2"
+        // Validator scopes may set the validator-only section...
+        for input in [
+            "validator-0:consensus-config.db-retention-epochs=2",
+            "validator:consensus-config.db-retention-epochs=2",
+        ] {
+            let config_override = input.parse().unwrap();
+            validate_node_config_overrides(
+                &[config_override],
+                dir.path(),
+                &[],
+                throwaway_fullnode_config(dir.path()),
+                false,
+                false,
+                1,
+            )
+            .unwrap_or_else(|err| panic!("{input}: {err}"));
+        }
+
+        // ...scopes that cover the fullnode may not.
+        for input in [
+            "fullnode:consensus-config.db-retention-epochs=2",
+            "all:consensus-config.db-retention-epochs=2",
+        ] {
+            let config_override = input.parse().unwrap();
+            let err = validate_node_config_overrides(
+                &[config_override],
+                dir.path(),
+                &[],
+                throwaway_fullnode_config(dir.path()),
+                false,
+                false,
+                1,
+            )
+            .unwrap_err()
+            .to_string();
+            assert!(err.contains("validator"), "{input}: unhelpful error: {err}");
+        }
+
+        // Without a fullnode, `all:` only ever reaches validators.
+        let config_override = "all:consensus-config.db-retention-epochs=2"
             .parse()
             .unwrap();
-        assert!(validate_node_config_overrides(&[config_override], dir.path()).is_err());
+        validate_node_config_overrides(&[config_override], dir.path(), &[], None, false, false, 1)
+            .unwrap();
+    }
+
+    #[test]
+    fn fullnode_scoped_override_without_a_fullnode_fails() {
+        let dir = tempdir().unwrap();
+        let config_override = "fullnode:enable-index-processing=false".parse().unwrap();
+        assert!(
+            validate_node_config_overrides(
+                &[config_override],
+                dir.path(),
+                &[],
+                None,
+                false,
+                false,
+                1
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn validator_p2p_external_address_must_survive_the_overrides() {
+        let dir = tempdir().unwrap();
+        let clear: NodeConfigOverride = "all:p2p-config.external-address=null".parse().unwrap();
+        assert!(
+            validate_node_config_overrides(
+                std::slice::from_ref(&clear),
+                dir.path(),
+                &[],
+                throwaway_fullnode_config(dir.path()),
+                false,
+                false,
+                1
+            )
+            .is_err()
+        );
+
+        // Only the final state counts: a later override may restore it.
+        let restore = "all:p2p-config.external-address='/ip4/127.0.0.1/udp/8084'"
+            .parse()
+            .unwrap();
+        validate_node_config_overrides(
+            &[clear, restore],
+            dir.path(),
+            &[],
+            throwaway_fullnode_config(dir.path()),
+            false,
+            false,
+            1,
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn validator_index_overrides_validate_independently() {
+        let dir = tempdir().unwrap();
+        // validator-0 creates the whole section; validator-1 patches a single
+        // field of a section that does not exist on validator 1.
+        let overrides = [
+            "validator-0:firewall-config={remote-fw-url: 'http://127.0.0.1:65000', \
+             destination-port: 65000}"
+                .parse()
+                .unwrap(),
+            "validator-1:firewall-config.destination-port=65001"
+                .parse()
+                .unwrap(),
+        ];
+        assert!(
+            validate_node_config_overrides(
+                &overrides,
+                dir.path(),
+                &[],
+                throwaway_fullnode_config(dir.path()),
+                false,
+                false,
+                2
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn index_and_all_validator_overrides_compose() {
+        let dir = tempdir().unwrap();
+        // With one validator, validator 0 receives both overrides in order.
+        let overrides = [
+            "validator-0:firewall-config={remote-fw-url: 'http://127.0.0.1:65000', \
+             destination-port: 65000}"
+                .parse()
+                .unwrap(),
+            "validator:firewall-config.destination-port=65001"
+                .parse()
+                .unwrap(),
+        ];
+        validate_node_config_overrides(
+            &overrides,
+            dir.path(),
+            &[],
+            throwaway_fullnode_config(dir.path()),
+            false,
+            false,
+            1,
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn validation_uses_the_real_validator_configs() {
+        let dir = tempdir().unwrap();
+        let mut validator_config = ValidatorConfigBuilder::new()
+            .with_config_directory(dir.path().to_path_buf())
+            .build_without_genesis(ValidatorGenesisConfigBuilder::new().build(&mut OsRng));
+        let set_firewall: NodeConfigOverride =
+            "firewall-config={remote-fw-url: 'http://127.0.0.1:65000', destination-port: 65000}"
+                .parse()
+                .unwrap();
+        set_firewall.apply_to(&mut validator_config).unwrap();
+
+        // A dotted edit applies cleanly to the real config even though the
+        // section does not exist on a freshly generated one.
+        let edit = "validator:firewall-config.destination-port=65001"
+            .parse()
+            .unwrap();
+        validate_node_config_overrides(
+            &[edit],
+            dir.path(),
+            std::slice::from_ref(&validator_config),
+            throwaway_fullnode_config(dir.path()),
+            false,
+            false,
+            1,
+        )
+        .unwrap();
+
+        // Clearing the gRPC config of a gRPC-enabled validator is rejected
+        // here instead of panicking in the swarm builder.
+        let enable: NodeConfigOverride = "enable-grpc-api=true".parse().unwrap();
+        enable.apply_to(&mut validator_config).unwrap();
+        let clear = "validator:grpc-api-config=null".parse().unwrap();
+        assert!(
+            validate_node_config_overrides(
+                &[clear],
+                dir.path(),
+                &[validator_config],
+                throwaway_fullnode_config(dir.path()),
+                false,
+                false,
+                1,
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn disabling_a_required_grpc_api_fails() {
+        let dir = tempdir().unwrap();
+        let config_override = "fullnode:enable-grpc-api=false".parse().unwrap();
+        assert!(
+            validate_node_config_overrides(
+                &[config_override],
+                dir.path(),
+                &[],
+                grpc_enabled_throwaway_fullnode_config(dir.path()),
+                true,
+                false,
+                1
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn clearing_a_required_data_ingestion_dir_fails() {
+        let dir = tempdir().unwrap();
+        let fullnode_config = Some(
+            FullnodeConfigBuilder::new()
+                .with_config_directory(dir.path().to_path_buf())
+                .with_data_ingestion_dir(Some(dir.path().join("ingestion")))
+                .build_from_parts(&mut OsRng, &[], Genesis::new_empty()),
+        );
+        let config_override = "fullnode:checkpoint-executor-config.data-ingestion-dir=null"
+            .parse()
+            .unwrap();
+        assert!(
+            validate_node_config_overrides(
+                &[config_override],
+                dir.path(),
+                &[],
+                fullnode_config,
+                false,
+                true,
+                1
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn with_grpc_overrides_quote_ipv6_addresses() {
+        let dir = tempdir().unwrap();
+        for (input, expected) in [("[::1]:50051", "[::1]:50051"), ("50051", "0.0.0.0:50051")] {
+            let overrides = with_grpc_overrides(input.to_string()).unwrap();
+            let mut config = throwaway_fullnode_config(dir.path()).unwrap();
+            for config_override in &overrides {
+                config_override.apply_to(&mut config).unwrap();
+            }
+            assert!(config.enable_grpc_api, "{input}");
+            assert_eq!(
+                config.grpc_api_config.unwrap().address,
+                expected.parse::<SocketAddr>().unwrap(),
+                "{input}"
+            );
+        }
+    }
+
+    #[test]
+    fn prepend_note_keeps_the_file_parseable() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("config.yaml");
+        fs::write(&path, "enable-index-processing: true\n").unwrap();
+        prepend_note(&path, FULLNODE_CONFIG_NOTE).unwrap();
+
+        let content = fs::read_to_string(&path).unwrap();
+        assert!(content.starts_with(FULLNODE_CONFIG_NOTE));
+        let value: serde_yaml::Value = serde_yaml::from_str(&content).unwrap();
+        assert_eq!(
+            value.get("enable-index-processing"),
+            Some(&serde_yaml::Value::Bool(true))
+        );
     }
 }

@@ -236,8 +236,17 @@ impl TestCluster {
     }
 
     pub async fn start_fullnode_from_config(&mut self, config: NodeConfig) -> FullNodeHandle {
-        let json_rpc_address = config.json_rpc_address;
+        let name = config.authority_public_key();
         let node = self.swarm.spawn_new_node(config).await;
+        // Read the address from the spawned node: the swarm may have applied
+        // node config overrides to the config. The lookup key is stable
+        // because key pairs cannot be overridden.
+        let json_rpc_address = self
+            .swarm
+            .node(&name)
+            .expect("node was just spawned")
+            .config()
+            .json_rpc_address;
         FullNodeHandle::new(node, json_rpc_address).await
     }
 

@@ -99,8 +99,15 @@ async fn test_start() -> Result<(), anyhow::Error> {
             data_ingestion_dir: None,
             config_dir: Some(working_dir.to_path_buf()),
             no_full_node: false,
-            disable_fullnode_pruning: false,
-            node_config_override: vec![],
+            disable_fullnode_pruning: true,
+            node_config_override: vec![
+                // Exercises the override path through the CLI; the values
+                // match what --disable-fullnode-pruning and the defaults
+                // already set, so the started network is unaffected.
+                "fullnode:authority-store-pruning-config.num-epochs-to-retain=18446744073709551615"
+                    .parse()?,
+                "validator:enable-soft-locking=true".parse()?,
+            ],
             force_regenesis: false,
             with_faucet: None,
             faucet_amount: None,

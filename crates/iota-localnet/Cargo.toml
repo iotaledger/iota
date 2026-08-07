@@ -43,6 +43,7 @@ iota-macros.workspace = true
 iota-metrics.workspace = true
 iota-protocol-config.workspace = true
 iota-simulator.workspace = true
+serde_yaml.workspace = true
 
 [target.'cfg(msim)'.dependencies]
 msim.workspace = true

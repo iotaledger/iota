@@ -30,7 +30,7 @@ use iota_swarm_config::{
         SupportedProtocolVersionsCallback,
     },
     node_config_builder::FullnodeConfigBuilder,
-    node_config_override::{NodeConfigOverride, OverrideScope},
+    node_config_override::{NodeConfigOverride, OverrideScope, check_validator_override_scopes},
 };
 use iota_types::{
     base_types::AuthorityName,
@@ -381,10 +381,14 @@ impl<R> SwarmBuilder<R> {
     }
 
     /// Set overrides applied to every node config this builder produces, in
-    /// the given order, after all other configuration.
+    /// the given order, after all other configuration. Nodes spawned on the
+    /// built [`Swarm`] later get them too, except `validator-<N>` scoped
+    /// overrides, which refer to positions in the initial network config.
     ///
-    /// Fullnodes spawned after [`SwarmBuilder::build`] from the fullnode config
-    /// builder the [`Swarm`] keeps do not get these overrides.
+    /// # Panics
+    ///
+    /// [`SwarmBuilder::build`] and later spawns panic on an override that
+    /// fails to apply; validate overrides from user input first.
     pub fn with_node_config_overrides(
         mut self,
         node_config_overrides: Vec<NodeConfigOverride>,
@@ -486,15 +490,11 @@ impl<R: rand::RngCore + rand::CryptoRng> SwarmBuilder<R> {
             }
         }
 
-        let num_validators = network_config.validator_configs.len();
-        for config_override in &self.node_config_overrides {
-            if let OverrideScope::Validator(index) = config_override.scope {
-                assert!(
-                    index < num_validators,
-                    "node config override `{config_override}` targets validator {index}, but there are only {num_validators} validators"
-                );
-            }
-        }
+        check_validator_override_scopes(
+            &self.node_config_overrides,
+            network_config.validator_configs.len(),
+        )
+        .unwrap_or_else(|err| panic!("{err:#}"));
         for (index, validator) in network_config.validator_configs.iter_mut().enumerate() {
             apply_node_config_overrides(
                 self.node_config_overrides
@@ -592,6 +592,7 @@ impl<R: rand::RngCore + rand::CryptoRng> SwarmBuilder<R> {
             network_config,
             nodes,
             fullnode_config_builder,
+            node_config_overrides: self.node_config_overrides,
         }
     }
 }
@@ -604,6 +605,8 @@ pub struct Swarm {
     nodes: HashMap<AuthorityName, Node>,
     // Save a copy of the fullnode config builder to build future fullnodes.
     fullnode_config_builder: FullnodeConfigBuilder,
+    // Applied to the configs of nodes spawned after the initial build too.
+    node_config_overrides: Vec<NodeConfigOverride>,
 }
 
 impl Drop for Swarm {
@@ -702,13 +705,37 @@ impl Swarm {
             .filter(|node| node.config().consensus_config.is_none())
     }
 
-    pub async fn spawn_new_node(&mut self, config: NodeConfig) -> IotaNodeHandle {
+    /// Start a node from `config` and add it to the swarm.
+    ///
+    /// The swarm's node config overrides are applied to the config first.
+    pub async fn spawn_new_node(&mut self, mut config: NodeConfig) -> IotaNodeHandle {
+        self.apply_node_config_overrides_for_spawn(&mut config);
         let name = config.authority_public_key();
         let node = Node::new(config);
         node.start().await.unwrap();
         let handle = node.get_node_handle().unwrap();
         self.nodes.insert(name, node);
         handle
+    }
+
+    /// Apply the swarm's overrides to the config of a node spawned after the
+    /// initial build. `validator-<N>` scoped overrides refer to positions in
+    /// the initial network config, so they are skipped here.
+    fn apply_node_config_overrides_for_spawn(&self, config: &mut NodeConfig) {
+        let is_fullnode = config.consensus_config.is_none();
+        apply_node_config_overrides(
+            self.node_config_overrides.iter().filter(|config_override| {
+                if is_fullnode {
+                    config_override.applies_to_fullnode()
+                } else {
+                    matches!(
+                        config_override.scope,
+                        OverrideScope::All | OverrideScope::AllValidators
+                    )
+                }
+            }),
+            config,
+        );
     }
 
     pub fn get_fullnode_config_builder(&self) -> FullnodeConfigBuilder {
@@ -777,6 +804,7 @@ mod test {
                 "validator-0:authority-store-pruning-config.num-epochs-to-retain=5"
                     .parse()
                     .unwrap(),
+                "validator:enable-soft-locking=false".parse().unwrap(),
             ])
             .build();
 
@@ -793,6 +821,7 @@ mod test {
                 .num_epochs_to_retain,
             0
         );
+        assert!(validators.iter().all(|config| !config.enable_soft_locking));
 
         let fullnode = swarm.fullnodes().next().unwrap();
         assert_eq!(
@@ -802,6 +831,36 @@ mod test {
                 .num_epochs_to_retain,
             u64::MAX
         );
+        assert!(fullnode.config().enable_soft_locking);
+    }
+
+    #[test]
+    fn node_config_overrides_apply_to_late_spawned_nodes() {
+        let swarm = Swarm::builder()
+            .committee_size(NonZeroUsize::new(1).unwrap())
+            .with_fullnode_count(1)
+            .with_node_config_overrides(vec![
+                "fullnode:authority-store-pruning-config.num-epochs-to-retain=18446744073709551615"
+                    .parse()
+                    .unwrap(),
+                "validator:enable-soft-locking=false".parse().unwrap(),
+            ])
+            .build();
+
+        let mut config = swarm
+            .get_fullnode_config_builder()
+            .build(&mut rand::rngs::OsRng, swarm.config());
+        assert_eq!(
+            config.authority_store_pruning_config.num_epochs_to_retain,
+            0
+        );
+        swarm.apply_node_config_overrides_for_spawn(&mut config);
+        assert_eq!(
+            config.authority_store_pruning_config.num_epochs_to_retain,
+            u64::MAX
+        );
+        // Validator-scoped overrides do not apply to a fullnode.
+        assert!(config.enable_soft_locking);
     }
 
     #[tokio::test]
