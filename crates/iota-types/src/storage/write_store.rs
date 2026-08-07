@@ -60,6 +60,25 @@ pub trait WriteStore: ReadStore {
         self.try_insert_committee(new_committee)
             .expect("storage access failed")
     }
+
+    /// Inserts a consecutive run of verified checkpoints with their full
+    /// contents and advances the verified and synced watermarks past the
+    /// last one.
+    ///
+    /// The default implementation inserts the checkpoints one at a time;
+    /// implementations can override it to batch the writes.
+    fn try_insert_synced_checkpoints(
+        &self,
+        checkpoints: Vec<(VerifiedCheckpoint, VerifiedCheckpointContents)>,
+    ) -> Result<()> {
+        for (checkpoint, contents) in checkpoints {
+            self.try_insert_checkpoint(&checkpoint)?;
+            self.try_update_highest_verified_checkpoint(&checkpoint)?;
+            self.try_insert_checkpoint_contents(&checkpoint, contents)?;
+            self.try_update_highest_synced_checkpoint(&checkpoint)?;
+        }
+        Ok(())
+    }
 }
 
 impl<T: WriteStore + ?Sized> WriteStore for &T {
@@ -88,6 +107,13 @@ impl<T: WriteStore + ?Sized> WriteStore for &T {
 
     fn try_insert_committee(&self, new_committee: Committee) -> Result<()> {
         (*self).try_insert_committee(new_committee)
+    }
+
+    fn try_insert_synced_checkpoints(
+        &self,
+        checkpoints: Vec<(VerifiedCheckpoint, VerifiedCheckpointContents)>,
+    ) -> Result<()> {
+        (*self).try_insert_synced_checkpoints(checkpoints)
     }
 }
 
@@ -118,6 +144,13 @@ impl<T: WriteStore + ?Sized> WriteStore for Box<T> {
     fn try_insert_committee(&self, new_committee: Committee) -> Result<()> {
         (**self).try_insert_committee(new_committee)
     }
+
+    fn try_insert_synced_checkpoints(
+        &self,
+        checkpoints: Vec<(VerifiedCheckpoint, VerifiedCheckpointContents)>,
+    ) -> Result<()> {
+        (**self).try_insert_synced_checkpoints(checkpoints)
+    }
 }
 
 impl<T: WriteStore + ?Sized> WriteStore for Arc<T> {
@@ -146,5 +179,12 @@ impl<T: WriteStore + ?Sized> WriteStore for Arc<T> {
 
     fn try_insert_committee(&self, new_committee: Committee) -> Result<()> {
         (**self).try_insert_committee(new_committee)
+    }
+
+    fn try_insert_synced_checkpoints(
+        &self,
+        checkpoints: Vec<(VerifiedCheckpoint, VerifiedCheckpointContents)>,
+    ) -> Result<()> {
+        (**self).try_insert_synced_checkpoints(checkpoints)
     }
 }
