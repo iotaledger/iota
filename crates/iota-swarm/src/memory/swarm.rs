@@ -10,7 +10,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, ensure};
 use futures::future::try_join_all;
 use iota_config::{
     ExecutionCacheConfig, IOTA_GENESIS_FILENAME, NodeConfig,
@@ -418,6 +418,9 @@ impl<R: rand::RngCore + rand::CryptoRng> SwarmBuilder<R> {
     /// - An override fails to apply to a built config.
     /// - The network has a fullnode and a validator config has no
     ///   `p2p-config.external-address`.
+    /// - A supplied validator config has no `consensus-config`.
+    /// - A supplied validator config fails [`NodeConfig::validate`].
+    /// - A built fullnode config fails [`NodeConfig::validate`].
     ///
     /// # Panics
     ///
@@ -537,6 +540,14 @@ impl<R: rand::RngCore + rand::CryptoRng> SwarmBuilder<R> {
             network_config.validator_configs.len(),
         )?;
         for (index, validator) in network_config.validator_configs.iter_mut().enumerate() {
+            // A missing consensus config makes the node a fullnode, both to
+            // `validate` and to the swarm's node partitions. Checked before
+            // the overrides so the error names the missing section rather
+            // than the override that is judged under fullnode rules.
+            ensure!(
+                validator.is_validator(),
+                "validator {index} has no consensus-config"
+            );
             apply_node_config_overrides(
                 self.node_config_overrides
                     .iter()
@@ -546,6 +557,9 @@ impl<R: rand::RngCore + rand::CryptoRng> SwarmBuilder<R> {
             .with_context(|| {
                 format!("failed to apply node config overrides to validator {index}")
             })?;
+            validator
+                .validate()
+                .with_context(|| format!("validator {index} config is invalid"))?;
         }
 
         let mut nodes: HashMap<_, _> = network_config
@@ -626,6 +640,9 @@ impl<R: rand::RngCore + rand::CryptoRng> SwarmBuilder<R> {
                 &mut config,
             )
             .with_context(|| format!("failed to apply node config overrides to fullnode {idx}"))?;
+            config
+                .validate()
+                .with_context(|| format!("fullnode {idx} config is invalid"))?;
             info!(
                 "SwarmBuilder configuring full node with name {}",
                 config.authority_public_key()
@@ -756,10 +773,11 @@ impl Swarm {
     ///
     /// # Panics
     ///
-    /// Panics on an override that fails to apply and on a node that fails to
-    /// start.
+    /// Panics on an override that fails to apply, on a config that fails
+    /// [`NodeConfig::validate`], and on a node that fails to start.
     pub async fn spawn_new_node(&mut self, mut config: NodeConfig) -> IotaNodeHandle {
         self.apply_node_config_overrides_for_spawn(&mut config);
+        config.validate().unwrap_or_else(|err| panic!("{err:#}"));
         let name = config.authority_public_key();
         let node = Node::new(config);
         node.start().await.unwrap();
@@ -840,7 +858,7 @@ impl AsRef<Path> for SwarmDirectory {
 mod test {
     use std::num::NonZeroUsize;
 
-    use iota_config::IOTA_GENESIS_FILENAME;
+    use iota_config::{IOTA_GENESIS_FILENAME, object_storage_config::ObjectStoreConfig};
     use iota_swarm_config::{
         network_config_builder::ConfigBuilder, node_config_override::NodeConfigOverride,
     };
@@ -1132,6 +1150,80 @@ mod test {
         );
         let fullnode = swarm.fullnodes().next().unwrap();
         assert!(!fullnode.config().enable_index_processing);
+    }
+
+    #[test]
+    fn try_build_rejects_a_supplied_validator_config_no_node_could_start_with() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let mut network_config = ConfigBuilder::new(dir.path())
+            .committee_size(NonZeroUsize::new(1).unwrap())
+            .build();
+        // A supplied validator config can carry settings the node refuses
+        // to start with.
+        network_config.validator_configs[0]
+            .state_snapshot_write_config
+            .object_store_config = Some(ObjectStoreConfig::default());
+
+        let err = Swarm::builder()
+            .with_network_config(network_config)
+            .try_build()
+            .unwrap_err();
+        let err = format!("{err:#}");
+        assert!(err.contains("validator 0 config is invalid"), "{err}");
+        assert!(err.contains("snapshot upload"), "{err}");
+    }
+
+    #[test]
+    fn try_build_rejects_a_supplied_validator_config_without_a_consensus_config() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let mut network_config = ConfigBuilder::new(dir.path())
+            .committee_size(NonZeroUsize::new(1).unwrap())
+            .build();
+        // A supplied validator config can omit the consensus config, which
+        // makes it a fullnode to `validate` and to `fullnodes()`. The rest
+        // of the entry is then judged under fullnode rules, so the missing
+        // section must be reported before any override is applied.
+        network_config.validator_configs[0].consensus_config = None;
+        network_config.validator_configs[0].enable_grpc_api = true;
+        network_config.validator_configs[0].grpc_api_config = None;
+
+        let err = Swarm::builder()
+            .with_network_config(network_config)
+            .with_node_config_overrides(vec!["all:enable-soft-locking=true".parse().unwrap()])
+            .try_build()
+            .unwrap_err();
+        let err = format!("{err:#}");
+        assert!(err.contains("validator 0 has no consensus-config"), "{err}");
+    }
+
+    #[test]
+    fn try_build_rejects_a_fullnode_override_no_node_could_start_with() {
+        let err = Swarm::builder()
+            .committee_size(NonZeroUsize::new(1).unwrap())
+            .with_fullnode_count(1)
+            .with_node_config_overrides(vec![
+                // A snapshot store without a backend: the node refuses to
+                // start with it.
+                "fullnode:state-snapshot-write-config.object-store-config.directory=/tmp/snapshots"
+                    .parse()
+                    .unwrap(),
+            ])
+            .try_build()
+            .unwrap_err();
+        let err = format!("{err:#}");
+        assert!(err.contains("storage backend"), "{err}");
+    }
+
+    #[tokio::test]
+    #[should_panic(expected = "snapshot upload")]
+    async fn spawn_new_node_panics_on_a_config_no_node_could_start_with() {
+        let mut swarm = Swarm::builder()
+            .committee_size(NonZeroUsize::new(1).unwrap())
+            .build();
+        let mut config = swarm.config().validator_configs()[0].clone();
+        config.state_snapshot_write_config.object_store_config = Some(ObjectStoreConfig::default());
+
+        swarm.spawn_new_node(config).await;
     }
 
     #[tokio::test]

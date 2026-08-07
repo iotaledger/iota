@@ -17,9 +17,7 @@ use fastcrypto::traits::KeyPair;
 use iota_config::{
     Config, IOTA_BENCHMARK_GENESIS_GAS_KEYSTORE_FILENAME, IOTA_CLIENT_CONFIG, IOTA_FULLNODE_CONFIG,
     IOTA_GENESIS_FILENAME, IOTA_KEYSTORE_FILENAME, IOTA_NETWORK_CONFIG, NodeConfig,
-    PersistedConfig, genesis_blob_exists, iota_config_dir,
-    node::{Genesis, GrpcApiConfig},
-    p2p::SeedPeer,
+    PersistedConfig, genesis_blob_exists, iota_config_dir, node::Genesis, p2p::SeedPeer,
 };
 use iota_faucet::{AppState, FaucetConfig, SimpleFaucet, create_wallet_context, start_faucet};
 #[cfg(feature = "indexer")]
@@ -45,7 +43,7 @@ use iota_swarm_config::{
 };
 use rand::rngs::OsRng;
 use tempfile::tempdir;
-use tracing::{info, warn};
+use tracing::info;
 
 const CONCURRENCY_LIMIT: usize = 30;
 const DEFAULT_COMMITTEE_SIZE: usize = 1;
@@ -62,7 +60,9 @@ const DEFAULT_INDEXER_PORT: u16 = 9124;
 const FULLNODE_CONFIG_NOTE: &str = "\
 # `iota-localnet start` reads only the following values from this file:
 # iota-names-config, enable-grpc-api, grpc-api-config, db-path, genesis,
-# migration-tx-data-path. Change other values at start time with
+# migration-tx-data-path, and rejects the file if it carries a
+# `consensus-config` or would not pass the node's own config validation.
+# Change other values at start time with
 # `iota-localnet start --node-config-override [scope:]<path>=<value>`.
 # The file remains a complete config for running a standalone `iota-node`.
 ";
@@ -485,8 +485,9 @@ async fn start(
         eprintln!(
             "{}",
             "[warning] The --with-grpc flag is deprecated. Use `--node-config-override \
-             fullnode:enable-grpc-api=true` and optionally `--node-config-override \
-             fullnode:grpc-api-config.address=<HOST:PORT>` instead."
+             fullnode:enable-grpc-api=true`, which keeps the default address \
+             0.0.0.0:50051, and `--node-config-override \
+             fullnode:grpc-api-config.address=<HOST:PORT>` to bind elsewhere."
                 .yellow()
                 .bold()
         );
@@ -586,6 +587,24 @@ async fn start(
                 "Loading IOTA-Names options from fullnode config file at {fullnode_config_path:?}"
             );
 
+            let fullnode_config: NodeConfig = PersistedConfig::read(&fullnode_config_path)
+                .map_err(|err| {
+                    err.context(format!(
+                        "Cannot open fullnode config file at {fullnode_config_path:?}"
+                    ))
+                })?;
+            // A consensus config makes the node a validator, both to `validate`
+            // and to the swarm's node partitions.
+            ensure!(
+                !fullnode_config.is_validator(),
+                "fullnode config file at {fullnode_config_path:?} has a `consensus-config`, \
+                 which makes it a validator config"
+            );
+            // The same verdict `iota-node` gives when it reads this file.
+            fullnode_config.validate().with_context(|| {
+                format!("fullnode config file at {fullnode_config_path:?} is invalid")
+            })?;
+
             // Keep this field list in sync with FULLNODE_CONFIG_NOTE.
             let NodeConfig {
                 iota_names_config,
@@ -595,11 +614,7 @@ async fn start(
                 genesis: fullnode_genesis,
                 migration_tx_data_path: fullnode_migration_tx_data_path,
                 ..
-            } = PersistedConfig::read(&fullnode_config_path).map_err(|err| {
-                err.context(format!(
-                    "Cannot open fullnode config file at {fullnode_config_path:?}"
-                ))
-            })?;
+            } = fullnode_config;
             ensure!(
                 genesis.eq(&fullnode_genesis),
                 "Fullnode must use the same genesis blob as validators in IOTA network config"
@@ -616,15 +631,10 @@ async fn start(
 
             swarm_builder = swarm_builder.with_fullnode_enable_grpc_api(enable_grpc_api);
             if enable_grpc_api {
-                // Apply gRPC configuration if enabled
-                if let Some(grpc_config) = grpc_api_config {
-                    info!("Enabling gRPC API for fullnode with config: {grpc_config:?}");
-                    swarm_builder = swarm_builder.with_fullnode_grpc_api_config(grpc_config);
-                } else {
-                    warn!("gRPC API enabled but no grpc-api-config provided, using default");
-                    swarm_builder =
-                        swarm_builder.with_fullnode_grpc_api_config(GrpcApiConfig::default());
-                }
+                let grpc_config = grpc_api_config
+                    .expect("the loaded config was validated: an enabled gRPC API has a config");
+                info!("Enabling gRPC API for fullnode with config: {grpc_config:?}");
+                swarm_builder = swarm_builder.with_fullnode_grpc_api_config(grpc_config);
             }
         }
 
@@ -720,8 +730,8 @@ async fn start(
             config
                 .grpc_api_config
                 .as_ref()
-                .map(|grpc| grpc.address)
-                .unwrap_or_else(|| GrpcApiConfig::default().address)
+                .expect("the swarm build validates that an enabled gRPC API has a config")
+                .address
         })
     });
     if let Some(grpc_address) = fullnode_grpc_address {
@@ -1333,6 +1343,18 @@ mod tests {
             .with_enable_grpc_api(enable_grpc_api)
             .with_data_ingestion_dir(data_ingestion_dir)
             .build_from_parts(&mut OsRng, &[], Genesis::new_empty())
+    }
+
+    #[test]
+    fn an_enabled_grpc_api_is_built_with_an_address() {
+        let dir = tempdir().unwrap();
+        let config = built_fullnode_config(dir.path(), true, None);
+        config.validate().unwrap();
+
+        // What the localnet reports as the gRPC URL, and what the `expect`s
+        // on the start path rely on.
+        assert!(config.enable_grpc_api);
+        assert!(config.grpc_api_config.is_some());
     }
 
     #[test]

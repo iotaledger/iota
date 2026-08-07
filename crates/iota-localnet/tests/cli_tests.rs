@@ -2,7 +2,9 @@
 // Modifications Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{fs::read_dir, net::SocketAddr, time::Duration};
+#[cfg(not(msim))]
+use std::fs::{read_to_string, write};
+use std::{fs::read_dir, net::SocketAddr, path::Path, time::Duration};
 
 use iota_config::{
     IOTA_CLIENT_CONFIG, IOTA_FULLNODE_CONFIG, IOTA_GENESIS_FILENAME, IOTA_KEYSTORE_FILENAME,
@@ -16,14 +18,12 @@ use iota_macros::sim_test;
 use iota_sdk::iota_client_config::IotaClientConfig;
 use iota_swarm_config::{
     genesis_config::DEFAULT_NUMBER_OF_AUTHORITIES, network_config::NetworkConfigLight,
+    node_config_override::NodeConfigOverride,
 };
 
-#[sim_test]
-async fn test_genesis() -> Result<(), anyhow::Error> {
-    let tmp_dir = iota_common::tempdir();
-    let working_dir = tmp_dir.path();
-
-    // Genesis
+/// A `genesis` command that leaves every field but the ones passed in at the
+/// value the CLI defaults to.
+fn genesis_command(working_dir: &Path, committee_size: usize) -> LocalnetCommand {
     LocalnetCommand::Genesis {
         working_dir: Some(working_dir.to_path_buf()),
         write_config: None,
@@ -32,13 +32,49 @@ async fn test_genesis() -> Result<(), anyhow::Error> {
         epoch_duration_ms: None,
         benchmark_ips: None,
         with_faucet: false,
-        committee_size: DEFAULT_NUMBER_OF_AUTHORITIES,
+        committee_size,
         num_additional_gas_accounts: None,
         chain_start_timestamp_ms: None,
         admin_interface_address: None,
     }
-    .execute()
-    .await?;
+}
+
+/// A `start` command that leaves every field but the ones passed in at the
+/// value the CLI defaults to.
+fn start_command(
+    config_dir: &Path,
+    disable_fullnode_pruning: bool,
+    node_config_override: Vec<NodeConfigOverride>,
+) -> LocalnetCommand {
+    LocalnetCommand::Start {
+        #[cfg(feature = "indexer")]
+        data_ingestion_dir: None,
+        config_dir: Some(config_dir.to_path_buf()),
+        no_full_node: false,
+        disable_fullnode_pruning,
+        node_config_override,
+        force_regenesis: false,
+        with_faucet: None,
+        faucet_amount: None,
+        faucet_coin_count: None,
+        with_grpc: None,
+        fullnode_rpc_port: 9000,
+        committee_size: None,
+        epoch_duration_ms: None,
+        #[cfg(feature = "indexer")]
+        indexer_feature_args: Box::new(IndexerFeatureArgs::for_testing()),
+    }
+}
+
+#[sim_test]
+async fn test_genesis() -> Result<(), anyhow::Error> {
+    let tmp_dir = iota_common::tempdir();
+    let working_dir = tmp_dir.path();
+
+    // Genesis
+    genesis_command(working_dir, DEFAULT_NUMBER_OF_AUTHORITIES)
+        .execute()
+        .await?;
 
     // Get all the new file names
     let files = read_dir(working_dir)?
@@ -66,21 +102,9 @@ async fn test_genesis() -> Result<(), anyhow::Error> {
     assert_eq!(5, wallet_conf.keystore().addresses().len());
 
     // Genesis 2nd time should fail
-    let result = LocalnetCommand::Genesis {
-        working_dir: Some(working_dir.to_path_buf()),
-        write_config: None,
-        force: false,
-        from_config: None,
-        epoch_duration_ms: None,
-        benchmark_ips: None,
-        with_faucet: false,
-        committee_size: DEFAULT_NUMBER_OF_AUTHORITIES,
-        num_additional_gas_accounts: None,
-        chain_start_timestamp_ms: None,
-        admin_interface_address: None,
-    }
-    .execute()
-    .await;
+    let result = genesis_command(working_dir, DEFAULT_NUMBER_OF_AUTHORITIES)
+        .execute()
+        .await;
     assert!(matches!(result, Err(..)));
 
     tmp_dir.close()?;
@@ -91,22 +115,10 @@ async fn test_genesis() -> Result<(), anyhow::Error> {
 async fn test_genesis_rejects_a_zero_committee_size() -> Result<(), anyhow::Error> {
     let tmp_dir = iota_common::tempdir();
 
-    let err = LocalnetCommand::Genesis {
-        working_dir: Some(tmp_dir.path().to_path_buf()),
-        write_config: None,
-        force: false,
-        from_config: None,
-        epoch_duration_ms: None,
-        benchmark_ips: None,
-        with_faucet: false,
-        committee_size: 0,
-        num_additional_gas_accounts: None,
-        chain_start_timestamp_ms: None,
-        admin_interface_address: None,
-    }
-    .execute()
-    .await
-    .unwrap_err();
+    let err = genesis_command(tmp_dir.path(), 0)
+        .execute()
+        .await
+        .unwrap_err();
 
     let err = format!("{err:#}");
     assert!(err.contains("Committee size must be at least 1."), "{err}");
@@ -119,26 +131,13 @@ async fn test_genesis_rejects_a_zero_committee_size() -> Result<(), anyhow::Erro
 async fn test_start_reports_a_failing_node_config_override() -> Result<(), anyhow::Error> {
     let tmp_dir = iota_common::tempdir();
 
-    let err = LocalnetCommand::Start {
-        #[cfg(feature = "indexer")]
-        data_ingestion_dir: None,
-        config_dir: Some(tmp_dir.path().to_path_buf()),
-        no_full_node: false,
-        disable_fullnode_pruning: false,
+    let err = start_command(
+        tmp_dir.path(),
+        false,
         // One character off, so the override fails when it is applied to
         // the built config.
-        node_config_override: vec!["fullnode:enable-index-processng=false".parse()?],
-        force_regenesis: false,
-        with_faucet: None,
-        faucet_amount: None,
-        faucet_coin_count: None,
-        with_grpc: None,
-        fullnode_rpc_port: 9000,
-        committee_size: None,
-        epoch_duration_ms: None,
-        #[cfg(feature = "indexer")]
-        indexer_feature_args: Box::new(IndexerFeatureArgs::for_testing()),
-    }
+        vec!["fullnode:enable-index-processng=false".parse()?],
+    )
     .execute()
     .await
     .unwrap_err();
@@ -157,13 +156,10 @@ async fn test_start() -> Result<(), anyhow::Error> {
 
     if let Ok(res) = tokio::time::timeout(
         Duration::from_secs(10),
-        LocalnetCommand::Start {
-            #[cfg(feature = "indexer")]
-            data_ingestion_dir: None,
-            config_dir: Some(working_dir.to_path_buf()),
-            no_full_node: false,
-            disable_fullnode_pruning: true,
-            node_config_override: vec![
+        start_command(
+            working_dir,
+            true,
+            vec![
                 // Exercises the override path through the CLI; the values
                 // match what --disable-fullnode-pruning and the defaults
                 // already set, so the started network is unaffected.
@@ -171,17 +167,7 @@ async fn test_start() -> Result<(), anyhow::Error> {
                     .parse()?,
                 "validator:enable-soft-locking=true".parse()?,
             ],
-            force_regenesis: false,
-            with_faucet: None,
-            faucet_amount: None,
-            faucet_coin_count: None,
-            with_grpc: None,
-            fullnode_rpc_port: 9000,
-            committee_size: None,
-            epoch_duration_ms: None,
-            #[cfg(feature = "indexer")]
-            indexer_feature_args: Box::new(IndexerFeatureArgs::for_testing()),
-        }
+        )
         .execute(),
     )
     .await
@@ -211,6 +197,93 @@ async fn test_start() -> Result<(), anyhow::Error> {
     assert!(!wallet_conf.envs().is_empty());
 
     assert_eq!(5, wallet_conf.keystore().addresses().len());
+
+    tmp_dir.close()?;
+    Ok(())
+}
+
+// A plain tokio test: `start` rejects the config before it launches a node, so
+// it needs no simulator and must also run where `#[sim_test]`s are skipped. It
+// is excluded under msim because the start path calls
+// `tokio::task::spawn_blocking`, which the simulator runs on the current
+// simulator node — a plain tokio test has none.
+#[cfg(not(msim))]
+#[tokio::test]
+async fn test_start_rejects_a_persisted_config_no_node_could_start_with()
+-> Result<(), anyhow::Error> {
+    let tmp_dir = iota_common::tempdir();
+    let working_dir = tmp_dir.path();
+
+    genesis_command(working_dir, 1).execute().await?;
+
+    // An enabled gRPC API without a config: `iota-node` refuses to start with
+    // it, so the localnet must refuse it too instead of filling in a default.
+    let fullnode_config_path = working_dir.join(IOTA_FULLNODE_CONFIG);
+    let mut fullnode_config: serde_yaml::Value =
+        serde_yaml::from_str(&read_to_string(&fullnode_config_path)?)?;
+    let fields = fullnode_config.as_mapping_mut().unwrap();
+    fields.insert("enable-grpc-api".into(), true.into());
+    fields.insert("grpc-api-config".into(), serde_yaml::Value::Null);
+    write(
+        &fullnode_config_path,
+        serde_yaml::to_string(&fullnode_config)?,
+    )?;
+
+    let err = tokio::time::timeout(
+        Duration::from_secs(30),
+        start_command(working_dir, false, vec![]).execute(),
+    )
+    .await
+    .expect("start must reject the config instead of launching a network")
+    .unwrap_err();
+
+    let err = format!("{err:#}");
+    assert!(err.contains(IOTA_FULLNODE_CONFIG), "{err}");
+    assert!(err.contains("`grpc-api-config` is missing"), "{err}");
+
+    tmp_dir.close()?;
+    Ok(())
+}
+
+// A plain tokio test for the same reason as the test above.
+#[cfg(not(msim))]
+#[tokio::test]
+async fn test_start_rejects_a_persisted_fullnode_config_with_a_consensus_config()
+-> Result<(), anyhow::Error> {
+    let tmp_dir = iota_common::tempdir();
+    let working_dir = tmp_dir.path();
+
+    genesis_command(working_dir, 1).execute().await?;
+
+    // A `consensus-config` turns the file into a validator config, which the
+    // fullnode checks are not written for: `validate` skips the gRPC API rule
+    // for validators, so the localnet must reject the file up front.
+    let fullnode_config_path = working_dir.join(IOTA_FULLNODE_CONFIG);
+    let mut fullnode_config: serde_yaml::Value =
+        serde_yaml::from_str(&read_to_string(&fullnode_config_path)?)?;
+    let fields = fullnode_config.as_mapping_mut().unwrap();
+    fields.insert(
+        "consensus-config".into(),
+        serde_yaml::from_str("db-path: consensus-db")?,
+    );
+    fields.insert("enable-grpc-api".into(), true.into());
+    fields.insert("grpc-api-config".into(), serde_yaml::Value::Null);
+    write(
+        &fullnode_config_path,
+        serde_yaml::to_string(&fullnode_config)?,
+    )?;
+
+    let err = tokio::time::timeout(
+        Duration::from_secs(30),
+        start_command(working_dir, false, vec![]).execute(),
+    )
+    .await
+    .expect("start must reject the config instead of launching a network")
+    .unwrap_err();
+
+    let err = format!("{err:#}");
+    assert!(err.contains(IOTA_FULLNODE_CONFIG), "{err}");
+    assert!(err.contains("which makes it a validator config"), "{err}");
 
     tmp_dir.close()?;
     Ok(())
