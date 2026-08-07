@@ -22,10 +22,8 @@
 //!   cargo run -p iota-vm-sdk --features tracing \
 //!     --example move_authenticator_publish_and_call
 //!
-//! Then start the `Debug the move_authenticator_publish_and_call trace` launch
-//! configuration in VS Code. It needs the Move Trace Debugger built from
-//! `external-crates/move/crates/move-analyzer/trace-debug` in this repository —
-//! a published build of a different version reads a different trace format.
+//! To debug the trace it writes, serve the Move Trace Debugger's adapter from
+//! this repository.
 
 use std::{
     fs,

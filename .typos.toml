@@ -65,6 +65,4 @@ extend-exclude = [
   "config-patch",
   "*.patch",
   "*.svg",
-  # Generated Move bytecode disassembly
-  "*.mvb",
 ]
