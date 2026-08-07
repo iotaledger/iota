@@ -19,7 +19,7 @@ use colored::Colorize;
 use fastcrypto::encoding::{Base64, Encoding};
 use futures::{StreamExt, TryStreamExt};
 use iota_config::verifier_signing_config::VerifierSigningConfig;
-use iota_grpc_client::read_mask_fields::ObjectField;
+use iota_grpc_client::read_mask_fields::{ObjectField, OwnedObjectReadMask};
 use iota_json::IotaJsonValue;
 use iota_json_rpc_types::{
     Coin, DevInspectArgs, DevInspectResults, DryRunTransactionBlockResponse, DynamicFieldPage,
@@ -51,7 +51,7 @@ use iota_sdk::{
 use iota_sdk_transaction_builder::{TransactionBuilder, unresolved};
 use iota_sdk_types::{
     Address, Identifier, MoveAuthenticatorV1, ObjectId, ObjectReference, Owner,
-    SenderSignedTransaction, SharedObjectReference, SignatureScheme, TransactionDigest,
+    SenderSignedTransaction, SharedObjectReference, SignatureScheme, StructTag, TransactionDigest,
     TransactionKind, TypeTag, UserSignature, Version,
     crypto::{Intent, IntentMessage},
     gas::GasCostSummary,
@@ -1660,40 +1660,51 @@ impl IotaClientCommands {
                     _ => { /*no_op*/ }
                 }
 
-                let client = context.get_client().await?;
                 let signer = context.get_object_owner(&coin_id).await?;
-                let gas_coins_page = client
-                    .coin_read_api()
-                    .get_coins(signer, None, None, None)
-                    .await?;
+                let client = context.get_grpc_client().await?;
+                // Two coins are enough to tell a lone coin from several
+                let iota_coins = client
+                    .get_coins(
+                        signer,
+                        StructTag::new_gas(),
+                        Some(2),
+                        None,
+                        OwnedObjectReadMask::default(),
+                    )
+                    .await?
+                    .into_inner();
+
                 // If we only have a single coin, we have to split from the gas coin
-                let tx_kind = if gas_coins_page.data.len() == 1 {
-                    if let Some(amounts) = amounts {
-                        client
-                            .transaction_builder()
-                            .pay_iota_tx_kind(vec![signer; amounts.len()], amounts)?
-                    } else if let Some(count_to_compute) = count {
-                        let amount = gas_coins_page.data[0].balance / count_to_compute;
-                        // Reduce by 1 as the gas coin is not included in the split
-                        let count_to_split = count_to_compute.saturating_sub(1);
-                        client.transaction_builder().pay_iota_tx_kind(
-                            vec![signer; count_to_split as usize],
-                            vec![amount; count_to_split as usize],
-                        )?
+                let split_from_gas =
+                    iota_coins.items.len() == 1 && iota_coins.next_page_token.is_none();
+
+                let payments = if let Some(amounts) = amounts {
+                    std::iter::repeat(signer).zip(amounts).collect::<Vec<_>>()
+                } else if let Some(count) = count {
+                    let balance = if split_from_gas {
+                        iota_coins.items[0].balance()
                     } else {
-                        unreachable!("amount or count must be provided")
-                    }
+                        grpc_coin_balance(&client, coin_id).await?
+                    };
+                    ensure!(
+                        count <= balance,
+                        "Coin balance {balance} is too low to split into {count} coins."
+                    );
+                    // One less coin is split off, as the remainder is left in the
+                    // coin being split
+                    vec![(signer, balance / count); count.saturating_sub(1) as usize]
                 } else {
-                    client
-                        .transaction_builder()
-                        .split_coin_tx_kind(coin_id, amounts, count)
-                        .await?
+                    unreachable!("amounts or count must be provided")
                 };
 
-                let gas_payment = client
-                    .transaction_builder()
-                    .input_refs(&payment.gas)
-                    .await?;
+                let mut builder = TransactionBuilder::new(signer).with_client(&client);
+                if split_from_gas {
+                    builder.pay_iota(payments);
+                } else {
+                    builder.pay([coin_id], payments);
+                }
+                let tx_kind = builder.finish_kind().await?;
+                let gas_payment = grpc_input_refs(&client, &payment.gas).await?;
 
                 dry_run_or_execute_or_serialize(
                     signer,
@@ -1712,18 +1723,13 @@ impl IotaClientCommands {
                 gas_data,
                 processing,
             } => {
-                let client = context.get_client().await?;
                 let signer = context.get_object_owner(&primary_coin).await?;
+                let client = context.get_grpc_client().await?;
 
-                let tx_kind = client
-                    .transaction_builder()
-                    .merge_coins_tx_kind(primary_coin, coin_to_merge)
-                    .await?;
-
-                let gas_payment = client
-                    .transaction_builder()
-                    .input_refs(&payment.gas)
-                    .await?;
+                let mut builder = TransactionBuilder::new(signer).with_client(&client);
+                builder.merge_coins(primary_coin, [coin_to_merge]);
+                let tx_kind = builder.finish_kind().await?;
+                let gas_payment = grpc_input_refs(&client, &payment.gas).await?;
 
                 dry_run_or_execute_or_serialize(
                     signer,
@@ -3340,6 +3346,25 @@ async fn grpc_input_refs(
             Err(e) => Err(anyhow::anyhow!(e)),
         })
         .collect()
+}
+
+/// Fetch the balance of the coin with the given ID over gRPC.
+async fn grpc_coin_balance(
+    client: &iota_grpc_client::Client,
+    coin_id: ObjectId,
+) -> Result<u64, anyhow::Error> {
+    let object = client
+        .get_objects([coin_id], ObjectField::BCS)
+        .await?
+        .into_inner()
+        .pop()
+        .ok_or_else(|| anyhow!("No object returned for {coin_id}"))?
+        .map_err(|e| anyhow!(e))?
+        .object()?;
+
+    Ok(iota_sdk_types::framework::Coin::try_from_object(&object)
+        .map_err(|e| anyhow!("Object {coin_id} is not a coin: {e}"))?
+        .balance())
 }
 
 /// Dry run, execute, or serialize a transaction.
