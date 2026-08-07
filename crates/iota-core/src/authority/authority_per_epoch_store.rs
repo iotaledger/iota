@@ -3119,21 +3119,34 @@ impl AuthorityPerEpochStore {
 
     /// The mirrored deny rule state to start from when the epoch store opens.
     /// A persisted row (mid-epoch restart) wins over the epoch-start seed,
-    /// which does not cover advances from flushed commits. On a fresh epoch
-    /// the row is absent and the seed is the object state at the boundary.
+    /// which does not cover advances from flushed commits. When the object
+    /// exists, a fresh epoch persists the seed as the row immediately, making
+    /// the row's presence an invariant: a row that is absent although commits
+    /// have flushed is a lost row — corruption, not a fresh epoch — and
+    /// continuing from the stale seed would derive updates the node's peers
+    /// do not, so the node fails instead.
     fn initial_mirrored_deny_rules(
         tables: &AuthorityEpochTables,
         epoch_start_configuration: &EpochStartConfiguration,
     ) -> IotaResult<DenyRuleSet> {
-        Ok(tables
-            .mirrored_deny_rules
-            .get(&())?
-            .or_else(|| {
-                epoch_start_configuration
-                    .transaction_deny_rules_state()
-                    .cloned()
-            })
-            .unwrap_or_default())
+        if let Some(row) = tables.mirrored_deny_rules.get(&())? {
+            return Ok(row);
+        }
+        let Some(seed) = epoch_start_configuration.transaction_deny_rules_state() else {
+            return Ok(DenyRuleSet::default());
+        };
+        if tables
+            .last_consensus_stats
+            .get(&LAST_CONSENSUS_STATS_ADDR)?
+            .is_some()
+        {
+            fatal!(
+                "mirrored_deny_rules row is missing although commits have flushed — the epoch \
+                 database is corrupted; restore or state-sync before rejoining"
+            );
+        }
+        tables.mirrored_deny_rules.insert(&(), seed)?;
+        Ok(seed.clone())
     }
 
     /// Recomputes the active deny rule set from the current proposals and

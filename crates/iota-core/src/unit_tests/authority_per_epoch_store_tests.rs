@@ -14,7 +14,7 @@ use iota_types::{
     messages_consensus::TransactionDenyRuleProposal,
 };
 use tokio::time::timeout;
-use typed_store::rocks::DBBatch;
+use typed_store::{Map, rocks::DBBatch};
 
 use crate::authority::{
     authority_per_epoch_store::{
@@ -1048,7 +1048,6 @@ async fn commit_injects_deny_rule_updates_and_advances_mirror() {
     let store = authority_state.epoch_store_for_testing();
     let me = store.name;
     let address = Address::new([1u8; 32]);
-    flush_deny_rule_proposal(&store, deny_proposal(me, 1, rules_denying_address(address)));
 
     // The object does not exist this epoch: nothing to update.
     let commit_info = ConsensusCommitInfo::new_for_test(1, 0, false);
@@ -1083,6 +1082,7 @@ async fn commit_injects_deny_rule_updates_and_advances_mirror() {
         0,
     )
     .unwrap();
+    flush_deny_rule_proposal(&store, deny_proposal(me, 1, rules_denying_address(address)));
 
     // The single validator holds all stake and the grace floor is 0, so the
     // first commit injects the full aggregate.
@@ -1196,7 +1196,6 @@ async fn every_injected_deny_rule_chunk_becomes_a_checkpoint_root() {
         denied_addresses: (0..4u8).map(|i| Address::new([i; 32])).collect(),
         ..Default::default()
     };
-    flush_deny_rule_proposal(&store, deny_proposal(me, 1, rules));
 
     let mut epoch_start_configuration = (*store.epoch_start_configuration).clone();
     epoch_start_configuration
@@ -1217,6 +1216,7 @@ async fn every_injected_deny_rule_chunk_becomes_a_checkpoint_root() {
         0,
     )
     .unwrap();
+    flush_deny_rule_proposal(&store, deny_proposal(me, 1, rules));
 
     let mut output = ConsensusCommitOutput::default();
     let mut transactions = VecDeque::new();
@@ -1287,6 +1287,60 @@ async fn deny_rule_mirror_guard_exempts_nodes_outside_the_committee() {
     .unwrap();
     assert!(authority_state.is_fullnode(&fullnode_store));
     authority_state.check_transaction_deny_rules_consistency(&fullnode_store, &diverged);
+}
+
+/// With the object present, a fresh epoch persists the mirror seed row
+/// immediately, so a row that is absent although commits have flushed can
+/// only be a lost row: the store refuses to open rather than fall back to
+/// the stale epoch-start seed and derive updates its peers do not.
+#[tokio::test]
+#[should_panic(expected = "mirrored_deny_rules row is missing")]
+async fn lost_mirror_row_after_flushed_commits_fails_the_reopen() {
+    let authority_state = TestAuthorityBuilder::new().build().await;
+    let store = authority_state.epoch_store_for_testing();
+    let mut with_object = (*store.epoch_start_configuration).clone();
+    with_object
+        .set_transaction_deny_rules_for_testing(Version::from_u64(3), DenyRuleSet::default());
+
+    // Fresh epoch with the object: the constructor writes the seed row.
+    store.release_db_handles();
+    let store = AuthorityPerEpochStore::new(
+        store.name,
+        store.committee().clone(),
+        &store.parent_path,
+        store.db_options.clone(),
+        store.metrics.clone(),
+        with_object.clone(),
+        authority_state.get_backing_package_store().clone(),
+        store.execution_component.metrics(),
+        store.signature_verifier.metrics.clone(),
+        &ExpensiveSafetyCheckConfig::default(),
+        store.chain,
+        0,
+    )
+    .unwrap();
+    let tables = store.tables().unwrap();
+    assert!(tables.mirrored_deny_rules.get(&()).unwrap().is_some());
+
+    // Flush a commit, then lose the row.
+    flush_deny_rule_proposal(&store, deny_proposal(store.name, 1, DenyRuleSet::default()));
+    tables.mirrored_deny_rules.remove(&()).unwrap();
+    drop(tables);
+    store.release_db_handles();
+    let _ = AuthorityPerEpochStore::new(
+        store.name,
+        store.committee().clone(),
+        &store.parent_path,
+        store.db_options.clone(),
+        store.metrics.clone(),
+        with_object,
+        authority_state.get_backing_package_store().clone(),
+        store.execution_component.metrics(),
+        store.signature_verifier.metrics.clone(),
+        &ExpensiveSafetyCheckConfig::default(),
+        store.chain,
+        0,
+    );
 }
 
 /// A diverged mirror is reported: `debug_fatal!` aborts test configurations,
