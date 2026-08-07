@@ -25,7 +25,7 @@ use tracing::warn;
 use typed_store_error::TypedStoreError;
 
 pub use crate::{
-    database::{DBBatch, DBMap, MetricConf},
+    database::{DBBatch, DBMap, MetricConf, TaggedDBMap},
     rocks::options::{
         BulkIngestionOptions, DBMapTableConfigMap, DBOptions, ReadWriteOptions,
         bulk_ingestion_options, bulk_ingestion_write_options, default_db_options, list_tables,
@@ -53,8 +53,16 @@ mod tests;
 #[derive(Debug)]
 pub(crate) struct RocksDB {
     pub(crate) underlying: rocksdb::DBWithThreadMode<MultiThreaded>,
-    /// Names of all column families opened on this database.
-    pub(crate) cf_names: Vec<String>,
+}
+
+impl RocksDB {
+    /// Returns the names of the column families the database has on disk.
+    pub(crate) fn cf_names(&self) -> Result<Vec<String>, rocksdb::Error> {
+        rocksdb::DBWithThreadMode::<MultiThreaded>::list_cf(
+            &rocksdb::Options::default(),
+            self.underlying.path(),
+        )
+    }
 }
 
 impl Drop for RocksDB {
@@ -70,7 +78,7 @@ pub(crate) fn rocks_cf<'a>(
     rocks_db
         .underlying
         .cf_handle(cf_name)
-        .expect("Map-keying column family should have been checked at DB creation")
+        .expect("the column family was deleted unexpectedly")
 }
 
 // Check if the database is corrupted, and if so, panic.
@@ -128,7 +136,6 @@ pub fn open_cf_opts<P: AsRef<Path>>(
         let mut options = db_options.unwrap_or_else(|| default_db_options().options);
         options.create_if_missing(true);
         options.create_missing_column_families(true);
-        let cf_names: Vec<String> = cfs.iter().map(|(name, _)| name.clone()).collect();
         let rocksdb = {
             rocksdb::DBWithThreadMode::<MultiThreaded>::open_cf_descriptors(
                 &options,
@@ -141,7 +148,6 @@ pub fn open_cf_opts<P: AsRef<Path>>(
         Ok(Arc::new(Database::new(
             Storage::Rocks(RocksDB {
                 underlying: rocksdb,
-                cf_names,
             }),
             metric_conf,
         )))
@@ -205,11 +211,9 @@ pub fn open_cf_opts_secondary<P: AsRef<Path>>(
                 .map_err(typed_store_err_from_rocks_err)?;
             db
         };
-        let cf_names: Vec<String> = opt_cfs.keys().map(|name| name.to_string()).collect();
         Ok(Arc::new(Database::new(
             Storage::Rocks(RocksDB {
                 underlying: rocksdb,
-                cf_names,
             }),
             metric_conf,
         )))
@@ -258,6 +262,9 @@ pub async fn safe_drop_db(path: PathBuf, timeout: Duration) -> Result<(), rocksd
     }
 }
 
+/// Lists what is on disk and adds anything the caller did not declare, because
+/// rocksdb refuses to open a database unless every column family it has is
+/// named.
 fn populate_missing_cfs(
     input_cfs: &[(&str, rocksdb::Options)],
     path: &Path,
@@ -269,10 +276,22 @@ fn populate_missing_cfs(
             .ok()
             .unwrap_or_default();
 
+    let default_db_options = default_db_options();
+    let mut names_default = false;
     for cf_name in existing_cfs {
+        names_default |= cf_name == rocksdb::DEFAULT_COLUMN_FAMILY_NAME;
         if !input_cf_index.contains(&cf_name[..]) {
-            cfs.push((cf_name, rocksdb::Options::default()));
+            cfs.push((cf_name, default_db_options.options.clone()));
         }
+    }
+    // A database that does not exist yet has nothing to list, so the column
+    // family rocksdb always opens has to be named here: its wrapper otherwise
+    // adds it with the rocksdb defaults of its own.
+    if !names_default && !input_cf_index.contains(rocksdb::DEFAULT_COLUMN_FAMILY_NAME) {
+        cfs.push((
+            rocksdb::DEFAULT_COLUMN_FAMILY_NAME.to_owned(),
+            default_db_options.options,
+        ));
     }
     cfs.extend(
         input_cfs

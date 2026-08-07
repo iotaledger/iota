@@ -55,12 +55,13 @@ impl SamplingInterval {
     pub fn new(once_every_duration: Duration, after_num_ops: u64) -> Self {
         let counter = Arc::new(AtomicU64::new(1));
         if !once_every_duration.is_zero() {
-            let counter = counter.clone();
+            let counter = Arc::downgrade(&counter);
             tokio::task::spawn(async move {
-                loop {
+                while let Some(counter) = counter.upgrade() {
                     if counter.load(Ordering::SeqCst) > after_num_ops {
                         counter.store(0, Ordering::SeqCst);
                     }
+                    drop(counter);
                     tokio::time::sleep(once_every_duration).await;
                 }
             });
@@ -495,7 +496,7 @@ impl OperationMetrics {
             .unwrap(),
             rocksdb_very_slow_batch_writes_count: register_int_counter_vec_with_registry!(
                 "rocksdb_num_very_slow_batch_writes",
-                "Number of batch writes that took more than 1 second",
+                "Number of batch writes that took more than 1 second and were slower than 32 MiB/s",
                 &["db_name"],
                 registry;
                 MetricLevel::Trace,
@@ -503,7 +504,7 @@ impl OperationMetrics {
             .unwrap(),
             rocksdb_very_slow_batch_writes_duration_ms: register_int_counter_vec_with_registry!(
                 "rocksdb_very_slow_batch_writes_duration",
-                "Total duration of batch writes that took more than 1 second",
+                "Total time in milliseconds spent on batch writes that took more than 1 second and were slower than 32 MiB/s",
                 &["db_name"],
                 registry;
                 MetricLevel::Trace,
@@ -519,7 +520,7 @@ impl OperationMetrics {
             .unwrap(),
             rocksdb_very_slow_puts_duration_ms: register_int_counter_vec_with_registry!(
                 "rocksdb_very_slow_puts_duration",
-                "Total duration of puts that took more than 1 second",
+                "Total time in milliseconds spent on puts that took more than 1 second",
                 &["cf_name"],
                 registry;
                 MetricLevel::Trace,
@@ -1099,5 +1100,47 @@ impl DBMetrics {
         // `init` has run. `get_or_init` ensures the rocksdb metrics are
         // registered at most once even when first reached concurrently.
         ONCE.get_or_init(|| Arc::new(DBMetrics::new(prometheus_filtered::default_registry())))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use crate::metrics::SamplingInterval;
+
+    // `RuntimeMetrics` is not provided by the deterministic simulator's tokio
+    // fork. Under the simulator `#[tokio::test]` is turned into an ignored test
+    // anyway, so this turns off nothing that would otherwise run.
+    #[cfg(not(msim))]
+    fn alive_tasks() -> usize {
+        tokio::runtime::Handle::current()
+            .metrics()
+            .num_alive_tasks()
+    }
+
+    /// A timed interval keeps a task resetting its counter, and that task stops
+    /// once the last clone of the interval is dropped.
+    #[cfg(not(msim))]
+    #[tokio::test]
+    async fn a_dropped_interval_stops_its_task() {
+        let tasks_before = alive_tasks();
+        let interval = SamplingInterval::new(Duration::from_millis(10), 0);
+        let clone = interval.clone();
+        assert_eq!(alive_tasks(), tasks_before + 1);
+
+        drop(interval);
+        drop(clone);
+        for _ in 0..100 {
+            if alive_tasks() == tasks_before {
+                return;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+        assert_eq!(
+            alive_tasks(),
+            tasks_before,
+            "the task outlived the interval"
+        );
     }
 }
