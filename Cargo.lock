@@ -7158,9 +7158,7 @@ version = "1.30.0-alpha"
 dependencies = [
  "anyhow",
  "iota-framework-snapshot",
- "iota-json-rpc-types",
  "iota-protocol-config",
- "iota-sdk",
  "iota-sdk-types",
  "move-package",
  "move-symbol-pool",
