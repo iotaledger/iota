@@ -2481,7 +2481,7 @@ pub struct TransactionBlockBytes {
 impl TransactionBlockBytes {
     pub fn from_data(tx: Transaction) -> Result<Self, anyhow::Error> {
         Ok(Self {
-            tx_bytes: Base64::from_bytes(bcs::to_bytes(&tx)?.as_slice()),
+            tx_bytes: Base64::from_bytes(&tx.to_bcs()),
             gas: tx.gas().to_vec(),
             input_objects: tx
                 .input_objects()?

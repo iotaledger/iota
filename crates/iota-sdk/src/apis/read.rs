@@ -664,7 +664,7 @@ impl ReadApi {
         Ok(self
             .api
             .http
-            .dry_run_transaction_block(Base64::from_bytes(&bcs::to_bytes(&tx)?))
+            .dry_run_transaction_block(Base64::from_bytes(&tx.to_bcs()))
             .await?)
     }
 

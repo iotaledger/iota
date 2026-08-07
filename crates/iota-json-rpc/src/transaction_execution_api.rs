@@ -114,7 +114,7 @@ impl TransactionExecutionApi {
         let mut sigs = Vec::new();
         for sig in signatures {
             sigs.push(
-                UserSignature::from_bytes(sig.to_vec()?)
+                UserSignature::from_base64(&sig.encoded())
                     .map_err(|e| IotaRpcInputError::GenericInvalid(e.to_string()))?,
             );
         }

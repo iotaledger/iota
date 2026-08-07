@@ -659,7 +659,7 @@ mod tests {
         .await;
 
         let tx = cluster.build_transfer_iota_for_test().await;
-        let tx_bytes = Base64::encode(bcs::to_bytes(&tx).unwrap());
+        let tx_bytes = tx.to_base64();
         let sender = tx.sender();
 
         let query = r#"{ dryRunTransactionBlock(txBytes: $tx) {
@@ -758,7 +758,7 @@ mod tests {
             .await
             .transfer_iota(Some(1_000), recipient)
             .build();
-        let tx_kind_bytes = Base64::encode(bcs::to_bytes(&tx.into_kind()).unwrap());
+        let tx_kind_bytes = tx.into_kind().to_base64();
 
         let query = r#"{ dryRunTransactionBlock(txBytes: $tx, txMeta: {}) {
                 results {
@@ -846,7 +846,7 @@ mod tests {
             )
             .with_type_args(vec![GAS::type_tag()])
             .build();
-        let tx_bytes = Base64::encode(bcs::to_bytes(&tx).unwrap());
+        let tx_bytes = tx.to_base64();
 
         let query = r#"{ dryRunTransactionBlock(txBytes: $tx) {
                 results {
