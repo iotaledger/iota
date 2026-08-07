@@ -1054,10 +1054,12 @@ async fn commit_injects_deny_rule_updates_and_advances_mirror() {
     let commit_info = ConsensusCommitInfo::new_for_test(1, 0, false);
     let mut output = ConsensusCommitOutput::default();
     let mut transactions = VecDeque::new();
+    let mut roots = std::collections::BTreeSet::new();
     store
-        .add_deny_rule_update_transactions(&mut output, &mut transactions, &commit_info)
+        .add_deny_rule_update_transactions(&mut output, &mut transactions, &mut roots, &commit_info)
         .unwrap();
     assert!(transactions.is_empty());
+    assert!(roots.is_empty());
 
     // Reopen with the object present at the epoch boundary, as the epoch
     // after its creation starts.
@@ -1086,8 +1088,9 @@ async fn commit_injects_deny_rule_updates_and_advances_mirror() {
     // first commit injects the full aggregate.
     let mut output = ConsensusCommitOutput::default();
     let mut transactions = VecDeque::new();
+    let mut roots = std::collections::BTreeSet::new();
     store
-        .add_deny_rule_update_transactions(&mut output, &mut transactions, &commit_info)
+        .add_deny_rule_update_transactions(&mut output, &mut transactions, &mut roots, &commit_info)
         .unwrap();
     assert_eq!(transactions.len(), 1);
     let TransactionKind::TransactionDenyRulesUpdate(update) =
@@ -1104,6 +1107,13 @@ async fn commit_injects_deny_rule_updates_and_advances_mirror() {
         *store.get_mirrored_transaction_deny_rules(),
         rules_denying_address(address)
     );
+    // Nothing else in a commit can depend on the deny-rules object, so the
+    // update only reaches a checkpoint if it is a root of its own.
+    assert_eq!(
+        roots,
+        [transactions[0].key()].into_iter().collect(),
+        "the injected update must be registered as a checkpoint root"
+    );
 
     // The advanced mirror is persisted with the same commit output.
     output.set_default_commit_stats_for_testing();
@@ -1114,10 +1124,12 @@ async fn commit_injects_deny_rule_updates_and_advances_mirror() {
     // The next commit finds the object up to date and injects nothing.
     let mut output = ConsensusCommitOutput::default();
     let mut transactions = VecDeque::new();
+    let mut roots = std::collections::BTreeSet::new();
     store
-        .add_deny_rule_update_transactions(&mut output, &mut transactions, &commit_info)
+        .add_deny_rule_update_transactions(&mut output, &mut transactions, &mut roots, &commit_info)
         .unwrap();
     assert!(transactions.is_empty());
+    assert!(roots.is_empty());
 
     // Withdrawing the proposal makes a later — proposal-free — commit inject
     // the removal; the mirror and the enforced active set must both drop the
@@ -1132,8 +1144,9 @@ async fn commit_injects_deny_rule_updates_and_advances_mirror() {
     );
     let mut output = ConsensusCommitOutput::default();
     let mut transactions = VecDeque::new();
+    let mut roots = std::collections::BTreeSet::new();
     store
-        .add_deny_rule_update_transactions(&mut output, &mut transactions, &commit_info)
+        .add_deny_rule_update_transactions(&mut output, &mut transactions, &mut roots, &commit_info)
         .unwrap();
     assert_eq!(transactions.len(), 1);
     let TransactionKind::TransactionDenyRulesUpdate(update) =
@@ -1150,6 +1163,76 @@ async fn commit_injects_deny_rule_updates_and_advances_mirror() {
         *store.get_active_transaction_deny_rules(),
         DenyRuleSet::default()
     );
+    assert_eq!(roots, [transactions[0].key()].into_iter().collect());
+}
+
+/// Every chunk of a split delta becomes its own checkpoint root: a chunk that
+/// executes but reaches no checkpoint would leave the object behind on every
+/// node that follows checkpoints rather than consensus.
+#[tokio::test]
+async fn every_injected_deny_rule_chunk_becomes_a_checkpoint_root() {
+    use std::collections::{BTreeSet, VecDeque};
+
+    use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
+
+    use crate::consensus_handler::ConsensusCommitInfo;
+
+    let mut protocol_config =
+        ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
+    protocol_config.set_deny_rule_governance_for_testing(true);
+    protocol_config.set_deny_rule_governance_on_chain_for_testing(true);
+    // One entry per transaction, so the four denied addresses below split
+    // across four chunks.
+    protocol_config.set_deny_rule_update_max_entries_per_tx_for_testing(1);
+    protocol_config.set_deny_rule_removal_grace_round_floor_for_testing(0);
+    let authority_state = TestAuthorityBuilder::new()
+        .with_protocol_config(protocol_config.clone())
+        .build()
+        .await;
+    let store = authority_state.epoch_store_for_testing();
+    let _guard = ProtocolConfig::apply_overrides_for_testing(move |_, _| protocol_config.clone());
+    let me = store.name;
+    let rules = DenyRuleSet {
+        denied_addresses: (0..4u8).map(|i| Address::new([i; 32])).collect(),
+        ..Default::default()
+    };
+    flush_deny_rule_proposal(&store, deny_proposal(me, 1, rules));
+
+    let mut epoch_start_configuration = (*store.epoch_start_configuration).clone();
+    epoch_start_configuration
+        .set_transaction_deny_rules_for_testing(Version::from_u64(3), DenyRuleSet::default());
+    store.release_db_handles();
+    let store = AuthorityPerEpochStore::new(
+        store.name,
+        store.committee().clone(),
+        &store.parent_path,
+        store.db_options.clone(),
+        store.metrics.clone(),
+        epoch_start_configuration,
+        authority_state.get_backing_package_store().clone(),
+        store.execution_component.metrics(),
+        store.signature_verifier.metrics.clone(),
+        &ExpensiveSafetyCheckConfig::default(),
+        store.chain,
+        0,
+    )
+    .unwrap();
+
+    let mut output = ConsensusCommitOutput::default();
+    let mut transactions = VecDeque::new();
+    let mut roots = BTreeSet::new();
+    store
+        .add_deny_rule_update_transactions(
+            &mut output,
+            &mut transactions,
+            &mut roots,
+            &ConsensusCommitInfo::new_for_test(1, 0, false),
+        )
+        .unwrap();
+
+    assert_eq!(transactions.len(), 4);
+    let injected: BTreeSet<_> = transactions.iter().map(|tx| tx.key()).collect();
+    assert_eq!(roots, injected);
 }
 
 /// The epoch-boundary consistency guard fails reconfiguration only on a node

@@ -4263,11 +4263,16 @@ impl AuthorityPerEpochStore {
     /// the sorted diff — deterministic on every validator — each carrying the
     /// absolute switch states, so application is order-free and a re-sent
     /// chunk is a no-op. Advances the mirrored state to the injected target
-    /// in the same commit output that persists it.
+    /// in the same commit output that persists it. Each scheduled update
+    /// becomes a checkpoint root: user transactions cannot take the deny-rules
+    /// object as an input, so nothing else in the commit depends on an update,
+    /// and one without a root of its own would execute on validators but never
+    /// reach a checkpoint.
     pub(crate) fn add_deny_rule_update_transactions(
         &self,
         output: &mut ConsensusCommitOutput,
         transactions: &mut VecDeque<VerifiedExecutableTransaction>,
+        roots: &mut BTreeSet<TransactionKey>,
         consensus_commit_info: &ConsensusCommitInfo,
     ) -> IotaResult<()> {
         if !self.protocol_config().deny_rule_governance_on_chain() {
@@ -4335,6 +4340,7 @@ impl AuthorityPerEpochStore {
                     transaction,
                     start_time: _,
                 } => {
+                    roots.insert(transaction.key());
                     transactions.push_front(transaction);
                 }
                 ConsensusTransactionResult::IgnoredSystem => {
@@ -4904,6 +4910,7 @@ impl AuthorityPerEpochStore {
         self.add_deny_rule_update_transactions(
             output,
             &mut verified_non_randomness_transactions,
+            non_randomness_roots,
             consensus_commit_info,
         )?;
 
