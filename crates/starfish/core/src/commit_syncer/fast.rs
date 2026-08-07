@@ -1578,8 +1578,8 @@ mod tests {
         // stopped.
         const NUM_AUTHORITIES: usize = 7;
         const COMMIT_GAP_THRESHOLD: u32 = 30;
-        // Fast-sync fetch batch size for all validators; also the stride at
-        // which a fast-syncing validator stores voting block headers.
+        // Fast-sync fetch batch size; also the stride at which a fast-syncing
+        // validator stores voting block headers.
         const FAST_COMMIT_SYNC_BATCH_SIZE: u32 = 20;
         // Gap a restarted validator must close, in commits. Set comfortably above
         // COMMIT_GAP_THRESHOLD so fast sync (not regular sync) is selected even with
@@ -1725,22 +1725,13 @@ mod tests {
         consumer_monitors[validator_a_index] = monitor;
         authorities.insert(validator_a_index, authority);
 
-        // Wait until validator A has fast-synced deep enough into its gap that
-        // its voting storage covers the first commits B will request past A's
-        // restart point. The target is a fixed index rather than a margin below
-        // the moving quorum head: under parallel test load the head can outrun
-        // a fixed margin indefinitely, while A reaches a fixed index as soon as
-        // its own fast sync applies the corresponding batches. Waiting for full
-        // convergence would also let A reinitialize, which moves serving from
-        // voting storage to regular storage and would starve the voting-hits
-        // assertion below.
-        //
-        // Two batches: B's first request bound past A's restart point lies at
-        // most one batch ahead, so two applied batches guarantee A has a stored
-        // voting bound at or above it; and A's batch fetching only stops within
-        // one batch of the quorum head, which sits at least TARGET_GAP (three
-        // batches) ahead, so the target is reached before A can stall waiting
-        // to reinitialize.
+        // Wait until A has fast-synced two batches past its restart point:
+        // enough for its voting storage to cover B's first overlapping fetch
+        // bound, yet reachable before A can stall on stopped B (batch fetching
+        // stops only within one batch of a head at least three batches ahead).
+        // Unlike a margin below the moving head, a fixed target cannot be
+        // outrun under load, and stopping short of convergence keeps A
+        // un-reinitialized, which serving from voting storage requires.
         let a_target = last_processed_a + 2 * FAST_COMMIT_SYNC_BATCH_SIZE;
         let start_time = Instant::now();
         let mut a_fast_synced = false;
@@ -1794,11 +1785,9 @@ mod tests {
 
         authorities.insert(validator_b_index, authority);
 
-        // Wait for both restarted validators to catch up: B fast-syncs its
-        // gap, and A finishes its interrupted fast sync once B is reachable
-        // again (A's reinitialization header fetch tries B first). All
-        // validators are running at this point, so neither wait can stall on
-        // an unreachable peer.
+        // Wait for both restarted validators to catch up: A finishes its
+        // interrupted fast sync once B is reachable again. With all
+        // validators running, neither can stall on an unreachable peer.
         let start_time = Instant::now();
         let mut caught_up = false;
         while start_time.elapsed() < Duration::from_secs(90) {
