@@ -9,12 +9,10 @@ use std::{
 use anyhow::{Context, Result, anyhow};
 use backoff::future::retry;
 use bytes::Bytes;
-use futures::{StreamExt, TryStreamExt};
-use indicatif::ProgressBar;
+use futures::StreamExt;
 use itertools::Itertools;
 use object_store::{DynObjectStore, Error, ObjectStore, ObjectStoreExt, path::Path};
 use serde::{Deserialize, Serialize};
-use tokio::time::Instant;
 use tracing::{error, warn};
 use url::Url;
 
@@ -106,37 +104,6 @@ pub async fn copy_file<S: ObjectStoreGetExt, D: ObjectStorePutExt>(
         warn!("Not copying empty file: {:?}", src);
         Ok(())
     }
-}
-
-pub async fn copy_files<S: ObjectStoreGetExt, D: ObjectStorePutExt>(
-    src: &[Path],
-    dest: &[Path],
-    src_store: &S,
-    dest_store: &D,
-    concurrency: NonZeroUsize,
-    progress_bar: Option<ProgressBar>,
-) -> Result<Vec<()>> {
-    let mut instant = Instant::now();
-    let progress_bar_clone = progress_bar.clone();
-    // Copies files from dest to src in parallel, and updates the progress bar if
-    // it's provided
-    let results = futures::stream::iter(src.iter().zip(dest.iter()))
-        .map(|(path_in, path_out)| async move {
-            let ret = copy_file(path_in, path_out, src_store, dest_store).await;
-            Ok((path_out.clone(), ret))
-        })
-        .boxed()
-        .buffer_unordered(concurrency.into())
-        .try_for_each(|(path, ret)| {
-            if let Some(progress_bar_clone) = &progress_bar_clone {
-                progress_bar_clone.inc(1);
-                progress_bar_clone.set_message(format!("file: {path}"));
-                instant = Instant::now();
-            }
-            futures::future::ready(ret)
-        })
-        .await;
-    Ok(results.into_iter().collect())
 }
 
 pub async fn delete_files<S: ObjectStoreDeleteExt>(

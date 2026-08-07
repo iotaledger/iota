@@ -8,17 +8,21 @@ use iota_json_rpc_api::{
     IndexerApiClient, ReadApiClient, TransactionBuilderClient, WriteApiClient,
 };
 use iota_json_rpc_types::{
-    IotaExecutionStatus, IotaMoveValue, IotaObjectDataOptions, IotaObjectResponseQuery,
-    IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
-    IotaTransactionBlockResponseOptions, ObjectChange, TransactionBlockBytes,
+    DevInspectArgs, IotaExecutionStatus, IotaMoveValue, IotaObjectDataOptions,
+    IotaObjectResponseQuery, IotaTransactionBlockDataAPI, IotaTransactionBlockEffectsAPI,
+    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, ObjectChange,
+    TransactionBlockBytes,
 };
 use iota_macros::sim_test;
 use iota_move_build::BuildConfig;
-use iota_sdk_types::{ObjectId, Owner, TransactionKind};
+use iota_sdk_types::{
+    GasPayment, ObjectId, Owner, TransactionExpiration, TransactionKind, TransactionV1,
+};
 use iota_simulator::fastcrypto::encoding::Base64;
 use iota_types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::ExecuteTransactionRequestType,
+    transaction::{TransactionData, TransactionDataAPI},
 };
 use test_cluster::TestClusterBuilder;
 
@@ -99,6 +103,176 @@ async fn test_dev_inspect_transaction_block() -> Result<(), anyhow::Error> {
         actual_object_info.data.unwrap().owner.unwrap(),
         Owner::Address(address)
     );
+
+    Ok(())
+}
+
+/// A dev inspect fills a zero gas price and a zero gas budget in from the
+/// epoch, rather than metering against those zeroes and failing with
+/// `GasPriceUnderRGP` or `InsufficientGas`. This holds whether or not the
+/// caller asks for the checks to be skipped: `DevInspectArgs` models both
+/// fields as optional, so leaving them out has to work in either mode.
+#[sim_test]
+async fn test_dev_inspect_transaction_block_zero_gas_price_and_budget() -> Result<(), anyhow::Error>
+{
+    let cluster = TestClusterBuilder::new().build().await;
+    let http_client = cluster.rpc_client();
+    let address = cluster.get_address_0();
+    let other_address = cluster.get_address_1();
+
+    let objects = http_client
+        .get_owned_objects(
+            address,
+            Some(IotaObjectResponseQuery::new_with_options(
+                IotaObjectDataOptions::new().with_owner(),
+            )),
+            None,
+            None,
+        )
+        .await?
+        .data;
+    let obj = objects.first().unwrap().object().unwrap().object_ref();
+
+    let pt = {
+        let mut builder = ProgrammableTransactionBuilder::new();
+        builder.transfer_object(other_address, obj).unwrap();
+        builder.finish()
+    };
+    let tx_bytes = Base64::from_bytes(&bcs::to_bytes(&TransactionKind::new_programmable(pt))?);
+    let reference_gas_price = cluster.get_reference_gas_price().await;
+
+    // A zero budget on its own, with a gas price the epoch would accept as-is.
+    let devinspect_response = http_client
+        .dev_inspect_transaction_block(
+            address,
+            tx_bytes.clone(),
+            Some(reference_gas_price.into()),
+            None,
+            Some(DevInspectArgs {
+                gas_budget: Some(0),
+                ..Default::default()
+            }),
+        )
+        .await?;
+    assert_eq!(
+        *devinspect_response.effects.status(),
+        IotaExecutionStatus::Success
+    );
+
+    // A zero price and a zero budget together.
+    let devinspect_response = http_client
+        .dev_inspect_transaction_block(
+            address,
+            tx_bytes.clone(),
+            Some(0.into()),
+            None,
+            Some(DevInspectArgs {
+                gas_budget: Some(0),
+                ..Default::default()
+            }),
+        )
+        .await?;
+    assert_eq!(
+        *devinspect_response.effects.status(),
+        IotaExecutionStatus::Success
+    );
+
+    // Both gas fields omitted entirely, with and without the checks. GraphQL's
+    // `dryRunTransactionBlock` issues exactly the `skip_checks: false` shape when
+    // it is given a `txMeta` carrying only a sender.
+    for skip_checks in [true, false] {
+        let devinspect_response = http_client
+            .dev_inspect_transaction_block(
+                address,
+                tx_bytes.clone(),
+                None,
+                None,
+                Some(DevInspectArgs {
+                    skip_checks: Some(skip_checks),
+                    ..Default::default()
+                }),
+            )
+            .await
+            .unwrap_or_else(|e| panic!("dev inspect with skip_checks={skip_checks} failed: {e}"));
+        assert_eq!(
+            *devinspect_response.effects.status(),
+            IotaExecutionStatus::Success
+        );
+    }
+
+    Ok(())
+}
+
+/// A caller that declares no gas budget is asking what the transaction costs,
+/// so the reported transaction carries the cost the simulation charged rather
+/// than the zero that was sent. Matches gRPC `simulate_transactions`.
+#[sim_test]
+async fn test_zero_gas_budget_is_reported_as_the_gas_used() -> Result<(), anyhow::Error> {
+    let cluster = TestClusterBuilder::new().build().await;
+    let http_client = cluster.rpc_client();
+    let address = cluster.get_address_0();
+    let other_address = cluster.get_address_1();
+
+    let pt = {
+        let mut builder = ProgrammableTransactionBuilder::new();
+        builder.transfer_iota(other_address, Some(1_000));
+        builder.finish()
+    };
+
+    // No gas payment, no price and no budget: the simulation fills all of it in.
+    let transaction = TransactionData::V1(TransactionV1 {
+        kind: TransactionKind::new_programmable(pt.clone()),
+        sender: address,
+        gas_payment: GasPayment {
+            objects: vec![],
+            owner: address,
+            price: 0,
+            budget: 0,
+        },
+        expiration: TransactionExpiration::None,
+    });
+
+    let response = http_client
+        .dry_run_transaction_block(Base64::from_bytes(&bcs::to_bytes(&transaction)?))
+        .await?;
+    assert_eq!(*response.effects.status(), IotaExecutionStatus::Success);
+
+    let gas_used = response.effects.gas_cost_summary().gas_used();
+    let reference_gas_price = cluster.get_reference_gas_price().await;
+    assert_ne!(gas_used, 0, "a successful transfer has to cost something");
+    assert_eq!(
+        response.input.gas_data().budget,
+        gas_used,
+        "the reported budget should be the cost the simulation charged"
+    );
+    // Only the computation half of the cost scales with the price, so the estimate
+    // above cannot be read without the price it was charged at.
+    assert_eq!(
+        response.input.gas_data().price,
+        reference_gas_price,
+        "the reported price should be the one the simulation charged at"
+    );
+    // A mock gas coin was minted, so the reported payment names it rather than
+    // staying empty.
+    assert_eq!(response.input.gas_data().payment.len(), 1);
+
+    // The same for the raw transaction a dev inspect hands back.
+    let raw_txn_data = http_client
+        .dev_inspect_transaction_block(
+            address,
+            Base64::from_bytes(&bcs::to_bytes(&TransactionKind::new_programmable(pt))?),
+            None,
+            None,
+            Some(DevInspectArgs {
+                show_raw_txn_data_and_effects: Some(true),
+                ..Default::default()
+            }),
+        )
+        .await?
+        .raw_txn_data;
+    let reported: TransactionData = bcs::from_bytes(&raw_txn_data)?;
+    assert_ne!(reported.gas_budget(), 0);
+    assert_eq!(reported.gas_price(), reference_gas_price);
 
     Ok(())
 }

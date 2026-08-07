@@ -7,7 +7,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use iota_sdk_types::{Address, ObjectDigest, TransactionDigest, TransactionEventsDigest};
 
 use super::{
-    EffectsObjectChange, EpochId, ExecutionStatus, GasCostSummary, IDOperation, InputSharedObject,
+    ChangedObject, EpochId, ExecutionStatus, GasCostSummary, IdOperation, InputSharedObject,
     ObjectChange, ObjectId, ObjectIn, ObjectOut, ObjectReference, Owner, TransactionEffectsV1,
     UnchangedSharedKind, UnchangedSharedObject, Version,
 };
@@ -129,7 +129,7 @@ impl TransactionEffectsAPI for TransactionEffectsV1 {
                     (
                         ObjectIn::Missing,
                         ObjectOut::ObjectWrite { digest, owner },
-                        IDOperation::Created,
+                        IdOperation::Created,
                     ) => Some((
                         ObjectReference::new(changed.object_id, self.lamport_version, *digest),
                         *owner,
@@ -137,7 +137,7 @@ impl TransactionEffectsAPI for TransactionEffectsV1 {
                     (
                         ObjectIn::Missing,
                         ObjectOut::PackageWrite { version, digest },
-                        IDOperation::Created,
+                        IdOperation::Created,
                     ) => Some((
                         ObjectReference::new(changed.object_id, *version, *digest),
                         Owner::Immutable,
@@ -179,7 +179,7 @@ impl TransactionEffectsAPI for TransactionEffectsV1 {
                     (
                         ObjectIn::Missing,
                         ObjectOut::ObjectWrite { digest, owner },
-                        IDOperation::None,
+                        IdOperation::None,
                     ) => Some((
                         ObjectReference::new(changed.object_id, self.lamport_version, *digest),
                         *owner,
@@ -199,7 +199,7 @@ impl TransactionEffectsAPI for TransactionEffectsV1 {
                     &changed.output_state,
                     &changed.id_operation,
                 ) {
-                    (ObjectIn::Data { .. }, ObjectOut::Missing, IDOperation::Deleted) => {
+                    (ObjectIn::Data { .. }, ObjectOut::Missing, IdOperation::Deleted) => {
                         Some(ObjectReference::new(
                             changed.object_id,
                             self.lamport_version,
@@ -221,7 +221,7 @@ impl TransactionEffectsAPI for TransactionEffectsV1 {
                     &changed.output_state,
                     &changed.id_operation,
                 ) {
-                    (ObjectIn::Missing, ObjectOut::Missing, IDOperation::Deleted) => {
+                    (ObjectIn::Missing, ObjectOut::Missing, IdOperation::Deleted) => {
                         Some(ObjectReference::new(
                             changed.object_id,
                             self.lamport_version,
@@ -243,7 +243,7 @@ impl TransactionEffectsAPI for TransactionEffectsV1 {
                     &changed.output_state,
                     &changed.id_operation,
                 ) {
-                    (ObjectIn::Data { .. }, ObjectOut::Missing, IDOperation::None) => {
+                    (ObjectIn::Data { .. }, ObjectOut::Missing, IdOperation::None) => {
                         Some(ObjectReference::new(
                             changed.object_id,
                             self.lamport_version,
@@ -354,7 +354,7 @@ impl TransactionEffectsAPIForTesting for TransactionEffectsV1 {
         match kind {
             InputSharedObject::Mutate(object_ref) => {
                 let (object_id, version, digest) = object_ref.into_parts();
-                self.changed_objects.push(EffectsObjectChange {
+                self.changed_objects.push(ChangedObject {
                     object_id,
                     input_state: ObjectIn::Data {
                         version,
@@ -365,7 +365,7 @@ impl TransactionEffectsAPIForTesting for TransactionEffectsV1 {
                         digest,
                         owner: Owner::Shared(version),
                     },
-                    id_operation: IDOperation::None,
+                    id_operation: IdOperation::None,
                 })
             }
             InputSharedObject::ReadOnly(object_ref) => {
@@ -398,7 +398,7 @@ impl TransactionEffectsAPIForTesting for TransactionEffectsV1 {
 
     fn unsafe_add_deleted_live_object_for_testing(&mut self, object_ref: ObjectReference) {
         let (object_id, version, digest) = object_ref.into_parts();
-        self.changed_objects.push(EffectsObjectChange {
+        self.changed_objects.push(ChangedObject {
             object_id,
             input_state: ObjectIn::Data {
                 version,
@@ -409,13 +409,13 @@ impl TransactionEffectsAPIForTesting for TransactionEffectsV1 {
                 digest,
                 owner: Owner::Address(Address::ZERO),
             },
-            id_operation: IDOperation::None,
+            id_operation: IdOperation::None,
         })
     }
 
     fn unsafe_add_object_tombstone_for_testing(&mut self, object_ref: ObjectReference) {
         let (object_id, version, digest) = object_ref.into_parts();
-        self.changed_objects.push(EffectsObjectChange {
+        self.changed_objects.push(ChangedObject {
             object_id,
             input_state: ObjectIn::Data {
                 version,
@@ -423,7 +423,7 @@ impl TransactionEffectsAPIForTesting for TransactionEffectsV1 {
                 owner: Owner::Address(Address::ZERO),
             },
             output_state: ObjectOut::Missing,
-            id_operation: IDOperation::Deleted,
+            id_operation: IdOperation::Deleted,
         })
     }
 }
@@ -436,7 +436,7 @@ pub(crate) fn new_from_execution(
     loaded_per_epoch_config_objects: BTreeSet<ObjectId>,
     transaction_digest: TransactionDigest,
     lamport_version: Version,
-    changed_objects: BTreeMap<ObjectId, EffectsObjectChange>,
+    changed_objects: BTreeMap<ObjectId, ChangedObject>,
     gas_object: Option<ObjectId>,
     events_digest: Option<TransactionEventsDigest>,
     dependencies: Vec<TransactionDigest>,
@@ -521,21 +521,21 @@ fn check_invariant(v1: &TransactionEffectsV1) {
             &changed.output_state,
             &changed.id_operation,
         ) {
-            (ObjectIn::Missing, ObjectOut::Missing, IDOperation::Created) => {
+            (ObjectIn::Missing, ObjectOut::Missing, IdOperation::Created) => {
                 // created and then wrapped Move object.
             }
-            (ObjectIn::Missing, ObjectOut::Missing, IDOperation::Deleted) => {
+            (ObjectIn::Missing, ObjectOut::Missing, IdOperation::Deleted) => {
                 // unwrapped and then deleted Move object.
             }
-            (ObjectIn::Missing, ObjectOut::ObjectWrite { owner, .. }, IDOperation::None) => {
+            (ObjectIn::Missing, ObjectOut::ObjectWrite { owner, .. }, IdOperation::None) => {
                 // unwrapped Move object.
                 // It's not allowed to make an object shared after unwrapping.
                 assert!(!owner.is_shared());
             }
-            (ObjectIn::Missing, ObjectOut::ObjectWrite { .. }, IDOperation::Created) => {
+            (ObjectIn::Missing, ObjectOut::ObjectWrite { .. }, IdOperation::Created) => {
                 // created Move object.
             }
-            (ObjectIn::Missing, ObjectOut::PackageWrite { .. }, IDOperation::Created) => {
+            (ObjectIn::Missing, ObjectOut::PackageWrite { .. }, IdOperation::Created) => {
                 // created Move package or user Move package upgrade.
             }
             (
@@ -545,7 +545,7 @@ fn check_invariant(v1: &TransactionEffectsV1) {
                     ..
                 },
                 ObjectOut::Missing,
-                IDOperation::None,
+                IdOperation::None,
             ) => {
                 // wrapped.
                 assert!(*old_version < v1.lamport_version);
@@ -561,7 +561,7 @@ fn check_invariant(v1: &TransactionEffectsV1) {
                     ..
                 },
                 ObjectOut::Missing,
-                IDOperation::Deleted,
+                IdOperation::Deleted,
             ) => {
                 // deleted.
                 assert!(*old_version < v1.lamport_version);
@@ -578,7 +578,7 @@ fn check_invariant(v1: &TransactionEffectsV1) {
                     owner: new_owner,
                     ..
                 },
-                IDOperation::None,
+                IdOperation::None,
             ) => {
                 // mutated.
                 assert!(*old_version < v1.lamport_version);
@@ -601,7 +601,7 @@ fn check_invariant(v1: &TransactionEffectsV1) {
                     digest: new_digest,
                     ..
                 },
-                IDOperation::None,
+                IdOperation::None,
             ) => {
                 // system package upgrade.
                 assert!(

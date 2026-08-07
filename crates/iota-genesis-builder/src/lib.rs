@@ -25,7 +25,7 @@ use iota_genesis_common::{execute_genesis_transaction, get_genesis_protocol_conf
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_sdk_types::{
     Address, Command, Event, GenesisObject, Identifier, ObjectId, Owner, TransactionDigest,
-    Version,
+    TransactionEffects, TransactionEvents, Version,
     checkpoint::{CheckpointContents, CheckpointSummary},
     crypto::{Intent, IntentMessage, IntentScope},
 };
@@ -38,7 +38,6 @@ use iota_types::{
     },
     deny_list_v1::DENY_LIST_CREATE_FUNC,
     digests::ChainIdentifier,
-    effects::{TransactionEffects, TransactionEvents},
     epoch_data::EpochData,
     gas_coin::GasCoin,
     governance::StakedIota,

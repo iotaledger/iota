@@ -12,11 +12,12 @@ use iota_macros::sim_test;
 use iota_protocol_config::{Chain, OverrideGuard, ProtocolConfig, ProtocolVersion};
 use iota_sdk_types::{
     Address, ConsensusCommitPrologueV1, ConsensusDeterminedVersionAssignments, GenesisTransaction,
-    Identifier, SharedObjectReference, TransactionKind, crypto::IntentScope,
+    Identifier, SenderSignedTransaction, SharedObjectReference, TransactionKind,
+    crypto::{IntentScope, SimpleSignature},
 };
 use iota_types::{
     base_types::{dbg_addr, random_object_ref},
-    crypto::{AccountKeyPair, IotaSignature, Signature, get_key_pair},
+    crypto::{AccountKeyPair, IotaSignature, get_key_pair},
     error::{IotaError, UserInputError},
     messages_grpc::HandleSoftBundleCertificatesRequestV1,
     transaction::TransactionDataAPI,
@@ -49,7 +50,10 @@ macro_rules! assert_matches {
 }
 
 use fastcrypto::traits::AggregateAuthenticator;
-use iota_sdk_types::ConsensusCommitDigest;
+use iota_sdk_types::{
+    ConsensusCommitDigest,
+    crypto::{IntentAppId, IntentVersion},
+};
 use iota_types::{
     messages_grpc::HandleCertificateRequestV1,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
@@ -71,7 +75,7 @@ async fn test_handle_transfer_transaction_bad_signature() {
         |mut_tx| {
             let (_unknown_address, unknown_key): (_, AccountKeyPair) = get_key_pair();
             let data = mut_tx.data_mut_for_testing();
-            let signature = Signature::new_secure(&data.intent_message(), &unknown_key);
+            let signature = SimpleSignature::new_secure(&data.intent_message(), &unknown_key);
             *data.tx_signatures_mut_for_testing() = vec![signature.into()];
         },
         |err| {
@@ -770,7 +774,7 @@ async fn test_handle_certificate_errors() {
         err,
         IotaError::UserInput {
             error: UserInputError::Unsupported(message)
-        } if message == "SenderSignedData must not contain system transaction"
+        } if message == "SenderSignedTransaction must not contain system transaction"
     );
 
     let mut invalid_sig_count_tx = transfer_transaction.clone();
@@ -801,7 +805,7 @@ async fn test_handle_certificate_errors() {
     let mut absent_sig_tx = transfer_transaction.clone();
     let (_unknown_address, unknown_key): (_, AccountKeyPair) = get_key_pair();
     let data = absent_sig_tx.data_mut_for_testing();
-    let signature = Signature::new_secure(&data.intent_message(), &unknown_key);
+    let signature = SimpleSignature::new_secure(&data.intent_message(), &unknown_key);
     *data.tx_signatures_mut_for_testing() = vec![signature.into()];
     let ct = CertifiedTransaction::new(
         data.clone(),
@@ -1424,7 +1428,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
 
 #[test]
 fn sender_signed_data_serialized_intent() {
-    let txn = SenderSignedData::new(
+    let txn = SenderSignedTransaction::new(
         TransactionData::new_transfer(
             Address::ZERO,
             random_object_ref(),
@@ -1452,6 +1456,6 @@ fn sender_signed_data_serialized_intent() {
     // deser fails when intent is wrong
     let mut bytes = bytes;
     bytes[1] = IntentScope::TransactionEffects as u8;
-    let e = bcs::from_bytes::<SenderSignedData>(&bytes).unwrap_err();
+    let e = bcs::from_bytes::<SenderSignedTransaction>(&bytes).unwrap_err();
     assert!(e.to_string().contains("invalid intent"));
 }

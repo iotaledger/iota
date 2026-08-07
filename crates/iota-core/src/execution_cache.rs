@@ -8,11 +8,11 @@ use futures::{FutureExt, future::BoxFuture};
 use iota_common::sync::notify_read::NotifyRead;
 use iota_config::ExecutionCacheConfig;
 use iota_sdk_types::{
-    ObjectId, ObjectReference, TransactionDigest, TransactionEffectsDigest, Version,
+    ObjectId, ObjectReference, TransactionDigest, TransactionEffects, TransactionEffectsDigest,
+    TransactionEvents, Version,
 };
 use iota_types::{
     base_types::{EpochId, VerifiedExecutionData},
-    effects::{TransactionEffects, TransactionEvents},
     error::{IotaError, IotaResult, UserInputError},
     executable_transaction::VerifiedExecutableTransaction,
     iota_system_state::IotaSystemState,

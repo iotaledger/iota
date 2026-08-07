@@ -564,7 +564,8 @@ mod tests {
     use expect_test::expect;
     use iota_json_rpc_types::Coin;
     use iota_sdk_types::{
-        CheckpointDigest, ObjectDigest, StructTag, TransactionDigest, TypeTag, Version,
+        CheckpointDigest, ObjectDigest, StructTag, TransactionDigest, TransactionEffects,
+        TransactionEvents, TypeTag, Version,
     };
     use iota_storage::{
         key_value_store::{
@@ -575,7 +576,7 @@ mod tests {
     use iota_types::{
         balance::Supply,
         coin::TreasuryCap,
-        effects::{TransactionEffects, TransactionEffectsExtForTesting, TransactionEvents},
+        effects::TransactionEffectsExtForTesting,
         error::{IotaError, IotaResult},
         id::UID,
         messages_checkpoint::CheckpointSequenceNumber,

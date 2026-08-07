@@ -4,10 +4,11 @@
 
 use iota_core::test_utils::send_and_confirm_transaction;
 use iota_sdk_types::{
-    Address, Identifier, ObjectId, ProgrammableTransaction, StructTag, TransactionKind, TypeTag,
+    Address, Identifier, ObjectId, ProgrammableTransaction, StructTag, TransactionEffects,
+    TransactionKind, TypeTag,
 };
 use iota_types::{
-    effects::{TransactionEffects, TransactionEffectsAPI},
+    effects::TransactionEffectsAPI,
     error::IotaError,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{TransactionData, TransactionDataAPI},

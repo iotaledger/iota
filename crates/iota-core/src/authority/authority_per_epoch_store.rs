@@ -32,8 +32,8 @@ use iota_protocol_config::{
 };
 use iota_sdk_types::{
     Address, CancelledTransaction, CheckpointTimestamp, ObjectId, ObjectReference, RandomnessRound,
-    TransactionDigest, TransactionEffectsDigest, TransactionKind, UserSignature, Version,
-    VersionAssignment,
+    SenderSignedTransaction, TransactionDigest, TransactionEffects, TransactionEffectsDigest,
+    TransactionKind, UserSignature, Version, VersionAssignment,
     checkpoint::{CheckpointContents, CheckpointSummary},
 };
 use iota_storage::mutex_table::{MutexGuard, MutexTable};
@@ -43,7 +43,6 @@ use iota_types::{
     crypto::{AuthoritySignInfo, AuthorityStrongQuorumSignInfo},
     deny_rule_governance::DenyRuleSet,
     digests::ChainIdentifier,
-    effects::TransactionEffects,
     error::{IotaError, IotaResult},
     executable_transaction::{
         CertificateProof, ExecutableTransaction, VerifiedExecutableTransaction,
@@ -63,9 +62,9 @@ use iota_types::{
     },
     storage::{BackingPackageStore, InputKey},
     transaction::{
-        CertifiedTransaction, InputObjectKind, SenderSignedData, SenderSignedTransactionAPI,
-        TransactionDataAPI, TransactionEnvelope, TransactionKey, TxValidityCheckContext,
-        VerifiedCertificate, VerifiedSignedTransaction, VerifiedTransaction,
+        CertifiedTransaction, InputObjectKind, SenderSignedTransactionAPI, TransactionDataAPI,
+        TransactionEnvelope, TransactionKey, TxValidityCheckContext, VerifiedCertificate,
+        VerifiedSignedTransaction, VerifiedTransaction,
     },
 };
 use itertools::izip;
@@ -785,7 +784,7 @@ pub struct AuthorityEpochTables {
     /// `transaction_lock`.
     #[default_options_override_fn = "signed_transactions_table_default_config"]
     signed_transactions:
-        DBMap<TransactionDigest, TrustedEnvelope<SenderSignedData, AuthoritySignInfo>>,
+        DBMap<TransactionDigest, TrustedEnvelope<SenderSignedTransaction, AuthoritySignInfo>>,
 
     /// Map from ObjectReference to transaction locking that object
     #[default_options_override_fn = "owned_object_locked_transactions_table_default_config"]

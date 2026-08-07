@@ -11,17 +11,15 @@ use iota_sdk_crypto::{
     ToFromBech32, ToFromBytes as _, Verifier as _,
     ed25519::{Ed25519PrivateKey, Ed25519VerifyingKey},
     secp256k1::Secp256k1PrivateKey,
+    simple::SimpleKeypair,
 };
 use iota_sdk_types::{
     Address, Ed25519PublicKey, Ed25519Signature, ObjectDigest, ObjectId, ObjectReference,
     SignatureScheme, Version,
-    crypto::{Intent, IntentScope, PublicKey, PublicKeyExt as _, UserSignature},
+    crypto::{Intent, IntentScope, PublicKey, PublicKeyExt as _, SimpleSignature, UserSignature},
 };
 use iota_types::{
-    crypto::{
-        AuthorityKeyPair, EncodeDecodeBase64, Signature, SimpleKeypair, get_key_pair,
-        get_key_pair_from_rng,
-    },
+    crypto::{AuthorityKeyPair, EncodeDecodeBase64, get_key_pair, get_key_pair_from_rng},
     transaction::{TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionData, TransactionDataAPI},
 };
 use rand::{SeedableRng, rngs::StdRng};
@@ -86,7 +84,7 @@ async fn test_flag_in_signature_and_keypair() -> Result<(), anyhow::Error> {
             Intent::iota_transaction(),
         )?;
         match sig {
-            Signature::Ed25519 { .. } => {
+            SimpleSignature::Ed25519 { .. } => {
                 // signature contains corresponding flag
                 assert_eq!(
                     *sig.to_bytes().first().unwrap(),
@@ -95,14 +93,14 @@ async fn test_flag_in_signature_and_keypair() -> Result<(), anyhow::Error> {
                 // keystore stores pubkey with corresponding flag
                 assert!(pk.flag() == SignatureScheme::Ed25519.to_u8())
             }
-            Signature::Secp256k1 { .. } => {
+            SimpleSignature::Secp256k1 { .. } => {
                 assert_eq!(
                     *sig.to_bytes().first().unwrap(),
                     SignatureScheme::Secp256k1.to_u8()
                 );
                 assert!(pk.flag() == SignatureScheme::Secp256k1.to_u8())
             }
-            Signature::Secp256r1 { .. } => {
+            SimpleSignature::Secp256r1 { .. } => {
                 assert_eq!(
                     *sig.to_bytes().first().unwrap(),
                     SignatureScheme::Secp256r1.to_u8()
@@ -885,9 +883,9 @@ async fn test_decode_sig() -> Result<(), anyhow::Error> {
         _ => panic!("Expected MoveAuthenticator variant"),
     }
 
-    // Test 3: Decode signature from a full SenderSignedData (transaction with
-    // signature) The fallback decodes the transaction and extracts the first
-    // signature
+    // Test 3: Decode signature from a full SenderSignedTransaction (transaction
+    // with signature) The fallback decodes the transaction and extracts the
+    // first signature
     let full_tx = "AQAAAAAAAgAIAMqaOwAAAAAAIBEREREVBOk1DmNdZc04zNLAKUNMajpIDYlHqbpqFbIVAgIAAQEAAAEBAwAAAAABAQARERERFQTpNQ5jXWXNOMzSwClDTGo6SA2JR6m6ahWyFQFODzG01xo0l0JIwq9SzbRyvRKR/9TvCUbh8lrerlLQWT9uOykAAAAAIBTjvmRbByY+0uGCBeTvSXQnUXonVSdJMuPOIwfGCZ/4ERERERUE6TUOY11lzTjM0sApQ0xqOkgNiUepumoVshXoAwAAAAAAAOBvPAAAAAAAAAFhAKFqV1NustAADKOOOfAZIA/9HrnmA9PqwAmOrqTs7OKjaEXylfywifj2XZyBmEJYodGE89xlkDOthe+bpBIrkwEoe8lptdiMUw3h3rcxQJf3bWp9zFLP4Eq3rpQOam52cw==";
     let output = KeyToolCommand::DecodeSig {
         sig: full_tx.to_string(),

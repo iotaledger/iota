@@ -5,16 +5,17 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 use iota_sdk_types::{
-    ObjectId, SharedObjectReference, TransactionDigest, Version, VersionAssignment,
+    ObjectId, SenderSignedTransaction, SharedObjectReference, TransactionDigest,
+    TransactionEffects, Version, VersionAssignment,
 };
 use iota_types::{
-    effects::{TransactionEffects, TransactionEffectsAPI},
+    effects::TransactionEffectsAPI,
     error::IotaResult,
     executable_transaction::VerifiedExecutableTransaction,
     storage::{
         ObjectKey, transaction_non_shared_input_object_keys, transaction_receiving_object_keys,
     },
-    transaction::{SenderSignedData, SenderSignedTransactionAPI, TransactionKey},
+    transaction::{SenderSignedTransactionAPI, TransactionKey},
 };
 use tracing::trace;
 
@@ -252,7 +253,7 @@ impl SharedObjVerManager {
 }
 
 fn get_or_init_versions<'a>(
-    transactions: impl Iterator<Item = &'a SenderSignedData>,
+    transactions: impl Iterator<Item = &'a SenderSignedTransaction>,
     epoch_store: &AuthorityPerEpochStore,
     cache_reader: &dyn ObjectCacheRead,
 ) -> IotaResult<HashMap<ObjectId, Version>> {
@@ -274,7 +275,9 @@ fn get_or_init_versions<'a>(
 mod tests {
     use std::collections::{BTreeMap, HashMap};
 
-    use iota_sdk_types::{Address, ObjectDigest, ObjectReference, RandomnessRound};
+    use iota_sdk_types::{
+        Address, ObjectDigest, ObjectReference, RandomnessRound, SenderSignedTransaction,
+    };
     use iota_test_transaction_builder::TestTransactionBuilder;
     use iota_types::{
         effects::TestEffectsBuilder,
@@ -283,7 +286,7 @@ mod tests {
         },
         object::Object,
         programmable_transaction_builder::ProgrammableTransactionBuilder,
-        transaction::{CallArg, SenderSignedData, VerifiedTransaction},
+        transaction::{CallArg, VerifiedTransaction},
     };
 
     use super::*;
@@ -721,7 +724,7 @@ mod tests {
         )
         .programmable(builder.finish())
         .build();
-        let tx = SenderSignedData::new(tx_data, vec![]);
+        let tx = SenderSignedTransaction::new(tx_data, vec![]);
         VerifiedExecutableTransaction::new_unchecked(ExecutableTransaction::new_from_data_and_sig(
             tx,
             CertificateProof::new_system(0),

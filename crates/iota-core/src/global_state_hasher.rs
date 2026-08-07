@@ -7,10 +7,10 @@ use std::sync::Arc;
 use fastcrypto::hash::MultisetHash;
 use iota_common::fatal;
 use iota_metrics::monitored_scope;
-use iota_sdk_types::ObjectDigest;
+use iota_sdk_types::{ObjectDigest, TransactionEffects};
 use iota_types::{
     committee::EpochId,
-    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
+    effects::{TransactionEffectsAPI, TransactionEffectsExt},
     error::IotaResult,
     global_state_hash::GlobalStateHash,
     in_memory_storage::InMemoryStorage,

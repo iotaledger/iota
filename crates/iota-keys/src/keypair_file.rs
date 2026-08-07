@@ -9,11 +9,12 @@ use fastcrypto::{
     encoding::{Base64, Encoding, Hex},
     traits::EncodeDecodeBase64,
 };
-use iota_sdk_crypto::{ToFromBech32, ToFromBytes as _, secp256k1::Secp256k1PrivateKey};
-use iota_sdk_types::SignatureScheme;
-use iota_types::crypto::{
-    AuthorityKeyPair, NetworkKeyPair, SimpleKeypair, simple_to_network_keypair,
+use iota_sdk_crypto::{
+    ToFromBase64, ToFromBech32, ToFromBytes as _, secp256k1::Secp256k1PrivateKey,
+    simple::SimpleKeypair,
 };
+use iota_sdk_types::SignatureScheme;
+use iota_types::crypto::{AuthorityKeyPair, NetworkKeyPair, simple_to_network_keypair};
 
 /// Write Bech32 encoded `flag || privkey` to file.
 pub fn write_keypair_to_file<P: AsRef<std::path::Path>>(
@@ -87,10 +88,8 @@ pub fn read_key(path: &PathBuf, require_secp256k1: bool) -> Result<SimpleKeypair
     }
 
     // Try base64 encoded Raw Secp256k1 key `privkey`
-    if let Ok(bytes) = Base64::decode(contents) {
-        if let Ok(key) = Secp256k1PrivateKey::from_bytes(&bytes) {
-            return Ok(SimpleKeypair::from(key));
-        }
+    if let Ok(key) = Secp256k1PrivateKey::from_base64(contents) {
+        return Ok(SimpleKeypair::from(key));
     }
 
     // Try Bech32 encoded 33-byte `flag || private key` starting with `iotaprivkey`

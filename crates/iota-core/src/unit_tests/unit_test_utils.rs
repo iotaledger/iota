@@ -11,10 +11,11 @@ use iota_framework::BuiltInFramework;
 use iota_genesis_builder::validator_info::ValidatorInfo;
 use iota_move_build::test_utils::compile_basics_package;
 use iota_protocol_config::ProtocolConfig;
+use iota_sdk_crypto::simple::SimpleKeypair;
 use iota_sdk_types::{ObjectId, TransactionDigest};
 use iota_types::{
     crypto::{
-        AccountKeyPair, AuthorityKeyPair, AuthorityPublicKeyBytes, NetworkKeyPair, SimpleKeypair,
+        AccountKeyPair, AuthorityKeyPair, AuthorityPublicKeyBytes, NetworkKeyPair,
         generate_proof_of_possession, get_key_pair,
     },
     object::Object,

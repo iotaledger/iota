@@ -23,16 +23,16 @@ use iota_core::authority::{AuthorityState, test_authority_builder::TestAuthority
 use iota_framework::DEFAULT_FRAMEWORK_PATH;
 use iota_json_rpc_api::QUERY_MAX_RESULT_LIMIT;
 use iota_json_rpc_types::{
-    DevInspectResults, DryRunTransactionBlockResponse, IotaExecutionStatus,
-    IotaTransactionBlockEffects, IotaTransactionBlockEffectsAPI, IotaTransactionBlockEvents,
+    IotaExecutionStatus, IotaTransactionBlockEffects, IotaTransactionBlockEffectsAPI,
 };
 use iota_node_storage::GrpcStateReader;
 use iota_protocol_config::{Chain, ProtocolConfig};
 use iota_sdk_types::{
     Address, Argument, CheckpointContentsDigest, CheckpointDigest, Command, ConsensusCommitDigest,
-    Event, ExecutionStatus, Identifier, MoveAuthenticatorV1, ObjectData, ObjectId, ObjectReference,
-    ProgrammableTransaction, RandomnessRound, TransactionDigest, TransactionKind, TypeTag,
-    UserSignature, Version, checkpoint::CheckpointContents, gas::GasCostSummary,
+    Event, ExecutionStatus, GasPayment, Identifier, MoveAuthenticatorV1, ObjectData, ObjectId,
+    ObjectReference, ProgrammableTransaction, RandomnessRound, TransactionDigest,
+    TransactionEffects, TransactionEvents, TransactionExpiration, TransactionKind, TransactionV1,
+    TypeTag, UserSignature, Version, checkpoint::CheckpointContents, gas::GasCostSummary,
     move_package::MovePackage,
 };
 use iota_storage::{
@@ -43,7 +43,7 @@ use iota_types::{
     base_types::{IOTA_ADDRESS_LENGTH, VersionNumber},
     committee::EpochId,
     crypto::{AccountKeyPair, get_authority_key_pair, get_key_pair_from_rng},
-    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
+    effects::TransactionEffectsAPI,
     iota_sdk_types_conversions::type_tag_core_to_sdk,
     messages_checkpoint::{CheckpointSequenceNumber, VerifiedCheckpoint},
     move_package::{
@@ -57,6 +57,7 @@ use iota_types::{
         CallArg, SenderSignedTransactionAPI, TransactionData, TransactionDataAPI,
         TransactionEnvelope, VerifiedTransaction,
     },
+    transaction_executor::{SimulateTransactionResult, VmChecks},
     utils::{
         to_sender_signed_transaction, to_sender_signed_transaction_with_multi_signers,
         to_sender_signed_transaction_with_optional_sponsor,
@@ -1917,16 +1918,11 @@ impl IotaTestAdapter {
     }
 
     async fn dry_run(&mut self, transaction: TransactionData) -> anyhow::Result<TxnSummary> {
-        let digest = transaction.digest();
-        let results = self
+        let result = self
             .executor
-            .dry_run_transaction_block(transaction, digest)
+            .simulate_transaction(transaction, VmChecks::Enabled)
             .await?;
-        let DryRunTransactionBlockResponse {
-            effects, events, ..
-        } = results;
-
-        self.tx_summary_from_effects(effects, events)
+        self.tx_summary_from_simulation(result)
     }
 
     async fn dev_inspect(
@@ -1935,21 +1931,32 @@ impl IotaTestAdapter {
         transaction_kind: TransactionKind,
         gas_price: Option<u64>,
     ) -> anyhow::Result<TxnSummary> {
-        let results = self
+        let transaction = TransactionData::V1(TransactionV1 {
+            kind: transaction_kind,
+            sender,
+            gas_payment: GasPayment {
+                // The simulation fills all of this in: an empty payment gets a mock gas
+                // coin, and a zero price or budget gets the epoch's defaults.
+                objects: vec![],
+                owner: sender,
+                price: gas_price.unwrap_or_default(),
+                budget: 0,
+            },
+            expiration: TransactionExpiration::None,
+        });
+        let result = self
             .executor
-            .dev_inspect_transaction_block(sender, transaction_kind, gas_price)
+            .simulate_transaction(transaction, VmChecks::Disabled)
             .await?;
-        let DevInspectResults {
-            effects, events, ..
-        } = results;
-        self.tx_summary_from_effects(effects, events)
+        self.tx_summary_from_simulation(result)
     }
 
-    fn tx_summary_from_effects(
+    fn tx_summary_from_simulation(
         &mut self,
-        effects: IotaTransactionBlockEffects,
-        events: IotaTransactionBlockEvents,
+        result: SimulateTransactionResult,
     ) -> anyhow::Result<TxnSummary> {
+        let events = result.events.unwrap_or_default().0;
+        let effects: IotaTransactionBlockEffects = result.effects.try_into()?;
         if let IotaExecutionStatus::Failure { error } = effects.status() {
             bail!(self.stabilize_str(format!(
                 "Transaction Effects Status: {error}\nExecution Error: {error}",
@@ -1991,12 +1998,6 @@ impl IotaTestAdapter {
         deleted_ids.sort_by_key(|id| self.real_to_fake_object_id(id));
         unwrapped_then_deleted_ids.sort_by_key(|id| self.real_to_fake_object_id(id));
         wrapped_ids.sort_by_key(|id| self.real_to_fake_object_id(id));
-
-        let events = events
-            .data
-            .into_iter()
-            .map(|iota_event| iota_event.into())
-            .collect();
 
         Ok(TxnSummary {
             events,

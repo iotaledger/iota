@@ -7,6 +7,7 @@
 #[cfg(test)]
 mod tests;
 
+pub mod progress;
 pub mod reader;
 pub mod restore;
 pub mod uploader;
@@ -19,7 +20,6 @@ use std::{
         Arc,
         atomic::{AtomicU64, Ordering},
     },
-    time::Duration,
 };
 
 use anyhow::Result;
@@ -56,9 +56,11 @@ use iota_types::{
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use object_store::path::Path;
 use serde::{Deserialize, Serialize};
-use tokio::time::Instant;
 
-use crate::restore::RestoreEpochInfo;
+use crate::{
+    progress::{ProgressTicker, ProgressUnit},
+    restore::RestoreEpochInfo,
+};
 
 /// The following describes the format of an object file (*.obj) used for
 /// persisting live iota objects. The maximum size per .obj file is 128MB. State
@@ -635,32 +637,23 @@ pub async fn accumulate_live_object_iter(
     m: MultiProgress,
     num_live_objects: u64,
 ) -> GlobalStateHash {
-    // Monitor progress of live object accumulation
-    let accum_progress_bar = m.add(ProgressBar::new(num_live_objects).with_style(
-        ProgressStyle::with_template("[{elapsed_precise}] {wide_bar} {pos}/{len} ({msg})").unwrap(),
-    ));
+    // Monitor progress of live object accumulation, whose position the ticker
+    // takes from the counter the loop below advances
     let accum_counter = Arc::new(AtomicU64::new(0));
-    let cloned_accum_counter = accum_counter.clone();
-    let cloned_progress_bar = accum_progress_bar.clone();
-    let handle = tokio::spawn(async move {
-        let a_instant = Instant::now();
-        loop {
-            if cloned_progress_bar.is_finished() {
-                break;
-            }
-            let num_accumulated = cloned_accum_counter.load(Ordering::Relaxed);
-            assert!(
-                num_accumulated <= num_live_objects,
-                "Accumulated more objects (at least {num_accumulated}) than expected ({num_live_objects})"
-            );
-            let accumulations_per_sec = num_accumulated as f64 / a_instant.elapsed().as_secs_f64();
-            cloned_progress_bar.set_position(num_accumulated);
-            cloned_progress_bar.set_message(format!(
-                "DB live obj accumulations per sec: {accumulations_per_sec}"
-            ));
-            tokio::time::sleep(Duration::from_secs(1)).await;
-        }
-    });
+    let accum_ticker = ProgressTicker::spawn(
+        m.add(
+            ProgressBar::new(num_live_objects).with_style(
+                ProgressStyle::with_template(
+                    "[{elapsed_precise}] {wide_bar} Accumulating DB live objects: {pos}/{len} \
+                     ({per_sec}, ETA {eta})",
+                )
+                .unwrap(),
+            ),
+        ),
+        "Accumulating DB live objects",
+        ProgressUnit::Count("objects"),
+        Some(accum_counter.clone()),
+    );
 
     // Accumulate live objects
     let mut acc = GlobalStateHash::default();
@@ -668,9 +661,11 @@ pub async fn accumulate_live_object_iter(
         GlobalStateHasher::accumulate_live_object(&mut acc, &live_object);
         accum_counter.fetch_add(1, Ordering::Relaxed);
     }
-    accum_progress_bar.finish_with_message("DB live object accumulation completed");
-    handle
-        .await
-        .expect("Failed to join live object accumulation progress monitor");
+    let num_accumulated = accum_counter.load(Ordering::Relaxed);
+    assert!(
+        num_accumulated <= num_live_objects,
+        "Accumulated more objects ({num_accumulated}) than expected ({num_live_objects})"
+    );
+    accum_ticker.finish_with_message("DB live object accumulation completed");
     acc
 }

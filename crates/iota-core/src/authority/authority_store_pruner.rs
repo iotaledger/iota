@@ -13,10 +13,12 @@ use anyhow::anyhow;
 use bincode::Options;
 use iota_config::node::AuthorityStorePruningConfig;
 use iota_metrics::{monitored_scope, spawn_monitored_task};
-use iota_sdk_types::{CheckpointDigest, ObjectId, Version, checkpoint::CheckpointContents};
+use iota_sdk_types::{
+    CheckpointDigest, ObjectId, TransactionEffects, Version, checkpoint::CheckpointContents,
+};
 use iota_types::{
     base_types::VersionNumber,
-    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
+    effects::{TransactionEffectsAPI, TransactionEffectsExt},
     messages_checkpoint::{CheckpointContentsExt, CheckpointSequenceNumber, CheckpointTimestamp},
     storage::ObjectKey,
 };
@@ -1065,12 +1067,12 @@ impl ObjectCompactionMetrics {
 mod tests {
     use std::{collections::HashSet, path::Path, sync::Arc, time::Duration};
 
-    use iota_sdk_types::{ObjectDigest, ObjectId, ObjectReference, TransactionDigest, Version};
+    use iota_sdk_types::{
+        ObjectDigest, ObjectId, ObjectReference, TransactionDigest, TransactionEffects, Version,
+    };
     use iota_swarm_config::test_utils::{CommitteeFixture, empty_contents};
     use iota_types::{
-        effects::{
-            TransactionEffects, TransactionEffectsAPIForTesting, TransactionEffectsExtForTesting,
-        },
+        effects::{TransactionEffectsAPIForTesting, TransactionEffectsExtForTesting},
         messages_checkpoint::{CheckpointSequenceNumber, CheckpointTimestamp},
         object::Object,
         storage::ObjectKey,

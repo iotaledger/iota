@@ -7,20 +7,18 @@ use iota_json_rpc_types::{
     IotaTransactionKind, ObjectChange,
 };
 use iota_sdk_types::{
-    Address, CheckpointContentsDigest, CheckpointDigest, ObjectDigest, ObjectId, Owner, StructTag,
-    TransactionDigest, TypeTag, Version,
+    Address, CheckpointContentsDigest, CheckpointDigest, ObjectDigest, ObjectId, Owner,
+    SenderSignedTransaction, StructTag, TransactionDigest, TransactionEffects, TypeTag, Version,
     checkpoint::{CheckpointCommitment, CheckpointContents, EndOfEpochData},
     move_package::MovePackage,
 };
 use iota_types::{
     crypto::AggregateAuthoritySignature,
     dynamic_field::DynamicFieldType,
-    effects::TransactionEffects,
     event::{SystemEpochInfoEvent, SystemEpochInfoEventV1, SystemEpochInfoEventV2},
     iota_serde::{IotaStructTag, IotaTypeTag},
     messages_checkpoint::{CheckpointContentsExt, CheckpointSequenceNumber},
     object::Object,
-    transaction::SenderSignedData,
 };
 #[cfg(any(test, feature = "shared_test_runtime", feature = "pg_integration"))]
 use rand::Rng;
@@ -412,7 +410,7 @@ impl IndexedPackage {
 pub struct IndexedTransaction {
     pub tx_sequence_number: u64,
     pub tx_digest: TransactionDigest,
-    pub sender_signed_data: SenderSignedData,
+    pub sender_signed_data: SenderSignedTransaction,
     pub effects: TransactionEffects,
     pub checkpoint_sequence_number: u64,
     pub timestamp_ms: u64,

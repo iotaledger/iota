@@ -29,13 +29,14 @@ use iota_protocol_config::{PerObjectCongestionControlMode, ProtocolConfig};
 use iota_sdk_types::{
     Address, Argument, ExecutionError, Identifier, MoveAuthenticatorV1, MoveLocation, ObjectId,
     ObjectReference, Owner, ProgrammableTransaction, SharedObjectReference, SignatureScheme,
-    TypeTag, UserSignature, crypto::Intent,
+    TransactionEffects, TypeTag, UserSignature,
+    crypto::{Intent, SimpleSignature},
 };
 use iota_test_transaction_builder::publish_package;
 use iota_types::{
     IOTA_FRAMEWORK_PACKAGE_ID,
     crypto::PublicKey,
-    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
+    effects::{TransactionEffectsAPI, TransactionEffectsExt},
     error::{IotaError, UserInputError},
     messages_grpc::{HandleCertificateRequestV1, HandleTransactionResponse},
     move_package,
@@ -1640,7 +1641,7 @@ async fn test_two_move_authenticators_rejected_with_disabled_move_auth_for_spons
             &err,
             IotaError::UserInput {
                 error: UserInputError::Unsupported(msg)
-            } if msg == "SenderSignedData with more than one MoveAuthenticator is not supported"
+            } if msg == "SenderSignedTransaction with more than one MoveAuthenticator is not supported"
         ),
         "Expected Unsupported error for >1 MoveAuthenticator, got: {err:?}"
     );
@@ -1721,7 +1722,7 @@ async fn test_sponsor_only_move_auth_rejected_with_disabled_move_auth_for_sponso
             &err,
             IotaError::UserInput {
                 error: UserInputError::Unsupported(msg)
-            } if msg == "SenderSignedData can have MoveAuthenticator only for the sender"
+            } if msg == "SenderSignedTransaction can have MoveAuthenticator only for the sender"
         ),
         "Expected Unsupported error for sponsor-only MoveAuthenticator, got: {err:?}"
     );
@@ -2834,10 +2835,10 @@ impl TestEnvironment {
     }
 
     /// Build a `UserSignature::MoveAuthenticator` from a raw ed25519
-    /// `Signature` and the abstract-account object reference.
+    /// `SimpleSignature` and the abstract-account object reference.
     fn move_authenticator_from_ed25519_sig(
         aa_obj_ref: ObjectReference,
-        signature: iota_types::crypto::Signature,
+        signature: SimpleSignature,
     ) -> anyhow::Result<UserSignature> {
         let hex_encoded_signature: String = Hex::encode(signature.to_bytes())
             .chars()

@@ -46,6 +46,9 @@ tonic:
     max_header_fetches_per_peer: 0
     max_transaction_fetches_per_peer: 0
     max_commit_fetches_per_peer: 0
+  subscribe_request_timeout:
+    secs: 0
+    nanos: 0
 fast_commit_sync_batch_size: 1000
 commit_sync_gap_threshold: 1000
 enable_fast_commit_syncer: true

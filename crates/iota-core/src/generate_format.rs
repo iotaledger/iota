@@ -14,11 +14,12 @@ use iota_sdk_types::{
     Address, Argument, ChangeEpoch, CheckpointContentsDigest, CheckpointDigest, Command,
     CommandArgumentError, ConsensusCommitDigest, ConsensusCommitPrologueV1,
     ConsensusDeterminedVersionAssignments, EndOfEpochTransactionKind, Event, ExecutionError,
-    ExecutionStatus, GenesisObject, GenesisTransaction, Identifier, MoveLocation, MoveObjectType,
-    MoveStruct, ObjectData, ObjectDigest, ObjectId, ObjectReference, Owner, PackageUpgradeError,
-    ProgrammableTransaction, RandomnessStateUpdate, SharedObjectReference, SimpleSignature,
-    StructTag, TransactionDigest, TransactionEffectsDigest, TransactionExpiration, TransactionKind,
-    TypeArgumentError, TypeTag, UnchangedSharedKind, UserSignature,
+    ExecutionStatus, GenesisObject, GenesisTransaction, IdOperation, Identifier, MoveLocation,
+    MoveObjectType, MoveStruct, ObjectData, ObjectDigest, ObjectId, ObjectIn, ObjectOut,
+    ObjectReference, Owner, PackageUpgradeError, ProgrammableTransaction, RandomnessStateUpdate,
+    SenderSignedTransaction, SharedObjectReference, SimpleSignature, StructTag, TransactionDigest,
+    TransactionEffects, TransactionEffectsDigest, TransactionEvents, TransactionExpiration,
+    TransactionKind, TypeArgumentError, TypeTag, UnchangedSharedKind, UserSignature,
     checkpoint::{CheckpointCommitment, CheckpointContents, CheckpointSummary},
     crypto::{Intent, IntentMessage, PersonalMessage},
     move_package::{MovePackage, TypeOrigin, UpgradeInfo},
@@ -29,12 +30,9 @@ use iota_types::{
     crypto::{
         AggregateAuthoritySignature, AuthorityKeyPair, AuthorityPublicKeyBytes,
         AuthorityQuorumSignInfo, AuthoritySignature, AuthorityStrongQuorumSignInfo, KeypairTraits,
-        Signature, Signer, get_key_pair,
+        Signer, get_key_pair,
     },
-    effects::{
-        IDOperation, ObjectIn, ObjectOut, TransactionEffects, TransactionEffectsExtForTesting,
-        TransactionEvents,
-    },
+    effects::TransactionEffectsExtForTesting,
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointContentsExt, FullCheckpointContents,
@@ -43,9 +41,7 @@ use iota_types::{
     multisig::{MultiSig, MultiSigPublicKey, MultisigMember},
     object::{MoveStructExt, ObjectInner},
     storage::DeleteKind,
-    transaction::{
-        CallArg, SenderSignedData, TransactionData, TransactionDataAPI, TransactionEnvelope,
-    },
+    transaction::{CallArg, TransactionData, TransactionDataAPI, TransactionEnvelope},
 };
 use move_core_types::{account_address::AccountAddress, language_storage::ModuleId};
 use pretty_assertions::assert_str_eq;
@@ -181,7 +177,7 @@ fn get_registry() -> Result<Registry> {
     let kp3 = Secp256r1PrivateKey::generate(StdRng::from_seed([0; 32]));
 
     // ... and the user signature which does
-    let sig: Signature = kp1.sign(b"hello world");
+    let sig: SimpleSignature = kp1.sign(b"hello world");
     tracer.trace_value(&mut samples, &sig).unwrap();
 
     let multisig_pk = MultiSigPublicKey::new(
@@ -541,7 +537,7 @@ fn get_registry() -> Result<Registry> {
         .trace_type::<EndOfEpochTransactionKind>(&samples)
         .unwrap();
 
-    tracer.trace_type::<IDOperation>(&samples).unwrap();
+    tracer.trace_type::<IdOperation>(&samples).unwrap();
     tracer.trace_type::<ObjectIn>(&samples).unwrap();
     tracer.trace_type::<ObjectOut>(&samples).unwrap();
     tracer.trace_type::<UnchangedSharedKind>(&samples).unwrap();
@@ -552,7 +548,7 @@ fn get_registry() -> Result<Registry> {
         .trace_type::<ConsensusDeterminedVersionAssignments>(&samples)
         .unwrap();
 
-    let sender_data = SenderSignedData::new(
+    let sender_tx = SenderSignedTransaction::new(
         TransactionData::new_with_gas_coins(
             TransactionKind::EndOfEpoch(vec![EndOfEpochTransactionKind::ChangeEpoch(
                 ChangeEpoch {
@@ -577,7 +573,7 @@ fn get_registry() -> Result<Registry> {
         ),
         vec![UserSignature::Simple(sig1.clone())],
     );
-    tracer.trace_value(&mut samples, &sender_data).unwrap();
+    tracer.trace_value(&mut samples, &sender_tx).unwrap();
 
     let quorum_sig: AuthorityStrongQuorumSignInfo = AuthorityQuorumSignInfo {
         epoch: 0,
@@ -592,7 +588,7 @@ fn get_registry() -> Result<Registry> {
 
     // Trace FullCheckpointContents, CheckpointTransaction and CheckpointData
     // via trace_value (they transitively contain TypeTag).
-    let sample_transaction = TransactionEnvelope::new(sender_data.clone());
+    let sample_transaction = TransactionEnvelope::new(sender_tx.clone());
     let sample_effects = TransactionEffects::new_empty_v1_for_testing(TransactionDigest::default());
     let sample_exec_data = ExecutionData {
         transaction: sample_transaction.clone(),

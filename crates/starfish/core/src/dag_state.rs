@@ -3706,7 +3706,7 @@ mod test {
             },
         }";
 
-        let dag_builder = parse_dag(dag_str).expect("Invalid dag");
+        let dag_builder = parse_dag(dag_str, false).expect("Invalid dag");
 
         // Add equivocating block for round 2 authority 3
         let block_header = VerifiedBlockHeader::new_for_test(TestBlockHeader::new(2, 2).build());

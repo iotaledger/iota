@@ -11,12 +11,10 @@ use iota_ledger_signer::LedgerSigner;
 use iota_sdk::wallet_context::WalletContext;
 use iota_sdk_types::{
     Address, MoveAuthenticatorV1, ObjectId, Owner, SharedObjectReference, TypeTag, UserSignature,
-    Version, crypto::Intent,
+    Version,
+    crypto::{Intent, SimpleSignature},
 };
-use iota_types::{
-    crypto::Signature,
-    transaction::{CallArg, TransactionData},
-};
+use iota_types::transaction::{CallArg, TransactionData};
 use serde::Serialize;
 
 #[derive(Serialize)]
@@ -154,7 +152,7 @@ pub(crate) fn sign_secure<T>(
     address: &Address,
     msg: &T,
     intent: Intent,
-) -> Result<Signature>
+) -> Result<SimpleSignature>
 where
     T: Serialize,
 {

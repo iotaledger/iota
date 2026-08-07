@@ -21,13 +21,12 @@ use iota_common::try_iterator_ext::TryIteratorExt;
 use iota_json_rpc_types::{IotaObjectDataFilter, TransactionFilter};
 use iota_sdk_types::{
     Address, ObjectDigest, ObjectId, ObjectReference, Owner, StructTag, TransactionDigest,
-    TransactionEventsDigest, TypeTag, Version,
+    TransactionEvents, TransactionEventsDigest, TypeTag, Version,
 };
 use iota_storage::{mutex_table::MutexTable, sharded_lru::ShardedLruCache};
 use iota_types::{
     base_types::{ObjectInfo, TxSequenceNumber},
     dynamic_field::{self, DynamicFieldInfo},
-    effects::TransactionEvents,
     error::{IotaError, IotaResult, UserInputError},
     inner_temporary_store::TxCoins,
     object::Object,
@@ -1678,10 +1677,9 @@ impl IndexStore {
 mod tests {
     use std::collections::BTreeMap;
 
-    use iota_sdk_types::{Address, ObjectId, Owner, TransactionDigest};
+    use iota_sdk_types::{Address, ObjectId, Owner, TransactionDigest, TransactionEvents};
     use iota_types::{
         base_types::{ObjectInfo, ObjectType},
-        effects::TransactionEvents,
         gas_coin::GAS,
         object,
     };
