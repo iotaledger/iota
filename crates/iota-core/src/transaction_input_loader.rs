@@ -122,9 +122,6 @@ impl TransactionInputLoader {
 
     /// Read the inputs for a transaction that is ready to be executed.
     ///
-    /// `assigned_shared_object_versions` is used to resolve the versions of any
-    /// shared input objects.
-    ///
     /// This function panics if any inputs are not available, as
     /// TransactionManager should already have verified that the transaction
     /// is ready to be executed.

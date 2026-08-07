@@ -1829,12 +1829,9 @@ impl AuthorityState {
         // first. And during lookups we always look up in the perpetual store first.
         epoch_store.insert_executed_in_epoch(tx_digest);
 
-        // A randomness state update can reach execution without this node having
-        // generated the round locally: the checkpoint executor executes it from a
-        // synced checkpoint and reports the round complete, after which the
-        // randomness manager never regenerates it. Recording the mapping here too
-        // keeps the key resolvable, so a checkpoint root naming that round cannot
-        // wait for a digest that nothing would ever write.
+        // The randomness receiver records this too, but only for rounds generated
+        // locally: one that arrives in a synced checkpoint is reported complete and
+        // never regenerated, so without this its key would stay unresolvable.
         let key = transaction.key();
         if !matches!(key, TransactionKey::Digest(_)) {
             epoch_store.insert_tx_key(key, *tx_digest)?;

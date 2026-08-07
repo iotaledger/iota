@@ -5000,7 +5000,7 @@ async fn test_shared_object_transaction_ok() {
     // Sequence the certificate to assign a sequence number to the shared object.
     let assigned_versions = send_consensus(&authority, &certificate).await;
 
-    // Verify shared versions are now assigned for the transaction.
+    // Verify shared locks are now set for the transaction.
     let shared_object_version = assigned_versions
         .iter()
         .find_map(|VersionAssignment { object_id, version }| {

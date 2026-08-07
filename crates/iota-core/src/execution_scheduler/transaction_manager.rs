@@ -367,10 +367,9 @@ impl TransactionManager {
                     .clone();
                 let transaction =
                     VerifiedExecutableTransaction::new_system(transaction, epoch_store.epoch());
-                // The env parked under `key` carries that key's shared version
-                // assignments and is the only copy of them, so handing it to a
-                // transaction the key does not name would execute on the wrong
-                // versions without tripping the assignment check.
+                // The parked env holds the only copy of that key's assigned
+                // versions, so a mismatched pair would execute on another
+                // round's versions undetected.
                 debug_assert_eq!(
                     transaction.key(),
                     key,

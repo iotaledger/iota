@@ -4767,10 +4767,8 @@ impl AuthorityPerEpochStore {
             .map(|(tx, _)| Schedulable::Transaction(tx))
             .collect();
 
-        // If randomness is being generated for this commit, the randomness state
-        // update transaction will eventually exist for it. Schedule it by its
-        // key so that the version of the randomness state object is updated
-        // before it is used by the randomness-using transactions below.
+        // Front of the queue: the update must be assigned the randomness object's
+        // version before the transactions below that read it.
         if let Some(round) = randomness_round {
             verified_randomness_transactions
                 .push_front(Schedulable::RandomnessStateUpdate(self.epoch(), round));
