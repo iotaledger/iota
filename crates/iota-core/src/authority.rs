@@ -3269,38 +3269,31 @@ impl AuthorityState {
         self.execution_lock.write().await
     }
 
-    /// Fails reconfiguration when the deny-rules state walked from the object
-    /// for the next epoch diverged from the closing epoch's mirror. Between
-    /// commits the two are in lockstep and the epoch boundary is such a
-    /// barrier, so a mismatch means one of them is corrupted; the object is
-    /// authoritative. Nodes that did not run consensus for the closing epoch
-    /// (fullnodes, validators joining at this boundary) execute the injected
-    /// updates without a mirror, so they are exempt.
+    /// Reports a mirror that diverged from the object at the epoch boundary,
+    /// where the two must agree. Reporting is the remedy: reconfiguration
+    /// re-seeds the mirror from the object, so failing here would only pin the
+    /// node to the diverged state. Nodes outside the closing committee hold no
+    /// mirror and are exempt.
     pub(crate) fn check_transaction_deny_rules_consistency(
         &self,
         cur_epoch_store: &AuthorityPerEpochStore,
         epoch_start_configuration: &EpochStartConfiguration,
-    ) -> IotaResult<()> {
+    ) {
         if self.is_fullnode(cur_epoch_store) {
-            return Ok(());
+            return;
         }
         if let Some(walked_deny_rules) = epoch_start_configuration.transaction_deny_rules_state() {
             let mirrored_deny_rules = cur_epoch_store.get_mirrored_transaction_deny_rules();
             if *walked_deny_rules != *mirrored_deny_rules {
                 debug_fatal!(
                     "TransactionDenyRules object diverged from the mirrored state at the end of \
-                     epoch {} (walked: {walked_deny_rules:?}, mirrored: {mirrored_deny_rules:?})",
+                     epoch {}; continuing from the object (walked: {walked_deny_rules:?}, \
+                     mirrored: {mirrored_deny_rules:?})",
                     cur_epoch_store.epoch(),
                 );
                 cur_epoch_store.metrics.deny_rule_mirror_divergence.set(1);
-                return Err(IotaError::GenericAuthority {
-                    error: "TransactionDenyRules object diverged from the mirrored state at the \
-                            epoch boundary"
-                        .to_string(),
-                });
             }
         }
-        Ok(())
     }
 
     #[instrument(level = "error", skip_all)]
@@ -3377,7 +3370,7 @@ impl AuthorityState {
             expensive_safety_check_config,
             epoch_supply_change,
         )?;
-        self.check_transaction_deny_rules_consistency(cur_epoch_store, &epoch_start_configuration)?;
+        self.check_transaction_deny_rules_consistency(cur_epoch_store, &epoch_start_configuration);
 
         self.get_reconfig_api()
             .try_set_epoch_start_configuration(&epoch_start_configuration)?;

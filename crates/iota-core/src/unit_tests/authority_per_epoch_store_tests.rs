@@ -1235,10 +1235,9 @@ async fn every_injected_deny_rule_chunk_becomes_a_checkpoint_root() {
     assert_eq!(roots, injected);
 }
 
-/// The epoch-boundary consistency guard fails reconfiguration only on a node
-/// that kept a mirror through the closing epoch: matching states pass, and a
-/// node outside the closing committee (a fullnode) is exempt even when its
-/// seed lags the object.
+/// The guard only compares on a node that kept a mirror through the closing
+/// epoch: matching states pass, and a node outside the closing committee is
+/// exempt even when its seed lags the object.
 #[tokio::test]
 async fn deny_rule_mirror_guard_exempts_nodes_outside_the_committee() {
     let authority_state = TestAuthorityBuilder::new().build().await;
@@ -1249,16 +1248,10 @@ async fn deny_rule_mirror_guard_exempts_nodes_outside_the_committee() {
     // configuration without the object.
     let mut matching = (*store.epoch_start_configuration).clone();
     matching.set_transaction_deny_rules_for_testing(Version::from_u64(3), DenyRuleSet::default());
-    assert!(
-        authority_state
-            .check_transaction_deny_rules_consistency(&store, &matching)
-            .is_ok()
-    );
-    assert!(
-        authority_state
-            .check_transaction_deny_rules_consistency(&store, &store.epoch_start_configuration)
-            .is_ok()
-    );
+    // `debug_fatal!` aborts test configurations, so returning is the assertion.
+    authority_state.check_transaction_deny_rules_consistency(&store, &matching);
+    authority_state
+        .check_transaction_deny_rules_consistency(&store, &store.epoch_start_configuration);
 
     // A node that was not in the closing epoch's committee has no mirror to
     // compare: reopen the store under a foreign committee and diverge the
@@ -1293,19 +1286,14 @@ async fn deny_rule_mirror_guard_exempts_nodes_outside_the_committee() {
     )
     .unwrap();
     assert!(authority_state.is_fullnode(&fullnode_store));
-    assert!(
-        authority_state
-            .check_transaction_deny_rules_consistency(&fullnode_store, &diverged)
-            .is_ok()
-    );
+    authority_state.check_transaction_deny_rules_consistency(&fullnode_store, &diverged);
 }
 
-/// A committee member whose mirror diverged from the walked object state must
-/// not reconfigure onto it. `debug_fatal!` panics in debug builds; release
-/// builds log, set the metric, and fail reconfiguration with an error.
+/// A diverged mirror is reported: `debug_fatal!` aborts test configurations,
+/// so a divergence introduced by a bug fails the suite.
 #[tokio::test]
 #[should_panic(expected = "diverged from the mirrored state")]
-async fn deny_rule_mirror_guard_fails_on_divergence() {
+async fn deny_rule_mirror_guard_reports_divergence() {
     let authority_state = TestAuthorityBuilder::new().build().await;
     let store = authority_state.epoch_store_for_testing();
     let mut diverged = (*store.epoch_start_configuration).clone();
@@ -1313,5 +1301,5 @@ async fn deny_rule_mirror_guard_fails_on_divergence() {
         Version::from_u64(3),
         rules_denying_address(Address::new([9u8; 32])),
     );
-    let _ = authority_state.check_transaction_deny_rules_consistency(&store, &diverged);
+    authority_state.check_transaction_deny_rules_consistency(&store, &diverged);
 }

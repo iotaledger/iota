@@ -138,9 +138,8 @@ pub struct EpochMetrics {
     /// passed.
     pub deny_rule_removals_unlocked: IntGauge,
 
-    /// Set to 1 when the `TransactionDenyRules` object diverged from the
-    /// mirrored state at an epoch boundary — a corruption signal that fails
-    /// reconfiguration.
+    /// Set to 1, and never cleared, when the `TransactionDenyRules` object
+    /// diverged from the mirrored state at an epoch boundary.
     pub deny_rule_mirror_divergence: IntGauge,
 }
 
