@@ -1579,6 +1579,9 @@ mod tests {
         // stopped.
         const NUM_AUTHORITIES: usize = 7;
         const COMMIT_GAP_THRESHOLD: u32 = 30;
+        // Fast-sync fetch batch size for all validators; also the stride at
+        // which a fast-syncing validator stores voting block headers.
+        const FAST_COMMIT_SYNC_BATCH_SIZE: u32 = 20;
         // Gap a restarted validator must close, in commits. Set comfortably above
         // COMMIT_GAP_THRESHOLD so fast sync (not regular sync) is selected even with
         // some slack between the consumer high-water mark and the quorum index.
@@ -1620,7 +1623,7 @@ mod tests {
                 commit_sync_parallel_fetches: 2,
                 commit_sync_batch_size: 10,
                 commit_sync_gap_threshold: COMMIT_GAP_THRESHOLD,
-                fast_commit_sync_batch_size: 20,
+                fast_commit_sync_batch_size: FAST_COMMIT_SYNC_BATCH_SIZE,
                 enable_fast_commit_syncer: true,
                 // The assertion below depends on B asking A first, so keep the
                 // peer order plain. Ordering peers by their commit votes is
@@ -1701,7 +1704,7 @@ mod tests {
             commit_sync_parallel_fetches: 2,
             commit_sync_batch_size: 10,
             commit_sync_gap_threshold: COMMIT_GAP_THRESHOLD,
-            fast_commit_sync_batch_size: 20,
+            fast_commit_sync_batch_size: FAST_COMMIT_SYNC_BATCH_SIZE,
             sync_last_known_own_block_timeout: Duration::from_millis(2_000),
             enable_fast_commit_syncer: true,
             enable_commit_sync_peer_selection_by_commit_votes: false,
@@ -1723,9 +1726,25 @@ mod tests {
         consumer_monitors[validator_a_index] = monitor;
         authorities.insert(validator_a_index, authority);
 
-        // Wait for validator A to catch up via fast sync
+        // Wait until validator A has fast-synced deep enough into its gap that
+        // its voting storage covers the first commits B will request past A's
+        // restart point. The target is a fixed index rather than a margin below
+        // the moving quorum head: under parallel test load the head can outrun
+        // a fixed margin indefinitely, while A reaches a fixed index as soon as
+        // its own fast sync applies the corresponding batches. Waiting for full
+        // convergence would also let A reinitialize, which moves serving from
+        // voting storage to regular storage and would starve the voting-hits
+        // assertion below.
+        //
+        // Two batches: B's first request bound past A's restart point lies at
+        // most one batch ahead, so two applied batches guarantee A has a stored
+        // voting bound at or above it; and A's batch fetching only stops within
+        // one batch of the quorum head, which sits at least TARGET_GAP (three
+        // batches) ahead, so the target is reached before A can stall waiting
+        // to reinitialize.
+        let a_target = last_processed_a + 2 * FAST_COMMIT_SYNC_BATCH_SIZE;
         let start_time = Instant::now();
-        let mut a_caught_up = false;
+        let mut a_fast_synced = false;
         while start_time.elapsed() < Duration::from_secs(90) {
             drain_running(
                 &mut output_receivers,
@@ -1734,25 +1753,16 @@ mod tests {
                 &[validator_b_index],
             );
 
-            let a_index = consumer_monitors[validator_a_index].highest_handled_commit();
-            let max_other = consumer_monitors
-                .iter()
-                .enumerate()
-                .filter(|(i, _)| *i != validator_a_index && *i != validator_b_index)
-                .map(|(_, m)| m.highest_handled_commit())
-                .max()
-                .unwrap_or(0);
-
-            if a_index > 0 && a_index + 20 >= max_other {
-                a_caught_up = true;
+            if consumer_monitors[validator_a_index].highest_handled_commit() >= a_target {
+                a_fast_synced = true;
                 break;
             }
             sleep(Duration::from_millis(50)).await;
         }
 
         assert!(
-            a_caught_up,
-            "Validator A should have caught up via fast sync"
+            a_fast_synced,
+            "Validator A should have fast-synced at least two fetch batches past its restart point"
         );
 
         // Phase 7: Restart validator B - it needs commits that A fast-synced
@@ -1763,7 +1773,7 @@ mod tests {
             commit_sync_parallel_fetches: 2,
             commit_sync_batch_size: 10,
             commit_sync_gap_threshold: COMMIT_GAP_THRESHOLD,
-            fast_commit_sync_batch_size: 20,
+            fast_commit_sync_batch_size: FAST_COMMIT_SYNC_BATCH_SIZE,
             sync_last_known_own_block_timeout: Duration::from_millis(2_000),
             enable_fast_commit_syncer: true,
             enable_commit_sync_peer_selection_by_commit_votes: false,
@@ -1785,9 +1795,13 @@ mod tests {
 
         authorities.insert(validator_b_index, authority);
 
-        // Wait for validator B to catch up
+        // Wait for both restarted validators to catch up: B fast-syncs its
+        // gap, and A finishes its interrupted fast sync once B is reachable
+        // again (A's reinitialization header fetch tries B first). All
+        // validators are running at this point, so neither wait can stall on
+        // an unreachable peer.
         let start_time = Instant::now();
-        let mut b_caught_up = false;
+        let mut caught_up = false;
         while start_time.elapsed() < Duration::from_secs(90) {
             drain_running(
                 &mut output_receivers,
@@ -1796,25 +1810,25 @@ mod tests {
                 &[],
             );
 
+            let a_index = consumer_monitors[validator_a_index].highest_handled_commit();
             let b_index = consumer_monitors[validator_b_index].highest_handled_commit();
-            let max_other = consumer_monitors
+            let max_index = consumer_monitors
                 .iter()
-                .enumerate()
-                .filter(|(i, _)| *i != validator_b_index)
-                .map(|(_, m)| m.highest_handled_commit())
+                .map(|m| m.highest_handled_commit())
                 .max()
                 .unwrap_or(0);
 
-            if b_index > 0 && b_index + 20 >= max_other {
-                b_caught_up = true;
+            if a_index > 0 && b_index > 0 && a_index + 20 >= max_index && b_index + 20 >= max_index
+            {
+                caught_up = true;
                 break;
             }
             sleep(Duration::from_millis(50)).await;
         }
 
         assert!(
-            b_caught_up,
-            "Validator B should have caught up via fast sync"
+            caught_up,
+            "Validators A and B should have caught up via fast sync"
         );
 
         // Verify both validators A and B have similar commit indices
