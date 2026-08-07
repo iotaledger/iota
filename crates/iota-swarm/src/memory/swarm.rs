@@ -379,7 +379,22 @@ impl<R> SwarmBuilder<R> {
 
 impl<R: rand::RngCore + rand::CryptoRng> SwarmBuilder<R> {
     /// Create the configured Swarm.
+    ///
+    /// # Panics
+    ///
+    /// Panics if [`SwarmBuilder::try_build`] returns an error.
     pub fn build(self) -> Swarm {
+        self.try_build().unwrap_or_else(|err| panic!("{err:#}"))
+    }
+
+    /// Create the configured Swarm.
+    ///
+    /// # Panics
+    ///
+    /// Panics on failures the swarm cannot run without, including creating its
+    /// temporary directory, saving the genesis blob, and building the genesis
+    /// (see [`ConfigBuilder::build`]).
+    pub fn try_build(self) -> Result<Swarm> {
         let dir = if let Some(dir) = self.dir {
             SwarmDirectory::Persistent(dir)
         } else {
@@ -546,12 +561,12 @@ impl<R: rand::RngCore + rand::CryptoRng> SwarmBuilder<R> {
                 nodes.insert(config.authority_public_key(), Node::new(config));
             });
         }
-        Swarm {
+        Ok(Swarm {
             dir,
             network_config,
             nodes,
             fullnode_config_builder,
-        }
+        })
     }
 }
 
