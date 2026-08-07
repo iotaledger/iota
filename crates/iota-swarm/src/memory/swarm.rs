@@ -10,7 +10,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use futures::future::try_join_all;
 use iota_config::{
     ExecutionCacheConfig, IOTA_GENESIS_FILENAME, NodeConfig,
@@ -415,13 +415,16 @@ impl<R: rand::RngCore + rand::CryptoRng> SwarmBuilder<R> {
     ///
     /// - A `validator-<N>` override names a validator the network does not
     ///   have.
-    /// - An override does not apply to a node in the initial network.
+    /// - An override fails to apply to a built config.
+    /// - The network has a fullnode and a validator config has no
+    ///   `p2p-config.external-address`.
     ///
     /// # Panics
     ///
-    /// Panics on failures the swarm cannot run without, including
-    /// creating its temporary directory, saving the genesis blob, and
-    /// building the genesis (see [`ConfigBuilder::build`]).
+    /// Panics on failures the swarm cannot run without: creating its
+    /// temporary directory, saving the genesis blob, parsing a generated
+    /// network address, and building the genesis (e.g. on invalid
+    /// genesis parameters or a validator below the minimum stake).
     pub fn try_build(self) -> Result<Swarm> {
         let dir = if let Some(dir) = self.dir {
             SwarmDirectory::Persistent(dir)
@@ -539,7 +542,10 @@ impl<R: rand::RngCore + rand::CryptoRng> SwarmBuilder<R> {
                     .iter()
                     .filter(|config_override| config_override.applies_to_validator(index)),
                 validator,
-            )?;
+            )
+            .with_context(|| {
+                format!("failed to apply node config overrides to validator {index}")
+            })?;
         }
 
         let mut nodes: HashMap<_, _> = network_config
@@ -610,13 +616,16 @@ impl<R: rand::RngCore + rand::CryptoRng> SwarmBuilder<R> {
                     builder = builder.with_rpc_port(rpc_port);
                 }
             }
-            let mut config = builder.build(&mut OsRng, &network_config);
+            let mut config = builder
+                .try_build(&mut OsRng, &network_config)
+                .context("failed to build the fullnode config")?;
             apply_node_config_overrides(
                 self.node_config_overrides
                     .iter()
                     .filter(|config_override| config_override.applies_to_fullnode()),
                 &mut config,
-            )?;
+            )
+            .with_context(|| format!("failed to apply node config overrides to fullnode {idx}"))?;
             info!(
                 "SwarmBuilder configuring full node with name {}",
                 config.authority_public_key()
@@ -931,6 +940,45 @@ mod test {
     }
 
     #[test]
+    fn clearing_validator_external_addresses_fails_the_swarm_build() {
+        // The fullnode derives its seed peers from the validators' external
+        // addresses; clearing them must fail the build.
+        let err = Swarm::builder()
+            .with_fullnode_count(1)
+            .with_node_config_overrides(vec![
+                "validator:p2p-config.external-address=null"
+                    .parse()
+                    .unwrap(),
+            ])
+            .try_build()
+            .unwrap_err();
+        // The seed-peer error, not the override echoed back by an
+        // apply-time failure.
+        assert!(format!("{err:#}").contains("seed peers"), "{err:#}");
+
+        // Only the final state counts: a later override may restore it.
+        let swarm = Swarm::builder()
+            .with_fullnode_count(1)
+            .with_node_config_overrides(vec![
+                "validator:p2p-config.external-address=null"
+                    .parse()
+                    .unwrap(),
+                "validator:p2p-config.external-address='/ip4/127.0.0.1/udp/8084'"
+                    .parse()
+                    .unwrap(),
+            ])
+            .try_build()
+            .unwrap();
+        let fullnode = swarm.fullnodes().next().unwrap();
+        assert_eq!(
+            fullnode.config().p2p_config.seed_peers[0]
+                .address
+                .to_string(),
+            "/ip4/127.0.0.1/udp/8084"
+        );
+    }
+
+    #[test]
     fn overrides_apply_per_validator_independently() {
         // validator-0 creates the whole section; the dotted edit fails on
         // validator 1, where the section does not exist.
@@ -952,6 +1000,36 @@ mod test {
         // required fields unset.
         let err = format!("{err:#}");
         assert!(err.contains("validator-1:"), "{err}");
+        assert!(err.contains("remote-fw-url"), "{err}");
+    }
+
+    #[test]
+    fn validator_override_failures_name_the_validator() {
+        // A `validator:` scope carries no index, so only the error context
+        // can say which validator rejected the override.
+        let dir = tempfile::TempDir::new().unwrap();
+        let mut network_config = ConfigBuilder::new(dir.path())
+            .committee_size(NonZeroUsize::new(2).unwrap())
+            .build();
+        "firewall-config={remote-fw-url: 'http://127.0.0.1:65000', destination-port: 65000}"
+            .parse::<NodeConfigOverride>()
+            .unwrap()
+            .apply_to(&mut network_config.validator_configs[0])
+            .unwrap();
+
+        let err = Swarm::builder()
+            .with_network_config(network_config)
+            .with_node_config_overrides(vec![
+                "validator:firewall-config.destination-port=65001"
+                    .parse()
+                    .unwrap(),
+            ])
+            .try_build()
+            .unwrap_err();
+        // Validator 0 has the section; validator 1 does not, so the dotted
+        // edit leaves its required fields unset there.
+        let err = format!("{err:#}");
+        assert!(err.contains("validator 1"), "{err}");
         assert!(err.contains("remote-fw-url"), "{err}");
     }
 
