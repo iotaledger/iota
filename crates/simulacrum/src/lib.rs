@@ -1129,6 +1129,85 @@ mod tests {
         assert!(!walked.user_transaction_disabled);
     }
 
+    /// A chunk at the `deny_rule_update_max_entries_per_tx` ceiling asserted
+    /// in `ProtocolConfig::get_for_version` executes successfully — all
+    /// additions and all removals, which stress different limits (new object
+    /// ids and event size vs the store entries touched by re-linking).
+    #[test]
+    fn deny_rule_update_executes_at_the_chunk_ceiling() {
+        use std::collections::BTreeSet;
+
+        use iota_sdk_types::TransactionDenyRulesUpdate;
+        use iota_types::transaction_deny_rules::{
+            get_transaction_deny_rules, get_transaction_deny_rules_obj_initial_shared_version,
+        };
+
+        const CEILING: u64 = 2048;
+
+        let _guard =
+            iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+                config.set_deny_rule_governance_for_testing(true);
+                config.set_deny_rule_governance_on_chain_for_testing(true);
+                config.set_deny_rule_update_max_entries_per_tx_for_testing(CEILING);
+                config.set_deny_rule_removal_grace_round_floor_for_testing(0);
+                config
+            });
+        let sim = Simulacrum::new();
+        sim.advance_epoch(true);
+
+        let initial_shared_version = sim
+            .with_store(|store| get_transaction_deny_rules_obj_initial_shared_version(store))
+            .unwrap()
+            .expect("object must exist after the create");
+
+        let addresses: BTreeSet<Address> = (0..CEILING)
+            .map(|i| {
+                let mut bytes = [0u8; 32];
+                bytes[..8].copy_from_slice(&i.to_be_bytes());
+                Address::new(bytes)
+            })
+            .collect();
+        let update = |round, added_addresses, removed_addresses| {
+            VerifiedTransaction::new_transaction_deny_rules_update(TransactionDenyRulesUpdate {
+                epoch: 1,
+                round,
+                added_addresses,
+                removed_addresses,
+                added_objects: BTreeSet::new(),
+                removed_objects: BTreeSet::new(),
+                added_packages: BTreeSet::new(),
+                removed_packages: BTreeSet::new(),
+                package_publish_disabled: false,
+                package_upgrade_disabled: false,
+                shared_object_disabled: false,
+                user_transaction_disabled: false,
+                receiving_objects_disabled: false,
+                move_authenticator_disabled: false,
+                deny_rules_obj_initial_shared_version: initial_shared_version,
+            })
+        };
+
+        let (_, error) = sim
+            .execute_transaction(update(0, addresses.clone(), BTreeSet::new()).into())
+            .unwrap();
+        assert!(error.is_none());
+        let walked = sim
+            .with_store(|store| get_transaction_deny_rules(store))
+            .unwrap()
+            .expect("object must exist");
+        assert_eq!(walked.denied_addresses.len(), CEILING as usize);
+
+        let (_, error) = sim
+            .execute_transaction(update(1, BTreeSet::new(), addresses).into())
+            .unwrap();
+        assert!(error.is_none());
+        let walked = sim
+            .with_store(|store| get_transaction_deny_rules(store))
+            .unwrap()
+            .expect("object must exist");
+        assert!(walked.denied_addresses.is_empty());
+    }
+
     #[test]
     fn simple_epoch() {
         let steps = 10;

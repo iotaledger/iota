@@ -2125,6 +2125,32 @@ impl ProtocolConfig {
                     && ret.deny_rule_removal_grace_round_floor.is_some()),
             "deny_rule_governance_on_chain requires deny_rule_update_max_entries_per_tx and deny_rule_removal_grace_round_floor"
         );
+        // A deny-rule update chunk must always execute, or the object falls
+        // permanently behind the mirrored state on every validator at once.
+        // Each entry is a `LinkedTable` child object, so chunks are bounded by
+        // the system-transaction object limits — and, tighter, by
+        // `max_event_emit_size` (the update event carries every entry, ~32
+        // bytes each) and by the object-runtime store entries touched when
+        // removals re-link nodes. Those last two cannot be expressed as an
+        // entry count here; the constant keeps a wide margin below them
+        // (tightest is roughly 5000 entries for a removal-only chunk).
+        const DENY_RULE_UPDATE_MAX_ENTRIES_PER_TX_CEILING: u64 = 2048;
+        assert!(
+            ret.deny_rule_update_max_entries_per_tx
+                .is_none_or(|max_entries| {
+                    max_entries > 0
+                        && max_entries <= DENY_RULE_UPDATE_MAX_ENTRIES_PER_TX_CEILING
+                        && [
+                            ret.max_num_new_move_object_ids_system_tx,
+                            ret.max_num_deleted_move_object_ids_system_tx,
+                            ret.object_runtime_max_num_cached_objects_system_tx,
+                            ret.object_runtime_max_num_store_entries_system_tx,
+                        ]
+                        .iter()
+                        .all(|limit| limit.is_none_or(|limit| max_entries <= limit))
+                }),
+            "deny_rule_update_max_entries_per_tx must be positive, at most {DENY_RULE_UPDATE_MAX_ENTRIES_PER_TX_CEILING}, and within the system transaction object limits"
+        );
 
         ret
     }
@@ -3841,6 +3867,51 @@ mod test {
                 .unwrap()
                 == &true
         );
+    }
+
+    /// A chunk limit above the executability ceiling would fail execution on
+    /// every validator at once, so the configuration is rejected at startup
+    /// rather than at the flip.
+    #[test]
+    #[should_panic(expected = "deny_rule_update_max_entries_per_tx must be positive")]
+    fn deny_rule_chunk_limit_above_the_ceiling_is_rejected() {
+        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.set_deny_rule_governance_for_testing(true);
+            config.set_deny_rule_governance_on_chain_for_testing(true);
+            config.set_deny_rule_removal_grace_round_floor_for_testing(0);
+            config.set_deny_rule_update_max_entries_per_tx_for_testing(2048 + 1);
+            config
+        });
+        let _ = ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
+    }
+
+    /// A zero chunk limit would make every delta unsplittable; the pure
+    /// chunking function clamps it, but the configuration is still invalid.
+    #[test]
+    #[should_panic(expected = "deny_rule_update_max_entries_per_tx must be positive")]
+    fn deny_rule_chunk_limit_of_zero_is_rejected() {
+        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.set_deny_rule_governance_for_testing(true);
+            config.set_deny_rule_governance_on_chain_for_testing(true);
+            config.set_deny_rule_removal_grace_round_floor_for_testing(0);
+            config.set_deny_rule_update_max_entries_per_tx_for_testing(0);
+            config
+        });
+        let _ = ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
+    }
+
+    /// The value the flip is expected to ship stays inside the limits.
+    #[test]
+    fn deny_rule_chunk_limit_within_system_tx_object_id_limit_is_accepted() {
+        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.set_deny_rule_governance_for_testing(true);
+            config.set_deny_rule_governance_on_chain_for_testing(true);
+            config.set_deny_rule_removal_grace_round_floor_for_testing(0);
+            config.set_deny_rule_update_max_entries_per_tx_for_testing(1000);
+            config
+        });
+        let config = ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
+        assert_eq!(config.deny_rule_update_max_entries_per_tx(), 1000);
     }
 
     #[test]
