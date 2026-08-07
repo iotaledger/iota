@@ -1671,6 +1671,15 @@ impl Core {
                 .strong_blames_received_from_voter
                 .with_label_values(&[voter])
                 .inc();
+            for missing_author in strong_vote.missing.iter() {
+                let hostname = &self.context.committee.authority(missing_author).hostname;
+                self.context
+                    .metrics
+                    .node_metrics
+                    .strong_blames_received_for_author
+                    .with_label_values(&[hostname])
+                    .inc();
+            }
             dag_state.record_strong_vote_complaint(
                 block.author(),
                 leader_round,
