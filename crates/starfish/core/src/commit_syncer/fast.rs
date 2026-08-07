@@ -1569,7 +1569,6 @@ mod tests {
     /// - Phase 7: Restart B, needs N1-N3 → should get N2-N3 from A's voting
     ///   storage
     #[tokio::test(flavor = "current_thread")]
-    #[serial_test::serial]
     async fn test_fast_sync_voting_blocks_served_to_peer() {
         telemetry_subscribers::init_for_testing();
         let db_registry = Registry::new();
