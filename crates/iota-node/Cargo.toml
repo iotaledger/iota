@@ -62,6 +62,9 @@ prometheus-filtered.workspace = true
 telemetry-subscribers.workspace = true
 typed-store.workspace = true
 
+[dev-dependencies]
+serde_yaml.workspace = true
+
 [build-dependencies]
 rustc_version_runtime = "0.3"
 

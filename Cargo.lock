@@ -7108,6 +7108,7 @@ dependencies = [
  "reqwest",
  "rustc_version_runtime",
  "serde",
+ "serde_yaml",
  "tap",
  "telemetry-subscribers",
  "tokio",
