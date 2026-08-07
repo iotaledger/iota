@@ -3273,10 +3273,11 @@ impl AuthorityState {
     /// where the two must agree. Reporting is the remedy: reconfiguration
     /// re-seeds the mirror from the object, so failing here would only pin the
     /// node to the diverged state. An object the closing epoch had but the
-    /// walk no longer finds is also reported — objects cannot be deleted, so
-    /// the local store lost it, and a committee member without it stops
-    /// injecting updates while its peers continue. Nodes outside the closing
-    /// committee hold no mirror and are exempt.
+    /// walk no longer finds is fatal instead — objects cannot be deleted, so
+    /// the local store lost it, there is nothing to re-seed from, and a
+    /// committee member continuing without it would stop injecting updates
+    /// while its peers continue. Nodes outside the closing committee hold no
+    /// mirror and are exempt.
     pub(crate) fn check_transaction_deny_rules_consistency(
         &self,
         cur_epoch_store: &AuthorityPerEpochStore,
@@ -3292,12 +3293,12 @@ impl AuthorityState {
                 .transaction_deny_rules_obj_initial_shared_version()
                 .is_some()
             {
-                debug_fatal!(
+                fatal!(
                     "TransactionDenyRules object existed in epoch {} but is missing from the \
-                     state walked for the next epoch",
+                     state walked for the next epoch — the local store is corrupted; restore or \
+                     state-sync before rejoining",
                     cur_epoch_store.epoch(),
                 );
-                cur_epoch_store.metrics.deny_rule_mirror_divergence.set(1);
             }
             return;
         };

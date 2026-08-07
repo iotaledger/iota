@@ -1305,10 +1305,11 @@ async fn deny_rule_mirror_guard_reports_divergence() {
 }
 
 /// Objects cannot be deleted, so a walk finding no object after the closing
-/// epoch had one means the local store lost it — reported like a divergence.
+/// epoch had one means the local store lost it. Unlike a readable divergence
+/// there is nothing to re-seed from, so this fail-stops in every build.
 #[tokio::test]
 #[should_panic(expected = "missing from the state walked")]
-async fn deny_rule_mirror_guard_reports_a_missing_object() {
+async fn deny_rule_mirror_guard_fails_on_a_missing_object() {
     let authority_state = TestAuthorityBuilder::new().build().await;
     let store = authority_state.epoch_store_for_testing();
     let next_without_object = (*store.epoch_start_configuration).clone();
