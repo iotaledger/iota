@@ -37,6 +37,7 @@ use crate::{
     authority::{AuthorityState, authority_tests::init_state_with_objects},
     checkpoints::CheckpointServiceNoop,
     consensus_handler::SequencedConsensusTransaction,
+    execution_scheduler::ExecutionSchedulerAPI,
     mock_consensus::with_block_status,
 };
 
@@ -200,7 +201,7 @@ pub fn make_consensus_adapter_for_test(
 
             if self.execute {
                 self.state
-                    .transaction_manager()
+                    .execution_scheduler()
                     .enqueue(transactions, epoch_store);
             }
 

@@ -45,35 +45,32 @@ async fn test_writeback_immediate_return_canceled_shared() {
         version: Version::CANCELLED_READ,
     };
     let receiving_keys = HashSet::new();
-    let epoch = &0;
+    let epoch = 0;
 
-    let result = cache
+    cache
         .notify_read_input_objects(&[canceled_key], &receiving_keys, epoch)
         .now_or_never()
         .unwrap();
-    assert_eq!(result.len(), 1);
 
     let congested_key = InputKey::VersionedObject {
         id: ObjectId::random(),
         version: Version::CONGESTED_PRIOR_TO_GAS_PRICE_FEEDBACK,
     };
 
-    let result = cache
+    cache
         .notify_read_input_objects(&[congested_key], &receiving_keys, epoch)
         .now_or_never()
         .unwrap();
-    assert_eq!(result.len(), 1);
 
     let randomness_unavailable_key = InputKey::VersionedObject {
         id: ObjectId::random(),
         version: Version::RANDOMNESS_UNAVAILABLE,
     };
 
-    let result = cache
+    cache
         .notify_read_input_objects(&[randomness_unavailable_key], &receiving_keys, epoch)
         .now_or_never()
         .unwrap();
-    assert_eq!(result.len(), 1);
 }
 
 #[tokio::test]
@@ -90,15 +87,13 @@ async fn test_writeback_immediate_return_cached_object() {
         version,
     }];
     let receiving_keys = HashSet::new();
-    let epoch = &0;
+    let epoch = 0;
 
     // Should return immediately since object is in cache/store
-    let result = cache
+    cache
         .notify_read_input_objects(&input_keys, &receiving_keys, epoch)
         .now_or_never()
         .unwrap();
-
-    assert_eq!(result.len(), 1);
 }
 
 #[tokio::test]
@@ -108,15 +103,13 @@ async fn test_writeback_immediate_return_cached_package() {
         id: IOTA_FRAMEWORK_PACKAGE_ID,
     }];
     let receiving_keys = HashSet::new();
-    let epoch = &0;
+    let epoch = 0;
 
     // Should return immediately since system package is available by default.
-    let result = cache
+    cache
         .notify_read_input_objects(&input_keys, &receiving_keys, epoch)
         .now_or_never()
         .unwrap();
-
-    assert_eq!(result.len(), 1);
 }
 
 #[tokio::test]
@@ -138,15 +131,13 @@ async fn test_writeback_immediate_return_shared_deleted() {
         version,
     }];
     let receiving_keys = HashSet::new();
-    let epoch = &epoch_id;
+    let epoch = epoch_id;
 
     // Should return immediately since the shared object was deleted
-    let result = cache
+    cache
         .notify_read_input_objects(&input_keys, &receiving_keys, epoch)
         .now_or_never()
         .unwrap();
-
-    assert_eq!(result.len(), 1);
 }
 
 #[tokio::test]
@@ -160,7 +151,7 @@ async fn test_writeback_wait_for_object() {
         version,
     }];
     let receiving_keys = HashSet::new();
-    let epoch = &0;
+    let epoch = 0;
 
     let result = timeout(
         Duration::from_secs(3),
@@ -202,13 +193,12 @@ async fn test_writeback_wait_for_object() {
             cache.write_object_for_testing(object);
         }
     });
-    let result = timeout(
+    timeout(
         Duration::from_secs(3),
         cache.notify_read_input_objects(&input_keys, &receiving_keys, epoch),
     )
     .await
     .unwrap();
-    assert_eq!(result.len(), 1);
 }
 
 #[tokio::test]
@@ -229,7 +219,7 @@ async fn test_writeback_wait_for_package() {
 
     let input_keys = vec![InputKey::Package { id: package_id }];
     let receiving_keys = HashSet::new();
-    let epoch = &0;
+    let epoch = 0;
 
     // Start notification future
     let notification = cache.notify_read_input_objects(&input_keys, &receiving_keys, epoch);
@@ -244,9 +234,7 @@ async fn test_writeback_wait_for_package() {
     });
 
     // Should complete once package is written
-    let result = timeout(Duration::from_secs(1), notification).await.unwrap();
-
-    assert_eq!(result.len(), 1);
+    timeout(Duration::from_secs(1), notification).await.unwrap();
 }
 
 #[tokio::test]
@@ -261,7 +249,7 @@ async fn test_writeback_wait_for_shared_deleted() {
         version,
     }];
     let receiving_keys = HashSet::new();
-    let epoch = &epoch_id;
+    let epoch = epoch_id;
 
     // Start notification future
     let notification = cache.notify_read_input_objects(&input_keys, &receiving_keys, epoch);
@@ -280,9 +268,53 @@ async fn test_writeback_wait_for_shared_deleted() {
     });
 
     // Should complete once SharedDeleted marker is written
-    let result = timeout(Duration::from_secs(1), notification).await.unwrap();
+    timeout(Duration::from_secs(1), notification).await.unwrap();
+}
 
-    assert_eq!(result.len(), 1);
+/// Sibling of `test_writeback_wait_for_shared_deleted` for the `OwnedDeleted`
+/// marker, which satisfies availability for a received-then-deleted owned
+/// object used as a receiving input. The marker is written *after* the wait
+/// begins, so this exercises the notify wakeup path — not the fetch-time
+/// resolution that `notify_read_resolves_received_then_deleted_owned_input`
+/// covers. Without `notify_marker_written` notifying on `OwnedDeleted`, the
+/// waiter is never woken and this times out.
+#[tokio::test]
+async fn test_writeback_wait_for_owned_deleted() {
+    let cache = create_writeback_cache().await;
+    let object_id = ObjectId::random();
+    let version = Version::from(1);
+    let epoch_id = 0;
+
+    let input_key = InputKey::VersionedObject {
+        id: object_id,
+        version,
+    };
+    let input_keys = vec![input_key];
+    // An `OwnedDeleted` marker only satisfies availability for a *receiving*
+    // input, so the key must be in the receiving set for the wait to resolve.
+    let mut receiving_keys = HashSet::new();
+    receiving_keys.insert(input_key);
+    let epoch = epoch_id;
+
+    // Start notification future while neither the object nor its marker exists,
+    // so the waiter registers and blocks.
+    let notification = cache.notify_read_input_objects(&input_keys, &receiving_keys, epoch);
+
+    // Write OwnedDeleted marker after small delay
+    tokio::spawn({
+        let cache = cache.clone();
+        async move {
+            tokio::time::sleep(Duration::from_millis(100)).await;
+            cache.write_marker_for_testing(
+                epoch_id,
+                &ObjectKey(object_id, version),
+                MarkerValue::OwnedDeleted,
+            );
+        }
+    });
+
+    // Should complete once OwnedDeleted marker is written
+    timeout(Duration::from_secs(1), notification).await.unwrap();
 }
 
 #[tokio::test]
@@ -306,13 +338,150 @@ async fn test_writeback_receiving_object_higher_version() {
     }];
     let mut receiving_keys = HashSet::new();
     receiving_keys.insert(input_keys[0]);
-    let epoch = &0;
+    let epoch = 0;
 
     // Should return immediately since a higher version exists for receiving object
-    let result = cache
+    cache
         .notify_read_input_objects(&input_keys, &receiving_keys, epoch)
         .now_or_never()
         .unwrap();
+}
 
-    assert_eq!(result.len(), 1);
+/// A received-then-deleted owned object can never be written at the awaited
+/// version, so the scheduler's `notify_read_input_objects` wait must still
+/// resolve for it — via the `OwnedDeleted` marker — rather than hang forever;
+/// the transaction then proceeds to fail at execution. This pins the exact
+/// closed hang-bug through the availability path the scheduler actually uses,
+/// not just the standalone helper.
+#[tokio::test]
+async fn notify_read_resolves_received_then_deleted_owned_input() {
+    let cache = create_writeback_cache().await;
+    let object_id = ObjectId::random();
+    let version = Version::from(1);
+    let epoch_id = 0;
+
+    // The owned object was received and then deleted at `version`; only a marker
+    // remains — the object itself is never written at that version.
+    cache.write_marker_for_testing(
+        epoch_id,
+        &ObjectKey(object_id, version),
+        MarkerValue::OwnedDeleted,
+    );
+
+    let input_key = InputKey::VersionedObject {
+        id: object_id,
+        version,
+    };
+
+    // As a receiving input, the deleted-owned marker makes it available.
+    let mut receiving_keys = HashSet::new();
+    receiving_keys.insert(input_key);
+    assert_eq!(
+        cache.multi_input_objects_available(&[input_key], &receiving_keys, epoch_id),
+        vec![true],
+    );
+    cache
+        .notify_read_input_objects(&[input_key], &receiving_keys, epoch_id)
+        .now_or_never()
+        .expect("received-then-deleted owned input must resolve, not hang");
+
+    // Negative control: the same deleted-owned key that is NOT a receiving input
+    // must stay unavailable — an `OwnedDeleted` marker only releases a *receiving*
+    // input; a plain owned input at a deleted version keeps waiting.
+    let no_receiving = HashSet::new();
+    assert_eq!(
+        cache.multi_input_objects_available(&[input_key], &no_receiving, epoch_id),
+        vec![false],
+    );
+    assert!(
+        cache
+            .notify_read_input_objects(&[input_key], &no_receiving, epoch_id)
+            .now_or_never()
+            .is_none(),
+        "a non-receiving deleted-owned input must not resolve"
+    );
+}
+
+/// `multi_input_objects_available_cache_only` is the scheduler's fast-path
+/// admission check and MUST consult only the in-memory cache: a store-backed
+/// answer here could release a transaction before its input is durably
+/// available. This pins that contract — an object present only in the backing
+/// store reads as unavailable via `cache_only` but available via the full
+/// marker-aware path (and its `notify_read` resolves) — plus the cancelled
+/// sentinel short-circuit and a package absent from the cache.
+#[tokio::test]
+async fn cache_only_availability_ignores_store_but_full_path_falls_back() {
+    let store = create_store().await;
+
+    // An object written straight to the store, never through the cache.
+    let store_only_id = ObjectId::random();
+    let version = Version::from(1);
+    let store_only =
+        Object::with_id_owner_version_for_testing(store_only_id, version, Owner::Immutable);
+    store.bulk_insert_genesis_objects(&[store_only]).unwrap();
+
+    let cache = Arc::new(WritebackCache::new_for_tests(store));
+    let epoch = 0;
+    let no_receiving = HashSet::new();
+    let store_only_key = InputKey::VersionedObject {
+        id: store_only_id,
+        version,
+    };
+
+    // cache_only must NOT see the store-only object...
+    assert_eq!(
+        cache.multi_input_objects_available_cache_only(&[store_only_key]),
+        vec![false],
+    );
+    // ...but the full marker-aware path finds it via the store fallback.
+    assert_eq!(
+        cache.multi_input_objects_available(&[store_only_key], &no_receiving, epoch),
+        vec![true],
+    );
+    cache
+        .notify_read_input_objects(&[store_only_key], &no_receiving, epoch)
+        .now_or_never()
+        .expect("store-backed input must resolve via the full path");
+
+    // An object actually in the cache reads as available on the fast path.
+    let cached_id = ObjectId::random();
+    let cached = Object::with_id_owner_version_for_testing(cached_id, version, Owner::Immutable);
+    cache.write_object_for_testing(cached);
+    let cached_key = InputKey::VersionedObject {
+        id: cached_id,
+        version,
+    };
+    assert_eq!(
+        cache.multi_input_objects_available_cache_only(&[cached_key]),
+        vec![true],
+    );
+
+    // A cancelled sentinel version short-circuits to available.
+    let cancelled_key = InputKey::VersionedObject {
+        id: ObjectId::random(),
+        version: Version::CANCELLED_READ,
+    };
+    assert_eq!(
+        cache.multi_input_objects_available_cache_only(&[cancelled_key]),
+        vec![true],
+    );
+
+    // A package absent from the cache reads as unavailable on the fast path.
+    let absent_package = InputKey::Package {
+        id: ObjectId::random(),
+    };
+    assert_eq!(
+        cache.multi_input_objects_available_cache_only(&[absent_package]),
+        vec![false],
+    );
+
+    // Result alignment for a mixed key list.
+    assert_eq!(
+        cache.multi_input_objects_available_cache_only(&[
+            cached_key,
+            store_only_key,
+            cancelled_key,
+        ]),
+        vec![true, false, true],
+    );
 }
