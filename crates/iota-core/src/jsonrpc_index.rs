@@ -109,13 +109,13 @@ const ENV_VAR_HISTORY_BLOCK_CACHE_SIZE_MB: &str = "JSONRPC_HISTORY_BLOCK_CACHE_M
 const DEFAULT_HISTORY_BLOCK_CACHE_SIZE_MB: usize = 512;
 
 // Do not reuse these tags. Mark them as deprecated if a table is removed.
-const DB_PREFIX_HISTORIC_TRANSACTION_ORDER: u8 = 0;
-const DB_PREFIX_HISTORIC_TRANSACTIONS_SEQ: u8 = 1;
-const DB_PREFIX_HISTORIC_TRANSACTIONS_FROM_ADDR: u8 = 2;
-const DB_PREFIX_HISTORIC_TRANSACTIONS_TO_ADDR: u8 = 3;
-const DB_PREFIX_HISTORIC_TRANSACTIONS_BY_INPUT_OBJECT_ID: u8 = 4;
-const DB_PREFIX_HISTORIC_TRANSACTIONS_BY_MUTATED_OBJECT_ID: u8 = 5;
-const DB_PREFIX_HISTORIC_TRANSACTIONS_BY_MOVE_FUNCTION: u8 = 6;
+const DB_PREFIX_HISTORIC_TX_ORDER: u8 = 0;
+const DB_PREFIX_HISTORIC_TXS_SEQ: u8 = 1;
+const DB_PREFIX_HISTORIC_TXS_FROM_ADDR: u8 = 2;
+const DB_PREFIX_HISTORIC_TXS_TO_ADDR: u8 = 3;
+const DB_PREFIX_HISTORIC_TXS_BY_INPUT_OBJECT_ID: u8 = 4;
+const DB_PREFIX_HIST_TXS_BY_MUTATED_OBJECT_ID: u8 = 5;
+const DB_PREFIX_HISTORIC_TXS_BY_MOVE_FUNCTION: u8 = 6;
 const DB_PREFIX_HISTORIC_EVENT_ORDER: u8 = 7;
 const DB_PREFIX_HISTORIC_EVENT_BY_MOVE_MODULE: u8 = 8;
 const DB_PREFIX_HISTORIC_EVENT_BY_MOVE_EVENT: u8 = 9;
@@ -300,27 +300,27 @@ pub struct IndexStoreTables {
 /// constant-time column-family drop.
 struct HistoryBucket {
     /// Ordering of all indexed transactions.
-    transaction_order: TaggedDBMap<TxSequenceNumber, TransactionDigest>,
+    tx_order: TaggedDBMap<TxSequenceNumber, TransactionDigest>,
 
     /// Index from transaction digest to sequence number.
-    transactions_seq: TaggedDBMap<TransactionDigest, TxSequenceNumber>,
+    txs_seq: TaggedDBMap<TransactionDigest, TxSequenceNumber>,
 
     /// Index from iota address to transactions initiated by that address.
-    transactions_from_addr: TaggedDBMap<(Address, TxSequenceNumber), TransactionDigest>,
+    txs_from_addr: TaggedDBMap<(Address, TxSequenceNumber), TransactionDigest>,
 
     /// Index from iota address to transactions that were sent to that address.
-    transactions_to_addr: TaggedDBMap<(Address, TxSequenceNumber), TransactionDigest>,
+    txs_to_addr: TaggedDBMap<(Address, TxSequenceNumber), TransactionDigest>,
 
     /// Index from object id to transactions that used that object id as input.
-    transactions_by_input_object_id: TaggedDBMap<(ObjectId, TxSequenceNumber), TransactionDigest>,
+    txs_by_input_object_id: TaggedDBMap<(ObjectId, TxSequenceNumber), TransactionDigest>,
 
     /// Index from object id to transactions that modified/created that object
     /// id.
-    transactions_by_mutated_object_id: TaggedDBMap<(ObjectId, TxSequenceNumber), TransactionDigest>,
+    txs_by_mutated_object_id: TaggedDBMap<(ObjectId, TxSequenceNumber), TransactionDigest>,
 
     /// Index from package id, module and function identifier to transactions
     /// that used that move function call as input.
-    transactions_by_move_function:
+    txs_by_move_function:
         TaggedDBMap<(ObjectId, String, String, TxSequenceNumber), TransactionDigest>,
 
     event_order: TaggedDBMap<EventId, EventIndex>,
@@ -371,25 +371,13 @@ impl HistoryBucket {
         }
         let cf = history_cf_name(epoch);
         Ok(Self {
-            transaction_order: map(db, &cf, DB_PREFIX_HISTORIC_TRANSACTION_ORDER)?,
-            transactions_seq: map(db, &cf, DB_PREFIX_HISTORIC_TRANSACTIONS_SEQ)?,
-            transactions_from_addr: map(db, &cf, DB_PREFIX_HISTORIC_TRANSACTIONS_FROM_ADDR)?,
-            transactions_to_addr: map(db, &cf, DB_PREFIX_HISTORIC_TRANSACTIONS_TO_ADDR)?,
-            transactions_by_input_object_id: map(
-                db,
-                &cf,
-                DB_PREFIX_HISTORIC_TRANSACTIONS_BY_INPUT_OBJECT_ID,
-            )?,
-            transactions_by_mutated_object_id: map(
-                db,
-                &cf,
-                DB_PREFIX_HISTORIC_TRANSACTIONS_BY_MUTATED_OBJECT_ID,
-            )?,
-            transactions_by_move_function: map(
-                db,
-                &cf,
-                DB_PREFIX_HISTORIC_TRANSACTIONS_BY_MOVE_FUNCTION,
-            )?,
+            tx_order: map(db, &cf, DB_PREFIX_HISTORIC_TX_ORDER)?,
+            txs_seq: map(db, &cf, DB_PREFIX_HISTORIC_TXS_SEQ)?,
+            txs_from_addr: map(db, &cf, DB_PREFIX_HISTORIC_TXS_FROM_ADDR)?,
+            txs_to_addr: map(db, &cf, DB_PREFIX_HISTORIC_TXS_TO_ADDR)?,
+            txs_by_input_object_id: map(db, &cf, DB_PREFIX_HISTORIC_TXS_BY_INPUT_OBJECT_ID)?,
+            txs_by_mutated_object_id: map(db, &cf, DB_PREFIX_HIST_TXS_BY_MUTATED_OBJECT_ID)?,
+            txs_by_move_function: map(db, &cf, DB_PREFIX_HISTORIC_TXS_BY_MOVE_FUNCTION)?,
             event_order: map(db, &cf, DB_PREFIX_HISTORIC_EVENT_ORDER)?,
             event_by_move_module: map(db, &cf, DB_PREFIX_HISTORIC_EVENT_BY_MOVE_MODULE)?,
             event_by_move_event: map(db, &cf, DB_PREFIX_HISTORIC_EVENT_BY_MOVE_EVENT)?,
@@ -416,36 +404,36 @@ impl HistoryBucket {
             events,
         } = tx;
 
-        self.transaction_order
-            .insert_batch(batch, std::iter::once((sequence, digest)))?;
+        batch.insert_batch_tagged(&self.tx_order, std::iter::once((sequence, digest)))?;
 
-        self.transactions_seq
-            .insert_batch(batch, std::iter::once((digest, sequence)))?;
+        batch.insert_batch_tagged(&self.txs_seq, std::iter::once((digest, sequence)))?;
 
-        self.transactions_from_addr
-            .insert_batch(batch, std::iter::once(((sender, sequence), digest)))?;
+        batch.insert_batch_tagged(
+            &self.txs_from_addr,
+            std::iter::once(((sender, sequence), digest)),
+        )?;
 
-        self.transactions_by_input_object_id.insert_batch(
-            batch,
+        batch.insert_batch_tagged(
+            &self.txs_by_input_object_id,
             active_inputs.into_iter().map(|id| ((id, sequence), digest)),
         )?;
 
-        self.transactions_by_mutated_object_id.insert_batch(
-            batch,
+        batch.insert_batch_tagged(
+            &self.txs_by_mutated_object_id,
             mutated_objects
                 .iter()
                 .map(|(obj_ref, _)| ((obj_ref.object_id, sequence), digest)),
         )?;
 
-        self.transactions_by_move_function.insert_batch(
-            batch,
+        batch.insert_batch_tagged(
+            &self.txs_by_move_function,
             move_functions
                 .into_iter()
                 .map(|(obj_id, module, function)| ((obj_id, module, function, sequence), digest)),
         )?;
 
-        self.transactions_to_addr.insert_batch(
-            batch,
+        batch.insert_batch_tagged(
+            &self.txs_to_addr,
             mutated_objects.iter().filter_map(|(_, owner)| {
                 owner
                     .into_opt_address()
@@ -455,15 +443,15 @@ impl HistoryBucket {
 
         // events
         let event_digest = events.digest();
-        self.event_order.insert_batch(
-            batch,
+        batch.insert_batch_tagged(
+            &self.event_order,
             events
                 .iter()
                 .enumerate()
                 .map(|(i, _)| ((sequence, i), (event_digest, digest, timestamp_ms))),
         )?;
-        self.event_by_move_module.insert_batch(
-            batch,
+        batch.insert_batch_tagged(
+            &self.event_by_move_module,
             events
                 .iter()
                 .enumerate()
@@ -478,8 +466,8 @@ impl HistoryBucket {
                 })
                 .map(|(i, m)| ((m, (sequence, i)), (event_digest, digest, timestamp_ms))),
         )?;
-        self.event_by_sender.insert_batch(
-            batch,
+        batch.insert_batch_tagged(
+            &self.event_by_sender,
             events.iter().enumerate().map(|(i, e)| {
                 (
                     (e.sender, (sequence, i)),
@@ -487,8 +475,8 @@ impl HistoryBucket {
                 )
             }),
         )?;
-        self.event_by_move_event.insert_batch(
-            batch,
+        batch.insert_batch_tagged(
+            &self.event_by_move_event,
             events.iter().enumerate().map(|(i, e)| {
                 (
                     (e.type_.clone(), (sequence, i)),
@@ -497,8 +485,8 @@ impl HistoryBucket {
             }),
         )?;
 
-        self.event_by_time.insert_batch(
-            batch,
+        batch.insert_batch_tagged(
+            &self.event_by_time,
             events.iter().enumerate().map(|(i, _)| {
                 (
                     (timestamp_ms, (sequence, i)),
@@ -507,8 +495,8 @@ impl HistoryBucket {
             }),
         )?;
 
-        self.event_by_event_module.insert_batch(
-            batch,
+        batch.insert_batch_tagged(
+            &self.event_by_event_module,
             events.iter().enumerate().map(|(i, e)| {
                 (
                     (
@@ -1535,8 +1523,8 @@ impl IndexStore {
             .last_key_value()
             .map(|(_, bucket)| {
                 bucket
-                    .transaction_order
-                    .range_iter_reversed(u64::MIN, u64::MAX)
+                    .tx_order
+                    .safe_range_iter_reversed(..)
                     .next()
                     .transpose()
                     .expect("failed to initialize indexes")
@@ -1730,7 +1718,7 @@ impl IndexStore {
             .collect();
         // A replayed checkpoint's transactions were indexed into the same
         // epoch's bucket, so only that bucket needs to be consulted.
-        let already_indexed = bucket.transactions_seq.multi_get(&digests)?;
+        let already_indexed = bucket.txs_seq.multi_get(&digests)?;
 
         let mut batch = self.tables.watermark.batch();
         let mut coin_changes = BTreeMap::new();
@@ -1947,9 +1935,9 @@ impl IndexStore {
                     }
                     let remaining = limit.map(|l| l - results.len());
                     let iter = if reverse {
-                        Either::Left(bucket.transaction_order.range_iter_reversed(lower, upper))
+                        Either::Left(bucket.tx_order.safe_range_iter_reversed(lower..=upper))
                     } else {
-                        Either::Right(bucket.transaction_order.range_iter(lower, upper))
+                        Either::Right(bucket.tx_order.safe_range_iter(lower..=upper))
                     };
                     let page: Vec<_> = iter
                         .take(remaining.unwrap_or(usize::MAX))
@@ -1985,9 +1973,11 @@ impl IndexStore {
             let remaining = limit.map(|l| l - results.len());
             let index = select(&bucket);
             let iter = if reverse {
-                Either::Left(index.range_iter_reversed((key.clone(), lower), (key.clone(), upper)))
+                Either::Left(
+                    index.safe_range_iter_reversed((key.clone(), lower)..=(key.clone(), upper)),
+                )
             } else {
-                Either::Right(index.range_iter((key.clone(), lower), (key.clone(), upper)))
+                Either::Right(index.safe_range_iter((key.clone(), lower)..=(key.clone(), upper)))
             };
             let page: Vec<_> = iter
                 .take(remaining.unwrap_or(usize::MAX))
@@ -2006,7 +1996,7 @@ impl IndexStore {
         reverse: bool,
     ) -> IotaResult<Vec<TransactionDigest>> {
         self.get_transactions_from_index(
-            |bucket| &bucket.transactions_by_input_object_id,
+            |bucket| &bucket.txs_by_input_object_id,
             input_object,
             cursor,
             limit,
@@ -2022,7 +2012,7 @@ impl IndexStore {
         reverse: bool,
     ) -> IotaResult<Vec<TransactionDigest>> {
         self.get_transactions_from_index(
-            |bucket| &bucket.transactions_by_mutated_object_id,
+            |bucket| &bucket.txs_by_mutated_object_id,
             mutated_object,
             cursor,
             limit,
@@ -2038,7 +2028,7 @@ impl IndexStore {
         reverse: bool,
     ) -> IotaResult<Vec<TransactionDigest>> {
         self.get_transactions_from_index(
-            |bucket| &bucket.transactions_from_addr,
+            |bucket| &bucket.txs_from_addr,
             addr,
             cursor,
             limit,
@@ -2097,14 +2087,14 @@ impl IndexStore {
             let iter = if reverse {
                 Either::Left(
                     bucket
-                        .transactions_by_move_function
-                        .range_iter_reversed(lower_key.clone(), upper_key.clone()),
+                        .txs_by_move_function
+                        .safe_range_iter_reversed(lower_key.clone()..=upper_key.clone()),
                 )
             } else {
                 Either::Right(
                     bucket
-                        .transactions_by_move_function
-                        .range_iter(lower_key.clone(), upper_key.clone()),
+                        .txs_by_move_function
+                        .safe_range_iter(lower_key.clone()..=upper_key.clone()),
                 )
             };
             let page: Vec<_> = iter
@@ -2123,13 +2113,7 @@ impl IndexStore {
         limit: Option<usize>,
         reverse: bool,
     ) -> IotaResult<Vec<TransactionDigest>> {
-        self.get_transactions_from_index(
-            |bucket| &bucket.transactions_to_addr,
-            addr,
-            cursor,
-            limit,
-            reverse,
-        )
+        self.get_transactions_from_index(|bucket| &bucket.txs_to_addr, addr, cursor, limit, reverse)
     }
 
     pub fn get_transaction_seq(
@@ -2139,7 +2123,7 @@ impl IndexStore {
         // An exact-key probe over the buckets, newest first; a miss in a
         // sealed bucket is answered by its in-memory bloom filters.
         for bucket in self.history_buckets(true) {
-            if let Some(seq) = bucket.transactions_seq.get(digest)? {
+            if let Some(seq) = bucket.txs_seq.get(digest)? {
                 return Ok(Some(seq));
             }
         }
@@ -2163,14 +2147,10 @@ impl IndexStore {
                 Either::Left(
                     bucket
                         .event_order
-                        .range_iter_reversed((TxSequenceNumber::MIN, 0), (tx_seq, event_seq)),
+                        .safe_range_iter_reversed(..=(tx_seq, event_seq)),
                 )
             } else {
-                Either::Right(
-                    bucket
-                        .event_order
-                        .range_iter((tx_seq, event_seq), (TxSequenceNumber::MAX, usize::MAX)),
-                )
+                Either::Right(bucket.event_order.safe_range_iter((tx_seq, event_seq)..))
             };
             let page: Vec<_> = iter
                 .take(remaining)
@@ -2206,13 +2186,13 @@ impl IndexStore {
                 Either::Left(
                     bucket
                         .event_order
-                        .range_iter_reversed((seq, 0), (min(tx_seq, seq), event_seq)),
+                        .safe_range_iter_reversed((seq, 0)..=(min(tx_seq, seq), event_seq)),
                 )
             } else {
                 Either::Right(
                     bucket
                         .event_order
-                        .range_iter((max(tx_seq, seq), event_seq), (seq, usize::MAX)),
+                        .safe_range_iter((max(tx_seq, seq), event_seq)..=(seq, usize::MAX)),
                 )
             };
             let page: Vec<_> = iter
@@ -2250,14 +2230,13 @@ impl IndexStore {
             let remaining = limit - results.len();
             let index = select(&bucket);
             let iter = if descending {
-                Either::Left(index.range_iter_reversed(
-                    (key.clone(), (TxSequenceNumber::MIN, 0)),
-                    (key.clone(), (tx_seq, event_seq)),
+                Either::Left(index.safe_range_iter_reversed(
+                    (key.clone(), (TxSequenceNumber::MIN, 0))..=(key.clone(), (tx_seq, event_seq)),
                 ))
             } else {
-                Either::Right(index.range_iter(
-                    (key.clone(), (tx_seq, event_seq)),
-                    (key.clone(), (TxSequenceNumber::MAX, usize::MAX)),
+                Either::Right(index.safe_range_iter(
+                    (key.clone(), (tx_seq, event_seq))
+                        ..=(key.clone(), (TxSequenceNumber::MAX, usize::MAX)),
                 ))
             };
             let page: Vec<_> = iter
@@ -2361,14 +2340,13 @@ impl IndexStore {
             }
             let remaining = limit - results.len();
             let iter = if descending {
-                Either::Left(bucket.event_by_time.range_iter_reversed(
-                    (start_time, (TxSequenceNumber::MIN, 0)),
-                    (end_time, (tx_seq, event_seq)),
+                Either::Left(bucket.event_by_time.safe_range_iter_reversed(
+                    (start_time, (TxSequenceNumber::MIN, 0))..=(end_time, (tx_seq, event_seq)),
                 ))
             } else {
-                Either::Right(bucket.event_by_time.range_iter(
-                    (start_time, (tx_seq, event_seq)),
-                    (end_time, (TxSequenceNumber::MAX, usize::MAX)),
+                Either::Right(bucket.event_by_time.safe_range_iter(
+                    (start_time, (tx_seq, event_seq))
+                        ..=(end_time, (TxSequenceNumber::MAX, usize::MAX)),
                 ))
             };
             let page: Vec<_> = iter
@@ -3505,32 +3483,30 @@ mod tests {
 
         let digest = TransactionDigest::random();
         let mut batch = index_store.tables.meta.batch();
-        // Adjacent tags: `transaction_order` and `transactions_seq`.
-        bucket
-            .transaction_order
-            .insert_batch(&mut batch, [(7u64, digest)])
+        // Adjacent tags: `tx_order` and `txs_seq`.
+        batch
+            .insert_batch_tagged(&bucket.tx_order, [(7u64, digest)])
             .unwrap();
-        bucket
-            .transactions_seq
-            .insert_batch(&mut batch, [(digest, 7u64)])
+        batch
+            .insert_batch_tagged(&bucket.txs_seq, [(digest, 7u64)])
             .unwrap();
         batch.write().unwrap();
 
         let rows: Vec<_> = bucket
-            .transaction_order
-            .range_iter(u64::MIN, u64::MAX)
+            .tx_order
+            .safe_range_iter(u64::MIN..=u64::MAX)
             .collect::<Result<_, _>>()
             .unwrap();
         assert_eq!(rows, vec![(7, digest)]);
         let rows: Vec<_> = bucket
-            .transaction_order
-            .range_iter_reversed(u64::MIN, u64::MAX)
+            .tx_order
+            .safe_range_iter_reversed(u64::MIN..=u64::MAX)
             .collect::<Result<_, _>>()
             .unwrap();
         assert_eq!(rows, vec![(7, digest)]);
         let rows: Vec<_> = bucket
-            .transactions_seq
-            .range_iter_reversed(TransactionDigest::ZERO, [0xff; 32].into())
+            .txs_seq
+            .safe_range_iter_reversed(TransactionDigest::ZERO..=[0xff; 32].into())
             .collect::<Result<_, _>>()
             .unwrap();
         assert_eq!(rows, vec![(digest, 7)]);
@@ -3538,6 +3514,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_transaction_by_move_function() {
+        use iota_sdk_types::TransactionDigest;
+
         let tmp_dir = iota_common::tempdir();
         let index_store = IndexStore::new_without_init(
             tmp_dir.path().to_path_buf(),
@@ -3546,10 +3524,9 @@ mod tests {
         );
         let bucket = index_store.ensure_history_bucket(0).unwrap();
         let mut batch = index_store.tables.meta.batch();
-        bucket
-            .transactions_by_move_function
-            .insert_batch(
-                &mut batch,
+        batch
+            .insert_batch_tagged(
+                &bucket.txs_by_move_function,
                 [
                     (
                         (
@@ -3558,7 +3535,7 @@ mod tests {
                             "f".to_string(),
                             0,
                         ),
-                        [0; 32].into(),
+                        TransactionDigest::from([0; 32]),
                     ),
                     (
                         (
@@ -3567,7 +3544,7 @@ mod tests {
                             "Z".repeat(128),
                             0,
                         ),
-                        [1; 32].into(),
+                        TransactionDigest::from([1; 32]),
                     ),
                     (
                         (
@@ -3576,7 +3553,7 @@ mod tests {
                             "f".repeat(128),
                             0,
                         ),
-                        [2; 32].into(),
+                        TransactionDigest::from([2; 32]),
                     ),
                     (
                         (
@@ -3585,7 +3562,7 @@ mod tests {
                             "z".repeat(128),
                             0,
                         ),
-                        [3; 32].into(),
+                        TransactionDigest::from([3; 32]),
                     ),
                 ],
             )
