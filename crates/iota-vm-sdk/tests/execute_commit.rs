@@ -12,6 +12,7 @@ use iota_sdk_types::{
 };
 use iota_types::{
     effects::TransactionEffectsAPI,
+    error::{IotaError, UserInputError},
     object::{MoveStructExt, OBJECT_START_VERSION, Object},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{
@@ -24,6 +25,9 @@ use iota_vm_sdk::{
 };
 
 const GAS_PRICE: u64 = 1000;
+/// Mirrors `ProtocolConfig::base_tx_cost_fixed`, the floor an unset budget is
+/// raised to when the gas coins hold less.
+const BASE_TX_COST_FIXED: u64 = 1000;
 const GAS_COIN_VALUE: u64 = 1_000_000_000_000;
 const TRANSFER_AMOUNT: u64 = 1000;
 
@@ -354,6 +358,10 @@ fn dev_inspect_meters_against_a_declared_budget() {
 
 /// A gas coin that cannot back the budget is rejected up front, the same way
 /// the node rejects it.
+///
+/// An unset budget is capped at what the coins hold, so it takes a coin holding
+/// less than the smallest budget a transaction may declare to get here: the cap
+/// is raised back to that minimum, and the coin cannot cover even that.
 #[test]
 fn dev_inspect_rejects_a_gas_coin_that_cannot_back_the_budget() {
     let sender = Address::ZERO;
@@ -373,15 +381,31 @@ fn dev_inspect_rejects_a_gas_coin_that_cannot_back_the_budget() {
     store.insert(gas.clone());
     let mut vm = LocalVm::new(chain_context(), store).expect("build LocalVm");
 
-    // Left at zero, so the budget is filled in with `max_tx_gas`, which the coin
-    // above cannot cover.
+    // Left at zero, so the budget is filled in: capped at the coin's balance,
+    // then raised to `base_tx_cost_fixed * gas_price`, which the coin above still
+    // cannot cover.
     let mut tx = transfer_tx(sender, &gas, recipient, TRANSFER_AMOUNT);
     tx.gas_data_mut().budget = 0;
+    let min_gas_budget = u128::from(BASE_TX_COST_FIXED) * u128::from(GAS_PRICE);
+    assert!(u128::from(underfunded_balance) < min_gas_budget);
 
     let err = vm
         .execute(tx, ExecuteOptions::dev_inspect())
         .expect_err("a gas coin that cannot back the budget must be rejected");
-    assert!(matches!(err, VmSdkError::Validation(_)), "got {err:?}");
+    assert!(
+        matches!(
+            &err,
+            VmSdkError::Validation(e)
+                if matches!(
+                    &e.source,
+                    IotaError::UserInput {
+                        error: UserInputError::GasBalanceTooLow { gas_balance, needed_gas_amount },
+                    } if *gas_balance == u128::from(underfunded_balance)
+                        && *needed_gas_amount == min_gas_budget
+                )
+        ),
+        "got {err:?}"
+    );
 }
 
 /// A gas payment naming an object that is not a gas coin is rejected, even when
@@ -424,9 +448,6 @@ fn dev_inspect_rejects_a_gas_payment_that_is_not_a_gas_coin() {
     assert!(matches!(err, VmSdkError::Validation(_)), "got {err:?}");
 }
 
-/// A simulation relaxes the requirement to carry a gas payment at all, so it
-/// also skips the cap on how many coins that payment may hold. The cap still
-/// applies: the engine smashes every coin it is given before running anything.
 #[test]
 fn dev_inspect_rejects_more_gas_coins_than_the_protocol_allows() {
     let sender = Address::ZERO;
