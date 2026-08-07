@@ -151,27 +151,6 @@ pub mod checked {
     /// Fills in the gas a simulated transaction leaves unset: a zero price
     /// becomes `reference_gas_price`, and a zero budget as much as the gas
     /// coins can back, up to the protocol maximum.
-    ///
-    /// Nobody submits a simulation to pay for it, and neither zero is a value
-    /// the gas checks could accept anyway — a zero price is below the reference
-    /// gas price, and a zero budget cannot cover any computation. Gas the
-    /// caller does declare is left alone and metered as given, so a dry run
-    /// still rejects the gas a validator would.
-    ///
-    /// The budget is capped at the gas coins' combined balance rather than left
-    /// at the protocol maximum, so that coins holding less than `max_tx_gas`
-    /// still produce an estimate instead of being rejected for not covering a
-    /// budget the caller never asked for. Execution keeps the whole budget off
-    /// limits inside the programmable transaction and refunds it afterwards, so
-    /// the cap costs a transaction that also pays out of its gas coin the room
-    /// to do so — but only where the balance is under `max_tx_gas`, which is
-    /// where the alternative was to reject it outright. Such a caller has to
-    /// name a budget it can cover, exactly as a real transaction would.
-    ///
-    /// The cap is raised back to the minimum budget a transaction may declare
-    /// when the balance falls below it, so a balance too small to transact at
-    /// all is still reported against the balance by the gas checks, rather than
-    /// against a budget the caller never set.
     pub fn fill_in_unset_simulation_gas(
         transaction: &mut TransactionData,
         input_objects: &InputObjects,
@@ -182,24 +161,29 @@ pub mod checked {
             transaction.gas_data_mut().price = reference_gas_price;
         }
         if transaction.gas_budget() == 0 {
-            // The minimum budget scales with the price, so it is read after the
-            // price above has been filled in.
             let min_gas_budget = protocol_config
                 .base_tx_cost_fixed()
                 .saturating_mul(transaction.gas_price());
+
+            // The gas budget is capped at the gas coins' combined balance rather than left
+            // at the protocol maximum, so that coins holding less than `max_tx_gas`
+            // still produce an estimate instead of being rejected for not covering a
+            // budget the caller never asked for.
             let gas_balance = gas_coins_balance(input_objects, transaction.gas());
+
+            // The cap is raised back to the minimum budget a transaction may declare
+            // when the balance falls below it, so a balance too small to transact at
+            // all is still reported against the balance by the gas checks, rather than
+            // against a budget the caller never set.
             let budget = std::cmp::min(protocol_config.max_tx_gas() as u128, gas_balance)
                 .max(min_gas_budget as u128);
+
             transaction.gas_data_mut().budget = budget as u64;
         }
     }
 
-    /// Sums the balance of the gas coins `gas` refers to among `input_objects`.
-    ///
-    /// Anything that is not a gas coin present in `input_objects` contributes
-    /// nothing, rather than being reported here: the gas checks run over the
-    /// same coins straight after and name the offending object, which is more
-    /// use than a balance that came out short.
+    /// Sums the balance of the gas coins `gas` refers to among `input_objects`
+    /// and skips all non-gas coins.
     fn gas_coins_balance(input_objects: &InputObjects, gas: &[ObjectReference]) -> u128 {
         let objects: HashMap<_, _> = input_objects
             .iter()
@@ -214,22 +198,16 @@ pub mod checked {
     }
 
     /// Reports the gas a simulation ran with in `reported`, in place of what
-    /// the caller left unset — the mirror of
-    /// [`fill_in_unset_simulation_gas`], for the response rather than the run.
-    ///
-    /// Everything the simulation resolved comes back: the price it charged at,
-    /// because only the computation half of the cost scales with the price and
-    /// the estimate cannot be read without it; and the gas payment, so that a
-    /// caller who sent none learns the mock gas coin the run actually charged
-    /// gas to, which the effects otherwise refer to without naming.
+    /// the caller left unset — the mirror of [`fill_in_unset_simulation_gas`],
+    /// for the response rather than the run.
     ///
     /// A zero budget asks what the transaction costs, so it comes back as
     /// `gas_used` rather than as the caller's own zero, which would say
-    /// nothing. Note what that costs: `gas_used` is not the budget the run
+    /// nothing.
+    ///
+    /// Note what that costs: `gas_used` is not the budget the run
     /// metered against, so a transaction reported this way does not hash to the
-    /// digest the effects are keyed by. Anything else leaves the caller no way
-    /// to read the estimate, and a simulated transaction is not submittable in
-    /// any case.
+    /// digest the effects are keyed by.
     pub fn report_simulation_gas(reported: &mut GasPayment, simulated: &GasPayment, gas_used: u64) {
         let estimating = reported.budget == 0;
         *reported = simulated.clone();
@@ -241,15 +219,7 @@ pub mod checked {
     /// Checks that every object `gas` refers to is an address-owned gas coin
     /// present in `input_objects`, and that their combined balance covers
     /// `gas_budget`.
-    ///
-    /// This is [`IotaGasStatus::check_gas_balance`] without the bounds on the
-    /// budget itself, for a simulation that skips the gas checks: it still has
-    /// to reject gas the engine cannot take the budget from, because
-    /// `GasCharger::smash_gas` treats the input checks as having guaranteed
-    /// that and panics rather than returning an error. It deliberately does not
-    /// bound the budget, which a simulation leaves to metering, so a caller
-    /// probing with a small budget runs out of gas instead of being rejected.
-    pub fn check_gas_coins_cover_budget(
+    pub fn check_gas_coins_cover_budget_in_simulation(
         input_objects: &InputObjects,
         gas: &[ObjectReference],
         gas_budget: u64,

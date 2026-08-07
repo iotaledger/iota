@@ -1202,12 +1202,6 @@ async fn test_dry_run_dev_inspect_dynamic_field_too_new() {
 
 /// A gas payment that names an object which is not a gas coin is rejected, in
 /// either check mode.
-///
-/// With the checks disabled nothing else verifies the gas coins:
-/// `GasCharger::smash_gas` treats the input checks as having done it and panics
-/// rather than returning an error, and it only inspects the coins when the
-/// payment names more than one — so a funded coin alongside a non-coin object
-/// passes any check that merely sums balances.
 #[tokio::test]
 async fn test_simulate_rejects_a_gas_payment_that_is_not_a_gas_coin() {
     let sender = Address::random();

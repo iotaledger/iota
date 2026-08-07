@@ -2270,7 +2270,7 @@ impl AuthorityState {
             // that they are gas coins at all — so with those checks skipped here, this
             // has to stand in for them. With the checks enabled,
             // `check_transaction_input` covers it.
-            iota_types::gas::check_gas_coins_cover_budget(
+            iota_types::gas::check_gas_coins_cover_budget_in_simulation(
                 &input_objects,
                 transaction.gas(),
                 transaction.gas_budget(),

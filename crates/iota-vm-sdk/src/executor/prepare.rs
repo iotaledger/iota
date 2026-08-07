@@ -26,7 +26,8 @@ use iota_types::{
     effects::TransactionEffectsAPI,
     error::{IotaError, UserInputError},
     gas::{
-        IotaGasStatus, IotaGasStatusAPI, check_gas_coins_cover_budget, fill_in_unset_simulation_gas,
+        IotaGasStatus, IotaGasStatusAPI, check_gas_coins_cover_budget_in_simulation,
+        fill_in_unset_simulation_gas,
     },
     gas_coin::mock_simulation_gas_coin,
     inner_temporary_store::InnerTemporaryStore,
@@ -177,7 +178,7 @@ pub(super) fn prepare_transaction(
         // that they are gas coins at all — so with those checks skipped here, this
         // stands in for them, the same way the node's simulation does.
         let gas_budget = transaction.gas_budget();
-        check_gas_coins_cover_budget(&input_objects, transaction.gas(), gas_budget)
+        check_gas_coins_cover_budget_in_simulation(&input_objects, transaction.gas(), gas_budget)
             .map_err(|e| ValidationError::new("gas balance check", e))?;
 
         let checked_input_objects = iota_transaction_checks::check_simulation_input(

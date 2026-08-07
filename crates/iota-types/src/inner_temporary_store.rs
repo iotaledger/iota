@@ -147,11 +147,6 @@ impl BackingPackageStore for InnerTemporaryStore {
 /// Resolves packages out of a map of objects, so that a caller holding only an
 /// execution's inputs or outputs — rather than the whole
 /// [`InnerTemporaryStore`] — can use them as a package store.
-///
-/// A wrapper rather than an impl on the map itself: [`WrittenObjects`] and
-/// [`ObjectMap`] are both aliases for the same `BTreeMap`, so implementing the
-/// trait on either would turn every map of that shape in the tree into a
-/// package store.
 pub struct ObjectMapPackageStore<'a>(pub &'a ObjectMap);
 
 impl BackingPackageStore for ObjectMapPackageStore<'_> {

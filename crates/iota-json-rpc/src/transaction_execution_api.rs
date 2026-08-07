@@ -330,6 +330,20 @@ impl TransactionExecutionApi {
         Ok((tx_data, input_objs))
     }
 
+    /// Report the gas the simulation ran with, in place of whatever the caller
+    /// left unset. Same rule as gRPC `simulate_transactions`, which shares the
+    /// helper.
+    fn report_simulation_gas(
+        transaction: &mut TransactionData,
+        simulation: &SimulateTransactionResult,
+    ) {
+        iota_types::gas::report_simulation_gas(
+            transaction.gas_data_mut(),
+            &simulation.gas_data,
+            simulation.effects.gas_cost_summary().gas_used(),
+        );
+    }
+
     /// The synchronous part of
     /// [`dry_run_transaction_block`](Self::dry_run_transaction_block): the
     /// simulation, and the resolution of the response's input and events over
@@ -455,45 +469,6 @@ impl TransactionExecutionApi {
         })
     }
 
-    /// Simulate `transaction_kind` with the Move VM checks around entry
-    /// functions and argument values relaxed, reporting the return values of
-    /// every command.
-    ///
-    /// Any part of the gas payment the caller leaves out is filled in: an
-    /// empty payment gets a mock gas coin, a zero price the epoch's reference
-    /// gas price, and a zero budget as much as the gas coins can back, up to
-    /// the protocol maximum. `sender` stands in as the gas owner.
-    async fn dev_inspect_transaction(
-        &self,
-        sender: Address,
-        transaction_kind: TransactionKind,
-        gas_price: Option<u64>,
-        args: DevInspectArgs,
-    ) -> Result<DevInspectResults, Error> {
-        // Use spawn_blocking since simulating a transaction is a long-running
-        // synchronous operation
-        let this = self.clone();
-        tokio::task::spawn_blocking(move || {
-            this.dev_inspect_transaction_impl(sender, transaction_kind, gas_price, args)
-        })
-        .await
-        .map_err(Error::from)?
-    }
-
-    /// Report the gas the simulation ran with, in place of whatever the caller
-    /// left unset. Same rule as gRPC `simulate_transactions`, which shares the
-    /// helper.
-    fn report_simulation_gas(
-        transaction: &mut TransactionData,
-        simulation: &SimulateTransactionResult,
-    ) {
-        iota_types::gas::report_simulation_gas(
-            transaction.gas_data_mut(),
-            &simulation.gas_data,
-            simulation.effects.gas_cost_summary().gas_used(),
-        );
-    }
-
     fn dev_inspect_transaction_impl(
         &self,
         sender: Address,
@@ -582,6 +557,23 @@ impl TransactionExecutionApi {
             raw_effects,
             layout_resolver.as_mut(),
         )?)
+    }
+
+    async fn dev_inspect_transaction(
+        &self,
+        sender: Address,
+        transaction_kind: TransactionKind,
+        gas_price: Option<u64>,
+        args: DevInspectArgs,
+    ) -> Result<DevInspectResults, Error> {
+        // Use spawn_blocking since simulating a transaction is a long-running
+        // synchronous operation
+        let this = self.clone();
+        tokio::task::spawn_blocking(move || {
+            this.dev_inspect_transaction_impl(sender, transaction_kind, gas_price, args)
+        })
+        .await
+        .map_err(Error::from)?
     }
 }
 

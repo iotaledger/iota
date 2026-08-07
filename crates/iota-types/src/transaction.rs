@@ -1017,10 +1017,6 @@ pub trait TransactionDataAPI {
 
     /// Checks the gas payment against the protocol's cap on how many objects it
     /// may name.
-    ///
-    /// Part of [`TransactionDataAPI::validity_check`]. Callers that relax the
-    /// gas checks, such as a simulation that may mock the gas payment, should
-    /// still apply this one.
     fn check_gas_payment_size(&self, config: &ProtocolConfig) -> UserInputResult;
 
     /// Check if the transaction is compliant with sponsorship.

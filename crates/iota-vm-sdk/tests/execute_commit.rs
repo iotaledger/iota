@@ -353,9 +353,7 @@ fn dev_inspect_meters_against_a_declared_budget() {
 }
 
 /// A gas coin that cannot back the budget is rejected up front, the same way
-/// the node rejects it, rather than reaching the engine — which smashes the
-/// budget off the coin before running any command and would hit an invariant
-/// violation.
+/// the node rejects it.
 #[test]
 fn dev_inspect_rejects_a_gas_coin_that_cannot_back_the_budget() {
     let sender = Address::ZERO;
@@ -387,9 +385,7 @@ fn dev_inspect_rejects_a_gas_coin_that_cannot_back_the_budget() {
 }
 
 /// A gas payment naming an object that is not a gas coin is rejected, even when
-/// another coin in the payment covers the budget on its own. The engine only
-/// inspects the coins when the payment names more than one, and panics there
-/// rather than returning an error.
+/// another coin in the payment covers the budget on its own.
 #[test]
 fn dev_inspect_rejects_a_gas_payment_that_is_not_a_gas_coin() {
     let sender = Address::ZERO;
