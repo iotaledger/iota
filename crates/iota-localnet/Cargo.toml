@@ -39,12 +39,15 @@ prometheus-filtered.workspace = true
 telemetry-subscribers.workspace = true
 
 [dev-dependencies]
+# external dependencies
+serde_yaml.workspace = true
+
+# internal dependencies
 iota-common.workspace = true
 iota-macros.workspace = true
 iota-metrics.workspace = true
 iota-protocol-config.workspace = true
 iota-simulator.workspace = true
-serde_yaml.workspace = true
 
 [target.'cfg(msim)'.dependencies]
 msim.workspace = true
