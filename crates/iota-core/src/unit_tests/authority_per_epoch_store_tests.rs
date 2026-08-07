@@ -1303,3 +1303,33 @@ async fn deny_rule_mirror_guard_reports_divergence() {
     );
     authority_state.check_transaction_deny_rules_consistency(&store, &diverged);
 }
+
+/// Objects cannot be deleted, so a walk finding no object after the closing
+/// epoch had one means the local store lost it — reported like a divergence.
+#[tokio::test]
+#[should_panic(expected = "missing from the state walked")]
+async fn deny_rule_mirror_guard_reports_a_missing_object() {
+    let authority_state = TestAuthorityBuilder::new().build().await;
+    let store = authority_state.epoch_store_for_testing();
+    let next_without_object = (*store.epoch_start_configuration).clone();
+    let mut with_object = (*store.epoch_start_configuration).clone();
+    with_object
+        .set_transaction_deny_rules_for_testing(Version::from_u64(3), DenyRuleSet::default());
+    store.release_db_handles();
+    let closing_store = AuthorityPerEpochStore::new(
+        store.name,
+        store.committee().clone(),
+        &store.parent_path,
+        store.db_options.clone(),
+        store.metrics.clone(),
+        with_object,
+        authority_state.get_backing_package_store().clone(),
+        store.execution_component.metrics(),
+        store.signature_verifier.metrics.clone(),
+        &ExpensiveSafetyCheckConfig::default(),
+        store.chain,
+        0,
+    )
+    .unwrap();
+    authority_state.check_transaction_deny_rules_consistency(&closing_store, &next_without_object);
+}

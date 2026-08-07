@@ -3272,8 +3272,11 @@ impl AuthorityState {
     /// Reports a mirror that diverged from the object at the epoch boundary,
     /// where the two must agree. Reporting is the remedy: reconfiguration
     /// re-seeds the mirror from the object, so failing here would only pin the
-    /// node to the diverged state. Nodes outside the closing committee hold no
-    /// mirror and are exempt.
+    /// node to the diverged state. An object the closing epoch had but the
+    /// walk no longer finds is also reported — objects cannot be deleted, so
+    /// the local store lost it, and a committee member without it stops
+    /// injecting updates while its peers continue. Nodes outside the closing
+    /// committee hold no mirror and are exempt.
     pub(crate) fn check_transaction_deny_rules_consistency(
         &self,
         cur_epoch_store: &AuthorityPerEpochStore,
@@ -3282,17 +3285,31 @@ impl AuthorityState {
         if self.is_fullnode(cur_epoch_store) {
             return;
         }
-        if let Some(walked_deny_rules) = epoch_start_configuration.transaction_deny_rules_state() {
-            let mirrored_deny_rules = cur_epoch_store.get_mirrored_transaction_deny_rules();
-            if *walked_deny_rules != *mirrored_deny_rules {
+        let Some(walked_deny_rules) = epoch_start_configuration.transaction_deny_rules_state()
+        else {
+            if cur_epoch_store
+                .epoch_start_config()
+                .transaction_deny_rules_obj_initial_shared_version()
+                .is_some()
+            {
                 debug_fatal!(
-                    "TransactionDenyRules object diverged from the mirrored state at the end of \
-                     epoch {}; continuing from the object (walked: {walked_deny_rules:?}, \
-                     mirrored: {mirrored_deny_rules:?})",
+                    "TransactionDenyRules object existed in epoch {} but is missing from the \
+                     state walked for the next epoch",
                     cur_epoch_store.epoch(),
                 );
                 cur_epoch_store.metrics.deny_rule_mirror_divergence.set(1);
             }
+            return;
+        };
+        let mirrored_deny_rules = cur_epoch_store.get_mirrored_transaction_deny_rules();
+        if *walked_deny_rules != *mirrored_deny_rules {
+            debug_fatal!(
+                "TransactionDenyRules object diverged from the mirrored state at the end of \
+                 epoch {}; continuing from the object (walked: {walked_deny_rules:?}, mirrored: \
+                 {mirrored_deny_rules:?})",
+                cur_epoch_store.epoch(),
+            );
+            cur_epoch_store.metrics.deny_rule_mirror_divergence.set(1);
         }
     }
 
