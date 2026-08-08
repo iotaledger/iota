@@ -88,6 +88,69 @@ async fn test_genesis() -> Result<(), anyhow::Error> {
 }
 
 #[sim_test]
+async fn test_genesis_rejects_a_zero_committee_size() -> Result<(), anyhow::Error> {
+    let tmp_dir = iota_common::tempdir();
+
+    let err = LocalnetCommand::Genesis {
+        working_dir: Some(tmp_dir.path().to_path_buf()),
+        write_config: None,
+        force: false,
+        from_config: None,
+        epoch_duration_ms: None,
+        benchmark_ips: None,
+        with_faucet: false,
+        committee_size: 0,
+        num_additional_gas_accounts: None,
+        chain_start_timestamp_ms: None,
+        admin_interface_address: None,
+    }
+    .execute()
+    .await
+    .unwrap_err();
+
+    let err = format!("{err:#}");
+    assert!(err.contains("Committee size must be at least 1."), "{err}");
+
+    tmp_dir.close()?;
+    Ok(())
+}
+
+#[sim_test]
+async fn test_start_reports_a_failing_node_config_override() -> Result<(), anyhow::Error> {
+    let tmp_dir = iota_common::tempdir();
+
+    let err = LocalnetCommand::Start {
+        #[cfg(feature = "indexer")]
+        data_ingestion_dir: None,
+        config_dir: Some(tmp_dir.path().to_path_buf()),
+        no_full_node: false,
+        disable_fullnode_pruning: false,
+        // One character off, so the override fails when it is applied to
+        // the built config.
+        node_config_override: vec!["fullnode:enable-index-processng=false".parse()?],
+        force_regenesis: false,
+        with_faucet: None,
+        faucet_amount: None,
+        faucet_coin_count: None,
+        with_grpc: None,
+        fullnode_rpc_port: 9000,
+        committee_size: None,
+        epoch_duration_ms: None,
+        #[cfg(feature = "indexer")]
+        indexer_feature_args: Box::new(IndexerFeatureArgs::for_testing()),
+    }
+    .execute()
+    .await
+    .unwrap_err();
+
+    let err = format!("{err:#}");
+    assert!(err.contains("enable-index-processng"), "{err}");
+
+    tmp_dir.close()?;
+    Ok(())
+}
+
+#[sim_test]
 async fn test_start() -> Result<(), anyhow::Error> {
     let tmp_dir = iota_common::tempdir();
     let working_dir = tmp_dir.path();

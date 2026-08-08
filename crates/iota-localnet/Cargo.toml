@@ -28,7 +28,6 @@ iota-faucet.workspace = true
 iota-graphql-rpc = { workspace = true, optional = true }
 iota-indexer = { workspace = true, optional = true }
 iota-keys.workspace = true
-iota-names.workspace = true
 iota-sdk.workspace = true
 iota-sdk-crypto.workspace = true
 iota-sdk-types.workspace = true
