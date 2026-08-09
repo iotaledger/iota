@@ -3720,6 +3720,70 @@ async fn test_store_get_dynamic_field() {
     assert_eq!(TypeTag::Bool, fields[0].name.type_tag)
 }
 
+/// Owned objects indexed through the per-checkpoint path must be queryable
+/// through `AuthorityState::get_owner_objects`, the JSON-RPC read path:
+/// exactly the sender's address-owned objects, not the object-owned field.
+#[tokio::test]
+async fn test_owner_objects_queryable_through_authority_state() {
+    let (authority_state, outer_id, gas_object_id, sender, fields) =
+        create_and_retrieve_df(&Identifier::from_static("add_field")).await;
+
+    let mut owned: Vec<_> = authority_state
+        .get_owner_objects(sender, None, 50, None)
+        .unwrap()
+        .iter()
+        .map(|info| info.object_id)
+        .collect();
+    owned.sort();
+    let mut expected = vec![gas_object_id, outer_id];
+    expected.sort();
+    assert_eq!(
+        owned, expected,
+        "the sender's objects must be served through the owner index"
+    );
+    assert!(
+        !owned.contains(&fields[0].object_id),
+        "the object-owned field must not appear under the sender"
+    );
+}
+
+/// `AuthorityState::get_dynamic_fields` must return one entry per index
+/// row: a field that no longer resolves comes back as a `None` marker
+/// instead of vanishing, so page sizes and cursors stay truthful.
+#[tokio::test]
+async fn test_get_dynamic_fields_returns_one_entry_per_index_row() {
+    use typed_store::Map;
+
+    let authority_state = TestAuthorityBuilder::new().build().await;
+    let indexes = authority_state.indexes.clone().unwrap();
+
+    let parent = ObjectId::random();
+    // Index rows whose objects do not exist: unresolvable fields.
+    let mut ids: Vec<ObjectId> = (0..3).map(|_| ObjectId::random()).collect();
+    ids.sort();
+    for field_id in &ids {
+        indexes
+            .tables()
+            .dynamic_field_index()
+            .insert(&(parent, *field_id), &())
+            .unwrap();
+    }
+
+    let rows = authority_state.get_dynamic_fields(parent, None, 2).unwrap();
+    assert_eq!(
+        rows.iter().map(|(id, _)| *id).collect::<Vec<_>>(),
+        ids[..2],
+        "each index row must occupy one slot, resolvable or not"
+    );
+    assert!(rows.iter().all(|(_, info)| info.is_none()));
+
+    // The cursor continues from the last returned row.
+    let rows = authority_state
+        .get_dynamic_fields(parent, Some(ids[1]), 2)
+        .unwrap();
+    assert_eq!(rows.iter().map(|(id, _)| *id).collect::<Vec<_>>(), ids[2..]);
+}
+
 /// A node that starts with executed checkpoints but no index database — the
 /// state after a formal-snapshot restore — must rebuild the JSON-RPC indexes
 /// on open: the live-object scan covers objects outside any local checkpoint
@@ -3971,6 +4035,19 @@ fn jsonrpc_index_transaction(
 }
 
 async fn create_and_retrieve_df_info(function: &Identifier) -> (Address, Vec<DynamicFieldInfo>) {
+    let (_, _, _, sender, fields) = create_and_retrieve_df(function).await;
+    (sender, fields)
+}
+
+async fn create_and_retrieve_df(
+    function: &Identifier,
+) -> (
+    Arc<AuthorityState>,
+    ObjectId,
+    ObjectId,
+    Address,
+    Vec<DynamicFieldInfo>,
+) {
     let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas_object_id = ObjectId::random();
     let (authority_state, object_basics) =
@@ -4044,15 +4121,54 @@ async fn create_and_retrieve_df_info(function: &Identifier) -> (Address, Vec<Dyn
 
     jsonrpc_index_transaction(&authority_state, 0, add_txn, add_effects);
 
+    let fields = authority_state
+        .get_dynamic_fields(outer_v0.object_id, None, usize::MAX)
+        .unwrap()
+        .into_iter()
+        .filter_map(|x| x.1)
+        .collect();
     (
+        authority_state,
+        outer_v0.object_id,
+        gas_object_id,
         sender,
-        authority_state
-            .get_dynamic_fields(outer_v0.object_id, None, usize::MAX)
-            .unwrap()
-            .into_iter()
-            .map(|x| x.1)
-            .collect(),
+        fields,
     )
+}
+
+/// `get_dynamic_field_object_id` must resolve to the value object's id even
+/// when the caller passes the already-wrapped name type under which the
+/// index stores a dynamic object field, not the wrapper `Field` object's id
+/// — while a plain dynamic field resolves to the `Field` object itself.
+#[tokio::test]
+async fn test_dynamic_object_field_lookup_with_wrapped_name_type() {
+    let (authority_state, parent, _, _, fields) =
+        create_and_retrieve_df(&Identifier::from_static("add_ofield_with_address_name")).await;
+    assert_eq!(fields.len(), 1);
+    let value_object_id = fields[0].object_id;
+    let name_type = fields[0].name.type_.clone();
+
+    let id = authority_state
+        .get_dynamic_field_object_id(parent, name_type.clone(), &fields[0].bcs_name)
+        .unwrap();
+    assert_eq!(id, Some(value_object_id));
+
+    let wrapped_name_type = TypeTag::Struct(Box::new(
+        DynamicFieldInfo::dynamic_object_field_wrapper(name_type),
+    ));
+    let id = authority_state
+        .get_dynamic_field_object_id(parent, wrapped_name_type, &fields[0].bcs_name)
+        .unwrap();
+    assert_eq!(id, Some(value_object_id));
+
+    // A plain dynamic field's id is the `Field` object's own.
+    let (authority_state, parent, _, _, fields) =
+        create_and_retrieve_df(&Identifier::from_static("add_field_with_address_name")).await;
+    assert_eq!(fields.len(), 1);
+    let id = authority_state
+        .get_dynamic_field_object_id(parent, fields[0].name.type_.clone(), &fields[0].bcs_name)
+        .unwrap();
+    assert_eq!(id, Some(fields[0].object_id));
 }
 
 #[tokio::test]
@@ -4141,11 +4257,39 @@ async fn test_dynamic_object_field_address_name_parsing() {
     assert_eq!(json!(sender), fields[0].name.value);
 }
 
-/// A dynamic object field's child is looked up at the wrapper's version, but
-/// on a pruned node that historic child version may be gone — the lookup must
-/// fall back to the child's latest live version instead of failing.
+/// Serves several versions of the same object, the highest as the live one.
+struct VersionedObjects(Vec<Object>);
+
+impl iota_types::storage::ObjectStore for VersionedObjects {
+    fn try_get_object(
+        &self,
+        object_id: &ObjectId,
+    ) -> iota_types::storage::error::Result<Option<Object>> {
+        Ok(self
+            .0
+            .iter()
+            .filter(|o| o.id() == *object_id)
+            .max_by_key(|o| o.version())
+            .cloned())
+    }
+
+    fn try_get_object_by_key(
+        &self,
+        object_id: &ObjectId,
+        version: iota_types::base_types::VersionNumber,
+    ) -> iota_types::storage::error::Result<Option<Object>> {
+        Ok(self
+            .0
+            .iter()
+            .find(|o| o.id() == *object_id && o.version() == version)
+            .cloned())
+    }
+}
+
+/// A dynamic object field resolves to its child's latest version, and to
+/// nothing when the child is gone.
 #[tokio::test]
-async fn test_dynamic_object_field_child_lookup_falls_back_to_latest() {
+async fn test_dynamic_object_field_child_is_read_at_its_latest_version() {
     use iota_sdk_types::ObjectData;
     use iota_types::object::MoveStructExt;
 
@@ -4201,34 +4345,50 @@ async fn test_dynamic_object_field_child_lookup_falls_back_to_latest() {
         .into_message();
     assert!(add_effects.status().is_success());
 
-    // Bump the wrapper's version past the add transaction: the child then has
-    // no row at the wrapper's version, exactly as after the child's historic
-    // version was pruned.
-    let mut wrapper = authority_state
+    let wrapper = authority_state
         .get_object(&add_effects.created()[0].reference.object_id)
         .unwrap();
     let child = authority_state.get_object(&inner_v0.object_id).unwrap();
-    let bumped = wrapper.version().next().unwrap();
-    match &mut wrapper.data {
-        ObjectData::Struct(move_object) => move_object.increment_version_to(bumped),
-        ObjectData::Package(_) => panic!("wrapper must be a move object"),
-    }
 
     let epoch_store = authority_state.epoch_store_for_testing();
     let mut layout_resolver = epoch_store.executor().type_layout_resolver(Box::new(
         authority_state.get_backing_package_store().clone(),
     ));
-    let info = crate::jsonrpc_index::try_create_dynamic_field_info(
-        &wrapper,
+    let resolve =
+        |object_store: &dyn iota_types::storage::ObjectStore,
+         layout_resolver: &mut dyn iota_types::layout_resolver::LayoutResolver| {
+            crate::jsonrpc_index::try_create_dynamic_field_info(
+                &wrapper,
+                object_store,
+                layout_resolver,
+            )
+            .unwrap()
+        };
+
+    let info = resolve(
         authority_state.get_object_store().as_ref(),
         layout_resolver.as_mut(),
     )
-    .unwrap()
     .unwrap();
-
     assert!(matches!(info.type_, DynamicFieldType::DynamicObject));
     assert_eq!(info.object_id, inner_v0.object_id);
     assert_eq!(info.version, child.version());
+
+    // `borrow_mut` leaves the wrapper at its old version.
+    let mut mutated_child = child.clone();
+    let bumped = child.version().next().unwrap();
+    match &mut mutated_child.data {
+        ObjectData::Struct(move_object) => move_object.increment_version_to(bumped),
+        ObjectData::Package(_) => panic!("the child must be a move object"),
+    }
+    let both_versions = VersionedObjects(vec![child, mutated_child]);
+    let info = resolve(&both_versions, layout_resolver.as_mut()).unwrap();
+    assert_eq!(
+        info.version, bumped,
+        "the child must be read at its latest version, not the wrapper's"
+    );
+
+    assert!(resolve(&VersionedObjects(vec![]), layout_resolver.as_mut()).is_none());
 }
 
 #[tokio::test]

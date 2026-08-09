@@ -44,7 +44,8 @@ use iota_types::{
 };
 use itertools::Itertools;
 use move_core_types::{
-    account_address::AccountAddress, identifier::Identifier, language_storage::ModuleId,
+    account_address::AccountAddress, annotated_value as A, identifier::Identifier,
+    language_storage::ModuleId,
 };
 use parking_lot::{ArcMutexGuard, Mutex, RwLock};
 use prometheus_filtered::{
@@ -569,6 +570,11 @@ impl IndexStoreTables {
         &self.coin_index
     }
 
+    #[cfg(test)]
+    pub(crate) fn dynamic_field_index(&self) -> &DBMap<DynamicFieldKey, ()> {
+        &self.dynamic_field_index
+    }
+
     /// Opens the tables with tuned bulk-ingestion options (WAL disabled,
     /// unordered writes) for a full rebuild or a formal-snapshot restore.
     /// Writes must be flushed before the database closes, and serving
@@ -1038,10 +1044,41 @@ fn is_dynamic_field(object: &Object) -> bool {
         .is_some_and(|move_object| move_object.struct_tag().is_dynamic_field())
 }
 
+/// A [`LayoutResolver`] memoizing layouts by struct tag, for callers that
+/// resolve many values of few types, e.g. scanning a dynamic-field table
+/// whose entries share one type.
+pub(crate) struct CachingLayoutResolver<'a> {
+    resolver: &'a mut dyn LayoutResolver,
+    layouts: HashMap<StructTag, A::MoveDatatypeLayout>,
+}
+
+impl<'a> CachingLayoutResolver<'a> {
+    pub(crate) fn new(resolver: &'a mut dyn LayoutResolver) -> Self {
+        Self {
+            resolver,
+            layouts: HashMap::new(),
+        }
+    }
+}
+
+impl LayoutResolver for CachingLayoutResolver<'_> {
+    fn get_annotated_layout(
+        &mut self,
+        struct_tag: &StructTag,
+    ) -> Result<A::MoveDatatypeLayout, IotaError> {
+        if let Some(layout) = self.layouts.get(struct_tag) {
+            return Ok(layout.clone());
+        }
+        let layout = self.resolver.get_annotated_layout(struct_tag)?;
+        self.layouts.insert(struct_tag.clone(), layout.clone());
+        Ok(layout)
+    }
+}
+
 /// Resolves a `Field` object into the [`DynamicFieldInfo`] served by the
 /// JSON-RPC API. Runs at query time — the index stores only the field keys.
-/// Returns `None` when `o` is not a `Field` object or its layout cannot be
-/// resolved.
+/// Returns `None` when `o` is not a `Field` object, its layout cannot be
+/// resolved, or a dynamic object field's value object no longer exists.
 pub(crate) fn try_create_dynamic_field_info(
     o: &Object,
     object_store: &dyn ObjectStore,
@@ -1110,21 +1147,10 @@ pub(crate) fn try_create_dynamic_field_info(
         },
 
         DFV::ValueMetadata::DynamicObjectField(object_id) => {
-            // Find the actual object from storage using the object id obtained from the
-            // wrapper.
-
-            // The child is written at the wrapper's version when the field
-            // is added, but that historic version may since have been
-            // pruned; the child of a live field is itself live, so fall
-            // back to its latest version.
-            let object = match object_store.try_get_object_by_key(&object_id, o.version())? {
-                Some(object) => object,
-                None => object_store.try_get_object(&object_id)?.ok_or(
-                    UserInputError::ObjectNotFound {
-                        object_id,
-                        version: None,
-                    },
-                )?,
+            // The wrapper is not rewritten when its child is mutated, so its
+            // version is not the child's.
+            let Some(object) = object_store.try_get_object(&object_id)? else {
+                return Ok(None);
             };
             let version = object.version();
             let digest = object.digest();
@@ -2615,12 +2641,16 @@ impl IndexStore {
         Ok(self
             .tables
             .dynamic_field_index
+            // Exclusive, so the cursor's row is passed over whether or not it
+            // is still there: a field deleted between two pages would leave a
+            // skip-one seek dropping somebody else's row.
             .safe_iter_with_prefix_from(
                 &object,
-                std::ops::Bound::Included(&cursor.unwrap_or(ObjectId::ZERO)),
+                match &cursor {
+                    Some(cursor) => std::ops::Bound::Excluded(cursor),
+                    None => std::ops::Bound::Unbounded,
+                },
             )
-            // skip an extra b/c the cursor is exclusive
-            .skip(usize::from(cursor.is_some()))
             .map_ok(|((_, field_id), ())| field_id))
     }
 
@@ -2717,13 +2747,16 @@ impl IndexStore {
         starting_object_id: ObjectId,
         filter: Option<IotaObjectDataFilter>,
     ) -> IotaResult<impl Iterator<Item = ObjectInfo> + '_> {
+        let cursor = (starting_object_id != ObjectId::ZERO).then_some(starting_object_id);
         Ok(self
             .tables
             .owner_index
             // The object id 0 is the smallest possible
             .safe_iter_with_bounds(Some((owner, starting_object_id)), None)
             .map(|result| result.expect("iterator db error"))
-            .skip(usize::from(starting_object_id != ObjectId::ZERO))
+            // The seek is inclusive, so drop the cursor by id: its own row
+            // may already be gone.
+            .filter(move |((_, object_id), _)| Some(*object_id) != cursor)
             .take_while(move |((address_owner, _), _)| address_owner == &owner)
             .filter(move |(_, o)| {
                 if let Some(filter) = filter.as_ref() {
@@ -2972,9 +3005,13 @@ impl IndexStore {
 
 #[cfg(test)]
 mod tests {
-    use iota_sdk_types::{ObjectId, StructTag, TransactionDigest, TypeTag};
+    use iota_sdk_types::{
+        Address, ObjectDigest, ObjectId, Owner, StructTag, TransactionDigest, TypeTag, Version,
+    };
     use iota_types::{
-        effects::TransactionEffectsAPI, messages_checkpoint::CheckpointContentsExt,
+        base_types::{ObjectInfo, ObjectType},
+        effects::TransactionEffectsAPI,
+        messages_checkpoint::CheckpointContentsExt,
         test_checkpoint_data_builder::TestCheckpointDataBuilder,
     };
     use prometheus_filtered::Registry;
@@ -4297,6 +4334,161 @@ mod tests {
                 .tables
                 .needs_to_do_initialization(&checkpoint_store)
                 .is_err()
+        );
+    }
+
+    /// The caching layout resolver resolves each struct tag once.
+    #[test]
+    fn test_caching_layout_resolver_memoizes_by_tag() {
+        use iota_types::layout_resolver::LayoutResolver;
+        use move_core_types::annotated_value::{MoveDatatypeLayout, MoveStructLayout};
+
+        struct Counting {
+            calls: u32,
+        }
+        impl LayoutResolver for Counting {
+            fn get_annotated_layout(
+                &mut self,
+                _struct_tag: &StructTag,
+            ) -> Result<MoveDatatypeLayout, iota_types::error::IotaError> {
+                self.calls += 1;
+                Ok(MoveDatatypeLayout::Struct(Box::new(MoveStructLayout {
+                    type_: "0x2::coin::Coin".parse().unwrap(),
+                    fields: vec![],
+                })))
+            }
+        }
+
+        let mut inner = Counting { calls: 0 };
+        let mut caching = super::CachingLayoutResolver::new(&mut inner);
+        let coin: StructTag = "0x2::coin::Coin<0x2::iota::IOTA>".parse().unwrap();
+        let cap: StructTag = "0x2::coin::TreasuryCap<0x2::iota::IOTA>".parse().unwrap();
+        caching.get_annotated_layout(&coin).unwrap();
+        caching.get_annotated_layout(&coin).unwrap();
+        caching.get_annotated_layout(&cap).unwrap();
+        drop(caching);
+        assert_eq!(inner.calls, 2, "one resolution per distinct tag");
+    }
+
+    /// Four dynamic field ids of `parent`, in the order the index stores them.
+    fn seed_dynamic_fields(index_store: &IndexStore, parent: ObjectId) -> Vec<ObjectId> {
+        let mut field_ids: Vec<ObjectId> = (0..4).map(|_| ObjectId::random()).collect();
+        field_ids.sort();
+        let table = &index_store.tables.dynamic_field_index;
+        let mut batch = table.batch();
+        batch
+            .insert_batch(table, field_ids.iter().map(|id| ((parent, *id), ())))
+            .unwrap();
+        batch.write().unwrap();
+        field_ids
+    }
+
+    fn dynamic_field_page(
+        index_store: &IndexStore,
+        parent: ObjectId,
+        cursor: Option<ObjectId>,
+    ) -> Vec<ObjectId> {
+        index_store
+            .get_dynamic_field_ids_iterator(parent, cursor)
+            .unwrap()
+            .map(Result::unwrap)
+            .collect()
+    }
+
+    /// A page starts after the cursor's id, even when its row is gone.
+    #[tokio::test]
+    async fn test_dynamic_field_page_excludes_only_the_cursor() {
+        let tmp_dir = iota_common::tempdir();
+        let index_store = open_index_store(tmp_dir.path().to_path_buf());
+        let parent = ObjectId::random();
+        let field_ids = seed_dynamic_fields(&index_store, parent);
+
+        assert_eq!(dynamic_field_page(&index_store, parent, None), field_ids);
+        assert_eq!(
+            dynamic_field_page(&index_store, parent, Some(field_ids[0])),
+            &field_ids[1..]
+        );
+
+        // The field the cursor points at can be removed between two pages.
+        let table = &index_store.tables.dynamic_field_index;
+        let mut batch = table.batch();
+        batch.delete_batch(table, [(parent, field_ids[0])]).unwrap();
+        batch.write().unwrap();
+
+        assert_eq!(
+            dynamic_field_page(&index_store, parent, Some(field_ids[0])),
+            &field_ids[1..],
+            "the field after the cursor must not be lost with the cursor's row"
+        );
+    }
+
+    /// Four object ids owned by `owner`, in the order the index stores them.
+    fn seed_owner_objects(index_store: &IndexStore, owner: Address) -> Vec<ObjectId> {
+        let mut object_ids: Vec<ObjectId> = (0..4).map(|_| ObjectId::random()).collect();
+        object_ids.sort();
+        let table = &index_store.tables.owner_index;
+        let mut batch = table.batch();
+        batch
+            .insert_batch(
+                table,
+                object_ids.iter().map(|id| {
+                    (
+                        (owner, *id),
+                        ObjectInfo {
+                            object_id: *id,
+                            version: Version::OBJECT_START,
+                            digest: ObjectDigest::ZERO,
+                            type_: ObjectType::Package,
+                            owner: Owner::Address(owner),
+                            previous_transaction: TransactionDigest::ZERO,
+                        },
+                    )
+                }),
+            )
+            .unwrap();
+        batch.write().unwrap();
+        object_ids
+    }
+
+    fn owner_object_page(
+        index_store: &IndexStore,
+        owner: Address,
+        cursor: ObjectId,
+    ) -> Vec<ObjectId> {
+        index_store
+            .get_owner_objects_iterator(owner, cursor, None)
+            .unwrap()
+            .map(|info| info.object_id)
+            .collect()
+    }
+
+    /// A page starts after the cursor's id, even when its row is gone.
+    #[tokio::test]
+    async fn test_owner_objects_page_excludes_only_the_cursor() {
+        let tmp_dir = iota_common::tempdir();
+        let index_store = open_index_store(tmp_dir.path().to_path_buf());
+        let owner = Address::random();
+        let object_ids = seed_owner_objects(&index_store, owner);
+
+        assert_eq!(
+            owner_object_page(&index_store, owner, ObjectId::ZERO),
+            object_ids
+        );
+        assert_eq!(
+            owner_object_page(&index_store, owner, object_ids[0]),
+            &object_ids[1..]
+        );
+
+        // The cursor's object can be transferred away between two pages.
+        let table = &index_store.tables.owner_index;
+        let mut batch = table.batch();
+        batch.delete_batch(table, [(owner, object_ids[0])]).unwrap();
+        batch.write().unwrap();
+
+        assert_eq!(
+            owner_object_page(&index_store, owner, object_ids[0]),
+            &object_ids[1..],
+            "the object after the cursor must not be lost with the cursor's row"
         );
     }
 }
