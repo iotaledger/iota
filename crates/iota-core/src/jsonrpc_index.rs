@@ -12,7 +12,7 @@ use std::{
     path::{Path, PathBuf},
     sync::{
         Arc,
-        atomic::{AtomicU64, Ordering},
+        atomic::{AtomicBool, AtomicU64, Ordering},
     },
     time::{Duration, Instant},
 };
@@ -69,6 +69,7 @@ use typed_store::{
 use crate::{
     authority::AuthorityStore,
     checkpoints::CheckpointStore,
+    index_rebuild_cancellation::{RebuildCancelled, is_cancelled},
     par_index_live_object_set::{
         LiveObjectIndexer, PROGRESS_REPORT_INTERVAL, ParMakeLiveObjectIndexer, eta_display,
         progress_rate,
@@ -579,7 +580,19 @@ impl IndexStoreTables {
     /// unordered writes) for a full rebuild or a formal-snapshot restore.
     /// Writes must be flushed before the database closes, and serving
     /// queries requires a reopen with default options.
+    ///
+    /// Anything left under `path` is deleted first, so the caller does not
+    /// have to clear the directory.
     fn open_for_bulk_ingestion(path: PathBuf) -> Self {
+        // A column family of an existing database not named here would
+        // silently be opened with default options, and `safe_drop_db` can
+        // leave files RocksDB does not recognize, so clear the directory
+        // rather than fail the recovery.
+        if path.exists() && path.read_dir().is_ok_and(|mut dir| dir.next().is_some()) {
+            warn!("clearing leftover files under {path:?} before the index rebuild");
+            std::fs::remove_dir_all(&path)
+                .expect("unable to clear the index database directory for the rebuild");
+        }
         let bulk_options = bulk_ingestion_options();
         let table_config = bulk_options.table_config(Self::describe_tables().into_keys());
         Self::open_tables_read_write(
@@ -676,6 +689,7 @@ impl IndexStoreTables {
         authority_store: &AuthorityStore,
         checkpoint_store: &CheckpointStore,
         batch_size_limit: usize,
+        cancelled: &AtomicBool,
     ) -> Result<Option<CheckpointSequenceNumber>, StorageError> {
         info!("Initializing JSON-RPC indexes");
 
@@ -695,7 +709,7 @@ impl IndexStoreTables {
         // Live-state tables from the current live object set. The history
         // tables are not built here: `backfill_history` fills them in the
         // background once the node is up, resuming from `history_watermark`.
-        self.index_live_object_set(authority_store, batch_size_limit)?;
+        self.index_live_object_set(authority_store, batch_size_limit, cancelled)?;
 
         info!("Finished initializing JSON-RPC indexes");
 
@@ -734,12 +748,17 @@ impl IndexStoreTables {
         &self,
         authority_store: &AuthorityStore,
         batch_size_limit: usize,
+        cancelled: &AtomicBool,
     ) -> Result<(), StorageError> {
         let indexer = JsonRpcLiveObjectSetIndexer {
             tables: self,
             batch_size_limit,
         };
-        crate::par_index_live_object_set::par_index_live_object_set(authority_store, &indexer)
+        crate::par_index_live_object_set::par_index_live_object_set(
+            authority_store,
+            &indexer,
+            cancelled,
+        )
     }
 
     fn index_coin(
@@ -870,6 +889,8 @@ pub struct IndexStore {
     max_type_length: u64,
     pending_updates: Mutex<BTreeMap<CheckpointSequenceNumber, PendingCheckpointUpdate>>,
     history_backfill_task: Mutex<Option<tokio::task::JoinHandle<()>>>,
+    /// Stops the startup rebuild and the background history backfill.
+    cancelled: Arc<AtomicBool>,
     /// The earliest retained epoch recorded by the last [`Self::prune`]
     /// call, mirroring the persisted `earliest_retained_epoch` row.
     earliest_retained_epoch: AtomicU64,
@@ -1335,30 +1356,79 @@ impl IndexStore {
     /// The history tables are filled by a background replay after this
     /// returns; until it finishes, history-backed queries cover a growing
     /// range of recent checkpoints, as on a pruned node.
+    ///
+    /// Setting `cancelled` abandons a rebuild running here and the background
+    /// replay, and fails the open: the store is left unadopted for the next
+    /// open to rebuild, and must not serve reads in the meantime.
     pub async fn new(
         path: PathBuf,
         registry: &Registry,
         max_type_length: Option<u64>,
         authority_store: &Arc<AuthorityStore>,
         checkpoint_store: &Arc<CheckpointStore>,
-    ) -> Arc<Self> {
-        let mut opened = Self::open_index_db(&path);
+        cancelled: Arc<AtomicBool>,
+    ) -> Result<Arc<Self>, StorageError> {
+        // An unopenable database would crash-loop the node with no way to
+        // self-heal; wipe and rebuild it like a stale one — but only after
+        // one retry, so a transient error does not destroy a healthy store.
+        // Read errors on an openable database stay fatal instead (see
+        // `needs_to_do_initialization`): its data is intact, so a restart
+        // retries without paying for a rebuild.
+        let mut opened = match Self::open_index_db(&path) {
+            Ok(opened) => Some(opened),
+            Err(first) => {
+                warn!("unable to open the JSON-RPC index database, retrying once: {first}");
+                match Self::open_index_db(&path) {
+                    Ok(opened) => Some(opened),
+                    Err(e) => {
+                        warn!(
+                            "unable to open the JSON-RPC index database, wiping and rebuilding: \
+                             {e}"
+                        );
+                        None
+                    }
+                }
+            }
+        };
 
-        opened
-            .tables
-            .seed_meta()
-            .expect("failed to initialize index tables");
+        if let Some(opened) = &opened {
+            opened
+                .tables
+                .seed_meta()
+                .expect("failed to initialize index tables");
+        }
 
-        if opened
-            .tables
-            .needs_to_do_initialization(checkpoint_store)
-            .expect("failed to determine whether the JSON-RPC index needs a rebuild")
-        {
-            let mut init_tables = {
+        // Node startup blocks on a rebuild before any RPC surface exists;
+        // the gauge tells operators (and their probes) that the node is
+        // rebuilding, not hung. Registered unconditionally, so "not
+        // rebuilding" reads as 0 rather than a missing series.
+        let rebuild_gauge = register_int_gauge_with_registry!(
+            "jsonrpc_index_rebuild_in_progress",
+            "1 while the JSON-RPC index store is being rebuilt at startup",
+            registry;
+            MetricLevel::Warn,
+        )
+        .expect("failed to register the JSON-RPC index rebuild gauge");
+
+        let needs_initialization = opened.as_ref().is_none_or(|opened| {
+            opened
+                .tables
+                .needs_to_do_initialization(checkpoint_store)
+                .expect("failed to determine whether the JSON-RPC index needs a rebuild")
+        });
+        if needs_initialization {
+            rebuild_gauge.set(1);
+            let init_tables = {
                 drop(opened);
-                safe_drop_db(path.clone(), Duration::from_secs(30))
-                    .await
-                    .expect("unable to destroy old JSON-RPC index db");
+                // `DB::destroy` fails on a database it cannot parse — the
+                // very state the rebuild recovers from — so fall back to
+                // deleting the directory. The database was already closed
+                // above, so a short wait covers its background threads.
+                if let Err(e) = safe_drop_db(path.clone(), Duration::from_secs(30)).await {
+                    warn!("unable to destroy the old JSON-RPC index database ({e}), deleting it");
+                    std::fs::remove_dir_all(&path)
+                        .expect("unable to delete the old JSON-RPC index database");
+                }
 
                 // Open the empty DB with tuned bulk ingestion options to
                 // speed up the initial indexing. The DB is reopened with default options
@@ -1369,45 +1439,62 @@ impl IndexStore {
 
             // The rebuild scans and writes RocksDB for a long time; keep it
             // off the async runtime's worker threads.
-            let init_tables = tokio::task::spawn_blocking({
+            let (init_tables, initialized) = tokio::task::spawn_blocking({
                 let authority_store = authority_store.clone();
                 let checkpoint_store = checkpoint_store.clone();
+                let cancelled = cancelled.clone();
                 move || {
-                    let highest_executed_checkpoint = init_tables
-                        .init(&authority_store, &checkpoint_store, batch_size_limit)
-                        .expect("unable to initialize JSON-RPC index");
-                    // A crash before this point re-detects the rebuild on the
-                    // next open (no watermark), never adopts a half-flushed
-                    // store.
-                    init_tables
-                        .adopt_bulk_ingestion(highest_executed_checkpoint)
-                        .expect("unable to adopt the rebuilt JSON-RPC index");
-                    init_tables
+                    let mut init_tables = init_tables;
+                    let initialized = init_tables.init(
+                        &authority_store,
+                        &checkpoint_store,
+                        batch_size_limit,
+                        &cancelled,
+                    );
+                    (init_tables, initialized)
                 }
             })
             .await
             .expect("JSON-RPC index initialization task failed");
 
+            match initialized {
+                // A crash before this point re-detects the rebuild on the next
+                // open (no watermark), never adopts a half-flushed store.
+                Ok(highest_executed_checkpoint) => init_tables
+                    .adopt_bulk_ingestion(highest_executed_checkpoint)
+                    .expect("unable to adopt the rebuilt JSON-RPC index"),
+                // Unadopted, so the next open rebuilds it, as after a crash.
+                // The open fails so the truncated store is never served and
+                // never stamped with a watermark.
+                // Keyed on the error, not on the flag: a real failure that
+                // races the shutdown must stay a failure.
+                Err(e) if is_cancelled(&e) => {
+                    // Release the database so the next open can rebuild it.
+                    let weak_db = Arc::downgrade(&init_tables.meta.db);
+                    drop(init_tables);
+                    if !wait_for_database_close(weak_db).await {
+                        warn!("the cancelled JSON-RPC index rebuild left its database open");
+                    }
+                    return Err(RebuildCancelled::error(format!(
+                        "the JSON-RPC index rebuild was cancelled by shutdown: {e}"
+                    )));
+                }
+                Err(e) => panic!("unable to initialize JSON-RPC index: {e}"),
+            }
+
             let weak_db = Arc::downgrade(&init_tables.meta.db);
             drop(init_tables);
-
-            let deadline = Instant::now() + Duration::from_secs(30);
-            loop {
-                if weak_db.strong_count() == 0 {
-                    break;
-                }
-                if Instant::now() > deadline {
-                    panic!("unable to reopen DB after indexing");
-                }
-                tokio::time::sleep(Duration::from_millis(100)).await;
+            if !wait_for_database_close(weak_db).await {
+                panic!("unable to reopen DB after indexing");
             }
 
             // Reopen the DB with default options (eg without `unordered_write`s enabled)
-            opened = Self::open_index_db(&path);
+            let reopened = Self::open_index_db(&path)
+                .expect("unable to reopen the JSON-RPC index database after the rebuild");
 
-            // Sanity check: verify the database version was persisted correctly, i.e.
-            // the WAL-disabled bulk writes were flushed before the reopen.
-            let stored_version = opened
+            // Smoke test: the reopened database is readable and carries the
+            // schema version the rebuild wrote.
+            let stored_version = reopened
                 .tables
                 .meta
                 .get(&())
@@ -1418,7 +1505,10 @@ impl IndexStore {
                 "database version mismatch after flush and reopen: expected {}, found {}",
                 CURRENT_DB_VERSION, stored_version.version
             );
+            opened = Some(reopened);
+            rebuild_gauge.set(0);
         }
+        let opened = opened.expect("the index database is open on both paths above");
 
         // A store rebuilt without local history has no rows to derive the next
         // sequence number from; anchor it to the network transaction total at
@@ -1444,9 +1534,15 @@ impl IndexStore {
             })
             .unwrap_or(0);
 
-        let store = Arc::new(Self::finish_open(opened, registry, max_type_length, anchor));
+        let store = Arc::new(Self::finish_open(
+            opened,
+            registry,
+            max_type_length,
+            anchor,
+            cancelled,
+        ));
         store.spawn_history_backfill(authority_store.clone(), checkpoint_store.clone());
-        store
+        Ok(store)
     }
 
     /// Starts the background replay that fills the history tables below the
@@ -1468,9 +1564,27 @@ impl IndexStore {
 
     /// Waits for the background history replay to finish — for tests.
     pub async fn wait_for_history_backfill_for_testing(&self) {
+        self.join_backfill_task()
+            .await
+            .expect("history backfill task failed");
+    }
+
+    /// Stops the background history replay at its next checkpoint boundary
+    /// and waits for it to finish, so shutdown does not block on a full
+    /// replay.
+    pub async fn shutdown(&self) {
+        self.cancelled.store(true, Ordering::Relaxed);
+        if let Err(e) = self.join_backfill_task().await {
+            warn!("the JSON-RPC index history backfill task failed: {e}");
+        }
+    }
+
+    /// Awaits the backfill task, if one is still running.
+    async fn join_backfill_task(&self) -> Result<(), tokio::task::JoinError> {
         let task = self.history_backfill_task.lock().take();
-        if let Some(task) = task {
-            task.await.expect("history backfill task failed");
+        match task {
+            Some(task) => task.await,
+            None => Ok(()),
         }
     }
 
@@ -1510,6 +1624,11 @@ impl IndexStore {
         // available history.
         let mut state = HistoryBackfillState::Complete;
         loop {
+            if self.cancelled.load(Ordering::Relaxed) {
+                info!("Stopping the JSON-RPC history backfill at checkpoint {next}: shutdown");
+                state = HistoryBackfillState::StoppedEarly;
+                break;
+            }
             // The pruner advances while the backfill runs; re-check the
             // bound so the replay stops before data that is about to
             // disappear.
@@ -1711,8 +1830,9 @@ impl IndexStore {
         registry: &Registry,
         max_type_length: Option<u64>,
     ) -> Self {
-        let opened = Self::open_index_db(&path);
-        Self::finish_open(opened, registry, max_type_length, 0)
+        let opened =
+            Self::open_index_db(&path).expect("unable to open the JSON-RPC index database");
+        Self::finish_open(opened, registry, max_type_length, 0, Arc::default())
     }
 
     fn finish_open(
@@ -1720,6 +1840,7 @@ impl IndexStore {
         registry: &Registry,
         max_type_length: Option<u64>,
         next_sequence_number_floor: TxSequenceNumber,
+        cancelled: Arc<AtomicBool>,
     ) -> Self {
         let OpenedIndexDb {
             tables,
@@ -1771,6 +1892,7 @@ impl IndexStore {
             max_type_length: max_type_length.unwrap_or(128),
             pending_updates: Mutex::new(BTreeMap::new()),
             history_backfill_task: Mutex::new(None),
+            cancelled,
             earliest_retained_epoch,
         }
     }
@@ -1779,13 +1901,21 @@ impl IndexStore {
     /// column family at open with its tuned options: a column family left
     /// for auto-discovery would silently get default options (and its own
     /// block cache).
-    fn open_index_db(path: &Path) -> OpenedIndexDb {
+    fn open_index_db(path: &Path) -> IotaResult<OpenedIndexDb> {
         let db_options = default_db_options().disable_write_throttling();
         let coin_options = coin_index_table_default_config();
         let history_cf_options = history_cf_options(&db_options);
 
         let static_tables = IndexStoreTables::describe_tables();
-        let existing_cfs = list_tables(path.to_path_buf()).unwrap_or_default();
+        // A listing failure on an existing database must not pass for "no
+        // history": the history buckets would silently be lost to queries
+        // and to retention until the next reopen. `CURRENT` marks a
+        // directory holding a database rather than a fresh path.
+        let existing_cfs = if path.join("CURRENT").exists() {
+            list_tables(path.to_path_buf()).map_err(|e| IotaError::Storage(e.to_string()))?
+        } else {
+            Vec::new()
+        };
         let mut epochs = std::collections::BTreeSet::new();
         let mut opt_cfs: Vec<(String, rocksdb::Options)> = Vec::new();
         for name in static_tables.keys() {
@@ -1796,18 +1926,14 @@ impl IndexStore {
             };
             opt_cfs.push((name.clone(), options));
         }
+        // Tables of another schema version need no entry here: `open_cf_opts`
+        // appends any remaining on-disk column family with default options so
+        // RocksDB can open the database at all, and the version mismatch
+        // wipes the whole database afterwards.
         for cf_name in &existing_cfs {
-            if static_tables.contains_key(cf_name) || cf_name == "default" {
-                continue;
-            }
             if let Some(epoch) = history_cf_epoch(cf_name) {
                 epochs.insert(epoch);
                 opt_cfs.push((cf_name.clone(), history_cf_options.clone()));
-            } else {
-                // A table of another schema version. It must still be opened
-                // for RocksDB to open the database at all; the version
-                // mismatch wipes the whole database afterwards.
-                opt_cfs.push((cf_name.clone(), rocksdb::Options::default()));
             }
         }
         let opt_cfs: Vec<(&str, rocksdb::Options)> = opt_cfs
@@ -1820,35 +1946,38 @@ impl IndexStore {
             MetricConf::new("index"),
             &opt_cfs,
         )
-        .expect("unable to open the JSON-RPC index database");
+        .map_err(|e| IotaError::Storage(e.to_string()))?;
 
-        fn map<K, V>(db: &Arc<Database>, cf_name: &str, rw: &ReadWriteOptions) -> DBMap<K, V> {
+        fn map<K, V>(
+            db: &Arc<Database>,
+            cf_name: &str,
+            rw: &ReadWriteOptions,
+        ) -> IotaResult<DBMap<K, V>> {
             DBMap::reopen(db, Some(cf_name), rw, false)
-                .unwrap_or_else(|e| panic!("cannot open the {cf_name} column family: {e}"))
+                .map_err(|e| IotaError::Storage(format!("cannot open the {cf_name} table: {e}")))
         }
         let tables = IndexStoreTables {
-            meta: map(&db, "meta", &db_options.rw_options),
-            watermark: map(&db, "watermark", &db_options.rw_options),
-            history_watermark: map(&db, "history_watermark", &db_options.rw_options),
-            earliest_retained_epoch: map(&db, "earliest_retained_epoch", &db_options.rw_options),
-            owner_index: map(&db, "owner_index", &db_options.rw_options),
-            coin_index: map(&db, "coin_index", &coin_options.rw_options),
-            dynamic_field_index: map(&db, "dynamic_field_index", &db_options.rw_options),
+            meta: map(&db, "meta", &db_options.rw_options)?,
+            watermark: map(&db, "watermark", &db_options.rw_options)?,
+            history_watermark: map(&db, "history_watermark", &db_options.rw_options)?,
+            earliest_retained_epoch: map(&db, "earliest_retained_epoch", &db_options.rw_options)?,
+            owner_index: map(&db, "owner_index", &db_options.rw_options)?,
+            coin_index: map(&db, "coin_index", &coin_options.rw_options)?,
+            dynamic_field_index: map(&db, "dynamic_field_index", &db_options.rw_options)?,
         };
 
         let mut history = BTreeMap::new();
         for epoch in epochs {
-            let bucket =
-                HistoryBucket::reopen(&db, epoch).expect("unable to open a history column family");
+            let bucket = HistoryBucket::reopen(&db, epoch)?;
             history.insert(epoch, Arc::new(bucket));
         }
 
-        OpenedIndexDb {
+        Ok(OpenedIndexDb {
             tables,
             db,
             history_cf_options,
             history,
-        }
+        })
     }
 
     /// The retained history buckets in scan order: ascending epochs for
@@ -3362,7 +3491,12 @@ mod tests {
         let mut tables =
             super::IndexStoreTables::open_for_bulk_ingestion(dir.path().join("indexes"));
         tables
-            .init(&authority_store, &checkpoint_store, 1 << 20)
+            .init(
+                &authority_store,
+                &checkpoint_store,
+                1 << 20,
+                &Default::default(),
+            )
             .unwrap();
         assert_eq!(tables.watermark.get(&()).unwrap(), None);
         assert_eq!(tables.history_watermark.get(&()).unwrap(), None);
@@ -3409,8 +3543,10 @@ mod tests {
             Some(128),
             &authority_store,
             &checkpoint_store,
+            Default::default(),
         )
-        .await;
+        .await
+        .unwrap();
 
         assert_eq!(
             index_store.tables.history_watermark.get(&()).unwrap(),
@@ -3623,8 +3759,10 @@ mod tests {
             Some(128),
             &authority_state.database_for_testing(),
             checkpoint_store,
+            Default::default(),
         )
-        .await;
+        .await
+        .unwrap();
         index_store.wait_for_history_backfill_for_testing().await;
 
         assert_eq!(
@@ -3759,8 +3897,10 @@ mod tests {
             Some(128),
             &authority_store,
             &checkpoint_store,
+            Default::default(),
         )
-        .await;
+        .await
+        .unwrap();
         index_store.wait_for_history_backfill_for_testing().await;
 
         assert!(
@@ -3813,8 +3953,10 @@ mod tests {
             Some(128),
             &authority_state.database_for_testing(),
             checkpoint_store,
+            Default::default(),
         )
-        .await;
+        .await
+        .unwrap();
         index_store.wait_for_history_backfill_for_testing().await;
 
         // Poison the store and mark it as written by another schema version.
@@ -3844,8 +3986,10 @@ mod tests {
             Some(128),
             &authority_state.database_for_testing(),
             checkpoint_store,
+            Default::default(),
         )
-        .await;
+        .await
+        .unwrap();
         index_store.wait_for_history_backfill_for_testing().await;
 
         assert!(
@@ -4006,6 +4150,58 @@ mod tests {
         Ok(())
     }
 
+    /// A cancelled rebuild fails the open instead of serving the truncated
+    /// store it leaves behind, and the next open rebuilds it.
+    #[tokio::test]
+    async fn test_a_cancelled_rebuild_fails_the_open() {
+        let dir = iota_common::tempdir();
+        let index_dir = dir.path().join(super::JSONRPC_INDEXES_DIR);
+        let checkpoint_store = CheckpointStore::new(&dir.path().join("checkpoints"));
+        mark_checkpoint_executed(&checkpoint_store, 5);
+        let authority_store = open_authority_store(&dir.path().join("store"));
+
+        let cancelled = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
+        let opened = IndexStore::new(
+            index_dir.clone(),
+            &Registry::default(),
+            Some(128),
+            &authority_store,
+            &checkpoint_store,
+            cancelled,
+        )
+        .await;
+        let Err(error) = opened else {
+            panic!("a cancelled rebuild must not return a usable store");
+        };
+        assert!(
+            error.to_string().contains("cancelled by shutdown"),
+            "unexpected error: {error}"
+        );
+        assert!(
+            crate::index_rebuild_cancellation::is_cancelled(&error),
+            "the node's exit path must still recognize the rewrapped cancellation"
+        );
+
+        let index_store = IndexStore::new(
+            index_dir,
+            &Registry::default(),
+            Some(128),
+            &authority_store,
+            &checkpoint_store,
+            Default::default(),
+        )
+        .await
+        .expect("the next open must rebuild the store the cancelled one left behind");
+        assert_eq!(index_store.tables.watermark.get(&()).unwrap(), Some(5));
+        assert!(
+            !index_store
+                .tables
+                .needs_to_do_initialization(&checkpoint_store)
+                .unwrap(),
+            "the rebuilt store must open in place"
+        );
+    }
+
     /// An unclean stop leaves the watermark ahead of the executed checkpoint
     /// by up to the execution concurrency, which is no reason to rebuild.
     #[tokio::test]
@@ -4050,8 +4246,10 @@ mod tests {
             Some(128),
             &authority_store,
             &checkpoint_store,
+            Default::default(),
         )
-        .await;
+        .await
+        .expect("a missing anchor must rebuild instead of failing the open");
 
         assert_eq!(
             index_store.tables.watermark.get(&()).unwrap(),
@@ -4450,6 +4648,62 @@ mod tests {
         );
     }
 
+    /// After `shutdown`, the backfill stops before replaying anything, so
+    /// shutdown does not block on a full replay.
+    #[tokio::test]
+    async fn test_shutdown_stops_the_backfill() {
+        let (authority_state, _) = genesis_authority_state().await;
+        let checkpoint_store = &authority_state.checkpoint_store;
+        let index_dir = iota_common::tempdir();
+        let index_store = open_index_store(index_dir.path().to_path_buf());
+        index_store
+            .tables
+            .history_watermark
+            .insert(&(), &1)
+            .unwrap();
+
+        index_store.shutdown().await;
+        index_store
+            .backfill_history(&authority_state.database_for_testing(), checkpoint_store)
+            .unwrap();
+        assert_eq!(
+            index_store.tables.history_watermark.get(&()).unwrap(),
+            Some(1),
+            "a cancelled backfill must not replay"
+        );
+        assert_eq!(
+            index_store.metrics.history_backfill_state.get(),
+            HistoryBackfillState::StoppedEarly as i64,
+            "a cancelled backfill must report that it stopped early"
+        );
+    }
+
+    /// An unopenable database is wiped and rebuilt instead of crash-looping
+    /// the node.
+    #[tokio::test]
+    async fn test_unopenable_database_is_wiped_and_rebuilt() {
+        let (authority_state, genesis_tx_digest) = genesis_authority_state().await;
+        let checkpoint_store = &authority_state.checkpoint_store;
+        let index_dir = iota_common::tempdir();
+        std::fs::write(index_dir.path().join("CURRENT"), b"bogus").unwrap();
+
+        let index_store = IndexStore::new(
+            index_dir.path().to_path_buf(),
+            &Registry::default(),
+            Some(128),
+            &authority_state.database_for_testing(),
+            checkpoint_store,
+            Default::default(),
+        )
+        .await
+        .unwrap();
+        index_store.wait_for_history_backfill_for_testing().await;
+        assert_eq!(
+            index_store.get_transaction_seq(&genesis_tx_digest).unwrap(),
+            Some(0)
+        );
+    }
+
     /// A read error in the rebuild predicate propagates instead of silently
     /// deciding to wipe or to adopt.
     #[tokio::test]
@@ -4464,6 +4718,20 @@ mod tests {
                 .needs_to_do_initialization(&checkpoint_store)
                 .is_err()
         );
+    }
+
+    /// Leftover files under the index directory are cleared before a
+    /// bulk-ingestion open instead of failing the recovery.
+    #[tokio::test]
+    async fn test_bulk_ingestion_open_clears_leftover_files() {
+        let dir = iota_common::tempdir();
+        let index_dir = dir.path().join("indexes");
+        std::fs::create_dir_all(&index_dir).unwrap();
+        std::fs::write(index_dir.join("stray"), b"leftover").unwrap();
+
+        let tables = super::IndexStoreTables::open_for_bulk_ingestion(index_dir.clone());
+        assert_eq!(tables.meta.get(&()).unwrap(), None);
+        assert!(!index_dir.join("stray").exists());
     }
 
     /// The caching layout resolver resolves each struct tag once.
