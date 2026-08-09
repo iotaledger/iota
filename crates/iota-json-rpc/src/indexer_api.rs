@@ -444,21 +444,42 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
         async move {
             let limit = cap_page_limit(limit);
             self.metrics.get_dynamic_fields_limit.observe(limit as f64);
-            let mut data = self
-                .state
-                .get_dynamic_fields(parent_object_id, cursor, limit + 1)
-                .map_err(Error::from)?;
-            let has_next_page = data.len() > limit;
-            data.truncate(limit);
-            let next_cursor = data.last().cloned().map_or(cursor, |c| Some(c.0));
+            // Pagination follows the index rows: an unresolvable field
+            // (`None` info) still advances the cursor, it is only omitted
+            // from the returned page. A page whose rows all fail to resolve
+            // is retried with the advanced cursor — bounded, so one call's
+            // work stays bounded — because clients may treat an empty page
+            // as the end even when more pages exist.
+            const MAX_EMPTY_PAGE_RETRIES: usize = 3;
+            let mut next_cursor = cursor;
+            let mut has_next_page;
+            let mut resolved;
+            let mut retries = 0;
+            loop {
+                let mut data = self
+                    .state
+                    .get_dynamic_fields(parent_object_id, next_cursor, limit + 1)
+                    .map_err(Error::from)?;
+                has_next_page = data.len() > limit;
+                data.truncate(limit);
+                next_cursor = data.last().map_or(next_cursor, |c| Some(c.0));
+                resolved = data
+                    .into_iter()
+                    .filter_map(|(_, info)| Some(info?.into()))
+                    .collect::<Vec<_>>();
+                if !resolved.is_empty() || !has_next_page || retries >= MAX_EMPTY_PAGE_RETRIES {
+                    break;
+                }
+                retries += 1;
+            }
             self.metrics
                 .get_dynamic_fields_result_size
-                .observe(data.len() as f64);
+                .observe(resolved.len() as f64);
             self.metrics
                 .get_dynamic_fields_result_size_total
-                .inc_by(data.len() as u64);
+                .inc_by(resolved.len() as u64);
             Ok(DynamicFieldPage {
-                data: data.into_iter().map(|(_, w)| w.into()).collect(),
+                data: resolved,
                 next_cursor,
                 has_next_page,
             })
