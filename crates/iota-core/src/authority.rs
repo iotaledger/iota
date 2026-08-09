@@ -2442,21 +2442,15 @@ impl AuthorityState {
     /// [`IndexStore::commit_update_for_checkpoint`]. No-op when the JSON-RPC
     /// index is not configured.
     #[instrument(level = "debug", skip_all, fields(checkpoint = checkpoint.checkpoint_summary.sequence_number))]
-    pub fn index_checkpoint_for_jsonrpc(
-        &self,
-        checkpoint: &CheckpointData,
-        epoch_store: &Arc<AuthorityPerEpochStore>,
-    ) -> IotaResult {
+    pub fn index_checkpoint_for_jsonrpc(&self, checkpoint: &CheckpointData) -> IotaResult {
         let Some(indexes) = &self.indexes else {
             return Ok(());
         };
 
-        indexes.index_checkpoint(
-            checkpoint,
-            // Coin balances are only served by fullnodes, so validators skip
-            // the coin index.
-            !self.is_committee_validator(epoch_store),
-        )
+        // Every table is maintained whenever the store exists: skipping any
+        // (e.g. coins on a node whose key joins the committee) would leave
+        // it silently stale, with nothing ever triggering a rebuild.
+        indexes.index_checkpoint(checkpoint)
     }
 
     #[cfg(msim)]
