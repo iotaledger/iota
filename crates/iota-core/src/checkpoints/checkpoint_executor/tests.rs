@@ -833,10 +833,16 @@ async fn init_executor_test(
     } else {
         &non_committee_key
     };
-    let state = TestAuthorityBuilder::new()
-        .with_genesis_and_keypair(&network_config.genesis, keypair)
-        .build()
-        .await;
+    let builder =
+        TestAuthorityBuilder::new().with_genesis_and_keypair(&network_config.genesis, keypair);
+    // Only full nodes maintain the RPC indexes, and a committee validator
+    // executes the checkpoints it built without staging index updates.
+    let builder = if in_committee {
+        builder.disable_indexer()
+    } else {
+        builder
+    };
+    let state = builder.build().await;
 
     let accumulator = GlobalStateHasher::new_for_tests(state.get_global_state_hash_store().clone());
     let accumulator = Arc::new(accumulator);
