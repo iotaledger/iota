@@ -326,7 +326,8 @@ impl CheckpointExecutor {
             iota_metrics::monitored_scope("CheckpointExecutor::parallel_step");
 
         // Note: only `execute_transactions_from_synced_checkpoint` has end-of-epoch
-        // logic.
+        // logic. It is also the only branch that stages index updates, so a
+        // divergence here would stamp the watermark over unstaged checkpoints.
         let exec_start = Instant::now();
         let ckpt_state = if self.state.is_fullnode(&self.epoch_store)
             || checkpoint.is_last_checkpoint_of_epoch()
@@ -703,7 +704,8 @@ impl CheckpointExecutor {
         // durable yet at this stage, so the writes are only staged now and
         // committed later, after `FinalizeCheckpoint`, via
         // `commit_index_updates` — keeping the indexes consistent with the
-        // executed checkpoint and crash-safe.
+        // executed checkpoint and crash-safe. Stages run in checkpoint order,
+        // which the index stores assert on.
         if let Some(grpc_indexes_store) = &self.state.grpc_indexes_store {
             grpc_indexes_store.index_checkpoint(&checkpoint_data);
         }

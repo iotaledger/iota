@@ -607,42 +607,75 @@ impl IndexStoreTables {
         Ok(())
     }
 
-    fn needs_to_do_initialization(&self, checkpoint_store: &CheckpointStore) -> bool {
-        let schema_mismatch = match self.meta.get(&()) {
-            Ok(Some(metadata)) => metadata.version != CURRENT_DB_VERSION,
-            Ok(None) => true,
-            Err(_) => true,
+    /// Whether the store must be wiped and rebuilt. Read errors propagate:
+    /// a transient error must fail the open rather than silently wipe a
+    /// healthy store or adopt a stale one.
+    fn needs_to_do_initialization(&self, checkpoint_store: &CheckpointStore) -> IotaResult<bool> {
+        let schema_mismatch = match self.meta.get(&())? {
+            Some(metadata) => metadata.version != CURRENT_DB_VERSION,
+            None => true,
         };
 
-        schema_mismatch || self.is_indexed_watermark_out_of_date(checkpoint_store)
+        Ok(schema_mismatch || self.is_indexed_watermark_out_of_date(checkpoint_store)?)
     }
 
-    // Check if the index watermark is behind the highest_executed_checkpoint.
-    fn is_indexed_watermark_out_of_date(&self, checkpoint_store: &CheckpointStore) -> bool {
-        let highest_executed_checkpoint = checkpoint_store
-            .get_highest_executed_checkpoint_seq_number()
-            .ok()
-            .flatten();
-        let watermark = self.watermark.get(&()).ok().flatten();
-        watermark < highest_executed_checkpoint
+    /// Whether the index watermark is behind `highest_executed_checkpoint`,
+    /// absent on a store that already holds data, or points at a checkpoint
+    /// the checkpoint store no longer holds.
+    fn is_indexed_watermark_out_of_date(
+        &self,
+        checkpoint_store: &CheckpointStore,
+    ) -> IotaResult<bool> {
+        let highest_executed_checkpoint =
+            checkpoint_store.get_highest_executed_checkpoint_seq_number()?;
+        let Some(watermark) = self.watermark.get(&())? else {
+            // A rebuild and a restore both write the watermark only once
+            // their data is durable, so data without one comes from a build
+            // that was cut short — including when nothing is executed
+            // locally and the comparison below has nothing to outrun. An
+            // empty store is the fresh one `seed_meta` covers.
+            return Ok(!self.owner_index.is_empty() || highest_executed_checkpoint.is_some());
+        };
+        // The open anchors the transaction numbering to the watermark's
+        // checkpoint, so a checkpoint store rolled back to an older backup
+        // must rebuild rather than fail every open.
+        if checkpoint_store
+            .get_checkpoint_by_sequence_number(watermark)?
+            .is_none()
+        {
+            return Ok(true);
+        }
+        let Some(executed) = highest_executed_checkpoint else {
+            return Ok(false);
+        };
+        // After an unclean stop the watermark can be ahead of the executed
+        // checkpoint by up to the execution concurrency, and replaying those
+        // checkpoints writes nothing but the watermark (see the digest check
+        // in `index_checkpoint`).
+        Ok(watermark < executed)
     }
 
-    /// Runs only when `needs_to_do_initialization` is true (fresh DB, schema
-    /// mismatch, crashed mid-init, or the index watermark falling behind
-    /// `highest_executed_checkpoint`).
-    /// The on-disk DB needs to be wiped before this is called, so `init`
-    /// always starts from an empty store.
+    /// Rebuilds the live-state tables, for the cases
+    /// `needs_to_do_initialization` covers (fresh DB, schema mismatch,
+    /// crashed mid-init, or the index watermark falling behind
+    /// `highest_executed_checkpoint`). The on-disk DB needs to be wiped
+    /// before this is called, so `init` always starts from an empty store.
+    ///
+    /// Writes only `meta`: the caller adopts the rebuild by writing the
+    /// watermarks once the WAL-less bulk writes are flushed. Returns the
+    /// highest executed checkpoint to anchor them to.
     #[tracing::instrument(skip_all)]
     fn init(
         &mut self,
         authority_store: &AuthorityStore,
         checkpoint_store: &CheckpointStore,
         batch_size_limit: usize,
-    ) -> Result<(), StorageError> {
+    ) -> Result<Option<CheckpointSequenceNumber>, StorageError> {
         info!("Initializing JSON-RPC indexes");
 
-        // `meta` first, `watermark` last: a crash in between leaves a store
-        // the next open wipes and re-initializes.
+        // Written before the flush, the watermarks would be WAL-durable over
+        // unflushed data, and a crash before the flush would leave a store
+        // the next open adopts as complete.
         self.meta.insert(
             &(),
             &MetadataInfo {
@@ -658,15 +691,34 @@ impl IndexStoreTables {
         // background once the node is up, resuming from `history_watermark`.
         self.index_live_object_set(authority_store, batch_size_limit)?;
 
-        self.history_watermark.insert(
-            &(),
-            &highest_executed_checkpoint.map_or(0, |c| c.saturating_add(1)),
-        )?;
-        self.watermark
-            .insert(&(), &highest_executed_checkpoint.unwrap_or(0))?;
-
         info!("Finished initializing JSON-RPC indexes");
 
+        Ok(highest_executed_checkpoint)
+    }
+
+    /// Makes the bulk-ingested data durable and writes the watermarks that
+    /// let a node open the store in place instead of rebuilding it.
+    /// `highest_executed` is the highest checkpoint the build covers.
+    ///
+    /// With nothing executed no watermark is written: an absent watermark
+    /// already means "nothing indexed", while writing 0 would claim
+    /// checkpoint 0 was indexed and shift the numbering anchor past the
+    /// genesis transaction.
+    fn adopt_bulk_ingestion(
+        &self,
+        highest_executed: Option<CheckpointSequenceNumber>,
+    ) -> Result<(), TypedStoreError> {
+        // The watermarks are WAL-durable while the bulk writes are not, so
+        // flushing first keeps them from landing over unflushed data, where
+        // a crash would leave a store the next open adopts as complete.
+        // Flushing any table flushes every column family of the shared
+        // database, so one call covers all tables.
+        self.meta.flush_all()?;
+        self.history_watermark
+            .insert(&(), &highest_executed.map_or(0, |c| c.saturating_add(1)))?;
+        if let Some(highest_executed) = highest_executed {
+            self.watermark.insert(&(), &highest_executed)?;
+        }
         Ok(())
     }
 
@@ -1222,13 +1274,7 @@ impl JsonRpcIndexRestorer {
         restore_checkpoint: CheckpointSequenceNumber,
     ) -> Result<(), StorageError> {
         let Self { tables, .. } = self;
-        tables
-            .history_watermark
-            .insert(&(), &restore_checkpoint.saturating_add(1))?;
-        tables.watermark.insert(&(), &restore_checkpoint)?;
-        // WAL is disabled for the bulk writes; make them durable before the
-        // database closes.
-        tables.meta.flush_all()?;
+        tables.adopt_bulk_ingestion(Some(restore_checkpoint))?;
 
         // Release every RocksDB handle before returning, so the caller can
         // move the database directory.
@@ -1282,7 +1328,11 @@ impl IndexStore {
             .seed_meta()
             .expect("failed to initialize index tables");
 
-        if opened.tables.needs_to_do_initialization(checkpoint_store) {
+        if opened
+            .tables
+            .needs_to_do_initialization(checkpoint_store)
+            .expect("failed to determine whether the JSON-RPC index needs a rebuild")
+        {
             let mut init_tables = {
                 drop(opened);
                 safe_drop_db(path.clone(), Duration::from_secs(30))
@@ -1302,23 +1352,20 @@ impl IndexStore {
                 let authority_store = authority_store.clone();
                 let checkpoint_store = checkpoint_store.clone();
                 move || {
-                    init_tables
+                    let highest_executed_checkpoint = init_tables
                         .init(&authority_store, &checkpoint_store, batch_size_limit)
                         .expect("unable to initialize JSON-RPC index");
+                    // A crash before this point re-detects the rebuild on the
+                    // next open (no watermark), never adopts a half-flushed
+                    // store.
+                    init_tables
+                        .adopt_bulk_ingestion(highest_executed_checkpoint)
+                        .expect("unable to adopt the rebuilt JSON-RPC index");
                     init_tables
                 }
             })
             .await
             .expect("JSON-RPC index initialization task failed");
-
-            // Flush all data to disk before dropping tables. This is critical because
-            // WAL is disabled for the bulk writes during initialization. Flushing any
-            // table flushes every column family of the shared underlying database, so
-            // one call covers all tables.
-            init_tables
-                .meta
-                .flush_all()
-                .expect("JSON-RPC index DB should be flushable after bulk ingestion");
 
             let weak_db = Arc::downgrade(&init_tables.meta.db);
             drop(init_tables);
@@ -1360,18 +1407,19 @@ impl IndexStore {
             .watermark
             .get(&())
             .expect("failed to initialize index tables")
-            .and_then(|watermark| {
-                let checkpoint = checkpoint_store
+            .map(|watermark| {
+                checkpoint_store
                     .get_checkpoint_by_sequence_number(watermark)
-                    .expect("checkpoint store read cannot fail");
-                if checkpoint.is_none() {
-                    warn!(
-                        watermark,
-                        "indexed watermark checkpoint not found; transaction numbering falls \
-                         back to the local index rows"
-                    );
-                }
-                checkpoint.map(|checkpoint| checkpoint.network_total_transactions)
+                    .expect("checkpoint store read cannot fail")
+                    // Certified checkpoints are never pruned, and a rebuild
+                    // would anchor to the same one.
+                    .unwrap_or_else(|| {
+                        panic!(
+                            "the indexed watermark checkpoint {watermark} is missing from the \
+                             checkpoint store"
+                        )
+                    })
+                    .network_total_transactions
             })
             .unwrap_or(0);
 
@@ -1664,9 +1712,13 @@ impl IndexStore {
             all_balances: ShardedLruCache::new(1_000_000, 1000),
             locks: MutexTable::new(128),
         };
+        // The newest bucket can be present but empty (a crash between
+        // `create_cf` and its first committed batch), so scan the buckets
+        // newest to oldest for the last indexed row.
         let next_sequence_number = history
-            .last_key_value()
-            .map(|(_, bucket)| {
+            .values()
+            .rev()
+            .find_map(|bucket| {
                 bucket
                     .tx_order
                     .safe_range_iter_reversed(..)
@@ -1674,7 +1726,6 @@ impl IndexStore {
                     .transpose()
                     .expect("failed to initialize indexes")
                     .map(|(seq, _)| seq + 1)
-                    .unwrap_or(0)
             })
             .unwrap_or(0)
             .max(next_sequence_number_floor)
@@ -2006,6 +2057,8 @@ impl IndexStore {
         // A replayed checkpoint's transactions were indexed into the same
         // epoch's bucket, so only that bucket needs to be consulted.
         let already_indexed = bucket.txs_seq.multi_get(&digests)?;
+        // The zip below pairs each transaction with its own lookup.
+        debug_assert_eq!(digests.len(), already_indexed.len());
 
         let mut batch = self.tables.watermark.batch();
         let mut coin_changes = BTreeMap::new();
@@ -2171,8 +2224,14 @@ impl IndexStore {
         })
     }
 
+    /// One past the last indexed transaction's sequence number. Sequence
+    /// numbers equal network position and genesis is indexed through
+    /// checkpoint 0, so this is the total number of transactions.
+    ///
+    /// The count covers checkpoints staged but not yet committed; a crash
+    /// re-derives it from the committed rows on the next open.
     pub fn next_sequence_number(&self) -> TxSequenceNumber {
-        self.next_sequence_number.load(Ordering::SeqCst) + 1
+        self.next_sequence_number.load(Ordering::SeqCst)
     }
 
     pub fn get_transactions(
@@ -3232,6 +3291,83 @@ mod tests {
         );
     }
 
+    /// `init` alone must not adopt the rebuild: the watermarks are written
+    /// by the caller only after the WAL-less bulk writes are flushed, so a
+    /// crash mid-rebuild is re-detected on the next open instead of being
+    /// adopted with lost data.
+    #[tokio::test]
+    async fn test_rebuild_is_not_adopted_before_the_flush() {
+        let dir = iota_common::tempdir();
+        let checkpoint_store = CheckpointStore::new(&dir.path().join("checkpoints"));
+        mark_checkpoint_executed(&checkpoint_store, 5);
+        let authority_store = open_authority_store(&dir.path().join("store"));
+
+        let mut tables =
+            super::IndexStoreTables::open_for_bulk_ingestion(dir.path().join("indexes"));
+        tables
+            .init(&authority_store, &checkpoint_store, 1 << 20)
+            .unwrap();
+        assert_eq!(tables.watermark.get(&()).unwrap(), None);
+        assert_eq!(tables.history_watermark.get(&()).unwrap(), None);
+        assert!(
+            tables
+                .needs_to_do_initialization(&checkpoint_store)
+                .unwrap(),
+            "a store whose rebuild was not adopted must be wiped and rebuilt on the next open"
+        );
+    }
+
+    /// A rebuild on a node with no executed checkpoints must not write a
+    /// watermark: an absent watermark already means "nothing indexed", and
+    /// writing checkpoint 0 would shift the numbering anchor past the
+    /// genesis transaction.
+    #[tokio::test]
+    async fn test_rebuild_with_nothing_executed_writes_no_watermark() {
+        let dir = iota_common::tempdir();
+        let checkpoint_store = CheckpointStore::new(&dir.path().join("checkpoints"));
+        let index_dir = dir.path().join("indexes");
+
+        // A pre-upgrade database (data but no `meta` row) triggers the wipe
+        // and rebuild even though nothing is executed yet.
+        {
+            let index_store = open_index_store(index_dir.clone());
+            let owner = iota_types::base_types::dbg_addr(1);
+            let object =
+                iota_types::object::Object::with_id_owner_for_testing(ObjectId::random(), owner);
+            index_store
+                .tables
+                .owner_index
+                .insert(
+                    &(owner, object.id()),
+                    &iota_types::base_types::ObjectInfo::from_object(&object),
+                )
+                .unwrap();
+            close_index_store(index_store).await;
+        }
+
+        let authority_store = open_authority_store(&dir.path().join("store"));
+        let index_store = IndexStore::new(
+            index_dir,
+            &Registry::default(),
+            Some(128),
+            &authority_store,
+            &checkpoint_store,
+        )
+        .await;
+
+        assert_eq!(
+            index_store.tables.history_watermark.get(&()).unwrap(),
+            Some(0),
+            "the rebuild must have run and seeded the backfill marker"
+        );
+        assert_eq!(index_store.tables.watermark.get(&()).unwrap(), None);
+        assert_eq!(
+            index_store.next_sequence_number(),
+            0,
+            "the genesis transaction must later be numbered 0"
+        );
+    }
+
     /// `CoinInfo::from_object` must reject non-coin objects even when their
     /// BCS contents happen to match `Coin`'s `{UID, u64}` layout.
     #[test]
@@ -3264,33 +3400,92 @@ mod tests {
         assert_eq!(super::CoinInfo::from_object(&fake), None);
     }
 
-    /// A brand-new store is seeded with `meta` and needs no rebuild; once the
-    /// executed watermark moves past the (missing) indexed watermark — the
-    /// state after a formal-snapshot restore — a rebuild is required.
+    /// When a store must be wiped and rebuilt, as one decision table: a
+    /// pre-upgrade database (data, no `meta` row) is never seeded and always
+    /// rebuilt; a brand-new store needs no rebuild until the executed
+    /// watermark passes the indexed one; a store holding data but no
+    /// watermark is always rebuilt; a watermark at or ahead of the executed
+    /// checkpoint (crash between index commit and executed bump) needs none;
+    /// a schema version bump always does.
     #[tokio::test]
-    async fn test_missing_watermark_triggers_initialization() {
+    async fn test_needs_to_do_initialization_cases() {
         let tmp_dir = iota_common::tempdir();
         let cp_dir = iota_common::tempdir();
         let checkpoint_store = CheckpointStore::new(&cp_dir.path().join("checkpoints"));
-        let index_store = IndexStore::new_without_init(
-            tmp_dir.path().to_path_buf(),
-            &Registry::default(),
-            Some(128),
+        let index_store = open_index_store(tmp_dir.path().to_path_buf());
+
+        // A database from before per-checkpoint indexing must stay unseeded:
+        // nodes restored from a formal snapshot wrote a corrupted owner
+        // index into it, and without a watermark it cannot prove otherwise.
+        let owner = iota_types::base_types::dbg_addr(1);
+        let object =
+            iota_types::object::Object::with_id_owner_for_testing(ObjectId::random(), owner);
+        index_store
+            .tables
+            .owner_index
+            .insert(
+                &(owner, object.id()),
+                &iota_types::base_types::ObjectInfo::from_object(&object),
+            )
+            .unwrap();
+        index_store.tables.seed_meta().unwrap();
+        assert_eq!(
+            index_store.tables.meta.get(&()).unwrap(),
+            None,
+            "a database with data but no `meta` row must not be seeded"
+        );
+        assert!(
+            index_store
+                .tables
+                .needs_to_do_initialization(&checkpoint_store)
+                .unwrap(),
+            "a database from before per-checkpoint indexing must be rebuilt"
         );
 
+        index_store
+            .tables
+            .owner_index
+            .remove(&(owner, object.id()))
+            .unwrap();
         index_store.tables.seed_meta().unwrap();
         assert!(
             !index_store
                 .tables
-                .needs_to_do_initialization(&checkpoint_store),
+                .needs_to_do_initialization(&checkpoint_store)
+                .unwrap(),
             "a brand-new store on a node with no executed checkpoints needs no rebuild"
         );
+
+        // A rebuild or restore that crashed before writing the watermark
+        // leaves data behind; with nothing executed, comparing the
+        // watermarks alone would adopt it.
+        index_store
+            .tables
+            .owner_index
+            .insert(
+                &(owner, object.id()),
+                &iota_types::base_types::ObjectInfo::from_object(&object),
+            )
+            .unwrap();
+        assert!(
+            index_store
+                .tables
+                .needs_to_do_initialization(&checkpoint_store)
+                .unwrap(),
+            "a store holding data but no watermark must be rebuilt"
+        );
+        index_store
+            .tables
+            .owner_index
+            .remove(&(owner, object.id()))
+            .unwrap();
 
         mark_checkpoint_executed(&checkpoint_store, 5);
         assert!(
             index_store
                 .tables
-                .needs_to_do_initialization(&checkpoint_store),
+                .needs_to_do_initialization(&checkpoint_store)
+                .unwrap(),
             "an executed checkpoint past the indexed watermark must trigger a rebuild"
         );
 
@@ -3299,6 +3494,21 @@ mod tests {
             !index_store
                 .tables
                 .needs_to_do_initialization(&checkpoint_store)
+                .unwrap()
+        );
+
+        // A watermark ahead of the executed checkpoint still needs the
+        // checkpoint it anchors to.
+        checkpoint_store
+            .insert_verified_checkpoint(&executed_checkpoint(0, 6))
+            .unwrap();
+        index_store.tables.watermark.insert(&(), &6).unwrap();
+        assert!(
+            !index_store
+                .tables
+                .needs_to_do_initialization(&checkpoint_store)
+                .unwrap(),
+            "an index watermark ahead of the executed watermark must not trigger a rebuild"
         );
 
         // A schema version bump also triggers a rebuild.
@@ -3316,6 +3526,7 @@ mod tests {
             index_store
                 .tables
                 .needs_to_do_initialization(&checkpoint_store)
+                .unwrap()
         );
     }
 
@@ -3335,39 +3546,6 @@ mod tests {
         super::remove_legacy_jsonrpc_indexes_dir(db_path.path()).unwrap();
     }
 
-    /// A database written before per-checkpoint indexing (data, but no `meta`
-    /// row) must be wiped and rebuilt: nodes restored from a formal snapshot
-    /// had a corrupted owner index and non-canonical transaction numbering,
-    /// and a database without a watermark cannot prove it is not one of them.
-    #[tokio::test]
-    async fn test_pre_meta_database_triggers_initialization() {
-        let tmp_dir = iota_common::tempdir();
-        let cp_dir = iota_common::tempdir();
-        let checkpoint_store = CheckpointStore::new(&cp_dir.path().join("checkpoints"));
-        mark_checkpoint_executed(&checkpoint_store, 5);
-
-        let index_store = open_index_store(tmp_dir.path().to_path_buf());
-        let owner = iota_types::base_types::dbg_addr(1);
-        let object =
-            iota_types::object::Object::with_id_owner_for_testing(ObjectId::random(), owner);
-        index_store
-            .tables
-            .owner_index
-            .insert(
-                &(owner, object.id()),
-                &iota_types::base_types::ObjectInfo::from_object(&object),
-            )
-            .unwrap();
-
-        index_store.tables.seed_meta().unwrap();
-        assert!(
-            index_store
-                .tables
-                .needs_to_do_initialization(&checkpoint_store),
-            "a database from before per-checkpoint indexing must be rebuilt"
-        );
-    }
-
     /// After a rebuild, the history tables are filled by a background replay
     /// that works downwards from the watermark and records its progress
     /// atomically with each checkpoint's rows, so an interrupted replay
@@ -3376,6 +3554,10 @@ mod tests {
     async fn test_history_backfill_after_rebuild() {
         let (authority_state, genesis_tx_digest) = genesis_authority_state().await;
         let checkpoint_store = &authority_state.checkpoint_store;
+        let genesis_checkpoint = checkpoint_store
+            .get_checkpoint_by_sequence_number(0)
+            .unwrap()
+            .unwrap();
 
         let index_dir = iota_common::tempdir();
         let index_store = IndexStore::new(
@@ -3401,6 +3583,13 @@ mod tests {
             index_store.metrics.history_backfill_state.get(),
             HistoryBackfillState::Complete as i64,
             "a backfill that reached the bottom must report completion"
+        );
+        // The two numbering schemes meet: the backfill numbered the replayed
+        // transactions by network position, and the live counter continues
+        // exactly one past them — which is also the reported total.
+        assert_eq!(
+            index_store.next_sequence_number(),
+            genesis_checkpoint.network_total_transactions
         );
 
         // Simulate a replay interrupted before reaching checkpoint 0:
@@ -3492,7 +3681,10 @@ mod tests {
         {
             let built = open_index_store(index_dir.clone());
             assert!(
-                !built.tables.needs_to_do_initialization(&checkpoint_store),
+                !built
+                    .tables
+                    .needs_to_do_initialization(&checkpoint_store)
+                    .unwrap(),
                 "a restore-built store must need no rebuild"
             );
             built
@@ -3625,29 +3817,6 @@ mod tests {
         );
     }
 
-    /// After a crash between an index commit and the executed-watermark bump,
-    /// the index watermark is ahead of `highest_executed_checkpoint` on
-    /// restart. That must not trigger a rebuild: the replayed checkpoint is
-    /// skipped through the already-indexed check instead.
-    #[tokio::test]
-    async fn test_watermark_ahead_of_executed_needs_no_rebuild() {
-        let tmp_dir = iota_common::tempdir();
-        let cp_dir = iota_common::tempdir();
-        let checkpoint_store = CheckpointStore::new(&cp_dir.path().join("checkpoints"));
-        mark_checkpoint_executed(&checkpoint_store, 5);
-
-        let index_store = open_index_store(tmp_dir.path().to_path_buf());
-        index_store.tables.seed_meta().unwrap();
-        index_store.tables.watermark.insert(&(), &6).unwrap();
-
-        assert!(
-            !index_store
-                .tables
-                .needs_to_do_initialization(&checkpoint_store),
-            "an index watermark ahead of the executed watermark must not trigger a rebuild"
-        );
-    }
-
     #[tokio::test]
     async fn test_index_cache() -> anyhow::Result<()> {
         // This test indexes a checkpoint where 10 coins each with balance 100
@@ -3720,6 +3889,61 @@ mod tests {
         assert_eq!(balance.num_coins, 7);
 
         Ok(())
+    }
+
+    /// An unclean stop leaves the watermark ahead of the executed checkpoint
+    /// by up to the execution concurrency, which is no reason to rebuild.
+    #[tokio::test]
+    async fn test_a_watermark_far_ahead_of_the_executed_checkpoint_is_not_fatal() {
+        let tmp_dir = iota_common::tempdir();
+        let cp_dir = iota_common::tempdir();
+        let checkpoint_store = CheckpointStore::new(&cp_dir.path().join("checkpoints"));
+        let index_store = open_index_store(tmp_dir.path().to_path_buf());
+        index_store.tables.seed_meta().unwrap();
+        mark_checkpoint_executed(&checkpoint_store, 5);
+        checkpoint_store
+            .insert_verified_checkpoint(&executed_checkpoint(0, 7))
+            .unwrap();
+        index_store.tables.watermark.insert(&(), &7).unwrap();
+
+        assert!(
+            !index_store
+                .tables
+                .needs_to_do_initialization(&checkpoint_store)
+                .unwrap()
+        );
+    }
+
+    /// Numbering anchors to the watermark's checkpoint, so a watermark whose
+    /// checkpoint the store no longer holds is rebuilt from scratch.
+    #[tokio::test]
+    async fn test_a_watermark_without_its_checkpoint_rebuilds_the_index() {
+        let dir = iota_common::tempdir();
+        let index_dir = dir.path().join(super::JSONRPC_INDEXES_DIR);
+        let checkpoint_store = CheckpointStore::new(&dir.path().join("checkpoints"));
+        {
+            let index_store = open_index_store(index_dir.clone());
+            index_store.tables.seed_meta().unwrap();
+            index_store.tables.watermark.insert(&(), &5).unwrap();
+            close_index_store(index_store).await;
+        }
+
+        let authority_store = open_authority_store(&dir.path().join("store"));
+        let index_store = IndexStore::new(
+            index_dir,
+            &Registry::default(),
+            Some(128),
+            &authority_store,
+            &checkpoint_store,
+        )
+        .await;
+
+        assert_eq!(
+            index_store.tables.watermark.get(&()).unwrap(),
+            None,
+            "the rebuild must drop the watermark it could not anchor"
+        );
+        assert_eq!(index_store.next_sequence_number(), 0);
     }
 
     /// Replaying a committed checkpoint (crash recovery before the executed
@@ -4023,5 +4247,39 @@ mod tests {
         );
 
         Ok(())
+    }
+
+    /// An empty newest bucket (a crash between `create_cf` and its first
+    /// committed batch) must not reset the numbering: the floor scan reads
+    /// the older buckets.
+    #[tokio::test]
+    async fn test_numbering_floor_skips_an_empty_newest_bucket() {
+        let tmp_dir = iota_common::tempdir();
+        let index_store = open_index_store(tmp_dir.path().to_path_buf());
+        seed_history_buckets(&index_store, 1);
+        index_store.ensure_history_bucket(1).unwrap();
+
+        let index_store = reopen_index_store(index_store, tmp_dir.path().to_path_buf()).await;
+        assert_eq!(
+            index_store.next_sequence_number(),
+            1,
+            "numbering must continue after the last row of the older buckets"
+        );
+    }
+
+    /// A read error in the rebuild predicate propagates instead of silently
+    /// deciding to wipe or to adopt.
+    #[tokio::test]
+    async fn test_rebuild_predicate_propagates_read_errors() {
+        let dir = iota_common::tempdir();
+        let checkpoint_store = CheckpointStore::new(&dir.path().join("checkpoints"));
+        let index_store = open_index_store(dir.path().join("indexes"));
+        index_store.db.drop_cf("meta").unwrap();
+        assert!(
+            index_store
+                .tables
+                .needs_to_do_initialization(&checkpoint_store)
+                .is_err()
+        );
     }
 }

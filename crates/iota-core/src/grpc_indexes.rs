@@ -525,14 +525,15 @@ impl IndexStoreTables {
         Ok(())
     }
 
-    /// Mark the store fully initialized: set `Watermark::Indexed` to
-    /// `indexed_checkpoint` and write `meta` last, so a crash before the
-    /// `meta` write leaves a store the next `new` call wipes and re-inits.
-    /// The final step of both `init` and a formal-snapshot restore.
+    /// Flushes the bulk-ingested data, then stamps the watermark and `meta`
+    /// last, so a crash in between leaves a store the next open re-inits.
     fn finalize(
         &self,
         indexed_checkpoint: CheckpointSequenceNumber,
     ) -> Result<(), TypedStoreError> {
+        // The watermark and `meta` are WAL-durable and the bulk writes are not, so
+        // flush first; flushing one table flushes every column family.
+        self.meta.flush_all()?;
         self.watermark
             .insert(&Watermark::Indexed, &indexed_checkpoint)?;
         self.meta.insert(
@@ -1408,6 +1409,35 @@ mod tests {
             .unwrap();
         assert_eq!(owned.len(), 1, "restored object must be owner-indexed");
         assert_eq!(owned[0].0.object_id, object_id);
+    }
+
+    /// `finalize` must make the bulk-ingested data durable before it stamps
+    /// the watermark and `meta`, so a crash in between cannot leave a store
+    /// the next open adopts as complete.
+    #[tokio::test]
+    async fn finalize_flushes_before_stamping_the_watermark() {
+        let tmp_dir = iota_common::tempdir();
+        let grpc = GrpcIndexesStore::new_without_init(tmp_dir.path().to_path_buf());
+
+        let restorer = grpc.live_object_restorer(100);
+        let mut partition = restorer.begin_partition();
+        partition
+            .index_object(&Object::with_owner_for_testing(Address::from_u16(42)))
+            .unwrap();
+        partition.finish().unwrap();
+        restorer.finish().unwrap();
+
+        assert!(
+            grpc.tables.meta.db.live_files().unwrap().is_empty(),
+            "the restored rows must still be unflushed before finalize"
+        );
+
+        grpc.finalize_restore(5).unwrap();
+
+        assert!(
+            !grpc.tables.meta.db.live_files().unwrap().is_empty(),
+            "finalize must flush the restored rows before stamping the watermark"
+        );
     }
 
     /// `finalize_restore` must leave a store that `GrpcIndexesStore::new`
