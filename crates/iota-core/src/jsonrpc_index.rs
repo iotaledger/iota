@@ -33,10 +33,13 @@ use iota_types::{
     inner_temporary_store::TxCoins,
     iota_sdk_types_conversions::type_tag_core_to_sdk,
     layout_resolver::LayoutResolver,
-    messages_checkpoint::{CheckpointContentsExt, CheckpointSequenceNumber},
+    messages_checkpoint::{CheckpointContentsExt, CheckpointSequenceNumber, VerifiedCheckpoint},
     object::{Object, bounded_visitor::BoundedVisitor},
     parse_iota_struct_tag,
-    storage::{ObjectStore, error::Error as StorageError},
+    storage::{
+        ObjectStore,
+        error::{Error as StorageError, Kind as StorageErrorKind},
+    },
     transaction::{TransactionAPI, TransactionEnvelope},
 };
 use itertools::Itertools;
@@ -44,12 +47,15 @@ use move_core_types::{
     account_address::AccountAddress, identifier::Identifier, language_storage::ModuleId,
 };
 use parking_lot::{ArcMutexGuard, Mutex, RwLock};
-use prometheus_filtered::{IntCounter, Registry, register_int_counter_with_registry};
+use prometheus_filtered::{
+    IntCounter, IntGauge, MetricLevel, Registry, register_int_counter_with_registry,
+    register_int_gauge_with_registry,
+};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use tracing::{debug, error, info, trace, warn};
 use typed_store::{
     DBMapUtils, TypedStoreError,
-    database::{Database, wait_for_database_close},
+    database::{Database, drop_tolerant_write_options, wait_for_database_close},
     rocks::{
         DBBatch, DBMap, DBOptions, MetricConf, ReadWriteOptions, TaggedDBMap,
         bulk_ingestion_options, bulk_ingestion_write_options, default_db_options, list_tables,
@@ -195,6 +201,19 @@ pub struct IndexStoreMetrics {
     balance_lookup_from_total: IntCounter,
     all_balance_lookup_from_db: IntCounter,
     all_balance_lookup_from_total: IntCounter,
+    /// Lowest checkpoint the history backfill has replayed.
+    history_backfill_lowest_checkpoint: IntGauge,
+    /// Terminal state of the history backfill, as [`HistoryBackfillState`].
+    history_backfill_state: IntGauge,
+}
+
+/// Terminal state of the history backfill; the gauge reads 0 while it runs
+/// and on a node that never started one.
+#[derive(Clone, Copy)]
+enum HistoryBackfillState {
+    Complete = 1,
+    StoppedEarly = 2,
+    Failed = 3,
 }
 
 impl IndexStoreMetrics {
@@ -222,6 +241,26 @@ impl IndexStoreMetrics {
                 "all_balance_lookup_from_total",
                 "Total number of all balance requests served",
                 registry,
+            )
+            .unwrap(),
+            // A backfill that stopped early is visible nowhere else, so keep
+            // it above the default metric filter.
+            history_backfill_lowest_checkpoint: register_int_gauge_with_registry!(
+                "jsonrpc_index_history_backfill_lowest_checkpoint",
+                "Lowest checkpoint the JSON-RPC index history backfill has replayed, keeping its \
+                 final value after the backfill stops",
+                registry;
+                MetricLevel::Warn,
+            )
+            .unwrap(),
+            // Whether the backfill ran to the end of the local history is
+            // visible nowhere else, so keep it above the default filter too.
+            history_backfill_state: register_int_gauge_with_registry!(
+                "jsonrpc_index_history_backfill_state",
+                "Terminal state of the JSON-RPC index history backfill: 0 running or never \
+                 started, 1 complete, 2 stopped early, 3 failed",
+                registry;
+                MetricLevel::Warn,
             )
             .unwrap(),
         }
@@ -273,6 +312,11 @@ pub struct IndexStoreTables {
     /// pruner. Absent on databases that were never rebuilt: their history
     /// has been indexed continuously and is complete.
     history_watermark: DBMap<(), CheckpointSequenceNumber>,
+
+    /// Earliest epoch retained by the last index pruning pass. History
+    /// buckets below it are never recreated, and the backfill stops at it
+    /// instead of replaying epochs the pruner would drop again.
+    earliest_retained_epoch: DBMap<(), EpochId>,
 
     /// This is an index of object references to currently existing objects,
     /// indexed by the composite key of the Address of their owner and
@@ -773,6 +817,9 @@ pub struct IndexStore {
     max_type_length: u64,
     pending_updates: Mutex<BTreeMap<CheckpointSequenceNumber, PendingCheckpointUpdate>>,
     history_backfill_task: Mutex<Option<tokio::task::JoinHandle<()>>>,
+    /// The earliest retained epoch recorded by the last [`Self::prune`]
+    /// call, mirroring the persisted `earliest_retained_epoch` row.
+    earliest_retained_epoch: AtomicU64,
 }
 
 /// The pieces produced by opening the index database.
@@ -1344,6 +1391,7 @@ impl IndexStore {
         let task = tokio::task::spawn_blocking(move || {
             if let Err(e) = store.backfill_history(&authority_store, &checkpoint_store) {
                 error!("JSON-RPC index history backfill stopped: {e}");
+                store.report_backfill_state(HistoryBackfillState::Failed);
             }
         });
         *self.history_backfill_task.lock() = Some(task);
@@ -1359,10 +1407,14 @@ impl IndexStore {
 
     /// Fills the history tables for the checkpoints below
     /// `history_watermark`, newest first, until it reaches the
-    /// checkpoint-contents pruner. The marker commits atomically with each
-    /// checkpoint's rows, so an interrupted run resumes where it stopped.
+    /// checkpoint-contents pruner or reaches an epoch [`Self::prune`]
+    /// removed from the index. The marker commits atomically
+    /// with each checkpoint's rows, so an interrupted run resumes where it
+    /// stopped.
     /// No-op when the marker is absent (the history was indexed continuously
-    /// and is complete).
+    /// and is complete). Reports its progress through the
+    /// `history_backfill_lowest_checkpoint` gauge and where it ended through
+    /// the `history_backfill_state` one.
     #[tracing::instrument(skip_all)]
     fn backfill_history(
         &self,
@@ -1370,16 +1422,24 @@ impl IndexStore {
         checkpoint_store: &CheckpointStore,
     ) -> Result<(), StorageError> {
         let Some(watermark) = self.tables.history_watermark.get(&())? else {
+            self.report_backfill_state(HistoryBackfillState::Complete);
             return Ok(());
         };
         let Some(mut next) = watermark.checked_sub(1) else {
+            self.report_backfill_state(HistoryBackfillState::Complete);
             return Ok(());
         };
 
         info!("Backfilling JSON-RPC history tables from checkpoint {next} downwards");
+        self.metrics
+            .history_backfill_lowest_checkpoint
+            .set(watermark as i64);
         let start_time = Instant::now();
         let mut last_report = Instant::now();
         let mut replayed: u64 = 0;
+        // Every other way out of the loop is the end of the locally
+        // available history.
+        let mut state = HistoryBackfillState::Complete;
         loop {
             // The pruner advances while the backfill runs; re-check the
             // bound so the replay stops before data that is about to
@@ -1391,8 +1451,52 @@ impl IndexStore {
             if next < lowest {
                 break;
             }
-            self.replay_checkpoint_history(authority_store, checkpoint_store, next)?;
+            let summary = match checkpoint_store.get_checkpoint_by_sequence_number(next)? {
+                Some(summary) => summary,
+                None => {
+                    // The checkpoint pruner can pass the bound check above
+                    // mid-iteration; reaching pruned data is a terminal
+                    // condition, not a failure.
+                    if self.backfill_reached_pruned_data(checkpoint_store, next, None)? {
+                        break;
+                    }
+                    return Err(StorageError::missing(format!("missing checkpoint {next}")));
+                }
+            };
+            let earliest_retained = self.earliest_retained_epoch.load(Ordering::Relaxed);
+            if summary.epoch < earliest_retained {
+                info!(
+                    "Stopping the JSON-RPC history backfill at checkpoint {next}: epoch {} was \
+                     pruned from the index, only epochs from {earliest_retained} on are retained",
+                    summary.epoch
+                );
+                state = HistoryBackfillState::StoppedEarly;
+                break;
+            }
+            if let Err(e) =
+                self.replay_checkpoint_history(authority_store, checkpoint_store, &summary)
+            {
+                // See above: the pruners advance while the backfill runs.
+                if self.backfill_reached_pruned_data(checkpoint_store, next, Some(summary.epoch))? {
+                    break;
+                }
+                // A pruner deletes a checkpoint's data before it advances
+                // the watermark checked above, so the replay can find the
+                // data already gone. That is the end of the locally
+                // available history, not a failure.
+                if e.kind() == StorageErrorKind::Missing {
+                    info!(
+                        "Stopping the JSON-RPC history backfill at checkpoint {next}: its data \
+                         is already gone ({e})"
+                    );
+                    break;
+                }
+                return Err(e);
+            }
             replayed += 1;
+            self.metrics
+                .history_backfill_lowest_checkpoint
+                .set(next as i64);
             if last_report.elapsed() >= PROGRESS_REPORT_INTERVAL {
                 last_report = Instant::now();
                 let remaining = next - lowest;
@@ -1415,7 +1519,45 @@ impl IndexStore {
             "Backfilling {replayed} checkpoints of JSON-RPC history took {} seconds",
             start_time.elapsed().as_secs()
         );
+        self.report_backfill_state(state);
         Ok(())
+    }
+
+    fn report_backfill_state(&self, state: HistoryBackfillState) {
+        self.metrics.history_backfill_state.set(state as i64);
+    }
+
+    /// Whether a pruner removed checkpoint `next`, or the history bucket of
+    /// its epoch, while the backfill was working on it — the same bounds the
+    /// loop checks before each checkpoint, re-read once the work on it has
+    /// failed. `epoch` is the checkpoint's epoch, where it is known. Logs
+    /// the reason the backfill stops.
+    fn backfill_reached_pruned_data(
+        &self,
+        checkpoint_store: &CheckpointStore,
+        next: CheckpointSequenceNumber,
+        epoch: Option<EpochId>,
+    ) -> Result<bool, StorageError> {
+        if checkpoint_store
+            .get_highest_pruned_checkpoint_seq_number()?
+            .is_some_and(|pruned| next <= pruned)
+        {
+            info!(
+                "Stopping the JSON-RPC history backfill at checkpoint {next}: it was pruned \
+                 mid-replay"
+            );
+            return Ok(true);
+        }
+        let earliest_retained = self.earliest_retained_epoch.load(Ordering::Relaxed);
+        if let Some(epoch) = epoch.filter(|&epoch| epoch < earliest_retained) {
+            info!(
+                "Stopping the JSON-RPC history backfill at checkpoint {next}: epoch {epoch} was \
+                 pruned from the index mid-replay, only epochs from {earliest_retained} on are \
+                 retained"
+            );
+            return Ok(true);
+        }
+        Ok(false)
     }
 
     /// Replays one checkpoint into its epoch's history bucket and lowers
@@ -1427,18 +1569,25 @@ impl IndexStore {
         &self,
         authority_store: &AuthorityStore,
         checkpoint_store: &CheckpointStore,
-        checkpoint_seq: CheckpointSequenceNumber,
+        summary: &VerifiedCheckpoint,
     ) -> Result<(), StorageError> {
-        let summary = checkpoint_store
-            .get_checkpoint_by_sequence_number(checkpoint_seq)?
-            .ok_or_else(|| StorageError::missing(format!("missing checkpoint {checkpoint_seq}")))?;
+        let checkpoint_seq = summary.sequence_number;
         let contents = checkpoint_store
             .get_checkpoint_contents(&summary.contents_digest)?
             .ok_or_else(|| {
                 StorageError::missing(format!("missing checkpoint contents {checkpoint_seq}"))
             })?;
-        let first_sequence_number =
-            summary.network_total_transactions - contents.iter().len() as u64;
+        let first_sequence_number = summary
+            .network_total_transactions
+            .checked_sub(contents.iter().len() as u64)
+            .ok_or_else(|| {
+                StorageError::custom(format!(
+                    "checkpoint {checkpoint_seq} has more transactions ({}) than the network \
+                     total ({})",
+                    contents.iter().len(),
+                    summary.network_total_transactions
+                ))
+            })?;
         let bucket = self
             .ensure_history_bucket(summary.epoch)
             .map_err(|e| StorageError::custom(e.to_string()))?;
@@ -1476,9 +1625,14 @@ impl IndexStore {
                 .map_err(|e| StorageError::custom(e.to_string()))?;
         }
         batch.insert_batch(&self.tables.history_watermark, [((), checkpoint_seq)])?;
-        // A plain write, not a bulk-ingestion one: the database is serving
-        // queries, and the marker must land atomically with the rows.
-        batch.write().map_err(StorageError::from)?;
+        // A plain WAL-enabled write, not a bulk-ingestion one: the database
+        // is serving queries, and the marker must land atomically with the
+        // rows. `drop_tolerant_write_options` discards the bucket's rows if
+        // `prune` dropped its column family mid-replay; the next loop
+        // iteration then stops at the pruned epoch.
+        batch
+            .write_opt(&drop_tolerant_write_options())
+            .map_err(StorageError::from)?;
         Ok(())
     }
 
@@ -1526,6 +1680,14 @@ impl IndexStore {
             .max(next_sequence_number_floor)
             .into();
 
+        let earliest_retained_epoch = AtomicU64::new(
+            tables
+                .earliest_retained_epoch
+                .get(&())
+                .expect("failed to read the earliest retained index epoch")
+                .unwrap_or(0),
+        );
+
         Self {
             tables,
             db,
@@ -1537,6 +1699,7 @@ impl IndexStore {
             max_type_length: max_type_length.unwrap_or(128),
             pending_updates: Mutex::new(BTreeMap::new()),
             history_backfill_task: Mutex::new(None),
+            earliest_retained_epoch,
         }
     }
 
@@ -1595,6 +1758,7 @@ impl IndexStore {
             meta: map(&db, "meta", &db_options.rw_options),
             watermark: map(&db, "watermark", &db_options.rw_options),
             history_watermark: map(&db, "history_watermark", &db_options.rw_options),
+            earliest_retained_epoch: map(&db, "earliest_retained_epoch", &db_options.rw_options),
             owner_index: map(&db, "owner_index", &db_options.rw_options),
             coin_index: map(&db, "coin_index", &coin_options.rw_options),
             dynamic_field_index: map(&db, "dynamic_field_index", &db_options.rw_options),
@@ -1675,8 +1839,21 @@ impl IndexStore {
         Ok(results)
     }
 
-    /// The bucket holding `epoch`'s history, created if absent.
+    /// The bucket holding `epoch`'s history, created if absent. Pruned
+    /// epochs are refused: recreating a pruned epoch's column family would
+    /// resurrect it under the same name, and a reader holding the dropped
+    /// bucket would silently read the new, empty one.
     fn ensure_history_bucket(&self, epoch: EpochId) -> IotaResult<Arc<HistoryBucket>> {
+        let refuse_pruned = |earliest_retained: EpochId| {
+            if epoch < earliest_retained {
+                return Err(IotaError::Storage(format!(
+                    "the history bucket of epoch {epoch} was pruned: only epochs from \
+                     {earliest_retained} on are retained"
+                )));
+            }
+            Ok(())
+        };
+        refuse_pruned(self.earliest_retained_epoch.load(Ordering::Relaxed))?;
         if let Some(bucket) = self.history.read().get(&epoch) {
             return Ok(bucket.clone());
         }
@@ -1684,6 +1861,11 @@ impl IndexStore {
         if let Some(bucket) = history.get(&epoch) {
             return Ok(bucket.clone());
         }
+        // Re-check under the lock `prune` publishes under: the epoch may
+        // have been pruned between the check above and taking the lock, and
+        // recreating its column family would hand stale readers an empty
+        // bucket instead of an error.
+        refuse_pruned(self.earliest_retained_epoch.load(Ordering::Relaxed))?;
         let cf_name = history_cf_name(epoch);
         // The column family may already exist if a previous run crashed
         // between `create_cf` and the first batch write.
@@ -1697,38 +1879,105 @@ impl IndexStore {
         Ok(bucket)
     }
 
-    /// Drops the history of epochs past the retention horizon: with
-    /// `epochs_to_retain` = N, the buckets of the newest N epochs are kept
-    /// and every older bucket is dropped wholesale — one constant-time
-    /// column-family drop each, with no per-row deletes and no compaction
-    /// churn. Returns the earliest retained epoch.
+    /// Drops the history of expired epochs: with `epochs_to_retain` = N, the
+    /// buckets of the newest N epochs are kept and every older bucket is
+    /// dropped wholesale.
+    ///
+    /// Returns the earliest epoch to retain, `None` when there is no history
+    /// at all. It is persisted before the drops and never moves backwards,
+    /// so dropped epochs are never backfilled or recreated, even across a
+    /// reopen or a raised `epochs_to_retain`. Indexing below it is refused,
+    /// but a bucket that survived a failed drop still serves reads until a
+    /// later pass retries it.
     ///
     /// A query racing a drop may report an error for the dropped epoch's
-    /// rows; a retry no longer sees the bucket.
+    /// rows; a retry no longer sees the bucket. Queries block for the
+    /// duration of the drops, so callers on an async runtime must use
+    /// `spawn_blocking`.
     pub fn prune(&self, epochs_to_retain: u64) -> IotaResult<Option<EpochId>> {
-        let (expired, earliest_retained) = {
-            let mut history = self.history.write();
-            let Some((&newest, _)) = history.last_key_value() else {
+        // Runs once per executed checkpoint, where there is usually nothing
+        // to drop and nothing to persist; that case must not take the write
+        // lock queries block on.
+        {
+            let history = self.history.read();
+            let persisted = self.earliest_retained_epoch.load(Ordering::Relaxed);
+            let Some(earliest_retained) =
+                Self::earliest_epoch_to_retain(&history, epochs_to_retain, persisted)
+            else {
                 return Ok(None);
             };
-            let earliest_retained = newest.saturating_sub(epochs_to_retain.saturating_sub(1));
-            let expired: Vec<EpochId> = history
-                .range(..earliest_retained)
-                .map(|(&e, _)| e)
-                .collect();
-            history.retain(|&epoch, _| epoch >= earliest_retained);
-            (expired, earliest_retained)
+            if earliest_retained == persisted && history.range(..earliest_retained).next().is_none()
+            {
+                return Ok(Some(earliest_retained));
+            }
+        }
+
+        // The drops run under the map's write lock: `ensure_history_bucket`
+        // could otherwise hand out a bucket for an epoch whose column family
+        // is dropped a moment later. Each map entry is removed only once its
+        // column family is dropped, so a failed drop stays visible to the
+        // next pruner pass, which retries it.
+        let mut history = self.history.write();
+        let persisted = self.earliest_retained_epoch.load(Ordering::Relaxed);
+        let Some(earliest_retained) =
+            Self::earliest_epoch_to_retain(&history, epochs_to_retain, persisted)
+        else {
+            return Ok(None);
         };
+        if earliest_retained != persisted {
+            // Persisted before dropping anything, so a reopen refuses the
+            // dropped epochs from the start instead of backfilling them
+            // again.
+            self.tables
+                .earliest_retained_epoch
+                .insert(&(), &earliest_retained)?;
+            self.earliest_retained_epoch
+                .store(earliest_retained, Ordering::Relaxed);
+        }
+        let expired: Vec<EpochId> = history
+            .range(..earliest_retained)
+            .map(|(&e, _)| e)
+            .collect();
+        // One column-family drop per epoch: constant time, no per-row
+        // deletes and no compaction churn.
         for epoch in expired {
             info!(
                 epoch,
                 "dropping the JSON-RPC index history of an expired epoch"
             );
-            self.db
-                .drop_cf(&history_cf_name(epoch))
-                .map_err(|e| IotaError::Storage(e.to_string()))?;
+            match self.db.drop_cf(&history_cf_name(epoch)) {
+                Ok(()) => {
+                    history.remove(&epoch);
+                }
+                Err(e) => {
+                    warn!(
+                        epoch,
+                        "failed to drop an expired history column family: {e}"
+                    );
+                }
+            }
         }
         Ok(Some(earliest_retained))
+    }
+
+    /// The earliest epoch to retain when the newest bucket in `history` is
+    /// kept together with the `epochs_to_retain - 1` buckets below it, never
+    /// below `persisted`. `None` when there is no bucket at all.
+    ///
+    /// Raising `epochs_to_retain` must not move the earliest retained epoch
+    /// back down over epochs whose buckets are already gone: they would be
+    /// backfilled and recreated, contradicting what queries were told.
+    fn earliest_epoch_to_retain(
+        history: &BTreeMap<EpochId, Arc<HistoryBucket>>,
+        epochs_to_retain: u64,
+        persisted: EpochId,
+    ) -> Option<EpochId> {
+        let (&newest, _) = history.last_key_value()?;
+        Some(
+            newest
+                .saturating_sub(epochs_to_retain.saturating_sub(1))
+                .max(persisted),
+        )
     }
 
     pub fn tables(&self) -> &IndexStoreTables {
@@ -1836,7 +2085,12 @@ impl IndexStore {
             )?;
         }
 
-        update.batch.write()?;
+        // The update may stage rows of a history bucket `prune` drops before
+        // this write; those rows are discarded instead of failing the write.
+        // Only expired epochs can be lost that way: `index_checkpoint`
+        // created the bucket of the epoch being executed, so it is the
+        // newest one, and `prune` retains at least the newest seven.
+        update.batch.write_opt(&drop_tolerant_write_options())?;
 
         if !invalidate_caches {
             // We cannot update the cache before updating the db or else on failing to write
@@ -2667,7 +2921,7 @@ mod tests {
     use prometheus_filtered::Registry;
     use typed_store::Map;
 
-    use super::IndexStore;
+    use super::{HistoryBackfillState, IndexStore};
     use crate::{checkpoints::CheckpointStore, test_utils::executed_checkpoint};
 
     /// Opens an `IndexStore` at `path` without running the rebuild path.
@@ -2737,6 +2991,248 @@ mod tests {
         checkpoint_store
             .update_highest_executed_checkpoint(&checkpoint)
             .unwrap();
+    }
+
+    /// Seeds `epochs` history buckets with one transaction each.
+    fn seed_history_buckets(index_store: &IndexStore, epochs: u64) {
+        for epoch in 0..epochs {
+            let bucket = index_store.ensure_history_bucket(epoch).unwrap();
+            let mut batch = index_store.tables.meta.batch();
+            batch
+                .insert_batch_tagged(&bucket.tx_order, [(epoch, TransactionDigest::random())])
+                .unwrap();
+            batch.write().unwrap();
+        }
+    }
+
+    /// A query that snapshotted the history buckets before a `prune` must
+    /// report an error for the dropped epoch's rows, as [`IndexStore::prune`]
+    /// documents, rather than panicking.
+    #[tokio::test]
+    async fn test_prune_racing_a_reader_reports_an_error() {
+        let tmp_dir = iota_common::tempdir();
+        let index_store = open_index_store(tmp_dir.path().to_path_buf());
+        seed_history_buckets(&index_store, 2);
+
+        // Every digest probe and range scan reads through such a snapshot.
+        let snapshot = index_store.history_buckets(false);
+        assert_eq!(snapshot.len(), 2);
+
+        assert_eq!(index_store.prune(1).unwrap(), Some(1));
+
+        assert!(
+            snapshot[0]
+                .tx_order
+                .safe_range_iter(..)
+                .next()
+                .expect("the scan must yield an error item")
+                .is_err()
+        );
+        assert!(
+            snapshot[0]
+                .tx_order
+                .safe_range_iter_reversed(..)
+                .next()
+                .expect("the reverse scan must yield an error item")
+                .is_err()
+        );
+        assert!(snapshot[0].txs_seq.get(&Default::default()).is_err());
+
+        // The retained bucket keeps serving, and a retry no longer sees the
+        // dropped one.
+        assert!(
+            snapshot[1]
+                .tx_order
+                .safe_range_iter(..)
+                .next()
+                .expect("the retained bucket must still yield a row")
+                .is_ok()
+        );
+        assert_eq!(index_store.history_buckets(false).len(), 1);
+        assert_eq!(
+            index_store
+                .get_transactions(None, None, None, false)
+                .unwrap()
+                .len(),
+            1
+        );
+    }
+
+    /// Queries running concurrently with repeated pruning must never panic:
+    /// readers hold bucket handles across the pruner's column-family drops.
+    #[tokio::test]
+    async fn test_concurrent_prune_and_queries_never_panic() {
+        use std::sync::{
+            Arc,
+            atomic::{AtomicBool, Ordering},
+        };
+
+        const EPOCHS: u64 = 64;
+
+        let tmp_dir = iota_common::tempdir();
+        let index_store = Arc::new(open_index_store(tmp_dir.path().to_path_buf()));
+        seed_history_buckets(&index_store, EPOCHS);
+
+        let stop = Arc::new(AtomicBool::new(false));
+        let mut workers: Vec<_> = (0..3)
+            .map(|_| {
+                let index_store = index_store.clone();
+                let stop = stop.clone();
+                // Blocking threads, so the reads race the drops instead of
+                // interleaving at await points.
+                std::thread::spawn(move || {
+                    while !stop.load(Ordering::Relaxed) {
+                        let _ = index_store.get_transactions(None, None, Some(1000), false);
+                        let _ = index_store.get_transaction_seq(&Default::default());
+                    }
+                })
+            })
+            .collect();
+        workers.push({
+            let index_store = index_store.clone();
+            let stop = stop.clone();
+            // Recreates low epochs like a backfill would, racing the drops.
+            // Opening a bucket spawns metrics sampling tasks, so the thread
+            // needs the runtime context the real backfill gets from
+            // `spawn_blocking`.
+            let runtime = tokio::runtime::Handle::current();
+            std::thread::spawn(move || {
+                let _guard = runtime.enter();
+                let mut round = 0;
+                while !stop.load(Ordering::Relaxed) {
+                    let _ = index_store.ensure_history_bucket(round % 8);
+                    round += 1;
+                }
+            })
+        });
+
+        for retained in (1..EPOCHS).rev() {
+            index_store.prune(retained).unwrap();
+        }
+        stop.store(true, Ordering::Relaxed);
+        for worker in workers {
+            worker.join().expect("a worker thread panicked");
+        }
+
+        // No bucket left in the map may point at a dropped column family.
+        for bucket in index_store.history_buckets(false) {
+            bucket
+                .txs_seq
+                .get(&Default::default())
+                .expect("every bucket in the map must be readable");
+        }
+
+        assert_eq!(
+            index_store
+                .get_transactions(None, None, None, false)
+                .unwrap()
+                .len(),
+            1
+        );
+    }
+
+    /// A pruned epoch's bucket must never be recreated:
+    /// `ensure_history_bucket` refuses epochs below the earliest retained
+    /// one, in this process and, because it is persisted, after a reopen.
+    #[tokio::test]
+    async fn test_pruned_epochs_are_not_recreated() {
+        let tmp_dir = iota_common::tempdir();
+        let index_store = open_index_store(tmp_dir.path().to_path_buf());
+        seed_history_buckets(&index_store, 2);
+        assert_eq!(index_store.prune(1).unwrap(), Some(1));
+        assert!(index_store.ensure_history_bucket(0).is_err());
+        assert!(index_store.ensure_history_bucket(1).is_ok());
+
+        let index_store = reopen_index_store(index_store, tmp_dir.path().to_path_buf()).await;
+        assert!(index_store.ensure_history_bucket(0).is_err());
+        assert!(index_store.ensure_history_bucket(1).is_ok());
+    }
+
+    /// Raising `num_epochs_to_retain_for_indexes` across a restart must not
+    /// move the earliest retained epoch back down: the buckets below it are
+    /// already gone, so recreating them would contradict the errors queries
+    /// were given.
+    #[tokio::test]
+    async fn test_the_earliest_retained_epoch_never_moves_backwards() {
+        let tmp_dir = iota_common::tempdir();
+        let index_store = open_index_store(tmp_dir.path().to_path_buf());
+        seed_history_buckets(&index_store, 4);
+        assert_eq!(index_store.prune(2).unwrap(), Some(2));
+
+        let index_store = reopen_index_store(index_store, tmp_dir.path().to_path_buf()).await;
+        assert_eq!(
+            index_store.prune(52).unwrap(),
+            Some(2),
+            "a retention reaching below the dropped epochs must not lower the floor"
+        );
+        assert!(index_store.ensure_history_bucket(1).is_err());
+        assert!(index_store.ensure_history_bucket(2).is_ok());
+    }
+
+    /// The store pruner deletes a checkpoint's transactions before it
+    /// advances the watermark the backfill checks, so a replay can find them
+    /// already gone. That must end the backfill instead of failing the task
+    /// for the rest of the process.
+    #[tokio::test]
+    async fn test_backfill_stops_at_deleted_checkpoint_data() {
+        let (authority_state, genesis_tx_digest) = genesis_authority_state().await;
+        let checkpoint_store = &authority_state.checkpoint_store;
+        let authority_store = authority_state.database_for_testing();
+        authority_store
+            .perpetual_tables
+            .transactions
+            .remove(&genesis_tx_digest)
+            .unwrap();
+
+        let index_dir = iota_common::tempdir();
+        let index_store = open_index_store(index_dir.path().to_path_buf());
+        index_store
+            .tables
+            .history_watermark
+            .insert(&(), &1)
+            .unwrap();
+
+        index_store
+            .backfill_history(&authority_store, checkpoint_store)
+            .expect("deleted checkpoint data must stop the backfill, not fail it");
+        assert_eq!(
+            index_store.tables.history_watermark.get(&()).unwrap(),
+            Some(1),
+            "the checkpoint whose data is gone must not be marked as replayed"
+        );
+        assert_eq!(
+            index_store.metrics.history_backfill_lowest_checkpoint.get(),
+            1,
+            "the gauge must report where a backfill that stopped early left off"
+        );
+    }
+
+    /// The backfill must stop at epochs `prune` removed from the index
+    /// instead of replaying them. The pruned epoch's genesis checkpoint is
+    /// fully replayable, so only the stop keeps the marker in place.
+    #[tokio::test]
+    async fn test_backfill_stops_at_pruned_epochs() {
+        let (authority_state, _) = genesis_authority_state().await;
+        let checkpoint_store = &authority_state.checkpoint_store;
+
+        let index_dir = iota_common::tempdir();
+        let index_store = open_index_store(index_dir.path().to_path_buf());
+        seed_history_buckets(&index_store, 2);
+        assert_eq!(index_store.prune(1).unwrap(), Some(1));
+        index_store
+            .tables
+            .history_watermark
+            .insert(&(), &1)
+            .unwrap();
+
+        index_store
+            .backfill_history(&authority_state.database_for_testing(), checkpoint_store)
+            .expect("the backfill must stop at the pruned epoch, not replay it");
+        assert_eq!(
+            index_store.tables.history_watermark.get(&()).unwrap(),
+            Some(1),
+            "the pruned genesis epoch must not be replayed"
+        );
     }
 
     /// `CoinInfo::from_object` must reject non-coin objects even when their
@@ -2904,6 +3400,11 @@ mod tests {
             Some(0),
             "the backfill must have reached the lowest replayable checkpoint"
         );
+        assert_eq!(
+            index_store.metrics.history_backfill_state.get(),
+            HistoryBackfillState::Complete as i64,
+            "a backfill that reached the bottom must report completion"
+        );
 
         // Simulate a replay interrupted before reaching checkpoint 0:
         // resuming replays it and lowers the marker again.
@@ -2922,6 +3423,11 @@ mod tests {
         assert_eq!(
             index_store.get_transaction_seq(&genesis_tx_digest).unwrap(),
             Some(0)
+        );
+        assert_eq!(
+            index_store.metrics.history_backfill_lowest_checkpoint.get(),
+            0,
+            "the gauge must report how far down the replay got"
         );
     }
 
@@ -3354,21 +3860,12 @@ mod tests {
         );
         assert_eq!(index_store.prune(1)?, Some(1));
 
-        // The dropped bucket stays gone after another reopen.
-        let weak_db = std::sync::Arc::downgrade(&index_store.tables.meta.db);
-        drop(index_store);
-        while weak_db.strong_count() != 0 {
-            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
-        }
-        let index_store = IndexStore::new_without_init(
-            tmp_dir.path().to_path_buf(),
-            &Registry::default(),
-            Some(128),
-        );
-        assert_eq!(
-            index_store.get_transactions(None, None, None, false)?,
-            vec![tx_1]
-        );
+        // A cursor pointing into the pruned epoch reports the transaction as
+        // gone instead of silently re-serving the first page.
+        assert!(matches!(
+            index_store.get_transactions(None, Some(tx_0), None, false),
+            Err(iota_types::error::IotaError::TransactionNotFound { .. })
+        ));
 
         Ok(())
     }
