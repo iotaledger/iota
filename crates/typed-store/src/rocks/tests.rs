@@ -8,7 +8,7 @@ use rstest::rstest;
 use serde::{Serialize, de::DeserializeOwned};
 
 use super::*;
-use crate::traits::Map;
+use crate::{database::drop_tolerant_write_options, traits::Map};
 
 fn get_iter<K, V>(db: &DBMap<K, V>) -> impl Iterator<Item = (K, V)> + use<'_, K, V>
 where
@@ -1318,7 +1318,8 @@ async fn a_column_family_can_be_created_at_runtime() {
 
 /// Differently-typed [`TaggedDBMap`]s share one column family without their
 /// rows surfacing in each other: gets, full scans in both directions,
-/// bounded ranges, and deletes all stay within their map's tag.
+/// bounded ranges, single-key writes, and deletes all stay within their
+/// map's tag.
 #[tokio::test]
 async fn tagged_dbmaps_share_a_column_family() {
     let tmp_dir = iota_common::tempdir();
@@ -1830,6 +1831,197 @@ async fn tagged_schedule_delete_all_clears_only_its_own_tag() {
     cleared.schedule_delete_all().unwrap();
     last.schedule_delete_all().unwrap();
     assert_eq!(entries(&below), expected);
+}
+
+/// Operations on a column family dropped at runtime must report
+/// [`TypedStoreError::UnregisteredColumn`] rather than panicking.
+#[tokio::test]
+async fn operations_on_a_dropped_column_family_report_an_error() {
+    let tmp_dir = iota_common::tempdir();
+    let db = open_rocksdb(tmp_dir.path(), &["doomed"]);
+    let map =
+        DBMap::<u32, String>::reopen(&db, Some("doomed"), &ReadWriteOptions::default(), false)
+            .expect("the map should open");
+    map.insert(&1, &"one".to_string())
+        .expect("the row should insert");
+
+    let tagged: TaggedDBMap<u32, String> =
+        TaggedDBMap::reopen(&db, "doomed", 0, &ReadWriteOptions::default(), false)
+            .expect("the tagged map should open");
+
+    db.drop_cf("doomed").expect("the column family should drop");
+
+    let assert_unregistered = |op: &str, error: TypedStoreError| {
+        assert!(
+            matches!(&error, TypedStoreError::UnregisteredColumn(cf) if cf == "doomed"),
+            "{op}: unexpected error: {error}"
+        );
+    };
+
+    assert_unregistered("get", map.get(&1).unwrap_err());
+    assert_unregistered("contains_key", map.contains_key(&1).unwrap_err());
+    assert_unregistered("multi_get", map.multi_get([1, 2, 3]).unwrap_err());
+    assert_unregistered("insert", map.insert(&2, &"two".to_string()).unwrap_err());
+    assert_unregistered("remove", map.remove(&1).unwrap_err());
+
+    // A batch resolves the handle when the operation is staged, not at write.
+    let mut batch = map.batch();
+    assert_unregistered(
+        "insert_batch",
+        batch
+            .insert_batch(&map, [(3u32, "three".to_string())])
+            .map(drop)
+            .unwrap_err(),
+    );
+    assert_unregistered(
+        "delete_batch",
+        batch.delete_batch(&map, [1u32]).map(drop).unwrap_err(),
+    );
+    assert_unregistered(
+        "schedule_delete_range",
+        batch
+            .schedule_delete_range(&map, &0, &9)
+            .map(drop)
+            .unwrap_err(),
+    );
+
+    // A scan reports the error as its first item, having no fallible
+    // constructor.
+    for (op, mut scan) in [
+        ("safe_iter", map.safe_iter()),
+        ("safe_range_iter", map.safe_range_iter(..)),
+        ("safe_range_iter_reversed", map.safe_range_iter_reversed(..)),
+    ] {
+        assert_unregistered(
+            op,
+            scan.next()
+                .expect("the scan should yield an item")
+                .unwrap_err(),
+        );
+    }
+
+    // `is_empty` has no error channel; a dropped column family reads as
+    // non-empty rather than empty.
+    assert!(!map.is_empty());
+
+    // A tagged map opened before the drop reports the same errors.
+    assert_unregistered("tagged get", tagged.get(&1).unwrap_err());
+    assert_unregistered(
+        "tagged multi_get",
+        tagged.multi_get([1]).map(drop).unwrap_err(),
+    );
+    let mut batch = tagged.batch();
+    assert_unregistered(
+        "tagged insert_batch",
+        batch
+            .insert_batch_tagged(&tagged, [(1u32, "one".to_string())])
+            .map(drop)
+            .unwrap_err(),
+    );
+    assert_unregistered(
+        "tagged scan",
+        tagged
+            .safe_range_iter(..)
+            .next()
+            .expect("the scan should yield an item")
+            .unwrap_err(),
+    );
+
+    assert_unregistered(
+        "compact_range",
+        map.compact_range(&0u32, &9u32).unwrap_err(),
+    );
+    // The one deliberate exception: flushing a dropped column family is a
+    // no-op, not an error.
+    map.flush()
+        .expect("a flush of a dropped column family is a no-op");
+}
+
+/// A batch staged while its column family existed must write cleanly after
+/// the column family is dropped (`ignore_missing_column_families`): the
+/// dropped entries are discarded, the sibling column family's entries land,
+/// and the sibling keeps serving reads and writes.
+#[tokio::test]
+async fn a_batch_staged_before_a_drop_still_writes() {
+    let tmp_dir = iota_common::tempdir();
+    let db = open_rocksdb(tmp_dir.path(), &["doomed", "kept"]);
+    let doomed =
+        DBMap::<u32, String>::reopen(&db, Some("doomed"), &ReadWriteOptions::default(), false)
+            .expect("the doomed map should open");
+    let kept = DBMap::<u32, String>::reopen(&db, Some("kept"), &ReadWriteOptions::default(), false)
+        .expect("the kept map should open");
+
+    let mut batch = doomed.batch();
+    batch
+        .insert_batch(&doomed, [(1u32, "one".to_string())])
+        .unwrap();
+    batch
+        .insert_batch(&kept, [(1u32, "one".to_string())])
+        .unwrap();
+
+    db.drop_cf("doomed").expect("the column family should drop");
+
+    batch
+        .write_opt(&drop_tolerant_write_options())
+        .expect("the batch should write");
+    assert_eq!(kept.get(&1).unwrap(), Some("one".to_string()));
+
+    // The database was not stopped by the dropped entries, and the write did
+    // not resurrect the dropped column family.
+    kept.insert(&2, &"two".to_string())
+        .expect("the kept column family should still accept writes");
+    assert_eq!(kept.safe_iter().count(), 2);
+    assert!(db.cf_handle("doomed").is_none());
+}
+
+/// Write options that do not ask for the drop tolerance fail the write when
+/// an entry's column family was dropped after staging, rather than dropping
+/// the entry silently. Only the stores that drop column families at runtime
+/// opt into the tolerance.
+#[tokio::test]
+async fn a_dropped_column_family_fails_a_batch_write_by_default() {
+    // A failed write leaves the database in an error state, so each set of
+    // write options is exercised on its own database.
+    let write_to_a_dropped_column_family =
+        |write: fn(DBBatch) -> Result<(), TypedStoreError>| -> Result<(), TypedStoreError> {
+            let tmp_dir = iota_common::tempdir();
+            let db = open_rocksdb(tmp_dir.path(), &["doomed", "kept"]);
+            let doomed = DBMap::<u32, String>::reopen(
+                &db,
+                Some("doomed"),
+                &ReadWriteOptions::default(),
+                false,
+            )
+            .expect("the doomed map should open");
+            let kept = DBMap::<u32, String>::reopen(
+                &db,
+                Some("kept"),
+                &ReadWriteOptions::default(),
+                false,
+            )
+            .expect("the kept map should open");
+
+            let mut batch = doomed.batch();
+            batch
+                .insert_batch(&doomed, [(1u32, "one".to_string())])
+                .unwrap();
+            batch
+                .insert_batch(&kept, [(1u32, "one".to_string())])
+                .unwrap();
+
+            db.drop_cf("doomed").expect("the column family should drop");
+            write(batch)
+        };
+
+    assert!(
+        write_to_a_dropped_column_family(|batch| batch.write()).is_err(),
+        "the default write options should not discard the dropped entry"
+    );
+    assert!(
+        write_to_a_dropped_column_family(|batch| batch.write_opt(&bulk_ingestion_write_options()))
+            .is_err(),
+        "the bulk ingestion write options should not discard the dropped entry"
+    );
 }
 
 fn open_map<P: AsRef<Path>, K, V>(path: P, opt_cf: Option<&str>) -> DBMap<K, V> {
