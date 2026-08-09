@@ -9,7 +9,7 @@ use std::{
     fmt,
     future::Future,
     num::NonZeroUsize,
-    sync::{Arc, Weak},
+    sync::{Arc, Weak, atomic::AtomicBool},
     time::Duration,
 };
 
@@ -299,6 +299,7 @@ impl IotaNode {
             registry_service,
             ServerVersion::new("iota-node", "unknown"),
             tokio::runtime::Handle::current(),
+            Arc::default(),
         )
         .await
     }
@@ -348,11 +349,14 @@ impl IotaNode {
         }))
     }
 
+    /// Setting `index_rebuild_cancelled` stops an RPC index rebuild running
+    /// during startup, which no other shutdown path can reach.
     pub async fn start_async(
         mut config: NodeConfig,
         registry_service: RegistryService,
         server_version: ServerVersion,
         serving_rt_handle: tokio::runtime::Handle,
+        index_rebuild_cancelled: Arc<AtomicBool>,
     ) -> Result<Arc<IotaNode>> {
         config.validate()?;
         NodeConfigMetrics::new(&registry_service.default_registry()).record_metrics(&config);
@@ -609,8 +613,9 @@ impl IotaNode {
                         .max_move_identifier_len_as_option(),
                     &store,
                     &checkpoint_store,
+                    index_rebuild_cancelled.clone(),
                 )
-                .await,
+                .await?,
             )
         } else {
             None
@@ -622,8 +627,9 @@ impl IotaNode {
                     config.db_path().join(GRPC_INDEXES_DIR),
                     Arc::clone(&store),
                     &checkpoint_store,
+                    &index_rebuild_cancelled,
                 )
-                .await,
+                .await?,
             ))
         } else {
             None
@@ -2169,9 +2175,18 @@ impl IotaNode {
         }
     }
 
-    async fn shutdown(&self) {
+    /// Stops the node's background work — consensus, the JSON-RPC index
+    /// history backfill and the gRPC server — before its runtimes go away.
+    /// Does nothing the second time it is called.
+    pub async fn shutdown(&self) {
         if let Some(validator_components) = &*self.validator_components.lock().await {
             validator_components.consensus_manager.shutdown().await;
+        }
+
+        // Stop the background index backfill so shutdown does not block on
+        // a full history replay.
+        if let Some(indexes) = &self.state.indexes {
+            indexes.shutdown().await;
         }
 
         // Shutdown the gRPC server if it's running

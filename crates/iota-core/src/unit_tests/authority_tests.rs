@@ -3902,8 +3902,10 @@ async fn test_jsonrpc_index_rebuild_on_open() {
         Some(128),
         &authority_state.database_for_testing(),
         checkpoint_store,
+        Default::default(),
     )
-    .await;
+    .await
+    .unwrap();
 
     // The live-object scan finished before the open returned: the object
     // that is in no local checkpoint is already indexed.
@@ -3993,8 +3995,10 @@ async fn test_jsonrpc_index_rebuild_replays_object_pruned_checkpoints() {
         Some(128),
         &authority_state.database_for_testing(),
         checkpoint_store,
+        Default::default(),
     )
-    .await;
+    .await
+    .unwrap();
 
     // The genesis transaction is replayed despite the object pruning.
     index_store.wait_for_history_backfill_for_testing().await;
@@ -4045,8 +4049,10 @@ async fn test_jsonrpc_index_rebuild_skips_contents_pruned_checkpoints() {
         Some(128),
         &authority_state.database_for_testing(),
         checkpoint_store,
+        Default::default(),
     )
-    .await;
+    .await
+    .unwrap();
 
     // The genesis transaction is below the contents watermark — not replayed.
     index_store.wait_for_history_backfill_for_testing().await;
