@@ -3998,7 +3998,7 @@ fn jsonrpc_index_transaction(
     };
 
     authority_state
-        .index_checkpoint_for_jsonrpc(&checkpoint_data, &epoch_store)
+        .index_checkpoint_for_jsonrpc(&checkpoint_data)
         .unwrap();
     authority_state
         .indexes

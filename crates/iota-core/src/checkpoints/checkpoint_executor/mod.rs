@@ -430,7 +430,13 @@ impl CheckpointExecutor {
         finish_stage!(pipeline_handle, FinalizeCheckpoint);
 
         if let Some(checkpoint_data) = ckpt_state.full_data.take() {
-            self.commit_index_updates(checkpoint_data);
+            // The commit writes RocksDB and takes the caches' owner locks.
+            tokio::task::spawn_blocking({
+                let this = self.clone();
+                move || this.commit_index_updates(checkpoint_data)
+            })
+            .await
+            .unwrap();
         }
 
         finish_stage!(pipeline_handle, UpdateRpcIndex);
@@ -711,7 +717,7 @@ impl CheckpointExecutor {
         }
 
         self.state
-            .index_checkpoint_for_jsonrpc(&checkpoint_data, &self.epoch_store)
+            .index_checkpoint_for_jsonrpc(&checkpoint_data)
             .expect("failed to stage JSON-RPC index update");
 
         if let Some(path) = &self.config.data_ingestion_dir {
