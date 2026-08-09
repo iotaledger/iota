@@ -12,7 +12,7 @@ pub enum TypedStoreError {
     RocksDB(String),
     #[error("(de)serialization error: {0}")]
     Serialization(String),
-    #[error("the column family {0} was not registered with the database")]
+    #[error("column family {0} is not open")]
     UnregisteredColumn(String),
     #[error("a batch operation can't operate across databases")]
     CrossDBBatch,

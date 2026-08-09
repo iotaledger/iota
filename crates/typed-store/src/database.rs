@@ -6,7 +6,7 @@ use std::{
     marker::PhantomData,
     ops::{Bound, Deref, RangeBounds},
     path::Path,
-    sync::Arc,
+    sync::{Arc, Weak},
     time::Duration,
 };
 
@@ -19,7 +19,7 @@ use rocksdb::{
     SnapshotWithThreadMode, WriteBatch,
 };
 use serde::{Serialize, de::DeserializeOwned};
-use tokio::sync::oneshot;
+use tokio::{sync::oneshot, time::Instant};
 use tracing::{debug, error, instrument, warn};
 use typed_store_error::TypedStoreError;
 
@@ -179,11 +179,11 @@ impl Database {
         match (&self.storage, cf) {
             (Storage::Rocks(db), ColumnFamily::Rocks(_)) => Ok(db
                 .underlying
-                .get_pinned_cf_opt(&rocks_cf(db, cf.name()), key, readopts)
+                .get_pinned_cf_opt(&rocks_cf(db, cf.name())?, key, readopts)
                 .map_err(typed_store_err_from_rocks_err)?
                 .map(GetResult::Rocks)),
             (Storage::InMemory(db), ColumnFamily::InMemory(cf_name)) => {
-                Ok(db.get(cf_name, key).map(GetResult::InMemory))
+                Ok(db.get(cf_name, key)?.map(GetResult::InMemory))
             }
 
             _ => Err(TypedStoreError::RocksDB(
@@ -205,8 +205,13 @@ impl Database {
         match (&self.storage, cf) {
             (Storage::Rocks(db), ColumnFamily::Rocks(_)) => {
                 let keys_vec: Vec<K> = keys.into_iter().collect();
+                let handle = match rocks_cf(db, cf.name()) {
+                    Ok(handle) => handle,
+                    // Fail every key, so the result keeps one slot per key.
+                    Err(e) => return keys_vec.iter().map(|_| Err(e.clone())).collect(),
+                };
                 let res = db.underlying.batched_multi_get_cf_opt(
-                    &rocks_cf(db, cf.name()),
+                    &handle,
                     keys_vec.iter(),
                     // sorted_input
                     false,
@@ -222,7 +227,7 @@ impl Database {
             (Storage::InMemory(db), ColumnFamily::InMemory(cf_name)) => db
                 .multi_get(cf_name, keys)
                 .into_iter()
-                .map(|r| Ok(r.map(GetResult::InMemory)))
+                .map(|r| r.map(|value| value.map(GetResult::InMemory)))
                 .collect(),
             _ => unreachable!("typed store invariant violation"),
         }
@@ -246,15 +251,12 @@ impl Database {
         match &self.storage {
             Storage::Rocks(db) => nondeterministic!(db.underlying.create_cf(name, options))
                 .map_err(typed_store_err_from_rocks_err),
-            Storage::InMemory(db) => {
-                db.create_cf(name);
-                Ok(())
-            }
+            Storage::InMemory(db) => db.create_cf(name),
         }
     }
 
-    /// Maps on the column family have to be dropped first: a map resolves
-    /// it on every operation and panics once it is gone.
+    /// Maps still holding the column family keep working but report
+    /// [`TypedStoreError::UnregisteredColumn`] on every operation.
     #[instrument(level = "debug", skip(self), err)]
     pub fn drop_cf(&self, name: &str) -> Result<(), TypedStoreError> {
         if name == rocksdb::DEFAULT_COLUMN_FAMILY_NAME {
@@ -281,13 +283,15 @@ impl Database {
     ) -> Result<(), TypedStoreError> {
         fail_point!("delete-cf-before");
         let ret = match (&self.storage, cf) {
-            (Storage::Rocks(db), ColumnFamily::Rocks(_)) => db
-                .underlying
-                .delete_cf(&rocks_cf(db, cf.name()), key)
-                .map_err(typed_store_err_from_rocks_err),
+            (Storage::Rocks(db), ColumnFamily::Rocks(_)) => {
+                rocks_cf(db, cf.name()).and_then(|handle| {
+                    db.underlying
+                        .delete_cf(&handle, key)
+                        .map_err(typed_store_err_from_rocks_err)
+                })
+            }
             (Storage::InMemory(db), ColumnFamily::InMemory(cf_name)) => {
-                db.delete(cf_name, key.as_ref());
-                Ok(())
+                db.delete(cf_name, key.as_ref())
             }
             _ => Err(TypedStoreError::RocksDB(
                 "typed store invariant violation".to_string(),
@@ -313,14 +317,14 @@ impl Database {
     ) -> Result<(), TypedStoreError> {
         fail_point!("put-cf-before");
         let ret = match (&self.storage, cf) {
-            (Storage::Rocks(db), ColumnFamily::Rocks(_)) => db
-                .underlying
-                .put_cf(&rocks_cf(db, cf.name()), key, value)
-                .map_err(typed_store_err_from_rocks_err),
-            (Storage::InMemory(db), ColumnFamily::InMemory(cf_name)) => {
-                db.put(cf_name, key, value);
-                Ok(())
+            (Storage::Rocks(db), ColumnFamily::Rocks(_)) => {
+                rocks_cf(db, cf.name()).and_then(|handle| {
+                    db.underlying
+                        .put_cf(&handle, key, value)
+                        .map_err(typed_store_err_from_rocks_err)
+                })
             }
+            (Storage::InMemory(db), ColumnFamily::InMemory(cf_name)) => db.put(cf_name, key, value),
             _ => Err(TypedStoreError::RocksDB(
                 "typed store invariant violation".to_string(),
             )),
@@ -339,11 +343,13 @@ impl Database {
         match &self.storage {
             // [`rocksdb::DBWithThreadMode::key_may_exist_cf`] can have false positives,
             // but no false negatives. We use it to short-circuit the absent case
-            Storage::Rocks(rocks) => {
-                rocks
+            Storage::Rocks(rocks) => match rocks_cf(rocks, cf.name()) {
+                Ok(handle) => rocks
                     .underlying
-                    .key_may_exist_cf_opt(&rocks_cf(rocks, cf.name()), key, readopts)
-            }
+                    .key_may_exist_cf_opt(&handle, key, readopts),
+                // Not a definitive absence: let the real read report it.
+                Err(_) => true,
+            },
             _ => true,
         }
     }
@@ -357,6 +363,8 @@ impl Database {
             // msim.
             Storage::Rocks(rocks) => nondeterministic!({
                 let cf_name = cf.name();
+                // Deliberately not `rocks_cf`: flushing a column family
+                // dropped in the meantime is a no-op, not an error.
                 if let Some(handle) = rocks.underlying.cf_handle(cf_name) {
                     rocks.underlying.flush_cf(&handle).map_err(|e| {
                         TypedStoreError::RocksDB(format!(
@@ -399,10 +407,6 @@ impl Database {
         }
     }
 
-    pub fn write(&self, batch: StorageWriteBatch) -> Result<(), TypedStoreError> {
-        self.write_opt(batch, &rocksdb::WriteOptions::default())
-    }
-
     pub fn write_opt(
         &self,
         batch: StorageWriteBatch,
@@ -416,8 +420,7 @@ impl Database {
                 .map_err(typed_store_err_from_rocks_err),
             (Storage::InMemory(db), StorageWriteBatch::InMemory(batch)) => {
                 // InMemory doesn't support write options.
-                db.write(batch);
-                Ok(())
+                db.write(batch)
             }
             _ => Err(TypedStoreError::RocksDB(
                 "using invalid batch type for the database".to_string(),
@@ -434,12 +437,12 @@ impl Database {
         cf: &ColumnFamily,
         start: Option<K>,
         end: Option<K>,
-    ) {
+    ) -> Result<(), TypedStoreError> {
         if let Storage::Rocks(rocksdb) = &self.storage {
-            rocksdb
-                .underlying
-                .compact_range_cf(&rocks_cf(rocksdb, cf.name()), start, end);
+            let handle = rocks_cf(rocksdb, cf.name())?;
+            rocksdb.underlying.compact_range_cf(&handle, start, end);
         }
+        Ok(())
     }
 
     /// A point-in-time snapshot of this database. See [`DbSnapshot`] for what
@@ -505,10 +508,7 @@ fn rocks_cf_from_db<'a>(
     cf_name: &str,
 ) -> Result<Arc<rocksdb::BoundColumnFamily<'a>>, TypedStoreError> {
     match &db.storage {
-        Storage::Rocks(rocksdb) => Ok(rocksdb
-            .underlying
-            .cf_handle(cf_name)
-            .expect("the column family was deleted unexpectedly")),
+        Storage::Rocks(rocksdb) => rocks_cf(rocksdb, cf_name),
         _ => Err(TypedStoreError::RocksDB(
             "using invalid batch type for the database".to_string(),
         )),
@@ -647,8 +647,7 @@ impl<K, V> DBMap<K, V> {
         let from_buf = be_fix_int_ser(start);
         let to_buf = be_fix_int_ser(end);
         self.db
-            .compact_range_cf(&self.column_family, Some(from_buf), Some(to_buf));
-        Ok(())
+            .compact_range_cf(&self.column_family, Some(from_buf), Some(to_buf))
     }
 
     pub fn compact_range_raw(
@@ -661,8 +660,7 @@ impl<K, V> DBMap<K, V> {
             Storage::Rocks(_) => ColumnFamily::Rocks(cf_name.to_string()),
             Storage::InMemory(_) => ColumnFamily::InMemory(cf_name.to_string()),
         };
-        self.db.compact_range_cf(&cf, Some(start), Some(end));
-        Ok(())
+        self.db.compact_range_cf(&cf, Some(start), Some(end))
     }
 
     /// Returns a vector of raw values corresponding to the keys provided.
@@ -774,16 +772,20 @@ impl<K, V> DBMap<K, V> {
 
     /// Shared rocksdb `SafeIter` construction (raw iterator + scan metrics)
     /// used by both the forward and reverse raw iterators.
-    fn rocks_safe_iter<'a>(&self, db: &'a RocksDB, readopts: ReadOptions) -> SafeIter<'a, K, V>
+    fn rocks_safe_iter<'a>(
+        &self,
+        db: &'a RocksDB,
+        readopts: ReadOptions,
+    ) -> Result<SafeIter<'a, K, V>, TypedStoreError>
     where
         K: DeserializeOwned,
         V: DeserializeOwned,
     {
         let db_iter = db
             .underlying
-            .raw_iterator_cf_opt(&rocks_cf(db, self.column_family.name()), readopts);
+            .raw_iterator_cf_opt(&rocks_cf(db, self.column_family.name())?, readopts);
         let (_timer, bytes_scanned, keys_scanned, _perf_ctx) = self.create_iter_context();
-        SafeIter::new(
+        Ok(SafeIter::new(
             self.cf_name().to_string(),
             db_iter,
             _timer,
@@ -791,7 +793,7 @@ impl<K, V> DBMap<K, V> {
             bytes_scanned,
             keys_scanned,
             Some(self.db_metrics.clone()),
-        )
+        ))
     }
 
     /// Iterates the whole column family as of `db_snapshot` instead of the
@@ -811,7 +813,10 @@ impl<K, V> DBMap<K, V> {
                 let mut readopts = self.opts.readopts();
                 readopts.fill_cache(false);
                 readopts.set_snapshot(&db_snapshot.snapshot);
-                Box::new(self.rocks_safe_iter(db, readopts))
+                match self.rocks_safe_iter(db, readopts) {
+                    Ok(iter) => Box::new(iter),
+                    Err(e) => error_iterator(e),
+                }
             }
             Storage::InMemory(_) => {
                 unreachable!("a DbSnapshot is only created over the rocksdb backend")
@@ -835,7 +840,10 @@ impl<K, V> DBMap<K, V> {
             Storage::Rocks(db) => {
                 let readopts =
                     rocks_util::apply_range_bounds(self.opts.readopts(), lower_bound, upper_bound);
-                Box::new(self.rocks_safe_iter(db, readopts))
+                match self.rocks_safe_iter(db, readopts) {
+                    Ok(iter) => Box::new(iter),
+                    Err(e) => error_iterator(e),
+                }
             }
             Storage::InMemory(db) => {
                 db.iterator(self.column_family.name(), lower_bound, upper_bound, false)
@@ -862,10 +870,10 @@ impl<K, V> DBMap<K, V> {
             Storage::Rocks(db) => {
                 let readopts =
                     rocks_util::apply_range_bounds(self.opts.readopts(), lower_bound, None);
-                Box::new(SafeRevIter::new(
-                    self.rocks_safe_iter(db, readopts),
-                    upper_bound,
-                ))
+                match self.rocks_safe_iter(db, readopts) {
+                    Ok(iter) => Box::new(SafeRevIter::new(iter, upper_bound)),
+                    Err(e) => error_iterator(e),
+                }
             }
             Storage::InMemory(db) => {
                 db.iterator(self.column_family.name(), lower_bound, upper_bound, true)
@@ -1053,7 +1061,13 @@ impl DBBatch {
     }
 
     /// Consume the batch and write its operations to the database with custom
-    /// write options
+    /// write options.
+    ///
+    /// With default options, an entry whose column family was dropped
+    /// between staging and this write fails the whole write with a fatal
+    /// RocksDB background error. Stores that drop column families at
+    /// runtime must pass [`drop_tolerant_write_options`], which discards such
+    /// entries instead.
     #[instrument(level = "trace", skip_all, err)]
     pub fn write_opt(self, write_options: &rocksdb::WriteOptions) -> Result<(), TypedStoreError> {
         let db_name = self.database.db_name();
@@ -1510,22 +1524,10 @@ where
 
     fn safe_iter(&'a self) -> DbIterator<'a, (K, V)> {
         match &self.db.storage {
-            Storage::Rocks(db) => {
-                let db_iter = db.underlying.raw_iterator_cf_opt(
-                    &rocks_cf(db, self.column_family.name()),
-                    self.opts.readopts(),
-                );
-                let (_timer, bytes_scanned, keys_scanned, _perf_ctx) = self.create_iter_context();
-                Box::new(SafeIter::new(
-                    self.cf_name().to_string(),
-                    db_iter,
-                    _timer,
-                    _perf_ctx,
-                    bytes_scanned,
-                    keys_scanned,
-                    Some(self.db_metrics.clone()),
-                ))
-            }
+            Storage::Rocks(db) => match self.rocks_safe_iter(db, self.opts.readopts()) {
+                Ok(iter) => Box::new(iter),
+                Err(e) => error_iterator(e),
+            },
             Storage::InMemory(db) => db.iterator(self.column_family.name(), None, None, false),
         }
     }
@@ -1837,6 +1839,38 @@ where
     fn try_catch_up_with_primary(&self) -> Result<(), TypedStoreError> {
         self.map.try_catch_up_with_primary()
     }
+}
+
+/// Waits until every handle to the database has been dropped, so its
+/// directory can be reopened, moved, or deleted. Returns `false` if handles
+/// remain after 30 seconds.
+pub async fn wait_for_database_close(db: Weak<Database>) -> bool {
+    // The deadline is read off the same clock the sleep advances, so a test
+    // pausing time does not turn the wait into a busy loop.
+    let deadline = Instant::now() + Duration::from_secs(30);
+    while db.strong_count() != 0 {
+        if Instant::now() > deadline {
+            return false;
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+    true
+}
+
+/// Returns an iterator whose only item is `Err(error)`.
+pub(crate) fn error_iterator<'a, T: 'a>(error: TypedStoreError) -> DbIterator<'a, T> {
+    Box::new(std::iter::once(Err(error)))
+}
+
+/// Write options for the batches of a store that drops column families at
+/// runtime: entries of a column family dropped after staging are discarded
+/// instead of failing the whole write with a fatal RocksDB background
+/// error, see [`DBBatch::write_opt`]. Other stores keep the default
+/// options, where a write to a missing column family fails.
+pub fn drop_tolerant_write_options() -> rocksdb::WriteOptions {
+    let mut options = rocksdb::WriteOptions::default();
+    options.set_ignore_missing_column_families(true);
+    options
 }
 
 fn default_hash(value: &[u8]) -> Digest<32> {
