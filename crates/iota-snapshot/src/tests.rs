@@ -632,11 +632,11 @@ async fn snapshot_restore_builds_index_stores() -> Result<(), anyhow::Error> {
     compare_live_objects(&perpetual_db, &restored_perpetual_db)?;
 
     // Every address-owned object is owner-indexed in the restored gRPC store.
-    let restored_ids: HashSet<ObjectId> = restored_grpc
+    let grpc_owned_ids: HashSet<ObjectId> = restored_grpc
         .owner_iter(owner, None, OwnerTypeFilter::None)?
         .map(|entry| entry.map(|(key, _)| key.object_id))
         .collect::<Result<_, _>>()?;
-    assert_eq!(restored_ids, owned_ids);
+    assert_eq!(grpc_owned_ids, owned_ids);
 
     // Finalize the restored stores. The gRPC chain-verify + epoch-row seed
     // step needs a real boundary's proof bundle and is exercised in
@@ -644,19 +644,27 @@ async fn snapshot_restore_builds_index_stores() -> Result<(), anyhow::Error> {
     restored_grpc.finalize_restore(0)?;
     restored_jsonrpc.finalize(0).await?;
 
+    // The restore tool's smoke test must accept a healthy restore.
+    JsonRpcIndexRestorer::verify_restored(
+        &tmp_dir.join(JSONRPC_INDEXES_DIR),
+        0,
+        owned_ids.len() as u64,
+    )
+    .await?;
+
     // Every address-owned object is owner-indexed in the restored JSON-RPC
     // store as well.
-    let restored_jsonrpc = IndexStore::new_without_init(
+    let reopened_jsonrpc = IndexStore::new_without_init(
         tmp_dir.join(JSONRPC_INDEXES_DIR),
         &prometheus_filtered::Registry::default(),
         Some(128),
     );
-    let restored_ids: HashSet<ObjectId> = restored_jsonrpc
+    let jsonrpc_owned_ids: HashSet<ObjectId> = reopened_jsonrpc
         .get_owner_objects(owner, None, 10, None)?
         .into_iter()
         .map(|info| info.object_id)
         .collect();
-    assert_eq!(restored_ids, owned_ids);
+    assert_eq!(jsonrpc_owned_ids, owned_ids);
     Ok(())
 }
 

@@ -59,8 +59,8 @@ use typed_store::{
     database::{Database, drop_tolerant_write_options, wait_for_database_close},
     rocks::{
         DBBatch, DBMap, DBOptions, MetricConf, ReadWriteOptions, TaggedDBMap,
-        bulk_ingestion_options, bulk_ingestion_write_options, default_db_options, list_tables,
-        open_cf_opts, read_size_from_env, safe_drop_db,
+        bulk_ingestion_options, bulk_ingestion_options_split_between, bulk_ingestion_write_options,
+        default_db_options, list_tables, open_cf_opts, read_size_from_env, safe_drop_db,
     },
     rocksdb,
     traits::Map,
@@ -583,7 +583,7 @@ impl IndexStoreTables {
     ///
     /// Anything left under `path` is deleted first, so the caller does not
     /// have to clear the directory.
-    fn open_for_bulk_ingestion(path: PathBuf) -> Self {
+    fn open_for_bulk_ingestion(path: PathBuf, concurrent_stores: usize) -> Self {
         // A column family of an existing database not named here would
         // silently be opened with default options, and `safe_drop_db` can
         // leave files RocksDB does not recognize, so clear the directory
@@ -593,7 +593,7 @@ impl IndexStoreTables {
             std::fs::remove_dir_all(&path)
                 .expect("unable to clear the index database directory for the rebuild");
         }
-        let bulk_options = bulk_ingestion_options();
+        let bulk_options = bulk_ingestion_options_split_between(concurrent_stores);
         let table_config = bulk_options.table_config(Self::describe_tables().into_keys());
         Self::open_tables_read_write(
             path,
@@ -1275,13 +1275,18 @@ pub struct JsonRpcIndexRestorer {
     batch_size_limit: usize,
 }
 
+/// Divisor for the JSON-RPC index's share of the bulk-ingestion memtable
+/// budget during a formal-snapshot restore, which writes the perpetual
+/// tables and the gRPC index store alongside it on default options.
+const RESTORE_CONCURRENT_STORES: usize = 2;
+
 impl JsonRpcIndexRestorer {
     /// Opens the store with bulk-ingestion options and stamps it with this
     /// schema version. `meta` is written now and `watermark` only in
     /// [`Self::finalize`], so a node opening a store from a restore that
     /// crashed in between wipes and rebuilds it.
     pub fn open(path: PathBuf) -> Result<Self, TypedStoreError> {
-        let tables = IndexStoreTables::open_for_bulk_ingestion(path);
+        let tables = IndexStoreTables::open_for_bulk_ingestion(path, RESTORE_CONCURRENT_STORES);
         tables.meta.insert(
             &(),
             &MetadataInfo {
@@ -1290,7 +1295,8 @@ impl JsonRpcIndexRestorer {
         )?;
         Ok(Self {
             tables,
-            batch_size_limit: bulk_ingestion_options().batch_size_limit,
+            batch_size_limit: bulk_ingestion_options_split_between(RESTORE_CONCURRENT_STORES)
+                .batch_size_limit,
         })
     }
 
@@ -1325,6 +1331,56 @@ impl JsonRpcIndexRestorer {
         if !wait_for_database_close(weak_db).await {
             return Err(StorageError::custom(
                 "unable to close the JSON-RPC index database after the restore",
+            ));
+        }
+        Ok(())
+    }
+
+    /// Reopens the finalized store the way a node does and reads back the
+    /// markers and the live state, so a database the node would wipe and
+    /// rebuild — or one that carries no restored objects — fails the restore
+    /// instead. `live_object_count` is the number of objects the restore
+    /// wrote.
+    pub async fn verify_restored(
+        path: &Path,
+        restore_checkpoint: CheckpointSequenceNumber,
+        live_object_count: u64,
+    ) -> Result<(), StorageError> {
+        let reopened = IndexStore::open_index_db(path).map_err(|e| {
+            StorageError::custom(format!(
+                "unable to reopen the restored JSON-RPC index database: {e}"
+            ))
+        })?;
+        let stored_version = reopened.tables.meta.get(&())?.ok_or_else(|| {
+            StorageError::custom("the restored JSON-RPC index database has no metadata")
+        })?;
+        if stored_version.version != CURRENT_DB_VERSION {
+            return Err(StorageError::custom(format!(
+                "restored JSON-RPC index database version mismatch: expected {}, found {}",
+                CURRENT_DB_VERSION, stored_version.version
+            )));
+        }
+        let watermark = reopened.tables.watermark.get(&())?;
+        if watermark != Some(restore_checkpoint) {
+            return Err(StorageError::custom(format!(
+                "the restored JSON-RPC index is watermarked at {watermark:?}, expected \
+                 {restore_checkpoint}"
+            )));
+        }
+        // The version and the watermark are written by the finalize itself;
+        // only the live state proves the object stream landed.
+        if live_object_count > 0 && reopened.tables.owner_index.is_empty() {
+            return Err(StorageError::custom(format!(
+                "the restored JSON-RPC index has an empty owner index after {live_object_count} \
+                 live objects"
+            )));
+        }
+
+        let weak_db = Arc::downgrade(&reopened.tables.meta.db);
+        drop(reopened);
+        if !wait_for_database_close(weak_db).await {
+            return Err(StorageError::custom(
+                "unable to close the JSON-RPC index database after verifying the restore",
             ));
         }
         Ok(())
@@ -1433,7 +1489,7 @@ impl IndexStore {
                 // Open the empty DB with tuned bulk ingestion options to
                 // speed up the initial indexing. The DB is reopened with default options
                 // afterwards.
-                IndexStoreTables::open_for_bulk_ingestion(path.clone())
+                IndexStoreTables::open_for_bulk_ingestion(path.clone(), 1)
             };
             let batch_size_limit = bulk_ingestion_options().batch_size_limit;
 
@@ -3489,7 +3545,7 @@ mod tests {
         let authority_store = open_authority_store(&dir.path().join("store"));
 
         let mut tables =
-            super::IndexStoreTables::open_for_bulk_ingestion(dir.path().join("indexes"));
+            super::IndexStoreTables::open_for_bulk_ingestion(dir.path().join("indexes"), 1);
         tables
             .init(
                 &authority_store,
@@ -4729,7 +4785,7 @@ mod tests {
         std::fs::create_dir_all(&index_dir).unwrap();
         std::fs::write(index_dir.join("stray"), b"leftover").unwrap();
 
-        let tables = super::IndexStoreTables::open_for_bulk_ingestion(index_dir.clone());
+        let tables = super::IndexStoreTables::open_for_bulk_ingestion(index_dir.clone(), 1);
         assert_eq!(tables.meta.get(&()).unwrap(), None);
         assert!(!index_dir.join("stray").exists());
     }

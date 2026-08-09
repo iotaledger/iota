@@ -851,7 +851,7 @@ pub async fn download_formal_snapshot(
         directory: Some(snapshot_dir.to_path_buf()),
         ..Default::default()
     };
-    let reader = StateSnapshotReaderV1::new(
+    let mut reader = StateSnapshotReaderV1::new(
         epoch,
         &snapshot_store_config,
         &local_store_config,
@@ -936,27 +936,10 @@ pub async fn download_formal_snapshot(
     // TODO if verify is false, we should skip generating these and
     // not pass in a channel to the reader
     let (sender, mut receiver) = mpsc::channel(num_parallel_downloads);
-    let snapshot_dir_clone = snapshot_dir.clone();
-    let m_clone = m.clone();
     let grpc_indexes_clone = grpc_indexes.clone();
     let jsonrpc_indexes_clone = jsonrpc_indexes.clone();
 
     let snapshot_handle = tokio::spawn(async move {
-        let local_store_config = ObjectStoreConfig {
-            object_store: Some(ObjectStoreType::File),
-            directory: Some(snapshot_dir_clone.to_path_buf()),
-            ..Default::default()
-        };
-        let mut reader = StateSnapshotReaderV1::new(
-            epoch,
-            &snapshot_store_config,
-            &local_store_config,
-            NonZeroUsize::new(num_parallel_downloads).unwrap(),
-            m_clone,
-            false, // skip_reset_local_store
-        )
-        .await
-        .unwrap_or_else(|err| panic!("Failed to create reader: {err}"));
         let grpc_restorer = grpc_indexes_clone.as_ref().map(|grpc_indexes| {
             grpc_indexes.live_object_restorer(bulk_ingestion_options().batch_size_limit)
         });
@@ -1073,18 +1056,30 @@ pub async fn download_formal_snapshot(
     // instead of re-indexing. All RocksDB handles close before the rename
     // below.
     if let Some(jsonrpc_indexes) = jsonrpc_indexes {
+        let jsonrpc_indexes_path = path.join(JSONRPC_INDEXES_DIR);
         Arc::into_inner(jsonrpc_indexes)
             .expect("the snapshot task is awaited, so its restorer handle is gone")
             .finalize(last_checkpoint.sequence_number)
             .await?;
+        JsonRpcIndexRestorer::verify_restored(
+            &jsonrpc_indexes_path,
+            last_checkpoint.sequence_number,
+            num_live_objects,
+        )
+        .await?;
     }
 
     // Finalize the gRPC live-state index store so the node opens it in place
-    // instead of re-indexing. Drop all RocksDB handles before the rename below.
+    // instead of re-indexing. All RocksDB handles close before the rename
+    // below.
     if let Some(grpc_indexes) = grpc_indexes {
-        grpc_indexes.finalize_restore(last_checkpoint.sequence_number)?;
-        Arc::into_inner(grpc_indexes)
-            .expect("the snapshot task is awaited, so its store handle is gone");
+        grpc_indexes
+            .finalize_and_verify_restore(
+                &path.join(GRPC_INDEXES_DIR),
+                last_checkpoint.sequence_number,
+                num_live_objects,
+            )
+            .await?;
     }
 
     let new_path = path.parent().unwrap().join("live");
