@@ -614,10 +614,12 @@ pub async fn setup_db_state(
     checkpoint_store.update_highest_executed_checkpoint(&last_checkpoint)?;
 
     if verify {
-        let iter = perpetual_db.iter_live_object_set();
+        let iter = perpetual_db
+            .iter_live_object_set()
+            .map(|live_object| live_object.map_err(Into::into));
         let local_digest = ECMHLiveObjectSetDigest::from(
             accumulate_live_object_iter(Box::new(iter), m.clone(), num_live_objects)
-                .await
+                .await?
                 .digest(),
         );
         assert_eq!(
@@ -633,10 +635,10 @@ pub async fn setup_db_state(
 }
 
 pub async fn accumulate_live_object_iter(
-    iter: Box<dyn Iterator<Item = LiveObject> + '_>,
+    iter: Box<dyn Iterator<Item = Result<LiveObject>> + '_>,
     m: MultiProgress,
     num_live_objects: u64,
-) -> GlobalStateHash {
+) -> Result<GlobalStateHash> {
     // Monitor progress of live object accumulation, whose position the ticker
     // takes from the counter the loop below advances
     let accum_counter = Arc::new(AtomicU64::new(0));
@@ -658,7 +660,7 @@ pub async fn accumulate_live_object_iter(
     // Accumulate live objects
     let mut acc = GlobalStateHash::default();
     for live_object in iter {
-        GlobalStateHasher::accumulate_live_object(&mut acc, &live_object);
+        GlobalStateHasher::accumulate_live_object(&mut acc, &live_object?);
         accum_counter.fetch_add(1, Ordering::Relaxed);
     }
     let num_accumulated = accum_counter.load(Ordering::Relaxed);
@@ -667,5 +669,5 @@ pub async fn accumulate_live_object_iter(
         "Accumulated more objects ({num_accumulated}) than expected ({num_live_objects})"
     );
     accum_ticker.finish_with_message("DB live object accumulation completed");
-    acc
+    Ok(acc)
 }

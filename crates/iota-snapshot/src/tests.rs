@@ -254,10 +254,10 @@ fn compare_live_objects(
     let mut object_set_1 = HashSet::new();
     let mut object_set_2 = HashSet::new();
     for live_object in db1.iter_live_object_set() {
-        object_set_1.insert(live_object.object_reference());
+        object_set_1.insert(live_object?.object_reference());
     }
     for live_object in db2.iter_live_object_set() {
-        object_set_2.insert(live_object.object_reference());
+        object_set_2.insert(live_object?.object_reference());
     }
     assert_eq!(object_set_1, object_set_2);
     Ok(())
@@ -266,7 +266,7 @@ fn compare_live_objects(
 fn accumulate_live_object_set(perpetual_db: &AuthorityPerpetualTables) -> GlobalStateHash {
     let mut acc = GlobalStateHash::default();
     perpetual_db.iter_live_object_set().for_each(|live_object| {
-        GlobalStateHasher::accumulate_live_object(&mut acc, &live_object);
+        GlobalStateHasher::accumulate_live_object(&mut acc, &live_object.unwrap());
     });
     acc
 }
@@ -758,6 +758,7 @@ async fn snapshot_round_trip_per_object_checkpoint() -> Result<(), anyhow::Error
     let restored: HashMap<ObjectId, Option<u64>> = restored_perpetual_db
         .iter_live_object_set()
         .map(|live_object| {
+            let live_object = live_object.unwrap();
             (
                 live_object.object_id(),
                 live_object.previous_transaction_checkpoint,
