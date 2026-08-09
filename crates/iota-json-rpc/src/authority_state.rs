@@ -79,7 +79,7 @@ pub trait StateRead: Send + Sync {
         owner: ObjectId,
         cursor: Option<ObjectId>,
         limit: usize,
-    ) -> StateReadResult<Vec<(ObjectId, DynamicFieldInfo)>>;
+    ) -> StateReadResult<Vec<(ObjectId, Option<DynamicFieldInfo>)>>;
 
     fn get_cache_reader(&self) -> &Arc<dyn ObjectCacheRead>;
 
@@ -256,7 +256,7 @@ impl StateRead for AuthorityState {
         owner: ObjectId,
         cursor: Option<ObjectId>,
         limit: usize,
-    ) -> StateReadResult<Vec<(ObjectId, DynamicFieldInfo)>> {
+    ) -> StateReadResult<Vec<(ObjectId, Option<DynamicFieldInfo>)>> {
         Ok(self.get_dynamic_fields(owner, cursor, limit)?)
     }
 
