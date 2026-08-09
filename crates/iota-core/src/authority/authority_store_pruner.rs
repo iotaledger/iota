@@ -1271,6 +1271,7 @@ mod tests {
         let db_snapshot = db.db_snapshot();
         let through_snapshot = |db_snapshot: &_| -> Vec<(ObjectId, Version)> {
             db.iter_live_object_set_at(db_snapshot)
+                .map(|live| live.unwrap())
                 .map(|live| (live.object_id(), live.version()))
                 .collect()
         };
@@ -1326,6 +1327,7 @@ mod tests {
         // happened at all.
         assert_eq!(
             db.iter_live_object_set()
+                .map(|live| live.unwrap())
                 .map(|live| (live.object_id(), live.version()))
                 .collect::<Vec<_>>(),
             vec![(id, Version::from_u64(1))],
