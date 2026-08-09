@@ -30,7 +30,7 @@ pub trait ParMakeLiveObjectIndexer: Sync {
 pub trait LiveObjectIndexer {
     /// Called on each object in the range of the live object set this indexer
     /// task is responsible for.
-    fn index_object(&mut self, object: Object) -> Result<(), StorageError>;
+    fn index_object(&mut self, object: &Object) -> Result<(), StorageError>;
 
     /// Called once the range of objects this indexer task is responsible for
     /// have been processed by calling `index_object`.
@@ -140,7 +140,7 @@ fn live_object_set_index_task<T: LiveObjectIndexer>(
             objects_scanned.fetch_add(COUNTER_CHUNK, Ordering::Relaxed);
         }
 
-        object_indexer.index_object(object)?
+        object_indexer.index_object(&object)?
     }
     objects_scanned.fetch_add(object_scanned % COUNTER_CHUNK, Ordering::Relaxed);
     position.store(
@@ -173,10 +173,8 @@ fn report_scan_progress_until_done(
         let fraction = scan_fraction(bits, positions);
         let scanned = objects_scanned.load(Ordering::Relaxed);
         let elapsed = start_time.elapsed();
-        let rate = scanned as f64 / elapsed.as_secs_f64().max(f64::EPSILON);
-        let eta = estimated_time_remaining(elapsed, fraction)
-            .map(format_duration)
-            .unwrap_or_else(|| "unknown".to_string());
+        let rate = progress_rate(scanned, elapsed);
+        let eta = eta_display(elapsed, fraction);
         info!(
             "Indexing live object set: ~{:.1}% done, {} objects scanned ({} objects/s), ETA ~{eta}",
             fraction * 100.0,
@@ -224,15 +222,28 @@ fn id_position(id: &ObjectId) -> u64 {
 
 /// Extrapolates how much longer the work will take, assuming the rate so far
 /// holds. Returns `None` when no progress was made yet.
-pub(crate) fn estimated_time_remaining(elapsed: Duration, fraction_done: f64) -> Option<Duration> {
+fn estimated_time_remaining(elapsed: Duration, fraction_done: f64) -> Option<Duration> {
     if fraction_done <= 0.0 || fraction_done > 1.0 {
         return None;
     }
     Duration::try_from_secs_f64(elapsed.as_secs_f64() * (1.0 - fraction_done) / fraction_done).ok()
 }
 
+/// Items processed per second since the work started.
+pub(crate) fn progress_rate(items: u64, elapsed: Duration) -> f64 {
+    items as f64 / elapsed.as_secs_f64().max(f64::EPSILON)
+}
+
+/// The estimated time remaining formatted for progress lines, or "unknown"
+/// when no progress was made yet.
+pub(crate) fn eta_display(elapsed: Duration, fraction_done: f64) -> String {
+    estimated_time_remaining(elapsed, fraction_done)
+        .map(format_duration)
+        .unwrap_or_else(|| "unknown".to_string())
+}
+
 /// Formats a duration for progress lines, e.g. "1h 42m", "3m 20s", or "45s".
-pub(crate) fn format_duration(duration: Duration) -> String {
+fn format_duration(duration: Duration) -> String {
     let secs = duration.as_secs();
     let (hours, minutes, seconds) = (secs / 3600, (secs % 3600) / 60, secs % 60);
     if hours > 0 {
