@@ -599,10 +599,24 @@ impl IotaNode {
             checkpoint_store.clone(),
         );
 
-        let index_store = if is_full_node && config.enable_index_processing {
-            info!("creating index store");
+        // The legacy database can no longer be adopted, so remove it whether
+        // or not indexing stays enabled: left in place it holds on to
+        // potentially hundreds of gigabytes.
+        if is_full_node {
             if let Err(e) = remove_legacy_jsonrpc_indexes_dir(&config.db_path()) {
                 warn!("failed to remove the legacy JSON-RPC index database: {e}");
+            }
+        }
+        let index_store = if is_full_node && config.enable_index_processing {
+            info!("creating index store");
+            if config
+                .authority_store_pruning_config
+                .num_epochs_to_retain_for_indexes
+                .is_none()
+            {
+                warn!(
+                    "index pruning is off (num_epochs_to_retain_for_indexes is unset): the history index adds a column family per epoch and grows without bound"
+                );
             }
             Some(
                 IndexStore::new(
