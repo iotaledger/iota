@@ -172,7 +172,8 @@ impl AuthorityStorePruningMetrics {
             earliest_retained_indexes_epoch: register_int_gauge_with_registry!(
                 "earliest_retained_indexes_epoch",
                 "Earliest epoch whose JSON-RPC index history is retained",
-                registry
+                registry;
+                MetricLevel::Warn,
             )
             .unwrap(),
             num_epochs_to_retain_for_objects: register_int_gauge_with_registry!(
@@ -900,9 +901,17 @@ impl AuthorityStorePruner {
                     }
                 }
                 if prune_indexes {
-                    if let Err(err) =
+                    // `IndexStore::prune` blocks queries on its lock while
+                    // dropping column families; keep it off the async
+                    // workers.
+                    let jsonrpc_index = jsonrpc_index.clone();
+                    let config = config.clone();
+                    let metrics = metrics.clone();
+                    let result = tokio::task::spawn_blocking(move || {
                         Self::prune_indexes(jsonrpc_index.as_deref(), &config, &metrics)
-                    {
+                    })
+                    .await;
+                    if let Ok(Err(err)) | Err(err) = result.map_err(anyhow::Error::from) {
                         error!("Failed to prune indexes: {:?}", err);
                     }
                 }
