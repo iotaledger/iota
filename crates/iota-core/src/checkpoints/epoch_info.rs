@@ -362,60 +362,25 @@ fn open_epoch_of(checkpoint: &CheckpointSummary) -> EpochId {
 #[cfg(test)]
 mod tests {
     use iota_sdk_types::{
-        GasCostSummary, TransactionDigest, TransactionEffects, TransactionEvents,
-        checkpoint::{CheckpointContents, CheckpointSummary, EndOfEpochData},
+        TransactionDigest, TransactionEffects, TransactionEvents,
+        checkpoint::{CheckpointContents, EndOfEpochData},
     };
     use iota_types::{
-        crypto::AuthorityStrongQuorumSignInfo,
         effects::TransactionEffectsExtForTesting,
         iota_system_state::IotaSystemState,
-        message_envelope::Envelope,
-        messages_checkpoint::{
-            CertifiedCheckpointSummary, CheckpointContentsExt, VerifiedCheckpoint,
-        },
+        messages_checkpoint::{CheckpointContentsExt, VerifiedCheckpoint},
     };
     use typed_store::Map;
 
     use super::*;
-    use crate::checkpoints::CheckpointStore;
-
-    fn certified_summary(epoch: EpochId, sequence_number: u64) -> CertifiedCheckpointSummary {
-        certified_summary_with(epoch, sequence_number, None)
-    }
-
-    fn certified_summary_with(
-        epoch: EpochId,
-        sequence_number: u64,
-        end_of_epoch_data: Option<EndOfEpochData>,
-    ) -> CertifiedCheckpointSummary {
-        let summary = CheckpointSummary {
-            epoch,
-            sequence_number,
-            network_total_transactions: 0,
-            contents_digest: Default::default(),
-            previous_digest: None,
-            epoch_rolling_gas_cost_summary: GasCostSummary::default(),
-            end_of_epoch_data,
-            timestamp_ms: 0,
-            version_specific_data: Vec::new(),
-            checkpoint_commitments: Vec::new(),
-        };
-        let sig = AuthorityStrongQuorumSignInfo {
-            epoch,
-            signature: Default::default(),
-            signers_map: Default::default(),
-        };
-        Envelope::new_from_data_and_sig(summary, sig)
-    }
-
-    /// An executed (non-boundary) checkpoint.
-    fn executed_checkpoint(epoch: EpochId, sequence_number: u64) -> VerifiedCheckpoint {
-        VerifiedCheckpoint::new_unchecked(certified_summary(epoch, sequence_number))
-    }
+    use crate::{
+        checkpoints::CheckpointStore,
+        test_utils::{certified_summary, executed_checkpoint},
+    };
 
     /// An executed close-of-epoch checkpoint.
     fn closing_checkpoint(epoch: EpochId, sequence_number: u64) -> VerifiedCheckpoint {
-        VerifiedCheckpoint::new_unchecked(certified_summary_with(
+        VerifiedCheckpoint::new_unchecked(certified_summary(
             epoch,
             sequence_number,
             Some(EndOfEpochData {
@@ -435,7 +400,7 @@ mod tests {
             start_timestamp_ms: 0,
             system_state: IotaSystemState::for_testing(epoch, 1),
             epoch_close_proof: Some(EpochInfoV1Entry {
-                last_checkpoint_summary: certified_summary(epoch, 0),
+                last_checkpoint_summary: certified_summary(epoch, 0, None),
                 last_checkpoint_contents: CheckpointContents::new_with_digests_only_for_tests(
                     std::iter::empty(),
                 ),

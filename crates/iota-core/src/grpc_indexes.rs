@@ -884,16 +884,13 @@ impl GrpcIndexesStore {
                     let bulk_options = bulk_ingestion_options();
                     batch_size_limit = bulk_options.batch_size_limit;
 
-                    // Apply the per-column-family bulk options to every table.
-                    let mut table_config = BTreeMap::new();
-                    for table_name in IndexStoreTables::describe_tables().into_keys() {
-                        table_config.insert(table_name, bulk_options.column_family_options.clone());
-                    }
+                    let table_config =
+                        bulk_options.table_config(IndexStoreTables::describe_tables().into_keys());
 
                     IndexStoreTables::open_with_options(
                         &path,
                         bulk_options.db_options,
-                        Some(DBMapTableConfigMap::new(table_config)),
+                        Some(table_config),
                     )
                 };
 
@@ -1291,7 +1288,7 @@ impl ParMakeLiveObjectIndexer for GrpcLiveObjectRestorer<'_> {
 pub struct GrpcPartitionIndexer<'a>(GrpcLiveObjectIndexer<'a>);
 
 impl GrpcPartitionIndexer<'_> {
-    pub fn index_object(&mut self, object: Object) -> Result<(), StorageError> {
+    pub fn index_object(&mut self, object: &Object) -> Result<(), StorageError> {
         self.0.index_object(object)
     }
 
@@ -1302,7 +1299,7 @@ impl GrpcPartitionIndexer<'_> {
 }
 
 impl LiveObjectIndexer for GrpcPartitionIndexer<'_> {
-    fn index_object(&mut self, object: Object) -> Result<(), StorageError> {
+    fn index_object(&mut self, object: &Object) -> Result<(), StorageError> {
         GrpcPartitionIndexer::index_object(self, object)
     }
 
@@ -1319,17 +1316,17 @@ struct GrpcLiveObjectIndexer<'a> {
 }
 
 impl LiveObjectIndexer for GrpcLiveObjectIndexer<'_> {
-    fn index_object(&mut self, object: Object) -> Result<(), StorageError> {
+    fn index_object(&mut self, object: &Object) -> Result<(), StorageError> {
         match object.owner {
             Owner::Address(owner) => {
-                if let Some((owner_key, owner_info)) = make_owner_key(owner, &object) {
+                if let Some((owner_key, owner_info)) = make_owner_key(owner, object) {
                     self.batch
                         .insert_batch(&self.tables.owner, [(owner_key, owner_info)])?;
                 }
             }
             // Dynamic Field Index
             Owner::Object(parent) => {
-                if should_index_dynamic_field(&object) {
+                if should_index_dynamic_field(object) {
                     let field_key = DynamicFieldKey::new(parent, object.id());
                     self.batch
                         .insert_batch(&self.tables.dynamic_field, [(field_key, ())])?;
@@ -1340,18 +1337,18 @@ impl LiveObjectIndexer for GrpcLiveObjectIndexer<'_> {
         }
 
         // Look for CoinMetadata<T> and TreasuryCap<T> objects
-        if let Some((key, value)) = try_create_coin_index_info(&object) {
+        if let Some((key, value)) = try_create_coin_index_info(object) {
             merge_coin_into(&mut self.coin_index.lock().unwrap(), key, value);
         }
 
         // Package version index
-        if let Some((key, info)) = try_create_package_version_info(&object) {
+        if let Some((key, info)) = try_create_package_version_info(object) {
             self.batch
                 .insert_batch(&self.tables.package_version, [(key, info)])?;
         }
 
         // Regulated coin index
-        if let Some((key, object_id)) = try_create_regulated_coin_info(&object) {
+        if let Some((key, object_id)) = try_create_regulated_coin_info(object) {
             merge_coin_into(
                 &mut self.coin_index.lock().unwrap(),
                 key,
@@ -1380,38 +1377,11 @@ impl LiveObjectIndexer for GrpcLiveObjectIndexer<'_> {
 
 #[cfg(test)]
 mod tests {
-    use iota_sdk_types::{GasCostSummary, checkpoint::CheckpointSummary};
-    use iota_types::{
-        crypto::AuthorityStrongQuorumSignInfo, iota_system_state::IotaSystemState,
-        message_envelope::Envelope, messages_checkpoint::VerifiedCheckpoint,
-    };
+    use iota_types::iota_system_state::IotaSystemState;
     use typed_store::rocks::{MetricConf, ReadWriteOptions, open_cf_opts};
 
     use super::*;
-
-    /// An executed (non-boundary) checkpoint for seeding a test
-    /// `CheckpointStore`, with a placeholder signature and no end-of-epoch
-    /// data.
-    fn executed_checkpoint(epoch: EpochId, sequence_number: u64) -> VerifiedCheckpoint {
-        let summary = CheckpointSummary {
-            epoch,
-            sequence_number,
-            network_total_transactions: 0,
-            contents_digest: Default::default(),
-            previous_digest: None,
-            epoch_rolling_gas_cost_summary: GasCostSummary::default(),
-            end_of_epoch_data: None,
-            timestamp_ms: 0,
-            version_specific_data: Vec::new(),
-            checkpoint_commitments: Vec::new(),
-        };
-        let sig = AuthorityStrongQuorumSignInfo {
-            epoch,
-            signature: Default::default(),
-            signers_map: Default::default(),
-        };
-        VerifiedCheckpoint::new_unchecked(Envelope::new_from_data_and_sig(summary, sig))
-    }
+    use crate::test_utils::executed_checkpoint;
 
     /// The live-object restorer must derive the same live-state indexes from
     /// an external object stream that `init` derives from a store scan: an
@@ -1429,7 +1399,7 @@ mod tests {
 
         let restorer = grpc.live_object_restorer(100);
         let mut partition = restorer.begin_partition();
-        partition.index_object(object).unwrap();
+        partition.index_object(&object).unwrap();
         partition.finish().unwrap();
         restorer.finish().unwrap();
 

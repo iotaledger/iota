@@ -7183,7 +7183,6 @@ dependencies = [
  "iota-common",
  "iota-config",
  "iota-core",
- "iota-genesis-common",
  "iota-grpc-server",
  "iota-http",
  "iota-json-rpc",
