@@ -3226,7 +3226,9 @@ impl AuthorityState {
         state_hasher: Arc<GlobalStateHasher>,
         cur_epoch_store: &AuthorityPerEpochStore,
     ) {
-        let live_object_set_hash = state_hasher.digest_live_object_set();
+        let live_object_set_hash = state_hasher
+            .digest_live_object_set()
+            .expect("Reading the live object set cannot fail");
 
         let root_state_hash: ECMHLiveObjectSetDigest = self
             .get_global_state_hash_store()
@@ -5499,6 +5501,7 @@ impl AuthorityState {
     ) -> impl Iterator<Item = authority_store_tables::LiveObject> + '_ {
         self.get_global_state_hash_store()
             .iter_cached_live_object_set_for_testing()
+            .map(|live_object| live_object.expect("reading the live object set cannot fail"))
     }
 
     #[cfg(test)]

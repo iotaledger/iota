@@ -323,7 +323,10 @@ impl SingleValidator {
             .get_validator()
             .get_global_state_hash_store()
             .iter_cached_live_object_set_for_testing()
-            .map(|o| (o.object.id(), o.object))
+            .map(|o| {
+                let o = o.expect("reading the live object set cannot fail");
+                (o.object.id(), o.object)
+            })
             .collect();
         InMemoryObjectStore::new(objects)
     }

@@ -458,6 +458,7 @@ impl StateSnapshotWriterV1 {
             path_to_filesystem(self.local_staging_dir.clone(), &self.epoch_dir(epoch))?;
         let mut acc = GlobalStateHash::default();
         for live_object in perpetual_db.iter_live_object_set() {
+            let live_object = live_object?;
             GlobalStateHasher::accumulate_live_object(&mut acc, &live_object);
             let bucket_num = bucket_func(&live_object);
             // Creates a new LiveObjectSetWriterV1 for the bucket if it does not exist
