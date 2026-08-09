@@ -112,6 +112,7 @@ impl Container {
                 // run until canceled
                 cancel_receiver.map(|_| ()).await;
 
+                server.shutdown().await;
                 trace!("cancellation received; shutting down thread");
             });
         }).unwrap();
