@@ -2,12 +2,19 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{path::PathBuf, sync::Arc, time::Duration};
+use std::{
+    path::PathBuf,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
+    time::Duration,
+};
 
 use clap::{ArgGroup, Parser};
 use iota_common::sync::async_once_cell::AsyncOnceCell;
 use iota_config::{Config, NodeConfig, node::RunWithRange};
-use iota_core::runtime::IotaRuntimes;
+use iota_core::{index_rebuild_cancellation::RebuildCancelled, runtime::IotaRuntimes};
 use iota_metrics::hardware_metrics::register_hardware_metrics;
 use iota_multiaddr::Multiaddr;
 use iota_node::{IotaNode, ServerVersion};
@@ -26,6 +33,10 @@ static GLOBAL: CounterAlloc<std::alloc::System> = CounterAlloc::new(std::alloc::
 
 // Define the `GIT_REVISION` and `VERSION` consts
 bin_version::bin_version!();
+
+/// How long the graceful shutdown after a termination signal may take before
+/// the runtimes are stopped anyway.
+const SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(30);
 
 #[derive(Parser)]
 #[command(
@@ -151,24 +162,44 @@ fn main() {
     // work if it deadlocks.
     let node_once_cell = Arc::new(AsyncOnceCell::<Arc<IotaNode>>::new());
     let node_once_cell_clone = node_once_cell.clone();
+    let node_once_cell_shutdown = node_once_cell.clone();
 
     // let iota-node signal main to shutdown runtimes
     let (runtime_shutdown_tx, runtime_shutdown_rx) = broadcast::channel::<()>(1);
+
+    // The RPC index rebuild runs before the node exists, so no other shutdown
+    // path reaches it.
+    let index_rebuild_cancelled = Arc::new(AtomicBool::new(false));
 
     // Client-facing servers run on a dedicated runtime so that external request
     // load never shares worker threads with the node core on `iota_node`.
     let serving_rt_handle = runtimes.serving.handle().clone();
 
+    let index_rebuild_cancelled_clone = index_rebuild_cancelled.clone();
     runtimes.iota_node.spawn(async move {
         let server_version = ServerVersion::new(env!("CARGO_BIN_NAME"), VERSION);
-        match IotaNode::start_async(config, registry_service, server_version, serving_rt_handle)
-            .await
+        match IotaNode::start_async(
+            config,
+            registry_service,
+            server_version,
+            serving_rt_handle,
+            index_rebuild_cancelled_clone,
+        )
+        .await
         {
             Ok(iota_node) => node_once_cell_clone
                 .set(iota_node)
                 .expect("Failed to set node in AsyncOnceCell"),
 
             Err(e) => {
+                // A rebuild abandoned at shutdown is a clean stop, so an
+                // on-failure supervisor must not restart into a fresh one.
+                if e.chain()
+                    .any(|source| source.downcast_ref::<RebuildCancelled>().is_some())
+                {
+                    info!("Node startup cancelled by shutdown: {e}");
+                    std::process::exit(0);
+                }
                 error!("Failed to start node: {e:?}");
                 std::process::exit(1);
             }
@@ -202,6 +233,25 @@ fn main() {
         .build()
         .unwrap()
         .block_on(wait_termination(runtime_shutdown_rx));
+
+    index_rebuild_cancelled.store(true, Ordering::Relaxed);
+
+    // Stop the node's background work before its runtimes go away. It runs
+    // on the node runtime, and `AsyncOnceCell::get` waits for a node that a
+    // signal during startup may never produce, so both are bounded here.
+    runtimes.iota_node.block_on(async {
+        match tokio::time::timeout(SHUTDOWN_TIMEOUT, node_once_cell_shutdown.get()).await {
+            Ok(node) => {
+                if tokio::time::timeout(SHUTDOWN_TIMEOUT, node.shutdown())
+                    .await
+                    .is_err()
+                {
+                    error!("node shutdown timed out, stopping anyway");
+                }
+            }
+            Err(_) => info!("shutting down before the node finished starting"),
+        }
+    });
 
     // Drop and wait all runtimes on main thread
     drop(runtimes);

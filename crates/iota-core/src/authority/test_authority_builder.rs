@@ -329,8 +329,10 @@ impl<'a> TestAuthorityBuilder<'a> {
                         .max_move_identifier_len_as_option(),
                     &authority_store,
                     &checkpoint_store,
+                    Arc::default(),
                 )
-                .await,
+                .await
+                .expect("failed to open the JSON-RPC index store"),
             )
         };
         let grpc_indexes_store = if self.disable_indexer {
@@ -341,8 +343,10 @@ impl<'a> TestAuthorityBuilder<'a> {
                     storage_dir.join(GRPC_INDEXES_DIR),
                     Arc::clone(&authority_store),
                     &checkpoint_store,
+                    &Default::default(),
                 )
-                .await,
+                .await
+                .expect("failed to open the gRPC index store"),
             ))
         };
 

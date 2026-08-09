@@ -9,9 +9,12 @@ use std::{
 
 use iota_sdk_types::ObjectId;
 use iota_types::{object::Object, storage::error::Error as StorageError};
-use tracing::info;
+use tracing::{info, warn};
 
-use crate::authority::AuthorityStore;
+use crate::{
+    authority::AuthorityStore,
+    index_rebuild_cancellation::{RebuildCancelled, is_cancelled},
+};
 
 /// How often long-running indexing work logs a progress line.
 pub(crate) const PROGRESS_REPORT_INTERVAL: Duration = Duration::from_secs(30);
@@ -44,10 +47,15 @@ pub trait LiveObjectIndexer {
 /// User's will need to implement the `ParMakeLiveObjectIndexer` trait which
 /// will be used to make N `LiveObjectIndexer`s which will then process one of
 /// the disjoint parts of the live object set.
+///
+/// Setting `cancelled` fails the scan early, so a caller that must not wait
+/// for a full pass — a shutting-down node, which these threads hold open — can
+/// abandon it; the partial work is the caller's to discard.
 #[tracing::instrument(skip_all)]
 pub fn par_index_live_object_set<T: ParMakeLiveObjectIndexer>(
     authority_store: &AuthorityStore,
     make_indexer: &T,
+    cancelled: &AtomicBool,
 ) -> Result<(), StorageError> {
     info!("Indexing Live Object Set");
     let start_time = Instant::now();
@@ -81,6 +89,7 @@ pub fn par_index_live_object_set<T: ParMakeLiveObjectIndexer>(
                     object_indexer,
                     position,
                     objects_scanned,
+                    cancelled,
                 )
             }));
         }
@@ -90,7 +99,13 @@ pub fn par_index_live_object_set<T: ParMakeLiveObjectIndexer>(
         let mut result = Ok(());
         for thread in threads {
             if let Err(e) = thread.join().unwrap() {
-                result = result.and(Err(e));
+                if result.is_ok() {
+                    result = Err(e);
+                } else if !is_cancelled(&e) {
+                    // Only the first error is returned, and a cancellation
+                    // is reported by the task that returned it already.
+                    warn!("another live object set indexing task failed: {e}");
+                }
             }
         }
         done.store(true, Ordering::Relaxed);
@@ -107,7 +122,7 @@ pub fn par_index_live_object_set<T: ParMakeLiveObjectIndexer>(
     Ok(())
 }
 
-#[tracing::instrument(skip(authority_store, object_indexer, position, objects_scanned))]
+#[tracing::instrument(skip(authority_store, object_indexer, position, objects_scanned, cancelled))]
 fn live_object_set_index_task<T: LiveObjectIndexer>(
     task_id: u8,
     bits: u8,
@@ -115,8 +130,14 @@ fn live_object_set_index_task<T: LiveObjectIndexer>(
     mut object_indexer: T,
     position: &AtomicU64,
     objects_scanned: &AtomicU64,
+    cancelled: &AtomicBool,
 ) -> Result<(), StorageError> {
     const COUNTER_CHUNK: u64 = 10_000;
+    const CANCELLATION_CHUNK: u64 = 1_024;
+
+    if cancelled.load(Ordering::Relaxed) {
+        return Err(scan_cancelled());
+    }
 
     let mut id_bytes = [0; ObjectId::LENGTH];
     id_bytes[0] = task_id << (8 - bits);
@@ -139,6 +160,9 @@ fn live_object_set_index_task<T: LiveObjectIndexer>(
         if object_scanned.is_multiple_of(COUNTER_CHUNK) {
             objects_scanned.fetch_add(COUNTER_CHUNK, Ordering::Relaxed);
         }
+        if object_scanned.is_multiple_of(CANCELLATION_CHUNK) && cancelled.load(Ordering::Relaxed) {
+            return Err(scan_cancelled());
+        }
 
         object_indexer.index_object(&object)?
     }
@@ -151,6 +175,10 @@ fn live_object_set_index_task<T: LiveObjectIndexer>(
     object_indexer.finish()?;
 
     Ok(())
+}
+
+fn scan_cancelled() -> StorageError {
+    RebuildCancelled::error("the live object set scan was cancelled")
 }
 
 /// Logs a progress line with estimated percent, scan rate, and remaining time
