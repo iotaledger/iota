@@ -81,6 +81,7 @@ use moka::sync::SegmentedCache as MokaCache;
 use parking_lot::Mutex;
 use tap::TapOptional;
 use tracing::{debug, info, instrument, trace, warn};
+use typed_store::DbIterator;
 
 use super::{
     Batch, CheckpointCache, ExecutionCacheAPI, ExecutionCacheCommit, ExecutionCacheMetrics,
@@ -2382,7 +2383,7 @@ impl GlobalStateHashStore for WritebackCache {
             .insert_state_hash_for_epoch(epoch, checkpoint_seq_num, acc)
     }
 
-    fn iter_live_object_set(&self) -> Box<dyn Iterator<Item = LiveObject> + '_> {
+    fn iter_live_object_set(&self) -> DbIterator<'_, LiveObject> {
         // The only time it is safe to iterate the live object set is at an epoch
         // boundary, at which point the db is consistent and the dirty cache is
         // empty. So this does read the cache
@@ -2396,13 +2397,17 @@ impl GlobalStateHashStore for WritebackCache {
     // A version of iter_live_object_set that reads the cache. Only use for testing.
     // If used on a live validator, can cause the server to block for as long as
     // it takes to iterate the entire live object set.
-    fn iter_cached_live_object_set_for_testing(&self) -> Box<dyn Iterator<Item = LiveObject> + '_> {
+    fn iter_cached_live_object_set_for_testing(&self) -> DbIterator<'_, LiveObject> {
         // hold iter until we are finished to prevent any concurrent inserts/deletes
         let iter = self.dirty.objects.iter();
         let mut dirty_objects = BTreeMap::new();
 
         // add everything from the store
         for obj in self.store.iter_live_object_set() {
+            let obj = match obj {
+                Ok(obj) => obj,
+                Err(err) => return Box::new(std::iter::once(Err(err))),
+            };
             dirty_objects.insert(obj.object_id(), obj);
         }
 
@@ -2432,7 +2437,7 @@ impl GlobalStateHashStore for WritebackCache {
             }
         }
 
-        Box::new(dirty_objects.into_values())
+        Box::new(dirty_objects.into_values().map(Ok))
     }
 }
 

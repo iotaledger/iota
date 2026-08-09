@@ -114,7 +114,7 @@ pub async fn execute_certificate_with_execution_error(
     // lead to transaction execution and state change.
     let state_acc =
         GlobalStateHasher::new_for_tests(authority.get_global_state_hash_store().clone());
-    let mut state = state_acc.accumulate_cached_live_object_set_for_testing();
+    let mut state = state_acc.accumulate_cached_live_object_set_for_testing()?;
 
     let assigned_versions = if with_shared {
         if fake_consensus {
@@ -147,7 +147,7 @@ pub async fn execute_certificate_with_execution_error(
         &certificate,
         ExecutionEnv::new().with_assigned_versions(assigned_versions.clone()),
     )?;
-    let state_after = state_acc.accumulate_cached_live_object_set_for_testing();
+    let state_after = state_acc.accumulate_cached_live_object_set_for_testing()?;
     let effects_acc = state_acc.accumulate_effects(&[result.inner().data().clone()]);
     state.union(&effects_acc);
 

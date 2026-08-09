@@ -129,11 +129,11 @@ fn live_object_set_index_task<T: LiveObjectIndexer>(
     let end_id = ObjectId::new(id_bytes);
 
     let mut object_scanned: u64 = 0;
-    for object in authority_store
+    for live_object in authority_store
         .perpetual_tables
         .range_iter_live_object_set(Some(start_id), Some(end_id))
-        .map(|o| o.object)
     {
+        let object = live_object?.object;
         object_scanned += 1;
         position.store(id_position(&object.id()), Ordering::Relaxed);
         if object_scanned.is_multiple_of(COUNTER_CHUNK) {
