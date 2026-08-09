@@ -747,15 +747,10 @@ impl IndexStoreTables {
         digest: &TransactionDigest,
         batch: &mut DBBatch,
         object_index_changes: &ObjectIndexChanges,
-        tx_coins: Option<TxCoins>,
+        tx_coins: TxCoins,
         coin_changes: &mut BTreeMap<CoinIndexKey, (TypeTag, Option<CoinInfo>)>,
     ) -> IotaResult {
-        // In production if this code path is hit, we should expect `tx_coins` to not be
-        // None. However, in many tests today we do not distinguish validator
-        // and/or fullnode, so we gracefully exist here.
-        let Some((input_coins, written_coins)) = tx_coins else {
-            return Ok(());
-        };
+        let (input_coins, written_coins) = tx_coins;
         // 1. Delete old owner if the object is deleted or transferred to a new owner,
         // by looking at `object_index_changes.deleted_owners`.
         let coin_delete_keys = object_index_changes
@@ -831,7 +826,7 @@ impl IndexStoreTables {
         coin_changes: &mut BTreeMap<CoinIndexKey, (TypeTag, Option<CoinInfo>)>,
         digest: &TransactionDigest,
         object_index_changes: ObjectIndexChanges,
-        tx_coins: Option<TxCoins>,
+        tx_coins: TxCoins,
     ) -> IotaResult {
         self.index_coin(digest, batch, &object_index_changes, tx_coins, coin_changes)?;
 
@@ -2070,7 +2065,7 @@ impl IndexStore {
     ///
     /// Must be called for each checkpoint in sequence order, so that
     /// transaction sequence numbers follow checkpoint order.
-    pub fn index_checkpoint(&self, checkpoint: &CheckpointData, index_coins: bool) -> IotaResult {
+    pub fn index_checkpoint(&self, checkpoint: &CheckpointData) -> IotaResult {
         let checkpoint_seq = checkpoint.checkpoint_summary.sequence_number;
         let timestamp_ms = checkpoint.checkpoint_summary.timestamp_ms;
         let bucket = self.ensure_history_bucket(checkpoint.checkpoint_summary.epoch)?;
@@ -2098,7 +2093,7 @@ impl IndexStore {
             bucket.index_tx(&mut batch, sequence, timestamp_ms, data)?;
 
             let object_index_changes = process_object_index(tx);
-            let tx_coins = index_coins.then(|| transaction_coins(tx));
+            let tx_coins = transaction_coins(tx);
             self.tables.index_object_changes(
                 &mut batch,
                 &mut coin_changes,
@@ -2801,6 +2796,22 @@ impl IndexStore {
         if let Some(balance) = balance {
             return balance;
         }
+        // Repopulating a missed entry must not interleave with a commit for
+        // this owner: a value read between the commit's batch write and its
+        // cache merge would get the checkpoint's delta applied twice. The
+        // committer holds this lock across both, so the repopulation runs
+        // either fully before it (the delta then merges on top) or fully
+        // after (the merge skipped the absent key).
+        let _lock = self.caches.locks.acquire_lock(owner);
+        // A reader ahead of this one may have filled the entry while it
+        // waited.
+        if let Some(balance) = self
+            .caches
+            .per_coin_type_balance
+            .get(&(owner, coin_type.clone()))
+        {
+            return balance;
+        }
         // cache miss, lookup in all balance cache
         let all_balance = self.caches.all_balances.get(&owner.clone());
         if let Some(Ok(all_balance)) = all_balance {
@@ -2808,20 +2819,19 @@ impl IndexStore {
                 return Ok(*balance);
             }
         }
-        let cloned_coin_type = coin_type.clone();
-        let metrics_cloned = self.metrics.clone();
-        let coin_index_cloned = self.tables.coin_index.clone();
+        // The database read runs before the cache insert, so the cache
+        // shard's write lock is not held across the scan and owners of other
+        // shard entries stay unblocked.
+        let balance = Self::get_balance_from_db(
+            self.metrics.clone(),
+            self.tables.coin_index.clone(),
+            owner,
+            coin_type.clone(),
+        )
+        .map_err(|e| IotaError::Execution(format!("Failed to read balance frm DB: {e:?}")));
         self.caches
             .per_coin_type_balance
-            .get_with((owner, coin_type), move || {
-                Self::get_balance_from_db(
-                    metrics_cloned,
-                    coin_index_cloned,
-                    owner,
-                    cloned_coin_type,
-                )
-                .map_err(|e| IotaError::Execution(format!("Failed to read balance frm DB: {e:?}")))
-            })
+            .get_with((owner, coin_type), move || balance)
     }
 
     /// This method gets the balance for all coin types from the `all_balance`
@@ -2846,11 +2856,23 @@ impl IndexStore {
                 });
         }
 
-        self.caches.all_balances.get_with(owner, move || {
-            Self::get_all_balances_from_db(metrics_cloned, coin_index_cloned, owner).map_err(|e| {
+        if let Some(all_balance) = self.caches.all_balances.get(&owner) {
+            return all_balance;
+        }
+        // See `get_balance`: repopulation takes the owner's lock so it
+        // cannot interleave with a commit's write-then-merge, and the
+        // database read runs before the cache insert.
+        let _lock = self.caches.locks.acquire_lock(owner);
+        if let Some(all_balance) = self.caches.all_balances.get(&owner) {
+            return all_balance;
+        }
+        let all_balance = Self::get_all_balances_from_db(metrics_cloned, coin_index_cloned, owner)
+            .map_err(|e| {
                 IotaError::Execution(format!("Failed to read all balance from DB: {e:?}"))
-            })
-        })
+            });
+        self.caches
+            .all_balances
+            .get_with(owner, move || all_balance)
     }
 
     /// Read balance for a `Address` and `CoinType` from the backend
@@ -3875,7 +3897,7 @@ mod tests {
         }
         let mut builder = builder.finish_transaction();
         let checkpoint = builder.build_checkpoint();
-        index_store.index_checkpoint(&checkpoint, true)?;
+        index_store.index_checkpoint(&checkpoint)?;
         index_store.commit_update_for_checkpoint(0)?;
 
         let balance_from_db = IndexStore::get_balance_from_db(
@@ -3903,7 +3925,7 @@ mod tests {
         }
         let mut builder = builder.finish_transaction();
         let checkpoint = builder.build_checkpoint();
-        index_store.index_checkpoint(&checkpoint, true)?;
+        index_store.index_checkpoint(&checkpoint)?;
         index_store.commit_update_for_checkpoint(1)?;
 
         let balance_from_db = IndexStore::get_balance_from_db(
@@ -3942,6 +3964,64 @@ mod tests {
         assert_eq!(balance.balance, 700);
         assert_eq!(balance.num_coins, 7);
 
+        Ok(())
+    }
+
+    /// A cache-miss repopulation racing a commit must not double-apply the
+    /// checkpoint's delta: the committer holds the owner's lock from the
+    /// delta computation through the cache merge, and cache-miss reads take
+    /// the same lock, so a value read between the batch write and the merge
+    /// can never be merged onto.
+    #[tokio::test]
+    async fn test_balance_cache_repopulation_cannot_race_a_commit() -> anyhow::Result<()> {
+        let tmp_dir = iota_common::tempdir();
+        let index_store = std::sync::Arc::new(open_index_store(tmp_dir.path().to_path_buf()));
+        let address = TestCheckpointDataBuilder::derive_address(1);
+
+        let mut builder = TestCheckpointDataBuilder::new(0)
+            .start_transaction(0)
+            .create_coin_object(0, 1, 100, GAS::type_tag())
+            .finish_transaction();
+        let checkpoint = builder.build_checkpoint();
+        index_store.index_checkpoint(&checkpoint)?;
+        index_store.commit_update_for_checkpoint(0)?;
+
+        // A second coin for the same owner in checkpoint 1.
+        let mut builder = builder
+            .start_transaction(0)
+            .create_coin_object(1, 1, 100, GAS::type_tag())
+            .finish_transaction();
+        let checkpoint = builder.build_checkpoint();
+        index_store.index_checkpoint(&checkpoint)?;
+
+        // Replay the commit by hand, pausing between the batch write and the
+        // cache merge — the window where an unlocked reader used to cache
+        // the post-write value the merge was then applied on top of.
+        let reader = {
+            let (staged_seq, update) = index_store.pending_updates.lock().pop_first().unwrap();
+            assert_eq!(staged_seq, 1);
+            let cache_updates = index_store.balance_cache_updates(update.coin_changes)?;
+            update.batch.write()?;
+
+            let reader = std::thread::spawn({
+                let index_store = index_store.clone();
+                move || index_store.get_balance(address, GAS::type_tag()).unwrap()
+            });
+            // Give the reader time to reach the owner's lock. The sleep only
+            // makes the race likely: a slow reader arrives after the merge
+            // and the test passes without exercising it.
+            std::thread::sleep(std::time::Duration::from_millis(50));
+
+            index_store.update_per_coin_type_cache(cache_updates.per_coin_type_balance_changes)?;
+            index_store.update_all_balance_cache(cache_updates.all_balance_changes)?;
+            reader
+            // The owner locks in `cache_updates` release here.
+        };
+
+        assert_eq!(reader.join().unwrap().balance, 200);
+        let cached = index_store.get_balance(address, GAS::type_tag())?;
+        assert_eq!(cached.balance, 200);
+        assert_eq!(cached.num_coins, 2);
         Ok(())
     }
 
@@ -4000,6 +4080,78 @@ mod tests {
         assert_eq!(index_store.next_sequence_number(), 0);
     }
 
+    /// Concurrent misses on one owner cost a single coin scan.
+    #[tokio::test]
+    async fn test_a_balance_miss_takes_the_value_cached_while_it_waited() {
+        let tmp_dir = iota_common::tempdir();
+        let index_store = std::sync::Arc::new(open_index_store(tmp_dir.path().to_path_buf()));
+        let address = TestCheckpointDataBuilder::derive_address(1);
+        let cached = super::TotalBalance {
+            balance: 42,
+            num_coins: 7,
+        };
+
+        let lock = index_store.caches.locks.acquire_lock(address);
+        let reader = std::thread::spawn({
+            let index_store = index_store.clone();
+            move || index_store.get_balance(address, GAS::type_tag()).unwrap()
+        });
+        // Give the reader time to reach the owner's lock. A slow one passes
+        // without exercising the race.
+        std::thread::sleep(std::time::Duration::from_millis(50));
+
+        index_store
+            .caches
+            .per_coin_type_balance
+            .get_with((address, GAS::type_tag()), || Ok(cached))
+            .unwrap();
+        drop(lock);
+
+        assert_eq!(reader.join().unwrap(), cached);
+        assert_eq!(
+            index_store.metrics.balance_lookup_from_db.get(),
+            0,
+            "the waiting reader must not repeat the coin scan"
+        );
+    }
+
+    /// As above, for the all-balances cache.
+    #[tokio::test]
+    async fn test_an_all_balance_miss_takes_the_value_cached_while_it_waited() {
+        let tmp_dir = iota_common::tempdir();
+        let index_store = std::sync::Arc::new(open_index_store(tmp_dir.path().to_path_buf()));
+        let address = TestCheckpointDataBuilder::derive_address(1);
+        let cached = std::sync::Arc::new(std::collections::HashMap::from([(
+            GAS::type_tag(),
+            super::TotalBalance {
+                balance: 42,
+                num_coins: 7,
+            },
+        )]));
+
+        let lock = index_store.caches.locks.acquire_lock(address);
+        let reader = std::thread::spawn({
+            let index_store = index_store.clone();
+            move || index_store.get_all_balance(address).unwrap()
+        });
+        // See above: the sleep only makes the race likely.
+        std::thread::sleep(std::time::Duration::from_millis(50));
+
+        index_store
+            .caches
+            .all_balances
+            .get_with(address, || Ok(cached.clone()))
+            .unwrap();
+        drop(lock);
+
+        assert_eq!(reader.join().unwrap(), cached);
+        assert_eq!(
+            index_store.metrics.all_balance_lookup_from_db.get(),
+            0,
+            "the waiting reader must not repeat the coin scan"
+        );
+    }
+
     /// Replaying a committed checkpoint (crash recovery before the executed
     /// watermark advanced, or the upgrade to per-checkpoint indexing) must
     /// skip its already-indexed transactions: no new sequence numbers, no
@@ -4007,11 +4159,7 @@ mod tests {
     #[tokio::test]
     async fn test_index_checkpoint_skips_already_indexed() -> anyhow::Result<()> {
         let tmp_dir = iota_common::tempdir();
-        let index_store = IndexStore::new_without_init(
-            tmp_dir.path().to_path_buf(),
-            &Registry::default(),
-            Some(128),
-        );
+        let index_store = open_index_store(tmp_dir.path().to_path_buf());
         let address = TestCheckpointDataBuilder::derive_address(1);
 
         let mut builder = TestCheckpointDataBuilder::new(0)
@@ -4021,13 +4169,13 @@ mod tests {
         let checkpoint = builder.build_checkpoint();
         let digest = *checkpoint.transactions[0].effects.transaction_digest();
 
-        index_store.index_checkpoint(&checkpoint, true)?;
+        index_store.index_checkpoint(&checkpoint)?;
         index_store.commit_update_for_checkpoint(0)?;
         assert_eq!(index_store.get_transaction_seq(&digest)?, Some(0));
         assert_eq!(index_store.tables.watermark.get(&())?, Some(0));
 
         // Replay the same checkpoint.
-        index_store.index_checkpoint(&checkpoint, true)?;
+        index_store.index_checkpoint(&checkpoint)?;
         index_store.commit_update_for_checkpoint(0)?;
 
         assert_eq!(index_store.get_transaction_seq(&digest)?, Some(0));
@@ -4061,7 +4209,7 @@ mod tests {
         let tx_0 = *checkpoint_epoch_0.transactions[0]
             .effects
             .transaction_digest();
-        index_store.index_checkpoint(&checkpoint_epoch_0, true)?;
+        index_store.index_checkpoint(&checkpoint_epoch_0)?;
         index_store.commit_update_for_checkpoint(0)?;
 
         let mut builder = builder
@@ -4073,7 +4221,7 @@ mod tests {
         let tx_1 = *checkpoint_epoch_1.transactions[0]
             .effects
             .transaction_digest();
-        index_store.index_checkpoint(&checkpoint_epoch_1, true)?;
+        index_store.index_checkpoint(&checkpoint_epoch_1)?;
         index_store.commit_update_for_checkpoint(1)?;
 
         // Forward and reverse iteration chain across the buckets in order.
@@ -4279,7 +4427,7 @@ mod tests {
             .with_events(vec![event()])
             .finish_transaction();
         let checkpoint_epoch_0 = builder.build_checkpoint();
-        index_store.index_checkpoint(&checkpoint_epoch_0, true)?;
+        index_store.index_checkpoint(&checkpoint_epoch_0)?;
         index_store.commit_update_for_checkpoint(0)?;
 
         let mut builder = builder
@@ -4288,7 +4436,7 @@ mod tests {
             .with_events(vec![event()])
             .finish_transaction();
         let checkpoint_epoch_1 = builder.build_checkpoint();
-        index_store.index_checkpoint(&checkpoint_epoch_1, true)?;
+        index_store.index_checkpoint(&checkpoint_epoch_1)?;
         index_store.commit_update_for_checkpoint(1)?;
 
         let forward = index_store.event_iterator(0, u64::MAX, 0, 0, 10, false)?;
