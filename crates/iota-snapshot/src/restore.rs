@@ -97,13 +97,13 @@ impl Restore for RestoreWithIndexes<'_> {
                 return;
             }
             if let Some(indexer) = &mut grpc_partition_indexer {
-                if let Err(e) = indexer.index_object(live_object.object.clone()) {
+                if let Err(e) = indexer.index_object(&live_object.object) {
                     index_error = Some(e);
                     return;
                 }
             }
             if let Some(indexer) = &mut jsonrpc_partition_indexer {
-                if let Err(e) = indexer.index_object(live_object.object.clone()) {
+                if let Err(e) = indexer.index_object(&live_object.object) {
                     index_error = Some(e);
                 }
             }

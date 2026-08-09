@@ -25,13 +25,12 @@ use iota_protocol_config::{
     Chain, PerObjectCongestionControlMode, ProtocolConfig, ProtocolVersion,
 };
 use iota_sdk_types::{
-    Address, Argument, CancelledTransaction, CheckpointContents, CheckpointSequenceNumber,
-    CheckpointSummary, Command, ConsensusDeterminedVersionAssignments, Digest, EpochId,
-    ExecutionError, ExecutionStatus, GasCostSummary, GasPayment, Identifier, MoveStruct,
-    ObjectData, ObjectDigest, ObjectId, ObjectReference, Owner, ProgrammableTransaction,
-    SharedObjectReference, StructTag, Transaction, TransactionDigest, TransactionEffects,
-    TransactionExpiration, TransactionKind, TransactionV1, TypeTag, Version, VersionAssignment,
-    crypto::SimpleSignature,
+    Address, Argument, CancelledTransaction, CheckpointContents, CheckpointSequenceNumber, Command,
+    ConsensusDeterminedVersionAssignments, Digest, EpochId, ExecutionError, ExecutionStatus,
+    GasPayment, Identifier, MoveStruct, ObjectData, ObjectDigest, ObjectId, ObjectReference, Owner,
+    ProgrammableTransaction, SharedObjectReference, StructTag, Transaction, TransactionDigest,
+    TransactionEffects, TransactionExpiration, TransactionKind, TransactionV1, TypeTag, Version,
+    VersionAssignment, crypto::SimpleSignature,
 };
 use iota_types::{
     base_types::{
@@ -39,8 +38,8 @@ use iota_types::{
     },
     committee::Committee,
     crypto::{
-        AccountKeyPair, AuthorityKeyPair, AuthorityPublicKey, AuthorityStrongQuorumSignInfo,
-        IotaSignature, get_key_pair, random_committee_key_pairs_of_size,
+        AccountKeyPair, AuthorityKeyPair, AuthorityPublicKey, IotaSignature, get_key_pair,
+        random_committee_key_pairs_of_size,
     },
     dynamic_field::{DynamicFieldInfo, DynamicFieldType},
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
@@ -53,7 +52,7 @@ use iota_types::{
     in_memory_storage::InMemoryStorage,
     inner_temporary_store::PackageStoreWithFallback,
     iota_system_state::{IotaSystemStateTrait, IotaSystemStateWrapper},
-    messages_checkpoint::{CertifiedCheckpointSummary, CheckpointContentsExt},
+    messages_checkpoint::CheckpointContentsExt,
     messages_consensus::{AuthorityCapabilitiesV1, ConsensusTransaction, ConsensusTransactionKind},
     messages_grpc::{LayoutGenerationOption, ObjectInfoRequest, TransactionInfoRequest},
     object::{GAS_VALUE_FOR_TESTING, MoveStructExt, OBJECT_START_VERSION, Object},
@@ -3916,25 +3915,12 @@ fn jsonrpc_index_transaction(
         .unwrap();
 
     let epoch_store = authority_state.epoch_store_for_testing();
-    let summary = CheckpointSummary {
-        epoch: epoch_store.epoch(),
-        sequence_number: checkpoint_seq,
-        network_total_transactions: 0,
-        contents_digest: Default::default(),
-        previous_digest: None,
-        epoch_rolling_gas_cost_summary: GasCostSummary::default(),
-        end_of_epoch_data: None,
-        timestamp_ms: 0,
-        version_specific_data: Vec::new(),
-        checkpoint_commitments: Vec::new(),
-    };
-    let sig = AuthorityStrongQuorumSignInfo {
-        epoch: epoch_store.epoch(),
-        signature: Default::default(),
-        signers_map: Default::default(),
-    };
     let checkpoint_data = CheckpointData {
-        checkpoint_summary: CertifiedCheckpointSummary::new_from_data_and_sig(summary, sig),
+        checkpoint_summary: crate::test_utils::executed_checkpoint(
+            epoch_store.epoch(),
+            checkpoint_seq,
+        )
+        .into_inner(),
         checkpoint_contents: CheckpointContents::new_with_digests_only_for_tests([
             ExecutionDigests::new(*effects.transaction_digest(), effects.digest()),
         ]),

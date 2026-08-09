@@ -6,18 +6,21 @@ use std::{sync::Arc, time::Duration};
 
 use fastcrypto::{hash::MultisetHash, traits::KeyPair};
 use iota_sdk_types::{
-    Address, Identifier, ObjectId, ObjectReference, Transaction, TransactionDigest,
+    Address, GasCostSummary, Identifier, ObjectId, ObjectReference, Transaction, TransactionDigest,
+    checkpoint::{CheckpointSummary, EndOfEpochData},
     crypto::{Intent, IntentScope},
 };
 use iota_types::{
     base_types::{AuthorityName, ExecutionDigests, random_object_ref},
-    committee::Committee,
+    committee::{Committee, EpochId},
     crypto::{
         AccountKeyPair, AuthorityKeyPair, AuthorityPublicKeyBytes, AuthoritySignInfo,
-        AuthoritySignature, Signer,
+        AuthoritySignature, AuthorityStrongQuorumSignInfo, Signer,
     },
     effects::{SignedTransactionEffects, TestEffectsBuilder},
     error::IotaError,
+    message_envelope::Envelope,
+    messages_checkpoint::{CertifiedCheckpointSummary, VerifiedCheckpoint},
     transaction::{
         CallArg, CertifiedTransaction, SenderSignedTransactionAPI, SignedTransaction,
         TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI, TransactionEnvelope,
@@ -314,4 +317,37 @@ pub fn set_scheduler_env(use_execution_scheduler: bool) {
         std::env::set_var("ENABLE_TRANSACTION_MANAGER", "1");
         std::env::remove_var("ENABLE_EXECUTION_SCHEDULER");
     }
+}
+
+/// A certified checkpoint summary with a placeholder signature, for seeding
+/// a test `CheckpointStore`. `end_of_epoch_data` makes it an epoch boundary.
+pub fn certified_summary(
+    epoch: EpochId,
+    sequence_number: u64,
+    end_of_epoch_data: Option<EndOfEpochData>,
+) -> CertifiedCheckpointSummary {
+    let summary = CheckpointSummary {
+        epoch,
+        sequence_number,
+        network_total_transactions: 0,
+        contents_digest: Default::default(),
+        previous_digest: None,
+        epoch_rolling_gas_cost_summary: GasCostSummary::default(),
+        end_of_epoch_data,
+        timestamp_ms: 0,
+        version_specific_data: Vec::new(),
+        checkpoint_commitments: Vec::new(),
+    };
+    let sig = AuthorityStrongQuorumSignInfo {
+        epoch,
+        signature: Default::default(),
+        signers_map: Default::default(),
+    };
+    Envelope::new_from_data_and_sig(summary, sig)
+}
+
+/// An executed (non-boundary) checkpoint for seeding a test
+/// `CheckpointStore`.
+pub fn executed_checkpoint(epoch: EpochId, sequence_number: u64) -> VerifiedCheckpoint {
+    VerifiedCheckpoint::new_unchecked(certified_summary(epoch, sequence_number, None))
 }

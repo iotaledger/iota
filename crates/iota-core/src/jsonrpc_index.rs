@@ -8,6 +8,7 @@
 use std::{
     cmp::{max, min},
     collections::{BTreeMap, HashMap, HashSet},
+    ops::{Bound, RangeBounds},
     path::{Path, PathBuf},
     sync::{
         Arc,
@@ -48,9 +49,9 @@ use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use tracing::{debug, error, info, trace, warn};
 use typed_store::{
     DBMapUtils, TypedStoreError,
-    database::Database,
+    database::{Database, wait_for_database_close},
     rocks::{
-        DBBatch, DBMap, DBMapTableConfigMap, DBOptions, MetricConf, ReadWriteOptions, TaggedDBMap,
+        DBBatch, DBMap, DBOptions, MetricConf, ReadWriteOptions, TaggedDBMap,
         bulk_ingestion_options, bulk_ingestion_write_options, default_db_options, list_tables,
         open_cf_opts, read_size_from_env, safe_drop_db,
     },
@@ -62,8 +63,8 @@ use crate::{
     authority::AuthorityStore,
     checkpoints::CheckpointStore,
     par_index_live_object_set::{
-        LiveObjectIndexer, PROGRESS_REPORT_INTERVAL, ParMakeLiveObjectIndexer,
-        estimated_time_remaining, format_duration,
+        LiveObjectIndexer, PROGRESS_REPORT_INTERVAL, ParMakeLiveObjectIndexer, eta_display,
+        progress_rate,
     },
 };
 
@@ -530,16 +531,12 @@ impl IndexStoreTables {
     /// queries requires a reopen with default options.
     fn open_for_bulk_ingestion(path: PathBuf) -> Self {
         let bulk_options = bulk_ingestion_options();
-        // Apply the per-column-family bulk options to every table.
-        let mut table_config = BTreeMap::new();
-        for table_name in Self::describe_tables().into_keys() {
-            table_config.insert(table_name, bulk_options.column_family_options.clone());
-        }
+        let table_config = bulk_options.table_config(Self::describe_tables().into_keys());
         Self::open_tables_read_write(
             path,
             MetricConf::new("index"),
             Some(bulk_options.db_options),
-            Some(DBMapTableConfigMap::new(table_config)),
+            Some(table_config),
         )
     }
 
@@ -1078,14 +1075,14 @@ struct JsonRpcLiveObjectIndexer<'a> {
 }
 
 impl LiveObjectIndexer for JsonRpcLiveObjectIndexer<'_> {
-    fn index_object(&mut self, object: Object) -> Result<(), StorageError> {
+    fn index_object(&mut self, object: &Object) -> Result<(), StorageError> {
         match object.owner {
             Owner::Address(owner) => {
                 self.batch.insert_batch(
                     &self.tables.owner_index,
-                    [((owner, object.id()), ObjectInfo::from_object(&object))],
+                    [((owner, object.id()), ObjectInfo::from_object(object))],
                 )?;
-                if let Some(coin_info) = CoinInfo::from_object(&object) {
+                if let Some(coin_info) = CoinInfo::from_object(object) {
                     let coin_type = object
                         .coin_type_opt()
                         .expect("coin object must have a coin type")
@@ -1097,7 +1094,7 @@ impl LiveObjectIndexer for JsonRpcLiveObjectIndexer<'_> {
                 }
             }
             Owner::Object(parent) => {
-                if is_dynamic_field(&object) {
+                if is_dynamic_field(object) {
                     self.batch.insert_batch(
                         &self.tables.dynamic_field_index,
                         [((parent, object.id()), ())],
@@ -1190,14 +1187,10 @@ impl JsonRpcIndexRestorer {
         // move the database directory.
         let weak_db = Arc::downgrade(&tables.meta.db);
         drop(tables);
-        let deadline = Instant::now() + Duration::from_secs(30);
-        while weak_db.strong_count() != 0 {
-            if Instant::now() > deadline {
-                return Err(StorageError::custom(
-                    "unable to close the JSON-RPC index database after the restore",
-                ));
-            }
-            tokio::time::sleep(Duration::from_millis(100)).await;
+        if !wait_for_database_close(weak_db).await {
+            return Err(StorageError::custom(
+                "unable to close the JSON-RPC index database after the restore",
+            ));
         }
         Ok(())
     }
@@ -1207,7 +1200,7 @@ impl JsonRpcIndexRestorer {
 pub struct JsonRpcPartitionIndexer<'a>(JsonRpcLiveObjectIndexer<'a>);
 
 impl JsonRpcPartitionIndexer<'_> {
-    pub fn index_object(&mut self, object: Object) -> Result<(), StorageError> {
+    pub fn index_object(&mut self, object: &Object) -> Result<(), StorageError> {
         self.0.index_object(object)
     }
 
@@ -1405,10 +1398,8 @@ impl IndexStore {
                 let remaining = next - lowest;
                 let fraction = replayed as f64 / (replayed + remaining) as f64;
                 let elapsed = start_time.elapsed();
-                let rate = replayed as f64 / elapsed.as_secs_f64().max(f64::EPSILON);
-                let eta = estimated_time_remaining(elapsed, fraction)
-                    .map(format_duration)
-                    .unwrap_or_else(|| "unknown".to_string());
+                let rate = progress_rate(replayed, elapsed);
+                let eta = eta_display(elapsed, fraction);
                 info!(
                     "Backfilling JSON-RPC history: {:.1}% done (checkpoint {next} down to {lowest}), {rate:.0} checkpoints/s, ETA ~{eta}",
                     fraction * 100.0,
@@ -1635,6 +1626,53 @@ impl IndexStore {
         } else {
             history.values().cloned().collect()
         }
+    }
+
+    /// Maps an `event_order` row to the query result shape.
+    fn event_order_row(
+        ((_, event_seq), (digest, tx_digest, time)): (EventId, EventIndex),
+    ) -> (TransactionEventsDigest, TransactionDigest, usize, u64) {
+        (digest, tx_digest, event_seq, time)
+    }
+
+    /// Maps a keyed event-table row to the query result shape.
+    fn keyed_event_row<K>(
+        ((_, (_, event_seq)), (digest, tx_digest, time)): ((K, EventId), EventIndex),
+    ) -> (TransactionEventsDigest, TransactionDigest, usize, u64) {
+        (digest, tx_digest, event_seq, time)
+    }
+
+    /// Chains one range scan per retained history bucket, in
+    /// global sequence order, collecting up to `limit` mapped rows.
+    fn scan_history_buckets<K, V, R>(
+        &self,
+        select: impl Fn(&HistoryBucket) -> &TaggedDBMap<K, V>,
+        range: impl RangeBounds<K> + Clone,
+        limit: Option<usize>,
+        reverse: bool,
+        row: impl Fn((K, V)) -> R,
+    ) -> IotaResult<Vec<R>>
+    where
+        K: Serialize + DeserializeOwned,
+        V: Serialize + DeserializeOwned,
+    {
+        let mut results = Vec::new();
+        for bucket in self.history_buckets(reverse) {
+            if limit.is_some_and(|l| results.len() >= l) {
+                break;
+            }
+            let remaining = limit.map_or(usize::MAX, |l| l - results.len());
+            let index = select(&bucket);
+            let iter = if reverse {
+                Either::Left(index.safe_range_iter_reversed(range.clone()))
+            } else {
+                Either::Right(index.safe_range_iter(range.clone()))
+            };
+            for result in iter.take(remaining) {
+                results.push(row(result?));
+            }
+        }
+        Ok(results)
     }
 
     /// The bucket holding `epoch`'s history, created if absent.
@@ -1928,24 +1966,13 @@ impl IndexStore {
                 let Some((lower, upper)) = sequence_bounds_after_cursor(cursor, reverse) else {
                     return Ok(vec![]);
                 };
-                let mut results = Vec::new();
-                for bucket in self.history_buckets(reverse) {
-                    if limit.is_some_and(|l| results.len() >= l) {
-                        break;
-                    }
-                    let remaining = limit.map(|l| l - results.len());
-                    let iter = if reverse {
-                        Either::Left(bucket.tx_order.safe_range_iter_reversed(lower..=upper))
-                    } else {
-                        Either::Right(bucket.tx_order.safe_range_iter(lower..=upper))
-                    };
-                    let page: Vec<_> = iter
-                        .take(remaining.unwrap_or(usize::MAX))
-                        .map(|result| result.map(|(_, digest)| digest))
-                        .collect::<Result<_, _>>()?;
-                    results.extend(page);
-                }
-                Ok(results)
+                self.scan_history_buckets(
+                    |bucket| &bucket.tx_order,
+                    lower..=upper,
+                    limit,
+                    reverse,
+                    |(_, digest)| digest,
+                )
             }
         }
     }
@@ -1965,27 +1992,13 @@ impl IndexStore {
         let Some((lower, upper)) = sequence_bounds_after_cursor(cursor, reverse) else {
             return Ok(vec![]);
         };
-        let mut results = Vec::new();
-        for bucket in self.history_buckets(reverse) {
-            if limit.is_some_and(|l| results.len() >= l) {
-                break;
-            }
-            let remaining = limit.map(|l| l - results.len());
-            let index = select(&bucket);
-            let iter = if reverse {
-                Either::Left(
-                    index.safe_range_iter_reversed((key.clone(), lower)..=(key.clone(), upper)),
-                )
-            } else {
-                Either::Right(index.safe_range_iter((key.clone(), lower)..=(key.clone(), upper)))
-            };
-            let page: Vec<_> = iter
-                .take(remaining.unwrap_or(usize::MAX))
-                .map(|result| result.map(|(_, digest)| digest))
-                .collect::<Result<_, _>>()?;
-            results.extend(page);
-        }
-        Ok(results)
+        self.scan_history_buckets(
+            select,
+            (key.clone(), lower)..=(key, upper),
+            limit,
+            reverse,
+            |(_, digest)| digest,
+        )
     }
 
     pub fn get_transactions_by_input_object(
@@ -2078,32 +2091,13 @@ impl IndexStore {
         let lower_key = (package, module_lower, function_lower, lower);
         let upper_key = (package, module_upper, function_upper, upper);
 
-        let mut results = Vec::new();
-        for bucket in self.history_buckets(reverse) {
-            if limit.is_some_and(|l| results.len() >= l) {
-                break;
-            }
-            let remaining = limit.map(|l| l - results.len());
-            let iter = if reverse {
-                Either::Left(
-                    bucket
-                        .txs_by_move_function
-                        .safe_range_iter_reversed(lower_key.clone()..=upper_key.clone()),
-                )
-            } else {
-                Either::Right(
-                    bucket
-                        .txs_by_move_function
-                        .safe_range_iter(lower_key.clone()..=upper_key.clone()),
-                )
-            };
-            let page: Vec<_> = iter
-                .take(remaining.unwrap_or(usize::MAX))
-                .map(|result| result.map(|(_, digest)| digest))
-                .collect::<Result<_, _>>()?;
-            results.extend(page);
-        }
-        Ok(results)
+        self.scan_history_buckets(
+            |bucket| &bucket.txs_by_move_function,
+            lower_key..=upper_key,
+            limit,
+            reverse,
+            |(_, digest)| digest,
+        )
     }
 
     pub fn get_transactions_to_addr(
@@ -2137,32 +2131,18 @@ impl IndexStore {
         limit: usize,
         descending: bool,
     ) -> IotaResult<Vec<(TransactionEventsDigest, TransactionDigest, usize, u64)>> {
-        let mut results = Vec::new();
-        for bucket in self.history_buckets(descending) {
-            if results.len() >= limit {
-                break;
-            }
-            let remaining = limit - results.len();
-            let iter = if descending {
-                Either::Left(
-                    bucket
-                        .event_order
-                        .safe_range_iter_reversed(..=(tx_seq, event_seq)),
-                )
-            } else {
-                Either::Right(bucket.event_order.safe_range_iter((tx_seq, event_seq)..))
-            };
-            let page: Vec<_> = iter
-                .take(remaining)
-                .map(|result| {
-                    result.map(|((_, event_seq), (digest, tx_digest, time))| {
-                        (digest, tx_digest, event_seq, time)
-                    })
-                })
-                .collect::<Result<_, _>>()?;
-            results.extend(page);
-        }
-        Ok(results)
+        let range = if descending {
+            (Bound::Unbounded, Bound::Included((tx_seq, event_seq)))
+        } else {
+            (Bound::Included((tx_seq, event_seq)), Bound::Unbounded)
+        };
+        self.scan_history_buckets(
+            |bucket| &bucket.event_order,
+            range,
+            Some(limit),
+            descending,
+            Self::event_order_row,
+        )
     }
 
     pub fn events_by_transaction(
@@ -2176,36 +2156,18 @@ impl IndexStore {
         let seq = self
             .get_transaction_seq(digest)?
             .ok_or(IotaError::TransactionNotFound { digest: *digest })?;
-        let mut results = Vec::new();
-        for bucket in self.history_buckets(descending) {
-            if results.len() >= limit {
-                break;
-            }
-            let remaining = limit - results.len();
-            let iter = if descending {
-                Either::Left(
-                    bucket
-                        .event_order
-                        .safe_range_iter_reversed((seq, 0)..=(min(tx_seq, seq), event_seq)),
-                )
-            } else {
-                Either::Right(
-                    bucket
-                        .event_order
-                        .safe_range_iter((max(tx_seq, seq), event_seq)..=(seq, usize::MAX)),
-                )
-            };
-            let page: Vec<_> = iter
-                .take(remaining)
-                .map(|result| {
-                    result.map(|((_, event_seq), (digest, tx_digest, time))| {
-                        (digest, tx_digest, event_seq, time)
-                    })
-                })
-                .collect::<Result<_, _>>()?;
-            results.extend(page);
-        }
-        Ok(results)
+        let range = if descending {
+            (seq, 0)..=(min(tx_seq, seq), event_seq)
+        } else {
+            (max(tx_seq, seq), event_seq)..=(seq, usize::MAX)
+        };
+        self.scan_history_buckets(
+            |bucket| &bucket.event_order,
+            range,
+            Some(limit),
+            descending,
+            Self::event_order_row,
+        )
     }
 
     fn get_event_from_index<KeyT: Clone + Serialize + DeserializeOwned>(
@@ -2222,34 +2184,18 @@ impl IndexStore {
         limit: usize,
         descending: bool,
     ) -> IotaResult<Vec<(TransactionEventsDigest, TransactionDigest, usize, u64)>> {
-        let mut results = Vec::new();
-        for bucket in self.history_buckets(descending) {
-            if results.len() >= limit {
-                break;
-            }
-            let remaining = limit - results.len();
-            let index = select(&bucket);
-            let iter = if descending {
-                Either::Left(index.safe_range_iter_reversed(
-                    (key.clone(), (TxSequenceNumber::MIN, 0))..=(key.clone(), (tx_seq, event_seq)),
-                ))
-            } else {
-                Either::Right(index.safe_range_iter(
-                    (key.clone(), (tx_seq, event_seq))
-                        ..=(key.clone(), (TxSequenceNumber::MAX, usize::MAX)),
-                ))
-            };
-            let page: Vec<_> = iter
-                .take(remaining)
-                .map(|result| {
-                    result.map(|((_, (_, event_seq)), (digest, tx_digest, time))| {
-                        (digest, tx_digest, event_seq, time)
-                    })
-                })
-                .collect::<Result<_, _>>()?;
-            results.extend(page);
-        }
-        Ok(results)
+        let range = if descending {
+            (key.clone(), (TxSequenceNumber::MIN, 0))..=(key.clone(), (tx_seq, event_seq))
+        } else {
+            (key.clone(), (tx_seq, event_seq))..=(key.clone(), (TxSequenceNumber::MAX, usize::MAX))
+        };
+        self.scan_history_buckets(
+            select,
+            range,
+            Some(limit),
+            descending,
+            Self::keyed_event_row,
+        )
     }
 
     pub fn events_by_module_id(
@@ -2333,33 +2279,18 @@ impl IndexStore {
         limit: usize,
         descending: bool,
     ) -> IotaResult<Vec<(TransactionEventsDigest, TransactionDigest, usize, u64)>> {
-        let mut results = Vec::new();
-        for bucket in self.history_buckets(descending) {
-            if results.len() >= limit {
-                break;
-            }
-            let remaining = limit - results.len();
-            let iter = if descending {
-                Either::Left(bucket.event_by_time.safe_range_iter_reversed(
-                    (start_time, (TxSequenceNumber::MIN, 0))..=(end_time, (tx_seq, event_seq)),
-                ))
-            } else {
-                Either::Right(bucket.event_by_time.safe_range_iter(
-                    (start_time, (tx_seq, event_seq))
-                        ..=(end_time, (TxSequenceNumber::MAX, usize::MAX)),
-                ))
-            };
-            let page: Vec<_> = iter
-                .take(remaining)
-                .map(|result| {
-                    result.map(|((_, (_, event_seq)), (digest, tx_digest, time))| {
-                        (digest, tx_digest, event_seq, time)
-                    })
-                })
-                .collect::<Result<_, _>>()?;
-            results.extend(page);
-        }
-        Ok(results)
+        let range = if descending {
+            (start_time, (TxSequenceNumber::MIN, 0))..=(end_time, (tx_seq, event_seq))
+        } else {
+            (start_time, (tx_seq, event_seq))..=(end_time, (TxSequenceNumber::MAX, usize::MAX))
+        };
+        self.scan_history_buckets(
+            |bucket| &bucket.event_by_time,
+            range,
+            Some(limit),
+            descending,
+            Self::keyed_event_row,
+        )
     }
 
     pub fn get_dynamic_field_ids_iterator(
@@ -2725,43 +2656,74 @@ impl IndexStore {
 
 #[cfg(test)]
 mod tests {
-    use iota_sdk_types::{CheckpointSummary, GasCostSummary, ObjectId, StructTag};
+    use iota_sdk_types::{ObjectId, StructTag, TransactionDigest};
     use iota_types::{
-        committee::EpochId,
-        crypto::AuthorityStrongQuorumSignInfo,
-        effects::TransactionEffectsAPI,
-        gas_coin::GAS,
-        message_envelope::Envelope,
-        messages_checkpoint::{CheckpointContentsExt, VerifiedCheckpoint},
+        effects::TransactionEffectsAPI, gas_coin::GAS, messages_checkpoint::CheckpointContentsExt,
         test_checkpoint_data_builder::TestCheckpointDataBuilder,
     };
     use prometheus_filtered::Registry;
     use typed_store::Map;
 
     use super::IndexStore;
-    use crate::checkpoints::CheckpointStore;
+    use crate::{checkpoints::CheckpointStore, test_utils::executed_checkpoint};
 
-    /// An executed (non-boundary) checkpoint for seeding a test
-    /// `CheckpointStore`, with a placeholder signature.
-    fn executed_checkpoint(epoch: EpochId, sequence_number: u64) -> VerifiedCheckpoint {
-        let summary = CheckpointSummary {
-            epoch,
-            sequence_number,
-            network_total_transactions: 0,
-            contents_digest: Default::default(),
-            previous_digest: None,
-            epoch_rolling_gas_cost_summary: GasCostSummary::default(),
-            end_of_epoch_data: None,
-            timestamp_ms: 0,
-            version_specific_data: Vec::new(),
-            checkpoint_commitments: Vec::new(),
-        };
-        let sig = AuthorityStrongQuorumSignInfo {
-            epoch,
-            signature: Default::default(),
-            signers_map: Default::default(),
-        };
-        VerifiedCheckpoint::new_unchecked(Envelope::new_from_data_and_sig(summary, sig))
+    /// Opens an `IndexStore` at `path` without running the rebuild path.
+    fn open_index_store(path: std::path::PathBuf) -> IndexStore {
+        IndexStore::new_without_init(path, &Registry::default(), Some(128))
+    }
+
+    /// Closes the store's database, waiting until every handle is released
+    /// so the same path can be reopened. Accepts the store owned or in an
+    /// `Arc`, as long as the passed handle is the last one.
+    async fn close_index_store(index_store: impl std::borrow::Borrow<IndexStore>) {
+        let weak_db = std::sync::Arc::downgrade(&index_store.borrow().tables.meta.db);
+        drop(index_store);
+        assert!(super::wait_for_database_close(weak_db).await);
+    }
+
+    /// Closes the store and reopens the same path, as a restart does.
+    async fn reopen_index_store(index_store: IndexStore, path: std::path::PathBuf) -> IndexStore {
+        close_index_store(index_store).await;
+        open_index_store(path)
+    }
+
+    /// An empty authority store under `dir`, for driving the rebuild and
+    /// backfill paths.
+    fn open_authority_store(dir: &std::path::Path) -> std::sync::Arc<super::AuthorityStore> {
+        crate::authority::AuthorityStore::open_no_genesis(
+            std::sync::Arc::new(
+                crate::authority::authority_store_tables::AuthorityPerpetualTables::open(dir, None),
+            ),
+            false,
+            &Registry::default(),
+        )
+        .unwrap()
+    }
+
+    /// An authority state whose genesis checkpoint is executed, plus the
+    /// genesis transaction's digest.
+    async fn genesis_authority_state() -> (
+        std::sync::Arc<crate::authority::AuthorityState>,
+        TransactionDigest,
+    ) {
+        let authority_state = crate::authority::test_authority_builder::TestAuthorityBuilder::new()
+            .insert_genesis_checkpoint()
+            .build()
+            .await;
+        let checkpoint_store = &authority_state.checkpoint_store;
+        let genesis_checkpoint = checkpoint_store
+            .get_checkpoint_by_sequence_number(0)
+            .unwrap()
+            .unwrap();
+        checkpoint_store
+            .update_highest_executed_checkpoint(&genesis_checkpoint)
+            .unwrap();
+        let genesis_contents = checkpoint_store
+            .get_checkpoint_contents(&genesis_checkpoint.contents_digest)
+            .unwrap()
+            .unwrap();
+        let genesis_tx_digest = genesis_contents.iter().next().unwrap().transaction;
+        (authority_state, genesis_tx_digest)
     }
 
     fn mark_checkpoint_executed(checkpoint_store: &CheckpointStore, sequence_number: u64) {
@@ -2888,11 +2850,7 @@ mod tests {
         let checkpoint_store = CheckpointStore::new(&cp_dir.path().join("checkpoints"));
         mark_checkpoint_executed(&checkpoint_store, 5);
 
-        let index_store = IndexStore::new_without_init(
-            tmp_dir.path().to_path_buf(),
-            &Registry::default(),
-            Some(128),
-        );
+        let index_store = open_index_store(tmp_dir.path().to_path_buf());
         let owner = iota_types::base_types::dbg_addr(1);
         let object =
             iota_types::object::Object::with_id_owner_for_testing(ObjectId::random(), owner);
@@ -2920,19 +2878,8 @@ mod tests {
     /// resumes where it stopped instead of starting over.
     #[tokio::test]
     async fn test_history_backfill_after_rebuild() {
-        let authority_state = crate::authority::test_authority_builder::TestAuthorityBuilder::new()
-            .insert_genesis_checkpoint()
-            .build()
-            .await;
-
+        let (authority_state, genesis_tx_digest) = genesis_authority_state().await;
         let checkpoint_store = &authority_state.checkpoint_store;
-        let genesis_checkpoint = checkpoint_store
-            .get_checkpoint_by_sequence_number(0)
-            .unwrap()
-            .unwrap();
-        checkpoint_store
-            .update_highest_executed_checkpoint(&genesis_checkpoint)
-            .unwrap();
 
         let index_dir = iota_common::tempdir();
         let index_store = IndexStore::new(
@@ -2945,11 +2892,6 @@ mod tests {
         .await;
         index_store.wait_for_history_backfill_for_testing().await;
 
-        let genesis_contents = checkpoint_store
-            .get_checkpoint_contents(&genesis_checkpoint.contents_digest)
-            .unwrap()
-            .unwrap();
-        let genesis_tx_digest = genesis_contents.iter().next().unwrap().transaction;
         assert_eq!(
             index_store.get_transaction_seq(&genesis_tx_digest).unwrap(),
             Some(0)
@@ -3033,8 +2975,8 @@ mod tests {
         let index_dir = dir.path().join(super::JSONRPC_INDEXES_DIR);
         let restorer = super::JsonRpcIndexRestorer::open(index_dir.clone()).unwrap();
         let mut partition = restorer.partition_indexer();
-        partition.index_object(gas_object.clone()).unwrap();
-        partition.index_object(field_object).unwrap();
+        partition.index_object(&gas_object).unwrap();
+        partition.index_object(&field_object).unwrap();
         partition.finish().unwrap();
         restorer.finalize(5).await.unwrap();
 
@@ -3042,8 +2984,7 @@ mod tests {
         // adopted rather than wiped and rebuilt into equal-looking data.
         let sentinel = (ObjectId::random(), ObjectId::random());
         {
-            let built =
-                IndexStore::new_without_init(index_dir.clone(), &Registry::default(), Some(128));
+            let built = open_index_store(index_dir.clone());
             assert!(
                 !built.tables.needs_to_do_initialization(&checkpoint_store),
                 "a restore-built store must need no rebuild"
@@ -3053,24 +2994,10 @@ mod tests {
                 .dynamic_field_index
                 .insert(&sentinel, &())
                 .unwrap();
-            let weak_db = std::sync::Arc::downgrade(&built.tables.meta.db);
-            drop(built);
-            while weak_db.strong_count() != 0 {
-                tokio::time::sleep(std::time::Duration::from_millis(10)).await;
-            }
+            close_index_store(built).await;
         }
 
-        let authority_store = crate::authority::AuthorityStore::open_no_genesis(
-            std::sync::Arc::new(
-                crate::authority::authority_store_tables::AuthorityPerpetualTables::open(
-                    &dir.path().join("store"),
-                    None,
-                ),
-            ),
-            false,
-            &Registry::default(),
-        )
-        .unwrap();
+        let authority_store = open_authority_store(&dir.path().join("store"));
         let index_store = IndexStore::new(
             index_dir,
             &Registry::default(),
@@ -3121,19 +3048,8 @@ mod tests {
     /// reopen with default options — and none of its rows survive.
     #[tokio::test]
     async fn test_stale_database_is_wiped_and_rebuilt_on_open() {
-        let authority_state = crate::authority::test_authority_builder::TestAuthorityBuilder::new()
-            .insert_genesis_checkpoint()
-            .build()
-            .await;
-
+        let (authority_state, genesis_tx_digest) = genesis_authority_state().await;
         let checkpoint_store = &authority_state.checkpoint_store;
-        let genesis_checkpoint = checkpoint_store
-            .get_checkpoint_by_sequence_number(0)
-            .unwrap()
-            .unwrap();
-        checkpoint_store
-            .update_highest_executed_checkpoint(&genesis_checkpoint)
-            .unwrap();
 
         let index_dir = iota_common::tempdir();
         let index_store = IndexStore::new(
@@ -3145,16 +3061,6 @@ mod tests {
         )
         .await;
         index_store.wait_for_history_backfill_for_testing().await;
-
-        let genesis_contents = checkpoint_store
-            .get_checkpoint_contents(&genesis_checkpoint.contents_digest)
-            .unwrap()
-            .unwrap();
-        let genesis_tx_digest = genesis_contents.iter().next().unwrap().transaction;
-        assert_eq!(
-            index_store.get_transaction_seq(&genesis_tx_digest).unwrap(),
-            Some(0)
-        );
 
         // Poison the store and mark it as written by another schema version.
         let poison_field = (ObjectId::random(), ObjectId::random());
@@ -3175,11 +3081,7 @@ mod tests {
             .unwrap();
 
         // Release the database before reopening the same path.
-        let weak_db = std::sync::Arc::downgrade(&index_store.tables.meta.db);
-        drop(index_store);
-        while weak_db.strong_count() != 0 {
-            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
-        }
+        close_index_store(index_store).await;
 
         let index_store = IndexStore::new(
             index_dir.path().to_path_buf(),
@@ -3228,11 +3130,7 @@ mod tests {
         let checkpoint_store = CheckpointStore::new(&cp_dir.path().join("checkpoints"));
         mark_checkpoint_executed(&checkpoint_store, 5);
 
-        let index_store = IndexStore::new_without_init(
-            tmp_dir.path().to_path_buf(),
-            &Registry::default(),
-            Some(128),
-        );
+        let index_store = open_index_store(tmp_dir.path().to_path_buf());
         index_store.tables.seed_meta().unwrap();
         index_store.tables.watermark.insert(&(), &6).unwrap();
 
@@ -3253,11 +3151,7 @@ mod tests {
         // verified from both db and cache. This tests make sure we are
         // invalidating entries in the cache and always reading latest balance.
         let tmp_dir = iota_common::tempdir();
-        let index_store = IndexStore::new_without_init(
-            tmp_dir.path().to_path_buf(),
-            &Registry::default(),
-            Some(128),
-        );
+        let index_store = open_index_store(tmp_dir.path().to_path_buf());
         let address = TestCheckpointDataBuilder::derive_address(1);
 
         let mut builder = TestCheckpointDataBuilder::new(0).start_transaction(0);
@@ -3371,11 +3265,7 @@ mod tests {
     #[tokio::test]
     async fn test_history_epoch_buckets_chain_and_prune() -> anyhow::Result<()> {
         let tmp_dir = iota_common::tempdir();
-        let index_store = IndexStore::new_without_init(
-            tmp_dir.path().to_path_buf(),
-            &Registry::default(),
-            Some(128),
-        );
+        let index_store = open_index_store(tmp_dir.path().to_path_buf());
 
         // One transaction in epoch 0, one in epoch 1.
         let mut builder = TestCheckpointDataBuilder::new(0)
@@ -3420,18 +3310,18 @@ mod tests {
             index_store.get_transactions(None, Some(tx_0), None, false)?,
             vec![tx_1]
         );
+        // A limit landing exactly on the bucket boundary stops there.
+        assert_eq!(
+            index_store.get_transactions(None, None, Some(1), false)?,
+            vec![tx_0]
+        );
+        assert_eq!(
+            index_store.get_transactions(None, None, Some(1), true)?,
+            vec![tx_1]
+        );
 
         // Reopening rediscovers the buckets from the column-family names.
-        let weak_db = std::sync::Arc::downgrade(&index_store.tables.meta.db);
-        drop(index_store);
-        while weak_db.strong_count() != 0 {
-            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
-        }
-        let index_store = IndexStore::new_without_init(
-            tmp_dir.path().to_path_buf(),
-            &Registry::default(),
-            Some(128),
-        );
+        let index_store = reopen_index_store(index_store, tmp_dir.path().to_path_buf()).await;
         assert_eq!(
             index_store.get_transactions(None, None, None, false)?,
             vec![tx_0, tx_1]
@@ -3474,11 +3364,7 @@ mod tests {
         use iota_sdk_types::TransactionDigest;
 
         let tmp_dir = iota_common::tempdir();
-        let index_store = IndexStore::new_without_init(
-            tmp_dir.path().to_path_buf(),
-            &Registry::default(),
-            Some(128),
-        );
+        let index_store = open_index_store(tmp_dir.path().to_path_buf());
         let bucket = index_store.ensure_history_bucket(0).unwrap();
 
         let digest = TransactionDigest::random();
@@ -3517,11 +3403,7 @@ mod tests {
         use iota_sdk_types::TransactionDigest;
 
         let tmp_dir = iota_common::tempdir();
-        let index_store = IndexStore::new_without_init(
-            tmp_dir.path().to_path_buf(),
-            &Registry::default(),
-            Some(128),
-        );
+        let index_store = open_index_store(tmp_dir.path().to_path_buf());
         let bucket = index_store.ensure_history_bucket(0).unwrap();
         let mut batch = index_store.tables.meta.batch();
         batch
@@ -3589,7 +3471,60 @@ mod tests {
                 true,
             )
             .unwrap();
+        assert_eq!(
+            v.len(),
+            4,
+            "an unset function must span the whole identifier range"
+        );
         v.reverse();
         assert_eq!(v, v_rev);
+    }
+
+    /// Events chain across epoch buckets in global sequence order: with all
+    /// checkpoint timestamps equal, ordering falls through to the sequence
+    /// key, so correctness depends entirely on scanning the buckets in epoch
+    /// order.
+    #[tokio::test]
+    async fn test_events_chain_across_epoch_buckets() -> anyhow::Result<()> {
+        use iota_sdk_types::Event;
+
+        let tmp_dir = iota_common::tempdir();
+        let index_store = open_index_store(tmp_dir.path().to_path_buf());
+        let event = || Event {
+            package_id: ObjectId::ZERO,
+            module: iota_sdk_types::Identifier::from_static("test"),
+            sender: TestCheckpointDataBuilder::derive_address(0),
+            type_: StructTag::new_gas(),
+            contents: vec![],
+        };
+
+        let mut builder = TestCheckpointDataBuilder::new(0)
+            .with_epoch(0)
+            .start_transaction(0)
+            .with_events(vec![event()])
+            .finish_transaction();
+        let checkpoint_epoch_0 = builder.build_checkpoint();
+        index_store.index_checkpoint(&checkpoint_epoch_0, true)?;
+        index_store.commit_update_for_checkpoint(0)?;
+
+        let mut builder = builder
+            .with_epoch(1)
+            .start_transaction(1)
+            .with_events(vec![event()])
+            .finish_transaction();
+        let checkpoint_epoch_1 = builder.build_checkpoint();
+        index_store.index_checkpoint(&checkpoint_epoch_1, true)?;
+        index_store.commit_update_for_checkpoint(1)?;
+
+        let forward = index_store.event_iterator(0, u64::MAX, 0, 0, 10, false)?;
+        assert_eq!(forward.len(), 2);
+        let descending = index_store.event_iterator(0, u64::MAX, u64::MAX, usize::MAX, 10, true)?;
+        assert_eq!(
+            descending,
+            forward.iter().rev().cloned().collect::<Vec<_>>(),
+            "descending must mirror the forward chain across the buckets"
+        );
+
+        Ok(())
     }
 }

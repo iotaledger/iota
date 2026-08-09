@@ -75,7 +75,6 @@ use iota_core::{
     transaction_orchestrator::TransactionOrchestrator,
     validator_tx_finalizer::ValidatorTxFinalizer,
 };
-use iota_genesis_common::MigrationTxDataExt;
 use iota_grpc_server::{GrpcReader, GrpcServerHandle, start_grpc_server};
 use iota_json_rpc::{
     JsonRpcServerBuilder, coin_api::CoinReadApi, governance_api::GovernanceReadApi,
@@ -674,11 +673,6 @@ impl IotaNode {
         )?;
 
         let checkpoint_progress_tracker = Arc::new(CheckpointProgressTracker::new());
-
-        let mut genesis_objects = genesis.objects().to_vec();
-        if let Some(migration_tx_data) = migration_tx_data.as_ref() {
-            genesis_objects.extend(migration_tx_data.get_objects());
-        }
 
         let authority_name = config.authority_public_key();
         let validator_tx_finalizer =
