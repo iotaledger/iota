@@ -19,11 +19,11 @@ use iota_sdk_transaction_builder::{PTBArgumentList, TransactionBuilder};
 use iota_sdk_types::{
     Address, Identifier, Input, ObjectId, ObjectReference, Owner, ProgrammableTransaction,
     SharedObjectReference, StructTag, Transaction, TransactionDigest, TransactionKind, TypeTag,
-    UserSignature, Version, crypto::SimpleSignature,
+    UserSignature, Version,
+    crypto::{BitmapUnit, MultisigAggregatedSignature, MultisigCommittee, SimpleSignature},
 };
 use iota_types::{
     crypto::{AccountKeyPair, get_key_pair},
-    multisig::{BitmapUnit, MultiSig, MultiSigPublicKey},
     transaction::{
         CallArg, DEFAULT_VALIDATOR_GAS_PRICE, TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE,
         TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI, TransactionEnvelope,
@@ -416,15 +416,18 @@ impl TestTransactionBuilder {
 
     pub fn build_and_sign_multisig(
         self,
-        multisig_pk: MultiSigPublicKey,
+        multisig_pk: MultisigCommittee,
         signers: &[&dyn Signer<SimpleSignature>],
         bitmap: BitmapUnit,
     ) -> TransactionEnvelope {
         let data = self.build();
         let digest = data.signing_digest();
         let signatures = signers.iter().map(|s| s.sign(&digest).into()).collect();
-        let multisig =
-            UserSignature::Multisig(MultiSig::new_unchecked(signatures, bitmap, multisig_pk));
+        let multisig = UserSignature::Multisig(MultisigAggregatedSignature::new_unchecked(
+            signatures,
+            bitmap,
+            multisig_pk,
+        ));
 
         TransactionEnvelope::from_user_sig_data(data, vec![multisig])
     }
