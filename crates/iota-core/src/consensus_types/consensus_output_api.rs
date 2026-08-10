@@ -25,14 +25,15 @@ pub(crate) type ConsensusOutputTransactions =
 ///
 /// Per-field empty `Vec`s mean "not wired yet" and are zero-filled by the
 /// mapper. Today this struct is structurally identical to
-/// `MisbehaviorObservationsV1`; the separation exists so consensus's
-/// observation set and the wire schema can evolve on independent cadences.
+/// `MisbehaviorObservationsV2`; the separation exists so consensus's
+/// observation set and the wire schema can evolve independently.
 #[derive(Debug, Default)]
 pub struct ConsensusOutputMisbehaviorCounts {
     pub faulty_blocks_provable: Vec<u64>,
     pub faulty_blocks_unprovable: Vec<u64>,
     pub missing_proposals: Vec<u64>,
     pub equivocations: Vec<u64>,
+    pub invalid_bundle_parts: Vec<u64>,
 }
 
 pub(crate) trait ConsensusOutputAPI: Display {
@@ -140,23 +141,39 @@ impl ConsensusOutputAPI for starfish_core::CommittedSubDag {
     }
 
     fn misbehavior_counts(&self) -> ConsensusOutputMisbehaviorCounts {
-        let (faulty_blocks_provable, faulty_blocks_unprovable, missing_proposals, equivocations) =
-            self.misbehavior_counts
-                .iter()
-                .map(|counts| match counts {
-                    starfish_core::MisbehaviorCounts::V1(v1) => (
-                        v1.faulty_blocks_provable,
-                        v1.faulty_blocks_unprovable,
-                        v1.missing_proposals,
-                        v1.equivocations,
-                    ),
-                })
-                .multiunzip();
+        let (
+            faulty_blocks_provable,
+            faulty_blocks_unprovable,
+            missing_proposals,
+            equivocations,
+            invalid_bundle_parts,
+        ) = self
+            .misbehavior_counts
+            .iter()
+            .map(|counts| match counts {
+                // V1 counts predate the bundle-part counter.
+                starfish_core::MisbehaviorCounts::V1(v1) => (
+                    v1.faulty_blocks_provable,
+                    v1.faulty_blocks_unprovable,
+                    v1.missing_proposals,
+                    v1.equivocations,
+                    0,
+                ),
+                starfish_core::MisbehaviorCounts::V2(v2) => (
+                    v2.faulty_blocks_provable,
+                    v2.faulty_blocks_unprovable,
+                    v2.missing_proposals,
+                    v2.equivocations,
+                    v2.invalid_bundle_parts,
+                ),
+            })
+            .multiunzip();
         ConsensusOutputMisbehaviorCounts {
             faulty_blocks_provable,
             faulty_blocks_unprovable,
             missing_proposals,
             equivocations,
+            invalid_bundle_parts,
         }
     }
 }
@@ -165,7 +182,7 @@ impl ConsensusOutputAPI for starfish_core::CommittedSubDag {
 mod tests {
     use starfish_core::{
         BlockRef, CommitDigest, CommitRef, CommittedSubDag, MisbehaviorCounts, MisbehaviorCountsV1,
-        VerifiedBlockHeader,
+        MisbehaviorCountsV2, VerifiedBlockHeader,
     };
 
     use super::*;
@@ -173,17 +190,19 @@ mod tests {
     #[test]
     fn test_misbehavior_counts_transposes_per_authority_to_per_field_vecs() {
         let counts = vec![
+            // A V1 entry maps with the bundle-part counter zero-filled.
             MisbehaviorCounts::V1(MisbehaviorCountsV1 {
                 faulty_blocks_provable: 1,
                 faulty_blocks_unprovable: 2,
                 missing_proposals: 3,
                 equivocations: 4,
             }),
-            MisbehaviorCounts::V1(MisbehaviorCountsV1 {
+            MisbehaviorCounts::V2(MisbehaviorCountsV2 {
                 faulty_blocks_provable: 10,
                 faulty_blocks_unprovable: 20,
                 missing_proposals: 30,
                 equivocations: 40,
+                invalid_bundle_parts: 50,
             }),
             MisbehaviorCounts::default(),
         ];
@@ -204,6 +223,7 @@ mod tests {
         assert_eq!(out.faulty_blocks_unprovable, vec![2, 20, 0]);
         assert_eq!(out.missing_proposals, vec![3, 30, 0]);
         assert_eq!(out.equivocations, vec![4, 40, 0]);
+        assert_eq!(out.invalid_bundle_parts, vec![0, 50, 0]);
     }
 
     #[test]
@@ -223,5 +243,6 @@ mod tests {
         assert!(out.faulty_blocks_unprovable.is_empty());
         assert!(out.missing_proposals.is_empty());
         assert!(out.equivocations.is_empty());
+        assert!(out.invalid_bundle_parts.is_empty());
     }
 }
