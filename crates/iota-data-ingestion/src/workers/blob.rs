@@ -207,6 +207,10 @@ impl Worker for BlobWorker {
         self.upload_blob(bytes, chk_seq_num, Self::file_path(chk_seq_num))
             .await?;
 
+        if chk_seq_num.is_multiple_of(common::PROGRESS_LOG_INTERVAL) {
+            tracing::info!("uploaded checkpoint {chk_seq_num} to the remote store");
+        }
+
         Ok(())
     }
 }
