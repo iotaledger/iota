@@ -5454,6 +5454,8 @@ dependencies = [
  "iota-protocol-config",
  "iota-sdk",
  "iota-sdk-crypto",
+ "iota-sdk-grpc-client",
+ "iota-sdk-transaction-builder",
  "iota-sdk-types",
  "iota-simulator",
  "iota-source-validation",
@@ -7156,9 +7158,7 @@ version = "1.30.0-alpha"
 dependencies = [
  "anyhow",
  "iota-framework-snapshot",
- "iota-json-rpc-types",
  "iota-protocol-config",
- "iota-sdk",
  "iota-sdk-types",
  "move-package",
  "move-symbol-pool",

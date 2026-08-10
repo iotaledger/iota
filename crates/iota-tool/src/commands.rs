@@ -16,7 +16,6 @@ use iota_core::{
     authority_aggregator::AuthorityAggregatorBuilder,
     authority_client::{validator::ValidatorAPI, validator_peer::ValidatorPeerAPI},
 };
-use iota_protocol_config::Chain;
 use iota_replay::{ReplayToolCommand, execute_replay_command};
 use iota_sdk::{IotaClient, IotaClientBuilder, rpc_types::IotaTransactionBlockResponseOptions};
 use iota_sdk_types::{Address, ObjectId, SenderSignedTransaction, TransactionDigest};
@@ -50,6 +49,14 @@ pub enum Verbosity {
     Grouped,
     Concise,
     Verbose,
+}
+
+/// Networks that publish snapshots downloadable with this tool.
+#[derive(Debug, Copy, Clone, ValueEnum)]
+pub enum Network {
+    Mainnet,
+    Testnet,
+    Devnet,
 }
 
 #[derive(Parser)]
@@ -217,7 +224,7 @@ pub enum ToolCommand {
         /// If `--snapshot-bucket` is not specified, the value of this flag is
         /// used to construct the default bucket name.
         #[arg(long, default_value = "mainnet")]
-        network: Chain,
+        network: Network,
         /// Snapshot bucket name. If not specified, defaults are
         /// based on value of `--network` flag.
         #[arg(long, conflicts_with = "no_sign_request")]
@@ -613,33 +620,32 @@ impl ToolCommand {
                 });
                 let snapshot_bucket =
                     snapshot_bucket.or_else(|| match (network, no_sign_request) {
-                        (Chain::Mainnet, false) => Some(
+                        (Network::Mainnet, false) => Some(
                             env::var("MAINNET_FORMAL_SIGNED_BUCKET")
                                 .unwrap_or("iota-mainnet-formal".to_string()),
                         ),
-                        (Chain::Mainnet, true) => env::var("MAINNET_FORMAL_UNSIGNED_BUCKET").ok(),
-                        (Chain::Testnet, true) => env::var("TESTNET_FORMAL_UNSIGNED_BUCKET").ok(),
-                        (Chain::Testnet, _) => Some(
+                        (Network::Mainnet, true) => env::var("MAINNET_FORMAL_UNSIGNED_BUCKET").ok(),
+                        (Network::Testnet, false) => Some(
                             env::var("TESTNET_FORMAL_SIGNED_BUCKET")
                                 .unwrap_or("iota-testnet-formal".to_string()),
                         ),
-                        (Chain::Unknown, _) => {
-                            panic!("Cannot generate default snapshot bucket for unknown network");
-                        }
+                        (Network::Testnet, true) => env::var("TESTNET_FORMAL_UNSIGNED_BUCKET").ok(),
+                        (Network::Devnet, false) => Some(
+                            env::var("DEVNET_FORMAL_SIGNED_BUCKET")
+                                .unwrap_or("iota-devnet-formal".to_string()),
+                        ),
+                        (Network::Devnet, true) => env::var("DEVNET_FORMAL_UNSIGNED_BUCKET").ok(),
                     });
 
                 let aws_endpoint = env::var("AWS_SNAPSHOT_ENDPOINT").ok().or_else(|| {
-                    if no_sign_request {
-                        if network == Chain::Mainnet {
-                            Some("https://formal-snapshot.mainnet.iota.cafe".to_string())
-                        } else if network == Chain::Testnet {
-                            Some("https://formal-snapshot.testnet.iota.cafe".to_string())
-                        } else {
-                            None
+                    no_sign_request.then(|| {
+                        match network {
+                            Network::Mainnet => "https://formal-snapshot.mainnet.iota.cafe",
+                            Network::Testnet => "https://formal-snapshot.testnet.iota.cafe",
+                            Network::Devnet => "https://formal-snapshot.devnet.iota.cafe",
                         }
-                    } else {
-                        None
-                    }
+                        .to_string()
+                    })
                 });
 
                 let snapshot_bucket_type = if no_sign_request {

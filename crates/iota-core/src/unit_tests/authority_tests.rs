@@ -95,7 +95,10 @@ use crate::{
     },
     consensus_handler::SequencedConsensusTransaction,
     execution_cache::ExecutionCacheCommit,
-    test_utils::{init_state_parameters_from_rng, make_transfer_object_transaction},
+    execution_scheduler::ExecutionSchedulerAPI,
+    test_utils::{
+        init_state_parameters_from_rng, make_transfer_object_transaction, set_scheduler_env,
+    },
     transaction_input_loader::TransactionInputLoader,
 };
 
@@ -2445,6 +2448,84 @@ async fn test_handle_confirmation_transaction_receiver_equal_sender() {
         .await
         .unwrap();
     effects.status().unwrap();
+}
+
+/// When executing from a checkpoint the certified effects digest is passed to
+/// `try_execute_immediately`; if the locally produced effects differ, that is a
+/// fork and execution must panic rather than commit divergent effects. This
+/// exercises the fork check directly (not via the execution driver, whose
+/// spawned task would abort instead of unwinding and hang `#[should_panic]`).
+#[tokio::test]
+#[should_panic(expected = "is expected to have effects digest")]
+async fn try_execute_immediately_panics_on_effects_digest_mismatch() {
+    let (address, key) = get_key_pair();
+    let object_id = ObjectId::random();
+    let gas_object_id = ObjectId::random();
+    let authority_state =
+        init_state_with_ids(vec![(address, object_id), (address, gas_object_id)]).await;
+    let object = authority_state.get_object(&object_id).unwrap();
+    let gas_object = authority_state.get_object(&gas_object_id).unwrap();
+
+    let certified_transfer_transaction = init_certified_transfer_transaction(
+        address,
+        &key,
+        address,
+        object.object_ref(),
+        gas_object.object_ref(),
+        &authority_state,
+    );
+
+    // A certified effects digest that cannot match what this transfer produces.
+    let bogus_effects_digest = iota_sdk_types::TransactionEffectsDigest::new([255; 32]);
+    let executable =
+        VerifiedExecutableTransaction::new_from_certificate(certified_transfer_transaction);
+    let _ = authority_state.try_execute_immediately(
+        &executable,
+        Some(bogus_effects_digest),
+        &authority_state.epoch_store_for_testing(),
+    );
+}
+
+/// The same fork guard also fires on the already-executed fast path: a second
+/// `try_execute_immediately` with a wrong expected digest against a transaction
+/// whose effects are already committed must panic instead of returning stale
+/// effects as if they matched.
+#[tokio::test]
+#[should_panic(expected = "Unexpected effects digest")]
+async fn try_execute_immediately_panics_on_already_executed_digest_mismatch() {
+    let (address, key) = get_key_pair();
+    let object_id = ObjectId::random();
+    let gas_object_id = ObjectId::random();
+    let authority_state =
+        init_state_with_ids(vec![(address, object_id), (address, gas_object_id)]).await;
+    let object = authority_state.get_object(&object_id).unwrap();
+    let gas_object = authority_state.get_object(&gas_object_id).unwrap();
+
+    let certified_transfer_transaction = init_certified_transfer_transaction(
+        address,
+        &key,
+        address,
+        object.object_ref(),
+        gas_object.object_ref(),
+        &authority_state,
+    );
+    let executable =
+        VerifiedExecutableTransaction::new_from_certificate(certified_transfer_transaction);
+
+    // Execute once for real, then re-run with a mismatching expected digest.
+    authority_state
+        .try_execute_immediately(
+            &executable,
+            None,
+            &authority_state.epoch_store_for_testing(),
+        )
+        .unwrap();
+    let bogus_effects_digest = iota_sdk_types::TransactionEffectsDigest::new([255; 32]);
+    let _ = authority_state.try_execute_immediately(
+        &executable,
+        Some(bogus_effects_digest),
+        &authority_state.epoch_store_for_testing(),
+    );
 }
 
 #[tokio::test]
@@ -6989,6 +7070,446 @@ async fn test_post_consensus_white_flag_simple_conflict() {
     // TODO: Verify: tx2 should have a status (dropped)
     // assert!(
     //     epoch_store
+}
+
+/// Pins the post-consensus owned-object conflict seam under P-COOL: the
+/// conflict winner selected by `validate_and_resolve_conflicts` is enqueued
+/// into the execution scheduler and executes, while the dropped loser never
+/// executes.
+///
+/// Execution is observed black-box (`is_tx_already_executed`), so the
+/// assertions do not depend on the scheduler implementation.
+async fn survivor_executes(use_execution_scheduler: bool) {
+    telemetry_subscribers::init_for_testing();
+
+    // Select the scheduler before the authority is built (read by
+    // ExecutionSchedulerWrapper::new); the uses_execution_scheduler() assertion
+    // below double-checks the choice took effect.
+    set_scheduler_env(use_execution_scheduler);
+
+    // Enable P-COOL flow
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(true);
+        config
+    });
+
+    // Setup: two transactions competing for the same owned object.
+    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let recipient1 = dbg_addr(2);
+    let recipient2 = dbg_addr(3);
+    let object_id = ObjectId::random();
+    let gas1_id = ObjectId::random();
+    let gas2_id = ObjectId::random();
+
+    let (authority, _) = init_state_with_ids_and_object_basics(vec![
+        (sender, object_id),
+        (sender, gas1_id),
+        (sender, gas2_id),
+    ])
+    .await;
+
+    let epoch_store = authority.epoch_store_for_testing();
+    let rgp = authority.reference_gas_price_for_testing().unwrap();
+    let object = authority.get_object(&object_id).unwrap();
+    let gas1 = authority.get_object(&gas1_id).unwrap();
+    let gas2 = authority.get_object(&gas2_id).unwrap();
+
+    let verified_tx1 = init_transfer_transaction(
+        &authority,
+        sender,
+        &sender_key,
+        recipient1,
+        object.object_ref(),
+        gas1.object_ref(),
+        rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+        rgp,
+    );
+    let verified_tx2 = init_transfer_transaction(
+        &authority,
+        sender,
+        &sender_key,
+        recipient2,
+        object.object_ref(),
+        gas2.object_ref(),
+        rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+        rgp,
+    );
+
+    let consensus_tx1 = ConsensusTransaction {
+        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(verified_tx1.clone().into())),
+        tracking_id: Default::default(),
+    };
+    let consensus_tx2 = ConsensusTransaction {
+        kind: ConsensusTransactionKind::UserTransactionV1(Box::new(verified_tx2.clone().into())),
+        tracking_id: Default::default(),
+    };
+
+    let sequenced_txs = vec![
+        SequencedConsensusTransaction::new_test(consensus_tx1),
+        SequencedConsensusTransaction::new_test(consensus_tx2),
+    ];
+
+    // Run the full post-consensus pipeline (validation + owned-object conflict
+    // resolution). Only the winner (tx1) survives.
+    let checkpoint_service = Arc::new(CheckpointServiceNoop {});
+    let executable_txs = epoch_store
+        .process_consensus_transactions_for_tests(
+            sequenced_txs,
+            &checkpoint_service,
+            authority.get_object_cache_reader().as_ref(),
+            authority.get_transaction_cache_reader().as_ref(),
+            &authority.metrics,
+            true,
+            authority.as_ref(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(
+        executable_txs.len(),
+        1,
+        "only the conflict winner should survive post-consensus validation"
+    );
+    assert_eq!(
+        executable_txs[0].digest(),
+        verified_tx1.digest(),
+        "the survivor should be tx1 (first in consensus order)"
+    );
+
+    // Confirm the wrapper selected the scheduler this run is meant to exercise.
+    assert_eq!(
+        authority.uses_execution_scheduler(),
+        use_execution_scheduler
+    );
+
+    // Hand the survivor to the execution scheduler via the `enqueue` seam. In
+    // production the consensus handler submits through AsyncTransactionScheduler;
+    // here we enqueue directly to keep the test focused on the seam.
+    authority
+        .execution_scheduler()
+        .enqueue(executable_txs, &epoch_store);
+
+    // The winner's owned input is available, so it must become ready and execute.
+    // Observe execution black-box, with no dependency on the scheduler internals:
+    // the signal comes from the shared write path (`write_transaction_outputs` ->
+    // `executed_effects_digests_notify_read`), not a TransactionManager-specific
+    // hook, so this survives the ExecutionScheduler swap. Bound the wait so a
+    // regression where the scheduler never makes the winner ready fails clearly
+    // instead of hanging until the harness slow-timeout.
+    tokio::time::timeout(
+        std::time::Duration::from_secs(20),
+        authority
+            .get_transaction_cache_reader()
+            .try_notify_read_executed_effects("", &[*verified_tx1.digest()]),
+    )
+    .await
+    .expect("conflict winner did not execute within 20s after being enqueued")
+    .unwrap();
+    // Cross-check through an independent read path (not the notify_read that
+    // just resolved).
+    assert!(
+        authority.is_tx_already_executed(verified_tx1.digest()),
+        "the conflict winner must execute after being enqueued"
+    );
+
+    // The dropped loser was never enqueued, so it must never execute.
+    assert!(
+        !authority.is_tx_already_executed(verified_tx2.digest()),
+        "the dropped conflict loser must not execute"
+    );
+}
+
+#[sim_test]
+async fn test_post_consensus_white_flag_survivor_executes_transaction_manager() {
+    survivor_executes(false).await;
+}
+
+#[sim_test]
+async fn test_post_consensus_white_flag_survivor_executes_execution_scheduler() {
+    survivor_executes(true).await;
+}
+
+/// Under `ExecutionScheduler`, a transaction that has been dispatched to the
+/// execution driver but is still executing must be counted by
+/// `num_pending_transactions()` — the value that feeds overload admission —
+/// exactly as the legacy `TransactionManager` counts it.
+///
+/// This holds only if the scheduler's `ExecutingGuard` is kept alive for the
+/// whole execution; dropping it at dispatch reports 0 here, silently
+/// under-counting in-flight work for overload control.
+///
+/// Simulator-only: it relies on the `transaction_execution_delay` fail point
+/// (a no-op outside `msim`) to freeze execution at a deterministic point, so
+/// the count can be observed mid-execution. Under the simulator the scheduling
+/// is deterministic, so the observation is race-free.
+// The fail point only fires under the simulator; outside it, execution would not
+// pause and this test could not observe the mid-execution window.
+#[cfg(msim)]
+#[sim_test]
+async fn execution_scheduler_counts_executing_transaction() {
+    use iota_macros::{clear_fail_point, register_fail_point_async};
+
+    // Select the ExecutionScheduler; this invariant is about its accounting.
+    set_scheduler_env(true);
+
+    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let recipient = dbg_addr(2);
+    let object_id = ObjectId::random();
+    let gas_id = ObjectId::random();
+
+    // Build the authority first, so the object-basics package publish executes
+    // before the fail point is registered — only our transfer should be frozen.
+    let (authority, _) =
+        init_state_with_ids_and_object_basics(vec![(sender, object_id), (sender, gas_id)]).await;
+    assert!(authority.uses_execution_scheduler());
+
+    let epoch_store = authority.epoch_store_for_testing();
+    let object = authority.get_object(&object_id).unwrap();
+    let gas = authority.get_object(&gas_id).unwrap();
+
+    // Freeze execution just before the transaction runs: signal when it has
+    // reached that point, then block until the test releases it.
+    let entered = std::sync::Arc::new(tokio::sync::Notify::new());
+    let release = std::sync::Arc::new(tokio::sync::Notify::new());
+    {
+        let entered = entered.clone();
+        let release = release.clone();
+        register_fail_point_async("transaction_execution_delay", move || {
+            let entered = entered.clone();
+            let release = release.clone();
+            async move {
+                entered.notify_one();
+                release.notified().await;
+            }
+        });
+    }
+
+    let cert = init_certified_transfer_transaction(
+        sender,
+        &sender_key,
+        recipient,
+        object.object_ref(),
+        gas.object_ref(),
+        &authority,
+    );
+    let digest = *cert.digest();
+
+    // The input is available, so the scheduler dispatches immediately and the
+    // transaction blocks at the fail point mid-execution.
+    authority
+        .execution_scheduler()
+        .enqueue_certificates(vec![cert], &epoch_store);
+
+    // Wait until the transaction is executing (blocked at the fail point).
+    tokio::time::timeout(std::time::Duration::from_secs(20), entered.notified())
+        .await
+        .expect("transaction did not reach execution within 20s");
+
+    // Dispatched but not finished, so it must still be counted.
+    let count = authority.execution_scheduler().num_pending_transactions();
+
+    // Release execution and let it finish before asserting, so the fail point is
+    // always cleared even if the assertion below fails.
+    release.notify_one();
+    tokio::time::timeout(
+        std::time::Duration::from_secs(20),
+        authority
+            .get_transaction_cache_reader()
+            .try_notify_read_executed_effects("", &[digest]),
+    )
+    .await
+    .expect("transaction did not finish executing within 20s")
+    .unwrap();
+    clear_fail_point("transaction_execution_delay");
+
+    assert!(
+        count >= 1,
+        "an executing (dispatched, not-yet-finished) transaction must be counted by \
+         num_pending_transactions(); got {count}. If 0, the scheduler dropped its \
+         ExecutingGuard at dispatch instead of holding it through execution."
+    );
+}
+
+/// The `ExecutingGuard` of a transaction that is dispatched and still executing
+/// must be dropped when the epoch is terminated — the execution runs inside
+/// `within_alive_epoch`, so cancelling it releases the guard even though the
+/// transaction never finishes. Otherwise the executing gauge (the second half
+/// of `num_pending_transactions()`) would leak into the next epoch and
+/// permanently inflate overload admission. This is an
+/// ExecutionScheduler-specific failure mode: the TransactionManager reads live
+/// `Inner` state and cannot leak a guard.
+///
+/// Simulator-only: relies on the `transaction_execution_delay` fail point to
+/// freeze execution at a deterministic point.
+#[cfg(msim)]
+#[sim_test]
+async fn execution_scheduler_drops_executing_guard_on_epoch_termination() {
+    use iota_macros::{clear_fail_point, register_fail_point_async};
+
+    set_scheduler_env(true);
+
+    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let recipient = dbg_addr(2);
+    let object_id = ObjectId::random();
+    let gas_id = ObjectId::random();
+
+    // Build the authority first, so the object-basics package publish executes
+    // before the fail point is registered — only our transfer should be frozen.
+    let (authority, _) =
+        init_state_with_ids_and_object_basics(vec![(sender, object_id), (sender, gas_id)]).await;
+    assert!(authority.uses_execution_scheduler());
+
+    let epoch_store = authority.epoch_store_for_testing();
+    let object = authority.get_object(&object_id).unwrap();
+    let gas = authority.get_object(&gas_id).unwrap();
+
+    // Freeze execution mid-flight: signal when reached, block until released.
+    let entered = std::sync::Arc::new(tokio::sync::Notify::new());
+    let release = std::sync::Arc::new(tokio::sync::Notify::new());
+    {
+        let entered = entered.clone();
+        let release = release.clone();
+        register_fail_point_async("transaction_execution_delay", move || {
+            let entered = entered.clone();
+            let release = release.clone();
+            async move {
+                entered.notify_one();
+                release.notified().await;
+            }
+        });
+    }
+
+    let cert = init_certified_transfer_transaction(
+        sender,
+        &sender_key,
+        recipient,
+        object.object_ref(),
+        gas.object_ref(),
+        &authority,
+    );
+    authority
+        .execution_scheduler()
+        .enqueue_certificates(vec![cert], &epoch_store);
+
+    // Wait until the transaction is executing (blocked at the fail point).
+    tokio::time::timeout(std::time::Duration::from_secs(20), entered.notified())
+        .await
+        .expect("transaction did not reach execution within 20s");
+    assert!(
+        authority.execution_scheduler().num_pending_transactions() >= 1,
+        "the in-flight transaction must be counted before epoch termination"
+    );
+
+    // Terminate the epoch: cancelling the driver task's within_alive_epoch future
+    // drops the ExecutingGuard. epoch_terminated() only returns once all such
+    // futures have been cancelled, so the count is 0 synchronously afterward.
+    epoch_store.epoch_terminated().await;
+    assert_eq!(
+        authority.execution_scheduler().num_pending_transactions(),
+        0,
+        "epoch termination must drop the ExecutingGuard of an in-flight transaction; a leaked \
+         gauge would carry false in-flight work into the next epoch"
+    );
+
+    // Release the now-cancelled fail point and clear it for hygiene.
+    release.notify_one();
+    clear_fail_point("transaction_execution_delay");
+}
+
+/// Enqueuing the SAME not-yet-executed certificate twice must still execute it
+/// exactly once. The ExecutionScheduler spawns one task per enqueue (unlike the
+/// TransactionManager, which dedups at enqueue), so under it two dispatch
+/// attempts race and idempotency is enforced downstream by the execution
+/// driver's transaction lock and already-executed check. A regression would
+/// either double-execute or leave the executing gauge stuck above 0. The
+/// outcome must be identical under both schedulers.
+///
+/// Simulator-only: `#[sim_test]` gives deterministic scheduling of the two
+/// racing tasks.
+#[cfg(msim)]
+#[sim_test]
+async fn duplicate_enqueue_executes_once_transaction_manager() {
+    duplicate_enqueue_executes_once(false).await;
+}
+
+#[cfg(msim)]
+#[sim_test]
+async fn duplicate_enqueue_executes_once_execution_scheduler() {
+    duplicate_enqueue_executes_once(true).await;
+}
+
+#[cfg(msim)]
+async fn duplicate_enqueue_executes_once(use_execution_scheduler: bool) {
+    set_scheduler_env(use_execution_scheduler);
+
+    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let recipient = dbg_addr(2);
+    let object_id = ObjectId::random();
+    let gas_id = ObjectId::random();
+
+    let (authority, _) =
+        init_state_with_ids_and_object_basics(vec![(sender, object_id), (sender, gas_id)]).await;
+    assert_eq!(
+        authority.uses_execution_scheduler(),
+        use_execution_scheduler
+    );
+
+    let epoch_store = authority.epoch_store_for_testing();
+    let object = authority.get_object(&object_id).unwrap();
+    let gas = authority.get_object(&gas_id).unwrap();
+
+    let cert = init_certified_transfer_transaction(
+        sender,
+        &sender_key,
+        recipient,
+        object.object_ref(),
+        gas.object_ref(),
+        &authority,
+    );
+    let digest = *cert.digest();
+
+    // Enqueue the same certificate twice in one batch.
+    authority
+        .execution_scheduler()
+        .enqueue_certificates(vec![cert.clone(), cert], &epoch_store);
+
+    // It executes, and successfully: a failed status here would mean the
+    // duplicate dispatch corrupted execution rather than being absorbed.
+    tokio::time::timeout(
+        std::time::Duration::from_secs(20),
+        authority
+            .get_transaction_cache_reader()
+            .try_notify_read_executed_effects("", &[digest]),
+    )
+    .await
+    .expect("transaction did not finish executing within 20s")
+    .unwrap();
+    // Cross-check through an independent read path, and require a SUCCESSFUL
+    // status: a failure here would mean the duplicate dispatch corrupted
+    // execution rather than being absorbed.
+    assert!(authority.is_tx_already_executed(&digest));
+    let effects = authority
+        .get_transaction_cache_reader()
+        .get_executed_effects(&digest)
+        .unwrap();
+    effects.status().unwrap();
+
+    // The duplicate leaves no leaked in-flight work: both the pending and the
+    // executing gauge return to 0 once the second attempt observes the first's
+    // effects and drops its guard. Poll to let that settle (assert on the gauge,
+    // not the executed-transactions counter, which can momentarily race to 2).
+    let mut count = authority.execution_scheduler().num_pending_transactions();
+    for _ in 0..200 {
+        if count == 0 {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        count = authority.execution_scheduler().num_pending_transactions();
+    }
+    assert_eq!(
+        count, 0,
+        "a duplicate enqueue must not leave in-flight work behind; num_pending_transactions()={count}"
+    );
 }
 
 #[sim_test]
