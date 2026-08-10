@@ -1221,8 +1221,11 @@ impl GrpcIndexesStore {
             )));
         }
         // The version and the watermark are written by the finalize itself;
-        // only the live state proves the object stream landed.
-        if live_object_count > 0 && reopened.owner.is_empty() {
+        // only the live state proves the object stream landed. `is_empty`
+        // has no error channel and reads an unreadable index as non-empty,
+        // so the scan is run here and its failure fails the restore.
+        let owner_is_empty = reopened.owner.safe_iter().next().transpose()?.is_none();
+        if live_object_count > 0 && owner_is_empty {
             return Err(StorageError::custom(format!(
                 "the restored gRPC index has an empty owner index after {live_object_count} live \
                  objects"
