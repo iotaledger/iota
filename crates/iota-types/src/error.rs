@@ -1068,7 +1068,7 @@ impl ExecutionError {
     }
 
     /// Rewrap this error, produced while executing a Move authenticator, as a
-    /// [`ExecutionFailureStatus::MoveAuthenticationError`]. The command index
+    /// [`ExecutionFailureStatus::MoveAuthentication`]. The command index
     /// is dropped: it referred to a command of the authenticator's own
     /// programmable transaction and is meaningless in the transaction's
     /// effects, where it would otherwise collide with the first command of the
@@ -1076,7 +1076,7 @@ impl ExecutionError {
     pub fn into_move_authentication_error(self) -> Self {
         let ExecutionErrorInner { kind, source, .. } = *self.inner;
         Self::new(
-            ExecutionFailureStatus::MoveAuthenticationError {
+            ExecutionFailureStatus::MoveAuthentication {
                 error: Box::new(kind),
             },
             source,
