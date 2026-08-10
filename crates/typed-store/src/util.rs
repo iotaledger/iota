@@ -97,6 +97,42 @@ where
     (Some(lower), upper)
 }
 
+/// Computes the raw byte bounds for scanning `range` within the key range of
+/// `prefix`, for keys serialized with [`be_fix_int_ser`].
+///
+/// `range` bounds the part of the key that follows `prefix`; see
+/// [`prefix_iterator_bounds`] for the requirements on `prefix`. The returned
+/// bounds never leave the prefix, including at an inclusive bound on the
+/// maximum key.
+pub(crate) fn prefix_iterator_bounds_with_range<P, K>(
+    prefix: &P,
+    range: impl RangeBounds<K>,
+) -> (Option<Vec<u8>>, Option<Vec<u8>>)
+where
+    P: ?Sized + Serialize,
+    K: Serialize,
+{
+    let prefix_buf = be_fix_int_ser(prefix);
+    let (lower_bound, upper_bound) = iterator_bounds_with_range(range);
+
+    let mut iterator_lower_bound = prefix_buf.clone();
+    if let Some(lower_bound) = lower_bound {
+        iterator_lower_bound.extend_from_slice(&lower_bound);
+    }
+
+    let iterator_upper_bound = match upper_bound {
+        Some(upper_bound) => {
+            let mut key_buf = prefix_buf;
+            key_buf.extend_from_slice(&upper_bound);
+            Some(key_buf)
+        }
+        // An unbounded range ends where the prefix ends.
+        None => prefix_iterator_bounds(prefix).1,
+    };
+
+    (Some(iterator_lower_bound), iterator_upper_bound)
+}
+
 /// Increments the big-endian integer in `v` by one, in place.
 ///
 /// Callers must ensure `v` is not all-`0xFF` (each one checks `is_max` and
@@ -189,4 +225,51 @@ fn test_inclusive_upper_bound_at_max() {
     // Symmetric with the excluded-lower arm at the max.
     let (lower, _) = iterator_bounds_with_range::<u8>((Bound::Excluded(u8::MAX), Bound::Unbounded));
     assert_eq!(lower, Some(vec![0xFF, 0x00]));
+}
+
+#[test]
+fn prefixed_bounds_stay_within_the_prefix() {
+    // An inclusive upper bound at the maximum key must stay inside the prefix.
+    // Computing it over the whole `(prefix, key)` buffer would carry into the
+    // next prefix, whose keys can serialize more compactly and would then be
+    // scanned.
+    fn check_max<K: Serialize + Copy>(max: K) {
+        assert!(
+            is_max(&be_fix_int_ser(&max)),
+            "test value must serialize to all-0xFF"
+        );
+        let (lower, upper) = prefix_iterator_bounds_with_range(&0u8, ..=max);
+        let upper = upper.expect("an inclusive upper bound must be bounded, not None");
+
+        assert_eq!(lower, Some(be_fix_int_ser(&0u8)));
+        assert!(
+            be_fix_int_ser(&(0u8, max)) < upper,
+            "the maximum key of the prefix must stay in range"
+        );
+        assert!(
+            upper <= be_fix_int_ser(&1u8),
+            "the bound must not reach into the next prefix"
+        );
+    }
+    check_max(u8::MAX);
+    check_max(u32::MAX);
+    check_max(u64::MAX);
+
+    // The excluded-lower arm at the maximum is prefixed the same way.
+    let (lower, _) = prefix_iterator_bounds_with_range::<u8, u8>(
+        &0u8,
+        (Bound::Excluded(u8::MAX), Bound::Unbounded),
+    );
+    assert_eq!(lower, Some(vec![0x00, 0xFF, 0x00]));
+
+    // An unbounded range ends where the prefix ends, and at the maximum prefix
+    // it runs to the end of the column family — as for a plain prefix scan.
+    assert_eq!(
+        prefix_iterator_bounds_with_range::<u8, u32>(&0u8, ..),
+        (Some(vec![0x00]), Some(vec![0x01]))
+    );
+    assert_eq!(
+        prefix_iterator_bounds_with_range::<u8, u32>(&u8::MAX, ..),
+        prefix_iterator_bounds(&u8::MAX)
+    );
 }

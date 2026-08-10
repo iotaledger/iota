@@ -115,7 +115,7 @@ pub type StoreError = typed_store_error::TypedStoreError;
 ///     #[default_options_override_fn = "custom_fn_name1"]
 ///     table4: DBMap<i32, String>,
 /// }
-/// #[tokio::main]
+/// #[tokio::main(flavor = "current_thread")]
 /// async fn main() -> Result<(), Error> {
 ///     use typed_store::rocks::MetricConf;
 ///     let primary_path = tempfile::tempdir()

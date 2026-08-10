@@ -27,6 +27,7 @@ use iota_json_rpc_types::{
     IotaObjectResponse, IotaObjectResponseQuery, IotaParsedData, IotaProtocolConfigValue,
     IotaRawData, IotaTransactionBlockEffects, IotaTransactionBlockEffectsAPI,
     IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
+    get_new_package_obj_from_response,
 };
 use iota_keys::keystore::{AccountKeystore, StoredKey};
 use iota_move::manage_package::resolve_lock_file_path;
@@ -1035,7 +1036,7 @@ impl IotaClientCommands {
                 .await?;
 
                 if let IotaClientCommandResult::TransactionBlock(ref response) = result {
-                    if let Err(e) = iota_package_management::update_lock_file(
+                    if let Err(e) = update_lock_file(
                         context,
                         LockCommand::Upgrade,
                         build_config.install_dir,
@@ -1155,7 +1156,7 @@ impl IotaClientCommands {
                 .await?;
 
                 if let IotaClientCommandResult::TransactionBlock(ref response) = result {
-                    if let Err(e) = iota_package_management::update_lock_file(
+                    if let Err(e) = update_lock_file(
                         context,
                         LockCommand::Publish,
                         build_config.install_dir,
@@ -3965,6 +3966,46 @@ async fn create_move_authenticator_signature(
         )
         .into(),
     ))
+}
+
+/// Update the `Move.lock` file with automated address management info, taking
+/// the published package details from a transaction response.
+///
+/// Resolves the chain identifier and active environment from `context` and
+/// delegates to [`iota_package_management::update_lock_file_with_package_id`].
+async fn update_lock_file(
+    context: &WalletContext,
+    command: LockCommand,
+    install_dir: Option<PathBuf>,
+    lock_file: Option<PathBuf>,
+    response: &IotaTransactionBlockResponse,
+) -> Result<(), anyhow::Error> {
+    let object_ref = get_new_package_obj_from_response(response).context(
+        "Expected a valid published package response but didn't see \
+         one when attempting to update the `Move.lock`.",
+    )?;
+    let chain_identifier = context
+        .get_client()
+        .await
+        .context("Network issue: couldn't use client to connect to chain when updating Move.lock")?
+        .read_api()
+        .get_chain_identifier()
+        .await
+        .context("Network issue: couldn't determine chain identifier for updating Move.lock")?;
+    let env = context.active_env().context(
+        "Could not resolve environment from active wallet context. \
+         Try ensure `iota client active-env` is valid.",
+    )?;
+
+    iota_package_management::update_lock_file_with_package_id(
+        chain_identifier,
+        env.alias(),
+        command,
+        install_dir,
+        lock_file,
+        object_ref.object_id,
+        object_ref.version.as_u64(),
+    )
 }
 
 #[cfg(test)]
