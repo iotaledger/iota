@@ -140,6 +140,10 @@ pub struct EpochMetrics {
     /// Set to 1, and never cleared, when the `TransactionDenyRules` object
     /// diverged from the mirrored state at an epoch boundary.
     pub deny_rule_mirror_divergence: IntGauge,
+
+    /// The number of injected deny-rule update transactions whose execution
+    /// failed — always an invariant violation.
+    pub deny_rule_update_execution_failures: IntCounter,
 }
 
 impl EpochMetrics {
@@ -298,6 +302,12 @@ impl EpochMetrics {
                 "deny_rule_mirror_divergence",
                 "Set to 1 when the TransactionDenyRules object diverged from the mirrored state \
                  at an epoch boundary",
+                registry
+            )
+            .unwrap(),
+            deny_rule_update_execution_failures: register_int_counter_with_registry!(
+                "deny_rule_update_execution_failures",
+                "The number of injected deny-rule update transactions whose execution failed",
                 registry
             )
             .unwrap(),
