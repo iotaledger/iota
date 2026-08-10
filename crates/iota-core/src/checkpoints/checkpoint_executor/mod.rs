@@ -636,7 +636,7 @@ impl CheckpointExecutor {
 
     fn checkpoint_data_enabled(&self) -> bool {
         self.state.grpc_indexes_store.is_some()
-            || self.state.indexes.is_some()
+            || self.state.jsonrpc_indexes_store.is_some()
             || self.config.data_ingestion_dir.is_some()
             || self.data_sender.is_some()
     }
@@ -716,9 +716,11 @@ impl CheckpointExecutor {
             grpc_indexes_store.index_checkpoint(&checkpoint_data);
         }
 
-        self.state
-            .index_checkpoint_for_jsonrpc(&checkpoint_data)
-            .expect("failed to stage JSON-RPC index update");
+        if let Some(jsonrpc_indexes_store) = &self.state.jsonrpc_indexes_store {
+            jsonrpc_indexes_store
+                .index_checkpoint(&checkpoint_data)
+                .expect("failed to stage JSON-RPC index update");
+        }
 
         if let Some(path) = &self.config.data_ingestion_dir {
             store_checkpoint_locally(path, &checkpoint_data)
@@ -1058,7 +1060,7 @@ impl CheckpointExecutor {
                 .commit_update_for_checkpoint(sequence_number)
                 .expect("failed to update gRPC indexes");
         }
-        if let Some(indexes) = &self.state.indexes {
+        if let Some(indexes) = &self.state.jsonrpc_indexes_store {
             indexes
                 .commit_update_for_checkpoint(sequence_number)
                 .expect("failed to update JSON-RPC indexes");

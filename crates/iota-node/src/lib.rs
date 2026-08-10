@@ -766,7 +766,7 @@ impl IotaNode {
             .expensive_safety_check_config
             .enable_secondary_index_checks()
         {
-            if let Some(indexes) = state.indexes.clone() {
+            if let Some(indexes) = state.jsonrpc_indexes_store.clone() {
                 iota_core::verify_indexes::verify_indexes(
                     state.get_global_state_hash_store().as_ref(),
                     indexes,
@@ -2186,7 +2186,7 @@ impl IotaNode {
 
         // Stop the background index backfill so shutdown does not block on
         // a full history replay.
-        if let Some(indexes) = &self.state.indexes {
+        if let Some(indexes) = &self.state.jsonrpc_indexes_store {
             indexes.shutdown().await;
         }
 

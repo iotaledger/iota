@@ -3729,7 +3729,7 @@ async fn test_get_dynamic_fields_returns_one_entry_per_index_row() {
     use typed_store::Map;
 
     let authority_state = TestAuthorityBuilder::new().build().await;
-    let indexes = authority_state.indexes.clone().unwrap();
+    let indexes = authority_state.jsonrpc_indexes_store.clone().unwrap();
 
     let parent = ObjectId::random();
     // Index rows whose objects do not exist: unresolvable fields.
@@ -4006,13 +4006,11 @@ fn jsonrpc_index_transaction(
         }],
     };
 
-    authority_state
-        .index_checkpoint_for_jsonrpc(&checkpoint_data)
+    let jsonrpc_indexes_store = authority_state.jsonrpc_indexes_store.as_ref().unwrap();
+    jsonrpc_indexes_store
+        .index_checkpoint(&checkpoint_data)
         .unwrap();
-    authority_state
-        .indexes
-        .as_ref()
-        .unwrap()
+    jsonrpc_indexes_store
         .commit_update_for_checkpoint(checkpoint_seq)
         .unwrap();
 }
