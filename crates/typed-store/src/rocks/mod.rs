@@ -30,6 +30,7 @@ pub use crate::{
         BulkIngestionOptions, DBMapTableConfigMap, DBOptions, ReadWriteOptions,
         bulk_ingestion_options, bulk_ingestion_options_split_between, bulk_ingestion_write_options,
         default_db_options, disable_fallocate, list_tables, read_size_from_env,
+        synced_write_options,
     },
 };
 use crate::{
