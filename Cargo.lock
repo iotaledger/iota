@@ -13024,6 +13024,7 @@ dependencies = [
  "iota-grpc-server",
  "iota-node-storage",
  "iota-protocol-config",
+ "iota-sdk-types",
  "iota-swarm-config",
  "iota-types",
  "rand 0.8.6",
