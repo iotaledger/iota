@@ -363,7 +363,7 @@ async fn test_receive_object_in_main_tx_succeeds() -> Result<(), anyhow::Error> 
 ///    and it passed
 ///
 /// With `report_move_authentication_error` enabled (the latest protocol config)
-/// the failure surfaces as a distinct `MoveAuthenticationError` that wraps the
+/// the failure surfaces as a distinct `MoveAuthentication` error that wraps the
 /// underlying abort and carries no command index.
 #[sim_test]
 async fn test_abstract_account_post_consensus_failure() -> Result<(), anyhow::Error> {
