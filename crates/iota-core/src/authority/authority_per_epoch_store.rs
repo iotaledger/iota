@@ -931,7 +931,7 @@ pub struct AuthorityEpochTables {
     /// The mirrored deny-rule state as of the last flushed commit, written
     /// in the flush batch so a restart resumes there and replays the rest.
     /// Present from epoch-store construction whenever the object exists.
-    mirrored_deny_rules: DBMap<(), DenyRuleSet>,
+    flushed_deny_rule_mirror: DBMap<(), DenyRuleSet>,
 
     /// Contains a single key, which overrides the value of
     /// ProtocolConfig::buffer_stake_for_protocol_upgrade_bps
@@ -1293,13 +1293,12 @@ impl AuthorityPerEpochStore {
                 .safe_iter()
                 .collect::<Result<BTreeMap<_, _>, _>>()
                 .expect("AuthorityEpochTables should contain valid deny rule proposals");
-        let mirrored_deny_rules =
-            Self::initial_mirrored_deny_rules(&tables, &epoch_start_configuration)?;
+        let deny_rule_mirror = Self::initial_deny_rule_mirror(&tables, &epoch_start_configuration)?;
         let active_transaction_deny_rules = ArcSwap::from_pointee(union_deny_rule_sets(
             Self::compute_active_transaction_deny_rules(&cached_deny_rule_proposals, &committee),
-            &mirrored_deny_rules,
+            &deny_rule_mirror,
         ));
-        let mirrored_transaction_deny_rules = ArcSwap::from_pointee(mirrored_deny_rules);
+        let mirrored_transaction_deny_rules = ArcSwap::from_pointee(deny_rule_mirror);
 
         let committee_size = committee.num_members();
         let report_version = MisbehaviorReportVersion::from_protocol(&protocol_config);
@@ -3123,11 +3122,11 @@ impl AuthorityPerEpochStore {
     /// seed. A fresh epoch persists the seed immediately when the object
     /// exists, so a row absent although commits have flushed is a lost row,
     /// and the node fails rather than derive updates its peers do not.
-    fn initial_mirrored_deny_rules(
+    fn initial_deny_rule_mirror(
         tables: &AuthorityEpochTables,
         epoch_start_configuration: &EpochStartConfiguration,
     ) -> IotaResult<DenyRuleSet> {
-        if let Some(row) = tables.mirrored_deny_rules.get(&())? {
+        if let Some(row) = tables.flushed_deny_rule_mirror.get(&())? {
             return Ok(row);
         }
         let Some(seed) = epoch_start_configuration.transaction_deny_rules_state() else {
@@ -3139,11 +3138,11 @@ impl AuthorityPerEpochStore {
             .is_some()
         {
             fatal!(
-                "mirrored_deny_rules row is missing although commits have flushed — the epoch \
+                "flushed_deny_rule_mirror row is missing although commits have flushed — the epoch \
                  database is corrupted; restore or state-sync before rejoining"
             );
         }
-        tables.mirrored_deny_rules.insert(&(), seed)?;
+        tables.flushed_deny_rule_mirror.insert(&(), seed)?;
         Ok(seed.clone())
     }
 
@@ -4362,7 +4361,7 @@ impl AuthorityPerEpochStore {
             self.metrics
                 .deny_rule_update_transactions_injected
                 .inc_by(chunk_count as u64);
-            output.record_mirrored_deny_rules(target.clone());
+            output.record_flushed_deny_rule_mirror(target.clone());
             self.mirrored_transaction_deny_rules.store(Arc::new(target));
             // The recompute in `push_consensus_output` only runs for commits
             // that record proposals, so a removal unlocking on a proposal-free

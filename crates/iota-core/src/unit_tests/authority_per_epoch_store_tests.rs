@@ -969,7 +969,7 @@ fn deny_rule_update_chunks_split_deterministically() {
 /// atomically with each injecting commit — not from the epoch-start seed,
 /// which is stale once injections have advanced the object.
 #[tokio::test]
-async fn restart_recovers_persisted_mirrored_deny_rules() {
+async fn restart_recovers_the_flushed_deny_rule_mirror() {
     let authority_state = TestAuthorityBuilder::new().build().await;
     let store = authority_state.epoch_store_for_testing();
     let address = Address::new([7u8; 32]);
@@ -983,7 +983,7 @@ async fn restart_recovers_persisted_mirrored_deny_rules() {
     // An injecting commit persists the advanced mirror with its results.
     let mirror = rules_denying_address(address);
     let mut output = ConsensusCommitOutput::default();
-    output.record_mirrored_deny_rules(mirror.clone());
+    output.record_flushed_deny_rule_mirror(mirror.clone());
     output.set_default_commit_stats_for_testing();
     let mut batch = store.db_batch_for_test();
     output.write_to_batch(&store, &mut batch).unwrap();
@@ -1291,7 +1291,7 @@ async fn deny_rule_mirror_guard_exempts_nodes_outside_the_committee() {
 /// immediately, so a row absent although commits have flushed is a lost
 /// row: the store refuses to open rather than start from the stale seed.
 #[tokio::test]
-#[should_panic(expected = "mirrored_deny_rules row is missing")]
+#[should_panic(expected = "flushed_deny_rule_mirror row is missing")]
 async fn lost_mirror_row_after_flushed_commits_fails_the_reopen() {
     let authority_state = TestAuthorityBuilder::new().build().await;
     let store = authority_state.epoch_store_for_testing();
@@ -1317,11 +1317,11 @@ async fn lost_mirror_row_after_flushed_commits_fails_the_reopen() {
     )
     .unwrap();
     let tables = store.tables().unwrap();
-    assert!(tables.mirrored_deny_rules.get(&()).unwrap().is_some());
+    assert!(tables.flushed_deny_rule_mirror.get(&()).unwrap().is_some());
 
     // Flush a commit, then lose the row.
     flush_deny_rule_proposal(&store, deny_proposal(store.name, 1, DenyRuleSet::default()));
-    tables.mirrored_deny_rules.remove(&()).unwrap();
+    tables.flushed_deny_rule_mirror.remove(&()).unwrap();
     drop(tables);
     store.release_db_handles();
     let _ = AuthorityPerEpochStore::new(
