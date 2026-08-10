@@ -1027,7 +1027,7 @@ async fn commit_injects_deny_rule_updates_and_advances_mirror() {
 
     use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
     use iota_sdk_types::TransactionKind;
-    use iota_types::transaction::TransactionDataAPI;
+    use iota_types::transaction::TransactionAPI;
 
     use crate::consensus_handler::ConsensusCommitInfo;
 
