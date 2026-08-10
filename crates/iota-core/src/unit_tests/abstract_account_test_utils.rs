@@ -69,6 +69,8 @@ const AA_ACCOUNT_TYPE: &str = "AbstractAccount";
 /// The module holding `create`, `rotate_public_key` and the authenticators.
 const AA_KEYED_MODULE: &str = "abstract_account_keyed";
 const AA_AUTHENTICATE_ED25519: &str = "authenticate_ed25519";
+pub const AA_AUTHENTICATE_ED25519_VIA_SIGNING_DIGEST: &str =
+    "authenticate_ed25519_via_signing_digest";
 
 /// Consensus accepts a validator attestation only from the block author, which
 /// `SequencedConsensusTransaction::new_test` fixes at index 0.
@@ -199,6 +201,7 @@ impl AbstractAccountTestEnv {
         &self,
         builder: &mut ProgrammableTransactionBuilder,
         target_function: &str,
+        authenticate_function: &str,
         mut leading_arguments: Vec<Argument>,
     ) {
         let arguments = vec![
@@ -206,7 +209,7 @@ impl AbstractAccountTestEnv {
                 .obj(CallArg::ImmutableOrOwned(self.metadata_ref))
                 .unwrap(),
             builder.pure(AA_KEYED_MODULE).unwrap(),
-            builder.pure(AA_AUTHENTICATE_ED25519).unwrap(),
+            builder.pure(authenticate_function).unwrap(),
         ];
         let auth_fn_ref = builder.programmable_move_call(
             IOTA_FRAMEWORK_PACKAGE_ID,
@@ -230,7 +233,12 @@ impl AbstractAccountTestEnv {
         let pt = {
             let mut builder = ProgrammableTransactionBuilder::new();
             let public_key = builder.pure(public_key).unwrap();
-            self.call_with_auth_function_ref(&mut builder, "create", vec![public_key]);
+            self.call_with_auth_function_ref(
+                &mut builder,
+                "create",
+                AA_AUTHENTICATE_ED25519,
+                vec![public_key],
+            );
             builder.finish()
         };
         let effects = self.execute_as_funder(pt, 1).await;
@@ -395,6 +403,7 @@ impl AbstractAccountTestEnv {
             self.call_with_auth_function_ref(
                 &mut builder,
                 "rotate_public_key",
+                AA_AUTHENTICATE_ED25519,
                 vec![account, public_key],
             );
             builder.finish()
@@ -410,6 +419,38 @@ impl AbstractAccountTestEnv {
         );
 
         std::mem::replace(&mut self.owner_key, new_key)
+    }
+
+    /// Rotates the account's authenticator to `authenticate_function`, keeping
+    /// the current public key, so a transaction that authenticated under the
+    /// previous authenticator no longer does.
+    pub async fn rotate_authenticator_function(&mut self, authenticate_function: &str) {
+        let public_key = self.owner_key.public().as_ref().to_vec();
+        let pt = {
+            let mut builder = ProgrammableTransactionBuilder::new();
+            let account = builder
+                .obj(CallArg::Shared(SharedObjectReference {
+                    mutable: true,
+                    ..self.account
+                }))
+                .unwrap();
+            let public_key = builder.pure(public_key).unwrap();
+            self.call_with_auth_function_ref(
+                &mut builder,
+                "rotate_public_key",
+                authenticate_function,
+                vec![account, public_key],
+            );
+            builder.finish()
+        };
+        let current_key = self.owner_key.copy();
+        let tx = self.sign_with_move_authenticator(pt, &current_key);
+        let effects = self.submit(tx, None).await;
+        assert!(
+            effects.status().is_success(),
+            "rotating the authenticator function must succeed, got {:?}",
+            effects.status()
+        );
     }
 
     /// Runs the attestor's own dry-run, which is how a genuine attestation is

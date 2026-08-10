@@ -6899,19 +6899,18 @@ impl AttestedObjectVersionReader for AttestedObjectVersions<'_> {
         object_id: &ObjectId,
         version: Version,
     ) -> AttestedObjectVersionState {
-        let Some(current) = self.object_cache.get_object(object_id) else {
-            return AttestedObjectVersionState::Stale;
-        };
-        if current.version() == version {
-            return AttestedObjectVersionState::Current;
+        if let Some(current) = self.object_cache.get_object(object_id) {
+            if current.version() == version {
+                return AttestedObjectVersionState::Current;
+            }
         }
 
-        // Only a version superseded during this epoch can be re-run at.
-        let superseded_in_epoch = self
+        // A version superseded during this epoch can still be re-run at, whether
+        // it was overwritten or removed by deletion or wrapping.
+        match self
             .object_cache
-            .try_get_object_superseded_in_epoch(object_id, version);
-
-        match superseded_in_epoch {
+            .try_get_object_superseded_in_epoch(object_id, version)
+        {
             Ok(Some(epoch)) if epoch == self.current_epoch => {
                 AttestedObjectVersionState::SupersededInCurrentEpoch
             }

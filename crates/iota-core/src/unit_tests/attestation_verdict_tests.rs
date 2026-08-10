@@ -14,7 +14,9 @@ use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{ExecutionError, ExecutionStatus};
 use iota_types::{crypto::get_account_key_pair, effects::TransactionEffectsAPI};
 
-use crate::authority::abstract_account_test_utils::AbstractAccountTestEnv;
+use crate::authority::abstract_account_test_utils::{
+    AA_AUTHENTICATE_ED25519_VIA_SIGNING_DIGEST, AbstractAccountTestEnv,
+};
 
 fn attestation_config() -> impl Drop {
     ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
@@ -85,5 +87,35 @@ async fn attestation_that_fails_at_its_own_versions_is_invalid() {
     assert!(
         matches!(error, ExecutionError::InvalidAttestation),
         "an attestation whose own versions fail authentication must be invalid, got {error:?}"
+    );
+}
+
+/// The account can rotate to a different authenticator, not just a new key. An
+/// attestor that vouched for the transaction under the previous authenticator
+/// is not accountable for the rotation: the re-run resolves the authenticator
+/// recorded in the attestation rather than the one the account switched to, so
+/// authentication still passes there and the failure is charged to the issuer.
+#[tokio::test]
+async fn honest_attestation_of_a_rotated_authenticator_charges_the_issuer() {
+    let _guard = attestation_config();
+
+    let mut env = AbstractAccountTestEnv::new().await;
+    let tx = env.account_transaction();
+
+    let attestation = env.attest(&tx);
+
+    // Rotate to an authenticator that rejects the signature the transaction
+    // carries, so the live authentication run fails and triggers the re-run.
+    env.rotate_authenticator_function(AA_AUTHENTICATE_ED25519_VIA_SIGNING_DIGEST)
+        .await;
+
+    let effects = env.submit(tx, Some(attestation)).await;
+
+    let ExecutionStatus::Failure { error, .. } = effects.status() else {
+        panic!("expected an execution failure, got {:?}", effects.status());
+    };
+    assert!(
+        matches!(error, ExecutionError::MoveAuthenticationError { .. }),
+        "re-running the authenticator the attestor recorded must charge the issuer, got {error:?}"
     );
 }

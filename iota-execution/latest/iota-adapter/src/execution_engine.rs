@@ -28,7 +28,7 @@ mod checked {
     use iota_types::{
         account_abstraction::authenticator_function::{
             AuthenticatorFunctionRef, AuthenticatorFunctionRefForExecution,
-            AuthenticatorFunctionRefV1,
+            AuthenticatorFunctionRefV1, authenticator_function_ref_v1_from_dynamic_field_object,
         },
         attestation::AttestationVerdictContext,
         auth_context::{AuthContext, AuthContextData},
@@ -38,10 +38,7 @@ mod checked {
         committee::EpochId,
         effects::TransactionEffects,
         error::{ExecutionError, ExecutionErrorKind},
-        execution::{
-            DynamicallyLoadedObjectMetadata, ExecutionResults, ExecutionResultsV1, SharedInput,
-            is_certificate_denied,
-        },
+        execution::{ExecutionResults, ExecutionResultsV1, SharedInput, is_certificate_denied},
         execution_config_utils::to_binary_config,
         gas::{IotaGasStatus, IotaGasStatusAPI},
         gas_coin::GAS,
@@ -532,7 +529,6 @@ mod checked {
                         gas_price,
                         rgp,
                         gas_budget,
-                        &mut gas_charger,
                         reauth_authenticators,
                         &verdict_context.object_versions,
                         &transaction_kind,
@@ -596,17 +592,14 @@ mod checked {
 
     /// Re-runs Move authentication at the object versions an attestor recorded.
     ///
-    /// Returns `true` only when authentication provably succeeds at the
-    /// attested versions, so the failure is attributed to the issuer
-    /// (`MoveAuthenticationError`). Returns `false` when authentication
-    /// still fails at those versions or when an attested version can no longer
-    /// be loaded to run the check. In both of the latter cases
-    /// the attestation is not proven honest and the failure is attributed to
-    /// the attestor (`InvalidAttestation`).
-    ///
-    /// The re-run is metered on the transaction's `gas_charger`, so its
-    /// computation is charged like any other execution cost on top of the
-    /// original authentication attempt.
+    /// Returns `true` unless authentication is deterministically rejected at
+    /// the attested versions. A rejection there proves the recorded
+    /// versions do not authenticate, so the failure is charged to the
+    /// attestor (`InvalidAttestation`); every other outcome -
+    /// authentication passing, or the check failing to complete (out of
+    /// gas, invariant violation, an unloadable version) - leaves the
+    /// attestation unrefuted and charges the
+    /// issuer (`MoveAuthenticationError`).
     fn reauthenticate_at_attested_versions(
         store: &dyn BackingStore,
         protocol_config: &ProtocolConfig,
@@ -618,7 +611,6 @@ mod checked {
         gas_price: u64,
         reference_gas_price: u64,
         gas_budget: u64,
-        gas_charger: &mut GasCharger,
         authenticators: Vec<(
             MoveAuthenticator,
             AuthenticatorFunctionRefForExecution,
@@ -635,10 +627,17 @@ mod checked {
             .map(|object_ref| (*object_ref.object_id(), object_ref))
             .collect();
 
+        let Ok(gas_status) =
+            IotaGasStatus::new(gas_budget, gas_price, reference_gas_price, protocol_config)
+        else {
+            return true;
+        };
+        let mut gas_charger =
+            GasCharger::new(transaction_digest, vec![], gas_status, protocol_config);
+
         for (authenticator, function_ref_for_execution, authenticator_input_objects) in
             authenticators
         {
-            // Reload the authentication inputs at their attested versions.
             let Some(reloaded_input_objects) = reload_input_objects_at_attested_versions(
                 &authenticator_input_objects,
                 &attested_versions,
@@ -647,24 +646,27 @@ mod checked {
                 return false;
             };
 
+            let field_object_id = function_ref_for_execution.loaded_object_id;
             let AuthenticatorFunctionRefForExecution {
                 authenticator_function_ref,
                 loaded_object_id,
                 loaded_object_metadata,
-            } = function_ref_for_execution;
-
-            // Reload the authenticator-function-ref field object at its attested
-            // version, if the attestation recorded one for it.
-            let loaded_object_metadata = match attested_versions.get(&loaded_object_id) {
+            } = match attested_versions.get(&field_object_id) {
                 Some(object_ref) => {
                     let Some(object) =
-                        store.get_object_by_key(&loaded_object_id, object_ref.version())
+                        store.get_object_by_key(&field_object_id, object_ref.version())
                     else {
                         return false;
                     };
-                    dynamically_loaded_object_metadata(&object)
+                    match authenticator_function_ref_v1_from_dynamic_field_object(
+                        field_object_id,
+                        &object,
+                    ) {
+                        Ok(resolved) => resolved,
+                        Err(_) => return false,
+                    }
                 }
-                None => loaded_object_metadata,
+                None => function_ref_for_execution,
             };
 
             let mut temporary_store = TemporaryStore::new(
@@ -698,7 +700,7 @@ mod checked {
                         &mut temporary_store,
                         protocol_config,
                         metrics.clone(),
-                        gas_charger,
+                        &mut gas_charger,
                         authenticator,
                         authenticator_function_ref_v1,
                         &reloaded_input_objects,
@@ -712,12 +714,23 @@ mod checked {
                 }
             };
 
-            if result.is_err() {
-                return false;
+            match result {
+                Ok(_) => {}
+                Err(error) if is_authentication_rejection(error.kind()) => return false,
+                Err(_) => return true,
             }
         }
 
         true
+    }
+
+    fn is_authentication_rejection(kind: &ExecutionErrorKind) -> bool {
+        !matches!(
+            kind,
+            ExecutionErrorKind::InsufficientGas
+                | ExecutionErrorKind::InvariantViolation
+                | ExecutionErrorKind::VmInvariantViolation
+        )
     }
 
     /// Rebuilds the input objects for authentication at the versions the
@@ -744,18 +757,6 @@ mod checked {
             }
         }
         Some(InputObjects::new(reloaded))
-    }
-
-    /// Builds the runtime metadata for an object reloaded at an attested
-    /// version.
-    fn dynamically_loaded_object_metadata(object: &Object) -> DynamicallyLoadedObjectMetadata {
-        DynamicallyLoadedObjectMetadata {
-            version: object.version(),
-            digest: object.digest(),
-            owner: object.owner,
-            storage_rebate: object.storage_rebate,
-            previous_transaction: object.previous_transaction,
-        }
     }
 
     /// This function checks the authentication of a transaction without

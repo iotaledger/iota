@@ -7,7 +7,7 @@
 //! the object versions the attestor recorded decide who is charged for it.
 
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{Address, ExecutionError, ExecutionStatus, ObjectId};
+use iota_sdk_types::{Address, Command, ExecutionError, ExecutionStatus, ObjectId};
 use iota_types::{
     attestation::{AttestedObjectVersionReader, AttestedObjectVersionState},
     crypto::get_account_key_pair,
@@ -15,9 +15,10 @@ use iota_types::{
     executable_transaction::VerifiedExecutableTransaction,
     move_authenticator::{MoveAuthenticator, MoveAuthenticatorV1},
     object::Object,
+    programmable_transaction_builder::ProgrammableTransactionBuilder,
     signature::UserSignature,
     transaction::{
-        TEST_ONLY_GAS_UNIT_FOR_TRANSFER, Transaction, TransactionData, TransactionDataAPI,
+        CallArg, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, Transaction, TransactionData, TransactionDataAPI,
     },
     utils::to_sender_signed_transaction,
 };
@@ -266,5 +267,91 @@ async fn attested_object_version_state_does_not_depend_on_flush_state() {
     assert_eq!(
         before_commit, after_commit,
         "the verdict must not change when the supersession reaches the database"
+    );
+}
+
+/// Deleting the object supersedes the attested version just like overwriting
+/// it: the object can no longer be read, but the version it held was superseded
+/// this epoch and is still re-runnable rather than being written off as stale.
+#[tokio::test]
+async fn attested_object_version_state_judges_a_deleted_object() {
+    let (sender, sender_key) = get_account_key_pair();
+
+    let attested_id = ObjectId::random();
+    let sink_id = ObjectId::random();
+    let gas_id = ObjectId::random();
+    let objects = vec![
+        Object::with_id_owner_for_testing(attested_id, sender),
+        Object::with_id_owner_for_testing(sink_id, sender),
+        Object::with_id_owner_for_testing(gas_id, sender),
+    ];
+    let authority = TestAuthorityBuilder::new()
+        .with_starting_objects(&objects)
+        .build()
+        .await;
+
+    let epoch_store = authority.epoch_store_for_testing();
+    let epoch = epoch_store.epoch();
+    let rgp = authority.reference_gas_price_for_testing().unwrap();
+
+    let attested_ref = authority.get_object(&attested_id).unwrap().object_ref();
+    let sink_ref = authority.get_object(&sink_id).unwrap().object_ref();
+    let gas_ref = authority.get_object(&gas_id).unwrap().object_ref();
+
+    // Merging the coin into another deletes it, so the attested version stops
+    // being current and is recorded as superseded this epoch.
+    let pt = {
+        let mut builder = ProgrammableTransactionBuilder::new();
+        let sink = builder.obj(CallArg::ImmutableOrOwned(sink_ref)).unwrap();
+        let merged = builder
+            .obj(CallArg::ImmutableOrOwned(attested_ref))
+            .unwrap();
+        builder.command(Command::new_merge_coins(sink, vec![merged]));
+        builder.finish()
+    };
+    let tx_data = TransactionData::new_programmable(
+        sender,
+        vec![gas_ref],
+        pt,
+        rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER * 10,
+        rgp,
+    );
+    let tx = to_sender_signed_transaction(tx_data, &sender_key);
+    let verified_tx = epoch_store.verify_transaction(tx).unwrap();
+    let executable = VerifiedExecutableTransaction::new_from_checkpoint(verified_tx, epoch, 1);
+    let (effects, _execution_error) = authority
+        .try_execute_immediately(&executable.into(), None, &epoch_store)
+        .unwrap();
+    assert!(
+        effects.status().is_success(),
+        "the merge must succeed, got {:?}",
+        effects.status()
+    );
+
+    // Commit so the lookup is served from the database rather than the cache.
+    let digests = [*effects.transaction_digest()];
+    let cache_commit = authority.get_cache_commit();
+    let batch = cache_commit.build_db_batch(epoch, 0, &digests);
+    cache_commit.commit_transaction_outputs(epoch, batch, &digests);
+
+    assert!(
+        authority.get_object(&attested_id).is_none(),
+        "the merge must have deleted the attested object"
+    );
+
+    let versions_as_of = |current_epoch| AttestedObjectVersions {
+        object_cache: authority.get_object_cache_reader().as_ref(),
+        current_epoch,
+    };
+    assert_eq!(
+        versions_as_of(epoch).attested_object_version_state(&attested_id, attested_ref.version()),
+        AttestedObjectVersionState::SupersededInCurrentEpoch,
+        "a version a deletion superseded this epoch can still be re-run at"
+    );
+    assert_eq!(
+        versions_as_of(epoch + 1)
+            .attested_object_version_state(&attested_id, attested_ref.version()),
+        AttestedObjectVersionState::Stale,
+        "the same version is out of reach once the superseding epoch has passed"
     );
 }
