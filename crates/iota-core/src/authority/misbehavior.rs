@@ -3,7 +3,8 @@
 
 use iota_protocol_config::ProtocolConfig;
 use iota_types::messages_consensus::{
-    MisbehaviorObservations, MisbehaviorObservationsV1, VersionedMisbehaviorReport,
+    MisbehaviorObservations, MisbehaviorObservationsV1, MisbehaviorObservationsV2,
+    VersionedMisbehaviorReport,
 };
 use tracing::error;
 
@@ -13,18 +14,20 @@ use crate::consensus_types::consensus_output_api::ConsensusOutputMisbehaviorCoun
 /// the current epoch. Loaded once from `ProtocolConfig` and threaded through
 /// `MisbehaviorMonitor` / `ReportAggregator` / `Scoreboard` as a `Copy` token.
 ///
-/// The schema itself (which categories exist and their layout) lives in
-/// `MisbehaviorObservationsV1`; this enum only versions the wire format and
-/// gates acceptance.
+/// The schema itself (which categories exist and their layout) lives in the
+/// `MisbehaviorObservations` variants; this enum only versions the wire
+/// format and gates acceptance.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum MisbehaviorReportVersion {
     V1,
+    V2,
 }
 
 impl MisbehaviorReportVersion {
     pub fn from_protocol(protocol_config: &ProtocolConfig) -> Self {
         match protocol_config.scorer_version_as_option() {
             None | Some(1) => Self::V1,
+            Some(2) => Self::V2,
             Some(version) => panic!("Unsupported scorer version {version}"),
         }
     }
@@ -33,6 +36,7 @@ impl MisbehaviorReportVersion {
     pub fn accepts_report(&self, report: &VersionedMisbehaviorReport) -> bool {
         match self {
             Self::V1 => matches!(report.payload, MisbehaviorObservations::V1(_)),
+            Self::V2 => matches!(report.payload, MisbehaviorObservations::V2(_)),
         }
     }
 }
@@ -49,13 +53,20 @@ pub(crate) fn zero_observations(
             missing_proposals: vec![0u64; committee_size],
             equivocations: vec![0u64; committee_size],
         }),
+        MisbehaviorReportVersion::V2 => MisbehaviorObservations::V2(MisbehaviorObservationsV2 {
+            faulty_blocks_provable: vec![0u64; committee_size],
+            faulty_blocks_unprovable: vec![0u64; committee_size],
+            missing_proposals: vec![0u64; committee_size],
+            equivocations: vec![0u64; committee_size],
+            invalid_bundle_parts: vec![0u64; committee_size],
+        }),
     }
 }
 
-/// Element-wise maximum merge across all metrics. Cross-version merges become
-/// a deliberate design decision when V2 lands (currently impossible — single
-/// variant). Adding a metric to `MisbehaviorObservationsV1` will surface as a
-/// missing-field error here, forcing the new metric to be considered.
+/// Element-wise maximum merge across all metrics. Both inputs are always the
+/// epoch's single report version: the monitor's local observations and the
+/// aggregator's accepted reports are constructed from the same
+/// `MisbehaviorReportVersion`, so cross-version pairs cannot occur.
 pub(crate) fn merge_max(
     a: &MisbehaviorObservations,
     b: &MisbehaviorObservations,
@@ -78,6 +89,25 @@ pub(crate) fn merge_max(
                 equivocations: elem_max(&x.equivocations, &y.equivocations),
             })
         }
+        (MisbehaviorObservations::V2(x), MisbehaviorObservations::V2(y)) => {
+            MisbehaviorObservations::V2(MisbehaviorObservationsV2 {
+                faulty_blocks_provable: elem_max(
+                    &x.faulty_blocks_provable,
+                    &y.faulty_blocks_provable,
+                ),
+                faulty_blocks_unprovable: elem_max(
+                    &x.faulty_blocks_unprovable,
+                    &y.faulty_blocks_unprovable,
+                ),
+                missing_proposals: elem_max(&x.missing_proposals, &y.missing_proposals),
+                equivocations: elem_max(&x.equivocations, &y.equivocations),
+                invalid_bundle_parts: elem_max(&x.invalid_bundle_parts, &y.invalid_bundle_parts),
+            })
+        }
+        (a, b) => panic!(
+            "cross-version misbehavior observation merge: {a:?} vs {b:?} — \
+             all observations within an epoch share one report version"
+        ),
     }
 }
 
@@ -119,7 +149,28 @@ pub(crate) fn observations_from_consensus_output(
         }
     };
     match version {
-        MisbehaviorReportVersion::V1 => MisbehaviorObservations::V1(MisbehaviorObservationsV1 {
+        MisbehaviorReportVersion::V1 => {
+            // The V1 report format has no bundle-part category; fold those
+            // counts into the unprovable bucket, where they were counted
+            // before the split.
+            let unprovable = project(counts.faulty_blocks_unprovable, "faulty_blocks_unprovable");
+            let bundle_parts = project(counts.invalid_bundle_parts, "invalid_bundle_parts");
+            let folded = unprovable
+                .iter()
+                .zip(&bundle_parts)
+                .map(|(unprov, bundle)| unprov.saturating_add(*bundle))
+                .collect();
+            MisbehaviorObservations::V1(MisbehaviorObservationsV1 {
+                faulty_blocks_provable: project(
+                    counts.faulty_blocks_provable,
+                    "faulty_blocks_provable",
+                ),
+                faulty_blocks_unprovable: folded,
+                missing_proposals: project(counts.missing_proposals, "missing_proposals"),
+                equivocations: project(counts.equivocations, "equivocations"),
+            })
+        }
+        MisbehaviorReportVersion::V2 => MisbehaviorObservations::V2(MisbehaviorObservationsV2 {
             faulty_blocks_provable: project(
                 counts.faulty_blocks_provable,
                 "faulty_blocks_provable",
@@ -130,6 +181,7 @@ pub(crate) fn observations_from_consensus_output(
             ),
             missing_proposals: project(counts.missing_proposals, "missing_proposals"),
             equivocations: project(counts.equivocations, "equivocations"),
+            invalid_bundle_parts: project(counts.invalid_bundle_parts, "invalid_bundle_parts"),
         }),
     }
 }

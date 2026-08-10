@@ -72,14 +72,14 @@ impl ReportAggregator {
             return Err(ReportValidationError::WrongReportVersion);
         }
         let committee_size = self.received_reports_state.len();
-        match &report.payload {
-            MisbehaviorObservations::V1(payload) => {
-                if payload.verify(committee_size) {
-                    Ok(())
-                } else {
-                    Err(ReportValidationError::PayloadShape)
-                }
-            }
+        let payload_ok = match &report.payload {
+            MisbehaviorObservations::V1(payload) => payload.verify(committee_size),
+            MisbehaviorObservations::V2(payload) => payload.verify(committee_size),
+        };
+        if payload_ok {
+            Ok(())
+        } else {
+            Err(ReportValidationError::PayloadShape)
         }
     }
 
@@ -237,7 +237,8 @@ pub(crate) struct DBReceivedReportsStatePerAuthority {
 mod tests {
     use iota_protocol_config::ProtocolConfig;
     use iota_types::messages_consensus::{
-        MisbehaviorObservations, MisbehaviorObservationsV1, VersionedMisbehaviorReport,
+        MisbehaviorObservations, MisbehaviorObservationsV1, MisbehaviorObservationsV2,
+        VersionedMisbehaviorReport,
     };
 
     use crate::{
@@ -271,6 +272,20 @@ mod tests {
                 faulty_blocks_unprovable: raw_counts[1].clone(),
                 missing_proposals: raw_counts[2].clone(),
                 equivocations: raw_counts[3].clone(),
+            },
+        )
+    }
+
+    fn report_v2(raw_counts: &[Vec<u64>; 5]) -> VersionedMisbehaviorReport {
+        VersionedMisbehaviorReport::new_v2(
+            iota_types::base_types::AuthorityName::default(),
+            0,
+            MisbehaviorObservationsV2 {
+                faulty_blocks_provable: raw_counts[0].clone(),
+                faulty_blocks_unprovable: raw_counts[1].clone(),
+                missing_proposals: raw_counts[2].clone(),
+                equivocations: raw_counts[3].clone(),
+                invalid_bundle_parts: raw_counts[4].clone(),
             },
         )
     }
@@ -362,8 +377,26 @@ mod tests {
     #[test]
     fn test_validate_report_valid() {
         let aggregator = mock_aggregator(3);
-        let report = report_v1(&[vec![1, 2, 3], vec![4, 5, 6], vec![7, 8, 9], vec![0, 0, 0]]);
+        let report = report_v2(&[
+            vec![1, 2, 3],
+            vec![4, 5, 6],
+            vec![7, 8, 9],
+            vec![0, 0, 0],
+            vec![1, 0, 2],
+        ]);
         assert!(aggregator.validate_report(&report).is_ok());
+    }
+
+    #[test]
+    fn test_validate_report_wrong_version() {
+        // The max-version aggregator accepts only the current report format;
+        // a V1 report is rejected before its payload shape is even checked.
+        let aggregator = mock_aggregator(3);
+        let report = report_v1(&[vec![1, 2, 3], vec![4, 5, 6], vec![7, 8, 9], vec![0, 0, 0]]);
+        assert_eq!(
+            aggregator.validate_report(&report),
+            Err(ReportValidationError::WrongReportVersion)
+        );
     }
 
     #[test]
@@ -426,11 +459,12 @@ mod tests {
         // Aggregator built for a 3-validator committee; incoming report has
         // 4-element vectors — should be rejected as malformed.
         let aggregator = mock_aggregator(3);
-        let report = report_v1(&[
+        let report = report_v2(&[
             vec![1, 2, 3, 4],
             vec![5, 6, 7, 8],
             vec![9, 10, 11, 12],
             vec![0, 0, 0, 0],
+            vec![1, 1, 1, 1],
         ]);
         assert_eq!(
             aggregator.validate_report(&report),
