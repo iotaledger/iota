@@ -2490,7 +2490,8 @@ async fn test_handle_confirmation_transaction_receiver_equal_sender() {
 #[tokio::test]
 #[should_panic(expected = "is expected to have effects digest")]
 async fn try_execute_immediately_panics_on_effects_digest_mismatch() {
-    let (address, key) = get_key_pair();
+    let key = AccountKeyPair::random();
+    let address = key.public_key().derive_address();
     let object_id = ObjectId::random();
     let gas_object_id = ObjectId::random();
     let authority_state =
@@ -2525,7 +2526,8 @@ async fn try_execute_immediately_panics_on_effects_digest_mismatch() {
 #[tokio::test]
 #[should_panic(expected = "Unexpected effects digest")]
 async fn try_execute_immediately_panics_on_already_executed_digest_mismatch() {
-    let (address, key) = get_key_pair();
+    let key = AccountKeyPair::random();
+    let address = key.public_key().derive_address();
     let object_id = ObjectId::random();
     let gas_object_id = ObjectId::random();
     let authority_state =
@@ -7161,7 +7163,8 @@ async fn survivor_executes(use_execution_scheduler: bool) {
     });
 
     // Setup: two transactions competing for the same owned object.
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let sender_key = AccountKeyPair::random();
+    let sender = sender_key.public_key().derive_address();
     let recipient1 = dbg_addr(2);
     let recipient2 = dbg_addr(3);
     let object_id = ObjectId::random();
@@ -7319,7 +7322,8 @@ async fn execution_scheduler_counts_executing_transaction() {
     // Select the ExecutionScheduler; this invariant is about its accounting.
     set_scheduler_env(true);
 
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let sender_key = AccountKeyPair::random();
+    let sender = sender_key.public_key().derive_address();
     let recipient = dbg_addr(2);
     let object_id = ObjectId::random();
     let gas_id = ObjectId::random();
@@ -7415,7 +7419,8 @@ async fn execution_scheduler_drops_executing_guard_on_epoch_termination() {
 
     set_scheduler_env(true);
 
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let sender_key = AccountKeyPair::random();
+    let sender = sender_key.public_key().derive_address();
     let recipient = dbg_addr(2);
     let object_id = ObjectId::random();
     let gas_id = ObjectId::random();
@@ -7509,7 +7514,8 @@ async fn duplicate_enqueue_executes_once_execution_scheduler() {
 async fn duplicate_enqueue_executes_once(use_execution_scheduler: bool) {
     set_scheduler_env(use_execution_scheduler);
 
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let sender_key = AccountKeyPair::random();
+    let sender = sender_key.public_key().derive_address();
     let recipient = dbg_addr(2);
     let object_id = ObjectId::random();
     let gas_id = ObjectId::random();
