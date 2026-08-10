@@ -56,7 +56,7 @@ pub async fn serve_connection<IO, S, B, C>(
     drop(on_connection_close);
 }
 
-async fn sleep_or_pending(wait_for: Option<Duration>) {
+pub(crate) async fn sleep_or_pending(wait_for: Option<Duration>) {
     match wait_for {
         Some(wait) => tokio::time::sleep(wait).await,
         None => std::future::pending().await,
