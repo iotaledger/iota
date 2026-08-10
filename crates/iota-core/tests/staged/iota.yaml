@@ -474,7 +474,7 @@ ExecutionError:
     38:
       InvalidLinkage: UNIT
     39:
-      MoveAuthenticationError:
+      MoveAuthentication:
         STRUCT:
           - error:
               TYPENAME: ExecutionError
