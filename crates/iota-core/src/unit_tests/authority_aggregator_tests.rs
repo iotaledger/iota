@@ -17,7 +17,8 @@ use iota_move_build::BuildConfig;
 use iota_protocol_config::Chain::Unknown;
 use iota_sdk_types::{
     Address, ExecutionError, ExecutionStatus, Identifier, ObjectId, ObjectReference,
-    SenderSignedTransaction, StakeUnit, TransactionDigest, TransactionEffects, TransactionEvents,
+    SenderSignedTransaction, StakeUnit, Transaction, TransactionDigest, TransactionEffects,
+    TransactionEvents,
     crypto::{Intent, IntentMessage, IntentScope, SimpleSignature},
 };
 #[cfg(msim)]
@@ -44,7 +45,7 @@ use iota_types::{
     transaction::{
         CallArg, CertifiedTransaction, SignedTransaction,
         TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS,
-        TransactionData, TransactionDataAPI, TransactionEnvelope, VerifiedTransaction,
+        TransactionAPI, TransactionEnvelope, VerifiedTransaction,
     },
     utils::{create_fake_transaction, to_sender_signed_transaction},
 };
@@ -120,7 +121,7 @@ pub fn create_object_move_transaction(
     ];
 
     to_sender_signed_transaction(
-        TransactionData::new_move_call(
+        Transaction::new_move_call(
             src,
             package_id,
             Identifier::from_static("object_basics"),
@@ -145,7 +146,7 @@ pub fn delete_object_move_transaction(
     gas_price: u64,
 ) -> TransactionEnvelope {
     to_sender_signed_transaction(
-        TransactionData::new_move_call(
+        Transaction::new_move_call(
             src,
             framework_obj_id,
             Identifier::from_static("object_basics"),
@@ -173,7 +174,7 @@ pub fn set_object_move_transaction(
     let args = vec![CallArg::ImmutableOrOwned(object_ref), CallArg::pure(&value)];
 
     to_sender_signed_transaction(
-        TransactionData::new_move_call(
+        Transaction::new_move_call(
             src,
             framework_obj_id,
             Identifier::from_static("object_basics"),

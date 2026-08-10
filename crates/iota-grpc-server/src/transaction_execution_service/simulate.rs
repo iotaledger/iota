@@ -20,7 +20,7 @@ use iota_grpc_types::{
 };
 use iota_types::{
     effects::TransactionEffectsAPI,
-    transaction::TransactionDataAPI,
+    transaction::TransactionAPI,
     transaction_executor::{
         SimulateTransactionResult as InternalSimulateResult, TransactionExecutor, VmChecks,
     },

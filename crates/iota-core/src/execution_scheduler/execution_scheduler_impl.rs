@@ -14,7 +14,7 @@ use iota_types::{
     error::IotaResult,
     executable_transaction::VerifiedExecutableTransaction,
     storage::InputKey,
-    transaction::{SenderSignedTransactionAPI, TransactionDataAPI},
+    transaction::{SenderSignedTransactionAPI, TransactionAPI},
 };
 use tokio::{sync::mpsc::UnboundedSender, time::Instant};
 use tracing::{debug, warn};

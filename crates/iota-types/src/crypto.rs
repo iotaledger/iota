@@ -640,9 +640,9 @@ pub trait IotaSignature: Sized {
         T: Serialize,
     {
         // Compute the BCS hash of the value in intent message. In the case of
-        // transaction data, this is the BCS hash of `struct TransactionData`,
+        // transaction data, this is the BCS hash of `struct Transaction`,
         // different from the transaction digest itself that computes the BCS
-        // hash of the Rust type prefix and `struct TransactionData`.
+        // hash of the Rust type prefix and `struct Transaction`.
         // (See `fn digest` in `impl Message for SenderSignedTransaction`).
         let mut hasher = DefaultHash::default();
         hasher.update(bcs::to_bytes(&value).expect("Message serialization should not fail"));
@@ -1108,7 +1108,7 @@ mod bcs_signable {
 
     impl BcsSignable for iota_sdk_types::TransactionEffects {}
     impl BcsSignable for iota_sdk_types::TransactionEvents {}
-    impl BcsSignable for crate::transaction::TransactionData {}
+    impl BcsSignable for iota_sdk_types::Transaction {}
     impl BcsSignable for iota_sdk_types::SenderSignedTransaction {}
     impl BcsSignable for crate::object::ObjectInner {}
 

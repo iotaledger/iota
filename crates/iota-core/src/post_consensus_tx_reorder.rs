@@ -4,7 +4,7 @@
 
 use iota_metrics::monitored_scope;
 use iota_protocol_config::ConsensusTransactionOrdering;
-use iota_types::transaction::TransactionDataAPI;
+use iota_types::transaction::TransactionAPI;
 
 use crate::consensus_handler::{
     SequencedConsensusTransactionKind, VerifiedSequencedConsensusTransaction,

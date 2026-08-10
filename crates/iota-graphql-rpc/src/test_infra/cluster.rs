@@ -12,8 +12,9 @@ use iota_indexer::{
     test_utils::{IndexerTypeConfig, force_delete_database, start_test_indexer_impl},
 };
 use iota_node_storage::GrpcStateReader;
+use iota_sdk_types::Transaction;
 use iota_swarm_config::genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT};
-use iota_types::transaction::{TransactionData, TransactionEnvelope};
+use iota_types::transaction::TransactionEnvelope;
 use test_cluster::{TestCluster, TestClusterBuilder};
 use tokio::{join, task::JoinHandle};
 use tokio_util::sync::CancellationToken;
@@ -341,7 +342,7 @@ impl Cluster {
     }
 
     /// Builds a transaction that transfers IOTA for testing.
-    pub async fn build_transfer_iota_for_test(&self) -> TransactionData {
+    pub async fn build_transfer_iota_for_test(&self) -> Transaction {
         let addresses = self.validator_fullnode_handle.wallet.get_addresses();
 
         let recipient = addresses[1];
@@ -353,7 +354,7 @@ impl Cluster {
     }
 
     /// Signs a transaction.
-    pub fn sign_transaction(&self, transaction: &TransactionData) -> TransactionEnvelope {
+    pub fn sign_transaction(&self, transaction: &Transaction) -> TransactionEnvelope {
         self.validator_fullnode_handle
             .wallet
             .sign_transaction(transaction)

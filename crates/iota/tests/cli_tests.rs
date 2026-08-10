@@ -53,7 +53,7 @@ use iota_types::{
     transaction::{
         TEST_ONLY_GAS_UNIT_FOR_GENERIC, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS,
         TEST_ONLY_GAS_UNIT_FOR_PUBLISH, TEST_ONLY_GAS_UNIT_FOR_SPLIT_COIN,
-        TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionDataAPI,
+        TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI,
     },
 };
 use move_package::{BuildConfig as MoveBuildConfig, lock_file::schema::ManagedPackage};
@@ -4968,7 +4968,7 @@ async fn test_transfer_sponsored() -> Result<(), anyhow::Error> {
 #[sim_test]
 async fn test_transfer_serialized_data() -> Result<(), anyhow::Error> {
     // Like `test_transfer` but the transaction is pre-generated and serialized into
-    // a Base64 string containing a Base64-encoded TransactionData.
+    // a Base64 string containing a Base64-encoded Transaction.
     let (mut cluster, client, rgp, o, _, a) = test_cluster_helper().await;
     let context = &mut cluster.wallet;
 

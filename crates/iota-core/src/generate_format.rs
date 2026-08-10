@@ -17,9 +17,10 @@ use iota_sdk_types::{
     ExecutionStatus, GenesisObject, GenesisTransaction, IdOperation, Identifier, MoveLocation,
     MoveObjectType, MoveStruct, ObjectData, ObjectDigest, ObjectId, ObjectIn, ObjectOut,
     ObjectReference, Owner, PackageUpgradeError, ProgrammableTransaction, RandomnessStateUpdate,
-    SenderSignedTransaction, SharedObjectReference, SimpleSignature, StructTag, TransactionDigest,
-    TransactionEffects, TransactionEffectsDigest, TransactionEvents, TransactionExpiration,
-    TransactionKind, TypeArgumentError, TypeTag, UnchangedSharedKind, UserSignature,
+    SenderSignedTransaction, SharedObjectReference, SimpleSignature, StructTag, Transaction,
+    TransactionDigest, TransactionEffects, TransactionEffectsDigest, TransactionEvents,
+    TransactionExpiration, TransactionKind, TypeArgumentError, TypeTag, UnchangedSharedKind,
+    UserSignature,
     checkpoint::{CheckpointCommitment, CheckpointContents, CheckpointSummary},
     crypto::{Intent, IntentMessage, PersonalMessage},
     move_package::{MovePackage, TypeOrigin, UpgradeInfo},
@@ -41,7 +42,7 @@ use iota_types::{
     multisig::{MultiSig, MultiSigPublicKey, MultisigMember},
     object::{MoveStructExt, ObjectInner},
     storage::DeleteKind,
-    transaction::{CallArg, TransactionData, TransactionDataAPI, TransactionEnvelope},
+    transaction::{CallArg, TransactionAPI, TransactionEnvelope},
 };
 use move_core_types::{account_address::AccountAddress, language_storage::ModuleId};
 use pretty_assertions::assert_str_eq;
@@ -549,7 +550,7 @@ fn get_registry() -> Result<Registry> {
         .unwrap();
 
     let sender_tx = SenderSignedTransaction::new(
-        TransactionData::new_with_gas_coins(
+        Transaction::new_with_gas_coins(
             TransactionKind::EndOfEpoch(vec![EndOfEpochTransactionKind::ChangeEpoch(
                 ChangeEpoch {
                     epoch: 0,

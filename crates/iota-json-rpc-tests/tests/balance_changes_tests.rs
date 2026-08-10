@@ -6,10 +6,9 @@ use std::path::PathBuf;
 
 use iota_move_build::{BuildConfig, IotaPackageHooks};
 use iota_sdk::IotaClient;
-use iota_sdk_types::TransactionKind;
+use iota_sdk_types::{Transaction, TransactionKind};
 use iota_types::{
-    programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{TransactionData, TransactionDataAPI},
+    programmable_transaction_builder::ProgrammableTransactionBuilder, transaction::TransactionAPI,
 };
 use test_cluster::TestClusterBuilder;
 
@@ -38,7 +37,7 @@ async fn test_dry_run_publish_with_mocked_coin() -> Result<(), anyhow::Error> {
 
     let publish = TransactionKind::new_programmable(builder.finish());
     let transaction_bytes =
-        TransactionData::new_with_gas_coins(publish, address, vec![], 100000000, 1000);
+        Transaction::new_with_gas_coins(publish, address, vec![], 100000000, 1000);
 
     let result = client
         .read_api()
@@ -81,7 +80,7 @@ async fn test_dry_run_resolves_events_of_newly_published_package() -> Result<(),
 
     let publish = TransactionKind::new_programmable(builder.finish());
     let transaction_bytes =
-        TransactionData::new_with_gas_coins(publish, address, vec![], 100000000, 1000);
+        Transaction::new_with_gas_coins(publish, address, vec![], 100000000, 1000);
 
     let response = client
         .read_api()

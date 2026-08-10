@@ -6,10 +6,10 @@ use std::str::FromStr;
 use anyhow::Result;
 use clap::{Arg, Command};
 use fastcrypto::encoding::{Base64, Encoding};
-use iota_sdk_types::crypto::Intent;
-use iota_types::{object::Object, transaction::TransactionData};
+use iota_sdk_types::{Transaction, crypto::Intent};
+use iota_types::object::Object;
 
-fn transaction_from_base64(b64: &str) -> TransactionData {
+fn transaction_from_base64(b64: &str) -> Transaction {
     let bytes = Base64::decode(b64).expect("Invalid base64 in transaction");
     bcs::from_bytes(&bytes).expect("Invalid bcs in transaction")
 }

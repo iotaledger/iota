@@ -28,7 +28,7 @@ use iota_sdk_types::{
     Address, Argument, CancelledTransaction, CheckpointSequenceNumber, Command,
     ConsensusDeterminedVersionAssignments, Digest, EpochId, ExecutionError, ExecutionStatus,
     GasPayment, Identifier, MoveStruct, ObjectData, ObjectDigest, ObjectId, ObjectReference, Owner,
-    ProgrammableTransaction, SharedObjectReference, StructTag, TransactionDigest,
+    ProgrammableTransaction, SharedObjectReference, StructTag, Transaction, TransactionDigest,
     TransactionEffects, TransactionExpiration, TransactionKind, TransactionV1, TypeTag, Version,
     VersionAssignment, crypto::SimpleSignature,
 };
@@ -57,8 +57,8 @@ use iota_types::{
     supported_protocol_versions::{SupportedProtocolVersions, SupportedProtocolVersionsWithHashes},
     transaction::{
         CallArg, SenderSignedTransactionAPI, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS,
-        TEST_ONLY_GAS_UNIT_FOR_PUBLISH, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionData,
-        TransactionDataAPI, TransactionEnvelope, VerifiedCertificate, VerifiedTransaction,
+        TEST_ONLY_GAS_UNIT_FOR_PUBLISH, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI,
+        TransactionEnvelope, VerifiedCertificate, VerifiedTransaction,
     },
     transaction_executor::{SimulateTransactionResult, VmChecks},
     utils::{to_sender_signed_transaction, to_sender_signed_transaction_with_multi_signers},
@@ -202,7 +202,7 @@ async fn construct_shared_object_transaction_with_version(
     let rgp = validator.reference_gas_price_for_testing().unwrap();
     let gas_object = validator.get_object(&gas_object_id);
     let gas_object_ref = gas_object.unwrap().object_ref();
-    let data = TransactionData::new_move_call(
+    let tx = Transaction::new_move_call(
         sender,
         package.object_id,
         Identifier::from_static("object_basics"),
@@ -226,7 +226,7 @@ async fn construct_shared_object_transaction_with_version(
     (
         validator,
         fullnode,
-        VerifiedTransaction::new_unchecked(to_sender_signed_transaction(data, &keypair)),
+        VerifiedTransaction::new_unchecked(to_sender_signed_transaction(tx, &keypair)),
         gas_object_id,
         shared_object_id,
     )
@@ -251,7 +251,7 @@ async fn test_dry_run_transaction_block() {
     assert_eq!(shared_object_version, initial_shared_object_version);
 
     let tx = transaction.data().transaction();
-    let txn_data = TransactionData::new_with_gas_coins(
+    let txn = Transaction::new_with_gas_coins(
         tx.kind().clone(),
         tx.sender(),
         vec![],
@@ -259,7 +259,7 @@ async fn test_dry_run_transaction_block() {
         tx.gas_price(),
     );
     let result = fullnode
-        .simulate_transaction(txn_data, VmChecks::Enabled)
+        .simulate_transaction(txn, VmChecks::Enabled)
         .unwrap();
     let gas_usage_no_gas = result.effects.gas_cost_summary();
     assert_eq!(result.effects.status(), &ExecutionStatus::Success);
@@ -278,7 +278,7 @@ async fn test_dry_run_no_gas_big_transfer() {
     let mut builder = ProgrammableTransactionBuilder::new();
     builder.transfer_iota(recipient, Some(amount));
     let pt = builder.finish();
-    let data = TransactionData::new_programmable(
+    let tx = Transaction::new_programmable(
         sender,
         vec![],
         pt,
@@ -286,7 +286,7 @@ async fn test_dry_run_no_gas_big_transfer() {
         fullnode.reference_gas_price_for_testing().unwrap(),
     );
 
-    let signed = to_sender_signed_transaction(data, &sender_key);
+    let signed = to_sender_signed_transaction(tx, &sender_key);
 
     let result = fullnode
         .simulate_transaction(signed.data().transaction().clone(), VmChecks::Enabled)
@@ -900,7 +900,7 @@ async fn test_simulate_unset_gas_budget_is_capped_by_the_gas_coin_balance() {
         fullnode.insert_genesis_object(gas_object);
 
         fullnode.simulate_transaction(
-            TransactionData::V1(TransactionV1 {
+            Transaction::V1(TransactionV1 {
                 kind,
                 sender,
                 gas_payment: GasPayment {
@@ -1189,7 +1189,7 @@ async fn test_dry_run_dev_inspect_dynamic_field_too_new() {
     assert_eq!(result.effects.deleted().len(), 0);
     // dry run
     let rgp = fullnode.reference_gas_price_for_testing().unwrap();
-    let data = TransactionData::new_programmable(
+    let tx = Transaction::new_programmable(
         sender,
         vec![gas_object_ref],
         pt,
@@ -1197,7 +1197,7 @@ async fn test_dry_run_dev_inspect_dynamic_field_too_new() {
         rgp,
     );
     let result = fullnode
-        .simulate_transaction(data, VmChecks::Enabled)
+        .simulate_transaction(tx, VmChecks::Enabled)
         .unwrap();
     assert_eq!(result.effects.deleted().len(), 0);
     assert_eq!(execution_error_source(&result), Some("VMError with status ABORTED with sub status 1 at location Module ModuleId { address: 0000000000000000000000000000000000000000000000000000000000000002, name: Identifier(\"dynamic_field\") } at code offset 0 in function definition 13".to_string()));
@@ -1251,7 +1251,7 @@ async fn test_simulate_rejects_a_gas_payment_that_is_not_a_gas_coin() {
     };
 
     for checks in [VmChecks::Enabled, VmChecks::Disabled] {
-        let transaction = TransactionData::V1(TransactionV1 {
+        let transaction = Transaction::V1(TransactionV1 {
             kind: TransactionKind::new_programmable(pt.clone()),
             sender,
             gas_payment: GasPayment {
@@ -1311,7 +1311,7 @@ async fn test_dry_run_dev_inspect_max_gas_version() {
     assert_eq!(result.effects.status(), &ExecutionStatus::Success);
 
     // dry run
-    let data = TransactionData::new_programmable(
+    let tx = Transaction::new_programmable(
         sender,
         vec![gas_object_ref],
         pt,
@@ -1319,7 +1319,7 @@ async fn test_dry_run_dev_inspect_max_gas_version() {
         rgp,
     );
     let result = fullnode
-        .simulate_transaction(data, VmChecks::Enabled)
+        .simulate_transaction(tx, VmChecks::Enabled)
         .unwrap();
     assert_eq!(result.effects.status(), &ExecutionStatus::Success);
 }
@@ -1619,7 +1619,7 @@ async fn test_handle_sponsored_transaction() {
     };
     let tx_kind = TransactionKind::new_programmable(pt);
 
-    let data = TransactionData::new_with_gas_data(
+    let tx = Transaction::new_with_gas_data(
         tx_kind.clone(),
         sender,
         GasPayment {
@@ -1630,7 +1630,7 @@ async fn test_handle_sponsored_transaction() {
         },
     );
     let dual_signed_tx =
-        to_sender_signed_transaction_with_multi_signers(data, vec![&sender_key, &sponsor_key]);
+        to_sender_signed_transaction_with_multi_signers(tx, vec![&sender_key, &sponsor_key]);
     let dual_signed_tx = epoch_store.verify_transaction(dual_signed_tx).unwrap();
 
     authority_state
@@ -1639,7 +1639,7 @@ async fn test_handle_sponsored_transaction() {
         .unwrap();
 
     // Verify wrong gas owner gives error, using sender address
-    let data = TransactionData::new_with_gas_data(
+    let tx = Transaction::new_with_gas_data(
         tx_kind.clone(),
         sender,
         GasPayment {
@@ -1649,7 +1649,7 @@ async fn test_handle_sponsored_transaction() {
             budget: TEST_ONLY_GAS_UNIT_FOR_TRANSFER * rgp,
         },
     );
-    let dual_signed_tx = to_sender_signed_transaction_with_multi_signers(data, vec![&sender_key]);
+    let dual_signed_tx = to_sender_signed_transaction_with_multi_signers(tx, vec![&sender_key]);
     let dual_signed_tx = VerifiedTransaction::new_unchecked(dual_signed_tx);
 
     let error = authority_state
@@ -1668,7 +1668,7 @@ async fn test_handle_sponsored_transaction() {
 
     // Verify wrong gas owner gives error, using another address
     let (wrong_owner, wrong_owner_key): (_, AccountKeyPair) = get_key_pair();
-    let data = TransactionData::new_with_gas_data(
+    let tx = Transaction::new_with_gas_data(
         tx_kind.clone(),
         sender,
         GasPayment {
@@ -1679,7 +1679,7 @@ async fn test_handle_sponsored_transaction() {
         },
     );
     let dual_signed_tx =
-        to_sender_signed_transaction_with_multi_signers(data, vec![&sender_key, &wrong_owner_key]);
+        to_sender_signed_transaction_with_multi_signers(tx, vec![&sender_key, &wrong_owner_key]);
     let dual_signed_tx = epoch_store.verify_transaction(dual_signed_tx).unwrap();
     let error = authority_state
         .handle_transaction(&epoch_store, dual_signed_tx.clone())
@@ -1697,7 +1697,7 @@ async fn test_handle_sponsored_transaction() {
 
     // Sponsor sig is valid but it doesn't actually own the gas object
     let (third_party, third_party_key): (_, AccountKeyPair) = get_key_pair();
-    let data = TransactionData::new_with_gas_data(
+    let tx = Transaction::new_with_gas_data(
         tx_kind,
         sender,
         GasPayment {
@@ -1708,7 +1708,7 @@ async fn test_handle_sponsored_transaction() {
         },
     );
     let dual_signed_tx =
-        to_sender_signed_transaction_with_multi_signers(data, vec![&sender_key, &third_party_key]);
+        to_sender_signed_transaction_with_multi_signers(tx, vec![&sender_key, &third_party_key]);
     let dual_signed_tx = epoch_store.verify_transaction(dual_signed_tx).unwrap();
     let error = authority_state
         .handle_transaction(&epoch_store, dual_signed_tx.clone())
@@ -1801,7 +1801,7 @@ async fn test_objected_owned_gas() {
     let child_object = Object::with_object_owner_for_testing(child_object_id, parent_object_id);
     authority_state.insert_genesis_object(child_object.clone());
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
-    let data = TransactionData::new_transfer_iota(
+    let tx = Transaction::new_transfer_iota(
         recipient,
         sender,
         None,
@@ -1810,7 +1810,7 @@ async fn test_objected_owned_gas() {
         rgp,
     );
 
-    let transaction = to_sender_signed_transaction(data, &sender_key);
+    let transaction = to_sender_signed_transaction(tx, &sender_key);
     let transaction = epoch_store.verify_transaction(transaction).unwrap();
     let result = authority_state
         .handle_transaction(&epoch_store, transaction)
@@ -1873,7 +1873,7 @@ async fn test_publish_dependent_module_ok() {
     let rgp = authority.reference_gas_price_for_testing().unwrap();
     let gas_price = rgp;
     let gas_budget = gas_price * TEST_ONLY_GAS_UNIT_FOR_PUBLISH;
-    let data = TransactionData::new_module(
+    let tx = Transaction::new_module(
         sender,
         gas_payment_object_ref,
         vec![dependent_module_bytes],
@@ -1881,7 +1881,7 @@ async fn test_publish_dependent_module_ok() {
         gas_budget,
         gas_price,
     );
-    let transaction = to_sender_signed_transaction(data, &sender_key);
+    let transaction = to_sender_signed_transaction(tx, &sender_key);
 
     let dependent_module_id = TxContext::new(
         &sender,
@@ -1932,7 +1932,7 @@ async fn test_publish_module_no_dependencies_ok() {
     let dependencies = vec![]; // no dependencies
     let gas_price = rgp;
     let gas_budget = gas_price * TEST_ONLY_GAS_UNIT_FOR_PUBLISH;
-    let data = TransactionData::new_module(
+    let tx = Transaction::new_module(
         sender,
         gas_payment_object_ref,
         module_bytes,
@@ -1940,7 +1940,7 @@ async fn test_publish_module_no_dependencies_ok() {
         gas_budget,
         gas_price,
     );
-    let transaction = to_sender_signed_transaction(data, &sender_key);
+    let transaction = to_sender_signed_transaction(tx, &sender_key);
     let _module_object_id = TxContext::new(
         &sender,
         transaction.digest(),
@@ -2001,7 +2001,7 @@ async fn test_publish_non_existing_dependent_module() {
     let epoch_store = authority.load_epoch_store_one_call_per_task();
 
     let rgp = authority.reference_gas_price_for_testing().unwrap();
-    let data = TransactionData::new_module(
+    let tx = Transaction::new_module(
         sender,
         gas_payment_object_ref,
         vec![dependent_module_bytes],
@@ -2012,7 +2012,7 @@ async fn test_publish_non_existing_dependent_module() {
         rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
         rgp,
     );
-    let transaction = to_sender_signed_transaction(data, &sender_key);
+    let transaction = to_sender_signed_transaction(tx, &sender_key);
     let transaction = epoch_store.verify_transaction(transaction).unwrap();
     let response = authority
         .handle_transaction(&epoch_store, transaction)
@@ -2068,7 +2068,7 @@ async fn test_package_size_limit() {
 
     let authority = init_state_with_objects(vec![gas_payment_object]).await;
     let rgp = authority.reference_gas_price_for_testing().unwrap();
-    let data = TransactionData::new_module(
+    let tx = Transaction::new_module(
         sender,
         gas_payment_object_ref,
         package,
@@ -2076,7 +2076,7 @@ async fn test_package_size_limit() {
         rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
         rgp,
     );
-    let transaction = to_sender_signed_transaction(data, &sender_key);
+    let transaction = to_sender_signed_transaction(tx, &sender_key);
     let signed_effects = send_and_confirm_transaction(&authority, transaction)
         .await
         .unwrap()
@@ -2265,7 +2265,7 @@ async fn test_handle_transfer_iota_with_amount_insufficient_gas() {
     let authority_state = init_state_with_ids(vec![(sender, object_id)]).await;
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
     let object = authority_state.get_object(&object_id).unwrap();
-    let data = TransactionData::new_transfer_iota(
+    let tx = Transaction::new_transfer_iota(
         recipient,
         sender,
         Some(GAS_VALUE_FOR_TESTING),
@@ -2273,7 +2273,7 @@ async fn test_handle_transfer_iota_with_amount_insufficient_gas() {
         rgp * 2000,
         rgp,
     );
-    let transaction = to_sender_signed_transaction(data, &sender_key);
+    let transaction = to_sender_signed_transaction(tx, &sender_key);
     let result = send_and_confirm_transaction(&authority_state, transaction)
         .await
         .unwrap()
@@ -2298,7 +2298,7 @@ async fn test_missing_package() {
     let gas_object = authority_state.get_object(&gas_object_id).unwrap();
     let non_existent_package = ObjectId::MAX;
     let gas_object_ref = gas_object.object_ref();
-    let data = TransactionData::new_move_call(
+    let tx = Transaction::new_move_call(
         sender,
         non_existent_package,
         Identifier::from_static("object_basics"),
@@ -2310,7 +2310,7 @@ async fn test_missing_package() {
         rgp,
     )
     .unwrap();
-    let transaction = to_sender_signed_transaction(data, &sender_key);
+    let transaction = to_sender_signed_transaction(tx, &sender_key);
     let transaction = epoch_store.verify_transaction(transaction).unwrap();
     let result = authority_state
         .handle_transaction(&epoch_store, transaction)
@@ -2346,7 +2346,7 @@ async fn test_type_argument_dependencies() {
         o.object_ref()
     };
     // primitive type tag succeeds
-    let data = TransactionData::new_move_call(
+    let tx = Transaction::new_move_call(
         s1,
         object_ref.object_id,
         Identifier::from_static("object_basics"),
@@ -2358,7 +2358,7 @@ async fn test_type_argument_dependencies() {
         rgp,
     )
     .unwrap();
-    let transaction = to_sender_signed_transaction(data, &s1_key);
+    let transaction = to_sender_signed_transaction(tx, &s1_key);
     let transaction = epoch_store.verify_transaction(transaction).unwrap();
     authority_state
         .handle_transaction(&epoch_store, transaction)
@@ -2367,7 +2367,7 @@ async fn test_type_argument_dependencies() {
         .status
         .into_signed_for_testing();
     // obj type tag succeeds
-    let data = TransactionData::new_move_call(
+    let tx = Transaction::new_move_call(
         s2,
         object_ref.object_id,
         Identifier::from_static("object_basics"),
@@ -2384,7 +2384,7 @@ async fn test_type_argument_dependencies() {
         rgp,
     )
     .unwrap();
-    let transaction = to_sender_signed_transaction(data, &s2_key);
+    let transaction = to_sender_signed_transaction(tx, &s2_key);
     let transaction = epoch_store.verify_transaction(transaction).unwrap();
     authority_state
         .handle_transaction(&epoch_store, transaction)
@@ -2393,7 +2393,7 @@ async fn test_type_argument_dependencies() {
         .status
         .into_signed_for_testing();
     // missing package fails
-    let data = TransactionData::new_move_call(
+    let tx = Transaction::new_move_call(
         s3,
         object_ref.object_id,
         Identifier::from_static("object_basics"),
@@ -2410,7 +2410,7 @@ async fn test_type_argument_dependencies() {
         rgp,
     )
     .unwrap();
-    let transaction = to_sender_signed_transaction(data, &s3_key);
+    let transaction = to_sender_signed_transaction(tx, &s3_key);
     let transaction = epoch_store.verify_transaction(transaction).unwrap();
     let result = authority_state
         .handle_transaction(&epoch_store, transaction)
@@ -2787,10 +2787,9 @@ async fn test_move_call_insufficient_gas() {
     };
     // Now we try to construct a transaction with a smaller gas budget than
     // required.
-    let data =
-        TransactionData::new_transfer(sender, obj_ref, recipient, gas_ref, gas_used - 5, rgp);
+    let tx = Transaction::new_transfer(sender, obj_ref, recipient, gas_ref, gas_used - 5, rgp);
 
-    let transaction = to_sender_signed_transaction(data, &recipient_key);
+    let transaction = to_sender_signed_transaction(tx, &recipient_key);
     let tx_digest = *transaction.digest();
     let signed_effects = send_and_confirm_transaction(&authority_state, transaction)
         .await
@@ -3140,7 +3139,7 @@ async fn test_invalid_mutable_clock_parameter() {
     let gas_ref = gas_object.object_ref();
 
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
-    let tx_data = TransactionData::new_move_call(
+    let tx = Transaction::new_move_call(
         sender,
         package_object_ref.object_id,
         Identifier::from_static("object_basics"),
@@ -3154,7 +3153,7 @@ async fn test_invalid_mutable_clock_parameter() {
     )
     .unwrap();
 
-    let transaction = to_sender_signed_transaction(tx_data, &sender_key);
+    let transaction = to_sender_signed_transaction(tx, &sender_key);
     let transaction = epoch_store.verify_transaction(transaction).unwrap();
 
     let Err(e) = authority_state
@@ -3196,7 +3195,7 @@ async fn test_invalid_randomness_parameter() {
     let gas_ref = gas_object.object_ref();
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
 
-    let tx_data = TransactionData::new_move_call(
+    let tx = Transaction::new_move_call(
         sender,
         package_object_ref.object_id,
         Identifier::from_static("object_basics"),
@@ -3209,7 +3208,7 @@ async fn test_invalid_randomness_parameter() {
         rgp,
     )
     .unwrap();
-    let transaction = to_sender_signed_transaction(tx_data, &sender_key);
+    let transaction = to_sender_signed_transaction(tx, &sender_key);
     let transaction = epoch_store.verify_transaction(transaction).unwrap();
 
     let Err(e) = authority_state
@@ -3288,7 +3287,7 @@ async fn test_valid_immutable_clock_parameter() {
     let gas_ref = gas_object.object_ref();
 
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
-    let tx_data = TransactionData::new_move_call(
+    let tx = Transaction::new_move_call(
         sender,
         package_object_ref.object_id,
         Identifier::from_static("object_basics"),
@@ -3302,7 +3301,7 @@ async fn test_valid_immutable_clock_parameter() {
     )
     .unwrap();
 
-    let transaction = to_sender_signed_transaction(tx_data, &sender_key);
+    let transaction = to_sender_signed_transaction(tx, &sender_key);
     let transaction = epoch_store.verify_transaction(transaction).unwrap();
     authority_state
         .handle_transaction(&epoch_store, transaction)
@@ -3350,7 +3349,7 @@ async fn test_transfer_iota_no_amount() {
     let rgp = epoch_store.reference_gas_price();
 
     let gas_ref = gas_object.object_ref();
-    let tx_data = TransactionData::new_transfer_iota(
+    let tx = Transaction::new_transfer_iota(
         recipient,
         sender,
         None,
@@ -3360,7 +3359,7 @@ async fn test_transfer_iota_no_amount() {
     );
 
     // Make sure transaction handling works as usual.
-    let transaction = to_sender_signed_transaction(tx_data, &sender_key);
+    let transaction = to_sender_signed_transaction(tx, &sender_key);
     let transaction = epoch_store.verify_transaction(transaction).unwrap();
     authority_state
         .handle_transaction(&epoch_store, transaction.clone())
@@ -3399,7 +3398,7 @@ async fn test_transfer_iota_with_amount() {
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
 
     let gas_ref = gas_object.object_ref();
-    let tx_data = TransactionData::new_transfer_iota(
+    let tx = Transaction::new_transfer_iota(
         recipient,
         sender,
         Some(500),
@@ -3407,7 +3406,7 @@ async fn test_transfer_iota_with_amount() {
         rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
         rgp,
     );
-    let transaction = to_sender_signed_transaction(tx_data, &sender_key);
+    let transaction = to_sender_signed_transaction(tx, &sender_key);
     let certificate = init_certified_transaction(transaction, &authority_state);
     let effects = authority_state
         .wait_for_certificate_execution(&certificate, &authority_state.epoch_store_for_testing())
@@ -3445,7 +3444,7 @@ async fn test_store_revert_transfer_iota() {
     let authority_state = init_state_with_objects(vec![gas_object.clone()]).await;
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
 
-    let tx_data = TransactionData::new_transfer_iota(
+    let tx = Transaction::new_transfer_iota(
         recipient,
         sender,
         None,
@@ -3454,7 +3453,7 @@ async fn test_store_revert_transfer_iota() {
         rgp,
     );
 
-    let transaction = to_sender_signed_transaction(tx_data, &sender_key);
+    let transaction = to_sender_signed_transaction(tx, &sender_key);
     let certificate = init_certified_transaction(transaction, &authority_state);
     let tx_digest = *certificate.digest();
     authority_state
@@ -3523,7 +3522,7 @@ async fn test_store_revert_wrap_move_call() {
     let object_v0 = create_effects.created()[0].0;
 
     let wrap_txn = to_sender_signed_transaction(
-        TransactionData::new_move_call(
+        Transaction::new_move_call(
             sender,
             object_basics.object_id,
             Identifier::from_static("object_basics"),
@@ -3623,7 +3622,7 @@ async fn test_store_revert_unwrap_move_call() {
     let wrapper_v0 = wrap_effects.created()[0].0;
 
     let unwrap_txn = to_sender_signed_transaction(
-        TransactionData::new_move_call(
+        Transaction::new_move_call(
             sender,
             object_basics.object_id,
             Identifier::from_static("object_basics"),
@@ -3731,7 +3730,7 @@ async fn create_and_retrieve_df_info(function: &Identifier) -> (Address, Vec<Dyn
     let inner_v0 = create_inner_effects.created()[0].0;
 
     let add_txn = to_sender_signed_transaction(
-        TransactionData::new_move_call(
+        Transaction::new_move_call(
             sender,
             object_basics.object_id,
             Identifier::from_static("object_basics"),
@@ -3899,7 +3898,7 @@ async fn test_store_revert_add_ofield() {
     );
 
     let add_txn = to_sender_signed_transaction(
-        TransactionData::new_move_call(
+        Transaction::new_move_call(
             sender,
             object_basics.object_id,
             Identifier::from_static("object_basics"),
@@ -4029,7 +4028,7 @@ async fn test_store_revert_remove_ofield() {
     let inner_v1 = find_by_id(&add_effects.mutated(), inner_v0.object_id).unwrap();
 
     let remove_ofield_txn = to_sender_signed_transaction(
-        TransactionData::new_move_call(
+        Transaction::new_move_call(
             sender,
             object_basics.object_id,
             Identifier::from_static("object_basics"),
@@ -4439,7 +4438,7 @@ pub async fn call_move_(
         type_args,
         args,
     ));
-    let data = TransactionData::new_programmable(
+    let tx = Transaction::new_programmable(
         *sender,
         vec![gas_object_ref],
         builder.finish(),
@@ -4447,7 +4446,7 @@ pub async fn call_move_(
         rgp,
     );
 
-    let transaction = to_sender_signed_transaction(data, sender_key);
+    let transaction = to_sender_signed_transaction(tx, sender_key);
     let signed_effects =
         send_and_confirm_transaction_(authority, fullnode, transaction, with_shared)
             .await?
@@ -4511,7 +4510,7 @@ pub async fn build_programmable_transaction(
     let gas_object = authority.get_object(gas_object_id);
     let gas_object_ref = gas_object.unwrap().object_ref();
     let data =
-        TransactionData::new_programmable(*sender, vec![gas_object_ref], pt, rgp * gas_unit, rgp);
+        Transaction::new_programmable(*sender, vec![gas_object_ref], pt, rgp * gas_unit, rgp);
 
     Ok(to_sender_signed_transaction(data, sender_key))
 }
@@ -4530,7 +4529,7 @@ async fn execute_programmable_transaction_(
     let gas_object = authority.get_object(gas_object_id);
     let gas_object_ref = gas_object.unwrap().object_ref();
     let data =
-        TransactionData::new_programmable(*sender, vec![gas_object_ref], pt, rgp * gas_unit, rgp);
+        Transaction::new_programmable(*sender, vec![gas_object_ref], pt, rgp * gas_unit, rgp);
 
     let transaction = to_sender_signed_transaction(data, sender_key);
     let signed_effects =
@@ -4573,15 +4572,10 @@ async fn call_move_with_gas_coins(
         type_args,
         args,
     ));
-    let data = TransactionData::new_programmable(
-        *sender,
-        gas_object_refs,
-        builder.finish(),
-        gas_budget,
-        rgp,
-    );
+    let tx =
+        Transaction::new_programmable(*sender, gas_object_refs, builder.finish(), gas_budget, rgp);
 
-    let transaction = to_sender_signed_transaction(data, sender_key);
+    let transaction = to_sender_signed_transaction(tx, sender_key);
     let signed_effects =
         send_and_confirm_transaction_(authority, fullnode, transaction, with_shared)
             .await?
@@ -4737,7 +4731,7 @@ pub fn dev_inspect_with_budget(
     gas_budget: Option<u64>,
 ) -> IotaResult<SimulateTransactionResult> {
     let epoch_store = authority.epoch_store_for_testing();
-    let transaction = TransactionData::V1(TransactionV1 {
+    let transaction = Transaction::V1(TransactionV1 {
         kind,
         sender,
         gas_payment: GasPayment {
@@ -4814,7 +4808,7 @@ async fn make_test_transaction(
         .unwrap()
         .reference_gas_price_for_testing()
         .unwrap();
-    let data = TransactionData::new_move_call(
+    let tx = Transaction::new_move_call(
         *sender,
         ObjectId::FRAMEWORK,
         Identifier::from_static(module),
@@ -4844,7 +4838,7 @@ async fn make_test_transaction(
     )
     .unwrap();
 
-    let transaction = to_sender_signed_transaction(data, sender_key);
+    let transaction = to_sender_signed_transaction(tx, sender_key);
 
     let committee = authorities[0].clone_committee_for_testing();
     let mut sigs = vec![];
@@ -4996,7 +4990,7 @@ async fn test_consensus_commit_prologue_generation(#[values(false, true)] pcool:
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
 
     // Transaction 1: shared-object Move call.
-    let shared_tx_data = TransactionData::new_move_call(
+    let shared_tx = Transaction::new_move_call(
         sender,
         iota_types::IOTA_FRAMEWORK_PACKAGE_ID,
         Identifier::from_static("object_basics"),
@@ -5015,10 +5009,10 @@ async fn test_consensus_commit_prologue_generation(#[values(false, true)] pcool:
         rgp,
     )
     .unwrap();
-    let shared_tx = to_sender_signed_transaction(shared_tx_data, &sender_key);
+    let shared_tx = to_sender_signed_transaction(shared_tx, &sender_key);
 
     // Transaction 2: clock-using Move call (higher gas price → ordered later).
-    let clock_tx_data = TransactionData::new_move_call(
+    let clock_tx = Transaction::new_move_call(
         sender,
         package_object_ref.object_id,
         Identifier::from_static("object_basics"),
@@ -5031,7 +5025,7 @@ async fn test_consensus_commit_prologue_generation(#[values(false, true)] pcool:
         rgp * 2,
     )
     .unwrap();
-    let clock_tx = to_sender_signed_transaction(clock_tx_data, &sender_key);
+    let clock_tx = to_sender_signed_transaction(clock_tx, &sender_key);
 
     let processed_consensus_transactions = if pcool {
         // Submit as UserTransactionV1 — no certificates needed.
@@ -6013,7 +6007,7 @@ async fn test_for_inc_201_dry_run() {
     let kind = TransactionKind::new_programmable(builder.finish());
 
     let rgp = fullnode.reference_gas_price_for_testing().unwrap();
-    let txn_data = TransactionData::new_with_gas_coins(
+    let txn = Transaction::new_with_gas_coins(
         kind,
         sender,
         vec![],
@@ -6021,7 +6015,7 @@ async fn test_for_inc_201_dry_run() {
         rgp,
     );
 
-    let signed = to_sender_signed_transaction(txn_data, &sender_key);
+    let signed = to_sender_signed_transaction(txn, &sender_key);
     let result = fullnode
         .simulate_transaction(signed.data().transaction().clone(), VmChecks::Enabled)
         .unwrap();
@@ -6056,7 +6050,7 @@ async fn test_function_not_found() {
     let kind = TransactionKind::new_programmable(builder.finish());
 
     let rgp = fullnode.reference_gas_price_for_testing().unwrap();
-    let txn_data = TransactionData::new_with_gas_coins(
+    let txn = Transaction::new_with_gas_coins(
         kind,
         sender,
         vec![],
@@ -6064,7 +6058,7 @@ async fn test_function_not_found() {
         rgp,
     );
 
-    let signed = to_sender_signed_transaction(txn_data, &sender_key);
+    let signed = to_sender_signed_transaction(txn, &sender_key);
     let result = fullnode
         .simulate_transaction(signed.data().transaction().clone(), VmChecks::Enabled)
         .unwrap();
@@ -6101,7 +6095,7 @@ async fn test_arity_mismatch() {
     let kind = TransactionKind::new_programmable(builder.finish());
 
     let rgp = authority.reference_gas_price_for_testing().unwrap();
-    let txn_data = TransactionData::new_with_gas_coins(
+    let txn = Transaction::new_with_gas_coins(
         kind,
         sender,
         vec![],
@@ -6109,7 +6103,7 @@ async fn test_arity_mismatch() {
         rgp,
     );
 
-    let signed = to_sender_signed_transaction(txn_data, &sender_key);
+    let signed = to_sender_signed_transaction(txn, &sender_key);
     let result = authority
         .simulate_transaction(signed.data().transaction().clone(), VmChecks::Enabled)
         .unwrap();
@@ -6162,14 +6156,14 @@ async fn test_publish_transitive_dependencies_ok() {
     let mut builder = ProgrammableTransactionBuilder::new();
     builder.publish_immutable(modules, vec![]);
     let kind = TransactionKind::new_programmable(builder.finish());
-    let txn_data = TransactionData::new_with_gas_coins(
+    let txn = Transaction::new_with_gas_coins(
         kind,
         sender,
         vec![gas_ref],
         rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
         rgp,
     );
-    let signed = to_sender_signed_transaction(txn_data, &key);
+    let signed = to_sender_signed_transaction(txn, &key);
     let txn_effects = send_and_confirm_transaction(&state, signed)
         .await
         .unwrap()
@@ -6201,14 +6195,14 @@ async fn test_publish_transitive_dependencies_ok() {
     builder.publish_immutable(modules, vec![object_ref_c.object_id]); // Note: B depends on C
 
     let kind = TransactionKind::new_programmable(builder.finish());
-    let txn_data = TransactionData::new_with_gas_coins(
+    let txn = Transaction::new_with_gas_coins(
         kind,
         sender,
         vec![gas_ref],
         rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
         rgp,
     );
-    let signed = to_sender_signed_transaction(txn_data, &key);
+    let signed = to_sender_signed_transaction(txn, &key);
     let txn_effects = send_and_confirm_transaction(&state, signed)
         .await
         .unwrap()
@@ -6247,14 +6241,14 @@ async fn test_publish_transitive_dependencies_ok() {
     ); // Note: A depends on B and C.
 
     let kind = TransactionKind::new_programmable(builder.finish());
-    let txn_data = TransactionData::new_with_gas_coins(
+    let txn = Transaction::new_with_gas_coins(
         kind,
         sender,
         vec![gas_ref],
         rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
         rgp,
     );
-    let signed = to_sender_signed_transaction(txn_data, &key);
+    let signed = to_sender_signed_transaction(txn, &key);
     let txn_effects = send_and_confirm_transaction(&state, signed)
         .await
         .unwrap()
@@ -6306,14 +6300,14 @@ async fn test_publish_transitive_dependencies_ok() {
     builder.publish_immutable(modules, deps);
 
     let kind = TransactionKind::new_programmable(builder.finish());
-    let txn_data = TransactionData::new_with_gas_coins(
+    let txn = Transaction::new_with_gas_coins(
         kind,
         sender,
         vec![gas_ref],
         rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH * 2,
         rgp,
     );
-    let signed = to_sender_signed_transaction(txn_data, &key);
+    let signed = to_sender_signed_transaction(txn, &key);
 
     let status = send_and_confirm_transaction(&state, signed)
         .await
@@ -6351,7 +6345,7 @@ async fn test_publish_missing_dependency() {
     let kind = TransactionKind::new_programmable(builder.finish());
 
     let rgp = state.reference_gas_price_for_testing().unwrap();
-    let txn_data = TransactionData::new_with_gas_coins(
+    let txn = Transaction::new_with_gas_coins(
         kind,
         sender,
         vec![gas_ref],
@@ -6359,7 +6353,7 @@ async fn test_publish_missing_dependency() {
         rgp,
     );
 
-    let signed = to_sender_signed_transaction(txn_data, &key);
+    let signed = to_sender_signed_transaction(txn, &key);
     let (failure, _) = send_and_confirm_transaction(&state, signed)
         .await
         .unwrap()
@@ -6397,7 +6391,7 @@ async fn test_publish_missing_transitive_dependency() {
     let kind = TransactionKind::new_programmable(builder.finish());
 
     let rgp = state.reference_gas_price_for_testing().unwrap();
-    let txn_data = TransactionData::new_with_gas_coins(
+    let txn = Transaction::new_with_gas_coins(
         kind,
         sender,
         vec![gas_ref],
@@ -6405,7 +6399,7 @@ async fn test_publish_missing_transitive_dependency() {
         rgp,
     );
 
-    let signed = to_sender_signed_transaction(txn_data, &key);
+    let signed = to_sender_signed_transaction(txn, &key);
     let (failure, _) = send_and_confirm_transaction(&state, signed)
         .await
         .unwrap()
@@ -6446,7 +6440,7 @@ async fn test_publish_not_a_package_dependency() {
     let kind = TransactionKind::new_programmable(builder.finish());
 
     let rgp = state.reference_gas_price_for_testing().unwrap();
-    let txn_data = TransactionData::new_with_gas_coins(
+    let txn = Transaction::new_with_gas_coins(
         kind,
         sender,
         vec![gas_ref],
@@ -6454,7 +6448,7 @@ async fn test_publish_not_a_package_dependency() {
         rgp,
     );
 
-    let signed = to_sender_signed_transaction(txn_data, &key);
+    let signed = to_sender_signed_transaction(txn, &key);
     let failure = send_and_confirm_transaction(&state, signed)
         .await
         .unwrap_err();
@@ -7824,7 +7818,7 @@ async fn test_pcool_deferred_tx_not_dropped_next_round_but_executed() {
     let epoch_store = authority.epoch_store_for_testing();
     let rgp = authority.reference_gas_price_for_testing().unwrap();
     let make_user_tx = |gas_object: &Object| {
-        let data = TransactionData::new_move_call(
+        let tx = Transaction::new_move_call(
             sender,
             ObjectId::FRAMEWORK,
             Identifier::from_static("object_basics"),
@@ -7843,7 +7837,7 @@ async fn test_pcool_deferred_tx_not_dropped_next_round_but_executed() {
             rgp,
         )
         .unwrap();
-        let tx = to_sender_signed_transaction(data, &keypair);
+        let tx = to_sender_signed_transaction(tx, &keypair);
         epoch_store.verify_transaction(tx).unwrap()
     };
     let tx1 = make_user_tx(&gas_objects[0]);
