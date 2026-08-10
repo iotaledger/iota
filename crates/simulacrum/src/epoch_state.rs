@@ -10,7 +10,7 @@ use iota_config::{
 };
 use iota_execution::Executor;
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
-use iota_sdk_types::TransactionEffects;
+use iota_sdk_types::{Transaction, TransactionEffects};
 use iota_types::{
     committee::{Committee, EpochId},
     effects::TransactionEffectsAPI,
@@ -23,7 +23,7 @@ use iota_types::{
         epoch_start_iota_system_state::{EpochStartSystemState, EpochStartSystemStateTrait},
     },
     metrics::{BytecodeVerifierMetrics, LimitsMetrics},
-    transaction::{ObjectReadResult, TransactionData, TransactionDataAPI, VerifiedTransaction},
+    transaction::{ObjectReadResult, TransactionAPI, VerifiedTransaction},
     transaction_executor::{SimulateTransactionResult, VmChecks},
 };
 
@@ -165,7 +165,7 @@ impl EpochState {
 
     /// Simulate a transaction without committing changes.
     /// This is similar to execute_transaction but:
-    /// - Takes TransactionData instead of VerifiedTransaction (no signature
+    /// - Takes Transaction instead of VerifiedTransaction (no signature
     ///   required)
     /// - Takes VmChecks parameter to control validation strictness
     /// - Returns SimulateTransactionResult with input/output objects
@@ -175,7 +175,7 @@ impl EpochState {
         store: &dyn SimulatorStore,
         deny_config: &TransactionDenyConfig,
         verifier_signing_config: &VerifierSigningConfig,
-        mut transaction: TransactionData,
+        mut transaction: Transaction,
         checks: VmChecks,
     ) -> IotaResult<SimulateTransactionResult> {
         // Cheap validity checks for a transaction, including input size limits.

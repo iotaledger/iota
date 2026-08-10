@@ -21,10 +21,10 @@ use iota_json_rpc_types::{
     IotaTransactionBlockResponseQueryV2, ObjectsPage, ProtocolConfigResponse,
     TransactionBlocksPage, TransactionFilter,
 };
-use iota_sdk_types::{Address, ObjectId, TransactionDigest, TransactionKind, Version};
+use iota_sdk_types::{Address, ObjectId, Transaction, TransactionDigest, TransactionKind, Version};
 use iota_types::{
     dynamic_field::DynamicFieldName, iota_serde::BigInt,
-    messages_checkpoint::CheckpointSequenceNumber, transaction::TransactionData,
+    messages_checkpoint::CheckpointSequenceNumber,
 };
 use jsonrpsee::core::client::Subscription;
 
@@ -659,7 +659,7 @@ impl ReadApi {
     /// any side-effects of a transaction before you execute it on the network.
     pub async fn dry_run_transaction_block(
         &self,
-        tx: TransactionData,
+        tx: Transaction,
     ) -> IotaRpcResult<DryRunTransactionBlockResponse> {
         Ok(self
             .api

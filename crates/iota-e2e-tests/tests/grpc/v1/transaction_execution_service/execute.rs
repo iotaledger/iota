@@ -139,7 +139,7 @@ async fn execute_transaction_readmask_scenarios() {
 
 #[sim_test]
 async fn execute_transaction_derived_changes() {
-    use iota_types::transaction::TransactionDataAPI as _;
+    use iota_types::transaction::TransactionAPI as _;
 
     let (test_cluster, client) = setup_grpc_test(None, None).await;
 

@@ -27,11 +27,11 @@ impl Unpackable for SignatureBytes {
     }
 }
 
-struct TransactionData {
+struct Transaction {
     transaction: Vec<u8>,
 }
 
-impl Packable for TransactionData {
+impl Packable for Transaction {
     fn packed_len(&self) -> usize {
         0_u32.packed_len() + self.transaction.len()
     }
@@ -79,10 +79,10 @@ pub fn exec<T: Transport>(
     objects: Vec<Vec<u8>>,
 ) -> Result<SignatureBytes, errors::LedgerError> {
     let payloads = if objects.is_empty() {
-        packable_vec![TransactionData { transaction }, PackedBIP32Path::from(path)]
+        packable_vec![Transaction { transaction }, PackedBIP32Path::from(path)]
     } else {
         packable_vec![
-            TransactionData { transaction },
+            Transaction { transaction },
             PackedBIP32Path::from(path),
             TransactionObjects { objects }
         ]

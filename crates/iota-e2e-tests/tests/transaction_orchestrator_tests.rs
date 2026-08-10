@@ -31,7 +31,7 @@ use iota_types::{
         ExecuteTransactionResponseV1, FinalizedEffects, IsTransactionExecutedLocally,
         QuorumDriverError,
     },
-    transaction::{TransactionDataAPI, TransactionEnvelope},
+    transaction::{TransactionAPI, TransactionEnvelope},
 };
 use test_cluster::{TestClusterBuilder, override_pcool_flow};
 use tokio::time::timeout;
@@ -401,11 +401,11 @@ async fn test_wait_for_local_execution_across_epoch_boundary() {
 
 async fn execute_with_orchestrator(
     orchestrator: &TransactionOrchestrator<NetworkAuthorityClient>,
-    txn: TransactionEnvelope,
+    tx: TransactionEnvelope,
     request_type: ExecuteTransactionRequestType,
 ) -> Result<(ExecuteTransactionResponseV1, IsTransactionExecutedLocally), QuorumDriverError> {
     orchestrator
-        .execute_transaction_block(ExecuteTransactionRequestV1::new(txn), request_type, None)
+        .execute_transaction_block(ExecuteTransactionRequestV1::new(tx), request_type, None)
         .await
 }
 
@@ -772,8 +772,8 @@ async fn test_pcool_deduplicates_concurrent_submissions() -> Result<(), anyhow::
         .expect("gas objects should produce at least one tx");
     let digest = *txn.digest();
 
-    let request = |txn: TransactionEnvelope| ExecuteTransactionRequestV1 {
-        transaction: txn,
+    let request = |tx: TransactionEnvelope| ExecuteTransactionRequestV1 {
+        transaction: tx,
         include_events: false,
         include_input_objects: false,
         include_output_objects: false,
@@ -916,8 +916,8 @@ async fn test_pcool_duplicate_requiring_certification_returns_certified_effects(
         .pop()
         .expect("gas objects should produce at least one tx");
 
-    let request = |txn: TransactionEnvelope| ExecuteTransactionRequestV1 {
-        transaction: txn,
+    let request = |tx: TransactionEnvelope| ExecuteTransactionRequestV1 {
+        transaction: tx,
         include_events: false,
         include_input_objects: false,
         include_output_objects: false,

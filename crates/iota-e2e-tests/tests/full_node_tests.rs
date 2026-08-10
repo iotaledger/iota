@@ -18,8 +18,8 @@ use iota_sdk_crypto::{
     ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey, simple::SimpleKeypair,
 };
 use iota_sdk_types::{
-    Address, GasPayment, Identifier, ObjectId, ObjectReference, Owner, TransactionDigest,
-    TransactionKind, Version,
+    Address, GasPayment, Identifier, ObjectId, ObjectReference, Owner, Transaction,
+    TransactionDigest, TransactionKind, Version,
 };
 use iota_storage::{
     key_value_store::TransactionKeyValueStore, key_value_store_metrics::KeyValueStoreMetrics,
@@ -41,7 +41,7 @@ use iota_types::{
     storage::ObjectStore,
     transaction::{
         CallArg, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS, TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
-        TransactionData, TransactionDataAPI,
+        TransactionAPI,
     },
     utils::{to_sender_signed_transaction, to_sender_signed_transaction_with_multi_signers},
 };
@@ -152,7 +152,7 @@ async fn test_sponsored_transaction() -> Result<(), anyhow::Error> {
         builder.finish()
     };
     let kind = TransactionKind::new_programmable(pt);
-    let tx_data = TransactionData::new_with_gas_data(
+    let tx = Transaction::new_with_gas_data(
         kind,
         sender,
         GasPayment {
@@ -164,7 +164,7 @@ async fn test_sponsored_transaction() -> Result<(), anyhow::Error> {
     );
 
     let tx = to_sender_signed_transaction_with_multi_signers(
-        tx_data,
+        tx,
         vec![
             test_cluster
                 .wallet
@@ -1160,7 +1160,7 @@ async fn test_pass_back_no_object() -> Result<(), anyhow::Error> {
             .expect("Fullnode should have transaction orchestrator toggled on.")
     });
 
-    let tx_data = TransactionData::new_move_call(
+    let tx = Transaction::new_move_call(
         sender,
         package_ref.object_id,
         Identifier::from_static("object_basics"),
@@ -1174,7 +1174,7 @@ async fn test_pass_back_no_object() -> Result<(), anyhow::Error> {
     )
     .unwrap();
     let tx = to_sender_signed_transaction(
-        tx_data,
+        tx,
         context
             .config()
             .keystore()

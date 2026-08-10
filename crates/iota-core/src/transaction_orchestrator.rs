@@ -25,7 +25,7 @@ use iota_metrics::{
     TX_TYPE_SHARED_OBJ_TX, TX_TYPE_SINGLE_WRITER_TX, add_server_timing,
     spawn_logged_monitored_task, spawn_monitored_task,
 };
-use iota_sdk_types::TransactionDigest;
+use iota_sdk_types::{Transaction, TransactionDigest};
 use iota_storage::write_path_pending_tx_log::WritePathPendingTransactionLog;
 use iota_types::{
     effects::TransactionEffectsAPI,
@@ -38,7 +38,7 @@ use iota_types::{
         QuorumDriverEffectsQueueResult, QuorumDriverError, QuorumDriverResponse,
         QuorumDriverResult,
     },
-    transaction::{SenderSignedTransactionAPI, TransactionData, VerifiedTransaction},
+    transaction::{SenderSignedTransactionAPI, VerifiedTransaction},
     transaction_driver_types::{
         EffectsFinalityInfo as TdEffectsFinalityInfo, FinalizedEffects as TdFinalizedEffects,
     },
@@ -1725,7 +1725,7 @@ where
 
     fn simulate_transaction(
         &self,
-        transaction: TransactionData,
+        transaction: Transaction,
         checks: VmChecks,
     ) -> Result<SimulateTransactionResult, IotaError> {
         self.validator_state

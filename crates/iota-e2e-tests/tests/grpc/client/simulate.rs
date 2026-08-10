@@ -12,7 +12,7 @@ use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     effects::TransactionEffectsAPI,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{CallArg, TransactionData, TransactionDataAPI},
+    transaction::{CallArg, TransactionAPI},
 };
 use tonic::Code;
 
@@ -157,7 +157,7 @@ async fn simulate_transaction_command_results_split_coins() {
     builder.transfer_arg(sender, split_result);
     let pt = builder.finish();
 
-    let transaction: Transaction = TransactionData::new_programmable(
+    let transaction: Transaction = Transaction::new_programmable(
         sender,
         vec![*gas_obj],
         pt,

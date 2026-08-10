@@ -20,8 +20,8 @@ use iota_core::authority::{
 use iota_json_rpc::authority_state::StateRead;
 use iota_json_rpc_types::EventFilter;
 use iota_sdk_types::{
-    Address, CheckpointContentsDigest, CheckpointDigest, Event, ObjectId, TransactionDigest,
-    TransactionEffects, TransactionEvents, checkpoint::CheckpointContents,
+    Address, CheckpointContentsDigest, CheckpointDigest, Event, ObjectId, Transaction,
+    TransactionDigest, TransactionEffects, TransactionEvents, checkpoint::CheckpointContents,
 };
 use iota_storage::key_value_store::TransactionKeyValueStore;
 use iota_types::{
@@ -36,7 +36,7 @@ use iota_types::{
     messages_checkpoint::VerifiedCheckpoint,
     object::Object,
     storage::{ObjectStore, ReadStore},
-    transaction::{InputObjects, SenderSignedTransactionAPI, TransactionData, TransactionEnvelope},
+    transaction::{InputObjects, SenderSignedTransactionAPI, TransactionEnvelope},
     transaction_executor::{SimulateTransactionResult, VmChecks},
 };
 pub use move_transactional_test_runner::framework::{
@@ -99,7 +99,7 @@ pub trait TransactionalAdapter: Send + Sync + ReadStore {
 
     async fn simulate_transaction(
         &self,
-        transaction: TransactionData,
+        transaction: Transaction,
         checks: VmChecks,
     ) -> IotaResult<SimulateTransactionResult>;
 
@@ -168,7 +168,7 @@ impl TransactionalAdapter for ValidatorWithFullnode {
 
     async fn simulate_transaction(
         &self,
-        transaction: TransactionData,
+        transaction: Transaction,
         checks: VmChecks,
     ) -> IotaResult<SimulateTransactionResult> {
         self.fullnode.simulate_transaction(transaction, checks)
@@ -414,7 +414,7 @@ impl TransactionalAdapter for Simulacrum<StdRng, PersistedStore> {
 
     async fn simulate_transaction(
         &self,
-        transaction: TransactionData,
+        transaction: Transaction,
         checks: VmChecks,
     ) -> IotaResult<SimulateTransactionResult> {
         Simulacrum::simulate_transaction(self, transaction, checks)

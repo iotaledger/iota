@@ -110,7 +110,7 @@ pub trait Executor {
         transaction_kind: TransactionKind,
         transaction_signer: Address,
         transaction_digest: TransactionDigest,
-        // BCS-serialized `TransactionData` bytes for the auth context.
+        // BCS-serialized `Transaction` bytes for the auth context.
         auth_context_data: AuthContextData,
         // Tracing
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
@@ -144,7 +144,7 @@ pub trait Executor {
         authenticated_transaction_kind: TransactionKind,
         authenticated_transaction_signer: Address,
         authenticated_transaction_digest: TransactionDigest,
-        // BCS-serialized `TransactionData` bytes for the auth context.
+        // BCS-serialized `Transaction` bytes for the auth context.
         auth_context_data: AuthContextData,
         // Tracing
         trace_builder_opt: &mut Option<MoveTraceBuilder>,

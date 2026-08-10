@@ -379,7 +379,7 @@ fn extract_owned_input_objects(
     };
 
     // Use SenderSignedTransaction::input_objects() rather than
-    // TransactionData::input_objects() to also include any owned objects
+    // Transaction::input_objects() to also include any owned objects
     // that may come from MoveAuthenticator signatures in the future.
     let owned_objects = transaction_data
         .input_objects()?

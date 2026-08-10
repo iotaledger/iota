@@ -375,7 +375,7 @@ mod tests {
 
     /// Helper data structure to store transaction data used for sequencing.
     #[derive(Debug)]
-    struct TransactionData {
+    struct Transaction {
         /// Index of transaction in the set ordered by gas price in
         /// descending order. Used for debugging purposes.
         order_idx: usize,
@@ -384,12 +384,12 @@ mod tests {
         input_shared_objects: Vec<(ObjectId, /* mutability */ bool)>,
     }
 
-    /// Build a set of `TransactionData` with two shared objects for tests.
+    /// Build a set of `Transaction` with two shared objects for tests.
     fn build_transactions_data_for_test(
         maxgp: u64,
         object_1: ObjectId,
         object_2: ObjectId,
-    ) -> Vec<TransactionData> {
+    ) -> Vec<Transaction> {
         [
             // (gas price, gas budget, input shared objects)
             (maxgp, 3_000_000, vec![(object_1, true), (object_2, false)]), //  0
@@ -408,7 +408,7 @@ mod tests {
         ]
         .into_iter()
         .enumerate()
-        .map(|(idx, (price, budget, objects))| TransactionData {
+        .map(|(idx, (price, budget, objects))| Transaction {
             order_idx: idx,
             gas_price: price,
             gas_budget: budget,
@@ -417,18 +417,14 @@ mod tests {
         .collect()
     }
 
-    /// Helper function for tests to build a transaction with `tx_data` and
+    /// Helper function for tests to build a transaction with `tx` and
     /// then try sequencing it by `shared_object_congestion_tracker`.
     /// Returns the transaction itself and a result of its sequencing.
     fn build_and_try_sequencing_transaction(
-        tx_data: &TransactionData,
+        tx: &Transaction,
         shared_object_congestion_tracker: &mut SharedObjectCongestionTracker,
     ) -> (VerifiedExecutableTransaction, SequencingResult) {
-        let transaction = build_transaction(
-            &tx_data.input_shared_objects,
-            tx_data.gas_budget,
-            tx_data.gas_price,
-        );
+        let transaction = build_transaction(&tx.input_shared_objects, tx.gas_budget, tx.gas_price);
         let shared_input_objects = transaction.shared_input_objects();
         shared_object_congestion_tracker.initialize_object_execution_slots(&shared_input_objects);
 
@@ -456,16 +452,16 @@ mod tests {
         suggested_gas_price_calculator.update_congestion_info(bump_result);
     }
 
-    /// Helper function to test if a transaction with and `tx_data` is
+    /// Helper function to test if a transaction with and `tx` is
     /// scheduled. Returns execution start time of the transaction if
     /// it is scheduled, otherwise returns `None`.
     fn try_schedule(
-        tx_data: &TransactionData,
+        tx: &Transaction,
         shared_object_congestion_tracker: &mut SharedObjectCongestionTracker,
         suggested_gas_price_calculator: &mut SuggestedGasPriceCalculator,
     ) -> Option<ExecutionTime> {
         let (transaction, sequencing_result) =
-            build_and_try_sequencing_transaction(tx_data, shared_object_congestion_tracker);
+            build_and_try_sequencing_transaction(tx, shared_object_congestion_tracker);
         if let SequencingResult::Schedule(execution_start_time) = sequencing_result {
             update_data_for_scheduled_transaction(
                 &transaction,
@@ -480,16 +476,16 @@ mod tests {
         }
     }
 
-    /// Helper function to test if a transaction with and `tx_data` is
+    /// Helper function to test if a transaction with and `tx` is
     /// deferred. Returns congested objects and suggested gas price if
     /// the transaction is deferred, otherwise returns `None`.
     fn try_defer(
-        tx_data: &TransactionData,
+        tx: &Transaction,
         shared_object_congestion_tracker: &mut SharedObjectCongestionTracker,
         suggested_gas_price_calculator: &mut SuggestedGasPriceCalculator,
     ) -> Option<(Vec<ObjectId>, u64)> {
         let (transaction, sequencing_result) =
-            build_and_try_sequencing_transaction(tx_data, shared_object_congestion_tracker);
+            build_and_try_sequencing_transaction(tx, shared_object_congestion_tracker);
         if let SequencingResult::Defer(_key, congested_objects) = sequencing_result {
             Some((
                 congested_objects,

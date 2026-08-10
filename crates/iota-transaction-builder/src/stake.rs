@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::{Ok, anyhow, bail, ensure};
-use iota_sdk_types::{Address, Command, Identifier, ObjectId};
+use iota_sdk_types::{Address, Command, Identifier, ObjectId, Transaction};
 use iota_types::{
     base_types::ObjectType,
     governance::{ADD_STAKE_MUL_COIN_FUN_NAME, WITHDRAW_STAKE_FUN_NAME},
@@ -11,7 +11,7 @@ use iota_types::{
     timelock::timelocked_staking::{
         ADD_TIMELOCKED_STAKE_FUN_NAME, WITHDRAW_TIMELOCKED_STAKE_FUN_NAME,
     },
-    transaction::{CallArg, TransactionData, TransactionDataAPI},
+    transaction::{CallArg, TransactionAPI},
 };
 
 use crate::TransactionBuilder;
@@ -26,7 +26,7 @@ impl TransactionBuilder {
         validator: Address,
         gas: impl Into<Option<ObjectId>>,
         gas_budget: u64,
-    ) -> anyhow::Result<TransactionData> {
+    ) -> anyhow::Result<Transaction> {
         let gas_price = self.0.get_reference_gas_price().await?;
         let gas = self
             .select_gas(signer, gas, gas_budget, coins.clone(), gas_price)
@@ -73,7 +73,7 @@ impl TransactionBuilder {
             ));
             builder.finish()
         };
-        Ok(TransactionData::new_programmable(
+        Ok(Transaction::new_programmable(
             signer,
             vec![gas],
             pt,
@@ -89,13 +89,13 @@ impl TransactionBuilder {
         staked_iota: ObjectId,
         gas: impl Into<Option<ObjectId>>,
         gas_budget: u64,
-    ) -> anyhow::Result<TransactionData> {
+    ) -> anyhow::Result<Transaction> {
         let staked_iota = self.get_object_ref(staked_iota).await?;
         let gas_price = self.0.get_reference_gas_price().await?;
         let gas = self
             .select_gas(signer, gas, gas_budget, vec![], gas_price)
             .await?;
-        TransactionData::new_move_call(
+        Transaction::new_move_call(
             signer,
             ObjectId::SYSTEM,
             Identifier::IOTA_SYSTEM_MODULE,
@@ -119,7 +119,7 @@ impl TransactionBuilder {
         validator: Address,
         gas: ObjectId,
         gas_budget: u64,
-    ) -> anyhow::Result<TransactionData> {
+    ) -> anyhow::Result<Transaction> {
         let gas_price = self.0.get_reference_gas_price().await?;
         let gas = self
             .select_gas(signer, Some(gas), gas_budget, vec![], gas_price)
@@ -151,7 +151,7 @@ impl TransactionBuilder {
             ));
             builder.finish()
         };
-        Ok(TransactionData::new_programmable(
+        Ok(Transaction::new_programmable(
             signer,
             vec![gas],
             pt,
@@ -167,13 +167,13 @@ impl TransactionBuilder {
         timelocked_staked_iota: ObjectId,
         gas: ObjectId,
         gas_budget: u64,
-    ) -> anyhow::Result<TransactionData> {
+    ) -> anyhow::Result<Transaction> {
         let timelocked_staked_iota = self.get_object_ref(timelocked_staked_iota).await?;
         let gas_price = self.0.get_reference_gas_price().await?;
         let gas = self
             .select_gas(signer, Some(gas), gas_budget, vec![], gas_price)
             .await?;
-        TransactionData::new_move_call(
+        Transaction::new_move_call(
             signer,
             ObjectId::SYSTEM,
             Identifier::TIMELOCKED_STAKING_MODULE,

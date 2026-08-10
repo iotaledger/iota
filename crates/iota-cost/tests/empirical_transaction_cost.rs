@@ -7,7 +7,8 @@ use std::{collections::BTreeMap, path::PathBuf};
 use insta::assert_json_snapshot;
 use iota_json_rpc_types::IotaTransactionBlockEffectsAPI;
 use iota_sdk_types::{
-    Address, Identifier, ObjectId, ObjectReference, SharedObjectReference, gas::GasCostSummary,
+    Address, Identifier, ObjectId, ObjectReference, SharedObjectReference, Transaction,
+    gas::GasCostSummary,
 };
 use iota_swarm_config::genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT};
 use iota_test_transaction_builder::{
@@ -16,7 +17,7 @@ use iota_test_transaction_builder::{
 use iota_types::{
     coin::{COIN_JOIN_FUNC_NAME, PAY_SPLIT_VEC_FUNC_NAME},
     gas_coin::GAS,
-    transaction::{CallArg, TransactionData},
+    transaction::CallArg,
 };
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumString};
@@ -73,7 +74,7 @@ async fn split_n_tx(
     gas: ObjectReference,
     gas_price: u64,
     sender: Address,
-) -> TransactionData {
+) -> Transaction {
     let split_amounts = vec![10u64; n as usize];
     let type_args = vec![GAS::type_tag()];
 
@@ -91,9 +92,7 @@ async fn split_n_tx(
         .build()
 }
 
-async fn create_txes(
-    test_cluster: &TestCluster,
-) -> BTreeMap<CommonTransactionCosts, TransactionData> {
+async fn create_txes(test_cluster: &TestCluster) -> BTreeMap<CommonTransactionCosts, Transaction> {
     // Initial preparations to create a shared counter. This needs to be done first
     // to not interfere with the use of gas objects in the rest of this
     // function.

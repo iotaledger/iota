@@ -5,7 +5,7 @@
 use std::{collections::BTreeMap, time::Duration};
 
 use iota_sdk_types::{
-    GasPayment, ObjectId, TransactionDigest, TransactionEffects, TransactionEvents,
+    GasPayment, ObjectId, Transaction, TransactionDigest, TransactionEffects, TransactionEvents,
 };
 
 use crate::{
@@ -16,7 +16,6 @@ use crate::{
     quorum_driver_types::{
         ExecuteTransactionRequestV1, ExecuteTransactionResponseV1, QuorumDriverError,
     },
-    transaction::TransactionData,
 };
 
 /// Trait to define the interface for how the REST service interacts with a
@@ -32,7 +31,7 @@ pub trait TransactionExecutor: Send + Sync {
 
     fn simulate_transaction(
         &self,
-        transaction: TransactionData,
+        transaction: Transaction,
         checks: VmChecks,
     ) -> Result<SimulateTransactionResult, IotaError>;
 
