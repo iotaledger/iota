@@ -1616,13 +1616,13 @@ mod tests {
     async fn test_reconstruction_rejects_transactions_failing_validity_check() {
         let (counts, author, info_length) = reconstruct_failing_payload(false).await;
 
-        let MisbehaviorCounts::V1(author_counts) = &counts[author.value()];
+        let author_counts = counts[author.value()].as_v2();
         assert_eq!(
             author_counts.faulty_blocks_provable, 0,
             "The author must not be charged without a verified header tying the commitment to them"
         );
         for counts in counts.iter().take(info_length) {
-            let MisbehaviorCounts::V1(peer_counts) = counts;
+            let peer_counts = counts.as_v2();
             assert_eq!(
                 peer_counts.faulty_blocks_unprovable, 1,
                 "Each peer that relayed a shard of the invalid payload must be charged unprovably"
@@ -1637,7 +1637,7 @@ mod tests {
     async fn test_reconstruction_charges_author_when_header_present() {
         let (counts, author, info_length) = reconstruct_failing_payload(true).await;
 
-        let MisbehaviorCounts::V1(author_counts) = &counts[author.value()];
+        let author_counts = counts[author.value()].as_v2();
         assert_eq!(
             author_counts.faulty_blocks_provable, 1,
             "The author must be charged provably when a verified header commits to the payload"
@@ -1646,7 +1646,7 @@ mod tests {
             if i == author.value() {
                 continue;
             }
-            let MisbehaviorCounts::V1(peer_counts) = counts;
+            let peer_counts = counts.as_v2();
             assert_eq!(
                 peer_counts.faulty_blocks_unprovable, 1,
                 "Each relaying peer other than the author must still be charged unprovably"
@@ -1728,7 +1728,7 @@ mod tests {
 
         // The author is not charged provably, even though a verified header ties
         // it to the (wrong) commitment.
-        let MisbehaviorCounts::V1(author_counts) = &counts[author.value()];
+        let author_counts = counts[author.value()].as_v2();
         assert_eq!(
             author_counts.faulty_blocks_provable, 0,
             "The author must not be charged for a peer-produced commitment mismatch"
@@ -1736,7 +1736,7 @@ mod tests {
         // Every peer that relayed a shard — including the author, as a relayer —
         // is charged an unprovable fault.
         for counts in counts.iter().take(info_length) {
-            let MisbehaviorCounts::V1(peer_counts) = counts;
+            let peer_counts = counts.as_v2();
             assert_eq!(
                 peer_counts.faulty_blocks_unprovable, 1,
                 "Each peer that relayed a shard must be charged unprovably"
