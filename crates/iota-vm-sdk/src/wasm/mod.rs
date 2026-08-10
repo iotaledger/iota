@@ -38,8 +38,6 @@ pub fn init() {
     console_error_panic_hook::set_once();
 }
 
-/// Decode a standard-base-64 string into raw bytes, mapping errors to a
-/// JS exception.
 /// Map a [`VmSdkError`] to a JS exception. The variant name is prefixed so the
 /// JS side can branch on the failure phase without parsing the message body.
 fn err_to_js(e: VmSdkError) -> JsError {
