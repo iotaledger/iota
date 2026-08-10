@@ -1681,6 +1681,10 @@ impl IotaClientCommands {
                 let payments = if let Some(amounts) = amounts {
                     std::iter::repeat(signer).zip(amounts).collect::<Vec<_>>()
                 } else if let Some(count) = count {
+                    ensure!(
+                        count > 1,
+                        "Coin split count must be greater than 1, got {count}."
+                    );
                     let balance = if split_from_gas {
                         iota_coins.items[0].balance()
                     } else {
