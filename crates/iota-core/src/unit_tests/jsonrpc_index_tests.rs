@@ -14,7 +14,7 @@ use iota_types::{
 use prometheus_filtered::Registry;
 use typed_store::Map;
 
-use super::{HistoryBackfillState, IndexStore, history_cf_name};
+use super::{IndexStore, history_cf_name};
 use crate::{checkpoints::CheckpointStore, test_utils::executed_checkpoint};
 
 /// Opens an `IndexStore` at `path` without running the rebuild path.
@@ -380,7 +380,10 @@ async fn test_backfill_stops_at_deleted_checkpoint_data() {
         "the checkpoint whose data is gone must not be marked as replayed"
     );
     assert_eq!(
-        index_store.metrics.history_backfill_lowest_checkpoint.get(),
+        index_store
+            .metrics
+            .history_backfill_lowest_replayed_checkpoint
+            .get(),
         1,
         "the gauge must report where a backfill that stopped early left off"
     );
@@ -449,11 +452,6 @@ async fn test_backfill_stops_at_the_retention_horizon() {
         index_store.tables.history_watermark.get(&()).unwrap(),
         Some(1),
         "an epoch the next pruning pass would drop must not be replayed"
-    );
-    assert_eq!(
-        index_store.metrics.history_backfill_state.get(),
-        HistoryBackfillState::StoppedEarly as i64,
-        "a backfill stopped by the retention horizon must report stopping early"
     );
 }
 
@@ -554,7 +552,12 @@ fn test_coin_info_from_object_requires_coin_type() {
     let contents = iota_types::coin::Coin::new(id, 42).to_bcs_bytes();
 
     let coin = Object::new_move(
-        MoveStruct::new_coin(TypeTag::from(StructTag::new_gas()), Version::MIN_VALID_INCL, id, 42),
+        MoveStruct::new_coin(
+            TypeTag::from(StructTag::new_gas()),
+            Version::MIN_VALID_INCL,
+            id,
+            42,
+        ),
         owner,
         TransactionDigest::ZERO,
     );
@@ -755,11 +758,6 @@ async fn test_history_backfill_after_rebuild() {
         Some(0),
         "the backfill must have reached the lowest replayable checkpoint"
     );
-    assert_eq!(
-        index_store.metrics.history_backfill_state.get(),
-        HistoryBackfillState::Complete as i64,
-        "a backfill that reached the bottom must report completion"
-    );
     // The two numbering schemes meet: the backfill numbered the replayed
     // transactions by network position, and the live counter continues
     // exactly one past them — which is also the reported total.
@@ -787,7 +785,10 @@ async fn test_history_backfill_after_rebuild() {
         Some(0)
     );
     assert_eq!(
-        index_store.metrics.history_backfill_lowest_checkpoint.get(),
+        index_store
+            .metrics
+            .history_backfill_lowest_replayed_checkpoint
+            .get(),
         0,
         "the gauge must report how far down the replay got"
     );
@@ -1016,7 +1017,8 @@ async fn test_index_cache() -> anyhow::Result<()> {
 
     let mut builder = TestCheckpointDataBuilder::new(0).start_transaction(0);
     for object_idx in 0..10 {
-        builder = builder.create_coin_object(object_idx, 1, 100, TypeTag::from(StructTag::new_gas()));
+        builder =
+            builder.create_coin_object(object_idx, 1, 100, TypeTag::from(StructTag::new_gas()));
     }
     let mut builder = builder.finish_transaction();
     let checkpoint = builder.build_checkpoint();
@@ -1035,7 +1037,9 @@ async fn test_index_cache() -> anyhow::Result<()> {
     assert_eq!(balance.num_coins, 10);
 
     let all_balance = index_store.get_all_balance(address)?;
-    let balance = all_balance.get(&TypeTag::from(StructTag::new_gas())).unwrap();
+    let balance = all_balance
+        .get(&TypeTag::from(StructTag::new_gas()))
+        .unwrap();
     assert_eq!(*balance, balance_from_db);
     assert_eq!(balance.balance, 1000);
     assert_eq!(balance.num_coins, 10);
@@ -1066,8 +1070,20 @@ async fn test_index_cache() -> anyhow::Result<()> {
         .per_coin_type_balance
         .invalidate(&(address, TypeTag::from(StructTag::new_gas())));
     let all_balance = index_store.get_all_balance(address)?;
-    assert_eq!(all_balance.get(&TypeTag::from(StructTag::new_gas())).unwrap().balance, 700);
-    assert_eq!(all_balance.get(&TypeTag::from(StructTag::new_gas())).unwrap().num_coins, 7);
+    assert_eq!(
+        all_balance
+            .get(&TypeTag::from(StructTag::new_gas()))
+            .unwrap()
+            .balance,
+        700
+    );
+    assert_eq!(
+        all_balance
+            .get(&TypeTag::from(StructTag::new_gas()))
+            .unwrap()
+            .num_coins,
+        7
+    );
     let balance = index_store.get_balance(address, TypeTag::from(StructTag::new_gas()))?;
     assert_eq!(balance, balance_from_db);
     assert_eq!(balance.balance, 700);
@@ -1114,7 +1130,11 @@ async fn test_balance_cache_repopulation_cannot_race_a_commit() -> anyhow::Resul
 
         let reader = std::thread::spawn({
             let index_store = index_store.clone();
-            move || index_store.get_balance(address, TypeTag::from(StructTag::new_gas())).unwrap()
+            move || {
+                index_store
+                    .get_balance(address, TypeTag::from(StructTag::new_gas()))
+                    .unwrap()
+            }
         });
         // Give the reader time to reach the owner's lock. The sleep only
         // makes the race likely: a slow reader arrives after the merge
@@ -1260,7 +1280,11 @@ async fn test_a_balance_miss_takes_the_value_cached_while_it_waited() {
     let lock = index_store.caches.locks.acquire_lock(address);
     let reader = std::thread::spawn({
         let index_store = index_store.clone();
-        move || index_store.get_balance(address, TypeTag::from(StructTag::new_gas())).unwrap()
+        move || {
+            index_store
+                .get_balance(address, TypeTag::from(StructTag::new_gas()))
+                .unwrap()
+        }
     });
     // Give the reader time to reach the owner's lock. A slow one passes
     // without exercising the race.
@@ -1269,7 +1293,9 @@ async fn test_a_balance_miss_takes_the_value_cached_while_it_waited() {
     index_store
         .caches
         .per_coin_type_balance
-        .get_with((address, TypeTag::from(StructTag::new_gas())), || Ok(cached))
+        .get_with((address, TypeTag::from(StructTag::new_gas())), || {
+            Ok(cached)
+        })
         .unwrap();
     drop(lock);
 
@@ -1657,11 +1683,6 @@ async fn test_shutdown_stops_the_backfill() {
         index_store.tables.history_watermark.get(&()).unwrap(),
         Some(1),
         "a cancelled backfill must not replay"
-    );
-    assert_eq!(
-        index_store.metrics.history_backfill_state.get(),
-        HistoryBackfillState::StoppedEarly as i64,
-        "a cancelled backfill must report that it stopped early"
     );
 }
 

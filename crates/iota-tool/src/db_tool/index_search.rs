@@ -2,14 +2,27 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{fmt::Debug, path::PathBuf, str::FromStr};
+use std::{fmt::Debug, path::PathBuf, str::FromStr, sync::Arc};
 
 use anyhow::{anyhow, bail};
-use iota_core::jsonrpc_index::IndexStoreTables;
-use iota_sdk_types::{Address, ObjectId};
+use iota_core::jsonrpc_index::{
+    DB_PREFIX_HIST_TXS_BY_MUTATED_OBJECT_ID, DB_PREFIX_HISTORIC_EVENT_BY_EVENT_MODULE,
+    DB_PREFIX_HISTORIC_EVENT_BY_MOVE_MODULE, DB_PREFIX_HISTORIC_EVENT_BY_SENDER,
+    DB_PREFIX_HISTORIC_EVENT_ORDER, DB_PREFIX_HISTORIC_TX_ORDER,
+    DB_PREFIX_HISTORIC_TXS_BY_INPUT_OBJECT_ID, DB_PREFIX_HISTORIC_TXS_BY_MOVE_FUNCTION,
+    DB_PREFIX_HISTORIC_TXS_FROM_ADDR, DB_PREFIX_HISTORIC_TXS_SEQ, DB_PREFIX_HISTORIC_TXS_TO_ADDR,
+    IndexStoreTables, history_cf_epoch, history_cf_name,
+};
+use iota_sdk_types::{Address, ObjectId, TransactionDigest, TransactionEventsDigest};
+use iota_types::{base_types::TxSequenceNumber, committee::EpochId};
+use move_core_types::{account_address::AccountAddress, language_storage::ModuleId};
 use serde::{Serialize, de::DeserializeOwned};
 use typed_store::{
-    rocks::{DBMap, MetricConf},
+    database::Database,
+    rocks::{
+        DBMap, MetricConf, ReadWriteOptions, TaggedDBMap, list_tables, open_cf_opts_secondary,
+    },
+    rocksdb,
     traits::Map,
 };
 
@@ -43,10 +56,10 @@ pub fn search_index(
 ) -> Result<Vec<(String, String)>, anyhow::Error> {
     let start = start.as_str();
     println!("Opening db at {db_path:?} ...");
-    let db_read_only_handle =
-        IndexStoreTables::get_read_only_handle(db_path, None, None, MetricConf::default());
     match table_name.as_str() {
         "owner_index" => {
+            let db_read_only_handle =
+                IndexStoreTables::get_read_only_handle(db_path, None, None, MetricConf::default());
             get_db_entries!(
                 db_read_only_handle.owner_index,
                 from_addr_oid,
@@ -55,6 +68,8 @@ pub fn search_index(
             )
         }
         "dynamic_field_index" => {
+            let db_read_only_handle =
+                IndexStoreTables::get_read_only_handle(db_path, None, None, MetricConf::default());
             get_db_entries!(
                 db_read_only_handle.dynamic_field_index,
                 from_oid_oid,
@@ -62,8 +77,191 @@ pub fn search_index(
                 termination
             )
         }
+        _ => search_history_table(db_path, &table_name, start, termination),
+    }
+}
+
+/// Searches one of the transaction/event history tables, which live in
+/// per-epoch column families sharing one table per tag byte. The buckets
+/// partition the sequence order by epoch, so chaining the per-bucket scans
+/// in epoch order yields globally ordered entries.
+fn search_history_table(
+    db_path: PathBuf,
+    table_name: &str,
+    start: &str,
+    termination: SearchRange<String>,
+) -> Result<Vec<(String, String)>, anyhow::Error> {
+    let cf_names = list_tables(db_path.clone())
+        .map_err(|e| anyhow!("unable to list the column families of {db_path:?}: {e}"))?;
+    let mut epochs: Vec<EpochId> = cf_names
+        .iter()
+        .filter_map(|name| history_cf_epoch(name))
+        .collect();
+    epochs.sort_unstable();
+    if epochs.is_empty() {
+        bail!("the database at {db_path:?} holds no history column families");
+    }
+    // Every existing column family must be listed for RocksDB to open the
+    // database; the scan itself only touches the history buckets.
+    let opt_cfs: Vec<(&str, rocksdb::Options)> = cf_names
+        .iter()
+        .map(|name| (name.as_str(), rocksdb::Options::default()))
+        .collect();
+    let db = open_cf_opts_secondary(
+        &db_path,
+        None,
+        None,
+        MetricConf::new("index_search"),
+        &opt_cfs,
+    )?;
+
+    match table_name {
+        "tx_order" => get_history_entries::<TxSequenceNumber, TransactionDigest>(
+            &db,
+            &epochs,
+            DB_PREFIX_HISTORIC_TX_ORDER,
+            |s| Ok(TxSequenceNumber::from_str(s)?),
+            start,
+            termination,
+        ),
+        "txs_seq" => get_history_entries::<TransactionDigest, TxSequenceNumber>(
+            &db,
+            &epochs,
+            DB_PREFIX_HISTORIC_TXS_SEQ,
+            |s| Ok(TransactionDigest::from_str(s)?),
+            start,
+            termination,
+        ),
+        "txs_from_addr" => get_history_entries::<_, TransactionDigest>(
+            &db,
+            &epochs,
+            DB_PREFIX_HISTORIC_TXS_FROM_ADDR,
+            from_addr_seq,
+            start,
+            termination,
+        ),
+        "txs_to_addr" => get_history_entries::<_, TransactionDigest>(
+            &db,
+            &epochs,
+            DB_PREFIX_HISTORIC_TXS_TO_ADDR,
+            from_addr_seq,
+            start,
+            termination,
+        ),
+        "txs_by_input_object_id" => get_history_entries::<_, TransactionDigest>(
+            &db,
+            &epochs,
+            DB_PREFIX_HISTORIC_TXS_BY_INPUT_OBJECT_ID,
+            from_id_seq,
+            start,
+            termination,
+        ),
+        "txs_by_mutated_object_id" => get_history_entries::<_, TransactionDigest>(
+            &db,
+            &epochs,
+            DB_PREFIX_HIST_TXS_BY_MUTATED_OBJECT_ID,
+            from_id_seq,
+            start,
+            termination,
+        ),
+        "txs_by_move_function" => get_history_entries::<_, TransactionDigest>(
+            &db,
+            &epochs,
+            DB_PREFIX_HISTORIC_TXS_BY_MOVE_FUNCTION,
+            from_id_module_function_txseq,
+            start,
+            termination,
+        ),
+        "event_order" => get_history_entries::<_, EventValue>(
+            &db,
+            &epochs,
+            DB_PREFIX_HISTORIC_EVENT_ORDER,
+            from_event_id,
+            start,
+            termination,
+        ),
+        "event_by_move_module" => get_history_entries::<_, EventValue>(
+            &db,
+            &epochs,
+            DB_PREFIX_HISTORIC_EVENT_BY_MOVE_MODULE,
+            from_module_id_and_event_id,
+            start,
+            termination,
+        ),
+        "event_by_event_module" => get_history_entries::<_, EventValue>(
+            &db,
+            &epochs,
+            DB_PREFIX_HISTORIC_EVENT_BY_EVENT_MODULE,
+            from_module_id_and_event_id,
+            start,
+            termination,
+        ),
+        "event_by_sender" => get_history_entries::<_, EventValue>(
+            &db,
+            &epochs,
+            DB_PREFIX_HISTORIC_EVENT_BY_SENDER,
+            from_address_and_event_id,
+            start,
+            termination,
+        ),
         _ => bail!("Invalid or unsupported table: {table_name}"),
     }
+}
+
+/// The value shared by every event history table.
+type EventValue = (TransactionEventsDigest, TransactionDigest, u64);
+
+/// [`get_entries`] over one history table's per-epoch maps, in epoch order.
+fn get_history_entries<K, V>(
+    db: &Arc<Database>,
+    epochs: &[EpochId],
+    tag: u8,
+    key_converter: impl Fn(&str) -> Result<K, anyhow::Error>,
+    start: &str,
+    termination: SearchRange<String>,
+) -> Result<Vec<(String, String)>, anyhow::Error>
+where
+    K: Serialize + DeserializeOwned + Clone + Debug,
+    V: Serialize + DeserializeOwned + Debug,
+{
+    let start = key_converter(start)?;
+    println!("Searching from key: {start:?}");
+    let termination = match termination {
+        SearchRange::ExclusiveLastKey(last_key) => {
+            println!("Retrieving all keys up to (but not including) key: {last_key:?}");
+            SearchRange::ExclusiveLastKey(key_converter(last_key.as_str())?)
+        }
+        SearchRange::Count(count) => {
+            println!("Retrieving up to {count} keys");
+            SearchRange::Count(count)
+        }
+    };
+
+    let mut entries = Vec::new();
+    for epoch in epochs {
+        let map: TaggedDBMap<K, V> = TaggedDBMap::reopen(
+            db,
+            &history_cf_name(*epoch),
+            tag,
+            &ReadWriteOptions::default(),
+            true,
+        )?;
+        map.try_catch_up_with_primary()?;
+        let upper_bound = match &termination {
+            SearchRange::ExclusiveLastKey(last_key) => Some(last_key.clone()),
+            SearchRange::Count(_) => None,
+        };
+        for result in map.safe_iter_with_bounds(Some(start.clone()), upper_bound) {
+            let (key, value) = result?;
+            entries.push((format!("{key:?}"), format!("{value:?}")));
+            if let SearchRange::Count(count) = &termination {
+                if entries.len() as u64 >= *count {
+                    return Ok(entries);
+                }
+            }
+        }
+    }
+    Ok(entries)
 }
 
 #[macro_export]
@@ -143,6 +341,49 @@ where
     Ok(entries)
 }
 
+fn from_addr_seq(s: &str) -> Result<(Address, TxSequenceNumber), anyhow::Error> {
+    // Remove whitespaces
+    let s = s.trim();
+    let tokens = s.split(',').collect::<Vec<&str>>();
+    if tokens.len() != 2 {
+        bail!("Invalid address, sequence number pair");
+    }
+    let address = Address::from_str(tokens[0].trim())?;
+    let sequence_number = TxSequenceNumber::from_str(tokens[1].trim())?;
+
+    Ok((address, sequence_number))
+}
+
+fn from_id_seq(s: &str) -> Result<(ObjectId, TxSequenceNumber), anyhow::Error> {
+    // Remove whitespaces
+    let s = s.trim();
+    let tokens = s.split(',').collect::<Vec<&str>>();
+    if tokens.len() != 2 {
+        bail!("Invalid object id, sequence number pair");
+    }
+    let oid = ObjectId::from_str(tokens[0].trim())?;
+    let sequence_number = TxSequenceNumber::from_str(tokens[1].trim())?;
+
+    Ok((oid, sequence_number))
+}
+
+fn from_id_module_function_txseq(
+    s: &str,
+) -> Result<(ObjectId, String, String, TxSequenceNumber), anyhow::Error> {
+    // Remove whitespaces
+    let s = s.trim();
+    let tokens = s.split(',').collect::<Vec<&str>>();
+    if tokens.len() != 4 {
+        bail!("Invalid object id, module name, function name, TX sequence number quad");
+    }
+    let pid = ObjectId::from_str(tokens[0].trim())?;
+    let module = iota_sdk_types::Identifier::from_str(tokens[1].trim())?;
+    let func = iota_sdk_types::Identifier::from_str(tokens[2].trim())?;
+    let seq: TxSequenceNumber = TxSequenceNumber::from_str(tokens[3].trim())?;
+
+    Ok((pid, module.to_string(), func.to_string(), seq))
+}
+
 fn from_addr_oid(s: &str) -> Result<(Address, ObjectId), anyhow::Error> {
     // Remove whitespaces
     let s = s.trim();
@@ -167,4 +408,54 @@ fn from_oid_oid(s: &str) -> Result<(ObjectId, ObjectId), anyhow::Error> {
     let oid2: ObjectId = ObjectId::from_str(tokens[1].trim())?;
 
     Ok((oid1, oid2))
+}
+
+fn from_module_id_and_event_id(
+    s: &str,
+) -> Result<(ModuleId, (TxSequenceNumber, usize)), anyhow::Error> {
+    // Example: "0x1::Event 1234 5"
+    let tokens = s.split(' ').collect::<Vec<&str>>();
+    if tokens.len() != 3 {
+        bail!("Invalid input");
+    }
+    let tx_seq = TxSequenceNumber::from_str(tokens[1])?;
+    let event_seq = usize::from_str(tokens[2])?;
+    let tokens = tokens[0].split("::").collect::<Vec<&str>>();
+    if tokens.len() != 2 {
+        bail!("Invalid module id");
+    }
+    let package = ObjectId::from_str(tokens[0].trim())?;
+
+    Ok((
+        ModuleId::new(
+            AccountAddress::new(package.into_bytes()),
+            move_core_types::identifier::Identifier::from_str(tokens[1].trim())?,
+        ),
+        (tx_seq, event_seq),
+    ))
+}
+
+fn from_event_id(s: &str) -> Result<(TxSequenceNumber, usize), anyhow::Error> {
+    // Example: "1234 5"
+    let tokens = s.split(' ').collect::<Vec<&str>>();
+    if tokens.len() != 2 {
+        bail!("Invalid input");
+    }
+    let tx_seq = TxSequenceNumber::from_str(tokens[0])?;
+    let event_seq = usize::from_str(tokens[1])?;
+    Ok((tx_seq, event_seq))
+}
+
+fn from_address_and_event_id(
+    s: &str,
+) -> Result<(Address, (TxSequenceNumber, usize)), anyhow::Error> {
+    // Example: "0x1 1234 5"
+    let tokens = s.split(' ').collect::<Vec<&str>>();
+    if tokens.len() != 3 {
+        bail!("Invalid input");
+    }
+    let tx_seq = TxSequenceNumber::from_str(tokens[1])?;
+    let event_seq = usize::from_str(tokens[2])?;
+    let address = Address::from_str(tokens[0].trim())?;
+    Ok((address, (tx_seq, event_seq)))
 }
