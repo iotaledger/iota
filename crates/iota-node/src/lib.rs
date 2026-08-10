@@ -622,6 +622,9 @@ impl IotaNode {
                     epoch_store
                         .protocol_config()
                         .max_move_identifier_len_as_option(),
+                    config
+                        .authority_store_pruning_config
+                        .num_epochs_to_retain_for_indexes,
                     &store,
                     &checkpoint_store,
                     index_rebuild_cancelled.clone(),

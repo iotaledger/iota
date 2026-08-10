@@ -68,7 +68,7 @@ use typed_store::{
 };
 
 use crate::{
-    authority::AuthorityStore,
+    authority::{AuthorityStore, authority_store_pruner::MIN_EPOCHS_TO_RETAIN_FOR_INDEXES},
     checkpoints::CheckpointStore,
     index_rebuild_cancellation::{RebuildCancelled, is_cancelled},
     par_index_live_object_set::{
@@ -898,6 +898,11 @@ pub struct IndexStore {
     /// The earliest retained epoch recorded by the last [`Self::prune`]
     /// call, mirroring the persisted `earliest_retained_epoch` row.
     earliest_retained_epoch: AtomicU64,
+    /// How many epochs of history the pruner is configured to retain
+    /// (`num_epochs_to_retain_for_indexes`); bounds the history backfill so
+    /// it does not replay epochs the next prune pass would drop again.
+    /// `None` when index pruning is off.
+    epochs_to_retain: Option<u64>,
 }
 
 /// The pieces produced by opening the index database.
@@ -1426,7 +1431,9 @@ impl IndexStore {
     ///
     /// The history tables are filled by a background replay after this
     /// returns; until it finishes, history-backed queries cover a growing
-    /// range of recent checkpoints, as on a pruned node.
+    /// range of recent checkpoints, as on a pruned node. When index pruning
+    /// is configured, `num_epochs_to_retain` bounds the replay to the epochs
+    /// the pruner would retain.
     ///
     /// Setting `cancelled` abandons a rebuild running here and the background
     /// replay, and fails the open: the store is left unadopted for the next
@@ -1435,6 +1442,7 @@ impl IndexStore {
         path: PathBuf,
         registry: &Registry,
         max_type_length: Option<u64>,
+        num_epochs_to_retain: Option<u64>,
         authority_store: &Arc<AuthorityStore>,
         checkpoint_store: &Arc<CheckpointStore>,
         cancelled: Arc<AtomicBool>,
@@ -1605,12 +1613,18 @@ impl IndexStore {
             })
             .unwrap_or(0);
 
+        // The pruner never retains fewer epochs than its floor, so the
+        // backfill must not stop above it either.
+        let epochs_to_retain =
+            num_epochs_to_retain.map(|epochs| epochs.max(MIN_EPOCHS_TO_RETAIN_FOR_INDEXES));
+
         let store = Arc::new(Self::finish_open(
             opened,
             registry,
             max_type_length,
             anchor,
             cancelled,
+            epochs_to_retain,
         )?);
         store.spawn_history_backfill(authority_store.clone(), checkpoint_store.clone());
         Ok(store)
@@ -1661,10 +1675,10 @@ impl IndexStore {
 
     /// Fills the history tables for the checkpoints below
     /// `history_watermark`, newest first, until it reaches the
-    /// checkpoint-contents pruner or reaches an epoch [`Self::prune`]
-    /// removed from the index. The marker commits atomically
-    /// with each checkpoint's rows, so an interrupted run resumes where it
-    /// stopped.
+    /// checkpoint-contents pruner, an epoch [`Self::prune`] removed from the
+    /// index, or the configured index retention. The marker commits
+    /// atomically with each checkpoint's rows, so an interrupted run resumes
+    /// where it stopped.
     /// No-op when the marker is absent (the history was indexed continuously
     /// and is complete). Reports its progress through the
     /// `history_backfill_lowest_checkpoint` gauge and where it ended through
@@ -1732,6 +1746,17 @@ impl IndexStore {
                 state = HistoryBackfillState::StoppedEarly;
                 break;
             }
+            if let Some(horizon) = self.backfill_retention_horizon(summary.epoch) {
+                if summary.epoch < horizon {
+                    info!(
+                        "Stopping the JSON-RPC history backfill at checkpoint {next}: epoch {} is \
+                         past the index retention, the next pruning pass would drop it again",
+                        summary.epoch
+                    );
+                    state = HistoryBackfillState::StoppedEarly;
+                    break;
+                }
+            }
             if let Err(e) =
                 self.replay_checkpoint_history(authority_store, checkpoint_store, &summary)
             {
@@ -1784,6 +1809,26 @@ impl IndexStore {
 
     fn report_backfill_state(&self, state: HistoryBackfillState) {
         self.metrics.history_backfill_state.set(state as i64);
+    }
+
+    /// The lowest epoch the backfill may replay when index pruning is
+    /// configured: the horizon [`Self::prune`] enforces, computed against
+    /// the newest bucket. The `earliest_retained_epoch` floor alone is not
+    /// enough — it is written by the first pruning pass, and until then a
+    /// rebuilt store's backfill would replay epochs that pass drops again.
+    /// `None` when index pruning is off.
+    ///
+    /// `current_epoch` stands in for the newest epoch while no bucket
+    /// exists yet, on a rebuilt store whose backfill has not committed its
+    /// first checkpoint.
+    fn backfill_retention_horizon(&self, current_epoch: EpochId) -> Option<EpochId> {
+        let epochs_to_retain = self.epochs_to_retain?;
+        let newest = self
+            .history
+            .read()
+            .last_key_value()
+            .map_or(current_epoch, |(&epoch, _)| epoch);
+        Some(newest.saturating_sub(epochs_to_retain.saturating_sub(1)))
     }
 
     /// Whether a pruner removed checkpoint `next`, or the history bucket of
@@ -1903,7 +1948,7 @@ impl IndexStore {
     ) -> Self {
         let opened =
             Self::open_index_db(&path).expect("unable to open the JSON-RPC index database");
-        Self::finish_open(opened, registry, max_type_length, 0, Arc::default())
+        Self::finish_open(opened, registry, max_type_length, 0, Arc::default(), None)
             .expect("unable to read the JSON-RPC index retention floor")
     }
 
@@ -1913,6 +1958,7 @@ impl IndexStore {
         max_type_length: Option<u64>,
         next_sequence_number_floor: TxSequenceNumber,
         cancelled: Arc<AtomicBool>,
+        epochs_to_retain: Option<u64>,
     ) -> Result<Self, TypedStoreError> {
         // Dropped before the scan below, so a bucket the floor excludes
         // cannot seed the transaction numbering.
@@ -1961,6 +2007,7 @@ impl IndexStore {
             history_backfill_task: Mutex::new(None),
             cancelled,
             earliest_retained_epoch: AtomicU64::new(earliest_retained_epoch),
+            epochs_to_retain,
         })
     }
 
@@ -3478,7 +3525,8 @@ mod tests {
                 &Registry::default(),
                 Some(128),
                 0,
-                Default::default()
+                Default::default(),
+                None,
             )
             .is_err()
         );
@@ -3661,6 +3709,49 @@ mod tests {
         );
     }
 
+    /// With index pruning configured, the backfill must stop at the
+    /// retention horizon even before the first pruning pass persists the
+    /// `earliest_retained_epoch` floor: replaying below it would index
+    /// epochs that pass drops again. The genesis checkpoint here is fully
+    /// replayable, so only the stop keeps the marker in place.
+    #[tokio::test]
+    async fn test_backfill_stops_at_the_retention_horizon() {
+        let (authority_state, _) = genesis_authority_state().await;
+        let checkpoint_store = &authority_state.checkpoint_store;
+
+        let index_dir = iota_common::tempdir();
+        let mut index_store = open_index_store(index_dir.path().to_path_buf());
+        index_store.epochs_to_retain = Some(7);
+        // Buckets for epochs 0..=7: genesis' epoch 0 lies below the
+        // retention horizon (epoch 1), while no pruning has run yet.
+        seed_history_buckets(&index_store, 8);
+        assert_eq!(
+            index_store
+                .earliest_retained_epoch
+                .load(std::sync::atomic::Ordering::Relaxed),
+            0
+        );
+        index_store
+            .tables
+            .history_watermark
+            .insert(&(), &1)
+            .unwrap();
+
+        index_store
+            .backfill_history(&authority_state.database_for_testing(), checkpoint_store)
+            .expect("the backfill must stop at the retention horizon, not replay past it");
+        assert_eq!(
+            index_store.tables.history_watermark.get(&()).unwrap(),
+            Some(1),
+            "an epoch the next pruning pass would drop must not be replayed"
+        );
+        assert_eq!(
+            index_store.metrics.history_backfill_state.get(),
+            HistoryBackfillState::StoppedEarly as i64,
+            "a backfill stopped by the retention horizon must report stopping early"
+        );
+    }
+
     /// `init` alone must not adopt the rebuild: the watermarks are written
     /// by the caller only after the WAL-less bulk writes are flushed, so a
     /// crash mid-rebuild is re-detected on the next open instead of being
@@ -3725,6 +3816,7 @@ mod tests {
             index_dir,
             &Registry::default(),
             Some(128),
+            None,
             &authority_store,
             &checkpoint_store,
             Default::default(),
@@ -3941,6 +4033,7 @@ mod tests {
             index_dir.path().to_path_buf(),
             &Registry::default(),
             Some(128),
+            None,
             &authority_state.database_for_testing(),
             checkpoint_store,
             Default::default(),
@@ -4079,6 +4172,7 @@ mod tests {
             index_dir,
             &Registry::default(),
             Some(128),
+            None,
             &authority_store,
             &checkpoint_store,
             Default::default(),
@@ -4135,6 +4229,7 @@ mod tests {
             index_dir.path().to_path_buf(),
             &Registry::default(),
             Some(128),
+            None,
             &authority_state.database_for_testing(),
             checkpoint_store,
             Default::default(),
@@ -4168,6 +4263,7 @@ mod tests {
             index_dir.path().to_path_buf(),
             &Registry::default(),
             Some(128),
+            None,
             &authority_state.database_for_testing(),
             checkpoint_store,
             Default::default(),
@@ -4349,6 +4445,7 @@ mod tests {
             index_dir.clone(),
             &Registry::default(),
             Some(128),
+            None,
             &authority_store,
             &checkpoint_store,
             cancelled,
@@ -4370,6 +4467,7 @@ mod tests {
             index_dir,
             &Registry::default(),
             Some(128),
+            None,
             &authority_store,
             &checkpoint_store,
             Default::default(),
@@ -4428,6 +4526,7 @@ mod tests {
             index_dir,
             &Registry::default(),
             Some(128),
+            None,
             &authority_store,
             &checkpoint_store,
             Default::default(),
@@ -4875,6 +4974,7 @@ mod tests {
             index_dir.path().to_path_buf(),
             &Registry::default(),
             Some(128),
+            None,
             &authority_state.database_for_testing(),
             checkpoint_store,
             Default::default(),

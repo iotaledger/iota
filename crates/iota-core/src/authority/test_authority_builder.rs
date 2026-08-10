@@ -337,6 +337,7 @@ impl<'a> TestAuthorityBuilder<'a> {
                     epoch_store
                         .protocol_config()
                         .max_move_identifier_len_as_option(),
+                    None,
                     &authority_store,
                     &checkpoint_store,
                     Arc::default(),
