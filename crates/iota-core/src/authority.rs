@@ -80,7 +80,6 @@ use iota_types::{
     executable_transaction::VerifiedExecutableTransaction,
     execution_config_utils::to_binary_config,
     fp_ensure,
-    full_checkpoint_content::CheckpointData,
     gas::IotaGasStatus,
     gas_coin::mock_simulation_gas_coin,
     inner_temporary_store::{InnerTemporaryStore, PackageStoreWithFallback},
@@ -905,7 +904,7 @@ pub struct AuthorityState {
     /// that are executed but did not make into checkpoint.
     execution_lock: RwLock<EpochId>,
 
-    pub indexes: Option<Arc<IndexStore>>,
+    pub jsonrpc_indexes_store: Option<Arc<IndexStore>>,
     pub grpc_indexes_store: Option<Arc<GrpcIndexesStore>>,
 
     pub subscription_handler: Arc<SubscriptionHandler>,
@@ -2491,23 +2490,6 @@ impl AuthorityState {
             .expect("storage access failed")
     }
 
-    /// Builds and stages the JSON-RPC index update for an executed checkpoint.
-    ///
-    /// The staged batch is committed later, in checkpoint order, via
-    /// [`IndexStore::commit_update_for_checkpoint`]. No-op when the JSON-RPC
-    /// index is not configured.
-    #[instrument(level = "debug", skip_all, fields(checkpoint = checkpoint.checkpoint_summary.sequence_number))]
-    pub fn index_checkpoint_for_jsonrpc(&self, checkpoint: &CheckpointData) -> IotaResult {
-        let Some(indexes) = &self.indexes else {
-            return Ok(());
-        };
-
-        // Every table is maintained whenever the store exists: skipping any
-        // (e.g. coins on a node whose key joins the committee) would leave
-        // it silently stale, with nothing ever triggering a rebuild.
-        indexes.index_checkpoint(checkpoint)
-    }
-
     #[cfg(msim)]
     fn create_fail_state(
         &self,
@@ -2542,8 +2524,8 @@ impl AuthorityState {
     }
 
     /// Emits transaction and event subscription notifications for an executed
-    /// transaction. Index updates happen per checkpoint instead, via
-    /// [`Self::index_checkpoint_for_jsonrpc`].
+    /// transaction. Index updates happen per checkpoint instead, in the
+    /// checkpoint executor.
     #[instrument(level = "trace", skip_all, err)]
     fn post_process_one_tx(
         &self,
@@ -2552,7 +2534,7 @@ impl AuthorityState {
         inner_temporary_store: &InnerTemporaryStore,
         epoch_store: &Arc<AuthorityPerEpochStore>,
     ) -> IotaResult {
-        if self.indexes.is_none() {
+        if self.jsonrpc_indexes_store.is_none() {
             return Ok(());
         }
 
@@ -2764,7 +2746,7 @@ impl AuthorityState {
         execution_cache_trait_pointers: ExecutionCacheTraitPointers,
         epoch_store: Arc<AuthorityPerEpochStore>,
         committee_store: Arc<CommitteeStore>,
-        indexes: Option<Arc<IndexStore>>,
+        jsonrpc_indexes_store: Option<Arc<IndexStore>>,
         grpc_indexes_store: Option<Arc<GrpcIndexesStore>>,
         checkpoint_store: Arc<CheckpointStore>,
         prometheus_registry: &Registry,
@@ -2802,7 +2784,7 @@ impl AuthorityState {
             store.perpetual_tables.clone(),
             checkpoint_store.clone(),
             grpc_indexes_store.clone(),
-            indexes.clone(),
+            jsonrpc_indexes_store.clone(),
             config.authority_store_pruning_config.clone(),
             epoch_store.committee().authority_exists(&name),
             epoch_store.epoch_start_state().epoch_duration_ms(),
@@ -2829,7 +2811,7 @@ impl AuthorityState {
             epoch_store: ArcSwap::new(epoch_store.clone()),
             input_loader,
             execution_cache_trait_pointers,
-            indexes,
+            jsonrpc_indexes_store,
             grpc_indexes_store,
             subscription_handler: Arc::new(SubscriptionHandler::new(prometheus_registry)),
             checkpoint_store,
@@ -3246,7 +3228,7 @@ impl AuthorityState {
         }
 
         if expensive_safety_check_config.enable_secondary_index_checks() {
-            if let Some(indexes) = self.indexes.clone() {
+            if let Some(indexes) = self.jsonrpc_indexes_store.clone() {
                 verify_indexes(self.get_global_state_hash_store().as_ref(), indexes)
                     .expect("secondary indexes are inconsistent");
             }
@@ -3646,7 +3628,7 @@ impl AuthorityState {
         limit: usize,
         filter: Option<IotaObjectDataFilter>,
     ) -> IotaResult<Vec<ObjectInfo>> {
-        if let Some(indexes) = &self.indexes {
+        if let Some(indexes) = &self.jsonrpc_indexes_store {
             indexes.get_owner_objects(owner, cursor, limit, filter)
         } else {
             Err(IotaError::IndexStoreNotAvailable)
@@ -3662,7 +3644,7 @@ impl AuthorityState {
         limit: usize,
         one_coin_type_only: bool,
     ) -> IotaResult<impl Iterator<Item = (String, ObjectId, CoinInfo)> + '_> {
-        if let Some(indexes) = &self.indexes {
+        if let Some(indexes) = &self.jsonrpc_indexes_store {
             indexes.get_owned_coins_iterator_with_cursor(owner, cursor, limit, one_coin_type_only)
         } else {
             Err(IotaError::IndexStoreNotAvailable)
@@ -3677,7 +3659,7 @@ impl AuthorityState {
         cursor: Option<ObjectId>,
         filter: Option<IotaObjectDataFilter>,
     ) -> IotaResult<impl Iterator<Item = ObjectInfo> + '_> {
-        if let Some(indexes) = &self.indexes {
+        if let Some(indexes) = &self.jsonrpc_indexes_store {
             indexes.get_owner_objects_iterator(owner, cursor, filter)
         } else {
             Err(IotaError::IndexStoreNotAvailable)
@@ -3735,7 +3717,7 @@ impl AuthorityState {
         cursor: Option<ObjectId>,
         limit: usize,
     ) -> IotaResult<Vec<(ObjectId, Option<DynamicFieldInfo>)>> {
-        let Some(indexes) = &self.indexes else {
+        let Some(indexes) = &self.jsonrpc_indexes_store else {
             return Err(IotaError::IndexStoreNotAvailable);
         };
         let epoch_store = self.load_epoch_store_one_call_per_task();
@@ -3778,7 +3760,7 @@ impl AuthorityState {
         name_type: TypeTag,
         name_bcs_bytes: &[u8],
     ) -> IotaResult<Option<ObjectId>> {
-        let Some(indexes) = &self.indexes else {
+        let Some(indexes) = &self.jsonrpc_indexes_store else {
             return Err(IotaError::IndexStoreNotAvailable);
         };
         let derive = |name_type: &TypeTag| {
@@ -3890,7 +3872,7 @@ impl AuthorityState {
     }
 
     fn get_indexes(&self) -> IotaResult<Arc<IndexStore>> {
-        match &self.indexes {
+        match &self.jsonrpc_indexes_store {
             Some(i) => Ok(i.clone()),
             None => Err(IotaError::UnsupportedFeature {
                 error: "extended object indexing is not enabled on this server".into(),

@@ -423,7 +423,7 @@ impl StateRead for AuthorityState {
         owner: Address,
         coin_type: TypeTag,
     ) -> StateReadResult<TotalBalance> {
-        let indexes = self.indexes.clone();
+        let indexes = self.jsonrpc_indexes_store.clone();
         Ok(tokio::task::spawn_blocking(move || {
             indexes
                 .as_ref()
@@ -438,7 +438,7 @@ impl StateRead for AuthorityState {
         &self,
         owner: Address,
     ) -> StateReadResult<Arc<HashMap<TypeTag, TotalBalance>>> {
-        let indexes = self.indexes.clone();
+        let indexes = self.jsonrpc_indexes_store.clone();
         Ok(tokio::task::spawn_blocking(move || {
             indexes
                 .as_ref()

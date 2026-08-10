@@ -89,8 +89,10 @@ impl Restore for RestoreWithIndexes<'_> {
         let mut jsonrpc_partition_indexer = self
             .jsonrpc_restorer
             .map(|restorer| restorer.partition_indexer());
-        // Defer index errors so the decode stream is driven to completion by
-        // `bulk_insert_live_objects` either way.
+        // An index error must not cut the stream short: `bulk_insert_live_objects`
+        // has to consume every object either way to verify the partition's
+        // checksum. Remember the first error, skip both indexers for the rest
+        // of the stream, and fail the partition after the insert.
         let mut index_error: Option<StorageError> = None;
         let live_objects = LiveObjectIter::new(&file_metadata, bytes)?.inspect(|live_object| {
             if index_error.is_some() {

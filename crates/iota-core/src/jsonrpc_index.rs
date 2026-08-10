@@ -119,19 +119,19 @@ const ENV_VAR_HISTORY_BLOCK_CACHE_SIZE_MB: &str = "JSONRPC_HISTORY_BLOCK_CACHE_M
 const DEFAULT_HISTORY_BLOCK_CACHE_SIZE_MB: usize = 512;
 
 // Do not reuse these tags. Mark them as deprecated if a table is removed.
-const DB_PREFIX_HISTORIC_TX_ORDER: u8 = 0;
-const DB_PREFIX_HISTORIC_TXS_SEQ: u8 = 1;
-const DB_PREFIX_HISTORIC_TXS_FROM_ADDR: u8 = 2;
-const DB_PREFIX_HISTORIC_TXS_TO_ADDR: u8 = 3;
-const DB_PREFIX_HISTORIC_TXS_BY_INPUT_OBJECT_ID: u8 = 4;
-const DB_PREFIX_HIST_TXS_BY_MUTATED_OBJECT_ID: u8 = 5;
-const DB_PREFIX_HISTORIC_TXS_BY_MOVE_FUNCTION: u8 = 6;
-const DB_PREFIX_HISTORIC_EVENT_ORDER: u8 = 7;
-const DB_PREFIX_HISTORIC_EVENT_BY_MOVE_MODULE: u8 = 8;
-const DB_PREFIX_HISTORIC_EVENT_BY_MOVE_EVENT: u8 = 9;
-const DB_PREFIX_HISTORIC_EVENT_BY_EVENT_MODULE: u8 = 10;
-const DB_PREFIX_HISTORIC_EVENT_BY_SENDER: u8 = 11;
-const DB_PREFIX_HISTORIC_EVENT_BY_TIME: u8 = 12;
+pub const DB_PREFIX_HISTORIC_TX_ORDER: u8 = 0;
+pub const DB_PREFIX_HISTORIC_TXS_SEQ: u8 = 1;
+pub const DB_PREFIX_HISTORIC_TXS_FROM_ADDR: u8 = 2;
+pub const DB_PREFIX_HISTORIC_TXS_TO_ADDR: u8 = 3;
+pub const DB_PREFIX_HISTORIC_TXS_BY_INPUT_OBJECT_ID: u8 = 4;
+pub const DB_PREFIX_HIST_TXS_BY_MUTATED_OBJECT_ID: u8 = 5;
+pub const DB_PREFIX_HISTORIC_TXS_BY_MOVE_FUNCTION: u8 = 6;
+pub const DB_PREFIX_HISTORIC_EVENT_ORDER: u8 = 7;
+pub const DB_PREFIX_HISTORIC_EVENT_BY_MOVE_MODULE: u8 = 8;
+pub const DB_PREFIX_HISTORIC_EVENT_BY_MOVE_EVENT: u8 = 9;
+pub const DB_PREFIX_HISTORIC_EVENT_BY_EVENT_MODULE: u8 = 10;
+pub const DB_PREFIX_HISTORIC_EVENT_BY_SENDER: u8 = 11;
+pub const DB_PREFIX_HISTORIC_EVENT_BY_TIME: u8 = 12;
 
 #[derive(Default, Copy, Clone, Debug, Eq, PartialEq)]
 pub struct TotalBalance {
@@ -204,19 +204,13 @@ pub struct IndexStoreMetrics {
     balance_lookup_from_total: IntCounter,
     all_balance_lookup_from_db: IntCounter,
     all_balance_lookup_from_total: IntCounter,
-    /// Lowest checkpoint the history backfill has replayed.
-    history_backfill_lowest_checkpoint: IntGauge,
-    /// Terminal state of the history backfill, as [`HistoryBackfillState`].
-    history_backfill_state: IntGauge,
-}
-
-/// Terminal state of the history backfill; the gauge reads 0 while it runs
-/// and on a node that never started one.
-#[derive(Clone, Copy)]
-enum HistoryBackfillState {
-    Complete = 1,
-    StoppedEarly = 2,
-    Failed = 3,
+    /// Lowest checkpoint the history backfill has replayed so far. The
+    /// value reflects only the backfill's own progress: it keeps its final
+    /// value after the backfill stops and is not raised when pruning later
+    /// drops replayed epochs.
+    history_backfill_lowest_replayed_checkpoint: IntGauge,
+    /// 1 while the background history backfill is running, 0 otherwise.
+    history_backfill_running: IntGauge,
 }
 
 impl IndexStoreMetrics {
@@ -246,22 +240,19 @@ impl IndexStoreMetrics {
                 registry,
             )
             .unwrap(),
-            // A backfill that stopped early is visible nowhere else, so keep
-            // it above the default metric filter.
-            history_backfill_lowest_checkpoint: register_int_gauge_with_registry!(
-                "jsonrpc_index_history_backfill_lowest_checkpoint",
+            // How far the backfill got is visible nowhere else, so keep it
+            // above the default metric filter.
+            history_backfill_lowest_replayed_checkpoint: register_int_gauge_with_registry!(
+                "jsonrpc_index_history_backfill_lowest_replayed_checkpoint",
                 "Lowest checkpoint the JSON-RPC index history backfill has replayed, keeping its \
-                 final value after the backfill stops",
+                 final value after the backfill stops; unaffected by later pruning",
                 registry;
                 MetricLevel::Warn,
             )
             .unwrap(),
-            // Whether the backfill ran to the end of the local history is
-            // visible nowhere else, so keep it above the default filter too.
-            history_backfill_state: register_int_gauge_with_registry!(
-                "jsonrpc_index_history_backfill_state",
-                "Terminal state of the JSON-RPC index history backfill: 0 running or never \
-                 started, 1 complete, 2 stopped early, 3 failed",
+            history_backfill_running: register_int_gauge_with_registry!(
+                "jsonrpc_index_history_backfill_running",
+                "1 while the JSON-RPC index history backfill is running, 0 otherwise",
                 registry;
                 MetricLevel::Warn,
             )
@@ -389,12 +380,12 @@ struct HistoryBucket {
 /// exist.
 const HISTORY_CF_PREFIX: &str = "hist_e";
 
-fn history_cf_name(epoch: EpochId) -> String {
+pub fn history_cf_name(epoch: EpochId) -> String {
     format!("{HISTORY_CF_PREFIX}{epoch}")
 }
 
 /// The epoch of a history column family, `None` for other names.
-fn history_cf_epoch(cf_name: &str) -> Option<EpochId> {
+pub fn history_cf_epoch(cf_name: &str) -> Option<EpochId> {
     cf_name
         .strip_prefix(HISTORY_CF_PREFIX)
         .and_then(|epoch| epoch.parse().ok())
@@ -1639,10 +1630,11 @@ impl IndexStore {
     ) {
         let store = self.clone();
         let task = tokio::task::spawn_blocking(move || {
+            store.metrics.history_backfill_running.set(1);
             if let Err(e) = store.backfill_history(&authority_store, &checkpoint_store) {
                 error!("JSON-RPC index history backfill stopped: {e}");
-                store.report_backfill_state(HistoryBackfillState::Failed);
             }
+            store.metrics.history_backfill_running.set(0);
         });
         *self.history_backfill_task.lock() = Some(task);
     }
@@ -1681,8 +1673,8 @@ impl IndexStore {
     /// where it stopped.
     /// No-op when the marker is absent (the history was indexed continuously
     /// and is complete). Reports its progress through the
-    /// `history_backfill_lowest_checkpoint` gauge and where it ended through
-    /// the `history_backfill_state` one.
+    /// `history_backfill_lowest_replayed_checkpoint` gauge; where it stopped
+    /// and why is in the log.
     #[tracing::instrument(skip_all)]
     fn backfill_history(
         &self,
@@ -1690,28 +1682,22 @@ impl IndexStore {
         checkpoint_store: &CheckpointStore,
     ) -> Result<(), StorageError> {
         let Some(watermark) = self.tables.history_watermark.get(&())? else {
-            self.report_backfill_state(HistoryBackfillState::Complete);
             return Ok(());
         };
         let Some(mut next) = watermark.checked_sub(1) else {
-            self.report_backfill_state(HistoryBackfillState::Complete);
             return Ok(());
         };
 
         info!("Backfilling JSON-RPC history tables from checkpoint {next} downwards");
         self.metrics
-            .history_backfill_lowest_checkpoint
+            .history_backfill_lowest_replayed_checkpoint
             .set(watermark as i64);
         let start_time = Instant::now();
         let mut last_report = Instant::now();
         let mut replayed: u64 = 0;
-        // Every other way out of the loop is the end of the locally
-        // available history.
-        let mut state = HistoryBackfillState::Complete;
         loop {
             if self.cancelled.load(Ordering::Relaxed) {
                 info!("Stopping the JSON-RPC history backfill at checkpoint {next}: shutdown");
-                state = HistoryBackfillState::StoppedEarly;
                 break;
             }
             // The pruner advances while the backfill runs; re-check the
@@ -1743,7 +1729,6 @@ impl IndexStore {
                      pruned from the index, only epochs from {earliest_retained} on are retained",
                     summary.epoch
                 );
-                state = HistoryBackfillState::StoppedEarly;
                 break;
             }
             if let Some(horizon) = self.backfill_retention_horizon(summary.epoch) {
@@ -1753,7 +1738,6 @@ impl IndexStore {
                          past the index retention, the next pruning pass would drop it again",
                         summary.epoch
                     );
-                    state = HistoryBackfillState::StoppedEarly;
                     break;
                 }
             }
@@ -1779,7 +1763,7 @@ impl IndexStore {
             }
             replayed += 1;
             self.metrics
-                .history_backfill_lowest_checkpoint
+                .history_backfill_lowest_replayed_checkpoint
                 .set(next as i64);
             if last_report.elapsed() >= PROGRESS_REPORT_INTERVAL {
                 last_report = Instant::now();
@@ -1803,12 +1787,7 @@ impl IndexStore {
             "Backfilling {replayed} checkpoints of JSON-RPC history took {} seconds",
             start_time.elapsed().as_secs()
         );
-        self.report_backfill_state(state);
         Ok(())
-    }
-
-    fn report_backfill_state(&self, state: HistoryBackfillState) {
-        self.metrics.history_backfill_state.set(state as i64);
     }
 
     /// The lowest epoch the backfill may replay when index pruning is
