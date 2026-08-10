@@ -1,61 +1,52 @@
 // Copyright (c) Mysten Labs, Inc.
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_types::iota_system_state::epoch_start_iota_system_state::EpochStartSystemStateTrait;
 use starfish_config::{Authority, Committee as ConsensusCommittee};
 use tracing::error;
 
-/// Builds the consensus committee for an epoch from its start state. Consensus
-/// types live in `starfish-config`, so this conversion lives here rather than
-/// in `iota-types`.
-pub trait EpochStartConsensusCommittee {
-    /// Returns the consensus committee for this epoch, with authorities sorted
-    /// by authority key so the order matches the IOTA committee.
-    fn get_consensus_committee(&self) -> ConsensusCommittee;
-}
+/// Returns the consensus committee for an epoch, built from its start state,
+/// with authorities sorted by authority key so the order matches the IOTA
+/// committee. Consensus types live in `starfish-config`, so this conversion
+/// lives here rather than in `iota-types`.
+pub fn get_consensus_committee<T: EpochStartSystemStateTrait>(state: &T) -> ConsensusCommittee {
+    let committee_validators = state.committee_validators();
+    let mut authorities: Vec<Authority> = Vec::with_capacity(committee_validators.len());
 
-impl<T: EpochStartSystemStateTrait> EpochStartConsensusCommittee for T {
-    fn get_consensus_committee(&self) -> ConsensusCommittee {
-        let committee_validators = self.committee_validators();
-        let mut authorities: Vec<Authority> = Vec::with_capacity(committee_validators.len());
-
-        for validator in committee_validators.iter() {
-            authorities.push(Authority {
-                stake: validator.voting_power as starfish_config::Stake,
-                address: validator.primary_address.clone(),
-                hostname: validator.hostname.clone(),
-                authority_key: <starfish_config::AuthorityPublicKey>::new(
-                    validator.authority_pubkey.clone(),
-                ),
-                protocol_key: <starfish_config::ProtocolPublicKey>::new(
-                    validator.protocol_pubkey.clone(),
-                ),
-                network_key: <starfish_config::NetworkPublicKey>::new(
-                    validator.network_pubkey.clone(),
-                ),
-            });
-        }
-
-        // Sort the authorities by their authority (public) key in ascending order, same
-        // as the order in the IOTA committee returned from get_iota_committee().
-        authorities.sort_by(|a1, a2| a1.authority_key.cmp(&a2.authority_key));
-
-        for ((i, authority), iota_authority_name) in authorities
-            .iter()
-            .enumerate()
-            .zip(self.get_iota_committee().names())
-        {
-            if iota_authority_name.0 != authority.authority_key.to_bytes() {
-                error!(
-                    "Mismatched authority order between IOTA and Starfish! \
-                    Index {i}, Starfish authority {authority:?}\nIota authority name {iota_authority_name}"
-                );
-            }
-        }
-
-        ConsensusCommittee::new(self.epoch() as starfish_config::Epoch, authorities)
+    for validator in committee_validators.iter() {
+        authorities.push(Authority {
+            stake: validator.voting_power as starfish_config::Stake,
+            address: validator.primary_address.clone(),
+            hostname: validator.hostname.clone(),
+            authority_key: <starfish_config::AuthorityPublicKey>::new(
+                validator.authority_pubkey.clone(),
+            ),
+            protocol_key: <starfish_config::ProtocolPublicKey>::new(
+                validator.protocol_pubkey.clone(),
+            ),
+            network_key: <starfish_config::NetworkPublicKey>::new(validator.network_pubkey.clone()),
+        });
     }
+
+    // Sort the authorities by their authority (public) key in ascending order, same
+    // as the order in the IOTA committee returned from get_iota_committee().
+    authorities.sort_by(|a1, a2| a1.authority_key.cmp(&a2.authority_key));
+
+    for ((i, authority), iota_authority_name) in authorities
+        .iter()
+        .enumerate()
+        .zip(state.get_iota_committee().names())
+    {
+        if iota_authority_name.0 != authority.authority_key.to_bytes() {
+            error!(
+                "Mismatched authority order between IOTA and Starfish! \
+                Index {i}, Starfish authority {authority:?}\nIota authority name {iota_authority_name}"
+            );
+        }
+    }
+
+    ConsensusCommittee::new(state.epoch() as starfish_config::Epoch, authorities)
 }
 
 #[cfg(test)]
@@ -73,7 +64,7 @@ mod test {
     };
     use rand::thread_rng;
 
-    use super::EpochStartConsensusCommittee;
+    use super::get_consensus_committee;
 
     #[test]
     fn test_iota_and_consensus_committee_are_same() {
@@ -109,7 +100,7 @@ mod test {
 
         // WHEN
         let iota_committee = state.get_iota_committee();
-        let consensus_committee = state.get_consensus_committee();
+        let consensus_committee = get_consensus_committee(&state);
 
         // THEN
         // assert the validators details
@@ -198,7 +189,7 @@ mod test {
 
         // WHEN
         let iota_committee = state.get_iota_committee();
-        let consensus_committee = state.get_consensus_committee();
+        let consensus_committee = get_consensus_committee(&state);
         let active_validators = state.get_active_validators();
 
         // THEN

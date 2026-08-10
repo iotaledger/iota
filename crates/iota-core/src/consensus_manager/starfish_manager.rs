@@ -24,7 +24,7 @@ use crate::{
         ConsensusManagerMetrics, ConsensusManagerTrait, ReplayWaiter, Running, RunningLockGuard,
     },
     consensus_validator::IotaTxValidator,
-    epoch_start_consensus_committee::EpochStartConsensusCommittee,
+    epoch_start_consensus_committee::get_consensus_committee,
     starfish_adapter::LazyStarfishClient,
 };
 
@@ -97,7 +97,7 @@ impl ConsensusManagerTrait for StarfishManager {
         tx_validator: IotaTxValidator,
     ) {
         let system_state = epoch_store.epoch_start_state();
-        let committee: Committee = system_state.get_consensus_committee();
+        let committee: Committee = get_consensus_committee(system_state);
         let epoch = epoch_store.epoch();
         let protocol_config = epoch_store.protocol_config();
 
