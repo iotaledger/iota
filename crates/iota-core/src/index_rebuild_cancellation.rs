@@ -30,10 +30,11 @@ impl fmt::Display for RebuildCancelled {
 
 impl std::error::Error for RebuildCancelled {}
 
-/// Reports whether `error` comes from a rebuild cancelled by a shutdown,
-/// including one rewrapped with a caller's own message.
-pub fn is_cancelled(error: &StorageError) -> bool {
-    let mut error: Option<&(dyn std::error::Error + 'static)> = Some(error);
+/// Reports whether `error` or any error it wraps comes from a rebuild
+/// cancelled by a shutdown, including one rewrapped with a caller's own
+/// message.
+pub fn is_cancelled(error: &(dyn std::error::Error + 'static)) -> bool {
+    let mut error = Some(error);
     while let Some(current) = error {
         if current.downcast_ref::<RebuildCancelled>().is_some() {
             return true;
@@ -71,5 +72,18 @@ mod tests {
         assert!(is_cancelled(&cancelled));
         assert!(is_cancelled(&rewrapped));
         assert!(rewrapped.to_string().contains("cancelled by shutdown"));
+    }
+
+    /// The node's exit path holds the startup failure as an `anyhow::Error`
+    /// that added its own context, which must not hide the marker either.
+    #[test]
+    fn the_marker_survives_the_startup_error_type() {
+        let error = anyhow::Error::new(RebuildCancelled::error("the scan was cancelled"))
+            .context("unable to create the index store");
+
+        assert!(is_cancelled(error.as_ref()));
+        assert!(!is_cancelled(
+            anyhow::anyhow!("unable to create the index store").as_ref()
+        ));
     }
 }

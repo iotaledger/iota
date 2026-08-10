@@ -99,13 +99,7 @@ pub fn par_index_live_object_set<T: ParMakeLiveObjectIndexer>(
         let mut result = Ok(());
         for thread in threads {
             if let Err(e) = thread.join().unwrap() {
-                if result.is_ok() {
-                    result = Err(e);
-                } else if !is_cancelled(&e) {
-                    // Only the first error is returned, and a cancellation
-                    // is reported by the task that returned it already.
-                    warn!("another live object set indexing task failed: {e}");
-                }
+                result = keep_task_error(result, e);
             }
         }
         done.store(true, Ordering::Relaxed);
@@ -179,6 +173,29 @@ fn live_object_set_index_task<T: LiveObjectIndexer>(
 
 fn scan_cancelled() -> StorageError {
     RebuildCancelled::error("the live object set scan was cancelled")
+}
+
+/// The error to report out of the scan, given the one kept so far and the one
+/// a further task returned. The discarded error is logged.
+///
+/// A real failure outranks a cancellation, which every task returns once a
+/// shutdown sets the flag: the tasks are joined in a fixed order, so keeping
+/// the first error would let a cancellation hide a failure the caller must
+/// act on.
+fn keep_task_error(
+    kept: Result<(), StorageError>,
+    error: StorageError,
+) -> Result<(), StorageError> {
+    match kept {
+        Ok(()) => Err(error),
+        Err(kept) if is_cancelled(&kept) && !is_cancelled(&error) => Err(error),
+        Err(kept) => {
+            if !is_cancelled(&error) {
+                warn!("another live object set indexing task failed: {error}");
+            }
+            Err(kept)
+        }
+    }
 }
 
 /// Logs a progress line with estimated percent, scan rate, and remaining time
@@ -312,6 +329,35 @@ mod tests {
                 AtomicU64::new(start.saturating_add(offset))
             })
             .collect()
+    }
+
+    /// A shutdown cancels every task, so whichever task hit a real failure
+    /// must still be the error the scan reports, whatever its position in the
+    /// join order.
+    #[test]
+    fn a_real_failure_outranks_a_cancellation_in_any_join_order() {
+        let failure = || StorageError::custom("object 0x3 is corrupt");
+
+        let kept = keep_task_error(keep_task_error(Ok(()), scan_cancelled()), failure());
+        let error = kept.unwrap_err();
+        assert!(!is_cancelled(&error));
+        assert!(error.to_string().contains("corrupt"));
+
+        let kept = keep_task_error(keep_task_error(Ok(()), failure()), scan_cancelled());
+        let error = kept.unwrap_err();
+        assert!(!is_cancelled(&error));
+        assert!(error.to_string().contains("corrupt"));
+
+        // Between real failures the first one still wins.
+        let kept = keep_task_error(
+            keep_task_error(Ok(()), StorageError::custom("first")),
+            StorageError::custom("second"),
+        );
+        assert!(kept.unwrap_err().to_string().contains("first"));
+
+        // Without a real failure the scan still reports the cancellation.
+        let kept = keep_task_error(keep_task_error(Ok(()), scan_cancelled()), scan_cancelled());
+        assert!(is_cancelled(&kept.unwrap_err()));
     }
 
     #[test]
