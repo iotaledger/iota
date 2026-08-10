@@ -223,9 +223,9 @@ pub fn make_sponsored_regular_sig_tx() -> (TransactionEnvelope, Address, Address
 mod move_authenticator {
     use fastcrypto::hash::HashFunction;
     use iota_sdk_types::{
-        Address, Digest, SenderSignedTransaction, SharedObjectReference, UserSignature,
+        Address, Digest, MoveAuthenticator, MoveAuthenticatorV1, SenderSignedTransaction,
+        SharedObjectReference, UserSignature,
     };
-    pub use iota_sdk_types::{MoveAuthenticator, MoveAuthenticatorV1};
 
     use crate::{
         crypto::DefaultHash,
