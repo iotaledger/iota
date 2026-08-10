@@ -1114,14 +1114,14 @@ fn test_transaction_deny_rules_update_transaction() {
             true,
         )],
     );
-    let data = TransactionData::new_system_transaction(kind);
+    let data = Transaction::new_system_transaction(kind);
     assert!(data.is_system_tx());
     assert_eq!(data.input_objects().unwrap().len(), 1);
 
     let create = EndOfEpochTransactionKind::TransactionDenyRulesCreate;
     assert!(create.input_objects().is_empty());
     assert!(
-        TransactionData::new_system_transaction(TransactionKind::EndOfEpoch(vec![create]))
+        Transaction::new_system_transaction(TransactionKind::EndOfEpoch(vec![create]))
             .is_system_tx()
     );
 }
@@ -1145,7 +1145,7 @@ fn test_transaction_deny_rules_kinds_rejected_from_users() {
         kind.validity_check(&flag_on).unwrap();
 
         let user_submission =
-            SenderSignedTransaction::new(TransactionData::new_system_transaction(kind), vec![]);
+            SenderSignedTransaction::new(Transaction::new_system_transaction(kind), vec![]);
         let context = TxValidityCheckContext {
             config: &flag_on,
             epoch: 1,
