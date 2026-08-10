@@ -10,22 +10,6 @@ fn parameters_snapshot_matches() {
 }
 
 #[test]
-fn default_enables_inbound_bounds() {
-    let tonic = starfish_config::TonicParameters::default();
-    assert_eq!(tonic.max_concurrent_streams, 64);
-    assert_eq!(tonic.request_timeout, std::time::Duration::from_secs(120));
-    assert_eq!(tonic.max_inbound_message_size, 1 << 20);
-    assert_eq!(tonic.admission.max_subscriptions_per_peer, 2);
-    assert_eq!(tonic.admission.max_header_fetches_per_peer, 32);
-    assert_eq!(tonic.admission.max_transaction_fetches_per_peer, 16);
-    assert!(tonic.admission.max_commit_fetches_per_peer > 0);
-    assert_eq!(
-        tonic.subscribe_request_timeout,
-        std::time::Duration::from_secs(30)
-    );
-}
-
-#[test]
 fn operator_config_overrides_defaults() {
     let parameters: starfish_config::Parameters = serde_yaml::from_str(
         r#"

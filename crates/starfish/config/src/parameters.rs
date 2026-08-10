@@ -648,7 +648,7 @@ pub struct AdmissionParameters {
     /// Max concurrent commit fetches per peer
     /// (`fetch_commits` + `fetch_commits_and_transactions`).
     ///
-    /// If unspecified, this will default to `commit_sync_parallel_fetches`.
+    /// If unspecified, this will default to 8.
     #[serde(default = "AdmissionParameters::default_max_commit_fetches_per_peer")]
     pub max_commit_fetches_per_peer: u32,
 }
