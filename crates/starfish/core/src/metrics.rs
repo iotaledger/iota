@@ -755,7 +755,7 @@ impl NodeMetrics {
             ).unwrap(),
             synchronizer_skipped_block_headers_by_peer: register_int_counter_vec_with_registry!(
                 "synchronizer_skipped_block_headers_by_peer",
-                "Number of skipped block headers per peer due to already being verified, by sync method",
+                "Number of fetched block headers whose signature verification was skipped as already verified, per peer and sync method",
                 &["peer", "method"],
                 registry,
             ).unwrap(),
