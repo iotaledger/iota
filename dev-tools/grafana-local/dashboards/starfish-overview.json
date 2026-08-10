@@ -4389,7 +4389,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "description": "Round gap of accepted block headers from Header synchronizer",
+          "description": "Round gap of accepted block headers from the header synchronizer, both requested and additional",
           "fieldConfig": {
             "defaults": {
               "custom": {
@@ -4456,7 +4456,7 @@
               "disableTextWrap": false,
               "editorMode": "code",
               "exemplar": false,
-              "expr": "sum(rate(consensus_accepted_block_headers_round_gap_bucket{source=\"Header synchronizer\"}[5m])) by (le)",
+              "expr": "sum(rate(consensus_accepted_block_headers_round_gap_bucket{source=~\"Header synchronizer.*\"}[5m])) by (le)",
               "format": "heatmap",
               "fullMetaSearch": false,
               "includeNullMetadata": true,
