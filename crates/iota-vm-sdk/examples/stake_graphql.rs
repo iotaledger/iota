@@ -16,7 +16,7 @@ use anyhow::{Context, Result};
 use iota_sdk_graphql_client::Client;
 use iota_sdk_transaction_builder::TransactionBuilder;
 use iota_sdk_types::Address;
-use iota_vm_sdk::{ExecuteOptions, LocalVm, TransactionData, graphql::GraphQLStore};
+use iota_vm_sdk::{ExecuteOptions, LocalVm, Transaction, graphql::GraphQLStore};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -32,7 +32,7 @@ async fn main() -> Result<()> {
     let client = Client::new_testnet();
     let mut builder = TransactionBuilder::new(sender).with_client(client.clone());
     builder.stake(stake_amount_nanos, validator);
-    let tx: TransactionData = builder.finish().await.context("resolve staking tx")?;
+    let tx: Transaction = builder.finish().await.context("resolve staking tx")?;
 
     // The store resolves every object the VM reads over GraphQL on demand —
     // inputs and the system-state dynamic fields staking walks — so only the

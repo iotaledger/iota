@@ -21,12 +21,13 @@ use iota_json_rpc_types::{
     IotaTransactionBlockResponseOptions, ObjectChange, TransactionBlockBytes,
 };
 use iota_move_build::BuildConfig;
+use iota_sdk_crypto::simple::SimpleKeypair;
 use iota_sdk_types::{
     Address, Identifier, ObjectId, ObjectReference, Owner, StructTag, TransactionKind, TypeTag,
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    crypto::{AccountKeyPair, SimpleKeypair, get_key_pair},
+    crypto::{AccountKeyPair, get_key_pair},
     gas_coin::NANOS_PER_IOTA,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::ExecuteTransactionRequestType,

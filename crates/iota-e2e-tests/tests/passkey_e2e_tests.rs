@@ -7,14 +7,14 @@ use std::net::SocketAddr;
 use iota_core::authority_client::validator::ValidatorAPI;
 use iota_macros::sim_test;
 use iota_sdk_types::{
-    Address, SignatureScheme, UserSignature,
+    Address, SignatureScheme, Transaction, UserSignature,
     crypto::{Intent, IntentMessage, PasskeyAuthenticator, SimpleSignature},
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     crypto::PublicKey,
     error::{IotaError, IotaResult, UserInputError},
-    transaction::{TransactionData, TransactionEnvelope},
+    transaction::TransactionEnvelope,
 };
 use p256::pkcs8::DecodePublicKey;
 use passkey_authenticator::{Authenticator, UserCheck, UserValidationMethod};
@@ -89,7 +89,7 @@ async fn create_credential_and_sign_test_tx(
     sender: Option<Address>,
     change_intent: bool,
     change_tx: bool,
-) -> PasskeyResponse<TransactionData> {
+) -> PasskeyResponse<Transaction> {
     // set up authenticator and client
     let my_aaguid = Aaguid::new_empty();
     let user_validation_method = MyUserValidationMethod {};
@@ -213,7 +213,7 @@ async fn create_credential_and_sign_test_tx(
     }
 }
 
-fn make_good_passkey_tx(response: PasskeyResponse<TransactionData>) -> TransactionEnvelope {
+fn make_good_passkey_tx(response: PasskeyResponse<Transaction>) -> TransactionEnvelope {
     let sig = UserSignature::PasskeyAuthenticator(
         PasskeyAuthenticator::new(
             response.authenticator_data,

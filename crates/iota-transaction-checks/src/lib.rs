@@ -15,7 +15,9 @@ mod checked {
 
     use iota_config::verifier_signing_config::VerifierSigningConfig;
     use iota_protocol_config::ProtocolConfig;
-    use iota_sdk_types::{Address, ObjectId, ObjectReference, Owner, TransactionKind, Version};
+    use iota_sdk_types::{
+        Address, ObjectId, ObjectReference, Owner, Transaction, TransactionKind, Version,
+    };
     use iota_types::{
         IOTA_AUTHENTICATOR_STATE_OBJECT_ID, IOTA_CLOCK_OBJECT_SHARED_VERSION,
         error::{IotaError, IotaResult, UserInputError, UserInputResult},
@@ -27,7 +29,7 @@ mod checked {
         transaction::{
             CheckedInputObjects, InputObjectKind, InputObjects, ObjectReadResult,
             ObjectReadResultKind, ProgrammableTransactionExt, ReceivingObjectReadResult,
-            ReceivingObjects, TransactionData, TransactionDataAPI, TransactionKindExt,
+            ReceivingObjects, TransactionAPI, TransactionKindExt,
         },
     };
     use tracing::{error, instrument};
@@ -51,7 +53,7 @@ mod checked {
         gas: &[ObjectReference],
         protocol_config: &ProtocolConfig,
         reference_gas_price: u64,
-        transaction: &TransactionData,
+        transaction: &Transaction,
         authentication_gas_budget: u64,
         is_execute_transaction_to_effects: bool,
     ) -> IotaResult<IotaGasStatus> {
@@ -75,7 +77,7 @@ mod checked {
     pub fn check_transaction_input(
         protocol_config: &ProtocolConfig,
         reference_gas_price: u64,
-        transaction: &TransactionData,
+        transaction: &Transaction,
         input_objects: InputObjects,
         receiving_objects: &ReceivingObjects,
         metrics: &Arc<BytecodeVerifierMetrics>,
@@ -107,7 +109,7 @@ mod checked {
     pub fn check_transaction_input_with_given_gas(
         protocol_config: &ProtocolConfig,
         reference_gas_price: u64,
-        transaction: &TransactionData,
+        transaction: &Transaction,
         mut input_objects: InputObjects,
         receiving_objects: ReceivingObjects,
         gas_object: Object,
@@ -167,20 +169,23 @@ mod checked {
         Ok((gas_status, input_objects.into_checked()))
     }
 
-    /// WARNING! This should only be used for the dev-inspect transaction. This
-    /// transaction type bypasses many of the normal object checks
+    /// WARNING! Only for simulating a transaction with
+    /// [`VmChecks::Disabled`](iota_types::transaction_executor::VmChecks::Disabled).
+    /// This bypasses many of the normal object checks. A simulation with
+    /// `VmChecks::Enabled` goes through [`check_transaction_input`] instead,
+    /// the same as a transaction bound for execution.
     #[instrument(level = "trace", skip_all)]
-    pub fn check_dev_inspect_input(
+    pub fn check_simulation_input(
         config: &ProtocolConfig,
         kind: &TransactionKind,
         input_objects: InputObjects,
-        // TODO: check ReceivingObjects for dev inspect?
+        // TODO: check ReceivingObjects when simulating?
         _receiving_objects: ReceivingObjects,
     ) -> IotaResult<CheckedInputObjects> {
         kind.validity_check(config)?;
         if kind.is_system() {
             return Err(UserInputError::Unsupported(format!(
-                "Transaction kind {kind} is not supported in dev-inspect"
+                "Transaction kind {kind} is not supported in a simulation"
             ))
             .into());
         }
@@ -297,7 +302,7 @@ mod checked {
     fn check_transaction_input_inner(
         protocol_config: &ProtocolConfig,
         reference_gas_price: u64,
-        transaction: &TransactionData,
+        transaction: &Transaction,
         input_objects: &InputObjects,
         // Overrides the gas objects in the transaction.
         gas_override: &[ObjectReference],
@@ -511,7 +516,7 @@ mod checked {
     /// Check all the objects used in the transaction against the database, and
     /// ensure that they are all the correct version and number.
     #[instrument(level = "trace", skip_all)]
-    fn check_objects(transaction: &TransactionData, objects: &InputObjects) -> UserInputResult<()> {
+    fn check_objects(transaction: &Transaction, objects: &InputObjects) -> UserInputResult<()> {
         // We require that mutable objects cannot show up more than once.
         let mut used_objects: HashSet<Address> = HashSet::new();
         for object in objects.iter() {
@@ -883,7 +888,7 @@ mod checked {
     /// Check package verification timeout
     #[instrument(level = "trace", skip_all)]
     pub fn check_non_system_packages_to_be_published(
-        transaction: &TransactionData,
+        transaction: &Transaction,
         protocol_config: &ProtocolConfig,
         metrics: &Arc<BytecodeVerifierMetrics>,
         verifier_signing_config: &VerifierSigningConfig,

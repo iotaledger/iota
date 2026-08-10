@@ -7,11 +7,11 @@ use std::{collections::BTreeSet, sync::Arc};
 use anyhow::Result;
 use fastcrypto::encoding::{Base64, Encoding};
 use iota_data_ingestion_core::Worker;
-use iota_sdk_types::{Command, TransactionKind};
+use iota_sdk_types::{Command, TransactionEffects, TransactionKind};
 use iota_types::{
-    effects::{TransactionEffects, TransactionEffectsAPI},
+    effects::TransactionEffectsAPI,
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
-    transaction::{SenderSignedTransactionAPI, TransactionDataAPI, TransactionKindExt},
+    transaction::{SenderSignedTransactionAPI, TransactionAPI, TransactionKindExt},
 };
 use tokio::sync::Mutex;
 use tracing::error;

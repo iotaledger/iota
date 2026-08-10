@@ -11,14 +11,14 @@ use iota_sdk_crypto::{secp256r1::Secp256r1PrivateKey, simple::SimpleKeypair};
 use iota_sdk_types::{
     Address, UserSignature,
     crypto::{
-        Intent, IntentMessage, PasskeyAuthenticator, PasskeyPublicKey, PublicKey,
-        Secp256r1PublicKey, Secp256r1Signature, SimpleSignature,
+        Intent, IntentMessage, MultisigAggregatedSignature, MultisigCommittee, MultisigMember,
+        PasskeyAuthenticator, PasskeyPublicKey, PublicKey, Secp256r1PublicKey, Secp256r1Signature,
+        SimpleSignature,
     },
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     error::{IotaError, IotaResult},
-    multisig::{MultiSig, MultiSigPublicKey, MultisigMember},
     transaction::TransactionEnvelope,
     utils::{make_upgraded_multisig_tx, multisig_keys},
 };
@@ -123,7 +123,7 @@ async fn create_credential_and_sign_test_tx_with_passkey_multisig(
     let pk1 = kp2.public_key(); // secp256k1
     let pk2 = kp3.public_key(); // secp256r1
 
-    let multisig_pk = MultiSigPublicKey::new(
+    let multisig_pk = MultisigCommittee::new(
         vec![
             MultisigMember::new(pk0, 1),
             MultisigMember::new(pk1, 1),
@@ -201,8 +201,9 @@ async fn create_credential_and_sign_test_tx_with_passkey_multisig(
     )
     .unwrap();
 
-    let multisig =
-        UserSignature::Multisig(MultiSig::new(vec![sig.into()], multisig_pk.clone()).unwrap());
+    let multisig = UserSignature::Multisig(
+        MultisigAggregatedSignature::new(vec![sig.into()], multisig_pk.clone()).unwrap(),
+    );
 
     TransactionEnvelope::from_user_sig_data(tx_data, vec![multisig])
 }
@@ -255,7 +256,7 @@ async fn test_multisig_e2e() {
     let pk1: PublicKey = kp2.public_key().into(); // secp256k1
     let pk2 = kp3.public_key(); // secp256r1
 
-    let multisig_pk = MultiSigPublicKey::new_unchecked(
+    let multisig_pk = MultisigCommittee::new_unchecked(
         vec![
             MultisigMember::new(pk0, 1),
             MultisigMember::new(pk1.clone(), 1),
@@ -349,7 +350,7 @@ async fn test_multisig_e2e() {
     let pk3: PublicKey = Secp256r1PrivateKey::generate(rand::thread_rng())
         .public_key()
         .into();
-    let wrong_multisig_pk = MultiSigPublicKey::new_unchecked(
+    let wrong_multisig_pk = MultisigCommittee::new_unchecked(
         vec![
             MultisigMember::new(pk0, 1),
             MultisigMember::new(pk1, 1),

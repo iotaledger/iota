@@ -11,17 +11,16 @@ use iota_sdk_crypto::{
     ToFromBech32, ToFromBytes as _, Verifier as _,
     ed25519::{Ed25519PrivateKey, Ed25519VerifyingKey},
     secp256k1::Secp256k1PrivateKey,
+    simple::SimpleKeypair,
 };
 use iota_sdk_types::{
     Address, Ed25519PublicKey, Ed25519Signature, ObjectDigest, ObjectId, ObjectReference,
-    SignatureScheme, Version,
+    SignatureScheme, Transaction, Version,
     crypto::{Intent, IntentScope, PublicKey, PublicKeyExt as _, SimpleSignature, UserSignature},
 };
 use iota_types::{
-    crypto::{
-        AuthorityKeyPair, EncodeDecodeBase64, SimpleKeypair, get_key_pair, get_key_pair_from_rng,
-    },
-    transaction::{TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionData, TransactionDataAPI},
+    crypto::{AuthorityKeyPair, EncodeDecodeBase64, get_key_pair, get_key_pair_from_rng},
+    transaction::{TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI},
 };
 use rand::{SeedableRng, rngs::StdRng};
 use tempfile::TempDir;
@@ -548,14 +547,14 @@ async fn test_sign_command() -> Result<(), anyhow::Error> {
     let sender = addresses.first().unwrap();
     let alias = keystore.get_alias_by_address(sender).unwrap();
 
-    // Create a dummy TransactionData
+    // Create a dummy Transaction
     let gas = ObjectReference::new(
         ObjectId::random(),
         Version::default(),
         ObjectDigest::random(),
     );
     let gas_price = 1;
-    let tx_data = TransactionData::new_pay_iota(
+    let tx = Transaction::new_pay_iota(
         *sender,
         vec![gas],
         vec![Address::random()],
@@ -570,7 +569,7 @@ async fn test_sign_command() -> Result<(), anyhow::Error> {
     // scope as PersonalMessage.
     KeyToolCommand::Sign {
         address: KeyIdentity::Address(*sender),
-        data: Base64::encode(bcs::to_bytes(&tx_data)?),
+        data: Base64::encode(bcs::to_bytes(&tx)?),
         intent: Some(Intent::iota_app(IntentScope::PersonalMessage)),
     }
     .execute(&mut keystore)
@@ -580,7 +579,7 @@ async fn test_sign_command() -> Result<(), anyhow::Error> {
     // default is used.
     KeyToolCommand::Sign {
         address: KeyIdentity::Address(*sender),
-        data: Base64::encode(bcs::to_bytes(&tx_data)?),
+        data: Base64::encode(bcs::to_bytes(&tx)?),
         intent: None,
     }
     .execute(&mut keystore)
@@ -590,7 +589,7 @@ async fn test_sign_command() -> Result<(), anyhow::Error> {
     // default is used. Use alias for signing instead of the address
     KeyToolCommand::Sign {
         address: KeyIdentity::Alias(alias),
-        data: Base64::encode(bcs::to_bytes(&tx_data)?),
+        data: Base64::encode(bcs::to_bytes(&tx)?),
         intent: None,
     }
     .execute(&mut keystore)

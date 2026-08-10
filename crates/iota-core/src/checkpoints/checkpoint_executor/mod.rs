@@ -28,12 +28,12 @@ use iota_common::{debug_fatal, fatal};
 use iota_config::node::{CheckpointExecutorConfig, RunWithRange};
 use iota_macros::fail_point;
 use iota_sdk_types::{
-    RandomnessRound, TransactionDigest, TransactionEffectsDigest, TransactionKind,
-    checkpoint::CheckpointContents,
+    RandomnessRound, TransactionDigest, TransactionEffects, TransactionEffectsDigest,
+    TransactionKind, checkpoint::CheckpointContents,
 };
 use iota_types::{
     base_types::ExecutionData,
-    effects::{TransactionEffects, TransactionEffectsAPI},
+    effects::TransactionEffectsAPI,
     executable_transaction::VerifiedExecutableTransaction,
     full_checkpoint_content::CheckpointData,
     global_state_hash::GlobalStateHash,
@@ -42,7 +42,7 @@ use iota_types::{
         FullCheckpointContents, VerifiedCheckpoint,
     },
     transaction::{
-        SenderSignedTransactionAPI, TransactionDataAPI, TransactionKey, VerifiedTransaction,
+        SenderSignedTransactionAPI, TransactionAPI, TransactionKey, VerifiedTransaction,
     },
 };
 use parking_lot::Mutex;
@@ -57,8 +57,8 @@ use crate::{
     checkpoint_progress_tracker::CheckpointProgressTracker,
     checkpoints::CheckpointStore,
     execution_cache::{ObjectCacheRead, TransactionCacheRead},
+    execution_scheduler::{ExecutionSchedulerAPI, ExecutionSchedulerWrapper},
     global_state_hasher::GlobalStateHasher,
-    transaction_manager::TransactionManager,
 };
 
 mod data_ingestion_handler;
@@ -132,7 +132,7 @@ pub struct CheckpointExecutor {
     checkpoint_store: Arc<CheckpointStore>,
     object_cache_reader: Arc<dyn ObjectCacheRead>,
     transaction_cache_reader: Arc<dyn TransactionCacheRead>,
-    tx_manager: Arc<TransactionManager>,
+    execution_scheduler: Arc<ExecutionSchedulerWrapper>,
     global_state_hasher: Arc<GlobalStateHasher>,
     backpressure_manager: Arc<BackpressureManager>,
     config: CheckpointExecutorConfig,
@@ -160,7 +160,7 @@ impl CheckpointExecutor {
             checkpoint_store,
             object_cache_reader: state.get_object_cache_reader().clone(),
             transaction_cache_reader: state.get_transaction_cache_reader().clone(),
-            tx_manager: state.transaction_manager().clone(),
+            execution_scheduler: state.execution_scheduler().clone(),
             global_state_hasher,
             backpressure_manager,
             config,
@@ -909,7 +909,7 @@ impl CheckpointExecutor {
         }
 
         // Enqueue unexecuted transactions with their expected effects digests
-        self.tx_manager
+        self.execution_scheduler
             .enqueue_with_expected_effects_digest(unexecuted_txns, &self.epoch_store);
 
         unexecuted_tx_digests
@@ -960,10 +960,11 @@ impl CheckpointExecutor {
             change_epoch_tx.digest(),
             change_epoch_fx.digest()
         );
-        self.tx_manager.enqueue_with_expected_effects_digest(
-            vec![(change_epoch_tx.clone(), change_epoch_fx.digest())],
-            &self.epoch_store,
-        );
+        self.execution_scheduler
+            .enqueue_with_expected_effects_digest(
+                vec![(change_epoch_tx.clone(), change_epoch_fx.digest())],
+                &self.epoch_store,
+            );
 
         self.transaction_cache_reader
             .notify_read_executed_effects_digests(

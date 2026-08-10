@@ -33,8 +33,11 @@ use fastcrypto::{
     serde_helpers::BytesRepresentation,
 };
 use iota_sdk_crypto::{
-    Verifier, ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey,
-    secp256r1::Secp256r1PrivateKey, simple::SimpleVerifier,
+    Verifier,
+    ed25519::Ed25519PrivateKey,
+    secp256k1::Secp256k1PrivateKey,
+    secp256r1::Secp256r1PrivateKey,
+    simple::{SimpleKeypair, SimpleVerifier},
 };
 use iota_sdk_types::{
     Address, SignatureScheme,
@@ -138,14 +141,6 @@ pub fn verify_proof_of_possession(
         authority_pubkey.into(),
     )
 }
-
-// Account Keys
-//
-// * The following section defines the keypairs that are used by
-// * accounts to interact with Iota.
-// * Currently we support eddsa and ecdsa on Iota.
-
-pub use iota_sdk_crypto::simple::SimpleKeypair;
 
 /// The validator network stacks keep using the fastcrypto ed25519 keypair
 /// type; this conversion lets those keys be stored in configs as
@@ -645,9 +640,9 @@ pub trait IotaSignature: Sized {
         T: Serialize,
     {
         // Compute the BCS hash of the value in intent message. In the case of
-        // transaction data, this is the BCS hash of `struct TransactionData`,
+        // transaction data, this is the BCS hash of `struct Transaction`,
         // different from the transaction digest itself that computes the BCS
-        // hash of the Rust type prefix and `struct TransactionData`.
+        // hash of the Rust type prefix and `struct Transaction`.
         // (See `fn digest` in `impl Message for SenderSignedTransaction`).
         let mut hasher = DefaultHash::default();
         hasher.update(bcs::to_bytes(&value).expect("Message serialization should not fail"));
@@ -1111,9 +1106,9 @@ mod bcs_signable {
     #[cfg(not(target_arch = "wasm32"))]
     impl BcsSignable for crate::messages_consensus::VersionedMisbehaviorReport {}
 
-    impl BcsSignable for crate::effects::TransactionEffects {}
-    impl BcsSignable for crate::effects::TransactionEvents {}
-    impl BcsSignable for crate::transaction::TransactionData {}
+    impl BcsSignable for iota_sdk_types::TransactionEffects {}
+    impl BcsSignable for iota_sdk_types::TransactionEvents {}
+    impl BcsSignable for iota_sdk_types::Transaction {}
     impl BcsSignable for iota_sdk_types::SenderSignedTransaction {}
     impl BcsSignable for crate::object::ObjectInner {}
 

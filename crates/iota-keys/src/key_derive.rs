@@ -7,10 +7,10 @@ use bip32::{ChildNumber, DerivationPath, XPrv};
 use bip39::{Language, Mnemonic, MnemonicType, Seed};
 use iota_sdk_crypto::{
     ToFromBytes as _, ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey,
-    secp256r1::Secp256r1PrivateKey,
+    secp256r1::Secp256r1PrivateKey, simple::SimpleKeypair,
 };
 use iota_sdk_types::{Address, SignatureScheme};
-use iota_types::{crypto::SimpleKeypair, error::IotaError};
+use iota_types::error::IotaError;
 use slip10_ed25519::derive_ed25519_private_key;
 
 pub const DERIVATION_PATH_COIN_TYPE: u32 = 4218;

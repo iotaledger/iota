@@ -14,10 +14,12 @@ use iota_keys::keystore::AccountKeystore;
 use iota_macros::*;
 use iota_node::IotaNodeHandle;
 use iota_sdk::wallet_context::WalletContext;
-use iota_sdk_crypto::{ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey};
+use iota_sdk_crypto::{
+    ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey, simple::SimpleKeypair,
+};
 use iota_sdk_types::{
-    Address, GasPayment, Identifier, ObjectId, ObjectReference, Owner, TransactionDigest,
-    TransactionKind, Version,
+    Address, GasPayment, Identifier, ObjectId, ObjectReference, Owner, Transaction,
+    TransactionDigest, TransactionKind, Version,
 };
 use iota_storage::{
     key_value_store::TransactionKeyValueStore, key_value_store_metrics::KeyValueStoreMetrics,
@@ -28,7 +30,7 @@ use iota_test_transaction_builder::{
     publish_nfts_package,
 };
 use iota_types::{
-    crypto::{SimpleKeypair, get_key_pair},
+    crypto::get_key_pair,
     error::{IotaError, UserInputError},
     messages_grpc::TransactionInfoRequest,
     object::{Object, ObjectRead, PastObjectRead},
@@ -39,7 +41,7 @@ use iota_types::{
     storage::ObjectStore,
     transaction::{
         CallArg, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS, TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
-        TransactionData, TransactionDataAPI,
+        TransactionAPI,
     },
     utils::{to_sender_signed_transaction, to_sender_signed_transaction_with_multi_signers},
 };
@@ -150,7 +152,7 @@ async fn test_sponsored_transaction() -> Result<(), anyhow::Error> {
         builder.finish()
     };
     let kind = TransactionKind::new_programmable(pt);
-    let tx_data = TransactionData::new_with_gas_data(
+    let tx = Transaction::new_with_gas_data(
         kind,
         sender,
         GasPayment {
@@ -162,7 +164,7 @@ async fn test_sponsored_transaction() -> Result<(), anyhow::Error> {
     );
 
     let tx = to_sender_signed_transaction_with_multi_signers(
-        tx_data,
+        tx,
         vec![
             test_cluster
                 .wallet
@@ -483,6 +485,56 @@ async fn test_full_node_cold_sync() -> Result<(), anyhow::Error> {
 
     // Start a new fullnode that is not on the write path
     let fullnode = test_cluster.spawn_new_fullnode().await.iota_node;
+
+    fullnode
+        .state()
+        .get_transaction_cache_reader()
+        .notify_read_executed_effects_for_testing("", &[digest])
+        .await;
+
+    let info = fullnode
+        .state()
+        .handle_transaction_info_request(TransactionInfoRequest {
+            transaction_digest: digest,
+        })
+        .await?;
+    // Check that it has been executed.
+    info.status.into_effects_for_testing();
+
+    Ok(())
+}
+
+// Same cold-sync scenario, but every node runs the ExecutionScheduler. The
+// scheduler has otherwise never been exercised through the checkpoint-executor
+// / state-sync path, where transactions are enqueued with a certified expected
+// effects digest and their inputs arrive by applying synced checkpoints rather
+// than from local submission. A regression where a synced transaction never
+// becomes ready under the ExecutionScheduler would stall sync silently.
+#[sim_test]
+async fn test_full_node_cold_sync_execution_scheduler() -> Result<(), anyhow::Error> {
+    // Selected at node construction; set before the cluster and fullnode are
+    // built. The opt-out variable is cleared too since it takes precedence.
+    // Process-per-test isolation keeps this from leaking to other tests.
+    std::env::set_var("ENABLE_EXECUTION_SCHEDULER", "1");
+    std::env::remove_var("ENABLE_TRANSACTION_MANAGER");
+    let mut test_cluster = TestClusterBuilder::new().build().await;
+
+    let context = &mut test_cluster.wallet;
+    let _ = transfer_coin(context).await?;
+    let _ = transfer_coin(context).await?;
+    let _ = transfer_coin(context).await?;
+    let (_transferred_object, _, _, digest, ..) = transfer_coin(context).await?;
+
+    // Make sure the validators are quiescent before bringing up the node.
+    sleep(Duration::from_millis(1000)).await;
+
+    // Start a new fullnode that is not on the write path.
+    let fullnode = test_cluster.spawn_new_fullnode().await.iota_node;
+    assert!(
+        fullnode.state().uses_execution_scheduler(),
+        "the synced fullnode must run the ExecutionScheduler for this test to exercise the \
+         state-sync scheduling path"
+    );
 
     fullnode
         .state()
@@ -1108,7 +1160,7 @@ async fn test_pass_back_no_object() -> Result<(), anyhow::Error> {
             .expect("Fullnode should have transaction orchestrator toggled on.")
     });
 
-    let tx_data = TransactionData::new_move_call(
+    let tx = Transaction::new_move_call(
         sender,
         package_ref.object_id,
         Identifier::from_static("object_basics"),
@@ -1122,7 +1174,7 @@ async fn test_pass_back_no_object() -> Result<(), anyhow::Error> {
     )
     .unwrap();
     let tx = to_sender_signed_transaction(
-        tx_data,
+        tx,
         context
             .config()
             .keystore()

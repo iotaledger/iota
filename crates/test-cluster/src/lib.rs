@@ -38,8 +38,12 @@ use iota_sdk::{
     iota_client_config::{IotaClientConfig, IotaEnv},
     wallet_context::WalletContext,
 };
+use iota_sdk_crypto::simple::SimpleKeypair;
 use iota_sdk_transaction_builder::TransactionBuilder;
-use iota_sdk_types::{Address, ObjectId, ObjectReference, TransactionDigest};
+use iota_sdk_types::{
+    Address, ObjectId, ObjectReference, Transaction, TransactionDigest, TransactionEffects,
+    TransactionEvents,
+};
 use iota_swarm::memory::{Swarm, SwarmBuilder};
 use iota_swarm_config::{
     genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT, GenesisConfig, ValidatorGenesisConfig},
@@ -54,8 +58,7 @@ use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     base_types::{AuthorityName, ConciseableName},
     committee::{Committee, CommitteeTrait, EpochId},
-    crypto::{AccountKeyPair, SimpleKeypair, get_key_pair},
-    effects::{TransactionEffects, TransactionEvents},
+    crypto::{AccountKeyPair, get_key_pair},
     error::IotaResult,
     iota_system_state::{
         IotaSystemState, IotaSystemStateTrait,
@@ -66,7 +69,7 @@ use iota_types::{
     quorum_driver_types::{ExecuteTransactionRequestType, ExecuteTransactionRequestV1},
     supported_protocol_versions::SupportedProtocolVersions,
     traffic_control::{PolicyConfig, RemoteFirewallConfig},
-    transaction::{CertifiedTransaction, TransactionData, TransactionEnvelope},
+    transaction::{CertifiedTransaction, TransactionEnvelope},
     utils::to_sender_signed_transaction,
 };
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
@@ -624,15 +627,15 @@ impl TestCluster {
         TestTransactionBuilder::new(sender, gas, rgp)
     }
 
-    pub fn sign_transaction(&self, tx_data: &TransactionData) -> TransactionEnvelope {
-        self.wallet.sign_transaction(tx_data)
+    pub fn sign_transaction(&self, tx: &Transaction) -> TransactionEnvelope {
+        self.wallet.sign_transaction(tx)
     }
 
     pub async fn sign_and_execute_transaction(
         &self,
-        tx_data: &TransactionData,
+        tx: &Transaction,
     ) -> IotaTransactionBlockResponse {
-        let tx = self.wallet.sign_transaction(tx_data);
+        let tx = self.wallet.sign_transaction(tx);
         self.execute_transaction(tx).await
     }
 

@@ -6,17 +6,16 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use iota_sdk_types::{
     ExecutionStatus, ObjectDigest, ObjectId, ObjectReference, Owner, SenderSignedTransaction,
-    TransactionEventsDigest, Version, gas::GasCostSummary,
+    TransactionEventsDigest, Version,
+    effects::{ChangedObject, IdOperation, ObjectIn, ObjectOut, TransactionEffects},
+    gas::GasCostSummary,
 };
 
 use crate::{
-    effects::{
-        EffectsObjectChange, IDOperation, ObjectIn, ObjectOut, TransactionEffects,
-        TransactionEffectsExt,
-    },
+    effects::TransactionEffectsExt,
     execution::SharedInput,
     message_envelope::Message,
-    transaction::{InputObjectKind, TransactionDataAPI},
+    transaction::{InputObjectKind, TransactionAPI},
 };
 
 pub struct TestEffectsBuilder {
@@ -146,7 +145,7 @@ impl TestEffectsBuilder {
                 InputObjectKind::ImmOrOwnedMoveObject(oref) => {
                     Some((
                         oref.object_id,
-                        EffectsObjectChange {
+                        ChangedObject {
                             object_id: oref.object_id,
                             input_state: ObjectIn::Data {
                                 version: oref.version,
@@ -158,7 +157,7 @@ impl TestEffectsBuilder {
                                 digest: ObjectDigest::MAX,
                                 owner: Owner::Address(sender),
                             },
-                            id_operation: IDOperation::None,
+                            id_operation: IdOperation::None,
                         },
                     ))
                 }
@@ -169,7 +168,7 @@ impl TestEffectsBuilder {
                     mutable,
                 } => mutable.then_some((
                     *id,
-                    EffectsObjectChange {
+                    ChangedObject {
                         object_id: *id,
                         input_state: ObjectIn::Data {
                             version: *self
@@ -184,21 +183,21 @@ impl TestEffectsBuilder {
                             digest: ObjectDigest::MAX,
                             owner: Owner::Shared(*initial_shared_version),
                         },
-                        id_operation: IDOperation::None,
+                        id_operation: IdOperation::None,
                     },
                 )),
             })
             .chain(self.created_objects.into_iter().map(|(id, owner)| {
                 (
                     id,
-                    EffectsObjectChange {
+                    ChangedObject {
                         object_id: id,
                         input_state: ObjectIn::Missing,
                         output_state: ObjectOut::ObjectWrite {
                             digest: ObjectDigest::random(),
                             owner,
                         },
-                        id_operation: IDOperation::Created,
+                        id_operation: IdOperation::Created,
                     },
                 )
             }))
@@ -208,7 +207,7 @@ impl TestEffectsBuilder {
                     .map(|(id, version, owner)| {
                         (
                             id,
-                            EffectsObjectChange {
+                            ChangedObject {
                                 object_id: id,
                                 input_state: ObjectIn::Data {
                                     version,
@@ -219,7 +218,7 @@ impl TestEffectsBuilder {
                                     digest: ObjectDigest::random(),
                                     owner,
                                 },
-                                id_operation: IDOperation::None,
+                                id_operation: IdOperation::None,
                             },
                         )
                     }),
@@ -227,7 +226,7 @@ impl TestEffectsBuilder {
             .chain(self.deleted_objects.into_iter().map(|(id, version)| {
                 (
                     id,
-                    EffectsObjectChange {
+                    ChangedObject {
                         object_id: id,
                         input_state: ObjectIn::Data {
                             version,
@@ -235,14 +234,14 @@ impl TestEffectsBuilder {
                             owner: Owner::Address(sender),
                         },
                         output_state: ObjectOut::Missing,
-                        id_operation: IDOperation::Deleted,
+                        id_operation: IdOperation::Deleted,
                     },
                 )
             }))
             .chain(self.wrapped_objects.into_iter().map(|(id, version)| {
                 (
                     id,
-                    EffectsObjectChange {
+                    ChangedObject {
                         object_id: id,
                         input_state: ObjectIn::Data {
                             version,
@@ -250,21 +249,21 @@ impl TestEffectsBuilder {
                             owner: Owner::Address(sender),
                         },
                         output_state: ObjectOut::Missing,
-                        id_operation: IDOperation::None,
+                        id_operation: IdOperation::None,
                     },
                 )
             }))
             .chain(self.unwrapped_objects.into_iter().map(|(id, owner)| {
                 (
                     id,
-                    EffectsObjectChange {
+                    ChangedObject {
                         object_id: id,
                         input_state: ObjectIn::Missing,
                         output_state: ObjectOut::ObjectWrite {
                             digest: ObjectDigest::random(),
                             owner,
                         },
-                        id_operation: IDOperation::None,
+                        id_operation: IdOperation::None,
                     },
                 )
             }))

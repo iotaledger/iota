@@ -49,7 +49,7 @@ use iota_types::{
     },
     transaction::{
         CheckedInputObjects, InputObjectKind, InputObjects, ObjectReadResult, ObjectReadResultKind,
-        SenderSignedTransactionAPI, TransactionDataAPI, TransactionEnvelope, VerifiedTransaction,
+        SenderSignedTransactionAPI, TransactionAPI, TransactionEnvelope, VerifiedTransaction,
     },
 };
 use move_binary_format::CompiledModule;

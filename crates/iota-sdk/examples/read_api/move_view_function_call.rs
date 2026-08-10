@@ -28,10 +28,10 @@ use iota_sdk::{
     rpc_types::{IotaTransactionBlockEffectsAPI, IotaTypeTag, ObjectChange},
     types::{
         programmable_transaction_builder::ProgrammableTransactionBuilder,
-        transaction::{TransactionData, TransactionDataAPI},
+        transaction::TransactionAPI,
     },
 };
-use iota_sdk_types::{Argument, Command, Identifier, Owner, TypeTag};
+use iota_sdk_types::{Argument, Command, Identifier, Owner, Transaction, TypeTag};
 use move_package::BuildConfig as MoveBuildConfig;
 use utils::{setup_for_write_with_network, sign_and_execute_transaction};
 
@@ -161,7 +161,7 @@ async fn main() -> Result<(), anyhow::Error> {
         // The split coin (result of the first command), then the two pure args.
         vec![Argument::Result(0), unlock_at, beneficiary],
     );
-    let create_vault_tx = TransactionData::new_programmable(
+    let create_vault_tx = Transaction::new_programmable(
         sender,
         vec![gas_coin.object_ref()],
         ptb.finish(),

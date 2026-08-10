@@ -18,12 +18,12 @@ use iota_grpc_types::{
         types::ObjectReference,
     },
 };
-use iota_sdk_types::TransactionDigest;
+use iota_sdk_types::{TransactionDigest, TransactionEffects};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     base_types::random_object_ref,
     crypto::{AccountKeyPair, get_key_pair},
-    effects::{TestEffectsBuilder, TransactionEffects},
+    effects::TestEffectsBuilder,
     transaction::VerifiedTransaction,
 };
 use prost::Message;

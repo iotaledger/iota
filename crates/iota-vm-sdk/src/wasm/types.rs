@@ -18,7 +18,7 @@ pub struct BcsObject {
 /// parameters, the objects it touches, and optional signatures.
 #[derive(Serialize, Deserialize)]
 pub struct SimulateRequest {
-    /// Base-64 BCS [`TransactionData`] to run.
+    /// Base-64 BCS [`Transaction`] to run.
     pub tx_b64: String,
     /// Chain the transaction targets: `"mainnet"`, `"testnet"`, or absent for
     /// an unknown chain. Selects the chain-specific protocol configuration.

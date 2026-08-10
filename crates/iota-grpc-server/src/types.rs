@@ -17,12 +17,12 @@ use iota_grpc_types::{
 };
 use iota_node_storage::GrpcStateReader;
 use iota_sdk_types::{
-    Address, CheckpointDigest, ObjectId, StructTag, TransactionDigest, TypeTag, Version,
-    checkpoint::CheckpointContents,
+    Address, CheckpointDigest, ObjectId, StructTag, TransactionDigest, TransactionEffects,
+    TransactionEvents, TypeTag, Version, checkpoint::CheckpointContents,
 };
 use iota_types::{
     base_types::VersionNumber,
-    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
+    effects::TransactionEffectsAPI,
     full_checkpoint_content::{
         CheckpointData as IotaTypesCheckpointData,
         CheckpointTransaction as IotaTypesCheckpointTransaction,
@@ -1409,7 +1409,7 @@ impl Merge<CheckpointTransactionWithContext>
 
         // Derive object changes if requested
         if mask.subtree(Self::OBJECT_CHANGES_FIELD.name).is_some() {
-            use iota_types::transaction::TransactionDataAPI as _;
+            use iota_types::transaction::TransactionAPI as _;
 
             let sender = source.transaction.transaction.transaction().sender();
             self.object_changes = Some(

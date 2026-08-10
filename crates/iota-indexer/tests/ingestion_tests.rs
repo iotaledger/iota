@@ -33,13 +33,14 @@ mod ingestion_tests {
         types::{EventIndex, ObjectStatus, TxIndex},
     };
     use iota_sdk_types::{
-        Address, Identifier, ObjectId, ObjectReference, Owner, StructTag, Version,
+        Address, Identifier, ObjectId, ObjectReference, Owner, StructTag, Transaction,
+        TransactionEffects, Version,
     };
     use iota_test_transaction_builder::TestTransactionBuilder;
     use iota_types::{
-        effects::{TransactionEffects, TransactionEffectsAPI},
+        effects::TransactionEffectsAPI,
         programmable_transaction_builder::ProgrammableTransactionBuilder,
-        transaction::{CallArg, TransactionData, TransactionDataAPI, TransactionEnvelope},
+        transaction::{CallArg, TransactionAPI, TransactionEnvelope},
     };
     use simulacrum::Simulacrum;
     use tempfile::tempdir;
@@ -867,13 +868,13 @@ mod ingestion_tests {
     }
 
     /// Executes transaction in simulacrum, asserts success and returns effects.
-    fn execute_signed(sim: &Simulacrum, tx_data: TransactionData) -> TransactionEffects {
+    fn execute_signed(sim: &Simulacrum, tx: Transaction) -> TransactionEffects {
         let (sender, key) = sim.with_keystore(|ks| {
             let (s, k) = ks.accounts().next().unwrap();
             (*s, k.clone())
         });
-        assert_eq!(tx_data.sender(), sender);
-        let tx = TransactionEnvelope::from_data_and_signer(tx_data, vec![&key]);
+        assert_eq!(tx.sender(), sender);
+        let tx = TransactionEnvelope::from_data_and_signer(tx, vec![&key]);
         let (effects, err) = sim.execute_transaction(tx).unwrap();
         assert!(err.is_none(), "tx failed: {err:?}");
         effects

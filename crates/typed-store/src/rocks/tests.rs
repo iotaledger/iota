@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::ops::RangeBounds;
+use std::ops::{Bound, RangeBounds};
 
 use rstest::rstest;
 use serde::{Serialize, de::DeserializeOwned};
@@ -774,19 +774,60 @@ async fn test_safe_range_iter_exclusive_lower_bound_at_max_with_inclusive_upper(
 
 #[tokio::test]
 async fn test_safe_range_iter_reversed_matches_forward() {
-    use std::ops::Bound::{self, Excluded, Included, Unbounded};
-
     let tmp_dir = iota_common::tempdir();
     let db: DBMap<u32, String> = open_map(tmp_dir.path(), None);
-    // [1, 100) so that bounds like 20 / 50 land on existing keys, exercising the
-    // exclusive-upper "skip the boundary key" path of the reverse seek.
-    for i in 1..100u32 {
-        db.insert(&i, &i.to_string()).unwrap();
-    }
+    fill_for_range_symmetry(&db);
+    assert_reversed_matches_forward(&db);
+}
 
-    let check = |range: (Bound<u32>, Bound<u32>)| {
-        let forward: Vec<_> = db.safe_range_iter(range).map(|r| r.unwrap()).collect();
-        let mut reversed: Vec<_> = db
+/// A tagged map owes the same symmetry, and owes it with the neighbouring tags
+/// populated across the whole key space: its bounds are computed by a different
+/// function from the plain map's, and it is the reverse scan that carries its
+/// upper bound in the seek rather than in the read options.
+#[tokio::test]
+async fn tagged_reversed_scan_matches_forward() {
+    let tmp_dir = iota_common::tempdir();
+    let db = open_rocksdb(tmp_dir.path(), &["shared"]);
+    let open = |tag: u8| {
+        TaggedDBMap::<u32, String>::reopen(&db, "shared", tag, &ReadWriteOptions::default(), false)
+            .expect("failed to open the map")
+    };
+    let below = open(0);
+    let map = open(1);
+    let above = open(2);
+
+    for neighbour in [&below, &above] {
+        neighbour
+            .multi_insert([(0, "noise".to_string()), (u32::MAX, "noise".to_string())])
+            .unwrap();
+    }
+    fill_for_range_symmetry(&map);
+
+    assert_reversed_matches_forward(&map);
+}
+
+type RangeOfKeys = (std::ops::Bound<u32>, std::ops::Bound<u32>);
+
+/// Fills a map with `[1, 100)`, so that bounds like 20 and 50 land on existing
+/// keys and exercise the "skip the boundary key" path of the reverse seek.
+fn fill_for_range_symmetry<'a, M: Map<'a, u32, String>>(map: &M)
+where
+    M::Error: std::fmt::Debug,
+{
+    for i in 1..100u32 {
+        map.insert(&i, &i.to_string()).unwrap();
+    }
+}
+
+/// A reverse scan yields exactly what the forward one does, reversed, for every
+/// shape a range can take. Written for any map, so that a tagged map is held to
+/// what a plain one does even though it computes its bounds elsewhere.
+fn assert_reversed_matches_forward<'a, M: Map<'a, u32, String>>(map: &'a M) {
+    use std::ops::Bound::{Excluded, Included, Unbounded};
+
+    let check = |range: RangeOfKeys| {
+        let forward: Vec<_> = map.safe_range_iter(range).map(|r| r.unwrap()).collect();
+        let mut reversed: Vec<_> = map
             .safe_range_iter_reversed(range)
             .map(|r| r.unwrap())
             .collect();
@@ -807,6 +848,8 @@ async fn test_safe_range_iter_reversed_matches_forward() {
     check((Unbounded, Unbounded)); // full table
     check((Included(40), Excluded(40))); // empty
     check((Included(50), Included(50))); // single element
+    check((Included(0), Included(u32::MAX))); // the whole key space
+    check((Excluded(0), Excluded(u32::MAX)));
 }
 
 #[tokio::test]
@@ -1205,6 +1248,588 @@ async fn open_as_secondary_test() {
 
     // New value should be present
     assert_eq!(secondary_db.get(&0).unwrap(), Some("10".to_string()));
+}
+
+#[tokio::test]
+async fn a_column_family_can_be_created_at_runtime() {
+    let tmp_dir = iota_common::tempdir();
+    let path = tmp_dir.path();
+    {
+        let db = open_rocksdb(path, &["static_cf"]);
+        assert!(db.cf_handle("dynamic_cf").is_none());
+        db.create_cf("dynamic_cf", &rocksdb::Options::default())
+            .expect("Failed to create column family");
+        assert!(db.cf_handle("dynamic_cf").is_some());
+
+        // Creating an already-existing column family must fail.
+        assert!(
+            db.create_cf("dynamic_cf", &rocksdb::Options::default())
+                .is_err()
+        );
+
+        let map = DBMap::<u32, String>::reopen(
+            &db,
+            Some("dynamic_cf"),
+            &ReadWriteOptions::default(),
+            false,
+        )
+        .expect("Failed to open map on dynamic column family");
+        map.insert(&1, &"one".to_string())
+            .expect("Failed to insert");
+        assert_eq!(map.get(&1).unwrap(), Some("one".to_string()));
+
+        // The dynamically created column family must be covered by flush_all:
+        // its memtable reaches disk as an SST file of that column family.
+        let sst_files = || {
+            db.live_files()
+                .expect("Failed to list live files")
+                .into_iter()
+                .filter(|file| file.column_family_name == "dynamic_cf")
+                .count()
+        };
+        assert_eq!(sst_files(), 0, "the row must still be in the memtable");
+        db.flush_all().expect("Failed to flush");
+        assert_eq!(sst_files(), 1, "flush_all must cover the column family");
+    }
+    {
+        // The column family is rediscovered when reopening the database from
+        // disk without declaring it.
+        let db = open_rocksdb(path, &["static_cf"]);
+        assert!(db.cf_handle("dynamic_cf").is_some());
+        let map = DBMap::<u32, String>::reopen(
+            &db,
+            Some("dynamic_cf"),
+            &ReadWriteOptions::default(),
+            false,
+        )
+        .expect("Failed to open map on rediscovered column family");
+        assert_eq!(map.get(&1).unwrap(), Some("one".to_string()));
+
+        db.drop_cf("dynamic_cf")
+            .expect("Failed to drop column family");
+        assert!(db.cf_handle("dynamic_cf").is_none());
+    }
+    {
+        // A dropped column family stays gone after reopening.
+        let db = open_rocksdb(path, &["static_cf"]);
+        assert!(db.cf_handle("dynamic_cf").is_none());
+    }
+}
+
+/// Differently-typed [`TaggedDBMap`]s share one column family without their
+/// rows surfacing in each other: gets, full scans in both directions,
+/// bounded ranges, and deletes all stay within their map's tag.
+#[tokio::test]
+async fn tagged_dbmaps_share_a_column_family() {
+    let tmp_dir = iota_common::tempdir();
+    let db = open_rocksdb(tmp_dir.path(), &["shared"]);
+    let numbers: TaggedDBMap<u32, String> =
+        TaggedDBMap::reopen(&db, "shared", 0, &ReadWriteOptions::default(), false)
+            .expect("failed to open the numbers map");
+    let words: TaggedDBMap<String, u64> =
+        TaggedDBMap::reopen(&db, "shared", 1, &ReadWriteOptions::default(), false)
+            .expect("failed to open the words map");
+
+    let mut batch = numbers.batch();
+    batch
+        .insert_batch_tagged(&numbers, [(1, "one".to_string()), (2, "two".to_string())])
+        .unwrap()
+        .insert_batch_tagged(&words, [("one".to_string(), 1), ("two".to_string(), 2)])
+        .unwrap();
+    batch.write().unwrap();
+
+    // The rows are in the named column family, under the tagged keys, and not
+    // in the default one the maps would fall back to if the name were ignored.
+    let shared = DBMap::<(u8, u32), String>::reopen(
+        &db,
+        Some("shared"),
+        &ReadWriteOptions::default(),
+        false,
+    )
+    .expect("failed to open the shared column family");
+    assert_eq!(shared.get(&(0, 1)).unwrap(), Some("one".to_string()));
+    assert_eq!(shared.safe_iter().count(), 4);
+
+    // Point lookups stay within the tag.
+    assert_eq!(numbers.get(&1).unwrap(), Some("one".to_string()));
+    assert_eq!(words.get(&"two".to_string()).unwrap(), Some(2));
+    assert_eq!(
+        numbers.multi_get([1, 2, 3]).unwrap(),
+        vec![Some("one".to_string()), Some("two".to_string()), None]
+    );
+    assert_eq!(
+        numbers.multi_contains_keys([1, 3]).unwrap(),
+        vec![true, false]
+    );
+    assert!(words.contains_key(&"one".to_string()).unwrap());
+
+    // Full scans in both directions yield only the map's own rows.
+    let rows: Vec<_> = numbers.safe_iter().collect::<Result<_, _>>().unwrap();
+    assert_eq!(rows, vec![(1, "one".to_string()), (2, "two".to_string())]);
+    let rows: Vec<_> = numbers
+        .safe_range_iter_reversed(..)
+        .collect::<Result<_, _>>()
+        .unwrap();
+    assert_eq!(rows, vec![(2, "two".to_string()), (1, "one".to_string())]);
+    let rows: Vec<_> = words.safe_iter().collect::<Result<_, _>>().unwrap();
+    assert_eq!(rows, vec![("one".to_string(), 1), ("two".to_string(), 2)]);
+
+    // Bounded ranges honour their own inclusivity, in both directions.
+    let rows: Vec<_> = numbers
+        .safe_range_iter(2..=u32::MAX)
+        .collect::<Result<_, _>>()
+        .unwrap();
+    assert_eq!(rows, vec![(2, "two".to_string())]);
+    let rows: Vec<_> = numbers
+        .safe_iter_with_bounds(None, Some(2))
+        .collect::<Result<_, _>>()
+        .unwrap();
+    assert_eq!(rows, vec![(1, "one".to_string())]);
+    let rows: Vec<_> = numbers
+        .safe_range_iter(1..2)
+        .collect::<Result<_, _>>()
+        .unwrap();
+    assert_eq!(rows, vec![(1, "one".to_string())]);
+    let rows: Vec<_> = numbers
+        .safe_range_iter((Bound::Excluded(1), Bound::Included(2)))
+        .collect::<Result<_, _>>()
+        .unwrap();
+    assert_eq!(rows, vec![(2, "two".to_string())]);
+    let rows: Vec<_> = numbers
+        .safe_range_iter_reversed(u32::MIN..=1)
+        .collect::<Result<_, _>>()
+        .unwrap();
+    assert_eq!(rows, vec![(1, "one".to_string())]);
+    let rows: Vec<_> = numbers
+        .safe_range_iter_reversed(..2)
+        .collect::<Result<_, _>>()
+        .unwrap();
+    assert_eq!(rows, vec![(1, "one".to_string())]);
+
+    // Single-key writes stay within the tag as well.
+    numbers.insert(&3, &"three".to_string()).unwrap();
+    assert_eq!(numbers.get(&3).unwrap(), Some("three".to_string()));
+    numbers.remove(&3).unwrap();
+    assert_eq!(numbers.get(&3).unwrap(), None);
+
+    // Deletes stay within the tag.
+    let mut batch = numbers.batch();
+    batch.delete_batch_tagged(&numbers, [1, 2]).unwrap();
+    batch.write().unwrap();
+    assert!(numbers.is_empty());
+    assert!(!words.is_empty());
+    assert_eq!(words.get(&"one".to_string()).unwrap(), Some(1));
+}
+
+/// Ranges are bounded by the serialized keys, so for a key type whose encoding
+/// does not order the way `Ord` does they cover something else. Pinned here
+/// because it surprises callers; a plain `DBMap` behaves the same way.
+#[tokio::test]
+async fn tagged_ranges_follow_the_key_encoding_rather_than_ord() {
+    let tmp_dir = iota_common::tempdir();
+    let db = open_rocksdb(tmp_dir.path(), &["shared"]);
+    let words: TaggedDBMap<String, u32> =
+        TaggedDBMap::reopen(&db, "shared", 0, &ReadWriteOptions::default(), false)
+            .expect("failed to open the words map");
+    let signed: TaggedDBMap<i32, u32> =
+        TaggedDBMap::reopen(&db, "shared", 1, &ReadWriteOptions::default(), false)
+            .expect("failed to open the signed map");
+
+    // A string is serialized with its length first, so the order is by length.
+    words
+        .multi_insert([
+            ("b".to_string(), 0),
+            ("aa".to_string(), 0),
+            ("aaa".to_string(), 0),
+        ])
+        .unwrap();
+    let keys: Vec<_> = words
+        .safe_iter()
+        .map(|row| row.unwrap().0)
+        .collect::<Vec<_>>();
+    assert_eq!(
+        keys,
+        ["b", "aa", "aaa"],
+        "Ord would order these differently"
+    );
+    assert!(
+        words
+            .safe_range_iter("aa".to_string().."b".to_string())
+            .next()
+            .is_none(),
+        "the upper bound serializes below the lower one"
+    );
+
+    // A negative integer is two's complement, so it sorts above the positives.
+    signed.multi_insert([(0, 0), (1, 0), (-1, 0)]).unwrap();
+    let keys: Vec<_> = signed.safe_iter().map(|row| row.unwrap().0).collect();
+    assert_eq!(keys, [0, 1, -1], "Ord would order these differently");
+    assert!(signed.safe_range_iter(-1..=1).next().is_none());
+}
+
+/// Clearing a map that holds nothing writes nothing, whatever its tag: a
+/// tombstone would be read past by every iterator of the column family until
+/// compaction drops it.
+#[tokio::test]
+async fn clearing_an_empty_tagged_map_writes_nothing() {
+    let tmp_dir = iota_common::tempdir();
+    let db = open_rocksdb(tmp_dir.path(), &["shared"]);
+    let writes_so_far = || match &db.storage {
+        crate::database::Storage::Rocks(rocks) => rocks.underlying.latest_sequence_number(),
+        _ => unreachable!("the database is rocksdb"),
+    };
+    let open = |tag| {
+        TaggedDBMap::<u32, String>::reopen(&db, "shared", tag, &ReadWriteOptions::default(), false)
+            .expect("failed to open the map")
+    };
+
+    // The maximum tag ends its range on the last entry, the others on the tag
+    // that follows, so each takes its own path to the same answer.
+    for tag in [0, u8::MAX] {
+        let map = open(tag);
+        let before = writes_so_far();
+        map.schedule_delete_all().expect("failed to clear the map");
+        assert_eq!(writes_so_far(), before, "tag {tag} wrote over nothing");
+    }
+
+    // And a map that does hold rows still writes its tombstone.
+    let map = open(0);
+    map.insert(&1, &"one".to_string()).unwrap();
+    let before = writes_so_far();
+    map.schedule_delete_all().expect("failed to clear the map");
+    assert!(writes_so_far() > before);
+    assert!(map.is_empty());
+}
+
+/// A tag belongs to its column family, so the same one is free in another.
+#[tokio::test]
+async fn a_tag_is_free_in_another_column_family() {
+    let tmp_dir = iota_common::tempdir();
+    let db = open_rocksdb(tmp_dir.path(), &["shared", "other"]);
+
+    let numbers =
+        TaggedDBMap::<u32, String>::reopen(&db, "shared", 0, &ReadWriteOptions::default(), false)
+            .expect("failed to open the numbers map");
+    let words =
+        TaggedDBMap::<String, u64>::reopen(&db, "other", 0, &ReadWriteOptions::default(), false)
+            .expect("failed to open the words map");
+
+    numbers.insert(&1, &"one".to_string()).unwrap();
+    words.insert(&"one".to_string(), &1).unwrap();
+    assert_eq!(numbers.get(&1).unwrap(), Some("one".to_string()));
+    assert_eq!(words.get(&"one".to_string()).unwrap(), Some(1));
+}
+
+/// Reads `key` from the `[CFOptions "cf_name"]` section of the database's
+/// current OPTIONS file.
+fn cf_option(path: &Path, cf_name: &str, key: &str) -> String {
+    let current = std::fs::read_dir(path)
+        .expect("Failed to read the database directory")
+        .filter_map(|entry| {
+            let name = entry.expect("Failed to read a directory entry").file_name();
+            name.to_str()?.starts_with("OPTIONS-").then_some(name)
+        })
+        .max()
+        .expect("The database has no OPTIONS file");
+    let options = std::fs::read_to_string(path.join(current)).expect("Failed to read the options");
+
+    options
+        .split(&format!("[CFOptions \"{cf_name}\"]"))
+        .nth(1)
+        .expect("The options name no such column family")
+        .lines()
+        .map(str::trim)
+        .take_while(|line| !line.starts_with('['))
+        .find_map(|line| line.strip_prefix(&format!("{key}=")))
+        .unwrap_or_else(|| panic!("The column family has no {key} option"))
+        .to_owned()
+}
+
+/// A column family created at runtime keeps its options when the database is
+/// reopened without declaring it, instead of falling back to the rocksdb
+/// defaults.
+#[tokio::test]
+async fn a_rediscovered_column_family_keeps_its_options() {
+    let tmp_dir = iota_common::tempdir();
+    let path = tmp_dir.path();
+    let declared = |cf: &'static str| {
+        open_cf_opts(
+            path,
+            None,
+            MetricConf::default(),
+            &[(cf, default_db_options().options)],
+        )
+        .expect("Failed to open rocksdb")
+    };
+    {
+        let db = declared("static_cf");
+        db.create_cf("dynamic_cf", &default_db_options().options)
+            .expect("Failed to create column family");
+    }
+
+    // Reopened without naming the runtime column family, so it is rediscovered.
+    let _db = declared("static_cf");
+    assert_eq!(
+        cf_option(path, "dynamic_cf", "bottommost_compression"),
+        cf_option(path, "static_cf", "bottommost_compression"),
+    );
+}
+
+/// The default column family is opened with the crate's options from the start,
+/// rather than with the rocksdb defaults its wrapper would otherwise give it.
+#[tokio::test]
+async fn the_default_column_family_keeps_the_crate_s_options() {
+    let tmp_dir = iota_common::tempdir();
+    let path = tmp_dir.path();
+    let declared = || {
+        open_cf_opts(
+            path,
+            None,
+            MetricConf::default(),
+            &[("static_cf", default_db_options().options)],
+        )
+        .expect("Failed to open rocksdb")
+    };
+
+    // The database is new, so nothing is there to rediscover.
+    let db = declared();
+    let expected = cf_option(path, "static_cf", "bottommost_compression");
+    assert_eq!(
+        cf_option(
+            path,
+            rocksdb::DEFAULT_COLUMN_FAMILY_NAME,
+            "bottommost_compression"
+        ),
+        expected,
+    );
+
+    // And the options do not change when it is rediscovered on the next open.
+    drop(db);
+    let _db = declared();
+    assert_eq!(
+        cf_option(
+            path,
+            rocksdb::DEFAULT_COLUMN_FAMILY_NAME,
+            "bottommost_compression"
+        ),
+        expected,
+    );
+}
+
+/// Opening a map on a column family the database does not have is refused,
+/// rather than yielding a map whose every operation panics.
+#[tokio::test]
+async fn opening_a_map_on_a_missing_column_family_fails() {
+    let tmp_dir = iota_common::tempdir();
+    let db = open_rocksdb(tmp_dir.path(), &["static_cf"]);
+
+    assert!(matches!(
+        DBMap::<u32, String>::reopen(&db, Some("absent"), &ReadWriteOptions::default(), false),
+        Err(TypedStoreError::UnregisteredColumn(cf)) if cf == "absent"
+    ));
+}
+
+/// Dropping the default column family is refused before rocksdb is asked,
+/// because its wrapper would lose the handle on the way to being refused.
+#[tokio::test]
+async fn the_default_column_family_cannot_be_dropped() {
+    let tmp_dir = iota_common::tempdir();
+    let db = open_rocksdb(tmp_dir.path(), &["static_cf"]);
+    let map = DBMap::<u32, String>::reopen(&db, None, &ReadWriteOptions::default(), false)
+        .expect("Failed to open map on the default column family");
+
+    assert!(db.drop_cf(rocksdb::DEFAULT_COLUMN_FAMILY_NAME).is_err());
+
+    // The column family is still there, and still usable.
+    assert!(db.cf_handle(rocksdb::DEFAULT_COLUMN_FAMILY_NAME).is_some());
+    map.insert(&1, &"one".to_string())
+        .expect("Failed to insert");
+    assert_eq!(map.get(&1).unwrap(), Some("one".to_string()));
+}
+
+/// A column family can be dropped and created again on one database handle,
+/// and comes back empty.
+#[tokio::test]
+async fn a_dropped_column_family_can_be_created_again() {
+    let tmp_dir = iota_common::tempdir();
+    let db = open_rocksdb(tmp_dir.path(), &["static_cf"]);
+    let options = rocksdb::Options::default();
+    db.create_cf("cycled", &options)
+        .expect("Failed to create column family");
+    {
+        let map =
+            DBMap::<u32, String>::reopen(&db, Some("cycled"), &ReadWriteOptions::default(), false)
+                .expect("Failed to open map");
+        map.insert(&1, &"one".to_string())
+            .expect("Failed to insert");
+    }
+
+    db.drop_cf("cycled").expect("Failed to drop column family");
+    assert!(
+        DBMap::<u32, String>::reopen(&db, Some("cycled"), &ReadWriteOptions::default(), false)
+            .is_err()
+    );
+
+    db.create_cf("cycled", &options)
+        .expect("Failed to create column family again");
+    let map =
+        DBMap::<u32, String>::reopen(&db, Some("cycled"), &ReadWriteOptions::default(), false)
+            .expect("Failed to open map on the recreated column family");
+    assert_eq!(map.get(&1).unwrap(), None);
+}
+
+/// `flush_all` covers the `default` column family, which rocksdb opens for
+/// every database and which no caller declares.
+#[tokio::test]
+async fn flush_all_covers_the_default_column_family() {
+    let tmp_dir = iota_common::tempdir();
+    let db = open_rocksdb(tmp_dir.path(), &["static_cf"]);
+    let map = DBMap::<u32, String>::reopen(&db, None, &ReadWriteOptions::default(), false)
+        .expect("Failed to open map on the default column family");
+    map.insert(&1, &"one".to_string())
+        .expect("Failed to insert");
+
+    let sst_files = || {
+        db.live_files()
+            .expect("Failed to list live files")
+            .into_iter()
+            .filter(|file| file.column_family_name == "default")
+            .count()
+    };
+    assert_eq!(sst_files(), 0, "the row must still be in the memtable");
+    db.flush_all().expect("Failed to flush");
+    assert_eq!(
+        sst_files(),
+        1,
+        "flush_all must cover the default column family"
+    );
+}
+
+/// A tagged batch write refuses a map from another database, as an untagged
+/// one does.
+#[tokio::test]
+async fn tagged_batch_rejects_a_map_from_another_database() {
+    let tmp_dirs = [iota_common::tempdir(), iota_common::tempdir()];
+    let dbs = tmp_dirs.each_ref().map(|dir| {
+        let db = open_rocksdb(dir.path(), &["shared"]);
+        TaggedDBMap::<u32, String>::reopen(&db, "shared", 0, &ReadWriteOptions::default(), false)
+            .expect("failed to open the map")
+    });
+    let [map, other] = &dbs;
+
+    let mut batch = map.batch();
+    assert!(matches!(
+        batch.insert_batch_tagged(other, [(1, "one".to_string())]),
+        Err(TypedStoreError::CrossDBBatch)
+    ));
+    assert!(matches!(
+        batch.delete_batch_tagged(other, [1]),
+        Err(TypedStoreError::CrossDBBatch)
+    ));
+}
+
+/// A bounded range stays within its own tag even when the upper bound is the
+/// maximum key, where making the exclusive rocksdb bound would otherwise carry
+/// into the next tag's key range — while still yielding that maximum key.
+#[tokio::test]
+async fn tagged_range_iter_stays_within_its_tag() {
+    let tmp_dir = iota_common::tempdir();
+    let db = open_rocksdb(tmp_dir.path(), &["shared"]);
+    // The neighbouring tag's key must serialize to fewer, all-zero bytes: the
+    // escaped bound is tag 1 followed by zeros, and only a shorter all-zero key
+    // sorts below it.
+    let wide: TaggedDBMap<u64, String> =
+        TaggedDBMap::reopen(&db, "shared", 0, &ReadWriteOptions::default(), false)
+            .expect("failed to open the wide map");
+    let narrow: TaggedDBMap<u8, String> =
+        TaggedDBMap::reopen(&db, "shared", 1, &ReadWriteOptions::default(), false)
+            .expect("failed to open the narrow map");
+
+    let mut batch = wide.batch();
+    batch
+        .insert_batch_tagged(
+            &wide,
+            [(1, "one".to_string()), (u64::MAX, "max".to_string())],
+        )
+        .unwrap()
+        .insert_batch_tagged(&narrow, [(0, "zero".to_string())])
+        .unwrap();
+    batch.write().unwrap();
+
+    let rows: Vec<_> = wide
+        .safe_range_iter(0..=u64::MAX)
+        .collect::<Result<_, _>>()
+        .unwrap();
+    assert_eq!(
+        rows,
+        vec![(1, "one".to_string()), (u64::MAX, "max".to_string())]
+    );
+    let rows: Vec<_> = wide
+        .safe_range_iter_reversed(0..=u64::MAX)
+        .collect::<Result<_, _>>()
+        .unwrap();
+    assert_eq!(
+        rows,
+        vec![(u64::MAX, "max".to_string()), (1, "one".to_string())]
+    );
+
+    // The neighbouring tag keeps its row and reaches it through its own range.
+    let rows: Vec<_> = narrow
+        .safe_range_iter(0..=u8::MAX)
+        .collect::<Result<_, _>>()
+        .unwrap();
+    assert_eq!(rows, vec![(0, "zero".to_string())]);
+}
+
+/// Clearing a tagged map removes all of its own entries and none of the
+/// entries the other tags keep in the same column family.
+#[tokio::test]
+async fn tagged_schedule_delete_all_clears_only_its_own_tag() {
+    let tmp_dir = iota_common::tempdir();
+    let db = open_rocksdb(tmp_dir.path(), &["shared"]);
+    let open = |tag: u8| {
+        TaggedDBMap::<u32, String>::reopen(&db, "shared", tag, &ReadWriteOptions::default(), false)
+            .expect("failed to open the map")
+    };
+    // The cleared tag has an immediate neighbour on either side, and the
+    // maximum tag has no following tag to bound its own range against.
+    let below = open(0);
+    let cleared = open(1);
+    let above = open(2);
+    let last = open(u8::MAX);
+
+    let mut batch = cleared.batch();
+    for map in [&below, &cleared, &above, &last] {
+        batch
+            .insert_batch_tagged(
+                map,
+                [(0, "zero".to_string()), (u32::MAX, "max".to_string())],
+            )
+            .unwrap();
+    }
+    batch.write().unwrap();
+
+    let entries = |map: &TaggedDBMap<u32, String>| -> Vec<(u32, String)> {
+        map.safe_iter().collect::<Result<_, _>>().unwrap()
+    };
+    let expected = vec![(0, "zero".to_string()), (u32::MAX, "max".to_string())];
+
+    cleared.schedule_delete_all().unwrap();
+    assert!(entries(&cleared).is_empty());
+    assert_eq!(entries(&below), expected);
+    assert_eq!(entries(&above), expected);
+    assert_eq!(entries(&last), expected);
+
+    // The maximum tag takes the bound from its own last key.
+    last.schedule_delete_all().unwrap();
+    assert!(entries(&last).is_empty());
+    assert_eq!(entries(&below), expected);
+    assert_eq!(entries(&above), expected);
+
+    // Clearing an already empty map is a no-op, at the maximum tag too.
+    cleared.schedule_delete_all().unwrap();
+    last.schedule_delete_all().unwrap();
+    assert_eq!(entries(&below), expected);
 }
 
 fn open_map<P: AsRef<Path>, K, V>(path: P, opt_cf: Option<&str>) -> DBMap<K, V> {

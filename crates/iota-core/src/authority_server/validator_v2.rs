@@ -8,10 +8,10 @@ use iota_network::api::{
     GetTxStatusRequest, HealthCheckRequest, HealthCheckResponse, NotifyCapabilitiesRequest,
     NotifyCapabilitiesResponse, SubmitTxRequest, TxStatus, ValidatorV2,
 };
-use iota_sdk_types::{Address, ObjectId, TransactionDigest};
+use iota_sdk_types::{Address, ObjectId, TransactionDigest, TransactionEffects};
 use iota_types::{
     deny_rule_governance::DenyRuleConfig,
-    effects::{TransactionEffects, TransactionEffectsAPI},
+    effects::TransactionEffectsAPI,
     error::IotaError,
     fp_ensure,
     messages_consensus::ConsensusTransaction,
@@ -114,6 +114,7 @@ use crate::{
         soft_lock::PreConsensusSoftLocks,
     },
     consensus_adapter::ConsensusAdapter,
+    execution_scheduler::ExecutionSchedulerAPI,
 };
 
 impl ValidatorService {
@@ -702,8 +703,8 @@ impl ValidatorService {
             ValidatorHealthResponse {
                 num_inflight_execution_transactions: self
                     .state
-                    .transaction_manager()
-                    .inflight_queue_len()
+                    .execution_scheduler()
+                    .num_pending_transactions()
                     as u64,
                 num_inflight_consensus_transactions: self
                     .consensus_adapter

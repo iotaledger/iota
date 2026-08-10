@@ -1,8 +1,7 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_crypto::ToFromBech32;
-use iota_types::crypto::SimpleKeypair;
+use iota_sdk_crypto::{ToFromBech32, simple::SimpleKeypair};
 use serde::{Deserialize, Deserializer, Serializer};
 
 pub fn serialize<S>(keypair: &SimpleKeypair, serializer: S) -> Result<S::Ok, S::Error>
@@ -23,8 +22,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use iota_sdk_crypto::ToFromBech32;
-    use iota_types::crypto::SimpleKeypair;
+    use iota_sdk_crypto::{ToFromBech32, simple::SimpleKeypair};
     use serde::{Deserialize, Serialize};
 
     #[derive(Serialize, Deserialize, Debug)]

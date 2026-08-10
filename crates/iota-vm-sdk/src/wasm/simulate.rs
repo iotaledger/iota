@@ -6,8 +6,10 @@
 
 use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
 use iota_protocol_config::{Chain, ProtocolVersion};
-use iota_sdk_types::{ObjectReference, Owner as SdkOwner, SenderSignedTransaction, UserSignature};
-use iota_types::{effects::TransactionEffectsAPI, object::Object, transaction::TransactionData};
+use iota_sdk_types::{
+    ObjectReference, Owner as SdkOwner, SenderSignedTransaction, Transaction, UserSignature,
+};
+use iota_types::{effects::TransactionEffectsAPI, object::Object};
 use wasm_bindgen::prelude::*;
 
 use super::{
@@ -36,7 +38,7 @@ pub fn simulate(req: JsValue, fetch_object: js_sys::Function) -> Result<JsValue,
         serde_wasm_bindgen::from_value(req).map_err(|e| JsError::new(&e.to_string()))?;
 
     let tx_bytes = b64_decode(&req.tx_b64)?;
-    let tx: TransactionData =
+    let tx: Transaction =
         bcs::from_bytes(&tx_bytes).map_err(|e| JsError::new(&format!("bcs decode tx: {e}")))?;
 
     let store = CallbackStore::new(fetch_object);

@@ -37,19 +37,19 @@ use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
     Address, Argument, Identifier, MoveAuthenticatorV1, ObjectId, ObjectReference, Owner,
-    ProgrammableTransaction, SharedObjectReference, SignatureScheme, TypeTag, UserSignature,
-    crypto::Intent,
+    ProgrammableTransaction, SharedObjectReference, SignatureScheme, Transaction,
+    TransactionEffects, TypeTag, UserSignature, crypto::Intent,
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     IOTA_CLOCK_OBJECT_ID, IOTA_CLOCK_OBJECT_SHARED_VERSION, IOTA_FRAMEWORK_PACKAGE_ID,
-    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
+    effects::{TransactionEffectsAPI, TransactionEffectsExt},
     move_package,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     storage::WriteKind,
     transaction::{
-        CallArg, TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, TransactionData,
-        TransactionDataAPI, TransactionEnvelope,
+        CallArg, TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, TransactionAPI,
+        TransactionEnvelope,
     },
 };
 use test_cluster::{TestCluster, TestClusterBuilder};
@@ -1564,7 +1564,7 @@ async fn run_whitelist_sponsorship(env: &TestEnvironment) -> PackageResult {
         b.finish()
     };
 
-    let tx_data = TransactionData::new_programmable_allow_sponsor(
+    let tx = Transaction::new_programmable_allow_sponsor(
         sender_addr,
         vec![sponsor_gas],
         sponsored_pt,
@@ -1572,7 +1572,7 @@ async fn run_whitelist_sponsorship(env: &TestEnvironment) -> PackageResult {
         rgp,
         sponsor_addr,
     );
-    let tx_digest = tx_data.digest().into_inner();
+    let tx_digest = tx.digest().into_inner();
     let signature = env.sign_digest_raw(&tx_digest);
 
     let sender_auth = match make_move_authenticator(
@@ -1599,7 +1599,7 @@ async fn run_whitelist_sponsorship(env: &TestEnvironment) -> PackageResult {
         }
     };
 
-    let tx = TransactionEnvelope::from_user_sig_data(tx_data, vec![sender_auth, sponsor_auth]);
+    let tx = TransactionEnvelope::from_user_sig_data(tx, vec![sender_auth, sponsor_auth]);
     let (outcome, err) = execute_aa_tx_outcome(env, tx).await;
     r.authenticate_outcome = outcome;
     r.authenticate_err = err;
@@ -1694,7 +1694,7 @@ async fn run_sponsorship_ed25519(env: &TestEnvironment) -> PackageResult {
     let gas_budget = rgp * TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE;
 
     let pt = simple_sender_clock_ptb();
-    let tx_data = TransactionData::new_programmable_allow_sponsor(
+    let tx = Transaction::new_programmable_allow_sponsor(
         sender_addr,
         vec![sponsor_gas],
         pt,
@@ -1702,17 +1702,17 @@ async fn run_sponsorship_ed25519(env: &TestEnvironment) -> PackageResult {
         rgp,
         sponsor_addr,
     );
-    let tx_digest = tx_data.digest().into_inner();
+    let tx_digest = tx.digest().into_inner();
 
     // Sender: standard `UserSignature::Simple` (ed25519 over the
-    // intent-wrapped TransactionData) — NOT a `MoveAuthenticator`. So
+    // intent-wrapped Transaction) — NOT a `MoveAuthenticator`. So
     // `auth_ctx.sender_authenticator_function_info_v1()` is `None` on-chain.
     let sender_auth = UserSignature::Simple(
         env.test_cluster
             .wallet
             .config()
             .keystore()
-            .sign_secure(&env.owner, &tx_data, Intent::iota_transaction())
+            .sign_secure(&env.owner, &tx, Intent::iota_transaction())
             .expect("sender ed25519 sign should not fail"),
     );
 
@@ -1755,7 +1755,7 @@ async fn run_sponsorship_ed25519(env: &TestEnvironment) -> PackageResult {
         }
     };
 
-    let tx = TransactionEnvelope::from_user_sig_data(tx_data, vec![sender_auth, sponsor_auth]);
+    let tx = TransactionEnvelope::from_user_sig_data(tx, vec![sender_auth, sponsor_auth]);
     let (outcome, err) = execute_aa_tx_outcome(env, tx).await;
     r.authenticate_outcome = outcome;
     r.authenticate_err = err;
@@ -2111,15 +2111,15 @@ fn type_tag(package: &ObjectId, module: &str, type_name: &str) -> TypeTag {
     TypeTag::from_str(&format!("{package}::{module}::{type_name}")).unwrap()
 }
 
-/// Build TransactionData with the owner as sender (and sponsor by default).
+/// Build Transaction with the owner as sender (and sponsor by default).
 async fn tx_data_from_pt(
     env: &TestEnvironment,
     pt: ProgrammableTransaction,
     sender: Address,
     gas: ObjectReference,
-) -> TransactionData {
+) -> Transaction {
     let gas_price = env.test_cluster.get_reference_gas_price().await;
-    TransactionData::new_programmable_allow_sponsor(
+    Transaction::new_programmable_allow_sponsor(
         sender,
         vec![gas],
         pt,
@@ -2164,7 +2164,7 @@ async fn execute_aa_tx_outcome(
 // --- Shared sub-routines used by multiple scenarios -------------------------
 // ---------------------------------------------------------------------------
 
-/// Common path: build a `TransactionData` from `pt` (sender = owner), execute,
+/// Common path: build a `Transaction` from `pt` (sender = owner), execute,
 /// and return the unique created shared object as the account ref.
 async fn create_account_with_pt(
     env: &TestEnvironment,

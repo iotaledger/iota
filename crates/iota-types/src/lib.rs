@@ -15,7 +15,6 @@ use iota_sdk_types::Version;
 #[cfg(target_arch = "wasm32")]
 #[path = "wasm_multiaddr.rs"]
 pub mod multiaddr;
-pub use iota_sdk_types as sdk_types;
 use iota_sdk_types::{Address, ObjectId, StructTag, TypeTag};
 use move_binary_format::{
     CompiledModule,

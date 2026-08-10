@@ -42,7 +42,7 @@ use iota_grpc_types::{
         types::{Address as ProtoAddress, ObjectId as ProtoObjectId, ObjectReference},
     },
 };
-use iota_sdk_types::TransactionDigest;
+use iota_sdk_types::{Transaction, TransactionDigest};
 use iota_types::{
     error::IotaError,
     messages_checkpoint::CheckpointSequenceNumber,
@@ -50,7 +50,6 @@ use iota_types::{
         ExecuteTransactionRequestV1, ExecuteTransactionResponseV1, QuorumDriverError,
     },
     traffic_control::{PolicyConfig, PolicyType, Weight},
-    transaction::TransactionData,
     transaction_executor::{SimulateTransactionResult, TransactionExecutor, VmChecks},
 };
 use tonic::{Code, transport::Channel};
@@ -169,7 +168,7 @@ impl TransactionExecutor for UnreachableExecutor {
 
     fn simulate_transaction(
         &self,
-        _transaction: TransactionData,
+        _transaction: Transaction,
         _checks: VmChecks,
     ) -> Result<SimulateTransactionResult, IotaError> {
         unreachable!("test requests must fail validation before simulation")

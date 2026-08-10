@@ -22,7 +22,7 @@ mod tests {
     use iota_types::{
         digests::ChainIdentifier,
         gas_coin::GAS,
-        transaction::{CallArg, TransactionDataAPI, TransactionEnvelope},
+        transaction::{CallArg, TransactionAPI, TransactionEnvelope},
     };
     use rand::{SeedableRng, rngs::StdRng};
     use serde_json::json;

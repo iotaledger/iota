@@ -11,11 +11,12 @@ use futures::{
     stream::{self, StreamExt},
 };
 use iota_sdk_types::{
-    Address, CheckpointDigest, ObjectId, TransactionDigest, Version, checkpoint::CheckpointContents,
+    Address, CheckpointDigest, ObjectId, TransactionDigest, TransactionEffects, TransactionEvents,
+    Version, checkpoint::CheckpointContents,
 };
 use iota_storage::http_key_value_store::{ItemType, Key};
 use iota_types::{
-    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
+    effects::TransactionEffectsAPI,
     messages_checkpoint::{CertifiedCheckpointSummary, CheckpointSequenceNumber},
     object::Object,
     storage::ObjectKey,

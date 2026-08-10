@@ -33,7 +33,8 @@ use iota_json_rpc_types::{
 };
 use iota_package_resolver::{Package, PackageStore, PackageStoreWithLruCache, Resolver};
 use iota_sdk_types::{
-    Address, CheckpointDigest, ObjectId, StructTag, TransactionDigest, TypeTag, Version,
+    Address, CheckpointDigest, ObjectId, StructTag, TransactionDigest, TransactionEvents, TypeTag,
+    Version,
 };
 use iota_transaction_builder::DataReader;
 use iota_types::{
@@ -45,7 +46,6 @@ use iota_types::{
     committee::EpochId,
     digests::ChainIdentifier,
     dynamic_field::{DynamicFieldInfo, DynamicFieldName, visitor as DFV},
-    effects::TransactionEvents,
     error::IotaError,
     event::EventID,
     iota_sdk_types_conversions::type_tag_core_to_sdk,

@@ -21,6 +21,7 @@ use iota_json_rpc_types::{
 };
 use iota_package_resolver::Resolver;
 use iota_protocol_config::ProtocolVersion;
+use iota_sdk_crypto::simple::SimpleKeypair;
 use iota_sdk_types::{
     Identifier, ObjectDigest, ObjectId, ObjectReference, TransactionDigest, Version,
 };
@@ -29,7 +30,7 @@ use iota_test_transaction_builder::{
     publish_simple_warrior_package,
 };
 use iota_types::{
-    crypto::{AccountKeyPair, SimpleKeypair, get_key_pair},
+    crypto::{AccountKeyPair, get_key_pair},
     digests::ChainIdentifier,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::CallArg,

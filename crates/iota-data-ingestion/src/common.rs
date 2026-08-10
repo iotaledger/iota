@@ -9,6 +9,10 @@ use iota_grpc_client::{
 };
 use iota_types::{committee::EpochId, messages_checkpoint::CheckpointSequenceNumber};
 
+/// How often the per-checkpoint workers log progress at info level: one line
+/// every this many checkpoints.
+pub const PROGRESS_LOG_INTERVAL: CheckpointSequenceNumber = 1000;
+
 /// Gets epoch id and its first checkpoint sequence number.
 ///
 /// if `None`, returns the current epoch.

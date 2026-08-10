@@ -16,7 +16,7 @@ use fastcrypto::{
 };
 use iota_protocol_config::{Chain, ProtocolConfig};
 use iota_sdk_types::{
-    Address, ObjectId,
+    Address, ObjectId, TransactionEffects, TransactionEvents,
     checkpoint::{CheckpointContents, CheckpointSummary},
 };
 use iota_types::{
@@ -24,7 +24,6 @@ use iota_types::{
     committee::{Committee, CommitteeWithNetworkMetadata, EpochId, ProtocolVersion},
     crypto::DefaultHash,
     deny_list_v1::get_deny_list_root_object,
-    effects::{TransactionEffects, TransactionEvents},
     error::IotaResult,
     iota_system_state::{
         IotaSystemState, IotaSystemStateTrait, IotaSystemStateWrapper, IotaValidatorGenesis,

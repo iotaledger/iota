@@ -8,7 +8,9 @@ use std::sync::Arc;
 
 use fastcrypto::{hash::MultisetHash, traits::KeyPair};
 use iota_config::{genesis::Genesis, node::ExpensiveSafetyCheckConfig};
-use iota_sdk_types::{Address, ObjectId, ObjectReference, Owner, TransactionEffects, Version};
+use iota_sdk_types::{
+    Address, ObjectId, ObjectReference, Owner, Transaction, TransactionEffects, Version,
+};
 use iota_types::{
     crypto::{AccountKeyPair, AuthorityKeyPair},
     effects::SignedTransactionEffects,
@@ -18,8 +20,8 @@ use iota_types::{
     object::Object,
     transaction::{
         CertifiedTransaction, SenderSignedTransactionAPI, TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
-        TransactionData, TransactionDataAPI, TransactionEnvelope, VerifiedCertificate,
-        VerifiedSignedTransaction, VerifiedTransaction,
+        TransactionAPI, TransactionEnvelope, VerifiedCertificate, VerifiedSignedTransaction,
+        VerifiedTransaction,
     },
     utils::to_sender_signed_transaction,
 };
@@ -27,7 +29,8 @@ use iota_types::{
 use super::test_authority_builder::TestAuthorityBuilder;
 use crate::{
     authority::AuthorityState, checkpoints::CheckpointServiceNoop,
-    consensus_handler::SequencedConsensusTransaction, global_state_hasher::GlobalStateHasher,
+    consensus_handler::SequencedConsensusTransaction, execution_scheduler::ExecutionSchedulerAPI,
+    global_state_hasher::GlobalStateHasher,
 };
 
 pub async fn send_and_confirm_transaction(
@@ -282,7 +285,7 @@ pub fn init_transfer_transaction(
     gas_budget: u64,
     gas_price: u64,
 ) -> VerifiedTransaction {
-    let data = TransactionData::new_transfer(
+    let tx = Transaction::new_transfer(
         recipient,
         object_ref,
         sender,
@@ -290,7 +293,7 @@ pub fn init_transfer_transaction(
         gas_budget,
         gas_price,
     );
-    let tx = to_sender_signed_transaction(data, secret);
+    let tx = to_sender_signed_transaction(tx, secret);
     authority_state
         .epoch_store_for_testing()
         .verify_transaction(tx)
@@ -416,7 +419,7 @@ pub async fn send_consensus(authority: &AuthorityState, cert: &VerifiedCertifica
         .unwrap();
 
     authority
-        .transaction_manager()
+        .execution_scheduler()
         .enqueue(certs, &authority.epoch_store_for_testing());
 }
 

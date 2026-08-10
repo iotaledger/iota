@@ -10,12 +10,12 @@ use iota_core::{
     test_utils::send_and_confirm_transaction,
 };
 use iota_move_build::BuildConfig;
-use iota_sdk_types::{ExecutionError, ExecutionStatus, ObjectId};
+use iota_sdk_types::{ExecutionError, ExecutionStatus, ObjectId, Transaction, TransactionEffects};
 use iota_types::{
-    effects::{TransactionEffects, TransactionEffectsAPI},
+    effects::TransactionEffectsAPI,
     error::IotaError,
     object::Object,
-    transaction::{TransactionData, TransactionDataAPI, TransactionEnvelope},
+    transaction::{TransactionAPI, TransactionEnvelope},
     utils::to_sender_signed_transaction,
 };
 use tokio::runtime::Runtime;
@@ -103,9 +103,9 @@ impl Executor {
         self.state.insert_genesis_objects(objects);
     }
 
-    pub fn execute_transaction(&mut self, txn: TransactionEnvelope) -> ExecutionResult {
+    pub fn execute_transaction(&mut self, tx: TransactionEnvelope) -> ExecutionResult {
         self.rt
-            .block_on(send_and_confirm_transaction(&self.state, None, txn))
+            .block_on(send_and_confirm_transaction(&self.state, None, tx))
             .map(|(_, effects)| effects.into_data().status().clone())
     }
 
@@ -119,7 +119,7 @@ impl Executor {
         // let gas_obj_ref =
         // account.current_coins.last().unwrap().object_ref();
         let gas_object = account.new_gas_object(self);
-        let data = TransactionData::new_module(
+        let tx = Transaction::new_module(
             account.initial_data.account.address,
             gas_object.object_ref(),
             modules,
@@ -127,7 +127,7 @@ impl Executor {
             PUBLISH_BUDGET,
             1000,
         );
-        let txn = to_sender_signed_transaction(data, &account.initial_data.account.key);
+        let txn = to_sender_signed_transaction(tx, &account.initial_data.account.key);
         let effects = self
             .rt
             .block_on(send_and_confirm_transaction(&self.state, None, txn))

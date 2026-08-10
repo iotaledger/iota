@@ -10,11 +10,11 @@ use iota_ledger::Ledger;
 use iota_ledger_signer::LedgerSigner;
 use iota_sdk::wallet_context::WalletContext;
 use iota_sdk_types::{
-    Address, MoveAuthenticatorV1, ObjectId, Owner, SharedObjectReference, TypeTag, UserSignature,
-    Version,
+    Address, MoveAuthenticatorV1, ObjectId, Owner, SharedObjectReference, Transaction, TypeTag,
+    UserSignature, Version,
     crypto::{Intent, SimpleSignature},
 };
-use iota_types::transaction::{CallArg, TransactionData};
+use iota_types::transaction::CallArg;
 use serde::Serialize;
 
 #[derive(Serialize)]
@@ -26,7 +26,7 @@ pub struct SignData {
     // Intent struct used, see [struct Intent] for field definitions.
     pub intent: Intent,
     // Base64 encoded [struct IntentMessage] consisting of (intent || message)
-    // where message can be `TransactionData` etc.
+    // where message can be `Transaction` etc.
     pub raw_intent_msg: String,
     // Base64 encoded blake2b hash of the intent message, this is what the signature commits to.
     pub digest: String,
@@ -67,7 +67,7 @@ impl fmt::Display for ExternalKeySource {
 
 pub(crate) async fn sign_transaction(
     context: &mut WalletContext,
-    tx_data: &TransactionData,
+    tx: &Transaction,
     signer_address: &Address,
     auth_args: Option<(Vec<CallArg>, Vec<TypeTag>)>,
 ) -> Result<UserSignature> {
@@ -108,7 +108,7 @@ pub(crate) async fn sign_transaction(
             Ok(context
                 .config()
                 .keystore()
-                .sign_secure(signer_address, tx_data, Intent::iota_transaction())?
+                .sign_secure(signer_address, tx, Intent::iota_transaction())?
                 .into())
         }
         StoredKey::External {
@@ -134,7 +134,7 @@ pub(crate) async fn sign_transaction(
                     // pass the transaction sender to the signer to ensure the correct
                     // key is used
                     Ok(signer
-                        .sign_transaction(tx_data, signer_address)
+                        .sign_transaction(tx, signer_address)
                         .await
                         .map(|s| s.signature)?
                         .into())

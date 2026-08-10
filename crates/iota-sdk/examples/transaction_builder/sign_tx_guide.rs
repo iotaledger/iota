@@ -19,16 +19,16 @@ use iota_sdk::{
     IotaClientBuilder,
     rpc_types::IotaTransactionBlockResponseOptions,
     types::{
-        crypto::{IotaSignature, PublicKey, SimpleKeypair, get_key_pair_from_rng},
+        crypto::{IotaSignature, PublicKey, get_key_pair_from_rng},
         programmable_transaction_builder::ProgrammableTransactionBuilder,
-        transaction::{TransactionData, TransactionDataAPI},
+        transaction::TransactionAPI,
     },
 };
 use iota_sdk_crypto::{
     Signer as _, ToFromBase64, ToFromBech32, ed25519::Ed25519PrivateKey,
-    secp256k1::Secp256k1PrivateKey, secp256r1::Secp256r1PrivateKey,
+    secp256k1::Secp256k1PrivateKey, secp256r1::Secp256r1PrivateKey, simple::SimpleKeypair,
 };
-use iota_sdk_types::{Address, UserSignature, crypto::SimpleSignature};
+use iota_sdk_types::{Address, Transaction, UserSignature, crypto::SimpleSignature};
 use rand::{SeedableRng, rngs::StdRng};
 use utils::request_tokens_from_faucet;
 
@@ -129,7 +129,7 @@ async fn main() -> Result<(), anyhow::Error> {
     let gas_price = client.read_api().get_reference_gas_price().await?;
 
     // create the transaction data that will be sent to the network.
-    let tx_data = TransactionData::new_programmable(
+    let tx = Transaction::new_programmable(
         sender,
         vec![gas_coin.object_ref()],
         pt,
@@ -138,8 +138,8 @@ async fn main() -> Result<(), anyhow::Error> {
     );
 
     // derive the digest that the keypair should sign on,
-    // i.e. the blake2b hash of `intent || tx_data`.
-    let intent_msg = tx_data.intent_message();
+    // i.e. the blake2b hash of `intent || tx`.
+    let intent_msg = tx.intent_message();
     let raw_tx = bcs::to_bytes(&intent_msg).expect("bcs should not fail");
     let mut hasher = iota_types::crypto::DefaultHash::default();
     hasher.update(raw_tx.clone());

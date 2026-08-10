@@ -33,7 +33,7 @@
         },
         {
           "name": "tx_bytes",
-          "description": "BCS encoded TransactionKind(as opposed to TransactionData, which include gasBudget and gasPrice)",
+          "description": "BCS encoded TransactionKind(as opposed to Transaction, which include gasBudget and gasPrice)",
           "required": true,
           "schema": {
             "$ref": "#/components/schemas/Base64"

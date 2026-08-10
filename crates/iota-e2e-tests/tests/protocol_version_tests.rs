@@ -75,11 +75,12 @@ mod sim_only_tests {
     use iota_protocol_config::Chain;
     use iota_sdk_types::{
         Address, Command, Identifier, MoveCall, ObjectId, ObjectReference, Owner,
-        ProgrammableTransaction, TransactionDigest, TransactionKind, Version,
+        ProgrammableTransaction, Transaction, TransactionDigest, TransactionEffects,
+        TransactionKind, Version,
     };
     use iota_types::{
         base_types::ConciseableName,
-        effects::{TransactionEffects, TransactionEffectsAPI},
+        effects::TransactionEffectsAPI,
         id::ID,
         iota_system_state::{
             IOTA_SYSTEM_STATE_SIM_TEST_DEEP_V1, IOTA_SYSTEM_STATE_SIM_TEST_SHALLOW_V1,
@@ -89,9 +90,7 @@ mod sim_only_tests {
         object::Object,
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         supported_protocol_versions::SupportedProtocolVersions,
-        transaction::{
-            CallArg, TEST_ONLY_GAS_UNIT_FOR_GENERIC, TransactionData, TransactionDataAPI,
-        },
+        transaction::{CallArg, TEST_ONLY_GAS_UNIT_FOR_GENERIC, TransactionAPI},
     };
     use move_binary_format::CompiledModule;
     use test_cluster::TestCluster;
@@ -602,7 +601,7 @@ mod sim_only_tests {
         let (sender, gas_object) = context.get_one_gas_object().await.unwrap().unwrap();
 
         let rgp = context.get_reference_gas_price().await.unwrap();
-        let txn = context.sign_transaction(&TransactionData::new_programmable(
+        let txn = context.sign_transaction(&Transaction::new_programmable(
             sender,
             vec![gas_object],
             ptb,

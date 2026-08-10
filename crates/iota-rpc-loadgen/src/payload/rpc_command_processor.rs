@@ -20,14 +20,14 @@ use iota_json_rpc_types::{
     IotaTransactionBlockResponseOptions,
 };
 use iota_sdk::{IotaClient, IotaClientBuilder};
-use iota_sdk_crypto::ToFromBech32;
+use iota_sdk_crypto::{ToFromBech32, simple::SimpleKeypair};
 use iota_sdk_types::{
-    Address, ObjectId, ObjectReference, TransactionDigest, crypto::SimpleSignature,
+    Address, ObjectId, ObjectReference, Transaction, TransactionDigest, crypto::SimpleSignature,
 };
 use iota_types::{
-    crypto::{AccountKeyPair, IotaSignature, SimpleKeypair, get_key_pair},
+    crypto::{AccountKeyPair, IotaSignature, get_key_pair},
     quorum_driver_types::ExecuteTransactionRequestType,
-    transaction::{TransactionData, TransactionEnvelope},
+    transaction::TransactionEnvelope,
 };
 use serde::{Serialize, de::DeserializeOwned};
 use tokio::{sync::RwLock, time::sleep};
@@ -106,10 +106,10 @@ impl RpcCommandProcessor {
         &self,
         client: &IotaClient,
         keypair: &SimpleKeypair,
-        txn_data: TransactionData,
+        tx: Transaction,
         request_type: ExecuteTransactionRequestType,
     ) -> IotaTransactionBlockResponse {
-        let resp = sign_and_execute(client, keypair, txn_data, request_type).await;
+        let resp = sign_and_execute(client, keypair, tx, request_type).await;
         let effects = resp.effects.as_ref().unwrap();
         let object_ref_cache = self.object_ref_cache.clone();
         // NOTE: for now we don't need to care about deleted objects
@@ -790,15 +790,15 @@ async fn split_coins(
 pub(crate) async fn sign_and_execute(
     client: &IotaClient,
     keypair: &SimpleKeypair,
-    txn_data: TransactionData,
+    tx: Transaction,
     request_type: ExecuteTransactionRequestType,
 ) -> IotaTransactionBlockResponse {
-    let signature = SimpleSignature::new_secure(&txn_data.intent_message(), keypair);
+    let signature = SimpleSignature::new_secure(&tx.intent_message(), keypair);
 
     let transaction_response = match client
         .quorum_driver_api()
         .execute_transaction_block(
-            TransactionEnvelope::from_data(txn_data, vec![signature]),
+            TransactionEnvelope::from_data(tx, vec![signature]),
             IotaTransactionBlockResponseOptions::new().with_effects(),
             Some(request_type),
         )

@@ -12,18 +12,19 @@ use async_trait::async_trait;
 use iota_data_ingestion_core::Worker;
 use iota_json_rpc::{ObjectProvider, get_balance_changes_from_effect, get_object_changes};
 use iota_json_rpc_types::IotaTransactionKind;
-use iota_sdk_types::{ObjectId, Owner, TransactionDigest, Version, checkpoint::CheckpointContents};
+use iota_sdk_types::{
+    ObjectId, Owner, Transaction, TransactionDigest, TransactionEffects, TransactionEvents,
+    Version, checkpoint::CheckpointContents,
+};
 use iota_types::{
-    effects::{
-        TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt, TransactionEvents,
-    },
+    effects::{TransactionEffectsAPI, TransactionEffectsExt},
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     iota_system_state::{IotaSystemStateTrait, get_iota_system_state},
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointContentsExt, CheckpointSequenceNumber,
     },
     object::Object,
-    transaction::{TransactionData, TransactionDataAPI},
+    transaction::TransactionAPI,
 };
 use itertools::Itertools;
 use tracing::{info, warn};
@@ -738,7 +739,7 @@ impl InMemTxChanges {
 
     pub(crate) async fn get_changes(
         &self,
-        tx: &TransactionData,
+        tx: &Transaction,
         effects: &TransactionEffects,
         tx_digest: &TransactionDigest,
     ) -> IndexerResult<(Vec<IndexedBalanceChange>, Vec<IndexedObjectChange>)> {

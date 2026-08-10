@@ -14,13 +14,18 @@ use iota_sdk_types::{
     Address, Argument, ChangeEpoch, CheckpointContentsDigest, CheckpointDigest, Command,
     CommandArgumentError, ConsensusCommitDigest, ConsensusCommitPrologueV1,
     ConsensusDeterminedVersionAssignments, EndOfEpochTransactionKind, Event, ExecutionError,
-    ExecutionStatus, GenesisObject, GenesisTransaction, Identifier, MoveLocation, MoveObjectType,
-    MoveStruct, ObjectData, ObjectDigest, ObjectId, ObjectReference, Owner, PackageUpgradeError,
-    ProgrammableTransaction, RandomnessStateUpdate, SenderSignedTransaction, SharedObjectReference,
-    SimpleSignature, StructTag, TransactionDigest, TransactionEffectsDigest, TransactionExpiration,
-    TransactionKind, TypeArgumentError, TypeTag, UnchangedSharedKind, UserSignature,
+    ExecutionStatus, GenesisObject, GenesisTransaction, IdOperation, Identifier, MoveLocation,
+    MoveObjectType, MoveStruct, ObjectData, ObjectDigest, ObjectId, ObjectIn, ObjectOut,
+    ObjectReference, Owner, PackageUpgradeError, ProgrammableTransaction, RandomnessStateUpdate,
+    SenderSignedTransaction, SharedObjectReference, SimpleSignature, StructTag, Transaction,
+    TransactionDigest, TransactionEffects, TransactionEffectsDigest, TransactionEvents,
+    TransactionExpiration, TransactionKind, TypeArgumentError, TypeTag, UnchangedSharedKind,
+    UserSignature,
     checkpoint::{CheckpointCommitment, CheckpointContents, CheckpointSummary},
-    crypto::{Intent, IntentMessage, PersonalMessage},
+    crypto::{
+        Intent, IntentMessage, MultisigAggregatedSignature, MultisigCommittee, MultisigMember,
+        PersonalMessage,
+    },
     move_package::{MovePackage, TypeOrigin, UpgradeInfo},
     validator::ValidatorCommitteeMember,
 };
@@ -31,19 +36,15 @@ use iota_types::{
         AuthorityQuorumSignInfo, AuthoritySignature, AuthorityStrongQuorumSignInfo, KeypairTraits,
         Signer, get_key_pair,
     },
-    effects::{
-        IDOperation, ObjectIn, ObjectOut, TransactionEffects, TransactionEffectsExtForTesting,
-        TransactionEvents,
-    },
+    effects::TransactionEffectsExtForTesting,
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointContentsExt, FullCheckpointContents,
     },
     messages_grpc::ObjectInfoRequestKind,
-    multisig::{MultiSig, MultiSigPublicKey, MultisigMember},
     object::{MoveStructExt, ObjectInner},
     storage::DeleteKind,
-    transaction::{CallArg, TransactionData, TransactionDataAPI, TransactionEnvelope},
+    transaction::{CallArg, TransactionAPI, TransactionEnvelope},
 };
 use move_core_types::{account_address::AccountAddress, language_storage::ModuleId};
 use pretty_assertions::assert_str_eq;
@@ -182,7 +183,7 @@ fn get_registry() -> Result<Registry> {
     let sig: SimpleSignature = kp1.sign(b"hello world");
     tracer.trace_value(&mut samples, &sig).unwrap();
 
-    let multisig_pk = MultiSigPublicKey::new(
+    let multisig_pk = MultisigCommittee::new(
         vec![
             MultisigMember::new(kp1.public_key(), 1),
             MultisigMember::new(kp2.public_key(), 1),
@@ -202,7 +203,7 @@ fn get_registry() -> Result<Registry> {
     let sig2: SimpleSignature = kp2.sign(&*digest);
     let sig3: SimpleSignature = kp3.sign(&*digest);
 
-    let multi_sig = MultiSig::new(
+    let multi_sig = MultisigAggregatedSignature::new(
         vec![
             sig1.clone().into(),
             sig2.clone().into(),
@@ -539,7 +540,7 @@ fn get_registry() -> Result<Registry> {
         .trace_type::<EndOfEpochTransactionKind>(&samples)
         .unwrap();
 
-    tracer.trace_type::<IDOperation>(&samples).unwrap();
+    tracer.trace_type::<IdOperation>(&samples).unwrap();
     tracer.trace_type::<ObjectIn>(&samples).unwrap();
     tracer.trace_type::<ObjectOut>(&samples).unwrap();
     tracer.trace_type::<UnchangedSharedKind>(&samples).unwrap();
@@ -551,7 +552,7 @@ fn get_registry() -> Result<Registry> {
         .unwrap();
 
     let sender_tx = SenderSignedTransaction::new(
-        TransactionData::new_with_gas_coins(
+        Transaction::new_with_gas_coins(
             TransactionKind::EndOfEpoch(vec![EndOfEpochTransactionKind::ChangeEpoch(
                 ChangeEpoch {
                     epoch: 0,

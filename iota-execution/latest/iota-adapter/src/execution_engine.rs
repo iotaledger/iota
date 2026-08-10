@@ -20,8 +20,8 @@ mod checked {
         Address, Argument, ChangeEpoch, ChangeEpochV2, ChangeEpochV3, ChangeEpochV4, Command,
         EndOfEpochTransactionKind, ExecutionStatus, GasPayment, GenesisTransaction, Identifier,
         MoveAuthenticator, ObjectId, ProgrammableTransaction, RandomnessStateUpdate,
-        SharedObjectReference, SystemPackage, TransactionDigest, TransactionKind, Version,
-        gas::GasCostSummary,
+        SharedObjectReference, SystemPackage, TransactionDigest, TransactionEffects,
+        TransactionKind, Version, gas::GasCostSummary,
     };
     #[cfg(msim)]
     use iota_types::iota_system_state::advance_epoch_result_injection::maybe_modify_result;
@@ -35,7 +35,6 @@ mod checked {
         base_types::TxContext,
         clock::CONSENSUS_COMMIT_PROLOGUE_FUNCTION_NAME,
         committee::EpochId,
-        effects::TransactionEffects,
         error::{ExecutionError, ExecutionErrorKind},
         execution::{ExecutionResults, ExecutionResultsV1, SharedInput, is_certificate_denied},
         execution_config_utils::to_binary_config,

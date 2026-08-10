@@ -11,12 +11,12 @@ use std::{
 
 use iota_config::node::AuthorityOverloadConfig;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{Owner, TransactionDigest};
+use iota_sdk_types::{Owner, TransactionDigest, TransactionEffects};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     committee::Committee,
     crypto::{AccountKeyPair, get_key_pair},
-    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
+    effects::{TransactionEffectsAPI, TransactionEffectsExt},
     error::{IotaError, IotaResult},
     object::Object,
     transaction::{
@@ -41,9 +41,12 @@ use crate::{
     },
     authority_server::{ValidatorService, ValidatorServiceMetrics},
     consensus_adapter::ConsensusAdapter,
+    execution_scheduler::ExecutionSchedulerAPI,
     safe_client::SafeClient,
     test_authority_clients::LocalAuthorityClient,
-    test_utils::{make_transfer_object_move_transaction, make_transfer_object_transaction},
+    test_utils::{
+        make_transfer_object_move_transaction, make_transfer_object_transaction, set_scheduler_env,
+    },
     unit_test_utils::{init_local_authorities, init_local_authorities_with_overload_thresholds},
 };
 
@@ -246,12 +249,12 @@ async fn wait_for_certs(
 async fn execute_owned_on_first_three_authorities(
     authority_clients: &[Arc<SafeClient<LocalAuthorityClient>>],
     committee: &Committee,
-    txn: &TransactionEnvelope,
+    tx: &TransactionEnvelope,
 ) -> (VerifiedCertificate, TransactionEffects) {
-    do_transaction(&authority_clients[0], txn).await;
-    do_transaction(&authority_clients[1], txn).await;
-    do_transaction(&authority_clients[2], txn).await;
-    let cert = extract_cert(authority_clients, committee, txn.digest())
+    do_transaction(&authority_clients[0], tx).await;
+    do_transaction(&authority_clients[1], tx).await;
+    do_transaction(&authority_clients[2], tx).await;
+    let cert = extract_cert(authority_clients, committee, tx.digest())
         .await
         .try_into_verified_for_testing(committee, &Default::default())
         .unwrap();
@@ -277,12 +280,12 @@ pub async fn do_cert_with_shared_objects(
 async fn execute_shared_on_first_three_authorities(
     authority_clients: &[Arc<SafeClient<LocalAuthorityClient>>],
     committee: &Committee,
-    txn: &TransactionEnvelope,
+    tx: &TransactionEnvelope,
 ) -> (VerifiedCertificate, TransactionEffects) {
-    do_transaction(&authority_clients[0], txn).await;
-    do_transaction(&authority_clients[1], txn).await;
-    do_transaction(&authority_clients[2], txn).await;
-    let cert = extract_cert(authority_clients, committee, txn.digest())
+    do_transaction(&authority_clients[0], tx).await;
+    do_transaction(&authority_clients[1], tx).await;
+    do_transaction(&authority_clients[2], tx).await;
+    let cert = extract_cert(authority_clients, committee, tx.digest())
         .await
         .try_into_verified_for_testing(committee, &Default::default())
         .unwrap();
@@ -295,7 +298,24 @@ async fn execute_shared_on_first_three_authorities(
 
 #[tokio::test(flavor = "current_thread", start_paused = true)]
 async fn test_execution_with_dependencies() {
+    execution_with_dependencies(false).await;
+}
+
+/// The same long, out-of-dependency-order backlog must drain to completion
+/// under the `ExecutionScheduler`, whose per-transaction tasks wake each other
+/// through `notify_read` rather than the `TransactionManager`'s dependency
+/// graph. A regression that failed to wake a waiter when its dependency's
+/// output is written would deadlock the backlog invisibly.
+#[tokio::test(flavor = "current_thread", start_paused = true)]
+async fn test_execution_with_dependencies_execution_scheduler() {
+    execution_with_dependencies(true).await;
+}
+
+async fn execution_with_dependencies(use_execution_scheduler: bool) {
     telemetry_subscribers::init_for_testing();
+    // Select the scheduler before the authorities are built (the env vars are
+    // read by ExecutionSchedulerWrapper::new).
+    set_scheduler_env(use_execution_scheduler);
 
     // ---- Initialize a network with three accounts, each with 10 gas objects.
 
@@ -315,6 +335,10 @@ async fn test_execution_with_dependencies() {
 
     let (aggregator, authorities, _genesis, package) =
         init_local_authorities(4, all_gas_objects.clone()).await;
+    assert_eq!(
+        authorities[3].uses_execution_scheduler(),
+        use_execution_scheduler
+    );
     let authority_clients: Vec<_> = authorities
         .iter()
         .map(|a| aggregator.authority_clients[&a.name].clone())
@@ -456,14 +480,14 @@ fn make_socket_addr() -> std::net::SocketAddr {
 async fn try_sign_on_first_three_authorities(
     authority_clients: &[Arc<SafeClient<LocalAuthorityClient>>],
     committee: &Committee,
-    txn: &TransactionEnvelope,
+    tx: &TransactionEnvelope,
 ) -> IotaResult<VerifiedCertificate> {
     for client in authority_clients.iter().take(3) {
         client
-            .handle_transaction(txn.clone(), Some(make_socket_addr()))
+            .handle_transaction(tx.clone(), Some(make_socket_addr()))
             .await?;
     }
-    extract_cert(authority_clients, committee, txn.digest())
+    extract_cert(authority_clients, committee, tx.digest())
         .await
         .try_into_verified_for_testing(committee, &Default::default())
 }
@@ -575,10 +599,21 @@ async fn test_per_object_overload() {
             shared_counter_initial_version,
         )
         .build_and_sign(&key);
-    let res = authorities[3]
-        .transaction_manager()
-        .check_execution_overload(authorities[3].overload_config(), shared_txn.data());
-    let message = format!("{res:?}");
+    // ExecutionScheduler registers per-object pending state asynchronously (in
+    // the per-transaction task), whereas TransactionManager does it
+    // synchronously at enqueue. Poll until the overload condition is observed so
+    // the assertion holds for both schedulers.
+    let mut message = String::new();
+    for _ in 0..200 {
+        let res = authorities[3]
+            .execution_scheduler()
+            .check_execution_overload(authorities[3].overload_config(), shared_txn.data());
+        message = format!("{res:?}");
+        if message.contains("TooManyTransactionsPendingOnObject") {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
     assert!(
         message.contains("TooManyTransactionsPendingOnObject"),
         "{}",
@@ -701,7 +736,7 @@ async fn test_txn_age_overload() {
         )
         .build_and_sign(&key);
     let res = authorities[3]
-        .transaction_manager()
+        .execution_scheduler()
         .check_execution_overload(authorities[3].overload_config(), shared_txn.data());
     let message = format!("{res:?}");
     assert!(

@@ -3,7 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_sdk_types::{
-    ObjectId, SenderSignedTransaction, TransactionDigest, TransactionEffectsDigest, Version,
+    ObjectId, SenderSignedTransaction, TransactionDigest, TransactionEffects,
+    TransactionEffectsDigest, TransactionEvents, Version,
 };
 use move_core_types::annotated_value::MoveStructLayout;
 use serde::{Deserialize, Serialize};
@@ -12,8 +13,7 @@ use crate::{
     committee::EpochId,
     crypto::{AuthoritySignInfo, AuthorityStrongQuorumSignInfo},
     effects::{
-        SignedTransactionEffects, TransactionEffects, TransactionEffectsExtForTesting,
-        TransactionEvents, VerifiedSignedTransactionEffects,
+        SignedTransactionEffects, TransactionEffectsExtForTesting, VerifiedSignedTransactionEffects,
     },
     error::IotaError,
     messages_consensus::SignedAuthorityCapabilitiesV1,

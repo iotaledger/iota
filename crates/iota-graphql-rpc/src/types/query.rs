@@ -10,11 +10,8 @@ use iota_indexer::apis::ReadApi;
 use iota_json::IotaJsonValue;
 use iota_json_rpc_api::{ReadApiServer, WriteApiServer};
 use iota_json_rpc_types::{DevInspectArgs, IotaTypeTag};
-use iota_sdk_types::{ObjectReference, TransactionKind, TypeTag};
-use iota_types::{
-    gas_coin::GAS,
-    transaction::{TransactionData, TransactionDataAPI},
-};
+use iota_sdk_types::{ObjectReference, Transaction, TransactionKind, TypeTag};
+use iota_types::{gas_coin::GAS, transaction::TransactionAPI};
 use move_core_types::account_address::AccountAddress;
 use serde::de::DeserializeOwned;
 
@@ -114,14 +111,14 @@ impl Query {
     /// Simulate running a transaction to inspect its effects without
     /// committing to them on-chain.
     ///
-    /// `txBytes` either a `TransactionData` struct or a `TransactionKind`
+    /// `txBytes` either a `Transaction` struct or a `TransactionKind`
     ///     struct, BCS-encoded and then Base64-encoded.  The expected
     ///     type is controlled by the presence or absence of `txMeta`: If
     ///     present, `txBytes` is assumed to be a `TransactionKind`, if
-    ///     absent, then `TransactionData`.
+    ///     absent, then `Transaction`.
     ///
     /// `txMeta` the data that is missing from a `TransactionKind` to make
-    ///     a `TransactionData` (sender address and gas information).  All
+    ///     a `Transaction` (sender address and gas information).  All
     ///     its fields are nullable.
     ///
     /// `skipChecks` optional flag to disable the usual verification
@@ -176,16 +173,16 @@ impl Query {
                     gas_objects,
                 )
             } else {
-                // This implies `TransactionData`
-                let tx_data = deserialize_tx_data::<TransactionData>(&tx_bytes)?;
+                // This implies `Transaction`
+                let tx = deserialize_tx_data::<Transaction>(&tx_bytes)?;
 
                 (
-                    tx_data.sender(),
-                    tx_data.clone().into_kind(),
-                    Some(tx_data.gas_price().into()),
-                    Some(tx_data.gas_owner()),
-                    Some(tx_data.gas_budget()),
-                    Some(tx_data.gas().to_vec()),
+                    tx.sender(),
+                    tx.clone().into_kind(),
+                    Some(tx.gas_price().into()),
+                    Some(tx.gas_owner()),
+                    Some(tx.gas_budget()),
+                    Some(tx.gas().to_vec()),
                 )
             };
 

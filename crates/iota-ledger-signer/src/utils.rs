@@ -9,16 +9,16 @@ use iota_sdk::{
     types::{
         base_types::ObjectType,
         object::{MoveStructExt, Object},
-        transaction::{InputObjectKind, TransactionData, TransactionDataAPI},
+        transaction::{InputObjectKind, TransactionAPI},
     },
 };
-use iota_sdk_types::{MoveStruct, ObjectId};
+use iota_sdk_types::{MoveStruct, ObjectId, Transaction};
 
 use crate::LedgerSignerError;
 
 pub(crate) async fn load_objects_with_client(
     client: &IotaClient,
-    transaction: &TransactionData,
+    transaction: &Transaction,
 ) -> Result<Vec<Object>, LedgerSignerError> {
     let object_ids = object_ids_from_transaction(transaction)?;
 
@@ -40,7 +40,7 @@ pub(crate) async fn load_objects_with_client(
 }
 
 fn object_ids_from_transaction(
-    transaction: &TransactionData,
+    transaction: &Transaction,
 ) -> Result<Vec<ObjectId>, LedgerSignerError> {
     let object_ids = transaction
         .gas_data()
