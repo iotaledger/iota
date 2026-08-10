@@ -4,8 +4,9 @@
 
 use async_graphql::*;
 use iota_json_rpc_types::{DevInspectResults, IotaExecutionResult};
-use iota_sdk_types::{TransactionEffects as NativeTransactionEffects, TypeTag};
-use iota_types::transaction::TransactionData as NativeTransactionData;
+use iota_sdk_types::{
+    Transaction as NativeTransactionData, TransactionEffects as NativeTransactionEffects, TypeTag,
+};
 
 use crate::{
     error::Error,

@@ -24,7 +24,7 @@ use iota_json_rpc_types::{
     TransactionFilterV2,
 };
 use iota_sdk_types::{
-    Address, Command, Identifier, ObjectId, StructTag, TransactionDigest, TypeTag,
+    Address, Command, Identifier, ObjectId, StructTag, Transaction, TransactionDigest, TypeTag,
 };
 use iota_test_transaction_builder::{TestTransactionBuilder, split_coin_equal_tx};
 use iota_types::{
@@ -33,7 +33,7 @@ use iota_types::{
     gas_coin::GAS,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::ExecuteTransactionRequestType,
-    transaction::{CallArg, TransactionData, TransactionDataAPI},
+    transaction::{CallArg, TransactionAPI},
     utils::to_sender_signed_transaction,
 };
 use itertools::Itertools;
@@ -860,9 +860,9 @@ fn test_query_transaction_blocks() -> Result<(), anyhow::Error> {
         pt_builder.command(cmd_2);
         let pt = pt_builder.finish();
 
-        let tx_data = TransactionData::new_programmable(signer, vec![gas], pt, 10_000_000, 1000);
+        let tx = Transaction::new_programmable(signer, vec![gas], pt, 10_000_000, 1000);
 
-        let signed_transaction = to_sender_signed_transaction(tx_data, &keypair);
+        let signed_transaction = to_sender_signed_transaction(tx, &keypair);
 
         let response = iota_client
             .quorum_driver_api()
@@ -1508,8 +1508,8 @@ fn test_query_transaction_blocks_tx_kind_filter() -> Result<(), anyhow::Error> {
         pt_builder.move_call(package_id, module, function, vec![], vec![])?;
         let pt = pt_builder.finish();
 
-        let tx_data = TransactionData::new_programmable(signer, vec![gas], pt, 10_000_000, 1_000);
-        let signed_transaction = to_sender_signed_transaction(tx_data, &keypair);
+        let tx = Transaction::new_programmable(signer, vec![gas], pt, 10_000_000, 1_000);
+        let signed_transaction = to_sender_signed_transaction(tx, &keypair);
 
         let response = iota_client
             .quorum_driver_api()

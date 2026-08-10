@@ -42,7 +42,7 @@ use iota_types::{
         FullCheckpointContents, VerifiedCheckpoint,
     },
     transaction::{
-        SenderSignedTransactionAPI, TransactionDataAPI, TransactionKey, VerifiedTransaction,
+        SenderSignedTransactionAPI, TransactionAPI, TransactionKey, VerifiedTransaction,
     },
 };
 use parking_lot::Mutex;

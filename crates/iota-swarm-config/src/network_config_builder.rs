@@ -607,7 +607,7 @@ mod test {
         in_memory_storage::InMemoryStorage,
         iota_system_state::IotaSystemStateTrait,
         metrics::LimitsMetrics,
-        transaction::{CheckedInputObjects, TransactionDataAPI},
+        transaction::{CheckedInputObjects, TransactionAPI},
     };
 
     #[test]

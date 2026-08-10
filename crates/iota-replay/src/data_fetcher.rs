@@ -21,7 +21,7 @@ use iota_sdk_types::{
 };
 use iota_types::{
     base_types::VersionNumber, digests::ChainIdentifier, object::Object,
-    transaction::TransactionDataAPI,
+    transaction::TransactionAPI,
 };
 use lru::LruCache;
 use parking_lot::RwLock;

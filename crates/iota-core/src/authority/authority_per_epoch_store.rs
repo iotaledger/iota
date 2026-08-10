@@ -62,7 +62,7 @@ use iota_types::{
     },
     storage::{BackingPackageStore, InputKey},
     transaction::{
-        CertifiedTransaction, InputObjectKind, SenderSignedTransactionAPI, TransactionDataAPI,
+        CertifiedTransaction, InputObjectKind, SenderSignedTransactionAPI, TransactionAPI,
         TransactionEnvelope, TransactionKey, TxValidityCheckContext, VerifiedCertificate,
         VerifiedSignedTransaction, VerifiedTransaction,
     },

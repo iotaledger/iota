@@ -29,7 +29,7 @@ use iota_protocol_config::{PerObjectCongestionControlMode, ProtocolConfig};
 use iota_sdk_types::{
     Address, Argument, ExecutionError, Identifier, MoveAuthenticatorV1, MoveLocation, ObjectId,
     ObjectReference, Owner, ProgrammableTransaction, SharedObjectReference, SignatureScheme,
-    TransactionEffects, TypeTag, UserSignature,
+    Transaction, TransactionEffects, TypeTag, UserSignature,
     crypto::{Intent, SimpleSignature},
 };
 use iota_test_transaction_builder::publish_package;
@@ -44,8 +44,8 @@ use iota_types::{
     quorum_driver_types::QuorumDriverResponse,
     storage::WriteKind,
     transaction::{
-        CallArg, TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, TransactionData,
-        TransactionDataAPI, TransactionEnvelope,
+        CallArg, TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, TransactionAPI,
+        TransactionEnvelope,
     },
 };
 use move_command_line_common::error_bitset::ErrorBitset;
@@ -159,7 +159,7 @@ async fn test_auth_context_tx_bytes_and_signature() -> Result<(), anyhow::Error>
         .craft_tx_from_pt(pt, aa_gas, aa_sender, None)
         .await?;
 
-    // sign_secure signs blake2b256(intent || bcs(TransactionData)), which is
+    // sign_secure signs blake2b256(intent || bcs(Transaction)), which is
     // exactly what auth_ctx.signing_digest() returns on the Move side.
     let signatures =
         vec![test_env.create_move_authenticator_for_ed25519_via_signing_digest(&tx_data)?];
@@ -2598,11 +2598,11 @@ impl TestEnvironment {
         gas_coin: ObjectReference,
         sender: Address,
         sponsor: Option<Address>,
-    ) -> anyhow::Result<TransactionData> {
+    ) -> anyhow::Result<Transaction> {
         let gas_price = self.test_cluster.get_reference_gas_price().await;
 
         // Create the transaction data that will be sent to the network
-        Ok(TransactionData::new_programmable_allow_sponsor(
+        Ok(Transaction::new_programmable_allow_sponsor(
             sender,
             vec![gas_coin],
             pt,
@@ -2814,11 +2814,11 @@ impl TestEnvironment {
 
     /// Create the MoveAuthenticator for the ed25519 authenticator that verifies
     /// against `auth_ctx.signing_digest()`. Uses `sign_secure` which signs
-    /// `blake2b256(intent || bcs(TransactionData))` — exactly what
+    /// `blake2b256(intent || bcs(Transaction))` — exactly what
     /// `signing_digest` returns on the Move side.
     fn create_move_authenticator_for_ed25519_via_signing_digest(
         &self,
-        tx_data: &TransactionData,
+        tx: &Transaction,
     ) -> anyhow::Result<UserSignature> {
         let Some(aa_ref) = self.aa_ref else {
             anyhow::bail!("Abstract account not created yet");
@@ -2828,7 +2828,7 @@ impl TestEnvironment {
         };
         let signature = self.test_cluster.wallet.config().keystore().sign_secure(
             &owner,
-            tx_data,
+            tx,
             Intent::iota_transaction(),
         )?;
         Self::move_authenticator_from_ed25519_sig(aa_ref, signature)

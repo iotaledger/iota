@@ -10,9 +10,9 @@ mod utils;
 
 use iota_json::IotaJsonValue;
 use iota_sdk::types::{
-    programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{TransactionData, TransactionDataAPI},
+    programmable_transaction_builder::ProgrammableTransactionBuilder, transaction::TransactionAPI,
 };
+use iota_sdk_types::Transaction;
 use serde_json::json;
 use utils::{setup_for_write, sign_and_execute_transaction};
 
@@ -47,7 +47,7 @@ async fn main() -> Result<(), anyhow::Error> {
         .await?;
     let pt = ptb.finish();
 
-    let tx_data = TransactionData::new_programmable(
+    let tx = Transaction::new_programmable(
         sender,
         vec![gas_coin.object_ref()],
         pt,
@@ -55,7 +55,7 @@ async fn main() -> Result<(), anyhow::Error> {
         gas_price,
     );
 
-    let transaction_response = sign_and_execute_transaction(&client, &sender, tx_data).await?;
+    let transaction_response = sign_and_execute_transaction(&client, &sender, tx).await?;
 
     println!("Transaction sent {}", transaction_response.digest);
     println!("Object changes:");

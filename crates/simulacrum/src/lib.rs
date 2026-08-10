@@ -33,8 +33,8 @@ use iota_node_storage::{GrpcIndexes, GrpcStateReader};
 use iota_protocol_config::ProtocolVersion;
 use iota_sdk_types::{
     Address, CheckpointContentsDigest, CheckpointDigest, ConsensusCommitDigest,
-    EndOfEpochTransactionKind, GasPayment, ObjectId, StructTag, SystemPackage, TransactionDigest,
-    TransactionEffects, TransactionEvents, TransactionKind,
+    EndOfEpochTransactionKind, GasPayment, ObjectId, StructTag, SystemPackage, Transaction,
+    TransactionDigest, TransactionEffects, TransactionEvents, TransactionKind,
     checkpoint::{CheckpointContents, EndOfEpochData},
 };
 use iota_storage::blob::{Blob, BlobEncoding};
@@ -58,7 +58,7 @@ use iota_types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     signature::VerifyParams,
     storage::{EpochInfoV2, ObjectStore, ReadStore, TransactionInfo},
-    transaction::{TransactionData, TransactionDataAPI, TransactionEnvelope, VerifiedTransaction},
+    transaction::{TransactionAPI, TransactionEnvelope, VerifiedTransaction},
 };
 use rand::rngs::OsRng;
 
@@ -226,7 +226,7 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
     /// This is useful for testing transaction behavior without modifying state.
     pub fn simulate_transaction(
         &self,
-        transaction: TransactionData,
+        transaction: Transaction,
         checks: iota_types::transaction_executor::VmChecks,
     ) -> iota_types::error::IotaResult<iota_types::transaction_executor::SimulateTransactionResult>
     {
@@ -506,9 +506,8 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
         };
 
         let kind = TransactionKind::Programmable(pt);
-        let tx_data =
-            iota_types::transaction::TransactionData::new_with_gas_data(kind, sender, gas_data);
-        let tx = TransactionEnvelope::from_data_and_signer(tx_data, vec![&key]);
+        let tx = iota_sdk_types::Transaction::new_with_gas_data(kind, sender, gas_data);
+        let tx = TransactionEnvelope::from_data_and_signer(tx, vec![&key]);
 
         self.execute_transaction(tx).map(|x| x.0)
     }
@@ -938,8 +937,8 @@ impl Simulacrum {
             price: self.reference_gas_price(),
             budget: 1_000_000_000,
         };
-        let tx_data = TransactionData::new_with_gas_data(kind, sender, gas_data);
-        let tx = TransactionEnvelope::from_data_and_signer(tx_data, vec![&key]);
+        let tx = Transaction::new_with_gas_data(kind, sender, gas_data);
+        let tx = TransactionEnvelope::from_data_and_signer(tx, vec![&key]);
         (tx, transfer_amount)
     }
 }
@@ -949,7 +948,7 @@ mod tests {
     use std::time::Duration;
 
     use iota_types::{
-        effects::TransactionEffectsAPI, gas_coin::GasCoin, transaction::TransactionDataAPI,
+        effects::TransactionEffectsAPI, gas_coin::GasCoin, transaction::TransactionAPI,
     };
     use rand::{SeedableRng, rngs::StdRng};
 
