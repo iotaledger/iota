@@ -5,7 +5,7 @@ import SnapshotEpochPicker, {
 } from '@site/src/components/SnapshotEpochPicker';
 import { EpochSelection, Network } from '@site/src/hooks/useFormalSnapshotEpochs';
 
-const NETWORKS = ['mainnet', 'testnet'] as const;
+const NETWORKS = ['mainnet', 'testnet', 'devnet'] as const;
 
 const SETUPS = ['binary', 'docker'] as const;
 type Setup = (typeof SETUPS)[number];
