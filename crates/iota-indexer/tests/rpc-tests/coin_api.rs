@@ -19,11 +19,8 @@ use iota_sdk_types::{
     Address, Identifier, ObjectId, ObjectReference, StructTag, TypeTag, crypto::SimpleSignature,
 };
 use iota_types::{
-    balance::Supply,
-    crypto::AccountKeyPair,
-    parse_iota_struct_tag,
-    quorum_driver_types::ExecuteTransactionRequestType,
-    utils::to_sender_signed_transaction,
+    balance::Supply, crypto::AccountKeyPair, parse_iota_struct_tag,
+    quorum_driver_types::ExecuteTransactionRequestType, utils::to_sender_signed_transaction,
 };
 use itertools::Itertools;
 use jsonrpsee::http_client::HttpClient;

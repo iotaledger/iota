@@ -30,10 +30,8 @@ use iota_test_transaction_builder::{
     publish_simple_warrior_package,
 };
 use iota_types::{
-    crypto::AccountKeyPair,
-    digests::ChainIdentifier,
-    programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::CallArg,
+    crypto::AccountKeyPair, digests::ChainIdentifier,
+    programmable_transaction_builder::ProgrammableTransactionBuilder, transaction::CallArg,
     utils::to_sender_signed_transaction,
 };
 use itertools::Itertools;

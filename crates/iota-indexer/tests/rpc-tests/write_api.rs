@@ -27,11 +27,9 @@ use iota_sdk_types::{
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    crypto::AccountKeyPair,
-    gas_coin::NANOS_PER_IOTA,
+    crypto::AccountKeyPair, gas_coin::NANOS_PER_IOTA,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    quorum_driver_types::ExecuteTransactionRequestType,
-    utils::to_sender_signed_transaction,
+    quorum_driver_types::ExecuteTransactionRequestType, utils::to_sender_signed_transaction,
 };
 use itertools::Itertools;
 use jsonrpsee::http_client::HttpClient;

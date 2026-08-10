@@ -42,10 +42,7 @@ async fn test_addresses_command() -> Result<(), anyhow::Error> {
 
     // Add another 3 Secp256k1 KeyPairs
     for _ in 0..3 {
-        keystore.add_key(
-            None,
-            SimpleKeypair::from(Secp256k1PrivateKey::random()),
-        )?;
+        keystore.add_key(None, SimpleKeypair::from(Secp256k1PrivateKey::random()))?;
     }
 
     // List all addresses with flag
@@ -62,14 +59,8 @@ async fn test_addresses_command() -> Result<(), anyhow::Error> {
 async fn test_flag_in_signature_and_keypair() -> Result<(), anyhow::Error> {
     let mut keystore = Keystore::from(InMemKeystore::new_insecure_for_tests(0));
 
-    keystore.add_key(
-        None,
-        SimpleKeypair::from(Secp256k1PrivateKey::random()),
-    )?;
-    keystore.add_key(
-        None,
-        SimpleKeypair::from(Ed25519PrivateKey::random()),
-    )?;
+    keystore.add_key(None, SimpleKeypair::from(Secp256k1PrivateKey::random()))?;
+    keystore.add_key(None, SimpleKeypair::from(Ed25519PrivateKey::random()))?;
 
     for key in keystore
         .keys()
