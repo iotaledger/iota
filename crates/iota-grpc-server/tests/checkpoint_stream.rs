@@ -716,7 +716,7 @@ async fn test_filter_checkpoints_validation() {
 async fn test_filter_checkpoints_streaming() {
     let (server_handle, client, _) = test_server_and_client_setup(0..=0, |_| {}, None, None).await;
 
-    let (sender, key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, key): (Address, AccountKeyPair) = get_key_pair();
     let sender_bytes = sender.into_bytes();
 
     // Create a sender filter matching our known sender
@@ -801,7 +801,7 @@ async fn test_filter_checkpoints_streaming() {
             .send_traced(&mock_checkpoint_data(i));
     }
     // Broadcast checkpoint with a different sender (should be skipped)
-    let (other_sender, other_key): (_, AccountKeyPair) = get_key_pair();
+    let (other_sender, other_key): (Address, AccountKeyPair) = get_key_pair();
     server_handle
         .checkpoint_data_broadcaster()
         .send_traced(&mock_checkpoint_data_with_sender(

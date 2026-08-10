@@ -50,7 +50,7 @@ fn transfer_tx(sender: Address, gas: &Object, recipient: Address, amount: u64) -
 
 #[test]
 fn standard_signature_is_verified_on_success() {
-    let (sender, key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, key): (Address, AccountKeyPair) = get_key_pair();
     let gas = gas_coin(sender);
     let recipient = Address::from(ObjectId::random());
 
@@ -103,7 +103,7 @@ fn invalid_standard_signature_is_rejected() {
 /// failure: the ed25519 signature verified fine.
 #[test]
 fn standard_signature_stays_verified_when_body_aborts() {
-    let (sender, key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, key): (Address, AccountKeyPair) = get_key_pair();
     let gas = gas_coin(sender);
     let recipient = Address::from(ObjectId::random());
 

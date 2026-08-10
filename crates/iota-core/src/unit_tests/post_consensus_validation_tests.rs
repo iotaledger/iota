@@ -77,7 +77,7 @@ async fn test_valid_user_transaction_passes() {
         config
     });
 
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (Address, AccountKeyPair) = get_key_pair();
     let recipient = AccountKeyPair::random().public_key().derive_address();
 
     let object_id = ObjectId::random();
@@ -166,7 +166,7 @@ async fn test_duplicate_transaction_deduplicated() {
         config
     });
 
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (Address, AccountKeyPair) = get_key_pair();
     let recipient = AccountKeyPair::random().public_key().derive_address();
 
     let object_id = ObjectId::random();
@@ -226,7 +226,7 @@ async fn test_mixed_batch_filtering() {
         config
     });
 
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (Address, AccountKeyPair) = get_key_pair();
     let recipient = AccountKeyPair::random().public_key().derive_address();
 
     let obj1_id = ObjectId::random();
@@ -1187,7 +1187,7 @@ async fn already_executed_tx_must_remain_in_checkpoint_roots() {
         config
     });
 
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (Address, AccountKeyPair) = get_key_pair();
     let recipient = AccountKeyPair::random().public_key().derive_address();
 
     let object_id = ObjectId::random();
@@ -1283,7 +1283,7 @@ async fn double_spend_loser_excluded_from_checkpoint_roots() {
         config
     });
 
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (Address, AccountKeyPair) = get_key_pair();
     let recipient = AccountKeyPair::random().public_key().derive_address();
 
     // One owned object spent by both transactions, plus a distinct gas object each
@@ -1420,7 +1420,7 @@ async fn setup_lock_tier() -> LockTierSetup {
         config
     });
 
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (Address, AccountKeyPair) = get_key_pair();
     let recipient = AccountKeyPair::random().public_key().derive_address();
     let object_id = ObjectId::random();
     let gas_id = ObjectId::random();
@@ -1773,7 +1773,7 @@ async fn post_consensus_validation_uses_governance_rules_when_enabled() {
         config
     });
 
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (Address, AccountKeyPair) = get_key_pair();
     let recipient = AccountKeyPair::random().public_key().derive_address();
     let object_id = ObjectId::random();
     let gas_id = ObjectId::random();
@@ -1831,7 +1831,7 @@ async fn post_consensus_validation_keeps_non_denied_transactions() {
         config
     });
 
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (Address, AccountKeyPair) = get_key_pair();
     let recipient = AccountKeyPair::random().public_key().derive_address();
     let object_id = ObjectId::random();
     let gas_id = ObjectId::random();
@@ -1884,7 +1884,7 @@ async fn post_consensus_validation_uses_local_config_when_disabled() {
         config
     });
 
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (Address, AccountKeyPair) = get_key_pair();
     let recipient = AccountKeyPair::random().public_key().derive_address();
     let object_id = ObjectId::random();
     let gas_id = ObjectId::random();
@@ -1934,7 +1934,7 @@ async fn post_consensus_validation_applies_relaxed_rules() {
         config
     });
 
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (Address, AccountKeyPair) = get_key_pair();
     let recipient = AccountKeyPair::random().public_key().derive_address();
     let object_id = ObjectId::random();
     let gas_id = ObjectId::random();

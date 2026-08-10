@@ -44,7 +44,7 @@ pub struct AccountCurrent {
 
 impl Account {
     pub fn new_random() -> Self {
-        let (address, key): (_, AccountKeyPair) = get_key_pair();
+        let (address, key) = get_key_pair();
         Self { address, key }
     }
 }

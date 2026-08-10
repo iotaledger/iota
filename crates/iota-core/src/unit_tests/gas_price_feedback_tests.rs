@@ -86,7 +86,7 @@ impl GasPriceFeedbackTester {
         enable_gas_price_feedback_mechanism: bool,
         num_gas_objects: usize,
     ) -> Self {
-        let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+        let (sender, sender_key): (Address, AccountKeyPair) = get_key_pair();
 
         let mut protocol_config =
             ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);

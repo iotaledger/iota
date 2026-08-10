@@ -295,7 +295,7 @@ async fn touch_gas_coins(
 async fn test_computation_oog_storage_ok_single_gas_coin() -> IotaResult {
     const GAS_PRICE: u64 = 1_000;
     let budget: u64 = ProtocolConfig::get_for_max_version_UNSAFE().max_tx_gas();
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key) = get_key_pair();
     check_oog_transaction(
         sender,
         sender_key,
@@ -324,7 +324,7 @@ async fn test_computation_oog_storage_ok_single_gas_coin() -> IotaResult {
 async fn test_computation_oog_storage_ok_multi_gas_coins() -> IotaResult {
     const GAS_PRICE: u64 = 1_000;
     let budget: u64 = ProtocolConfig::get_for_max_version_UNSAFE().max_tx_gas();
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key) = get_key_pair();
     check_oog_transaction(
         sender,
         sender_key,
@@ -354,7 +354,7 @@ async fn test_computation_oog_storage_ok_computation_is_entire_budget() -> IotaR
     const GAS_PRICE: u64 = 1000;
     const MAX_UNIT_BUDGET: u64 = 5_000_000;
     const BUDGET: u64 = MAX_UNIT_BUDGET * GAS_PRICE;
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key) = get_key_pair();
     check_oog_transaction(
         sender,
         sender_key,
@@ -383,7 +383,7 @@ async fn test_computation_oog_storage_ok_computation_is_entire_budget() -> IotaR
 async fn test_computation_ok_storage_oog_single_gas_coin() -> IotaResult {
     const GAS_PRICE: u64 = 1001;
     const BUDGET: u64 = 1_100_000;
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key) = get_key_pair();
     check_oog_transaction(
         sender,
         sender_key,
@@ -412,7 +412,7 @@ async fn test_computation_ok_storage_oog_single_gas_coin() -> IotaResult {
 async fn test_computation_ok_storage_oog_multi_gas_coins() -> IotaResult {
     const GAS_PRICE: u64 = 1001;
     const BUDGET: u64 = 1_100_000;
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key) = get_key_pair();
     check_oog_transaction(
         sender,
         sender_key,
@@ -441,7 +441,7 @@ async fn test_computation_ok_storage_oog_multi_gas_coins() -> IotaResult {
 async fn test_computation_ok_storage_oog_computation_is_entire_budget() -> IotaResult {
     const GAS_PRICE: u64 = 1001;
     const BUDGET: u64 = 1_002_000;
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key) = get_key_pair();
     check_oog_transaction(
         sender,
         sender_key,

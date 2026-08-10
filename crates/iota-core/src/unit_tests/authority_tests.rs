@@ -1457,7 +1457,7 @@ async fn test_handle_shared_object_with_max_sequence_number() {
 #[tokio::test]
 async fn test_handle_transfer_transaction_unknown_sender() {
     let sender = dbg_addr(1);
-    let (unknown_address, unknown_key): (_, AccountKeyPair) = get_key_pair();
+    let (unknown_address, unknown_key) = get_key_pair();
     let object_id: ObjectId = ObjectId::random();
     let gas_object_id = ObjectId::random();
     let recipient = dbg_addr(2);
@@ -2424,7 +2424,7 @@ async fn test_type_argument_dependencies() {
 
 #[tokio::test]
 async fn test_handle_confirmation_transaction_receiver_equal_sender() {
-    let (address, key): (_, AccountKeyPair) = get_key_pair();
+    let (address, key) = get_key_pair();
     let object_id: ObjectId = ObjectId::random();
     let gas_object_id = ObjectId::random();
     let authority_state =
@@ -2458,7 +2458,7 @@ async fn test_handle_confirmation_transaction_receiver_equal_sender() {
 #[tokio::test]
 #[should_panic(expected = "is expected to have effects digest")]
 async fn try_execute_immediately_panics_on_effects_digest_mismatch() {
-    let (address, key): (_, AccountKeyPair) = get_key_pair();
+    let (address, key) = get_key_pair();
     let object_id = ObjectId::random();
     let gas_object_id = ObjectId::random();
     let authority_state =
@@ -2493,7 +2493,7 @@ async fn try_execute_immediately_panics_on_effects_digest_mismatch() {
 #[tokio::test]
 #[should_panic(expected = "Unexpected effects digest")]
 async fn try_execute_immediately_panics_on_already_executed_digest_mismatch() {
-    let (address, key): (_, AccountKeyPair) = get_key_pair();
+    let (address, key) = get_key_pair();
     let object_id = ObjectId::random();
     let gas_object_id = ObjectId::random();
     let authority_state =
