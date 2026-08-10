@@ -7,16 +7,8 @@ license = "Apache-2.0"
 publish = false
 description = "Local IOTA Move VM SDK: execute transactions against the node's Move VM and analyze the results, offline."
 
-[package.metadata.cargo-udeps.ignore]
-development = ["iota-sdk-transaction-builder"]
-
 [lib]
 crate-type = ["cdylib", "rlib"]
-
-# `prometheus-filtered` (pulled by the metrics registry) does not build on
-# wasm32, which uses the stub metrics from `iota-types` instead.
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-prometheus-filtered.workspace = true
 
 [features]
 default = []
@@ -31,18 +23,6 @@ wasm-bindgen = [
   "dep:serde-wasm-bindgen",
   "dep:wasm-bindgen",
 ]
-
-[target.'cfg(target_arch = "wasm32")'.dependencies]
-console_error_panic_hook = { version = "0.1", optional = true }
-# `getrandom` and `instant` are not imported by this crate: they pin the `js` /
-# `wasm-bindgen` features on so transitive users of randomness and time get a
-# browser-compatible source.
-getrandom = { version = "0.2", features = ["js"] }
-instant = { version = "0.1", features = ["wasm-bindgen"] }
-js-sys = { version = "0.3", optional = true }
-serde = { workspace = true, optional = true }
-serde-wasm-bindgen = { version = "0.6", optional = true }
-wasm-bindgen = { version = "0.2", optional = true }
 
 [dependencies]
 # external dependencies
@@ -69,11 +49,27 @@ move-bytecode-utils.workspace = true
 move-core-types.workspace = true
 move-trace-format.workspace = true
 
+# `prometheus-filtered` (pulled by the metrics registry) does not build on
+# wasm32, which uses the stub metrics from `iota-types` instead.
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+prometheus-filtered.workspace = true
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+console_error_panic_hook = { version = "0.1", optional = true }
+# `getrandom` and `instant` are not imported by this crate: they pin the `js` /
+# `wasm-bindgen` features on so transitive users of randomness and time get a
+# browser-compatible source.
+getrandom.workspace = true
+instant = { version = "0.1", features = ["wasm-bindgen"] }
+js-sys = { version = "0.3", optional = true }
+serde = { workspace = true, optional = true }
+serde-wasm-bindgen = { version = "0.6", optional = true }
+wasm-bindgen = { version = "0.2", optional = true }
+
 [dev-dependencies]
 # external dependencies
 anyhow.workspace = true
 fastcrypto.workspace = true
-rand.workspace = true
 serde.workspace = true
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 
@@ -98,6 +94,11 @@ required-features = ["grpc"]
 name = "stake_graphql"
 path = "examples/stake_graphql.rs"
 required-features = ["graphql"]
+
+[package.metadata.cargo-udeps.ignore]
+development = [
+  "iota-sdk-transaction-builder",
+]
 
 [lints]
 workspace = true

@@ -278,6 +278,7 @@ fastcrypto-vdf = { git = "https://github.com/MystenLabs/fastcrypto", rev = "47f8
 fastcrypto-zkp = { git = "https://github.com/MystenLabs/fastcrypto", rev = "47f8f6b747900bbc1662c4d4eecd2f7e7a29e16a", package = "fastcrypto-zkp" }
 fs_extra = "1.3.0"
 futures = "0.3.28"
+getrandom = { version = "0.2", features = ["js"] }
 git-version = "0.3.5"
 hdrhistogram = "7.5.4"
 hex = "0.4.3"

@@ -6,10 +6,6 @@ edition = "2021"
 license = "Apache-2.0"
 publish = false
 
-[[bin]]
-name = "iota-rpc-loadgen"
-path = "src/main.rs"
-
 [dependencies]
 # external dependencies
 anyhow.workspace = true
@@ -34,6 +30,10 @@ iota-sdk-crypto = { workspace = true, features = ["bech32", "ed25519", "secp256k
 iota-sdk-types.workspace = true
 iota-types.workspace = true
 telemetry-subscribers.workspace = true
+
+[[bin]]
+name = "iota-rpc-loadgen"
+path = "src/main.rs"
 
 [lints]
 workspace = true

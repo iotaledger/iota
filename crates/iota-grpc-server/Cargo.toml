@@ -6,6 +6,9 @@ edition = "2021"
 license = "Apache-2.0"
 publish = false
 
+[lints]
+workspace = true
+
 [dependencies]
 # external dependencies
 anyhow.workspace = true
@@ -41,13 +44,9 @@ prometheus-filtered.workspace = true
 [dev-dependencies]
 # external dependencies
 async-trait.workspace = true
-rand.workspace = true
 
 # internal dependencies
 iota-grpc-client.workspace = true
 iota-test-transaction-builder.workspace = true
 move-binary-format.workspace = true
 typed-store-error.workspace = true
-
-[lints]
-workspace = true
