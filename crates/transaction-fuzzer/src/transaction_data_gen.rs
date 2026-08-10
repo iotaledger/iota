@@ -3,10 +3,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_sdk_types::{
-    Address, GasPayment, ObjectDigest, ObjectId, ObjectReference, TransactionExpiration,
-    TransactionKind, TransactionV1, Version,
+    Address, GasPayment, ObjectDigest, ObjectId, ObjectReference, Transaction,
+    TransactionExpiration, TransactionKind, TransactionV1, Version,
 };
-use iota_types::transaction::TransactionData;
 use move_core_types::account_address::AccountAddress;
 use proptest::{arbitrary::*, collection::vec, prelude::*};
 
@@ -65,7 +64,7 @@ pub fn gen_transaction_kind() -> impl Strategy<Value = TransactionKind> {
         .prop_map(TransactionKind::Programmable)
 }
 
-pub fn transaction_data_gen(sender: Address) -> impl Strategy<Value = TransactionData> {
+pub fn transaction_data_gen(sender: Address) -> impl Strategy<Value = Transaction> {
     TransactionDataGenBuilder::new(sender)
         .kind(gen_transaction_kind())
         .gas_data(gen_gas_data(sender))
@@ -114,7 +113,7 @@ impl<
         self
     }
 
-    pub fn finish(self) -> impl Strategy<Value = TransactionData> {
+    pub fn finish(self) -> impl Strategy<Value = Transaction> {
         (
             self.kind.expect("kind must be set"),
             Just(self.sender),
@@ -127,6 +126,6 @@ impl<
                 gas_payment: gas_data,
                 expiration,
             })
-            .prop_map(TransactionData::V1)
+            .prop_map(Transaction::V1)
     }
 }

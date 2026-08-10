@@ -21,7 +21,7 @@ use crate::{
         get_module_by_id, load_package_object_from_object_store,
     },
     transaction::{
-        InputObjectKind, InputObjects, ObjectReadResult, TransactionDataAPI, TransactionEnvelope,
+        InputObjectKind, InputObjects, ObjectReadResult, TransactionAPI, TransactionEnvelope,
     },
 };
 

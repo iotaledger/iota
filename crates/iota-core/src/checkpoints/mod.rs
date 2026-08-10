@@ -53,7 +53,7 @@ use iota_types::{
     },
     messages_consensus::ConsensusTransactionKey,
     storage::EpochInfoV2,
-    transaction::{TransactionDataAPI, TransactionEnvelope, TransactionKey},
+    transaction::{TransactionAPI, TransactionEnvelope, TransactionKey},
 };
 use itertools::Itertools;
 use nonempty::NonEmpty;

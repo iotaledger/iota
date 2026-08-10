@@ -15,7 +15,7 @@ use crate::{
     effects::TransactionEffectsExt,
     execution::SharedInput,
     message_envelope::Message,
-    transaction::{InputObjectKind, TransactionDataAPI},
+    transaction::{InputObjectKind, TransactionAPI},
 };
 
 pub struct TestEffectsBuilder {

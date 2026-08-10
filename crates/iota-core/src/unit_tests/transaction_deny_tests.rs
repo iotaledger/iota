@@ -9,7 +9,7 @@ use iota_config::{
     transaction_deny_config::{TransactionDenyConfig, TransactionDenyConfigBuilder},
 };
 use iota_sdk_types::{
-    Address, ExecutionError, ExecutionStatus, Identifier, ObjectId, ObjectReference,
+    Address, ExecutionError, ExecutionStatus, Identifier, ObjectId, ObjectReference, Transaction,
 };
 use iota_swarm_config::{
     genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT},
@@ -22,8 +22,8 @@ use iota_types::{
     error::{IotaError, IotaResult, UserInputError},
     messages_grpc::HandleTransactionResponse,
     transaction::{
-        CallArg, CertifiedTransaction, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionData,
-        TransactionDataAPI, VerifiedCertificate, VerifiedTransaction,
+        CallArg, CertifiedTransaction, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI,
+        VerifiedCertificate, VerifiedTransaction,
     },
     utils::{
         make_move_authenticator_tx, to_sender_signed_transaction,
@@ -108,7 +108,7 @@ async fn transfer_with_account(
     state: &Arc<AuthorityState>,
 ) -> IotaResult<HandleTransactionResponse> {
     let rgp = state.reference_gas_price_for_testing().unwrap();
-    let data = TransactionData::new_transfer_iota_allow_sponsor(
+    let tx = Transaction::new_transfer_iota_allow_sponsor(
         sender_account.0,
         sender_account.0,
         None,
@@ -118,10 +118,10 @@ async fn transfer_with_account(
         sponsor_account.0,
     );
     let tx = if sender_account.0 == sponsor_account.0 {
-        to_sender_signed_transaction(data, &sender_account.1)
+        to_sender_signed_transaction(tx, &sender_account.1)
     } else {
         to_sender_signed_transaction_with_multi_signers(
-            data,
+            tx,
             vec![&sender_account.1, &sponsor_account.1],
         )
     };
@@ -140,7 +140,7 @@ async fn handle_move_call_transaction(
     gas_payment_index: usize,
 ) -> IotaResult<HandleTransactionResponse> {
     let rgp = state.reference_gas_price_for_testing().unwrap();
-    let data = TransactionData::new_move_call(
+    let tx = Transaction::new_move_call(
         account.0,
         package,
         Identifier::from_static(module_name),
@@ -153,7 +153,7 @@ async fn handle_move_call_transaction(
     )
     .unwrap();
     let epoch_store = state.epoch_store_for_testing();
-    let tx = to_sender_signed_transaction(data, &account.1);
+    let tx = to_sender_signed_transaction(tx, &account.1);
     let tx = epoch_store.verify_transaction(tx).unwrap();
     state.handle_transaction(&epoch_store, tx).await
 }

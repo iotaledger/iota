@@ -249,12 +249,12 @@ async fn wait_for_certs(
 async fn execute_owned_on_first_three_authorities(
     authority_clients: &[Arc<SafeClient<LocalAuthorityClient>>],
     committee: &Committee,
-    txn: &TransactionEnvelope,
+    tx: &TransactionEnvelope,
 ) -> (VerifiedCertificate, TransactionEffects) {
-    do_transaction(&authority_clients[0], txn).await;
-    do_transaction(&authority_clients[1], txn).await;
-    do_transaction(&authority_clients[2], txn).await;
-    let cert = extract_cert(authority_clients, committee, txn.digest())
+    do_transaction(&authority_clients[0], tx).await;
+    do_transaction(&authority_clients[1], tx).await;
+    do_transaction(&authority_clients[2], tx).await;
+    let cert = extract_cert(authority_clients, committee, tx.digest())
         .await
         .try_into_verified_for_testing(committee, &Default::default())
         .unwrap();
@@ -280,12 +280,12 @@ pub async fn do_cert_with_shared_objects(
 async fn execute_shared_on_first_three_authorities(
     authority_clients: &[Arc<SafeClient<LocalAuthorityClient>>],
     committee: &Committee,
-    txn: &TransactionEnvelope,
+    tx: &TransactionEnvelope,
 ) -> (VerifiedCertificate, TransactionEffects) {
-    do_transaction(&authority_clients[0], txn).await;
-    do_transaction(&authority_clients[1], txn).await;
-    do_transaction(&authority_clients[2], txn).await;
-    let cert = extract_cert(authority_clients, committee, txn.digest())
+    do_transaction(&authority_clients[0], tx).await;
+    do_transaction(&authority_clients[1], tx).await;
+    do_transaction(&authority_clients[2], tx).await;
+    let cert = extract_cert(authority_clients, committee, tx.digest())
         .await
         .try_into_verified_for_testing(committee, &Default::default())
         .unwrap();
@@ -480,14 +480,14 @@ fn make_socket_addr() -> std::net::SocketAddr {
 async fn try_sign_on_first_three_authorities(
     authority_clients: &[Arc<SafeClient<LocalAuthorityClient>>],
     committee: &Committee,
-    txn: &TransactionEnvelope,
+    tx: &TransactionEnvelope,
 ) -> IotaResult<VerifiedCertificate> {
     for client in authority_clients.iter().take(3) {
         client
-            .handle_transaction(txn.clone(), Some(make_socket_addr()))
+            .handle_transaction(tx.clone(), Some(make_socket_addr()))
             .await?;
     }
-    extract_cert(authority_clients, committee, txn.digest())
+    extract_cert(authority_clients, committee, tx.digest())
         .await
         .try_into_verified_for_testing(committee, &Default::default())
 }

@@ -30,7 +30,7 @@ use iota_json_rpc_types::{IotaExecutionStatus, IotaTransactionBlockResponseOptio
 use iota_keys::keypair_file::read_keypair_from_file;
 use iota_sdk::{IotaClient, IotaClientBuilder, rpc_types::IotaTransactionBlockEffectsAPI};
 use iota_sdk_crypto::simple::SimpleKeypair;
-use iota_sdk_types::{Address, Identifier, ObjectId, ObjectReference};
+use iota_sdk_types::{Address, Identifier, ObjectId, ObjectReference, Transaction};
 use iota_types::{
     committee::EpochId,
     crypto::{
@@ -38,10 +38,7 @@ use iota_types::{
         network_to_simple_keypair,
     },
     multiaddr::{Multiaddr, Protocol},
-    transaction::{
-        CallArg, TEST_ONLY_GAS_UNIT_FOR_GENERIC, TransactionData, TransactionDataAPI,
-        TransactionEnvelope,
-    },
+    transaction::{CallArg, TEST_ONLY_GAS_UNIT_FOR_GENERIC, TransactionAPI, TransactionEnvelope},
 };
 use tracing::info;
 
@@ -301,7 +298,7 @@ async fn update_metadata_on_chain(
         .await?;
     let mut args = vec![CallArg::IOTA_SYSTEM_MUTABLE];
     args.extend(call_args);
-    let tx_data = TransactionData::new_move_call(
+    let tx = Transaction::new_move_call(
         iota_address,
         ObjectId::SYSTEM,
         Identifier::IOTA_SYSTEM_MODULE,
@@ -313,7 +310,7 @@ async fn update_metadata_on_chain(
         rgp,
     )
     .unwrap();
-    execute_tx(account_key, iota_client, tx_data, function).await?;
+    execute_tx(account_key, iota_client, tx, function).await?;
     tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
     Ok(())
 }
@@ -321,10 +318,10 @@ async fn update_metadata_on_chain(
 async fn execute_tx(
     account_key: &SimpleKeypair,
     iota_client: &IotaClient,
-    tx_data: TransactionData,
+    tx: Transaction,
     action: &str,
 ) -> anyhow::Result<()> {
-    let tx = TransactionEnvelope::from_data_and_signer(tx_data, vec![account_key]);
+    let tx = TransactionEnvelope::from_data_and_signer(tx, vec![account_key]);
     info!("Executing {:?}", tx.digest());
     let tx_digest = *tx.digest();
     let resp = iota_client

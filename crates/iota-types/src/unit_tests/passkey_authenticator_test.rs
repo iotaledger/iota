@@ -10,7 +10,7 @@ use fastcrypto::{
     rsa::{Base64UrlUnpadded, Encoding as _},
 };
 use iota_sdk_types::{
-    Address, ObjectId, SignatureScheme, UserSignature,
+    Address, ObjectId, SignatureScheme, Transaction, UserSignature,
     crypto::{Intent, IntentMessage, PasskeyAuthenticator, SimpleSignature},
 };
 use p256::pkcs8::DecodePublicKey;
@@ -34,7 +34,7 @@ use crate::{
     crypto::{DefaultHash, PublicKey},
     object::Object,
     signature::AuthenticatorTrait,
-    transaction::{TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionData, TransactionDataAPI},
+    transaction::{TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI},
 };
 
 /// Helper struct to initialize passkey client.
@@ -80,7 +80,7 @@ pub struct PasskeyResponse<T> {
 async fn create_credential_and_sign_test_tx(
     origin: &Url,
     request: CredentialCreationOptions,
-) -> PasskeyResponse<TransactionData> {
+) -> PasskeyResponse<Transaction> {
     // Set up authenticator and client.
     let my_aaguid = Aaguid::new_empty();
     let user_validation_method = MyUserValidationMethod {};
@@ -114,7 +114,7 @@ async fn create_credential_and_sign_test_tx(
     let object_id = ObjectId::ZERO;
     let object = Object::immutable_with_id_for_testing(object_id);
     let gas_price = 1000;
-    let tx_data = TransactionData::new_transfer_iota(
+    let tx = Transaction::new_transfer_iota(
         recipient,
         sender,
         None,
@@ -122,7 +122,7 @@ async fn create_credential_and_sign_test_tx(
         gas_price * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
         gas_price,
     );
-    let intent_msg = IntentMessage::new(Intent::iota_transaction(), tx_data);
+    let intent_msg = IntentMessage::new(Intent::iota_transaction(), tx);
 
     // Compute the challenge as blake2b_hash(intent_msg(tx)). This is the challenge
     // for the passkey to sign.
@@ -344,8 +344,8 @@ async fn test_real_passkey_output() {
         Address::from_str("0x9c0c00e929f08431583dad0e9409b5afb20cdbae0043fa5577f2577dbe88a0db")
             .unwrap();
     let sig = UserSignature::from_bytes(Base64::decode("BiUL6eJ3+l0jTWmL4buH5lE8Vxe1+ge6xSU0oczBPpmt+h0AAAAAkwF7InR5cGUiOiJ3ZWJhdXRobi5nZXQiLCJjaGFsbGVuZ2UiOiJ5TzEtb3VBczFBRUsyOWd0X1dJTGM4ZndDdlFjMkhEQmEwX2dTU3RpU1FzIiwib3JpZ2luIjoiaHR0cHM6Ly9wYXNza2V5LWV4YW1wbGUudmVyY2VsLmFwcCIsImNyb3NzT3JpZ2luIjpmYWxzZX1iAu0JsgVDVgBZQJhsl9MUZmUfUkNTh1qCg0zNWFrXfTx3NKuakm8Wqaa3qnfo+s9K2KvfYp8jT8BazhK7bi9YSmsCATpOyeWH387SdhY7+172wODmilJnXx5QcaUnR+3QlEM=").unwrap()).unwrap();
-    let tx_data: TransactionData = bcs::from_bytes(&Base64::decode("AAAAAJwMAOkp8IQxWD2tDpQJta+yDNuuAEP6VXfyV32+iKDbARrKzR59iiRcEIbBEBlB283cnWUBeUeKCiMa3UKM6NURNRHQFAAAAAAgVLos3IwH9g4OHDSWiKyUZCvixybPtnDQIeML1f+ErGOcDADpKfCEMVg9rQ6UCbWvsgzbrgBD+lV38ld9voig2+gDAAAAAAAAgIQeAAAAAAAA").unwrap()).unwrap();
-    let res = sig.verify_claims(&tx_data.intent_message(), address, &Default::default());
+    let tx: Transaction = bcs::from_bytes(&Base64::decode("AAAAAJwMAOkp8IQxWD2tDpQJta+yDNuuAEP6VXfyV32+iKDbARrKzR59iiRcEIbBEBlB283cnWUBeUeKCiMa3UKM6NURNRHQFAAAAAAgVLos3IwH9g4OHDSWiKyUZCvixybPtnDQIeML1f+ErGOcDADpKfCEMVg9rQ6UCbWvsgzbrgBD+lV38ld9voig2+gDAAAAAAAAgIQeAAAAAAAA").unwrap()).unwrap();
+    let res = sig.verify_claims(&tx.intent_message(), address, &Default::default());
     assert!(res.is_ok());
 }
 

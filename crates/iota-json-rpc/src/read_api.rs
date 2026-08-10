@@ -40,7 +40,7 @@ use iota_types::{
     iota_serde::BigInt,
     messages_checkpoint::{CheckpointSequenceNumber, CheckpointTimestamp},
     object::{MoveStructExt, Object, ObjectRead, PastObjectRead},
-    transaction::{TransactionDataAPI, TransactionEnvelope},
+    transaction::{TransactionAPI, TransactionEnvelope},
 };
 use itertools::Itertools;
 use jsonrpsee::{RpcModule, core::RpcResult};

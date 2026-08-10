@@ -17,10 +17,12 @@
 use std::{fs, path::PathBuf};
 
 use fastcrypto::encoding::{Base64, Encoding};
-use iota_sdk_types::{MoveStruct, SenderSignedTransaction, TransactionDigest, UserSignature};
+use iota_sdk_types::{
+    MoveStruct, SenderSignedTransaction, Transaction, TransactionDigest, UserSignature,
+};
 use iota_types::{
     object::{MoveStructExt, Object},
-    transaction::{TransactionData, TransactionDataAPI},
+    transaction::TransactionAPI,
 };
 use iota_vm_sdk::{
     Chain, ChainContext, ExecuteOptions, ExecutionResult, InMemoryStore, LocalVm, ProtocolVersion,
@@ -51,7 +53,7 @@ struct FixtureObject {
 const FUNDED_GAS_COIN_VALUE: u64 = 1_000_000_000_000;
 
 impl Fixture {
-    fn transaction(&self) -> TransactionData {
+    fn transaction(&self) -> Transaction {
         bcs::from_bytes(&b64(&self.tx_b64)).expect("decode tx")
     }
 
@@ -103,7 +105,7 @@ fn chain_context(f: &Fixture) -> ChainContext {
 ///
 /// The fixtures carry the coin balance they were captured with, which need not
 /// cover the protocol maximum a zero declared budget resolves to.
-fn fund_gas_coins_for_max_budget(vm: &mut LocalVm, tx: &TransactionData) {
+fn fund_gas_coins_for_max_budget(vm: &mut LocalVm, tx: &Transaction) {
     for gas_ref in tx.gas() {
         let coin = vm
             .store()
