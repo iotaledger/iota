@@ -704,7 +704,7 @@ impl ReadApi {
             .http
             .dev_inspect_transaction_block(
                 sender_address,
-                Base64::from_bytes(&bcs::to_bytes(&tx)?),
+                Base64::from_bytes(&tx.to_bcs()),
                 gas_price.into(),
                 epoch.into(),
                 additional_args.into(),
