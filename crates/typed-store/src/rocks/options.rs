@@ -68,6 +68,14 @@ pub fn bulk_ingestion_write_options() -> rocksdb::WriteOptions {
     opts
 }
 
+/// Write options for a record that must be on disk before the write returns,
+/// rather than in the operating system's cache until some later sync.
+pub fn synced_write_options() -> rocksdb::WriteOptions {
+    let mut opts = rocksdb::WriteOptions::default();
+    opts.set_sync(true);
+    opts
+}
+
 /// RocksDB options tuned for one-shot bulk ingestion into a freshly created
 /// store, e.g. initial index building, inserting the genesis snapshot, or
 /// restoring a formal snapshot.

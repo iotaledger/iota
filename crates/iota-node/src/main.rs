@@ -14,7 +14,7 @@ use std::{
 use clap::{ArgGroup, Parser};
 use iota_common::sync::async_once_cell::AsyncOnceCell;
 use iota_config::{Config, NodeConfig, node::RunWithRange};
-use iota_core::{index_rebuild_cancellation::RebuildCancelled, runtime::IotaRuntimes};
+use iota_core::{index_rebuild_cancellation::is_cancelled, runtime::IotaRuntimes};
 use iota_metrics::hardware_metrics::register_hardware_metrics;
 use iota_node::{IotaNode, ServerVersion};
 use iota_types::{
@@ -112,7 +112,7 @@ fn main() {
 
     // Initialize logging
     let prometheus_registry = registry_service.default_registry();
-    let (_guard, tracing_handle) = telemetry_subscribers::TelemetryConfig::new()
+    let (telemetry_guard, tracing_handle) = telemetry_subscribers::TelemetryConfig::new()
         .with_env()
         .with_prom_registry(&prometheus_registry)
         .with_disable_span_latency(true)
@@ -164,6 +164,12 @@ fn main() {
     // path reaches it.
     let index_rebuild_cancelled = Arc::new(AtomicBool::new(false));
 
+    // A startup that ends without a node reports the process exit code here
+    // instead of exiting itself, which would skip the log flush in main's
+    // teardown.
+    let startup_failure = Arc::new(AsyncOnceCell::<i32>::new());
+    let startup_failure_clone = startup_failure.clone();
+
     // Client-facing servers run on a dedicated runtime so that external request
     // load never shares worker threads with the node core on `iota_node`.
     let serving_rt_handle = runtimes.serving.handle().clone();
@@ -187,14 +193,20 @@ fn main() {
             Err(e) => {
                 // A rebuild abandoned at shutdown is a clean stop, so an
                 // on-failure supervisor must not restart into a fresh one.
-                if e.chain()
-                    .any(|source| source.downcast_ref::<RebuildCancelled>().is_some())
-                {
+                let exit_code = if is_cancelled(e.as_ref()) {
                     info!("Node startup cancelled by shutdown: {e}");
-                    std::process::exit(0);
-                }
-                error!("Failed to start node: {e:?}");
-                std::process::exit(1);
+                    0
+                } else {
+                    error!("Failed to start node: {e:?}");
+                    1
+                };
+                startup_failure_clone
+                    .set(exit_code)
+                    .expect("a startup failure is reported once");
+                // Returning drops the shutdown sender too, which releases a
+                // main still waiting for the termination signal that a
+                // startup failure of its own never produces.
+                return;
             }
         }
 
@@ -231,23 +243,37 @@ fn main() {
 
     // Stop the node's background work before its runtimes go away. It runs
     // on the node runtime, and `AsyncOnceCell::get` waits for a node that a
-    // signal during startup may never produce, so both are bounded here.
-    runtimes.iota_node.block_on(async {
-        match tokio::time::timeout(SHUTDOWN_TIMEOUT, node_once_cell_shutdown.get()).await {
-            Ok(node) => {
-                if tokio::time::timeout(SHUTDOWN_TIMEOUT, node.shutdown())
-                    .await
-                    .is_err()
-                {
-                    error!("node shutdown timed out, stopping anyway");
+    // failed or cancelled startup never produces, so both are bounded here.
+    let exit_code = runtimes.iota_node.block_on(async {
+        tokio::select! {
+            // A reported startup failure decides the exit code even if the
+            // wait for the node times out in the same poll.
+            biased;
+            exit_code = startup_failure.get() => exit_code,
+            node = tokio::time::timeout(SHUTDOWN_TIMEOUT, node_once_cell_shutdown.get()) => {
+                match node {
+                    Ok(node) => {
+                        if tokio::time::timeout(SHUTDOWN_TIMEOUT, node.shutdown())
+                            .await
+                            .is_err()
+                        {
+                            error!("node shutdown timed out, stopping anyway");
+                        }
+                    }
+                    Err(_) => info!("shutting down before the node finished starting"),
                 }
+                0
             }
-            Err(_) => info!("shutting down before the node finished starting"),
         }
     });
 
     // Drop and wait all runtimes on main thread
     drop(runtimes);
+
+    // Dropping the guard flushes the buffered log lines, so the exit code is
+    // reported only once the last of them is out.
+    drop(telemetry_guard);
+    std::process::exit(exit_code);
 }
 
 #[cfg(not(unix))]

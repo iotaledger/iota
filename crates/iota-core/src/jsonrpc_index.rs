@@ -61,6 +61,7 @@ use typed_store::{
         DBBatch, DBMap, DBOptions, MetricConf, ReadWriteOptions, TaggedDBMap,
         bulk_ingestion_options, bulk_ingestion_options_split_between, bulk_ingestion_write_options,
         default_db_options, list_tables, open_cf_opts, read_size_from_env, safe_drop_db,
+        synced_write_options,
     },
     rocksdb,
     traits::Map,
@@ -652,8 +653,11 @@ impl IndexStoreTables {
             // their data is durable, so data without one comes from a build
             // that was cut short — including when nothing is executed
             // locally and the comparison below has nothing to outrun. An
-            // empty store is the fresh one `seed_meta` covers.
-            return Ok(!self.owner_index.is_empty() || highest_executed_checkpoint.is_some());
+            // empty store is the fresh one `seed_meta` covers. Scanned rather
+            // than `is_empty`, which reads an unreadable index as non-empty
+            // and would wipe a healthy store on a transient read error.
+            let has_data = self.owner_index.safe_iter().next().transpose()?.is_some();
+            return Ok(has_data || highest_executed_checkpoint.is_some());
         };
         // The open anchors the transaction numbering to the watermark's
         // checkpoint, so a checkpoint store rolled back to an older backup
@@ -901,6 +905,8 @@ struct OpenedIndexDb {
     tables: IndexStoreTables,
     db: Arc<Database>,
     history_cf_options: rocksdb::Options,
+    /// Every history bucket found on disk, before the retention floor is
+    /// applied by [`IndexStore::drop_pruned_buckets`].
     history: BTreeMap<EpochId, Arc<HistoryBucket>>,
 }
 
@@ -1368,8 +1374,17 @@ impl JsonRpcIndexRestorer {
             )));
         }
         // The version and the watermark are written by the finalize itself;
-        // only the live state proves the object stream landed.
-        if live_object_count > 0 && reopened.tables.owner_index.is_empty() {
+        // only the live state proves the object stream landed. `is_empty`
+        // has no error channel and reads an unreadable index as non-empty,
+        // so the scan is run here and its failure fails the restore.
+        let owner_index_is_empty = reopened
+            .tables
+            .owner_index
+            .safe_iter()
+            .next()
+            .transpose()?
+            .is_none();
+        if live_object_count > 0 && owner_index_is_empty {
             return Err(StorageError::custom(format!(
                 "the restored JSON-RPC index has an empty owner index after {live_object_count} \
                  live objects"
@@ -1596,7 +1611,7 @@ impl IndexStore {
             max_type_length,
             anchor,
             cancelled,
-        ));
+        )?);
         store.spawn_history_backfill(authority_store.clone(), checkpoint_store.clone());
         Ok(store)
     }
@@ -1889,15 +1904,19 @@ impl IndexStore {
         let opened =
             Self::open_index_db(&path).expect("unable to open the JSON-RPC index database");
         Self::finish_open(opened, registry, max_type_length, 0, Arc::default())
+            .expect("unable to read the JSON-RPC index retention floor")
     }
 
     fn finish_open(
-        opened: OpenedIndexDb,
+        mut opened: OpenedIndexDb,
         registry: &Registry,
         max_type_length: Option<u64>,
         next_sequence_number_floor: TxSequenceNumber,
         cancelled: Arc<AtomicBool>,
-    ) -> Self {
+    ) -> Result<Self, TypedStoreError> {
+        // Dropped before the scan below, so a bucket the floor excludes
+        // cannot seed the transaction numbering.
+        let earliest_retained_epoch = Self::drop_pruned_buckets(&mut opened)?;
         let OpenedIndexDb {
             tables,
             db,
@@ -1929,15 +1948,7 @@ impl IndexStore {
             .max(next_sequence_number_floor)
             .into();
 
-        let earliest_retained_epoch = AtomicU64::new(
-            tables
-                .earliest_retained_epoch
-                .get(&())
-                .expect("failed to read the earliest retained index epoch")
-                .unwrap_or(0),
-        );
-
-        Self {
+        Ok(Self {
             tables,
             db,
             history_cf_options,
@@ -1949,8 +1960,8 @@ impl IndexStore {
             pending_updates: Mutex::new(BTreeMap::new()),
             history_backfill_task: Mutex::new(None),
             cancelled,
-            earliest_retained_epoch,
-        }
+            earliest_retained_epoch: AtomicU64::new(earliest_retained_epoch),
+        })
     }
 
     /// Opens the index database, passing every existing per-epoch history
@@ -2034,6 +2045,33 @@ impl IndexStore {
             history_cf_options,
             history,
         })
+    }
+
+    /// Drops the history column families below the persisted retention floor
+    /// and returns the floor.
+    ///
+    /// A bucket below the floor is one whose drop failed: RocksDB unregisters
+    /// a column family before dropping it, so the failure survives only on
+    /// disk. It is dropped here rather than served again, and a drop that
+    /// fails again still leaves the epoch out of the history. The floor is
+    /// read here rather than in [`Self::open_index_db`] so that a read error
+    /// fails the open instead of passing for a database to wipe, and so
+    /// verifying a restore can reopen the store without mutating it.
+    fn drop_pruned_buckets(opened: &mut OpenedIndexDb) -> Result<EpochId, TypedStoreError> {
+        let earliest_retained_epoch = opened.tables.earliest_retained_epoch.get(&())?.unwrap_or(0);
+        let pruned: Vec<EpochId> = opened
+            .history
+            .range(..earliest_retained_epoch)
+            .map(|(&epoch, _)| epoch)
+            .collect();
+        for epoch in pruned {
+            info!(epoch, "dropping a pruned history column family at open");
+            opened.history.remove(&epoch);
+            if let Err(e) = opened.db.drop_cf(&history_cf_name(epoch)) {
+                warn!(epoch, "failed to drop a pruned history column family: {e}");
+            }
+        }
+        Ok(earliest_retained_epoch)
     }
 
     /// The retained history buckets in scan order: ascending epochs for
@@ -2144,8 +2182,10 @@ impl IndexStore {
     /// at all. It is persisted before the drops and never moves backwards,
     /// so dropped epochs are never backfilled or recreated, even across a
     /// reopen or a raised `epochs_to_retain`. Indexing below it is refused,
-    /// but a bucket that survived a failed drop still serves reads until a
-    /// later pass retries it.
+    /// and an epoch whose drop failed is gone from the store all the same:
+    /// RocksDB unregisters the column family before dropping it, so the
+    /// bucket can no longer be read, and the next open drops the column
+    /// family it left on disk instead of serving that epoch again.
     ///
     /// A query racing a drop may report an error for the dropped epoch's
     /// rows; a retry no longer sees the bucket. Queries block for the
@@ -2171,9 +2211,7 @@ impl IndexStore {
 
         // The drops run under the map's write lock: `ensure_history_bucket`
         // could otherwise hand out a bucket for an epoch whose column family
-        // is dropped a moment later. Each map entry is removed only once its
-        // column family is dropped, so a failed drop stays visible to the
-        // next pruner pass, which retries it.
+        // is dropped a moment later.
         let mut history = self.history.write();
         let persisted = self.earliest_retained_epoch.load(Ordering::Relaxed);
         let Some(earliest_retained) =
@@ -2184,10 +2222,15 @@ impl IndexStore {
         if earliest_retained != persisted {
             // Persisted before dropping anything, so a reopen refuses the
             // dropped epochs from the start instead of backfilling them
-            // again.
-            self.tables
-                .earliest_retained_epoch
-                .insert(&(), &earliest_retained)?;
+            // again. Synced, because RocksDB makes a column-family drop
+            // durable at once while a default write may still be lost, which
+            // would leave the floor below an epoch that is already gone.
+            let mut batch = self.tables.earliest_retained_epoch.batch();
+            batch.insert_batch(
+                &self.tables.earliest_retained_epoch,
+                [((), earliest_retained)],
+            )?;
+            batch.write_opt(&synced_write_options())?;
             self.earliest_retained_epoch
                 .store(earliest_retained, Ordering::Relaxed);
         }
@@ -2202,17 +2245,17 @@ impl IndexStore {
                 epoch,
                 "dropping the JSON-RPC index history of an expired epoch"
             );
-            match self.db.drop_cf(&history_cf_name(epoch)) {
-                Ok(()) => {
-                    history.remove(&epoch);
-                }
-                Err(e) => {
-                    warn!(
-                        epoch,
-                        "failed to drop an expired history column family: {e}"
-                    );
-                }
+            if let Err(e) = self.db.drop_cf(&history_cf_name(epoch)) {
+                warn!(
+                    epoch,
+                    "failed to drop an expired history column family: {e}"
+                );
             }
+            // RocksDB unregisters the column family before it attempts the
+            // drop, so a failed drop leaves a bucket that can neither be read
+            // nor dropped again; keeping it in the map would only break every
+            // query that walks it.
+            history.remove(&epoch);
         }
         Ok(Some(earliest_retained))
     }
@@ -3219,7 +3262,7 @@ mod tests {
     use prometheus_filtered::Registry;
     use typed_store::Map;
 
-    use super::{HistoryBackfillState, IndexStore};
+    use super::{HistoryBackfillState, IndexStore, history_cf_name};
     use crate::{checkpoints::CheckpointStore, test_utils::executed_checkpoint};
 
     /// Opens an `IndexStore` at `path` without running the rebuild path.
@@ -3353,6 +3396,91 @@ mod tests {
                 .unwrap()
                 .len(),
             1
+        );
+    }
+
+    /// RocksDB unregisters a column family before it attempts the drop, so a
+    /// bucket whose drop failed can neither be read nor dropped again:
+    /// `prune` must let it go instead of leaving it for a retry that would
+    /// fail every query walking it.
+    #[tokio::test]
+    async fn test_a_failed_drop_still_removes_the_bucket() {
+        let tmp_dir = iota_common::tempdir();
+        let index_store = open_index_store(tmp_dir.path().to_path_buf());
+        seed_history_buckets(&index_store, 2);
+
+        // Makes the pruner's own drop fail: the column family is already gone.
+        index_store.db.drop_cf(&history_cf_name(0)).unwrap();
+
+        assert_eq!(index_store.prune(1).unwrap(), Some(1));
+        assert_eq!(index_store.history_buckets(false).len(), 1);
+        assert_eq!(
+            index_store
+                .get_transactions(None, None, None, false)
+                .unwrap()
+                .len(),
+            1
+        );
+        assert!(index_store.ensure_history_bucket(0).is_err());
+    }
+
+    /// A failed drop leaves the column family on disk while its bucket is
+    /// already unreadable, so the next open must drop it instead of serving
+    /// the pruned epoch again.
+    #[tokio::test]
+    async fn test_a_bucket_below_the_floor_is_dropped_at_open() {
+        let tmp_dir = iota_common::tempdir();
+        let index_store = open_index_store(tmp_dir.path().to_path_buf());
+        seed_history_buckets(&index_store, 2);
+        assert_eq!(index_store.prune(1).unwrap(), Some(1));
+
+        // Stands in for a drop that failed: the column family is on disk
+        // below the persisted floor.
+        index_store
+            .db
+            .create_cf(&history_cf_name(0), &index_store.history_cf_options)
+            .unwrap();
+
+        let index_store = reopen_index_store(index_store, tmp_dir.path().to_path_buf()).await;
+        assert_eq!(index_store.history_buckets(false).len(), 1);
+        assert!(index_store.ensure_history_bucket(0).is_err());
+        assert_eq!(
+            index_store
+                .get_transactions(None, None, None, false)
+                .unwrap()
+                .len(),
+            1
+        );
+
+        // The drop must reach the disk, not just the bucket map.
+        close_index_store(index_store).await;
+        assert!(
+            !typed_store::rocks::list_tables(tmp_dir.path().to_path_buf())
+                .unwrap()
+                .contains(&history_cf_name(0))
+        );
+    }
+
+    /// A retention floor that cannot be read fails the open, which a restart
+    /// retries: the database itself is intact, so it must not reach the
+    /// wipe-and-rebuild path `IndexStore::new` takes for an unopenable one.
+    #[tokio::test]
+    async fn test_a_failed_floor_read_fails_the_open() {
+        let tmp_dir = iota_common::tempdir();
+        let opened = IndexStore::open_index_db(&tmp_dir.path().join("indexes")).unwrap();
+
+        // Makes the floor read fail: RocksDB unregisters the column family.
+        opened.db.drop_cf("earliest_retained_epoch").unwrap();
+
+        assert!(
+            IndexStore::finish_open(
+                opened,
+                &Registry::default(),
+                Some(128),
+                0,
+                Default::default()
+            )
+            .is_err()
         );
     }
 
@@ -4768,6 +4896,18 @@ mod tests {
         let checkpoint_store = CheckpointStore::new(&dir.path().join("checkpoints"));
         let index_store = open_index_store(dir.path().join("indexes"));
         index_store.db.drop_cf("meta").unwrap();
+        assert!(
+            index_store
+                .tables
+                .needs_to_do_initialization(&checkpoint_store)
+                .is_err()
+        );
+
+        // The watermark-less arm reads the owner index to tell a build that
+        // was cut short from a fresh store.
+        let index_store = open_index_store(dir.path().join("owner-index-error"));
+        index_store.tables.seed_meta().unwrap();
+        index_store.db.drop_cf("owner_index").unwrap();
         assert!(
             index_store
                 .tables
