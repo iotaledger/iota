@@ -359,6 +359,8 @@ pub(crate) struct NodeMetrics {
     pub(crate) strong_blames_received_from_voter: IntCounterVec,
     pub(crate) adaptive_ack_excluded_authorities: IntGauge,
     pub(crate) adaptive_ack_acks_dropped: IntCounter,
+    pub(crate) strong_vote_missing_by_author: IntCounterVec,
+    pub(crate) strong_blames_received_for_author: IntCounterVec,
 }
 
 impl NodeMetrics {
@@ -1439,6 +1441,20 @@ impl NodeMetrics {
             adaptive_ack_acks_dropped: register_int_counter_with_registry!(
                 "adaptive_ack_acks_dropped",
                 "Total pending acknowledgments skipped because their author was in the adaptive-ack exclusion set at proposal time. Skipped refs remain pending and may be included later if the author leaves the exclusion set.",
+                registry;
+                MetricLevel::Warn,
+            ).unwrap(),
+            strong_vote_missing_by_author: register_int_counter_vec_with_registry!(
+                "strong_vote_missing_by_author",
+                "Number of times an authority's transactions were not locally available when a strong-vote payload was built, labeled by that authority. Observed only when consensus_starfish_speed is enabled.",
+                &["author"],
+                registry;
+                MetricLevel::Warn,
+            ).unwrap(),
+            strong_blames_received_for_author: register_int_counter_vec_with_registry!(
+                "strong_blames_received_for_author",
+                "Number of times an authority appeared in the `missing` set of a strong blame received against this node (when acting as leader), labeled by that authority. Observed only when consensus_starfish_speed is enabled.",
+                &["author"],
                 registry;
                 MetricLevel::Warn,
             ).unwrap(),
