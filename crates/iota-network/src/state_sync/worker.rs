@@ -5,9 +5,9 @@
 use std::sync::Arc;
 
 use anemo::async_trait;
-use anyhow::{Context, anyhow};
+use anyhow::{Context, anyhow, ensure};
 use iota_data_ingestion_core::{Reducer, Worker};
-use iota_storage::{verify_checkpoint, verify_checkpoint_linkage};
+use iota_storage::verify_checkpoint_linkage;
 use iota_types::{
     full_checkpoint_content::CheckpointData,
     messages_checkpoint::{
@@ -93,6 +93,8 @@ impl<S: WriteStore + Clone + Send + Sync + 'static> Reducer<StateSyncWorker<S>>
     for StateSyncReducer<S>
 {
     async fn commit(&self, batch: &[VerifiedArchiveCheckpoint]) -> anyhow::Result<()> {
+        self.verify_deferred_signatures(batch).await?;
+
         let mut to_insert = Vec::with_capacity(batch.len());
         let mut prev_checkpoint = None;
         for message in batch {
@@ -132,9 +134,40 @@ impl<S: WriteStore + Clone + Send + Sync + 'static> Reducer<StateSyncWorker<S>>
 }
 
 impl<S: WriteStore + Clone> StateSyncReducer<S> {
+    /// Verifies the authority signatures the workers had to
+    /// defer in parallel. The deferred checkpoints sit at the head of an epoch,
+    /// so by commit time the previous epoch's last checkpoint — which
+    /// carries their committee — is committed and the committee is in the
+    /// store.
+    async fn verify_deferred_signatures(
+        &self,
+        batch: &[VerifiedArchiveCheckpoint],
+    ) -> anyhow::Result<()> {
+        let tasks: Vec<_> = batch
+            .iter()
+            .filter(|message| !message.signatures_verified)
+            .map(|message| {
+                let summary = message.summary.clone();
+                let committee = self.0.get_committee(summary.epoch()).context(format!(
+                    "missing committee for epoch {} in store",
+                    summary.epoch()
+                ))?;
+                Ok(tokio::task::spawn_blocking(move || {
+                    summary
+                        .verify_authority_signatures(&committee)
+                        .map_err(|e| anyhow!("checkpoint signature verification failed: {e}"))
+                }))
+            })
+            .collect::<anyhow::Result<_>>()?;
+        for task in tasks {
+            task.await??;
+        }
+        Ok(())
+    }
+
     /// Chain-checks one checkpoint against its predecessor — the previous
     /// checkpoint of the batch being committed, or the store's copy at the
-    /// start of a batch — and finishes any verification the workers deferred.
+    /// start of a batch.
     fn verify_against_previous(
         &self,
         message: &VerifiedArchiveCheckpoint,
@@ -142,6 +175,14 @@ impl<S: WriteStore + Clone> StateSyncReducer<S> {
     ) -> anyhow::Result<VerifiedCheckpoint> {
         let sequence_number = message.summary.sequence_number;
         if let Some(existing) = self.0.get_checkpoint_by_sequence_number(sequence_number) {
+            // The contents will be inserted under the stored summary, and
+            // mismatched contents would only panic after the transactions are
+            // written, so reject archive data that diverges from the store
+            // before any write.
+            ensure!(
+                existing.digest() == message.summary.digest(),
+                "archive checkpoint {sequence_number} does not match the checkpoint already in the store"
+            );
             return Ok(existing);
         }
 
@@ -158,13 +199,8 @@ impl<S: WriteStore + Clone> StateSyncReducer<S> {
                 ))?,
         };
 
-        if message.signatures_verified {
-            verify_checkpoint_linkage(&prev_checkpoint, message.summary.clone())
-                .map(VerifiedCheckpoint::new_unchecked)
-                .map_err(|_| anyhow!("checkpoint linkage verification failed"))
-        } else {
-            verify_checkpoint(&prev_checkpoint, &self.0, message.summary.clone())
-                .map_err(|_| anyhow!("checkpoint verification failed"))
-        }
+        verify_checkpoint_linkage(&prev_checkpoint, message.summary.clone())
+            .map(VerifiedCheckpoint::new_unchecked)
+            .map_err(|_| anyhow!("checkpoint linkage verification failed"))
     }
 }
