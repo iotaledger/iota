@@ -4155,7 +4155,7 @@ async fn test_dynamic_object_field_lookup_with_wrapped_name_type() {
         create_and_retrieve_df(&Identifier::from_static("add_ofield_with_address_name")).await;
     assert_eq!(fields.len(), 1);
     let value_object_id = fields[0].object_id;
-    let name_type = fields[0].name.type_.clone();
+    let name_type = fields[0].name.type_tag.clone();
 
     let id = authority_state
         .get_dynamic_field_object_id(parent, name_type.clone(), &fields[0].bcs_name)
@@ -4175,7 +4175,7 @@ async fn test_dynamic_object_field_lookup_with_wrapped_name_type() {
         create_and_retrieve_df(&Identifier::from_static("add_field_with_address_name")).await;
     assert_eq!(fields.len(), 1);
     let id = authority_state
-        .get_dynamic_field_object_id(parent, fields[0].name.type_.clone(), &fields[0].bcs_name)
+        .get_dynamic_field_object_id(parent, fields[0].name.type_tag.clone(), &fields[0].bcs_name)
         .unwrap();
     assert_eq!(id, Some(fields[0].object_id));
 }
