@@ -5,12 +5,14 @@
 use iota_sdk_crypto::Signer;
 use iota_sdk_types::{
     Address,
-    crypto::{Intent, IntentMessage, PersonalMessage, Secp256k1Signature},
+    crypto::{
+        Intent, IntentMessage, MultisigAggregatedSignature, MultisigCommittee, MultisigMember,
+        MultisigMemberSignature, PersonalMessage, Secp256k1Signature,
+    },
 };
 
 use crate::{
     error::IotaError,
-    multisig::{MultiSig, MultiSigPublicKey, MultisigMember, MultisigMemberSignature},
     signature::{AuthenticatorTrait, VerifyParams},
     utils::multisig_keys,
 };
@@ -24,7 +26,7 @@ fn verify_rejects_signature_pubkey_scheme_mismatch() {
     let (kp1, kp2, _) = multisig_keys();
 
     let multisig_pk =
-        MultiSigPublicKey::new(vec![MultisigMember::new(kp1.public_key(), 1)], 1).unwrap();
+        MultisigCommittee::new(vec![MultisigMember::new(kp1.public_key(), 1)], 1).unwrap();
     let multisig_address: Address = (&multisig_pk).into();
 
     let intent_msg = IntentMessage::new(
@@ -34,7 +36,7 @@ fn verify_rejects_signature_pubkey_scheme_mismatch() {
 
     // Sign with the Secp256k1 key even though the committee member is Ed25519.
     let secp_sig: Secp256k1Signature = kp2.sign(&*intent_msg.signing_digest());
-    let multisig = MultiSig::new_unchecked(
+    let multisig = MultisigAggregatedSignature::new_unchecked(
         vec![MultisigMemberSignature::Secp256k1(secp_sig)],
         0b1,
         multisig_pk,
