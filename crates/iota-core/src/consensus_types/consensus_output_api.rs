@@ -151,7 +151,6 @@ impl ConsensusOutputAPI for starfish_core::CommittedSubDag {
             .misbehavior_counts
             .iter()
             .map(|counts| match counts {
-                // V1 counts predate the bundle-part counter.
                 starfish_core::MisbehaviorCounts::V1(v1) => (
                     v1.faulty_blocks_provable,
                     v1.faulty_blocks_unprovable,

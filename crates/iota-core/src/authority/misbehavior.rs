@@ -151,8 +151,7 @@ pub(crate) fn observations_from_consensus_output(
     match version {
         MisbehaviorReportVersion::V1 => {
             // The V1 report format has no bundle-part category; fold those
-            // counts into the unprovable bucket, where they were counted
-            // before the split.
+            // counts into the unprovable bucket.
             let unprovable = project(counts.faulty_blocks_unprovable, "faulty_blocks_unprovable");
             let bundle_parts = project(counts.invalid_bundle_parts, "invalid_bundle_parts");
             let folded = unprovable

@@ -535,9 +535,9 @@ impl MisbehaviorObservationsV1 {
 }
 
 /// V2 misbehavior observations: the V1 categories plus a dedicated
-/// per-authority count of invalid bundle parts (previously folded into
-/// `faulty_blocks_unprovable`). Field order is part of the wire format — BCS
-/// serializes named struct fields in declaration order.
+/// per-authority count of invalid bundle parts (counted under
+/// `faulty_blocks_unprovable` in the V1 format). Field order is part of the
+/// wire format — BCS serializes named struct fields in declaration order.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct MisbehaviorObservationsV2 {
     pub faulty_blocks_provable: Vec<u64>,
