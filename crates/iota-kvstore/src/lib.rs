@@ -50,7 +50,7 @@ pub trait KeyValueStoreReader {
     async fn get_transactions(
         &mut self,
         transactions: &[TransactionDigest],
-    ) -> Result<Vec<Transaction>, Self::Error>;
+    ) -> Result<Vec<TransactionData>, Self::Error>;
 
     /// Fetches a list `(sequence number, digest)` pairs for transactions
     /// affecting the given address, ordered by [`TransactionsOrder`] and capped
@@ -115,7 +115,10 @@ pub trait KeyValueStoreWriter {
     async fn save_objects(&mut self, objects: &[&Object]) -> Result<(), Self::Error>;
 
     /// Persists a list of transactions to the store.
-    async fn save_transactions(&mut self, transactions: &[Transaction]) -> Result<(), Self::Error>;
+    async fn save_transactions(
+        &mut self,
+        transactions: &[TransactionData],
+    ) -> Result<(), Self::Error>;
 
     /// Persists a mapping of `(` [`Address`], `transaction_sequence_number`
     /// `)` to `TransactionDigest` for every affected address.
@@ -149,14 +152,14 @@ pub struct Checkpoint {
 /// Represents all stored Key-Value data associated with a transaction,
 /// including its effects, events, and the checkpoint number it belongs to.
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Transaction {
+pub struct TransactionData {
     pub transaction: TransactionEnvelope,
     pub effects: TransactionEffects,
     pub events: Option<TransactionEvents>,
     pub checkpoint_number: CheckpointSequenceNumber,
 }
 
-impl Transaction {
+impl TransactionData {
     pub fn new(
         checkpoint_transaction: &CheckpointTransaction,
         checkpoint_sequence_number: CheckpointSequenceNumber,

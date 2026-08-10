@@ -27,7 +27,7 @@ use iota_types::{
 use serde::{Deserialize, Serialize};
 use tracing::error;
 
-use crate::{Checkpoint, KeyValueStoreReader, KeyValueStoreWriter, Transaction};
+use crate::{Checkpoint, KeyValueStoreReader, KeyValueStoreWriter, TransactionData};
 
 pub const OBJECTS_TABLE: &str = "objects";
 pub const TRANSACTIONS_TABLE: &str = "transactions";
@@ -64,9 +64,12 @@ impl KeyValueStoreWriter for BigTableClient {
             .map_err(Into::into)
     }
 
-    async fn save_transactions(&mut self, transactions: &[Transaction]) -> Result<(), Self::Error> {
+    async fn save_transactions(
+        &mut self,
+        transactions: &[TransactionData],
+    ) -> Result<(), Self::Error> {
         let mut rows = Vec::with_capacity(transactions.len());
-        for Transaction {
+        for TransactionData {
             transaction,
             effects,
             events,
@@ -179,7 +182,7 @@ impl KeyValueStoreReader for BigTableClient {
     async fn get_transactions(
         &mut self,
         transactions: &[TransactionDigest],
-    ) -> Result<Vec<Transaction>, Self::Error> {
+    ) -> Result<Vec<TransactionData>, Self::Error> {
         let keys = transactions.iter().map(|tx| tx.inner().to_vec()).collect();
         let mut result = vec![];
         for row in self.multi_get(TRANSACTIONS_TABLE, keys, None).await? {
@@ -207,7 +210,7 @@ impl KeyValueStoreReader for BigTableClient {
                     }
                 }
             }
-            result.push(Transaction {
+            result.push(TransactionData {
                 transaction: transaction
                     .ok_or_else(|| anyhow::anyhow!("transaction field is missing"))?,
                 effects: effects.ok_or_else(|| anyhow::anyhow!("effects field is missing"))?,
