@@ -7,7 +7,7 @@ mod tests {
     use std::{sync::Arc, time::Duration};
 
     use diesel::{ExpressionMethods, QueryDsl, RunQueryDsl};
-    use fastcrypto::encoding::{Base58, Base64, Encoding};
+    use fastcrypto::encoding::{Base58, Encoding};
     use iota_graphql_rpc::{
         client::{ClientError, simple_client::GraphqlQueryVariable},
         config::{ConnectionConfig, Limits, ServiceConfig},
