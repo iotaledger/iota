@@ -96,7 +96,7 @@ async fn index_pruning_drops_expired_epochs_on_a_live_node() {
         .fullnode_handle
         .iota_node
         .state()
-        .indexes
+        .jsonrpc_indexes_store
         .clone()
         .unwrap();
 

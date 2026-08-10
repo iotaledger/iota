@@ -809,8 +809,8 @@ pub async fn download_formal_snapshot(
     snapshot_store_config: ObjectStoreConfig,
     num_parallel_downloads: NonZeroUsize,
     verify: SnapshotVerifyMode,
-    skip_jsonrpc_indexes: bool,
     skip_grpc_indexes: bool,
+    skip_jsonrpc_indexes: bool,
     disable_progress_bar: bool,
 ) -> Result<(), anyhow::Error> {
     let m = make_multi_progress(disable_progress_bar);
@@ -1072,6 +1072,19 @@ pub async fn download_formal_snapshot(
         AuthorityStore::open_no_genesis(perpetual_db.clone(), false, &Registry::default())?;
     checkpoint_store.ensure_current_epoch_info(&authority_store)?;
 
+    // Finalize the gRPC live-state index store so the node opens it in place
+    // instead of re-indexing. All RocksDB handles close before the rename
+    // below.
+    if let Some(grpc_indexes) = grpc_indexes {
+        grpc_indexes
+            .finalize_and_verify_restore(
+                &path.join(GRPC_INDEXES_DIR),
+                last_checkpoint.sequence_number,
+                num_live_objects,
+            )
+            .await?;
+    }
+
     // Finalize the JSON-RPC index store so the node opens it in place
     // instead of re-indexing. All RocksDB handles close before the rename
     // below.
@@ -1087,19 +1100,6 @@ pub async fn download_formal_snapshot(
             num_live_objects,
         )
         .await?;
-    }
-
-    // Finalize the gRPC live-state index store so the node opens it in place
-    // instead of re-indexing. All RocksDB handles close before the rename
-    // below.
-    if let Some(grpc_indexes) = grpc_indexes {
-        grpc_indexes
-            .finalize_and_verify_restore(
-                &path.join(GRPC_INDEXES_DIR),
-                last_checkpoint.sequence_number,
-                num_live_objects,
-            )
-            .await?;
     }
 
     let new_path = path.parent().unwrap().join("live");

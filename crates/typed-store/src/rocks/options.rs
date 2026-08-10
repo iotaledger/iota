@@ -102,7 +102,12 @@ impl BulkIngestionOptions {
 }
 
 /// Memtable budget for one bulk-ingestion store when `stores` of them are
-/// written at once: the whole-database cap and the per-column-family share.
+/// written at once. Returns `(db_write_buffer_size, cf_memory_budget)`: the
+/// upper bound on memtable memory across all column families of one database
+/// (80% of system RAM split between the stores; large memtables give the
+/// flushing threads enough buffer to keep up with the writers), and the
+/// memtable budget of a single column family within it (25% of system RAM
+/// split between the stores, still capped by the whole-database bound).
 fn write_buffer_budget(total_memory_bytes: u64, stores: usize) -> (usize, usize) {
     // A failed memory probe reports 0, and RocksDB reads a whole-database cap
     // of 0 as unlimited; a measured limit is used as is, however small.

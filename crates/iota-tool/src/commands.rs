@@ -730,8 +730,8 @@ impl ToolCommand {
                     snapshot_store_config,
                     num_parallel_downloads,
                     verify,
-                    skip_jsonrpc_indexes,
                     skip_grpc_indexes,
+                    skip_jsonrpc_indexes,
                     disable_progress_bar,
                 )
                 .await?;
