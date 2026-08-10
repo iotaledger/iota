@@ -17,9 +17,12 @@
 use std::path::PathBuf;
 
 use anyhow::{Context, Result};
-use fastcrypto::encoding::{Base64, Encoding};
 use iota_sdk_types::{SenderSignedTransaction, Transaction, UserSignature};
-use iota_types::{effects::TransactionEffectsAPI, object::Object, transaction::TransactionAPI};
+use iota_types::{
+    effects::TransactionEffectsAPI,
+    object::{Object, ObjectInner},
+    transaction::TransactionAPI,
+};
 use iota_vm_sdk::{
     Chain, ChainContext, DebugConfig, ExecuteOptions, InMemoryStore, LocalVm, ProfileOutput,
     ProfileSink, ProtocolVersion, Store,
