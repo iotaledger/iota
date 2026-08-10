@@ -138,12 +138,12 @@ fn get_congested_objects_and_feedback_suggested_gas_price(
     match status {
         ExecutionStatus::Failure {
             error:
-                ExecutionError::ExecutionCancelledDueToSharedObjectCongestion { congested_objects },
+                ExecutionError::ExecutionCanceledDueToSharedObjectCongestion { congested_objects },
             ..
         } => Some((congested_objects, None)),
         ExecutionStatus::Failure {
             error:
-                ExecutionError::ExecutionCancelledDueToSharedObjectCongestionV2 {
+                ExecutionError::ExecutionCanceledDueToSharedObjectCongestionV2 {
                     congested_objects,
                     suggested_gas_price,
                 },

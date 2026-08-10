@@ -18,7 +18,7 @@ use fastcrypto::{encoding::Base64, hash::HashFunction};
 use iota_protocol_config::ProtocolConfig;
 pub use iota_sdk_types::Transaction as TransactionData;
 use iota_sdk_types::{
-    Address, Argument, CancelledTransaction, CertificateDigest, Command, ConsensusCommitDigest,
+    Address, Argument, CanceledTransaction, CertificateDigest, Command, ConsensusCommitDigest,
     ConsensusCommitPrologueV1, ConsensusDeterminedVersionAssignments, EndOfEpochTransactionKind,
     Event, GasPayment, GenesisObject, GenesisTransaction, Identifier, Input, MakeMoveVector,
     MergeCoins, MoveAuthenticator, MoveCall, MoveStruct, ObjectDigest, ObjectId, ObjectReference,
@@ -2394,7 +2394,7 @@ impl VerifiedTransaction {
         round: u64,
         commit_timestamp_ms: CheckpointTimestamp,
         consensus_commit_digest: ConsensusCommitDigest,
-        cancelled_transactions: Vec<CancelledTransaction>,
+        canceled_transactions: Vec<CanceledTransaction>,
     ) -> Self {
         ConsensusCommitPrologueV1 {
             epoch,
@@ -2404,8 +2404,8 @@ impl VerifiedTransaction {
             commit_timestamp_ms,
             consensus_commit_digest,
             consensus_determined_version_assignments:
-                ConsensusDeterminedVersionAssignments::CancelledTransactions {
-                    cancelled_transactions,
+                ConsensusDeterminedVersionAssignments::CanceledTransactions {
+                    canceled_transactions,
                 },
         }
         .pipe(TransactionKind::ConsensusCommitPrologueV1)

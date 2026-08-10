@@ -25,7 +25,7 @@ use iota_protocol_config::{
     Chain, PerObjectCongestionControlMode, ProtocolConfig, ProtocolVersion,
 };
 use iota_sdk_types::{
-    Address, Argument, CancelledTransaction, CheckpointSequenceNumber, Command,
+    Address, Argument, CanceledTransaction, CheckpointSequenceNumber, Command,
     ConsensusDeterminedVersionAssignments, Digest, EpochId, ExecutionError, ExecutionStatus,
     GasPayment, Identifier, MoveStruct, ObjectData, ObjectDigest, ObjectId, ObjectReference, Owner,
     ProgrammableTransaction, SharedObjectReference, StructTag, TransactionDigest,
@@ -6922,8 +6922,8 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
     {
         assert!(matches!(
             &prologue_txn.consensus_determined_version_assignments,
-            ConsensusDeterminedVersionAssignments::CancelledTransactions{ cancelled_transactions }
-            if cancelled_transactions == &[CancelledTransaction{
+            ConsensusDeterminedVersionAssignments::CanceledTransactions{ canceled_transactions }
+            if canceled_transactions == &[CanceledTransaction{
                  digest: *cancelled_txn.digest(),
                  version_assignments: vec![
                     VersionAssignment::new(

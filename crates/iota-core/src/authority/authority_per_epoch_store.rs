@@ -31,7 +31,7 @@ use iota_protocol_config::{
     Chain, PerObjectCongestionControlMode, ProtocolConfig, ProtocolVersion,
 };
 use iota_sdk_types::{
-    Address, CancelledTransaction, CheckpointTimestamp, ObjectId, ObjectReference, RandomnessRound,
+    Address, CanceledTransaction, CheckpointTimestamp, ObjectId, ObjectReference, RandomnessRound,
     SenderSignedTransaction, TransactionDigest, TransactionEffects, TransactionEffectsDigest,
     TransactionKind, UserSignature, Version, VersionAssignment,
     checkpoint::{CheckpointContents, CheckpointSummary},
@@ -4105,7 +4105,7 @@ impl AuthorityPerEpochStore {
             }
         }
 
-        let mut cancelled_transactions: Vec<CancelledTransaction> = Vec::new();
+        let mut cancelled_transactions: Vec<CanceledTransaction> = Vec::new();
 
         let mut shared_input_next_version = HashMap::new();
         for txn in transactions.iter() {
@@ -4119,7 +4119,7 @@ impl AuthorityPerEpochStore {
                         self.protocol_config
                             .congestion_control_gas_price_feedback_mechanism(),
                     );
-                    cancelled_transactions.push(CancelledTransaction {
+                    cancelled_transactions.push(CanceledTransaction {
                         digest: *txn.digest(),
                         version_assignments,
                     });
