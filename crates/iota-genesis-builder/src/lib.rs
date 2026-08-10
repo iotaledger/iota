@@ -1196,7 +1196,7 @@ mod test {
     use iota_sdk_types::Address;
     use iota_types::crypto::{
         AccountKeyPair, AuthorityKeyPair, NetworkKeyPair, generate_proof_of_possession,
-        get_key_pair_from_rng,
+        get_key_pair, get_key_pair_from_rng,
     };
 
     use crate::{Builder, validator_info::ValidatorInfo};
@@ -1227,8 +1227,7 @@ mod test {
 
         let authority_key: AuthorityKeyPair = get_key_pair_from_rng(&mut rand::rngs::OsRng).1;
         let protocol_key: NetworkKeyPair = get_key_pair_from_rng(&mut rand::rngs::OsRng).1;
-        let account_key = AccountKeyPair::random();
-        let account_address = account_key.public_key().derive_address();
+        let (account_address, _account_key): (_, AccountKeyPair) = get_key_pair();
         let network_key: NetworkKeyPair = get_key_pair_from_rng(&mut rand::rngs::OsRng).1;
         let validator = ValidatorInfo {
             name: "0".into(),

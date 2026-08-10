@@ -30,8 +30,10 @@ use iota_test_transaction_builder::{
     publish_simple_warrior_package,
 };
 use iota_types::{
-    crypto::AccountKeyPair, digests::ChainIdentifier,
-    programmable_transaction_builder::ProgrammableTransactionBuilder, transaction::CallArg,
+    crypto::{AccountKeyPair, get_key_pair},
+    digests::ChainIdentifier,
+    programmable_transaction_builder::ProgrammableTransactionBuilder,
+    transaction::CallArg,
     utils::to_sender_signed_transaction,
 };
 use itertools::Itertools;
@@ -940,8 +942,7 @@ fn get_newly_indexed_optimistic_transaction() -> Result<(), anyhow::Error> {
     } = ApiTestSetup::get_or_init();
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, 1).await;
-        let sender_kp = AccountKeyPair::random();
-        let sender = sender_kp.public_key().derive_address();
+        let (sender, sender_kp): (_, AccountKeyPair) = get_key_pair();
 
         let gas_ref = cluster
             .fund_address_and_return_gas(
@@ -1031,8 +1032,7 @@ fn get_newly_created_optimistically_indexed_event() -> Result<(), anyhow::Error>
     } = ApiTestSetup::get_or_init();
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, 1).await;
-        let sender_kp = AccountKeyPair::random();
-        let sender = sender_kp.public_key().derive_address();
+        let (sender, sender_kp): (_, AccountKeyPair) = get_key_pair();
 
         let gas_ref = cluster
             .fund_address_and_return_gas(
@@ -1860,8 +1860,7 @@ fn try_get_object_before_version() {
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, 1).await;
 
-        let keypair = AccountKeyPair::random();
-        let sender = keypair.public_key().derive_address();
+        let (sender, keypair): (_, AccountKeyPair) = get_key_pair();
         let receiver = AccountKeyPair::random().public_key().derive_address();
 
         let gas_ref = cluster
@@ -2031,8 +2030,7 @@ fn find_transaction_for_wrapped_or_deleted_object() -> Result<(), anyhow::Error>
 
     runtime.block_on(async move {
         // 1) Set up wallet and fund it
-        let keypair = AccountKeyPair::random();
-        let address = keypair.public_key().derive_address();
+        let (address, keypair): (_, AccountKeyPair) = get_key_pair();
         let gas = cluster
             .fund_address_and_return_gas(
                 cluster.get_reference_gas_price().await,
@@ -2360,8 +2358,7 @@ fn find_transaction_for_create_and_wrap_same_ptb() -> Result<(), anyhow::Error> 
 
     runtime.block_on(async move {
         // 1) Set up the wallet and fund it with gas
-        let keypair = AccountKeyPair::random();
-        let address = keypair.public_key().derive_address();
+        let (address, keypair): (_, AccountKeyPair) = get_key_pair();
         let gas = cluster
             .fund_address_and_return_gas(
                 cluster.get_reference_gas_price().await,
@@ -2588,8 +2585,7 @@ fn get_transaction_block_with_unwrapped_object_changes() -> Result<(), anyhow::E
     } = ApiTestSetup::get_or_init();
 
     runtime.block_on(async move {
-        let keypair = AccountKeyPair::random();
-        let address = keypair.public_key().derive_address();
+        let (address, keypair): (_, AccountKeyPair) = get_key_pair();
         let keypair = SimpleKeypair::from(keypair);
         let gas = cluster
             .fund_address_and_return_gas(

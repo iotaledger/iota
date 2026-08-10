@@ -21,7 +21,9 @@ use iota_grpc_types::{
 use iota_sdk_types::{TransactionDigest, TransactionEffects};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::random_object_ref, crypto::AccountKeyPair, effects::TestEffectsBuilder,
+    base_types::random_object_ref,
+    crypto::{AccountKeyPair, get_key_pair},
+    effects::TestEffectsBuilder,
     transaction::VerifiedTransaction,
 };
 use prost::Message;
@@ -36,8 +38,7 @@ fn create_test_transaction() -> (
     Arc<VerifiedTransaction>,
     TransactionEffects,
 ) {
-    let key = AccountKeyPair::random();
-    let sender = key.public_key().derive_address();
+    let (sender, key): (_, AccountKeyPair) = get_key_pair();
     let gas = random_object_ref();
     let tx = TestTransactionBuilder::new(sender, gas, 1000)
         .transfer(random_object_ref(), sender)

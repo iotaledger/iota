@@ -46,8 +46,7 @@ fn test_signed_values() {
     let (_a1, sec1): (_, AuthorityKeyPair) = get_key_pair();
     let (_a2, sec2): (_, AuthorityKeyPair) = get_key_pair();
     let (_a3, sec3): (_, AuthorityKeyPair) = get_key_pair();
-    let sender_sec = AccountKeyPair::random();
-    let a_sender = sender_sec.public_key().derive_address();
+    let (a_sender, sender_sec): (_, AccountKeyPair) = get_key_pair();
     let sender_sec2 = AccountKeyPair::random();
 
     authorities.insert(
@@ -141,8 +140,7 @@ fn test_certificates() {
     let (_a1, sec1): (_, AuthorityKeyPair) = get_key_pair();
     let (a2, sec2): (_, AuthorityKeyPair) = get_key_pair();
     let (_a3, sec3): (_, AuthorityKeyPair) = get_key_pair();
-    let sender_sec = AccountKeyPair::random();
-    let a_sender = sender_sec.public_key().derive_address();
+    let (a_sender, sender_sec): (_, AccountKeyPair) = get_key_pair();
 
     let mut authorities: BTreeMap<AuthorityPublicKeyBytes, u64> = BTreeMap::new();
     authorities.insert(
@@ -499,8 +497,7 @@ fn test_digest_caching() {
     let (_a2, sec2): (_, AuthorityKeyPair) = get_key_pair();
 
     let sa1 = AccountKeyPair::random().public_key().derive_address();
-    let ssec2 = AccountKeyPair::random();
-    let sa2 = ssec2.public_key().derive_address();
+    let (sa2, ssec2): (_, AccountKeyPair) = get_key_pair();
 
     authorities.insert(sec1.public().into(), 1);
     authorities.insert(sec2.public().into(), 0);
@@ -583,10 +580,8 @@ fn test_digest_caching() {
 fn test_user_signature_committed_in_transactions() {
     // TODO: refactor this test to not reuse the same keys for user and authority
     // signing
-    let sender_sec = AccountKeyPair::random();
-    let a_sender = sender_sec.public_key().derive_address();
-    let sender_sec2 = AccountKeyPair::random();
-    let a_sender2 = sender_sec2.public_key().derive_address();
+    let (a_sender, sender_sec): (_, AccountKeyPair) = get_key_pair();
+    let (a_sender2, sender_sec2): (_, AccountKeyPair) = get_key_pair();
 
     let gas_price = 10;
     let tx = Transaction::new_transfer(
@@ -636,10 +631,8 @@ fn test_user_signature_committed_in_signed_transactions() {
     // TODO: refactor this test to not reuse the same keys for user and authority
     // signing
     let (_a1, sec1): (_, AuthorityKeyPair) = get_key_pair();
-    let sender_sec = AccountKeyPair::random();
-    let a_sender = sender_sec.public_key().derive_address();
-    let sender_sec2 = AccountKeyPair::random();
-    let a_sender2 = sender_sec2.public_key().derive_address();
+    let (a_sender, sender_sec): (_, AccountKeyPair) = get_key_pair();
+    let (a_sender2, sender_sec2): (_, AccountKeyPair) = get_key_pair();
 
     let epoch = 0;
     let gas_price = 10;
@@ -1265,10 +1258,8 @@ fn test_certificate_digest() {
     let (committee, key_pairs) = Committee::new_simple_test_committee();
 
     let receiver = AccountKeyPair::random().public_key().derive_address();
-    let sender1_sec = AccountKeyPair::random();
-    let sender1 = sender1_sec.public_key().derive_address();
-    let sender2_sec = AccountKeyPair::random();
-    let sender2 = sender2_sec.public_key().derive_address();
+    let (sender1, sender1_sec): (_, AccountKeyPair) = get_key_pair();
+    let (sender2, sender2_sec): (_, AccountKeyPair) = get_key_pair();
 
     let gas_price = 10;
     let make_tx = |sender, sender_sec: AccountKeyPair| {

@@ -14,7 +14,7 @@ use iota_sdk_types::{
     TransactionDigest, TransactionEffects, Version,
 };
 use iota_types::{
-    crypto::AccountKeyPair,
+    crypto::{AccountKeyPair, get_key_pair},
     effects::{InputSharedObject, TransactionEffectsAPI},
     executable_transaction::VerifiedExecutableTransaction,
     object::Object,
@@ -61,8 +61,7 @@ impl TestSetup {
         max_execution_duration_per_commit: u64,
         max_congestion_limit_overshoot_per_commit: u64,
     ) -> Self {
-        let sender_key = AccountKeyPair::random();
-        let sender = sender_key.public_key().derive_address();
+        let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
 
         let mut protocol_config =
             ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);

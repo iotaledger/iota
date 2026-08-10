@@ -15,7 +15,7 @@ use iota_common::sync::notify_read::{NotifyRead, Registration};
 use iota_macros::{register_fail_point, sim_test};
 use iota_sdk_types::{Address, TransactionDigest};
 use iota_types::{
-    crypto::{AccountKeyPair, deterministic_random_account_key},
+    crypto::{AccountKeyPair, deterministic_random_account_key, get_key_pair},
     effects::TransactionEffectsAPI,
     object::{Object, generate_test_gas_objects},
     quorum_driver_types::{
@@ -39,8 +39,7 @@ async fn setup() -> (
     AuthorityAggregator<LocalAuthorityClient>,
     TransactionEnvelope,
 ) {
-    let keypair = AccountKeyPair::random();
-    let sender = keypair.public_key().derive_address();
+    let (sender, keypair): (_, AccountKeyPair) = get_key_pair();
     let gas_object = Object::with_owner_for_testing(sender);
     let (aggregator, authorities, genesis, _) =
         init_local_authorities(4, vec![gas_object.clone()]).await;
@@ -561,8 +560,7 @@ async fn test_quorum_driver_handling_overload_and_retry() {
     telemetry_subscribers::init_for_testing();
 
     // Setup
-    let keypair = AccountKeyPair::random();
-    let sender = keypair.public_key().derive_address();
+    let (sender, keypair): (_, AccountKeyPair) = get_key_pair();
     let gas_object = Object::with_owner_for_testing(sender);
     let (mut aggregator, authorities, genesis, _) =
         init_local_authorities(4, vec![gas_object.clone()]).await;

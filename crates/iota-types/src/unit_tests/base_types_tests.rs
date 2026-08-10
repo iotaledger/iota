@@ -48,8 +48,7 @@ fn test_bcs_enum() {
 
 #[test]
 fn test_signatures() {
-    let sec1 = AccountKeyPair::random();
-    let addr1 = sec1.public_key().derive_address();
+    let (addr1, sec1): (_, AccountKeyPair) = get_key_pair();
     let addr2 = AccountKeyPair::random().public_key().derive_address();
 
     let foo = IntentMessage::new(Intent::iota_transaction(), Foo("hello".into()));

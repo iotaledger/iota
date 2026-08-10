@@ -6,7 +6,10 @@
 use std::sync::Arc;
 
 use iota_sdk_types::{Address, ObjectId};
-use iota_types::{crypto::AccountKeyPair, object::Object};
+use iota_types::{
+    crypto::{AccountKeyPair, get_key_pair},
+    object::Object,
+};
 use proptest::prelude::*;
 
 use crate::executor::Executor;
@@ -41,8 +44,7 @@ pub struct AccountCurrent {
 
 impl Account {
     pub fn new_random() -> Self {
-        let key = AccountKeyPair::random();
-        let address = key.public_key().derive_address();
+        let (address, key): (_, AccountKeyPair) = get_key_pair();
         Self { address, key }
     }
 }

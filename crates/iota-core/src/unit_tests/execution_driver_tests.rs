@@ -15,7 +15,7 @@ use iota_sdk_types::{Owner, TransactionDigest, TransactionEffects};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     committee::Committee,
-    crypto::AccountKeyPair,
+    crypto::{AccountKeyPair, get_key_pair},
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
     error::{IotaError, IotaResult},
     object::Object,
@@ -501,8 +501,7 @@ async fn test_per_object_overload() {
     telemetry_subscribers::init_for_testing();
 
     // Initialize a network with 1 account and 2000 gas objects.
-    let key = AccountKeyPair::random();
-    let addr = key.public_key().derive_address();
+    let (addr, key): (_, AccountKeyPair) = get_key_pair();
     const NUM_GAS_OBJECTS_PER_ACCOUNT: usize = 2000;
     let gas_objects = (0..NUM_GAS_OBJECTS_PER_ACCOUNT)
         .map(|_| Object::with_owner_for_testing(addr))
@@ -631,8 +630,7 @@ async fn test_txn_age_overload() {
     telemetry_subscribers::init_for_testing();
 
     // Initialize a network with 1 account and 3 gas objects.
-    let key = AccountKeyPair::random();
-    let addr = key.public_key().derive_address();
+    let (addr, key): (_, AccountKeyPair) = get_key_pair();
     let gas_objects = (0..3)
         .map(|_| Object::with_owner_for_testing(addr))
         .collect_vec();
@@ -766,8 +764,7 @@ async fn test_authority_txn_signing_pushback() {
     });
 
     // Create one sender, two recipients addresses, and 2 gas objects.
-    let sender_key = AccountKeyPair::random();
-    let sender = sender_key.public_key().derive_address();
+    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
     let recipient1 = AccountKeyPair::random().public_key().derive_address();
     let recipient2 = AccountKeyPair::random().public_key().derive_address();
     let gas_object1 = Object::with_owner_for_testing(sender);
@@ -894,8 +891,7 @@ async fn test_authority_txn_execution_pushback() {
     });
 
     // Create one sender, one recipient addresses, and 2 gas objects.
-    let sender_key = AccountKeyPair::random();
-    let sender = sender_key.public_key().derive_address();
+    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
     let recipient = AccountKeyPair::random().public_key().derive_address();
     let gas_object1 = Object::with_owner_for_testing(sender);
     let gas_object2 = Object::with_owner_for_testing(sender);

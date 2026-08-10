@@ -7,7 +7,7 @@
 
 use iota_sdk_types::{MoveStruct, ObjectId, Owner, Transaction, TransactionDigest, Version};
 use iota_types::{
-    crypto::AccountKeyPair,
+    crypto::{AccountKeyPair, get_key_pair},
     object::{MoveStructExt, Object},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, TransactionAPI},
@@ -50,8 +50,7 @@ fn transfer_tx(sender: Address, gas: &Object, recipient: Address, amount: u64) -
 
 #[test]
 fn standard_signature_is_verified_on_success() {
-    let key = AccountKeyPair::random();
-    let sender = key.public_key().derive_address();
+    let (sender, key): (_, AccountKeyPair) = get_key_pair();
     let gas = gas_coin(sender);
     let recipient = Address::from(ObjectId::random());
 
@@ -104,8 +103,7 @@ fn invalid_standard_signature_is_rejected() {
 /// failure: the ed25519 signature verified fine.
 #[test]
 fn standard_signature_stays_verified_when_body_aborts() {
-    let key = AccountKeyPair::random();
-    let sender = key.public_key().derive_address();
+    let (sender, key): (_, AccountKeyPair) = get_key_pair();
     let gas = gas_coin(sender);
     let recipient = Address::from(ObjectId::random());
 

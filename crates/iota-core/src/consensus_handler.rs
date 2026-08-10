@@ -925,7 +925,7 @@ mod tests {
     use iota_types::{
         base_types::{AuthorityName, random_object_ref},
         committee::Committee,
-        crypto::AccountKeyPair,
+        crypto::{AccountKeyPair, get_key_pair},
         messages_consensus::{
             AuthorityCapabilitiesV1, ConsensusTransaction, ConsensusTransactionKind,
         },
@@ -1097,8 +1097,7 @@ mod tests {
             config
         });
 
-        let sender_key = AccountKeyPair::random();
-        let sender = sender_key.public_key().derive_address();
+        let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
         let num_txns: usize = 3;
 
         // Create owned objects and gas objects for the UserTransactionV1 transactions

@@ -13,7 +13,7 @@ use iota_indexer::{
 };
 use iota_json::call_args;
 use iota_sdk_crypto::simple::SimpleKeypair;
-use iota_types::crypto::AccountKeyPair;
+use iota_types::crypto::{AccountKeyPair, get_key_pair};
 
 use crate::{
     backward_history::{call_test_fn, first_created},
@@ -46,8 +46,7 @@ fn checkpointed_objects_wrap_delete_unwrap_lifecycle() -> Result<(), anyhow::Err
     } = ApiTestSetup::get_or_init();
 
     runtime.block_on(async move {
-        let keypair = AccountKeyPair::random();
-        let address = keypair.public_key().derive_address();
+        let (address, keypair): (_, AccountKeyPair) = get_key_pair();
         let keypair = SimpleKeypair::from(keypair);
         let gas = cluster
             .fund_address_and_return_gas(

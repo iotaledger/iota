@@ -14,7 +14,7 @@ use iota_sdk_types::{
 };
 use iota_types::{
     committee::Committee,
-    crypto::{AccountKeyPair, AuthorityKeyPair},
+    crypto::{AccountKeyPair, AuthorityKeyPair, get_key_pair},
     messages_checkpoint::{CheckpointContentsExt, CheckpointSummaryExt, SignedCheckpointSummary},
     transaction::CertifiedTransaction,
 };
@@ -110,8 +110,7 @@ async fn test_batch_verify() {
         .unwrap_err();
     }
 
-    let other_sender_sec = AccountKeyPair::random();
-    let other_sender = other_sender_sec.public_key().derive_address();
+    let (other_sender, other_sender_sec): (_, AccountKeyPair) = get_key_pair();
     // this test is a bit much for the current implementation - it was originally
     // written to verify a bisecting fall back approach.
     for i in 0..16 {
@@ -160,8 +159,7 @@ async fn test_async_verifier() {
                 let certs = gen_certs(&committee, &key_pairs, 100);
 
                 let receiver = AccountKeyPair::random().public_key().derive_address();
-                let other_sender_sec = AccountKeyPair::random();
-                let other_sender = other_sender_sec.public_key().derive_address();
+                let (other_sender, other_sender_sec): (_, AccountKeyPair) = get_key_pair();
                 let other_tx = make_dummy_tx(receiver, other_sender, &other_sender_sec);
                 let other_cert = make_cert_with_large_committee(&committee, &key_pairs, &other_tx);
 

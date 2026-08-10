@@ -21,7 +21,7 @@ use iota_sdk_types::{
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     base_types::random_object_ref,
-    crypto::AccountKeyPair,
+    crypto::{AccountKeyPair, get_key_pair},
     effects::{TestEffectsBuilder, TransactionEffectsAPI as _, TransactionEffectsExt as _},
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     messages_checkpoint::CheckpointSequenceNumber,
@@ -103,8 +103,7 @@ fn build_large_checkpoint_transactions() -> Vec<CheckpointTransaction> {
     let mut transactions = Vec::with_capacity(num_transactions);
 
     for _ in 0..num_transactions {
-        let key = AccountKeyPair::random();
-        let sender = key.public_key().derive_address();
+        let (sender, key): (_, AccountKeyPair) = get_key_pair();
         let gas = random_object_ref();
         let transaction = TestTransactionBuilder::new(sender, gas, 1000)
             .transfer(random_object_ref(), sender)
@@ -717,8 +716,7 @@ async fn test_filter_checkpoints_validation() {
 async fn test_filter_checkpoints_streaming() {
     let (server_handle, client, _) = test_server_and_client_setup(0..=0, |_| {}, None, None).await;
 
-    let key = AccountKeyPair::random();
-    let sender = key.public_key().derive_address();
+    let (sender, key): (_, AccountKeyPair) = get_key_pair();
     let sender_bytes = sender.into_bytes();
 
     // Create a sender filter matching our known sender
@@ -803,8 +801,7 @@ async fn test_filter_checkpoints_streaming() {
             .send_traced(&mock_checkpoint_data(i));
     }
     // Broadcast checkpoint with a different sender (should be skipped)
-    let other_key = AccountKeyPair::random();
-    let other_sender = other_key.public_key().derive_address();
+    let (other_sender, other_key): (_, AccountKeyPair) = get_key_pair();
     server_handle
         .checkpoint_data_broadcaster()
         .send_traced(&mock_checkpoint_data_with_sender(
@@ -1040,8 +1037,7 @@ fn build_checkpoint_transactions_with_events(
 ) -> Vec<CheckpointTransaction> {
     let mut transactions = Vec::with_capacity(count);
     for _ in 0..count {
-        let key = AccountKeyPair::random();
-        let sender = key.public_key().derive_address();
+        let (sender, key): (_, AccountKeyPair) = get_key_pair();
         let gas = random_object_ref();
         let transaction = TestTransactionBuilder::new(sender, gas, 1000)
             .transfer(random_object_ref(), sender)

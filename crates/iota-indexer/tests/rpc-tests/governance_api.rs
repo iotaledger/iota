@@ -9,9 +9,11 @@ use iota_protocol_config::ProtocolVersion;
 use iota_sdk_types::{Identifier, ObjectId, StructTag, TypeTag};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    crypto::AccountKeyPair, gas_coin::GAS,
+    crypto::{AccountKeyPair, get_key_pair},
+    gas_coin::GAS,
     iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
-    programmable_transaction_builder::ProgrammableTransactionBuilder, transaction::CallArg,
+    programmable_transaction_builder::ProgrammableTransactionBuilder,
+    transaction::CallArg,
     utils::to_sender_signed_transaction,
 };
 
@@ -31,8 +33,7 @@ fn test_staking() {
 
         indexer_wait_for_checkpoint(store, 1).await;
 
-        let keypair = AccountKeyPair::random();
-        let sender = keypair.public_key().derive_address();
+        let (sender, keypair): (_, AccountKeyPair) = get_key_pair();
 
         let gas = cluster
             .fund_address_and_return_gas(
@@ -115,8 +116,7 @@ fn test_unstaking() {
 
         indexer_wait_for_checkpoint(store, 1).await;
 
-        let keypair = AccountKeyPair::random();
-        let sender = keypair.public_key().derive_address();
+        let (sender, keypair): (_, AccountKeyPair) = get_key_pair();
 
         let gas = cluster
             .fund_address_and_return_gas(
@@ -230,8 +230,7 @@ fn test_timelocked_staking() {
 
         indexer_wait_for_checkpoint(store, 1).await;
 
-        let keypair = AccountKeyPair::random();
-        let sender = keypair.public_key().derive_address();
+        let (sender, keypair): (_, AccountKeyPair) = get_key_pair();
 
         let gas = cluster
             .fund_address_and_return_gas(
@@ -349,8 +348,7 @@ fn test_timelocked_unstaking() {
 
         indexer_wait_for_checkpoint(store, 1).await;
 
-        let keypair = AccountKeyPair::random();
-        let sender = keypair.public_key().derive_address();
+        let (sender, keypair): (_, AccountKeyPair) = get_key_pair();
 
         let gas = cluster
             .fund_address_and_return_gas(

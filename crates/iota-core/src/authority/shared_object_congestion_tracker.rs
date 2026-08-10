@@ -767,7 +767,7 @@ pub mod shared_object_test_utils {
     use iota_test_transaction_builder::TestTransactionBuilder;
     use iota_types::{
         base_types::random_object_ref,
-        crypto::AccountKeyPair,
+        crypto::{AccountKeyPair, get_key_pair},
         executable_transaction::VerifiedExecutableTransaction,
         transaction::{CallArg, VerifiedTransaction},
     };
@@ -786,8 +786,7 @@ pub mod shared_object_test_utils {
         gas_budget: u64,
         gas_price: u64,
     ) -> VerifiedExecutableTransaction {
-        let keypair = AccountKeyPair::random();
-        let sender = keypair.public_key().derive_address();
+        let (sender, keypair): (_, AccountKeyPair) = get_key_pair();
         let gas_object = random_object_ref();
         VerifiedExecutableTransaction::new_system(
             VerifiedTransaction::new_unchecked(

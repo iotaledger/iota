@@ -10,7 +10,7 @@ use iota_macros::sim_test;
 use iota_protocol_config::{OverrideGuard, ProtocolConfig};
 use iota_sdk_types::{Address, ObjectId, ObjectReference, Owner, TransactionDigest, Version};
 use iota_types::{
-    crypto::AccountKeyPair,
+    crypto::{AccountKeyPair, get_key_pair},
     error::{IotaError, UserInputError},
     executable_transaction::VerifiedExecutableTransaction,
     messages_consensus::{ConsensusTransaction, ConsensusTransactionKind},
@@ -77,8 +77,7 @@ async fn test_valid_user_transaction_passes() {
         config
     });
 
-    let sender_key = AccountKeyPair::random();
-    let sender = sender_key.public_key().derive_address();
+    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
     let recipient = AccountKeyPair::random().public_key().derive_address();
 
     let object_id = ObjectId::random();
@@ -167,8 +166,7 @@ async fn test_duplicate_transaction_deduplicated() {
         config
     });
 
-    let sender_key = AccountKeyPair::random();
-    let sender = sender_key.public_key().derive_address();
+    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
     let recipient = AccountKeyPair::random().public_key().derive_address();
 
     let object_id = ObjectId::random();
@@ -228,8 +226,7 @@ async fn test_mixed_batch_filtering() {
         config
     });
 
-    let sender_key = AccountKeyPair::random();
-    let sender = sender_key.public_key().derive_address();
+    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
     let recipient = AccountKeyPair::random().public_key().derive_address();
 
     let obj1_id = ObjectId::random();
@@ -307,8 +304,7 @@ async fn test_simple_conflict() {
         config
     });
 
-    let sender_key = AccountKeyPair::random();
-    let sender = sender_key.public_key().derive_address();
+    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
     let recipient1 = AccountKeyPair::random().public_key().derive_address();
     let recipient2 = AccountKeyPair::random().public_key().derive_address();
 
@@ -401,8 +397,7 @@ async fn test_stale_version_dropped_fresh_kept() {
         config
     });
 
-    let sender_key = AccountKeyPair::random();
-    let sender = sender_key.public_key().derive_address();
+    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
     let recipient = AccountKeyPair::random().public_key().derive_address();
 
     let object_id = ObjectId::random();
@@ -514,8 +509,7 @@ async fn test_no_conflict() {
         config
     });
 
-    let sender_key = AccountKeyPair::random();
-    let sender = sender_key.public_key().derive_address();
+    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
     let recipient1 = AccountKeyPair::random().public_key().derive_address();
     let recipient2 = AccountKeyPair::random().public_key().derive_address();
 
@@ -602,8 +596,7 @@ async fn test_chain_conflict() {
         config
     });
 
-    let sender_key = AccountKeyPair::random();
-    let sender = sender_key.public_key().derive_address();
+    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
     let recipient1 = AccountKeyPair::random().public_key().derive_address();
     let recipient2 = AccountKeyPair::random().public_key().derive_address();
     let recipient3 = AccountKeyPair::random().public_key().derive_address();
@@ -714,8 +707,7 @@ async fn test_multiple_conflicts_in_batch() {
         config
     });
 
-    let sender_key = AccountKeyPair::random();
-    let sender = sender_key.public_key().derive_address();
+    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
     let recipient = AccountKeyPair::random().public_key().derive_address();
 
     let object_a_id = ObjectId::random();
@@ -833,8 +825,7 @@ async fn test_gas_object_conflict() {
         config
     });
 
-    let sender_key = AccountKeyPair::random();
-    let sender = sender_key.public_key().derive_address();
+    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
     let recipient1 = AccountKeyPair::random().public_key().derive_address();
     let recipient2 = AccountKeyPair::random().public_key().derive_address();
 
@@ -921,8 +912,7 @@ async fn test_winner_blocks_multiple_losers() {
         config
     });
 
-    let sender_key = AccountKeyPair::random();
-    let sender = sender_key.public_key().derive_address();
+    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
     let recipient = AccountKeyPair::random().public_key().derive_address();
 
     let object_a_id = ObjectId::random();
@@ -1044,8 +1034,7 @@ async fn test_dropped_tx_does_not_acquire_locks() {
         config
     });
 
-    let sender_key = AccountKeyPair::random();
-    let sender = sender_key.public_key().derive_address();
+    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
     let recipient = AccountKeyPair::random().public_key().derive_address();
 
     let object_a_id = ObjectId::random();
@@ -1198,8 +1187,7 @@ async fn already_executed_tx_must_remain_in_checkpoint_roots() {
         config
     });
 
-    let sender_key = AccountKeyPair::random();
-    let sender = sender_key.public_key().derive_address();
+    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
     let recipient = AccountKeyPair::random().public_key().derive_address();
 
     let object_id = ObjectId::random();
@@ -1295,8 +1283,7 @@ async fn double_spend_loser_excluded_from_checkpoint_roots() {
         config
     });
 
-    let sender_key = AccountKeyPair::random();
-    let sender = sender_key.public_key().derive_address();
+    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
     let recipient = AccountKeyPair::random().public_key().derive_address();
 
     // One owned object spent by both transactions, plus a distinct gas object each
@@ -1433,8 +1420,7 @@ async fn setup_lock_tier() -> LockTierSetup {
         config
     });
 
-    let sender_key = AccountKeyPair::random();
-    let sender = sender_key.public_key().derive_address();
+    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
     let recipient = AccountKeyPair::random().public_key().derive_address();
     let object_id = ObjectId::random();
     let gas_id = ObjectId::random();
@@ -1787,8 +1773,7 @@ async fn post_consensus_validation_uses_governance_rules_when_enabled() {
         config
     });
 
-    let sender_key = AccountKeyPair::random();
-    let sender = sender_key.public_key().derive_address();
+    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
     let recipient = AccountKeyPair::random().public_key().derive_address();
     let object_id = ObjectId::random();
     let gas_id = ObjectId::random();
@@ -1846,8 +1831,7 @@ async fn post_consensus_validation_keeps_non_denied_transactions() {
         config
     });
 
-    let sender_key = AccountKeyPair::random();
-    let sender = sender_key.public_key().derive_address();
+    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
     let recipient = AccountKeyPair::random().public_key().derive_address();
     let object_id = ObjectId::random();
     let gas_id = ObjectId::random();
@@ -1900,8 +1884,7 @@ async fn post_consensus_validation_uses_local_config_when_disabled() {
         config
     });
 
-    let sender_key = AccountKeyPair::random();
-    let sender = sender_key.public_key().derive_address();
+    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
     let recipient = AccountKeyPair::random().public_key().derive_address();
     let object_id = ObjectId::random();
     let gas_id = ObjectId::random();
@@ -1951,8 +1934,7 @@ async fn post_consensus_validation_applies_relaxed_rules() {
         config
     });
 
-    let sender_key = AccountKeyPair::random();
-    let sender = sender_key.public_key().derive_address();
+    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
     let recipient = AccountKeyPair::random().public_key().derive_address();
     let object_id = ObjectId::random();
     let gas_id = ObjectId::random();
