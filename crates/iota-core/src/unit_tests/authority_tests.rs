@@ -34,9 +34,8 @@ use iota_types::{
     },
     committee::Committee,
     crypto::{
-        AccountPrivateKey, AggregateAuthorityPublicKey, AuthorityKeyPair, AuthorityPublicKey,
-        AuthoritySignInfo, get_key_pair,
-        random_committee_key_pairs_of_size,
+        AccountPrivateKey, AggregateAuthorityPublicKey, AuthorityKeyPair, AuthoritySignInfo,
+        get_key_pair, random_committee_key_pairs_of_size,
     },
     dynamic_field::{DynamicFieldInfo, DynamicFieldType},
     effects::{TestEffectsBuilder, TransactionEffectsAPI, TransactionEffectsExt},
@@ -3839,7 +3838,7 @@ async fn test_get_dynamic_fields_returns_one_entry_per_index_row() {
     use typed_store::Map;
 
     let authority_state = TestAuthorityBuilder::new().build().await;
-    let indexes = authority_state.indexes.clone().unwrap();
+    let indexes = authority_state.jsonrpc_indexes_store.clone().unwrap();
 
     let parent = ObjectId::random();
     // Index rows whose objects do not exist: unresolvable fields.
@@ -3978,7 +3977,7 @@ async fn test_jsonrpc_index_rebuild_replays_object_pruned_checkpoints() {
         .get_effects(&genesis_digests.effects)
         .unwrap()
         .unwrap();
-    let pruned_ref = genesis_effects.created()[0].reference;
+    let pruned_ref = *genesis_effects.created()[0].reference();
     authority_state
         .database_for_testing()
         .perpetual_tables
@@ -4116,13 +4115,11 @@ fn jsonrpc_index_transaction(
         }],
     };
 
-    authority_state
-        .index_checkpoint_for_jsonrpc(&checkpoint_data)
+    let jsonrpc_indexes_store = authority_state.jsonrpc_indexes_store.as_ref().unwrap();
+    jsonrpc_indexes_store
+        .index_checkpoint(&checkpoint_data)
         .unwrap();
-    authority_state
-        .indexes
-        .as_ref()
-        .unwrap()
+    jsonrpc_indexes_store
         .commit_update_for_checkpoint(checkpoint_seq)
         .unwrap();
 }
@@ -4410,8 +4407,8 @@ async fn test_dynamic_object_field_child_is_read_at_its_latest_version() {
     )
     .await
     .unwrap();
-    let outer_v0 = create_outer_effects.created()[0].reference;
-    let inner_v0 = create_inner_effects.created()[0].reference;
+    let outer_v0 = *create_outer_effects.created()[0].reference();
+    let inner_v0 = *create_inner_effects.created()[0].reference();
 
     let add_txn = to_sender_signed_transaction(
         Transaction::new_move_call(
@@ -4420,7 +4417,7 @@ async fn test_dynamic_object_field_child_is_read_at_its_latest_version() {
             Identifier::from_static("object_basics"),
             Identifier::from_static("add_ofield"),
             vec![],
-            create_inner_effects.gas_object().reference,
+            *create_inner_effects.gas_object().reference(),
             vec![
                 CallArg::ImmutableOrOwned(outer_v0),
                 CallArg::ImmutableOrOwned(inner_v0),
@@ -4439,7 +4436,7 @@ async fn test_dynamic_object_field_child_is_read_at_its_latest_version() {
     assert!(add_effects.status().is_success());
 
     let wrapper = authority_state
-        .get_object(&add_effects.created()[0].reference.object_id)
+        .get_object(&add_effects.created()[0].reference().object_id)
         .unwrap();
     let child = authority_state.get_object(&inner_v0.object_id).unwrap();
 
@@ -4472,7 +4469,7 @@ async fn test_dynamic_object_field_child_is_read_at_its_latest_version() {
     let bumped = child.version().next().unwrap();
     match &mut mutated_child.data {
         ObjectData::Struct(move_object) => move_object.increment_version_to(bumped),
-        ObjectData::Package(_) => panic!("the child must be a move object"),
+        _ => panic!("the child must be a move object"),
     }
     let both_versions = VersionedObjects(vec![child, mutated_child]);
     let info = resolve(&both_versions, layout_resolver.as_mut()).unwrap();

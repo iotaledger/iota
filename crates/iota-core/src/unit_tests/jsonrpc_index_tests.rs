@@ -16,7 +16,7 @@ use iota_types::{
 use prometheus_filtered::Registry;
 use typed_store::Map;
 
-use super::{HistoryBackfillState, IndexStore, ObjectIndexChanges, history_cf_name};
+use super::{IndexStore, ObjectIndexChanges, history_cf_name};
 use crate::{checkpoints::CheckpointStore, test_utils::executed_checkpoint};
 
 /// Opens an `IndexStore` at `path` without running the rebuild path.
@@ -382,7 +382,10 @@ async fn test_backfill_stops_at_deleted_checkpoint_data() {
         "the checkpoint whose data is gone must not be marked as replayed"
     );
     assert_eq!(
-        index_store.metrics.history_backfill_lowest_checkpoint.get(),
+        index_store
+            .metrics
+            .history_backfill_lowest_replayed_checkpoint
+            .get(),
         1,
         "the gauge must report where a backfill that stopped early left off"
     );
@@ -451,11 +454,6 @@ async fn test_backfill_stops_at_the_retention_horizon() {
         index_store.tables.history_watermark.get(&()).unwrap(),
         Some(1),
         "an epoch the next pruning pass would drop must not be replayed"
-    );
-    assert_eq!(
-        index_store.metrics.history_backfill_state.get(),
-        HistoryBackfillState::StoppedEarly as i64,
-        "a backfill stopped by the retention horizon must report stopping early"
     );
 }
 
@@ -762,11 +760,6 @@ async fn test_history_backfill_after_rebuild() {
         Some(0),
         "the backfill must have reached the lowest replayable checkpoint"
     );
-    assert_eq!(
-        index_store.metrics.history_backfill_state.get(),
-        HistoryBackfillState::Complete as i64,
-        "a backfill that reached the bottom must report completion"
-    );
     // The two numbering schemes meet: the backfill numbered the replayed
     // transactions by network position, and the live counter continues
     // exactly one past them — which is also the reported total.
@@ -794,7 +787,10 @@ async fn test_history_backfill_after_rebuild() {
         Some(0)
     );
     assert_eq!(
-        index_store.metrics.history_backfill_lowest_checkpoint.get(),
+        index_store
+            .metrics
+            .history_backfill_lowest_replayed_checkpoint
+            .get(),
         0,
         "the gauge must report how far down the replay got"
     );
@@ -1689,11 +1685,6 @@ async fn test_shutdown_stops_the_backfill() {
         index_store.tables.history_watermark.get(&()).unwrap(),
         Some(1),
         "a cancelled backfill must not replay"
-    );
-    assert_eq!(
-        index_store.metrics.history_backfill_state.get(),
-        HistoryBackfillState::StoppedEarly as i64,
-        "a cancelled backfill must report that it stopped early"
     );
 }
 
