@@ -906,7 +906,7 @@ mod checked {
 
     /// When enabled by the protocol config, report a failure of the Move
     /// authentication as a distinct
-    /// [`ExecutionErrorKind::MoveAuthenticationError`], dropping the
+    /// [`ExecutionErrorKind::MoveAuthentication`], dropping the
     /// authenticator's internal command index so it is not attributed to a
     /// command of the programmable transaction.
     fn report_authentication_error<T>(
