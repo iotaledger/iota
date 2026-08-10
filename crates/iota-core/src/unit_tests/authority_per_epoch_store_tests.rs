@@ -1041,9 +1041,8 @@ async fn commit_injects_deny_rule_updates_and_advances_mirror() {
         .with_protocol_config(protocol_config.clone())
         .build()
         .await;
-    // The builder's config override is dropped when `build` returns; the
-    // reopened epoch store below re-derives its config, so keep the override
-    // alive for the whole test.
+    // The builder's config override drops when `build` returns; keep one
+    // alive for the reopened epoch store below.
     let _guard = ProtocolConfig::apply_overrides_for_testing(move |_, _| protocol_config.clone());
     let store = authority_state.epoch_store_for_testing();
     let me = store.name;
@@ -1131,10 +1130,9 @@ async fn commit_injects_deny_rule_updates_and_advances_mirror() {
     assert!(transactions.is_empty());
     assert!(roots.is_empty());
 
-    // Withdrawing the proposal makes a later — proposal-free — commit inject
-    // the removal; the mirror and the enforced active set must both drop the
-    // entry in that same commit, not wait for the next proposal to trigger a
-    // recompute.
+    // Withdrawing the proposal makes a later, proposal-free commit inject
+    // the removal; the mirror and the enforced active set must drop the
+    // entry in that same commit, not at the next proposal-driven recompute.
     flush_deny_rule_proposal(&store, deny_proposal(me, 2, DenyRuleSet::default()));
     assert!(
         store
@@ -1290,9 +1288,8 @@ async fn deny_rule_mirror_guard_exempts_nodes_outside_the_committee() {
 }
 
 /// With the object present, a fresh epoch persists the mirror seed row
-/// immediately, so a row that is absent although commits have flushed can
-/// only be a lost row: the store refuses to open rather than fall back to
-/// the stale epoch-start seed and derive updates its peers do not.
+/// immediately, so a row absent although commits have flushed is a lost
+/// row: the store refuses to open rather than start from the stale seed.
 #[tokio::test]
 #[should_panic(expected = "mirrored_deny_rules row is missing")]
 async fn lost_mirror_row_after_flushed_commits_fails_the_reopen() {

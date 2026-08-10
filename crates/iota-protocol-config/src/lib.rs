@@ -2127,13 +2127,11 @@ impl ProtocolConfig {
         );
         // A deny-rule update chunk must always execute, or the object falls
         // permanently behind the mirrored state on every validator at once.
-        // Each entry is a `LinkedTable` child object, so chunks are bounded by
-        // the system-transaction object limits — and, tighter, by
-        // `max_event_emit_size` (the update event carries every entry, ~32
-        // bytes each) and by the object-runtime store entries touched when
-        // removals re-link nodes. Those last two cannot be expressed as an
-        // entry count here; the constant keeps a wide margin below them
-        // (tightest is roughly 5000 entries for a removal-only chunk).
+        // The binding limits are `max_event_emit_size` (the update event
+        // carries every entry, ~32 bytes each) and the object-runtime store
+        // entries touched when removals re-link `LinkedTable` nodes — neither
+        // expressible as an entry count here, so the constant keeps a wide
+        // margin below them (tightest is roughly 5000 entries).
         const DENY_RULE_UPDATE_MAX_ENTRIES_PER_TX_CEILING: u64 = 2048;
         assert!(
             ret.deny_rule_update_max_entries_per_tx

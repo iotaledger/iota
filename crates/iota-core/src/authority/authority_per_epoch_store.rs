@@ -739,13 +739,11 @@ pub struct AuthorityPerEpochStore {
     active_transaction_deny_rules: ArcSwap<DenyRuleSet>,
 
     /// The state the scheduled deny-rule updates bring the
-    /// `TransactionDenyRules` object to: seeded from the object at epoch
-    /// start, advanced when a commit schedules updates — the only
-    /// commit-deterministic point; execution completion is not, and must not
-    /// feed back in. The base the injection diff is computed against. An
-    /// execution failure (an invariant violation — the update is built to
-    /// exclude every expected failure) leaves the object behind this state
-    /// until the epoch boundary re-seeds it.
+    /// `TransactionDenyRules` object to, and the base of the injection diff:
+    /// seeded from the object at epoch start, advanced when a commit
+    /// schedules updates — the only commit-deterministic point; execution
+    /// completion is not and must not feed back in. A failed update leaves
+    /// the object behind until the epoch boundary re-seeds the mirror.
     mirrored_transaction_deny_rules: ArcSwap<DenyRuleSet>,
 
     /// Pre-consensus soft locks for owned objects (P-COOL flow).
@@ -930,11 +928,9 @@ pub struct AuthorityEpochTables {
     /// generation overwrites an older one from the same authority.
     deny_rule_proposals: DBMap<AuthorityName, TransactionDenyRuleProposal>,
 
-    /// The state the scheduled deny-rule updates bring the
-    /// `TransactionDenyRules` object to, as of the last flushed commit.
-    /// Single row keyed by `()`, written in the flush batch so a restart
-    /// resumes at the flush position and consensus replays the rest. Present
-    /// from epoch-store construction whenever the object exists.
+    /// The mirrored deny-rule state as of the last flushed commit, written
+    /// in the flush batch so a restart resumes there and replays the rest.
+    /// Present from epoch-store construction whenever the object exists.
     mirrored_deny_rules: DBMap<(), DenyRuleSet>,
 
     /// Contains a single key, which overrides the value of
@@ -3122,14 +3118,11 @@ impl AuthorityPerEpochStore {
         self.mirrored_transaction_deny_rules.load_full()
     }
 
-    /// The mirrored deny rule state to start from when the epoch store opens.
-    /// A persisted row (mid-epoch restart) wins over the epoch-start seed,
-    /// which does not cover advances from flushed commits. When the object
-    /// exists, a fresh epoch persists the seed as the row immediately, making
-    /// the row's presence an invariant: a row that is absent although commits
-    /// have flushed is a lost row — corruption, not a fresh epoch — and
-    /// continuing from the stale seed would derive updates the node's peers
-    /// do not, so the node fails instead.
+    /// The mirrored deny-rule state to start from when the epoch store
+    /// opens: a persisted row (mid-epoch restart) wins over the epoch-start
+    /// seed. A fresh epoch persists the seed immediately when the object
+    /// exists, so a row absent although commits have flushed is a lost row,
+    /// and the node fails rather than derive updates its peers do not.
     fn initial_mirrored_deny_rules(
         tables: &AuthorityEpochTables,
         epoch_start_configuration: &EpochStartConfiguration,
@@ -4271,15 +4264,12 @@ impl AuthorityPerEpochStore {
     }
 
     /// Injects `TransactionDenyRulesUpdate` system transactions bringing the
-    /// on-chain object to the current proposal aggregate: additions always,
-    /// removals only once enough of the committee has announced this epoch and
-    /// the round floor has passed. A diff larger than
-    /// `deny_rule_update_max_entries_per_tx` is split into disjoint chunks of
-    /// the sorted diff, each carrying the absolute switch states, so a re-sent
-    /// chunk is a no-op. Advances the mirrored state to the injected target in
-    /// the same commit output that persists it. Each scheduled update becomes
-    /// a checkpoint root: nothing else in the commit can depend on the object,
-    /// so an update without a root of its own would never be checkpointed.
+    /// on-chain object to the current proposal aggregate, chunked and gated
+    /// by `compute_deny_rule_update_chunks`. Advances the mirrored state to
+    /// the injected target in the same commit output that persists it. Each
+    /// scheduled update becomes a checkpoint root: nothing else in the commit
+    /// can depend on the object, so an unrooted update would never be
+    /// checkpointed.
     pub(crate) fn add_deny_rule_update_transactions(
         &self,
         output: &mut ConsensusCommitOutput,
@@ -4911,9 +4901,8 @@ impl AuthorityPerEpochStore {
             }
         }
 
-        // Bring the on-chain deny-rules object up to date with the proposal
-        // aggregate before the prologue is prepended, so the prologue stays
-        // the first transaction of the commit.
+        // Inject deny-rule updates before the prologue is prepended, so the
+        // prologue stays the first transaction of the commit.
         self.add_deny_rule_update_transactions(
             output,
             &mut verified_non_randomness_transactions,

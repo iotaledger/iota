@@ -133,9 +133,8 @@ pub struct EpochMetrics {
     /// of the delta).
     pub deny_rule_update_transactions_injected: IntCounter,
 
-    /// Whether deny-rule removals are currently unlocked: enough of the
-    /// committee has announced this epoch and the grace round floor has
-    /// passed.
+    /// Whether deny-rule removals are unlocked: enough announced stake this
+    /// epoch and the grace round floor passed.
     pub deny_rule_removals_unlocked: IntGauge,
 
     /// Set to 1, and never cleared, when the `TransactionDenyRules` object

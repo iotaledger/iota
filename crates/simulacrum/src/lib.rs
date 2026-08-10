@@ -1129,10 +1129,9 @@ mod tests {
         assert!(!walked.user_transaction_disabled);
     }
 
-    /// A chunk at the `deny_rule_update_max_entries_per_tx` ceiling asserted
-    /// in `ProtocolConfig::get_for_version` executes successfully — all
-    /// additions and all removals, which stress different limits (new object
-    /// ids and event size vs the store entries touched by re-linking).
+    /// A chunk at the `deny_rule_update_max_entries_per_tx` ceiling executes:
+    /// all additions and all removals, which stress different limits (new
+    /// object ids and event size vs the store entries touched by re-linking).
     #[test]
     fn deny_rule_update_executes_at_the_chunk_ceiling() {
         use std::collections::BTreeSet;

@@ -3271,12 +3271,10 @@ impl AuthorityState {
 
     /// Reports a mirror that diverged from the object at the epoch boundary,
     /// where the two must agree. Reporting is the remedy: reconfiguration
-    /// re-seeds the mirror from the object, so failing here would only pin the
-    /// node to the diverged state. An object the closing epoch had but the
-    /// walk no longer finds is fatal instead — objects cannot be deleted, so
-    /// the local store lost it, there is nothing to re-seed from, and a
-    /// committee member continuing without it would stop injecting updates
-    /// while its peers continue. Nodes outside the closing committee hold no
+    /// re-seeds the mirror from the object, so failing here would only pin
+    /// the node to the diverged state. A missing object is fatal instead —
+    /// objects cannot be deleted, so the local store lost it and there is
+    /// nothing to re-seed from. Nodes outside the closing committee hold no
     /// mirror and are exempt.
     pub(crate) fn check_transaction_deny_rules_consistency(
         &self,
