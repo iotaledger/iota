@@ -3957,6 +3957,12 @@ impl AuthorityState {
             .await?;
         assert_eq!(new_epoch_store.epoch(), new_epoch);
         self.transaction_manager.reconfigure(new_epoch);
+        self.pruner.update_for_epoch(
+            new_epoch_store.committee().authority_exists(&self.name),
+            new_epoch_store
+                .protocol_config()
+                .enable_validator_attestation(),
+        );
         *execution_lock = new_epoch;
         // drop execution_lock after epoch store was updated
         // see also assert in AuthorityState::process_transaction

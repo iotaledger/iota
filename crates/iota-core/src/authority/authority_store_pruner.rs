@@ -5,7 +5,10 @@
 use std::{
     cmp::{max, min},
     collections::{BTreeSet, HashMap},
-    sync::{Arc, Mutex, Weak},
+    sync::{
+        Arc, Mutex, Weak,
+        atomic::{AtomicU64, Ordering},
+    },
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
@@ -115,40 +118,36 @@ pub struct AuthorityStorePruner {
     /// Executor -> pruner: latest executed checkpoint sequence number. Updating
     /// it both records progress and wakes the pruner task to drain.
     executed: watch::Sender<CheckpointSequenceNumber>,
+    /// The node's configured value, before the overrides in
+    /// [`object_retention_epochs`], so the effective retention can be
+    /// recomputed for each epoch's committee and protocol config.
+    configured_retention_epochs: u64,
+    /// Effective object retention, re-read by the pruner task on every pass.
+    retention_epochs: Arc<AtomicU64>,
 }
 
 /// Object-version retention, in epochs, after the overrides a node applies to
 /// its configured value.
 ///
-/// Validators are reset to the aggressive pruner, except under the attestation
-/// flow: Move authentication is re-run at the object versions an attestation
-/// recorded, which are versions the transaction has since superseded, and the
-/// resulting verdict goes into the transaction's effects. Retaining whole
-/// epochs makes the retained set identical across validators.
+/// Both overrides depend on the epoch's committee and protocol config, so this
+/// is re-evaluated on every reconfiguration rather than only at startup.
 fn object_retention_epochs(
     configured: u64,
     is_validator: bool,
     enable_validator_attestation: bool,
 ) -> u64 {
     let mut num_epochs_to_retain = configured;
-    if num_epochs_to_retain > 0 && num_epochs_to_retain < u64::MAX {
-        warn!(
-            "Using objects pruner with num_epochs_to_retain = {num_epochs_to_retain} can lead to performance issues"
-        );
-        if is_validator {
-            warn!("Resetting to aggressive pruner.");
-            num_epochs_to_retain = 0;
-        } else {
-            warn!("Consider using an aggressive pruner (num_epochs_to_retain = 0)");
-        }
+    if is_validator && num_epochs_to_retain > 0 && num_epochs_to_retain < u64::MAX {
+        num_epochs_to_retain = 0;
     }
+    // Move authentication is re-run at the object versions an attestation
+    // recorded, which the transaction has since superseded, and the verdict
+    // goes into its effects. Whole epochs are retained so that the retained
+    // set is identical across validators.
     if is_validator
         && enable_validator_attestation
         && num_epochs_to_retain < MIN_EPOCHS_TO_RETAIN_FOR_ATTESTATION
     {
-        info!(
-            "Raising num_epochs_to_retain from {num_epochs_to_retain} to {MIN_EPOCHS_TO_RETAIN_FOR_ATTESTATION} so attested object versions stay readable"
-        );
         num_epochs_to_retain = MIN_EPOCHS_TO_RETAIN_FOR_ATTESTATION;
     }
     num_epochs_to_retain
@@ -159,6 +158,19 @@ impl AuthorityStorePruner {
     /// available (watermark bumped, subscribers notified). Wakes the pruner.
     pub fn nudge(&self, executed_seq: CheckpointSequenceNumber) {
         self.executed.send_replace(executed_seq);
+    }
+
+    /// Recomputes object retention for the epoch that is starting.
+    pub fn update_for_epoch(&self, is_validator: bool, enable_validator_attestation: bool) {
+        let updated = object_retention_epochs(
+            self.configured_retention_epochs,
+            is_validator,
+            enable_validator_attestation,
+        );
+        let previous = self.retention_epochs.swap(updated, Ordering::Relaxed);
+        if previous != updated {
+            info!(previous, updated, "object retention changed");
+        }
     }
 }
 
@@ -832,6 +844,7 @@ impl AuthorityStorePruner {
         archive_readers: ArchiveReaderBalancer,
         progress_tracker: Option<Arc<CheckpointProgressTracker>>,
         mut executed_rx: watch::Receiver<CheckpointSequenceNumber>,
+        retention_epochs: Arc<AtomicU64>,
     ) -> Sender<()> {
         let (sender, mut recv) = tokio::sync::oneshot::channel();
         debug!(
@@ -866,9 +879,6 @@ impl AuthorityStorePruner {
             });
         }
 
-        metrics
-            .num_epochs_to_retain_for_objects
-            .set(config.num_epochs_to_retain as i64);
         metrics.num_epochs_to_retain_for_checkpoints.set(
             config
                 .num_epochs_to_retain_for_checkpoints
@@ -940,6 +950,15 @@ impl AuthorityStorePruner {
                     .unwrap_or(0);
                 let catching_up =
                     synced_seq.saturating_sub(executed_seq) > PRUNING_DEBOUNCE_MIN_LAG;
+
+                let config = {
+                    let mut config = config.clone();
+                    config.num_epochs_to_retain = retention_epochs.load(Ordering::Relaxed);
+                    config
+                };
+                metrics
+                    .num_epochs_to_retain_for_objects
+                    .set(config.num_epochs_to_retain as i64);
 
                 if prune_objects {
                     if let Err(err) = Self::prune_objects_for_eligible_epochs(
@@ -1025,11 +1044,26 @@ impl AuthorityStorePruner {
         pruner_db: Option<Arc<AuthorityPrunerTables>>,
         progress_tracker: Option<Arc<CheckpointProgressTracker>>,
     ) -> Self {
+        let configured_retention_epochs = pruning_config.num_epochs_to_retain;
         pruning_config.num_epochs_to_retain = object_retention_epochs(
-            pruning_config.num_epochs_to_retain,
+            configured_retention_epochs,
             is_validator,
             enable_validator_attestation,
         );
+        if pruning_config.num_epochs_to_retain != configured_retention_epochs {
+            warn!(
+                configured = configured_retention_epochs,
+                effective = pruning_config.num_epochs_to_retain,
+                "overriding the configured object retention"
+            );
+        } else if configured_retention_epochs > 0 && configured_retention_epochs < u64::MAX {
+            warn!(
+                "Using objects pruner with num_epochs_to_retain = {configured_retention_epochs} \
+                 can lead to performance issues; consider an aggressive pruner \
+                 (num_epochs_to_retain = 0)"
+            );
+        }
+        let retention_epochs = Arc::new(AtomicU64::new(pruning_config.num_epochs_to_retain));
         // Coordination channel between the checkpoint executor and the pruner
         // task. The pruner task receives nudges (`executed_rx`); the sending
         // end is kept on the returned handle for `nudge`.
@@ -1047,8 +1081,11 @@ impl AuthorityStorePruner {
                 archive_readers,
                 progress_tracker,
                 executed_rx,
+                retention_epochs.clone(),
             ),
             executed,
+            configured_retention_epochs,
+            retention_epochs,
         }
     }
 
@@ -1134,7 +1171,15 @@ impl ObjectCompactionMetrics {
 
 #[cfg(test)]
 mod tests {
-    use std::{collections::HashSet, path::Path, sync::Arc, time::Duration};
+    use std::{
+        collections::HashSet,
+        path::Path,
+        sync::{
+            Arc,
+            atomic::{AtomicU64, Ordering},
+        },
+        time::Duration,
+    };
 
     use iota_sdk_types::{ObjectDigest, ObjectId, ObjectReference, TransactionDigest, Version};
     use iota_swarm_config::test_utils::{CommitteeFixture, empty_contents};
@@ -1652,13 +1697,53 @@ mod tests {
     // A nudge wakes the pruner task's subscription.
     #[tokio::test]
     async fn test_nudge_wakes_subscriber() {
-        let pruner = AuthorityStorePruner {
-            _objects_pruner_cancel_handle: oneshot::channel().0,
-            executed: watch::channel(0).0,
-        };
+        let pruner = pruner_for_testing(0);
         let mut rx = pruner.executed.subscribe();
         pruner.nudge(42);
         rx.changed().await.expect("nudge should notify subscriber");
         assert_eq!(*rx.borrow(), 42);
+    }
+
+    fn pruner_for_testing(configured_retention_epochs: u64) -> AuthorityStorePruner {
+        AuthorityStorePruner {
+            _objects_pruner_cancel_handle: oneshot::channel().0,
+            executed: watch::channel(0).0,
+            configured_retention_epochs,
+            retention_epochs: Arc::new(AtomicU64::new(configured_retention_epochs)),
+        }
+    }
+
+    /// The attestation floor has to follow the epoch: the pruner task outlives
+    /// reconfigurations, so a node that starts before the flow is enabled would
+    /// otherwise keep pruning the versions an attestation is judged against.
+    #[test]
+    fn update_for_epoch_applies_attestation_floor() {
+        let pruner = pruner_for_testing(0);
+        assert_eq!(pruner.retention_epochs.load(Ordering::Relaxed), 0);
+
+        pruner.update_for_epoch(true, true);
+        assert_eq!(
+            pruner.retention_epochs.load(Ordering::Relaxed),
+            MIN_EPOCHS_TO_RETAIN_FOR_ATTESTATION
+        );
+
+        // ...and drops back once the epoch no longer needs it.
+        pruner.update_for_epoch(true, false);
+        assert_eq!(pruner.retention_epochs.load(Ordering::Relaxed), 0);
+    }
+
+    /// Joining or leaving the committee changes the overrides too.
+    #[test]
+    fn update_for_epoch_follows_committee_membership() {
+        let pruner = pruner_for_testing(5);
+
+        pruner.update_for_epoch(false, true);
+        assert_eq!(pruner.retention_epochs.load(Ordering::Relaxed), 5);
+
+        pruner.update_for_epoch(true, true);
+        assert_eq!(
+            pruner.retention_epochs.load(Ordering::Relaxed),
+            MIN_EPOCHS_TO_RETAIN_FOR_ATTESTATION
+        );
     }
 }
