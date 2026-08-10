@@ -17,7 +17,6 @@ workspace = true
 anemo.workspace = true
 anemo-cli = { git = "https://github.com/mystenlabs/anemo.git", rev = "f8b708601d002a75955dafebae4f75628c6f42b4" }
 anyhow.workspace = true
-bcs.workspace = true
 camino.workspace = true
 clap.workspace = true
 colored.workspace = true

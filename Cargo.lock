@@ -7907,7 +7907,6 @@ dependencies = [
  "anemo",
  "anemo-cli",
  "anyhow",
- "bcs",
  "bin-version",
  "camino",
  "clap",
