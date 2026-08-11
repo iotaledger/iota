@@ -8,8 +8,8 @@
 //! with zero network access, returns per-command results, and leaves the store
 //! untouched (`committed == false`).
 
-use fastcrypto::encoding::{Base64, Encoding};
-use iota_types::transaction::{TransactionData, TransactionDataAPI};
+use iota_sdk_types::Transaction;
+use iota_types::transaction::TransactionAPI;
 use iota_vm_sdk::{
     Chain, ChainContext, ExecuteOptions, ExecutionMode, InMemoryStore, LocalVm, ObjectId,
     ProtocolVersion, SignatureStatus, StructTag, TypeTag,
@@ -28,8 +28,7 @@ fn chain_context() -> ChainContext {
 
 #[test]
 fn dev_inspect_runs_offline_and_leaves_store_unchanged() {
-    let tx_bytes = Base64::decode(BLAKE2B_TX_B64).expect("base64 decode");
-    let tx: TransactionData = bcs::from_bytes(&tx_bytes).expect("decode tx");
+    let tx = Transaction::from_base64(BLAKE2B_TX_B64).expect("decode tx");
 
     let store = InMemoryStore::with_framework();
     let objects_before = store.len();
@@ -76,8 +75,7 @@ fn dev_inspect_runs_offline_and_leaves_store_unchanged() {
 /// `InsufficientGas`.
 #[test]
 fn dev_inspect_succeeds_with_zero_gas_budget() {
-    let tx_bytes = Base64::decode(BLAKE2B_TX_B64).expect("base64 decode");
-    let mut tx: TransactionData = bcs::from_bytes(&tx_bytes).expect("decode tx");
+    let mut tx = Transaction::from_base64(BLAKE2B_TX_B64).expect("decode tx");
     tx.gas_data_mut().budget = 0;
 
     let mut vm =
@@ -97,8 +95,7 @@ fn dev_inspect_succeeds_with_zero_gas_budget() {
 /// `GasPriceUnderRGP` user input error, not a failed run.
 #[test]
 fn dev_inspect_succeeds_with_zero_gas_price() {
-    let tx_bytes = Base64::decode(BLAKE2B_TX_B64).expect("base64 decode");
-    let mut tx: TransactionData = bcs::from_bytes(&tx_bytes).expect("decode tx");
+    let mut tx = Transaction::from_base64(BLAKE2B_TX_B64).expect("decode tx");
     tx.gas_data_mut().price = 0;
     tx.gas_data_mut().budget = 0;
 

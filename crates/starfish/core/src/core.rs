@@ -386,6 +386,15 @@ impl Core {
         let (accepted_blocks_headers, missing_block_refs) =
             self.block_manager.try_accept_blocks(blocks, source);
 
+        if !accepted_blocks_headers.is_empty()
+            && self.context.protocol_config.consensus_starfish_speed()
+        {
+            self.record_strong_vote_complaints(
+                &mut self.dag_state.write(),
+                &accepted_blocks_headers,
+            );
+        }
+
         let missing_committed_txns = if !accepted_blocks_headers.is_empty() {
             trace!(
                 "Accepted block headers: {}",
@@ -986,7 +995,8 @@ impl Core {
         }
 
         // Strong-vote payload metrics: distribution of the `missing` set size,
-        // and per-leader counter when the payload is a blame (non-empty).
+        // and per-leader and per-missing-author counters when the payload is a
+        // blame (non-empty).
         if let Some(sv) = strong_vote.as_ref() {
             let node_metrics = &self.context.metrics.node_metrics;
             node_metrics
@@ -1002,6 +1012,13 @@ impl Core {
                     .strong_blames_emitted_for_leader
                     .with_label_values(&[leader])
                     .inc();
+                for missing_author in sv.missing.iter() {
+                    let hostname = &self.context.committee.authority(missing_author).hostname;
+                    node_metrics
+                        .strong_vote_missing_by_author
+                        .with_label_values(&[hostname])
+                        .inc();
+                }
             }
         }
 
@@ -1663,6 +1680,15 @@ impl Core {
                 .strong_blames_received_from_voter
                 .with_label_values(&[voter])
                 .inc();
+            for missing_author in strong_vote.missing.iter() {
+                let hostname = &self.context.committee.authority(missing_author).hostname;
+                self.context
+                    .metrics
+                    .node_metrics
+                    .strong_blames_received_for_author
+                    .with_label_values(&[hostname])
+                    .inc();
+            }
             dag_state.record_strong_vote_complaint(
                 block.author(),
                 leader_round,
@@ -4164,5 +4190,82 @@ mod test {
             add_block(8, author, strong_vote_other);
         }
         assert!(!fixture.core.has_strong_vote_quorum(8, leader));
+    }
+
+    #[tokio::test]
+    async fn test_strong_vote_complaints_recorded_on_both_ingest_paths() {
+        let (mut context, _) = Context::new_for_test(4);
+        context
+            .protocol_config
+            .set_consensus_starfish_speed_for_testing(true);
+        let mut fixture = CoreTestFixture::new(
+            context,
+            vec![1; 4],
+            AuthorityIndex::new_for_test(0),
+            false,
+            false,
+            None,
+        )
+        .await;
+
+        // Strong blame pinned to the local node (authority 0), naming
+        // authority 3 as missing.
+        let mut missing = AuthoritySet::new();
+        missing.insert(AuthorityIndex::new_for_test(3));
+        let blame = StrongVote {
+            leader_authority: AuthorityIndex::new_for_test(0),
+            missing,
+        };
+
+        // One blame arrives as a full block, the other as a bare header.
+        let full_block = VerifiedBlock::new_for_test(
+            TestBlockHeader::new(2, 1)
+                .set_version(TestBlockHeaderVersion::V2)
+                .set_strong_vote(Some(blame))
+                .build(),
+        );
+        let header = VerifiedBlockHeader::new_for_test(
+            TestBlockHeader::new(2, 2)
+                .set_version(TestBlockHeaderVersion::V2)
+                .set_strong_vote(Some(blame))
+                .build(),
+        );
+
+        fixture
+            .core
+            .add_blocks(vec![full_block], DataSource::Test)
+            .unwrap();
+        fixture
+            .core
+            .add_block_headers(vec![header], DataSource::Test)
+            .unwrap();
+
+        let voter_count = |authority: u8| {
+            let hostname = &fixture
+                .core
+                .context
+                .committee
+                .authority(AuthorityIndex::new_for_test(authority))
+                .hostname;
+            fixture
+                .core
+                .context
+                .metrics
+                .node_metrics
+                .strong_blames_received_from_voter
+                .with_label_values(&[hostname])
+                .get()
+        };
+        assert_eq!(voter_count(1), 1);
+        assert_eq!(voter_count(2), 1);
+
+        // Both complaints reached the hint tables: authority 3 has f+1 = 2
+        // complaint stake and is excluded from future acknowledgments.
+        let excluded = fixture
+            .core
+            .dag_state
+            .read()
+            .starfish_speed_excluded_ack_authorities();
+        assert!(excluded.contains(AuthorityIndex::new_for_test(3)));
     }
 }

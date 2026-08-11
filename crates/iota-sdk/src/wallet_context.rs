@@ -15,10 +15,10 @@ use iota_json_rpc_types::{
 };
 use iota_keys::keystore::{AccountKeystore, Keystore};
 use iota_sdk_crypto::simple::SimpleKeypair;
-use iota_sdk_types::{Address, ObjectId, ObjectReference, StructTag, crypto::Intent};
+use iota_sdk_types::{Address, ObjectId, ObjectReference, StructTag, Transaction, crypto::Intent};
 use iota_types::{
     gas_coin::GasCoin,
-    transaction::{TransactionData, TransactionDataAPI, TransactionEnvelope},
+    transaction::{TransactionAPI, TransactionEnvelope},
 };
 use tokio::sync::RwLock;
 use tracing::warn;
@@ -394,14 +394,14 @@ impl WalletContext {
     }
 
     /// Sign a transaction with a key currently managed by the WalletContext.
-    pub fn sign_transaction(&self, data: &TransactionData) -> TransactionEnvelope {
+    pub fn sign_transaction(&self, tx: &Transaction) -> TransactionEnvelope {
         let sig = self
             .config
             .keystore
-            .sign_secure(&data.sender(), data, Intent::iota_transaction())
+            .sign_secure(&tx.sender(), tx, Intent::iota_transaction())
             .unwrap();
         // TODO: To support sponsored transaction, we should also look at the gas owner.
-        TransactionEnvelope::from_data(data.clone(), vec![sig])
+        TransactionEnvelope::from_data(tx.clone(), vec![sig])
     }
 
     /// Execute a transaction and wait for it to be locally executed on the

@@ -16,13 +16,12 @@ use iota_json_rpc_types::{
 use iota_macros::sim_test;
 use iota_move_build::BuildConfig;
 use iota_sdk_types::{
-    GasPayment, ObjectId, Owner, TransactionExpiration, TransactionKind, TransactionV1,
+    GasPayment, ObjectId, Owner, Transaction, TransactionExpiration, TransactionKind, TransactionV1,
 };
 use iota_simulator::fastcrypto::encoding::Base64;
 use iota_types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    quorum_driver_types::ExecuteTransactionRequestType,
-    transaction::{TransactionData, TransactionDataAPI},
+    quorum_driver_types::ExecuteTransactionRequestType, transaction::TransactionAPI,
 };
 use test_cluster::TestClusterBuilder;
 
@@ -66,7 +65,7 @@ async fn test_dev_inspect_transaction_block() -> Result<(), anyhow::Error> {
     let devinspect_response = http_client
         .dev_inspect_transaction_block(
             address,
-            Base64::from_bytes(&bcs::to_bytes(&kind).unwrap()),
+            Base64::from_bytes(&kind.to_bcs()),
             None,
             None,
             None,
@@ -138,7 +137,7 @@ async fn test_dev_inspect_transaction_block_zero_gas_price_and_budget() -> Resul
         builder.transfer_object(other_address, obj).unwrap();
         builder.finish()
     };
-    let tx_bytes = Base64::from_bytes(&bcs::to_bytes(&TransactionKind::new_programmable(pt))?);
+    let tx_bytes = Base64::from_bytes(&TransactionKind::new_programmable(pt).to_bcs());
     let reference_gas_price = cluster.get_reference_gas_price().await;
 
     // A zero budget on its own, with a gas price the epoch would accept as-is.
@@ -220,7 +219,7 @@ async fn test_zero_gas_budget_is_reported_as_the_gas_used() -> Result<(), anyhow
     };
 
     // No gas payment, no price and no budget: the simulation fills all of it in.
-    let transaction = TransactionData::V1(TransactionV1 {
+    let transaction = Transaction::V1(TransactionV1 {
         kind: TransactionKind::new_programmable(pt.clone()),
         sender: address,
         gas_payment: GasPayment {
@@ -233,7 +232,7 @@ async fn test_zero_gas_budget_is_reported_as_the_gas_used() -> Result<(), anyhow
     });
 
     let response = http_client
-        .dry_run_transaction_block(Base64::from_bytes(&bcs::to_bytes(&transaction)?))
+        .dry_run_transaction_block(Base64::from_bytes(&transaction.to_bcs()))
         .await?;
     assert_eq!(*response.effects.status(), IotaExecutionStatus::Success);
 
@@ -260,7 +259,7 @@ async fn test_zero_gas_budget_is_reported_as_the_gas_used() -> Result<(), anyhow
     let raw_txn_data = http_client
         .dev_inspect_transaction_block(
             address,
-            Base64::from_bytes(&bcs::to_bytes(&TransactionKind::new_programmable(pt))?),
+            Base64::from_bytes(&TransactionKind::new_programmable(pt).to_bcs()),
             None,
             None,
             Some(DevInspectArgs {
@@ -270,7 +269,7 @@ async fn test_zero_gas_budget_is_reported_as_the_gas_used() -> Result<(), anyhow
         )
         .await?
         .raw_txn_data;
-    let reported: TransactionData = bcs::from_bytes(&raw_txn_data)?;
+    let reported: Transaction = bcs::from_bytes(&raw_txn_data)?;
     assert_ne!(reported.gas_budget(), 0);
     assert_eq!(reported.gas_price(), reference_gas_price);
 

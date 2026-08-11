@@ -25,8 +25,9 @@ use iota_json_rpc_types::{
 use iota_open_rpc::Module;
 use iota_package_resolver::{PackageStore, Resolver};
 use iota_sdk_types::{
-    Address, GasPayment, ObjectId, SenderSignedTransaction, TransactionDigest, TransactionEffects,
-    TransactionExpiration, TransactionKind, TransactionV1, UserSignature, Version,
+    Address, GasPayment, ObjectId, SenderSignedTransaction, Transaction, TransactionDigest,
+    TransactionEffects, TransactionExpiration, TransactionKind, TransactionV1, UserSignature,
+    Version,
 };
 use iota_transaction_builder::TransactionBuilder;
 use iota_types::{
@@ -34,7 +35,7 @@ use iota_types::{
     error::ExecutionError,
     iota_serde::BigInt,
     object::{Object, PastObjectRead},
-    transaction::{TransactionData, TransactionDataAPI},
+    transaction::TransactionAPI,
 };
 use jsonrpsee::{RpcModule, core::RpcResult};
 
@@ -99,16 +100,12 @@ impl WriteApi {
         tx_bytes: Base64,
         package_resolver: &Arc<Resolver<impl PackageStore>>,
     ) -> IndexerResult<DryRunTransactionBlockResponse> {
-        let transaction_data = bcs::from_bytes::<TransactionData>(&tx_bytes.to_vec()?)?;
-        let tx_digest = transaction_data.digest();
+        let tx = bcs::from_bytes::<Transaction>(&tx_bytes.to_vec()?)?;
+        let tx_digest = tx.digest();
 
         let simulate_tx_response = self
             .fullnode_grpc_client
-            .simulate_transaction(
-                transaction_data.clone(),
-                false,
-                DRY_RUN_TRANSACTION_READ_MASK,
-            )
+            .simulate_transaction(tx.clone(), false, DRY_RUN_TRANSACTION_READ_MASK)
             .await?
             .into_inner();
 
@@ -135,8 +132,7 @@ impl WriteApi {
             .map(|s| -> IndexerResult<_> { Ok(s.signature()?) })
             .collect::<IndexerResult<Vec<UserSignature>>>()?;
 
-        let sender_signed_tx =
-            SenderSignedTransaction::new(transaction_data.clone(), tx_signatures);
+        let sender_signed_tx = SenderSignedTransaction::new(tx.clone(), tx_signatures);
 
         let tx_events = executed_transaction.events()?.events()?;
 
@@ -144,7 +140,7 @@ impl WriteApi {
 
         // as a minor optimization we will run concurrently the following four futures
         let fut1 = in_mem_tx_changes
-            .get_changes(&transaction_data, &tx_effects, &tx_digest)
+            .get_changes(&tx, &tx_effects, &tx_digest)
             .map_ok(|(balance_changes, object_changes)| {
                 (
                     balance_changes,
@@ -221,7 +217,7 @@ impl WriteApi {
 
         let kind = bcs::from_bytes::<TransactionKind>(&tx_bytes.to_vec()?)?;
 
-        let transaction_data = TransactionData::V1(TransactionV1 {
+        let tx = Transaction::V1(TransactionV1 {
             kind,
             sender: sender_address,
             gas_payment: GasPayment {
@@ -234,17 +230,13 @@ impl WriteApi {
         });
 
         let raw_txn_data = show_raw_txn_data_and_effects
-            .then(|| bcs::to_bytes(&transaction_data))
+            .then(|| bcs::to_bytes(&tx))
             .transpose()?
             .unwrap_or_default();
 
         let simulate_tx_response = self
             .fullnode_grpc_client
-            .simulate_transaction(
-                transaction_data,
-                skip_checks,
-                DEV_INSPECT_TRANSACTION_READ_MASK,
-            )
+            .simulate_transaction(tx, skip_checks, DEV_INSPECT_TRANSACTION_READ_MASK)
             .await?
             .into_inner();
 
@@ -420,7 +412,7 @@ impl WriteApiServer for WriteApi {
             )
             .await
             .map_err(IndexerError::from)?;
-        let tx_bytes = Base64::from_bytes(&bcs::to_bytes(&tx_kind).map_err(IndexerError::from)?);
+        let tx_bytes = Base64::from_bytes(&tx_kind.to_bcs());
         let dev_inspect_results = self
             .dev_inspect_transaction_block(sender, tx_bytes, None, None, None)
             .await?;
@@ -554,7 +546,7 @@ impl TxObjectResolver {
 
     pub(crate) async fn get_changes(
         &self,
-        tx: &TransactionData,
+        tx: &Transaction,
         effects: &TransactionEffects,
         tx_digest: &TransactionDigest,
     ) -> IndexerResult<(

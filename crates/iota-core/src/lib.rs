@@ -19,6 +19,7 @@ pub mod consensus_manager;
 pub(crate) mod consensus_types;
 pub mod consensus_validator;
 pub mod epoch;
+pub mod epoch_start_consensus_committee;
 pub mod execution_cache;
 mod execution_driver;
 mod execution_scheduler;

@@ -18,15 +18,15 @@ use iota_sdk_crypto::Signer;
 use iota_sdk_transaction_builder::{PTBArgumentList, TransactionBuilder};
 use iota_sdk_types::{
     Address, Identifier, Input, ObjectId, ObjectReference, Owner, ProgrammableTransaction,
-    SharedObjectReference, StructTag, TransactionDigest, TransactionKind, TypeTag, UserSignature,
-    Version, crypto::SimpleSignature,
+    SharedObjectReference, StructTag, Transaction, TransactionDigest, TransactionKind, TypeTag,
+    UserSignature, Version,
+    crypto::{BitmapUnit, MultisigAggregatedSignature, MultisigCommittee, SimpleSignature},
 };
 use iota_types::{
     crypto::{AccountKeyPair, get_key_pair},
-    multisig::{BitmapUnit, MultiSig, MultiSigPublicKey},
     transaction::{
         CallArg, DEFAULT_VALIDATOR_GAS_PRICE, TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE,
-        TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionData, TransactionDataAPI, TransactionEnvelope,
+        TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI, TransactionEnvelope,
     },
     utils::to_sender_signed_transaction,
 };
@@ -312,7 +312,7 @@ impl TestTransactionBuilder {
         self
     }
 
-    pub fn build(self) -> TransactionData {
+    pub fn build(self) -> Transaction {
         let nonce = self.nonce;
         let mut data = self.build_inner();
         if let Some(nonce) = nonce {
@@ -326,9 +326,9 @@ impl TestTransactionBuilder {
         data
     }
 
-    fn build_inner(self) -> TransactionData {
+    fn build_inner(self) -> Transaction {
         match self.test_data {
-            TestTransactionData::Move(data) => TransactionData::new_move_call(
+            TestTransactionData::Move(data) => Transaction::new_move_call(
                 self.sender,
                 data.package_id,
                 data.module,
@@ -341,7 +341,7 @@ impl TestTransactionBuilder {
                 self.gas_price,
             )
             .unwrap(),
-            TestTransactionData::Transfer(data) => TransactionData::new_transfer(
+            TestTransactionData::Transfer(data) => Transaction::new_transfer(
                 data.recipient,
                 data.object,
                 self.sender,
@@ -350,7 +350,7 @@ impl TestTransactionBuilder {
                     .unwrap_or(self.gas_price * TEST_ONLY_GAS_UNIT_FOR_TRANSFER),
                 self.gas_price,
             ),
-            TestTransactionData::TransferIota(data) => TransactionData::new_transfer_iota(
+            TestTransactionData::TransferIota(data) => Transaction::new_transfer_iota(
                 data.recipient,
                 self.sender,
                 data.amount,
@@ -359,7 +359,7 @@ impl TestTransactionBuilder {
                     .unwrap_or(self.gas_price * TEST_ONLY_GAS_UNIT_FOR_TRANSFER),
                 self.gas_price,
             ),
-            TestTransactionData::SplitCoin(data) => TransactionData::new_split_coin(
+            TestTransactionData::SplitCoin(data) => Transaction::new_split_coin(
                 self.sender,
                 data.coin,
                 data.amounts,
@@ -385,7 +385,7 @@ impl TestTransactionBuilder {
                     }
                 };
 
-                TransactionData::new_module(
+                Transaction::new_module(
                     self.sender,
                     self.gas_object,
                     all_module_bytes,
@@ -396,7 +396,7 @@ impl TestTransactionBuilder {
                     self.gas_price,
                 )
             }
-            TestTransactionData::Programmable(pt) => TransactionData::new_programmable(
+            TestTransactionData::Programmable(pt) => Transaction::new_programmable(
                 self.sender,
                 vec![self.gas_object],
                 pt,
@@ -416,15 +416,18 @@ impl TestTransactionBuilder {
 
     pub fn build_and_sign_multisig(
         self,
-        multisig_pk: MultiSigPublicKey,
+        multisig_pk: MultisigCommittee,
         signers: &[&dyn Signer<SimpleSignature>],
         bitmap: BitmapUnit,
     ) -> TransactionEnvelope {
         let data = self.build();
         let digest = data.signing_digest();
         let signatures = signers.iter().map(|s| s.sign(&digest).into()).collect();
-        let multisig =
-            UserSignature::Multisig(MultiSig::new_unchecked(signatures, bitmap, multisig_pk));
+        let multisig = UserSignature::Multisig(MultisigAggregatedSignature::new_unchecked(
+            signatures,
+            bitmap,
+            multisig_pk,
+        ));
 
         TransactionEnvelope::from_user_sig_data(data, vec![multisig])
     }
@@ -499,7 +502,7 @@ pub async fn batch_make_transfer_transactions(
             if res.len() >= max_txn_num {
                 return res;
             }
-            let data = TransactionData::new_transfer_iota(
+            let tx = Transaction::new_transfer_iota(
                 recipient,
                 address,
                 Some(2),
@@ -507,7 +510,7 @@ pub async fn batch_make_transfer_transactions(
                 gas_price * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
                 gas_price,
             );
-            let tx = context.sign_transaction(&data);
+            let tx = context.sign_transaction(&tx);
             res.push(tx);
         }
     }
@@ -836,7 +839,7 @@ pub async fn move_call_tx<A: PTBArgumentList>(
     function: &str,
     args: A,
     gas_budget: u64,
-) -> TransactionData {
+) -> Transaction {
     let mut builder = TransactionBuilder::new(sender).with_client(grpc_client);
 
     builder
@@ -864,7 +867,7 @@ pub async fn split_coin_equal_tx(
     num_coins: u64,
     gas_coin: Option<ObjectId>,
     gas_budget: u64,
-) -> TransactionData {
+) -> Transaction {
     let coin_object = grpc_client
         .get_objects([coin_to_split], ObjectReadMask::default())
         .await

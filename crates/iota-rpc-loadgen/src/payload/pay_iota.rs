@@ -5,11 +5,8 @@
 use async_trait::async_trait;
 use futures::future::join_all;
 use iota_sdk_crypto::{ToFromBech32, simple::SimpleKeypair};
-use iota_sdk_types::Address;
-use iota_types::{
-    quorum_driver_types::ExecuteTransactionRequestType,
-    transaction::{TransactionData, TransactionDataAPI},
-};
+use iota_sdk_types::{Address, Transaction};
+use iota_types::{quorum_driver_types::ExecuteTransactionRequestType, transaction::TransactionAPI};
 use tracing::debug;
 
 use crate::payload::{
@@ -54,7 +51,7 @@ impl<'a> ProcessPayload<'a, &'a PayIota> for RpcCommandProcessor {
             .await
             .expect("unable to fetch gas price");
         join_all(gas_payments.iter().map(|gas| async {
-            let tx = TransactionData::new_transfer_iota(
+            let tx = Transaction::new_transfer_iota(
                 recipient,
                 sender,
                 Some(amount),

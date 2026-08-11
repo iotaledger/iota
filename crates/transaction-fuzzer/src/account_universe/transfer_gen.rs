@@ -7,13 +7,14 @@ use std::sync::Arc;
 
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    Address, ExecutionError, ExecutionStatus, GasPayment, ObjectReference, TransactionKind,
+    Address, ExecutionError, ExecutionStatus, GasPayment, ObjectReference, Transaction,
+    TransactionKind,
 };
 use iota_types::{
     error::{IotaError, UserInputError},
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{TransactionData, TransactionDataAPI, TransactionEnvelope},
+    transaction::{TransactionAPI, TransactionEnvelope},
     utils::{to_sender_signed_transaction, to_sender_signed_transaction_with_multi_signers},
 };
 use once_cell::sync::Lazy;
@@ -183,15 +184,15 @@ impl TransactionSponsorship {
     pub fn sign_transaction(
         &self,
         accounts: &AccountTriple,
-        txn: TransactionData,
+        tx: Transaction,
     ) -> TransactionEnvelope {
         match self {
             TransactionSponsorship::None => {
-                to_sender_signed_transaction(txn, &accounts.account_1.initial_data.account.key)
+                to_sender_signed_transaction(tx, &accounts.account_1.initial_data.account.key)
             }
             TransactionSponsorship::Good | TransactionSponsorship::WrongGasOwner => {
                 to_sender_signed_transaction_with_multi_signers(
-                    txn,
+                    tx,
                     vec![
                         &accounts.account_1.initial_data.account.key,
                         &accounts.account_3.initial_data.account.key,
@@ -419,7 +420,7 @@ impl AUTransactionGen for P2PTransferGenRandomGasRandomPriceRandomSponsorship {
         };
         let sender_address = sender.initial_data.account.address;
         let kind = TransactionKind::Programmable(txn);
-        let tx_data = TransactionData::new_with_gas_data(
+        let tx = Transaction::new_with_gas_data(
             kind,
             sender_address,
             GasPayment {
@@ -429,7 +430,7 @@ impl AUTransactionGen for P2PTransferGenRandomGasRandomPriceRandomSponsorship {
                 budget: self.gas,
             },
         );
-        let signed_txn = self.sponsorship.sign_transaction(&account_triple, tx_data);
+        let signed_txn = self.sponsorship.sign_transaction(&account_triple, tx);
         let payer = self.sponsorship.sponsor(&mut account_triple);
         // *sender.current_balances.last().unwrap();
         let rgp = exec.get_reference_gas_price();

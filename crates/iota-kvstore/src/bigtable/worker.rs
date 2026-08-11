@@ -11,14 +11,20 @@ use async_trait::async_trait;
 use iota_data_ingestion_core::Worker;
 use iota_sdk_types::{Address, Owner, TransactionDigest};
 use iota_types::{
-    effects::TransactionEffectsExt, full_checkpoint_content::CheckpointData,
-    messages_checkpoint::CheckpointContentsExt, transaction::TransactionDataAPI,
+    effects::TransactionEffectsExt,
+    full_checkpoint_content::CheckpointData,
+    messages_checkpoint::{CheckpointContentsExt, CheckpointSequenceNumber},
+    transaction::TransactionAPI,
 };
 use strum::IntoEnumIterator;
 
 use crate::{
     BigTableClient, KeyValueStoreWriter, TransactionData, client::TransactionSequenceNumber,
 };
+
+/// How often the worker logs progress at info level: one line every this many
+/// checkpoints.
+const PROGRESS_LOG_INTERVAL: CheckpointSequenceNumber = 1000;
 
 /// Represents the available BigTable tables the Client and the KvWorker can
 /// interact with.
@@ -186,6 +192,12 @@ impl Worker for KvWorker {
                 }
             }
         }
+
+        let sequence_number = checkpoint.checkpoint_summary.sequence_number;
+        if sequence_number.is_multiple_of(PROGRESS_LOG_INTERVAL) {
+            tracing::info!("stored checkpoint {sequence_number} in the KV store");
+        }
+
         Ok(())
     }
 }

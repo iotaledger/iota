@@ -26,8 +26,8 @@ use iota_package_resolver::{
     Package, PackageStore, Resolver, error::Error as PackageResolverError,
 };
 use iota_sdk_types::{
-    Address, GasPayment, ObjectId, TransactionDigest, TransactionExpiration, TransactionKind,
-    TransactionV1, UserSignature,
+    Address, GasPayment, ObjectId, Transaction, TransactionDigest, TransactionExpiration,
+    TransactionKind, TransactionV1, UserSignature,
 };
 use iota_transaction_builder::TransactionBuilder;
 use iota_types::{
@@ -42,7 +42,7 @@ use iota_types::{
         ExecuteTransactionRequestType, ExecuteTransactionRequestV1, ExecuteTransactionResponseV1,
     },
     storage::PostExecutionPackageResolver,
-    transaction::{InputObjectKind, TransactionData, TransactionDataAPI, TransactionEnvelope},
+    transaction::{InputObjectKind, TransactionAPI, TransactionEnvelope},
     transaction_executor::{SimulateTransactionResult, VmChecks},
 };
 use jsonrpsee::{RpcModule, core::RpcResult};
@@ -107,18 +107,18 @@ impl TransactionExecutionApi {
         IotaRpcInputError,
     > {
         let opts = opts.unwrap_or_default();
-        let tx_data: TransactionData = self.convert_bytes(tx_bytes)?;
-        let sender = tx_data.sender();
-        let input_objs = tx_data.input_objects().unwrap_or_default();
+        let tx: Transaction = self.convert_bytes(tx_bytes)?;
+        let sender = tx.sender();
+        let input_objs = tx.input_objects().unwrap_or_default();
 
         let mut sigs = Vec::new();
         for sig in signatures {
             sigs.push(
-                UserSignature::from_bytes(sig.to_vec()?)
+                UserSignature::from_base64(&sig.encoded())
                     .map_err(|e| IotaRpcInputError::GenericInvalid(e.to_string()))?,
             );
         }
-        let txn = TransactionEnvelope::from_user_sig_data(tx_data, sigs);
+        let txn = TransactionEnvelope::from_user_sig_data(tx, sigs);
         let raw_transaction = if opts.show_raw_input {
             bcs::to_bytes(txn.data())?
         } else {
@@ -324,17 +324,17 @@ impl TransactionExecutionApi {
     pub fn prepare_dry_run_transaction_block(
         &self,
         tx_bytes: Base64,
-    ) -> Result<(TransactionData, Vec<InputObjectKind>), IotaRpcInputError> {
-        let tx_data: TransactionData = self.convert_bytes(tx_bytes)?;
-        let input_objs = tx_data.input_objects()?;
-        Ok((tx_data, input_objs))
+    ) -> Result<(Transaction, Vec<InputObjectKind>), IotaRpcInputError> {
+        let tx: Transaction = self.convert_bytes(tx_bytes)?;
+        let input_objs = tx.input_objects()?;
+        Ok((tx, input_objs))
     }
 
     /// Report the gas the simulation ran with, in place of whatever the caller
     /// left unset. Same rule as gRPC `simulate_transactions`, which shares the
     /// helper.
     fn report_simulation_gas(
-        transaction: &mut TransactionData,
+        transaction: &mut Transaction,
         simulation: &SimulateTransactionResult,
     ) {
         iota_types::gas::report_simulation_gas(
@@ -351,7 +351,7 @@ impl TransactionExecutionApi {
     /// object- and balance-change queries stay with the caller.
     fn dry_run_transaction_block_impl(
         &self,
-        mut txn_data: TransactionData,
+        mut tx: Transaction,
     ) -> Result<
         (
             SimulateTransactionResult,
@@ -368,11 +368,11 @@ impl TransactionExecutionApi {
 
         let mut simulation = self.state.simulate_transaction_in_epoch(
             &epoch_store,
-            txn_data.clone(),
+            tx.clone(),
             VmChecks::Enabled,
         )?;
 
-        Self::report_simulation_gas(&mut txn_data, &simulation);
+        Self::report_simulation_gas(&mut tx, &simulation);
 
         let tx_digest = *simulation.effects.transaction_digest();
         // Resolve types against the objects the simulation wrote before falling back to
@@ -390,14 +390,13 @@ impl TransactionExecutionApi {
                 epoch_store.module_cache().clone(),
             );
 
-            let input = IotaTransactionBlockData::try_from_with_module_cache(
-                txn_data,
-                &module_cache,
-                tx_digest,
-            )
-            .map_err(|e| IotaError::TransactionSerialization {
-                error: format!("Failed to convert transaction to IotaTransactionBlockData: {e}"),
-            })?;
+            let input =
+                IotaTransactionBlockData::try_from_with_module_cache(tx, &module_cache, tx_digest)
+                    .map_err(|e| IotaError::TransactionSerialization {
+                        error: format!(
+                            "Failed to convert transaction to IotaTransactionBlockData: {e}"
+                        ),
+                    })?;
             let events = IotaTransactionBlockEvents::try_from(
                 simulation.events.take().unwrap_or_default(),
                 tx_digest,
@@ -492,7 +491,7 @@ impl TransactionExecutionApi {
         // per-thread borrow slots, meant for short borrows, not a whole simulation.
         let epoch_store = Arc::clone(&self.state.load_epoch_store_one_call_per_task());
 
-        let transaction = TransactionData::V1(TransactionV1 {
+        let transaction = Transaction::V1(TransactionV1 {
             kind: transaction_kind,
             sender,
             gas_payment: GasPayment {

@@ -1409,7 +1409,7 @@ impl Merge<CheckpointTransactionWithContext>
 
         // Derive object changes if requested
         if mask.subtree(Self::OBJECT_CHANGES_FIELD.name).is_some() {
-            use iota_types::transaction::TransactionDataAPI as _;
+            use iota_types::transaction::TransactionAPI as _;
 
             let sender = source.transaction.transaction.transaction().sender();
             self.object_changes = Some(

@@ -12,14 +12,14 @@ pub mod checked {
 
     use enum_dispatch::enum_dispatch;
     use iota_protocol_config::ProtocolConfig;
-    use iota_sdk_types::{GasPayment, ObjectReference, gas::GasCostSummary};
+    use iota_sdk_types::{GasPayment, ObjectReference, Transaction, gas::GasCostSummary};
 
     use crate::{
         ObjectId,
         error::{ExecutionError, IotaResult, UserInputError, UserInputResult},
         gas_model::{gas_v1::IotaGasStatus as IotaGasStatusV1, tables::GasStatus},
         object::{MoveStructExt, Object},
-        transaction::{InputObjects, ObjectReadResult, TransactionData, TransactionDataAPI},
+        transaction::{InputObjects, ObjectReadResult, TransactionAPI},
     };
 
     #[enum_dispatch]
@@ -152,7 +152,7 @@ pub mod checked {
     /// becomes `reference_gas_price`, and a zero budget as much as the gas
     /// coins can back, up to the protocol maximum.
     pub fn fill_in_unset_simulation_gas(
-        transaction: &mut TransactionData,
+        transaction: &mut Transaction,
         input_objects: &InputObjects,
         reference_gas_price: u64,
         protocol_config: &ProtocolConfig,

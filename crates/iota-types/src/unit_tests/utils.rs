@@ -10,8 +10,9 @@ use iota_sdk_crypto::{
     secp256r1::Secp256r1PrivateKey, simple::SimpleKeypair,
 };
 use iota_sdk_types::{
-    Address, ObjectId, SenderSignedTransaction, SimpleSignature, TransactionKind, UserSignature,
-    crypto::Intent,
+    Address, ObjectId, SenderSignedTransaction, SimpleSignature, Transaction, TransactionKind,
+    UserSignature,
+    crypto::{Intent, MultisigAggregatedSignature, MultisigCommittee, MultisigMember},
 };
 use rand::{SeedableRng, rngs::StdRng};
 
@@ -22,12 +23,9 @@ use crate::{
         AccountKeyPair, AuthorityKeyPair, AuthorityPublicKeyBytes, get_key_pair,
         get_key_pair_from_rng,
     },
-    multisig::{MultiSig, MultiSigPublicKey, MultisigMember},
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{
-        TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionData, TransactionDataAPI, TransactionEnvelope,
-    },
+    transaction::{TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI, TransactionEnvelope},
 };
 
 pub fn make_committee_key<R>(rand: &mut R) -> (Vec<AuthorityKeyPair>, Committee)
@@ -71,17 +69,17 @@ pub fn create_fake_transaction() -> TransactionEnvelope {
         builder.transfer_iota(recipient, None);
         builder.finish()
     };
-    let data = TransactionData::new_programmable(
+    let tx = Transaction::new_programmable(
         sender,
         vec![object.object_ref()],
         pt,
         TEST_ONLY_GAS_UNIT_FOR_TRANSFER, // gas price is 1
         1,
     );
-    to_sender_signed_transaction(data, &sender_key)
+    to_sender_signed_transaction(tx, &sender_key)
 }
 
-pub fn make_transaction_data(sender: Address) -> TransactionData {
+pub fn make_transaction_data(sender: Address) -> Transaction {
     let object =
         Object::immutable_with_id_for_testing(ObjectId::generate(StdRng::from_seed([0; 32])));
     let pt = {
@@ -89,7 +87,7 @@ pub fn make_transaction_data(sender: Address) -> TransactionData {
         builder.transfer_iota(dbg_addr(2), None);
         builder.finish()
     };
-    TransactionData::new_programmable(
+    Transaction::new_programmable(
         sender,
         vec![object.object_ref()],
         pt,
@@ -98,15 +96,15 @@ pub fn make_transaction_data(sender: Address) -> TransactionData {
     )
 }
 
-/// Make sponsored [`TransactionData`] with a transfer-IOTA programmable
+/// Make sponsored [`Transaction`] with a transfer-IOTA programmable
 /// transaction and a random gas object, for use in tests.
-pub fn make_sponsored_transaction_data(sender: Address, sponsor: Address) -> TransactionData {
+pub fn make_sponsored_transaction_data(sender: Address, sponsor: Address) -> Transaction {
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
         builder.transfer_iota(dbg_addr(2), None);
         builder.finish()
     };
-    TransactionData::new_with_gas_coins_allow_sponsor(
+    Transaction::new_with_gas_coins_allow_sponsor(
         TransactionKind::new_programmable(pt),
         sender,
         vec![random_object_ref()],
@@ -125,21 +123,21 @@ pub fn make_transaction(sender: Address, kp: &SimpleKeypair) -> TransactionEnvel
 
 // This is used to sign transaction with signer using default Intent.
 pub fn to_sender_signed_transaction(
-    data: TransactionData,
+    tx: Transaction,
     signer: &impl Signer<SimpleSignature>,
 ) -> TransactionEnvelope {
-    to_sender_signed_transaction_with_multi_signers(data, vec![signer])
+    to_sender_signed_transaction_with_multi_signers(tx, vec![signer])
 }
 
 pub fn to_sender_signed_transaction_with_optional_sponsor(
-    data: TransactionData,
+    tx: Transaction,
     sender_signature: UserSignature,
     sponsor_signer_opt: Option<&impl Signer<SimpleSignature>>,
 ) -> TransactionEnvelope {
     let mut signatures = vec![sender_signature];
     if let Some(sponsor) = sponsor_signer_opt {
         let sponsor_sig = TransactionEnvelope::signature_from_signer(
-            data.clone(),
+            tx.clone(),
             Intent::iota_transaction(),
             sponsor,
         )
@@ -147,14 +145,14 @@ pub fn to_sender_signed_transaction_with_optional_sponsor(
         signatures.push(sponsor_sig);
     };
 
-    TransactionEnvelope::from_user_sig_data(data, signatures)
+    TransactionEnvelope::from_user_sig_data(tx, signatures)
 }
 
 pub fn to_sender_signed_transaction_with_multi_signers(
-    data: TransactionData,
+    tx: Transaction,
     signers: Vec<&impl Signer<SimpleSignature>>,
 ) -> TransactionEnvelope {
-    TransactionEnvelope::from_data_and_signer(data, signers)
+    TransactionEnvelope::from_data_and_signer(tx, signers)
 }
 
 pub fn keys() -> Vec<SimpleKeypair> {
@@ -177,7 +175,7 @@ pub fn make_upgraded_multisig_tx() -> TransactionEnvelope {
     let pk2 = kp2.public_key();
     let pk3 = kp3.public_key();
 
-    let multisig_pk = MultiSigPublicKey::new(
+    let multisig_pk = MultisigCommittee::new(
         vec![
             MultisigMember::new(pk1, 1),
             MultisigMember::new(pk2, 1),
@@ -194,7 +192,8 @@ pub fn make_upgraded_multisig_tx() -> TransactionEnvelope {
     let sig2: SimpleSignature = kp2.sign(&msg);
 
     // Any 2 of 3 signatures verifies ok.
-    let multi_sig1 = MultiSig::new(vec![sig1.into(), sig2.into()], multisig_pk).unwrap();
+    let multi_sig1 =
+        MultisigAggregatedSignature::new(vec![sig1.into(), sig2.into()], multisig_pk).unwrap();
     TransactionEnvelope::new(SenderSignedTransaction::new(
         tx.transaction().clone(),
         vec![UserSignature::Multisig(multi_sig1)],
@@ -224,9 +223,9 @@ pub fn make_sponsored_regular_sig_tx() -> (TransactionEnvelope, Address, Address
 mod move_authenticator {
     use fastcrypto::hash::HashFunction;
     use iota_sdk_types::{
-        Address, Digest, SenderSignedTransaction, SharedObjectReference, UserSignature,
+        Address, Digest, MoveAuthenticator, MoveAuthenticatorV1, SenderSignedTransaction,
+        SharedObjectReference, UserSignature,
     };
-    pub use iota_sdk_types::{MoveAuthenticator, MoveAuthenticatorV1};
 
     use crate::{
         crypto::DefaultHash,

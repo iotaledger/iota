@@ -41,8 +41,9 @@ use iota_metrics::{
 use iota_sdk_types::{
     Address, CheckpointContentsDigest, CheckpointDigest, Digest, EndOfEpochTransactionKind,
     ExecutionStatus, MoveAuthenticator, ObjectDigest, ObjectId, ObjectReference, Owner,
-    RandomnessRound, SenderSignedTransaction, StructTag, SystemPackage, TransactionDigest,
-    TransactionEffects, TransactionEffectsDigest, TransactionEvents, TypeTag, Version,
+    RandomnessRound, SenderSignedTransaction, StructTag, SystemPackage, Transaction,
+    TransactionDigest, TransactionEffects, TransactionEffectsDigest, TransactionEvents, TypeTag,
+    Version,
     checkpoint::{CheckpointCommitment, CheckpointContents, CheckpointSummary},
     crypto::{Intent, IntentScope},
     gas::GasCostSummary,
@@ -1106,15 +1107,14 @@ impl AuthorityState {
             // It is supposed that `MoveAuthenticator` availability is checked in
             // `SenderSignedTransaction::validity_check`.
 
-            // Serialize the TransactionData for the auth context before decomposing.
-            let tx_data_bytes =
-                bcs::to_bytes(tx).expect("TransactionData serialization cannot fail");
+            // Serialize the Transaction for the auth context before decomposing.
+            let tx_bytes = bcs::to_bytes(tx).expect("Transaction serialization cannot fail");
 
             let (sender_auth_digest, sponsor_auth_digest) =
                 transaction.data().compute_auth_digests()?;
 
             let auth_context_data = AuthContextData {
-                transaction_data_bytes: tx_data_bytes,
+                transaction_data_bytes: tx_bytes,
                 sender_auth_digest,
                 sponsor_auth_digest,
                 sender_authenticator_function_ref,
@@ -1977,9 +1977,8 @@ impl AuthorityState {
                 .map(|(authenticator_input_objects, _)| authenticator_input_objects.clone())
                 .collect::<Vec<_>>();
 
-            // Serialize the TransactionData for the auth context.
-            let tx_data_bytes =
-                bcs::to_bytes(tx).expect("TransactionData serialization cannot fail");
+            // Serialize the Transaction for the auth context.
+            let tx_bytes = bcs::to_bytes(tx).expect("Transaction serialization cannot fail");
 
             let (sender_auth_digest, sponsor_auth_digest) =
                 transaction.data().compute_auth_digests()?;
@@ -2040,7 +2039,7 @@ impl AuthorityState {
                 });
 
             let auth_context_data = AuthContextData {
-                transaction_data_bytes: tx_data_bytes,
+                transaction_data_bytes: tx_bytes,
                 sender_auth_digest,
                 sponsor_auth_digest,
                 sender_authenticator_function_ref,
@@ -2137,7 +2136,7 @@ impl AuthorityState {
     /// rejected with [`UserInputError::GasBalanceTooLow`].
     pub fn simulate_transaction(
         &self,
-        transaction: TransactionData,
+        transaction: Transaction,
         checks: VmChecks,
     ) -> IotaResult<SimulateTransactionResult> {
         let epoch_store = self.load_epoch_store_one_call_per_task();
@@ -2161,7 +2160,7 @@ impl AuthorityState {
     pub fn simulate_transaction_in_epoch(
         &self,
         epoch_store: &AuthorityPerEpochStore,
-        transaction: TransactionData,
+        transaction: Transaction,
         checks: VmChecks,
     ) -> IotaResult<SimulateTransactionResult> {
         if !self.is_fullnode(epoch_store) {
@@ -2178,7 +2177,7 @@ impl AuthorityState {
     /// to run against, needs this.
     pub fn simulate_transaction_for_benchmark(
         &self,
-        transaction: TransactionData,
+        transaction: Transaction,
         checks: VmChecks,
     ) -> IotaResult<SimulateTransactionResult> {
         let epoch_store = self.load_epoch_store_one_call_per_task();
@@ -2189,7 +2188,7 @@ impl AuthorityState {
     fn simulate_transaction_inner(
         &self,
         epoch_store: &AuthorityPerEpochStore,
-        mut transaction: TransactionData,
+        mut transaction: Transaction,
         checks: VmChecks,
     ) -> IotaResult<SimulateTransactionResult> {
         if transaction.kind().is_system() {
@@ -5562,7 +5561,7 @@ impl AuthorityState {
         &self,
         protocol_config: &ProtocolConfig,
         reference_gas_price: u64,
-        tx_data: &TransactionData,
+        tx: &Transaction,
         tx_input_objects: InputObjects,
         tx_receiving_objects: &ReceivingObjects,
         move_authenticators: &Vec<&MoveAuthenticator>,
@@ -5631,7 +5630,7 @@ impl AuthorityState {
             iota_transaction_checks::check_transaction_input(
                 protocol_config,
                 reference_gas_price,
-                tx_data,
+                tx,
                 tx_input_objects,
                 tx_receiving_objects,
                 &self.metrics.bytecode_verifier_metrics,

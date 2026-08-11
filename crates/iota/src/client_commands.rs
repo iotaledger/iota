@@ -52,8 +52,8 @@ use iota_sdk::{
 use iota_sdk_transaction_builder::{TransactionBuilder, unresolved};
 use iota_sdk_types::{
     Address, Identifier, MoveAuthenticatorV1, ObjectId, ObjectReference, Owner,
-    SenderSignedTransaction, SharedObjectReference, SignatureScheme, TransactionDigest,
-    TransactionKind, TypeTag, UserSignature, Version,
+    SenderSignedTransaction, SharedObjectReference, SignatureScheme, Transaction,
+    TransactionDigest, TransactionKind, TypeTag, UserSignature, Version,
     crypto::{Intent, IntentMessage},
     gas::GasCostSummary,
     move_package::MovePackage,
@@ -79,8 +79,7 @@ use iota_types::{
     parse_iota_type_tag,
     quorum_driver_types::ExecuteTransactionRequestType,
     transaction::{
-        CallArg, InputObjectKind, TransactionData, TransactionDataAPI, TransactionEnvelope,
-        TransactionKindExt,
+        CallArg, InputObjectKind, TransactionAPI, TransactionEnvelope, TransactionKindExt,
     },
 };
 use json_to_table::json_to_table;
@@ -111,7 +110,7 @@ use crate::{
     client_ptb::ptb::{PTB, PTBCommandResult},
     displays::Pretty,
     key_identity::{KeyIdentity, get_identity_address, get_identity_address_from_keystore},
-    keytool::Key,
+    keytool::{Key, lowercase_key_scheme},
     signing::{SignData, get_shared_object_version, sign_secure, sign_transaction},
     upgrade_compatibility::check_compatibility,
     verifier_meter::{AccumulatingMeter, Accumulator},
@@ -283,7 +282,7 @@ pub enum IotaClientCommands {
     /// derivation path which defaults to m/44'/4218'/0'/0'/0' for ed25519,
     /// m/54'/4218'/0'/0/0 for secp256k1 or m/74'/4218'/0'/0/0 for secp256r1.
     NewAddress {
-        #[arg(long, default_value_t = SignatureScheme::Ed25519)]
+        #[arg(long, default_value = "ed25519")]
         key_scheme: SignatureScheme,
         /// The alias must start with a letter and can contain only letters,
         /// digits, hyphens (-), or underscores (_).
@@ -427,7 +426,7 @@ pub enum IotaClientCommands {
     /// Execute, dry-run, dev-inspect or otherwise inspect an already serialized
     /// transaction.
     SerializedTx {
-        /// Base64-encoded BCS-serialized TransactionData.
+        /// Base64-encoded BCS-serialized Transaction.
         tx_bytes: String,
         #[command(flatten)]
         processing: TxProcessingArgs,
@@ -660,7 +659,7 @@ pub struct TxProcessingArgs {
     #[arg(long)]
     pub dev_inspect: bool,
     /// Instead of executing the transaction, serialize the bcs bytes of the
-    /// unsigned transaction data (TransactionData) using base64 encoding,
+    /// unsigned transaction data (Transaction) using base64 encoding,
     /// and print out the string <TX_BYTES>. The string can be used to
     /// execute transaction with `iota client execute-signed-tx --tx-bytes
     /// <TX_BYTES>`.
@@ -1740,22 +1739,18 @@ impl IotaClientCommands {
                 tx_bytes,
                 processing,
             } => {
-                let Ok(bytes) = Base64::decode(&tx_bytes) else {
-                    bail!("Invalid Base64 encoding");
+                let Ok(tx) = Transaction::from_base64(&tx_bytes) else {
+                    bail!("Failed to parse --tx-bytes as Transaction");
                 };
 
-                let Ok(tx_data): Result<TransactionData, _> = bcs::from_bytes(&bytes) else {
-                    bail!("Failed to parse --tx-bytes as TransactionData");
-                };
-
-                let sender = tx_data.sender();
-                let gas_payment = tx_data.gas().to_owned();
+                let sender = tx.sender();
+                let gas_payment = tx.gas().to_owned();
                 let gas_data = GasDataArgs {
-                    gas_budget: Some(tx_data.gas_budget()),
-                    gas_price: Some(tx_data.gas_price()),
-                    gas_sponsor: Some(tx_data.gas_owner()),
+                    gas_budget: Some(tx.gas_budget()),
+                    gas_price: Some(tx.gas_price()),
+                    gas_sponsor: Some(tx.gas_owner()),
                 };
-                let tx_kind = tx_data.into_kind();
+                let tx_kind = tx.into_kind();
 
                 dry_run_or_execute_or_serialize(
                     sender,
@@ -1773,11 +1768,7 @@ impl IotaClientCommands {
                 gas_data,
                 processing,
             } => {
-                let Ok(bytes) = Base64::decode(&tx_bytes) else {
-                    bail!("Invalid Base64 encoding");
-                };
-
-                let Ok(tx_kind): Result<TransactionKind, _> = bcs::from_bytes(&bytes) else {
+                let Ok(tx_kind) = TransactionKind::from_base64(&tx_bytes) else {
                     bail!("Failed to parse --tx-bytes as TransactionKind");
                 };
 
@@ -1831,23 +1822,13 @@ impl IotaClientCommands {
                 tx_bytes,
                 signatures,
             } => {
-                let data = bcs::from_bytes(
-                    &Base64::try_from(tx_bytes)
-                    .map_err(|_| anyhow!("Invalid Base64 encoding"))?
-                    .to_vec()
-                    .map_err(|_| anyhow!("Invalid Base64 encoding"))?
-                ).map_err(|_| anyhow!("Failed to parse tx bytes, check if it matches the output of iota client commands with --serialize-unsigned-transaction"))?;
+                let data = Transaction::from_base64(&tx_bytes).map_err(|_| anyhow!("Failed to parse tx bytes, check if it matches the output of iota client commands with --serialize-unsigned-transaction"))?;
 
                 let mut sigs = Vec::new();
                 for sig in signatures {
                     sigs.push(
-                        UserSignature::from_bytes(
-                            &Base64::try_from(sig)
-                                .map_err(|_| anyhow!("Invalid Base64 encoding"))?
-                                .to_vec()
-                                .map_err(|e| anyhow!(e))?,
-                        )
-                        .map_err(|_| anyhow!("Invalid user signature"))?,
+                        UserSignature::from_base64(&sig)
+                            .map_err(|_| anyhow!("Invalid user signature"))?,
                     );
                 }
                 let transaction = TransactionEnvelope::from_user_sig_data(data, sigs);
@@ -1856,12 +1837,7 @@ impl IotaClientCommands {
                 IotaClientCommandResult::TransactionBlock(response)
             }
             IotaClientCommands::ExecuteCombinedSignedTx { signed_tx_bytes } => {
-                let tx: SenderSignedTransaction = bcs::from_bytes(
-                    &Base64::try_from(signed_tx_bytes)
-                        .map_err(|_| anyhow!("Invalid Base64 encoding"))?
-                        .to_vec()
-                        .map_err(|_| anyhow!("Invalid Base64 encoding"))?
-                ).map_err(|_| anyhow!("Failed to parse SenderSignedTransaction bytes, check if it matches the output of iota client commands with --serialize-signed-transaction"))?;
+                let tx = SenderSignedTransaction::from_base64(&signed_tx_bytes).map_err(|_| anyhow!("Failed to parse SenderSignedTransaction bytes, check if it matches the output of iota client commands with --serialize-signed-transaction"))?;
                 let transaction = Envelope::<SenderSignedTransaction, EmptySignInfo>::new(tx);
                 let response = context.execute_transaction_may_fail(transaction).await?;
                 IotaClientCommandResult::TransactionBlock(response)
@@ -1878,10 +1854,8 @@ impl IotaClientCommands {
                     context.config_mut().keystore_mut(),
                 )?;
                 let intent = intent.unwrap_or_else(Intent::iota_transaction);
-                let msg: TransactionData = bcs::from_bytes(
-                    &Base64::decode(&data)
-                        .map_err(|e| anyhow!("Cannot deserialize data as TransactionData {e}"))?,
-                )?;
+                let msg = Transaction::from_base64(&data)
+                    .map_err(|e| anyhow!("Cannot deserialize data as Transaction {e}"))?;
                 let intent_msg = IntentMessage::new(intent, msg.clone());
                 let raw_intent_msg: String = Base64::encode(bcs::to_bytes(&intent_msg)?);
                 let digest = intent_msg.signing_digest();
@@ -2458,10 +2432,8 @@ impl Display for IotaClientCommandResult {
                     "publicBase64KeyWithFlag",
                     new_address.public_base64_key_with_flag.as_str(),
                 ]);
-                builder.push_record(vec![
-                    "keyScheme",
-                    new_address.key_scheme.to_string().as_str(),
-                ]);
+                let key_scheme = lowercase_key_scheme(new_address.key_scheme);
+                builder.push_record(vec!["keyScheme", key_scheme.as_str()]);
                 builder.push_record(vec![
                     "recoveryPhrase",
                     new_address.recovery_phrase.to_string().as_str(),
@@ -2541,18 +2513,10 @@ impl Display for IotaClientCommandResult {
                 writeln!(writer, "{}", tx_data.digest())?;
             }
             IotaClientCommandResult::SerializedUnsignedTransaction(tx_data) => {
-                writeln!(
-                    writer,
-                    "{}",
-                    fastcrypto::encoding::Base64::encode(bcs::to_bytes(tx_data).unwrap())
-                )?;
+                writeln!(writer, "{}", tx_data.to_base64())?;
             }
             IotaClientCommandResult::SerializedSignedTransaction(sender_signed_tx) => {
-                writeln!(
-                    writer,
-                    "{}",
-                    fastcrypto::encoding::Base64::encode(bcs::to_bytes(sender_signed_tx).unwrap())
-                )?;
+                writeln!(writer, "{}", sender_signed_tx.to_base64())?;
             }
             IotaClientCommandResult::SyncClientState => {
                 writeln!(writer, "Client state sync complete.")?;
@@ -2848,16 +2812,16 @@ pub struct NewAddressOutput {
     pub address: Address,
     pub public_base64_key: String,
     pub public_base64_key_with_flag: String,
-    #[serde(serialize_with = "serialize_as_display")]
+    #[serde(serialize_with = "serialize_key_scheme")]
     pub key_scheme: SignatureScheme,
     pub recovery_phrase: String,
 }
 
-fn serialize_as_display<S: serde::Serializer>(
-    value: &impl Display,
+fn serialize_key_scheme<S: serde::Serializer>(
+    value: &SignatureScheme,
     serializer: S,
 ) -> Result<S::Ok, S::Error> {
-    serializer.collect_str(value)
+    serializer.serialize_str(&lowercase_key_scheme(*value))
 }
 
 #[derive(Serialize)]
@@ -2965,7 +2929,7 @@ pub enum IotaClientCommandResult {
     Addresses(AddressesOutput),
     Balance(Vec<(Option<IotaCoinMetadata>, Vec<Coin>)>, bool),
     ChainIdentifier(String),
-    ComputeTransactionDigest(TransactionData),
+    ComputeTransactionDigest(Transaction),
     DynamicFieldQuery(DynamicFieldPage),
     DryRun(DryRunTransactionBlockResponse),
     DevInspect(DevInspectResults),
@@ -2979,7 +2943,7 @@ pub enum IotaClientCommandResult {
     RawObject(IotaObjectResponse),
     RemoveAddress(Address),
     SerializedSignedTransaction(SenderSignedTransaction),
-    SerializedUnsignedTransaction(TransactionData),
+    SerializedUnsignedTransaction(Transaction),
     Sign(SignData),
     Switch(SwitchResponse),
     SyncClientState,
@@ -3246,7 +3210,7 @@ pub async fn execute_dry_run(
         }
     };
     debug!("Gas budget for dry run: {gas_budget}");
-    let tx_data = TransactionData::new_with_gas_coins_allow_sponsor(
+    let tx = Transaction::new_with_gas_coins_allow_sponsor(
         kind,
         signer,
         gas_payment,
@@ -3255,7 +3219,7 @@ pub async fn execute_dry_run(
         sponsor.unwrap_or(signer),
     );
     debug!("Executing dry run");
-    let response = client.read_api().dry_run_transaction_block(tx_data).await?;
+    let response = client.read_api().dry_run_transaction_block(tx).await?;
     debug!("Finished executing dry run {response:?}");
     let resp = IotaClientCommandResult::DryRun(response)
         .prerender_clever_errors(context)
@@ -3466,7 +3430,7 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
         vec![gas_payment]
     };
     debug!("Preparing transaction data");
-    let tx_data = TransactionData::new_with_gas_coins_allow_sponsor(
+    let tx = Transaction::new_with_gas_coins_allow_sponsor(
         tx_kind,
         signer,
         gas_payment,
@@ -3477,11 +3441,9 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
     debug!("Finished preparing transaction data");
 
     if serialize_unsigned_transaction {
-        Ok(IotaClientCommandResult::SerializedUnsignedTransaction(
-            tx_data,
-        ))
+        Ok(IotaClientCommandResult::SerializedUnsignedTransaction(tx))
     } else if tx_digest {
-        Ok(IotaClientCommandResult::ComputeTransactionDigest(tx_data))
+        Ok(IotaClientCommandResult::ComputeTransactionDigest(tx))
     } else {
         let sender_auth_args = build_auth_args_for_signing(
             &client,
@@ -3491,8 +3453,7 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
         )
         .await?;
 
-        let signature =
-            sign_transaction(context, &tx_data, &tx_data.sender(), sender_auth_args).await?;
+        let signature = sign_transaction(context, &tx, &tx.sender(), sender_auth_args).await?;
 
         let mut signatures = vec![signature];
 
@@ -3506,13 +3467,13 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
                 )
                 .await?;
                 let signature =
-                    sign_transaction(context, &tx_data, &gas_sponsor, sponsor_auth_args).await?;
+                    sign_transaction(context, &tx, &gas_sponsor, sponsor_auth_args).await?;
 
                 signatures.push(signature);
             }
         }
 
-        let sender_signed_tx = SenderSignedTransaction::new(tx_data, signatures);
+        let sender_signed_tx = SenderSignedTransaction::new(tx, signatures);
 
         if serialize_signed_transaction {
             Ok(IotaClientCommandResult::SerializedSignedTransaction(

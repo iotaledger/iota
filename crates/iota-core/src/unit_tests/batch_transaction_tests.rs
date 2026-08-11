@@ -54,7 +54,7 @@ async fn test_batch_transaction_ok() -> anyhow::Result<()> {
             )
             .unwrap();
     }
-    let data = TransactionData::new_programmable(
+    let tx = Transaction::new_programmable(
         sender,
         vec![
             authority_state
@@ -67,7 +67,7 @@ async fn test_batch_transaction_ok() -> anyhow::Result<()> {
         rgp,
     );
 
-    let tx = to_sender_signed_transaction(data, &sender_key);
+    let tx = to_sender_signed_transaction(tx, &sender_key);
     let response = send_and_confirm_transaction(&authority_state, tx).await?;
     let effects = response.1.into_data();
     assert_eq!(effects.status(), &ExecutionStatus::Success);
@@ -127,7 +127,7 @@ async fn test_batch_transaction_last_one_fail() -> anyhow::Result<()> {
             vec![],
         )
         .unwrap();
-    let data = TransactionData::new_programmable(
+    let tx = Transaction::new_programmable(
         sender,
         vec![
             authority_state
@@ -140,7 +140,7 @@ async fn test_batch_transaction_last_one_fail() -> anyhow::Result<()> {
         rgp,
     );
 
-    let tx = to_sender_signed_transaction(data, &sender_key);
+    let tx = to_sender_signed_transaction(tx, &sender_key);
 
     let response = send_and_confirm_transaction(&authority_state, tx).await?.1;
     let effects = response.into_data();
@@ -186,7 +186,7 @@ async fn test_batch_insufficient_gas_balance() -> anyhow::Result<()> {
             )
             .unwrap();
     }
-    let data = TransactionData::new_programmable(
+    let tx = Transaction::new_programmable(
         sender,
         vec![gas_object.object_ref()],
         builder.finish(),
@@ -194,7 +194,7 @@ async fn test_batch_insufficient_gas_balance() -> anyhow::Result<()> {
         rgp,
     );
 
-    let tx = to_sender_signed_transaction(data, &sender_key);
+    let tx = to_sender_signed_transaction(tx, &sender_key);
     let response = send_and_confirm_transaction(&authority_state, tx).await;
 
     assert!(matches!(

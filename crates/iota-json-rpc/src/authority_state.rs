@@ -16,8 +16,8 @@ use iota_json_rpc_types::{
     Coin as IotaCoin, EventFilter, IotaEvent, IotaObjectDataFilter, TransactionFilter,
 };
 use iota_sdk_types::{
-    Address, CheckpointContentsDigest, CheckpointDigest, ObjectId, StructTag, TransactionDigest,
-    TransactionEffects, TypeTag, Version, checkpoint::CheckpointContents,
+    Address, CheckpointContentsDigest, CheckpointDigest, ObjectId, StructTag, Transaction,
+    TransactionDigest, TransactionEffects, TypeTag, Version, checkpoint::CheckpointContents,
 };
 use iota_storage::key_value_store::{
     KVStoreTransactionData, TransactionKeyValueStore, TransactionKeyValueStoreTrait,
@@ -36,7 +36,7 @@ use iota_types::{
     object::{Object, ObjectRead, PastObjectRead},
     storage::{BackingPackageStore, ObjectStore},
     timelock::timelocked_staked_iota::TimelockedStakedIota,
-    transaction::{TransactionData, TransactionEnvelope},
+    transaction::TransactionEnvelope,
     transaction_executor::{SimulateTransactionResult, VmChecks},
 };
 #[cfg(test)]
@@ -105,7 +105,7 @@ pub trait StateRead: Send + Sync {
     fn simulate_transaction_in_epoch(
         &self,
         epoch_store: &AuthorityPerEpochStore,
-        transaction: TransactionData,
+        transaction: Transaction,
         checks: VmChecks,
     ) -> StateReadResult<SimulateTransactionResult>;
 
@@ -299,7 +299,7 @@ impl StateRead for AuthorityState {
     fn simulate_transaction_in_epoch(
         &self,
         epoch_store: &AuthorityPerEpochStore,
-        transaction: TransactionData,
+        transaction: Transaction,
         checks: VmChecks,
     ) -> StateReadResult<SimulateTransactionResult> {
         Ok(self.simulate_transaction_in_epoch(epoch_store, transaction, checks)?)

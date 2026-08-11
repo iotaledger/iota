@@ -19,7 +19,6 @@ use iota_sdk_types::{
 use iota_types::{
     base_types::AuthorityName,
     executable_transaction::{TrustedExecutableTransaction, VerifiedExecutableTransaction},
-    iota_system_state::epoch_start_iota_system_state::EpochStartSystemStateTrait,
     messages_consensus::{ConsensusTransaction, ConsensusTransactionKey, ConsensusTransactionKind},
     transaction::{SenderSignedTransactionAPI, VerifiedTransaction},
 };
@@ -43,6 +42,7 @@ use crate::{
         AuthorityIndex,
         consensus_output_api::{ConsensusOutputAPI, ConsensusOutputTransactions},
     },
+    epoch_start_consensus_committee::get_consensus_committee,
     execution_cache::{ObjectCacheRead, TransactionCacheRead},
     execution_scheduler::{ExecutionSchedulerAPI, ExecutionSchedulerWrapper},
     scoring_decision::update_low_scoring_authorities,
@@ -89,7 +89,7 @@ impl ConsensusHandlerInitializer {
 
     pub fn new_consensus_handler(&self) -> ConsensusHandler<CheckpointService> {
         let new_epoch_start_state = self.epoch_store.epoch_start_state();
-        let consensus_committee = new_epoch_start_state.get_consensus_committee();
+        let consensus_committee = get_consensus_committee(new_epoch_start_state);
 
         ConsensusHandler::new(
             self.epoch_store.clone(),
@@ -921,7 +921,7 @@ mod tests {
     use arc_swap::ArcSwap;
     use futures::pin_mut;
     use iota_protocol_config::{Chain, ConsensusTransactionOrdering, ProtocolConfig};
-    use iota_sdk_types::{Address, ObjectId, SenderSignedTransaction};
+    use iota_sdk_types::{Address, ObjectId, SenderSignedTransaction, Transaction};
     use iota_types::{
         base_types::{AuthorityName, random_object_ref},
         committee::Committee,
@@ -933,15 +933,12 @@ mod tests {
         supported_protocol_versions::{
             SupportedProtocolVersions, SupportedProtocolVersionsWithHashes,
         },
-        transaction::{
-            CertifiedTransaction, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionData,
-            TransactionDataAPI,
-        },
+        transaction::{CertifiedTransaction, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI},
         utils::to_sender_signed_transaction,
     };
     use prometheus_filtered::Registry;
     use starfish_core::{
-        BlockHeaderAPI, CommitDigest, CommitRef, CommittedSubDag, TestBlockHeader, Transaction,
+        BlockHeaderAPI, CommitDigest, CommitRef, CommittedSubDag, TestBlockHeader,
         VerifiedBlockHeader, VerifiedTransactions,
     };
 
@@ -975,7 +972,7 @@ mod tests {
 
         let epoch_store = state.epoch_store_for_testing().clone();
         let new_epoch_start_state = epoch_store.epoch_start_state();
-        let consensus_committee = new_epoch_start_state.get_consensus_committee();
+        let consensus_committee = get_consensus_committee(new_epoch_start_state);
 
         let metrics = Arc::new(AuthorityMetrics::new(&Registry::new()));
 
@@ -1015,7 +1012,7 @@ mod tests {
             );
             let tx_batch = VerifiedTransactions::new_for_test(
                 &header,
-                vec![Transaction::new(transaction_bytes)],
+                vec![starfish_core::Transaction::new(transaction_bytes)],
             );
             headers.push(header);
             subdag_transactions.push(tx_batch);
@@ -1126,7 +1123,7 @@ mod tests {
 
         let epoch_store = state.epoch_store_for_testing().clone();
         let new_epoch_start_state = epoch_store.epoch_start_state();
-        let consensus_committee = new_epoch_start_state.get_consensus_committee();
+        let consensus_committee = get_consensus_committee(new_epoch_start_state);
         let rgp = epoch_store.reference_gas_price();
 
         let metrics = Arc::new(AuthorityMetrics::new(&Registry::new()));
@@ -1154,7 +1151,7 @@ mod tests {
             let owned_ref = state.get_object(&owned_obj.id()).unwrap().object_ref();
             let gas_ref = state.get_object(&gas_obj.id()).unwrap().object_ref();
 
-            let tx_data = TransactionData::new_transfer(
+            let tx = Transaction::new_transfer(
                 recipient,
                 owned_ref,
                 sender,
@@ -1162,7 +1159,7 @@ mod tests {
                 rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
                 rgp,
             );
-            let tx = to_sender_signed_transaction(tx_data, &sender_key);
+            let tx = to_sender_signed_transaction(tx, &sender_key);
             let verified_tx = epoch_store.verify_transaction(tx).unwrap();
 
             let consensus_tx = ConsensusTransaction {
@@ -1177,7 +1174,7 @@ mod tests {
             );
             let tx_batch = VerifiedTransactions::new_for_test(
                 &header,
-                vec![Transaction::new(transaction_bytes)],
+                vec![starfish_core::Transaction::new(transaction_bytes)],
             );
             headers.push(header);
             subdag_transactions.push(tx_batch);
@@ -1343,7 +1340,7 @@ mod tests {
     fn user_txn(gas_price: u64) -> VerifiedSequencedConsensusTransaction {
         let (committee, keypairs) = Committee::new_simple_test_committee();
         let tx = SenderSignedTransaction::new(
-            TransactionData::new_transfer(
+            Transaction::new_transfer(
                 Address::ZERO,
                 random_object_ref(),
                 Address::ZERO,

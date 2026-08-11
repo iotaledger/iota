@@ -15,12 +15,12 @@ use iota_sdk_crypto::{
 };
 use iota_sdk_types::{
     Address, Ed25519PublicKey, Ed25519Signature, ObjectDigest, ObjectId, ObjectReference,
-    SignatureScheme, Version,
+    SignatureScheme, Transaction, Version,
     crypto::{Intent, IntentScope, PublicKey, PublicKeyExt as _, SimpleSignature, UserSignature},
 };
 use iota_types::{
     crypto::{AuthorityKeyPair, EncodeDecodeBase64, get_key_pair, get_key_pair_from_rng},
-    transaction::{TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionData, TransactionDataAPI},
+    transaction::{TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI},
 };
 use rand::{SeedableRng, rngs::StdRng};
 use tempfile::TempDir;
@@ -29,7 +29,10 @@ use tokio::test;
 use super::{KeyToolCommand, write_keypair_to_file};
 use crate::{
     key_identity::KeyIdentity,
-    keytool::{CommandOutput, read_authority_keypair_from_file, read_keypair_from_file},
+    keytool::{
+        CommandOutput, lowercase_key_scheme, read_authority_keypair_from_file,
+        read_keypair_from_file,
+    },
     signing::sign_secure,
 };
 
@@ -544,14 +547,14 @@ async fn test_sign_command() -> Result<(), anyhow::Error> {
     let sender = addresses.first().unwrap();
     let alias = keystore.get_alias_by_address(sender).unwrap();
 
-    // Create a dummy TransactionData
+    // Create a dummy Transaction
     let gas = ObjectReference::new(
         ObjectId::random(),
         Version::default(),
         ObjectDigest::random(),
     );
     let gas_price = 1;
-    let tx_data = TransactionData::new_pay_iota(
+    let tx = Transaction::new_pay_iota(
         *sender,
         vec![gas],
         vec![Address::random()],
@@ -566,7 +569,7 @@ async fn test_sign_command() -> Result<(), anyhow::Error> {
     // scope as PersonalMessage.
     KeyToolCommand::Sign {
         address: KeyIdentity::Address(*sender),
-        data: Base64::encode(bcs::to_bytes(&tx_data)?),
+        data: tx.to_base64(),
         intent: Some(Intent::iota_app(IntentScope::PersonalMessage)),
     }
     .execute(&mut keystore)
@@ -576,7 +579,7 @@ async fn test_sign_command() -> Result<(), anyhow::Error> {
     // default is used.
     KeyToolCommand::Sign {
         address: KeyIdentity::Address(*sender),
-        data: Base64::encode(bcs::to_bytes(&tx_data)?),
+        data: tx.to_base64(),
         intent: None,
     }
     .execute(&mut keystore)
@@ -586,7 +589,7 @@ async fn test_sign_command() -> Result<(), anyhow::Error> {
     // default is used. Use alias for signing instead of the address
     KeyToolCommand::Sign {
         address: KeyIdentity::Alias(alias),
-        data: Base64::encode(bcs::to_bytes(&tx_data)?),
+        data: tx.to_base64(),
         intent: None,
     }
     .execute(&mut keystore)
@@ -921,4 +924,31 @@ async fn test_decode_sig() -> Result<(), anyhow::Error> {
     }
 
     Ok(())
+}
+
+/// The CLI takes a key scheme as a lowercase argument and echoes it back in its
+/// output, so every spelling it prints must parse as an argument again.
+#[test]
+async fn test_lowercase_key_scheme_parses_as_a_cli_argument() {
+    for scheme in [
+        SignatureScheme::Ed25519,
+        SignatureScheme::Secp256k1,
+        SignatureScheme::Secp256r1,
+        SignatureScheme::Multisig,
+        SignatureScheme::Bls12381,
+        SignatureScheme::PasskeyAuthenticator,
+        SignatureScheme::MoveAuthenticator,
+    ] {
+        let spelling = lowercase_key_scheme(scheme);
+        assert_eq!(
+            spelling,
+            spelling.to_lowercase(),
+            "{scheme} must be lowercase"
+        );
+        assert_eq!(
+            SignatureScheme::from_str(&spelling),
+            std::result::Result::Ok(scheme),
+            "{spelling} must parse back to {scheme}"
+        );
+    }
 }

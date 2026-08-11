@@ -13,11 +13,9 @@ use iota_indexer::{
 use iota_json_rpc_types::IotaExecutionStatus;
 use iota_sdk_types::{
     Event as NativeEvent, ExecutionStatus as NativeExecutionStatus,
-    TransactionEffects as NativeTransactionEffects,
+    Transaction as NativeTransactionData, TransactionEffects as NativeTransactionEffects,
 };
-use iota_types::{
-    effects::TransactionEffectsAPI, transaction::TransactionData as NativeTransactionData,
-};
+use iota_types::effects::TransactionEffectsAPI;
 
 use crate::{
     config::DEFAULT_PAGE_SIZE,
