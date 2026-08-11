@@ -2,7 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::{BTreeMap, BTreeSet, HashSet};
+use std::{
+    collections::{BTreeMap, BTreeSet, HashSet},
+    time::Duration,
+};
 
 use iota_sdk_types::{
     Argument, Event, ObjectData, ObjectDigest, ObjectId, ObjectReference, Owner, TransactionDigest,
@@ -168,6 +171,12 @@ impl ExecutionResultsV1 {
         }
     }
 }
+
+pub enum ExecutionTiming {
+    Success(Duration),
+    Abort(Duration),
+}
+pub type ResultWithTimings<R, E> = Result<(R, Vec<ExecutionTiming>), (E, Vec<ExecutionTiming>)>;
 
 /// If a transaction digest shows up in this list, when executing such
 /// transaction, we will always return `ExecutionError::CertificateDenied`

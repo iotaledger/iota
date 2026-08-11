@@ -788,7 +788,8 @@ impl LocalExec {
 
         let move_authenticators = tx_info.sender_signed_data.move_authenticators();
 
-        let (inner_store, gas_status, effects, result) = if move_authenticators.is_empty() {
+        let (inner_store, gas_status, effects, _timings, result) = if move_authenticators.is_empty()
+        {
             // Standard path: no MoveAuthenticator
             executor.execute_transaction_to_effects(
                 &self,
@@ -1047,7 +1048,7 @@ impl LocalExec {
 
         let move_authenticators = sender_signed_data.move_authenticators();
 
-        let (_, _, effects, exec_res) = if move_authenticators.is_empty() {
+        let (_, _, effects, _timings, exec_res) = if move_authenticators.is_empty() {
             // Standard path: no MoveAuthenticator
             let input_objects = store
                 .read_input_objects_for_transaction(&Transaction::new(sender_signed_data.clone()));

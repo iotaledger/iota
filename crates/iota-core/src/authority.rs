@@ -1893,7 +1893,7 @@ impl AuthorityState {
         let move_authenticators = transaction.move_authenticators();
 
         #[cfg_attr(not(any(msim, fail_points)), expect(unused_mut))]
-        let (inner_temp_store, _, mut effects, execution_error_opt) = if move_authenticators
+        let (inner_temp_store, _, mut effects, _, execution_error_opt) = if move_authenticators
             .is_empty()
         {
             // No Move authentication required, proceed to execute the transaction directly.
@@ -2252,7 +2252,7 @@ impl AuthorityState {
             .expect("Creating an executor should not fail here");
 
         let expensive_checks = false;
-        let (inner_temp_store, _, effects, execution_error) = executor
+        let (inner_temp_store, _, effects, _timings, execution_error) = executor
             .execute_transaction_to_effects(
                 self.get_backing_store().as_ref(),
                 protocol_config,

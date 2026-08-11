@@ -12,6 +12,7 @@ mod checked {
         fmt,
         rc::Rc,
         sync::Arc,
+        time::Instant,
     };
 
     use iota_move_natives::object_runtime::ObjectRuntime;
@@ -28,6 +29,7 @@ mod checked {
         },
         coin::Coin,
         error::{ExecutionError, ExecutionErrorKind, IotaError, command_argument_error},
+        execution::{ExecutionTiming, ResultWithTimings},
         execution_config_utils::to_binary_config,
         id::RESOLVED_IOTA_ID,
         iota_sdk_types_conversions::type_tag_core_to_sdk,
@@ -96,6 +98,36 @@ mod checked {
         gas_charger: &mut GasCharger,
         pt: ProgrammableTransaction,
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
+    ) -> ResultWithTimings<Mode::ExecutionResults, ExecutionError> {
+        let mut timings = vec![];
+        let result = execute_inner::<Mode>(
+            &mut timings,
+            protocol_config,
+            metrics,
+            vm,
+            state_view,
+            tx_context,
+            gas_charger,
+            pt,
+            trace_builder_opt,
+        );
+
+        match result {
+            Ok(result) => Ok((result, timings)),
+            Err(e) => Err((e, timings)),
+        }
+    }
+
+    pub fn execute_inner<Mode: ExecutionMode>(
+        timings: &mut Vec<ExecutionTiming>,
+        protocol_config: &ProtocolConfig,
+        metrics: Arc<LimitsMetrics>,
+        vm: &MoveVM,
+        state_view: &mut dyn ExecutionState,
+        tx_context: Rc<RefCell<TxContext>>,
+        gas_charger: &mut GasCharger,
+        pt: ProgrammableTransaction,
+        trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> Result<Mode::ExecutionResults, ExecutionError> {
         let ProgrammableTransaction { inputs, commands } = pt;
         let mut context = ExecutionContext::new(
@@ -110,6 +142,7 @@ mod checked {
         // execute commands
         let mut mode_results = Mode::empty_results();
         for (idx, command) in commands.into_iter().enumerate() {
+            let start = Instant::now();
             if let Err(err) =
                 execute_command::<Mode>(&mut context, &mut mode_results, command, trace_builder_opt)
             {
@@ -120,8 +153,10 @@ mod checked {
                 // modified
                 drop(context);
                 state_view.save_loaded_runtime_objects(loaded_runtime_objects);
+                timings.push(ExecutionTiming::Abort(start.elapsed()));
                 return Err(err.with_command_index(idx as u64));
             };
+            timings.push(ExecutionTiming::Success(start.elapsed()));
         }
 
         // Save loaded objects table in case we fail in post execution

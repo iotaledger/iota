@@ -548,6 +548,7 @@ pub mod advance_epoch_result_injection {
     use crate::{
         committee::EpochId,
         error::{ExecutionError, ExecutionErrorKind},
+        execution::ResultWithTimings,
     };
 
     thread_local! {
@@ -565,14 +566,14 @@ pub mod advance_epoch_result_injection {
     /// for testing. If the override is set, the result will be an execution
     /// error, otherwise the original result will be returned.
     pub fn maybe_modify_result(
-        result: Result<(), ExecutionError>,
+        result: ResultWithTimings<(), ExecutionError>,
         current_epoch: EpochId,
-    ) -> Result<(), ExecutionError> {
+    ) -> ResultWithTimings<(), ExecutionError> {
         if let Some((start, end)) = OVERRIDE.with(|o| *o.borrow()) {
             if current_epoch >= start && current_epoch < end {
-                return Err::<(), ExecutionError>(ExecutionError::new(
-                    ExecutionErrorKind::FunctionNotFound,
-                    None,
+                return Err((
+                    ExecutionError::new(ExecutionErrorKind::FunctionNotFound, None),
+                    vec![],
                 ));
             }
         }
