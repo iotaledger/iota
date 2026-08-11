@@ -26,7 +26,7 @@ jobs:
       - uses: slackapi/slack-github-action@45a88b9581bfab2566dc881e2cd66d334e621e2c # v3.0.3
         if: github.event.workflow_run.conclusion != 'cancelled' || steps.failed-jobs.outputs.count != '0'
         with:
-          webhook: ${{ (github.event.workflow_run.name == 'Nightly checks' || github.event.workflow_run.name == 'Turborepo Nightly checks') && secrets.NIGHTLY_BROKEN_CI_SLACK_WEBHOOK || secrets.DEV_BROKEN_CI_SLACK_WEBHOOK }}
+          webhook: ${{ github.event.workflow_run.name == 'Nightly checks' && secrets.NIGHTLY_BROKEN_CI_SLACK_WEBHOOK || secrets.DEV_BROKEN_CI_SLACK_WEBHOOK }}
           webhook-type: incoming-webhook
           # Fail the run if Slack rejects the request, so a broken webhook is visible instead of silently dropped.
           errors: true
