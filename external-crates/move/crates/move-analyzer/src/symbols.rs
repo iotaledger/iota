@@ -72,7 +72,7 @@ use std::{
 
 use anyhow::{Result, anyhow};
 use crossbeam::channel::Sender;
-use im::ordmap::OrdMap;
+use imbl::ordmap::OrdMap;
 use lsp_server::{Message, Request, RequestId, Response};
 use lsp_types::{
     Diagnostic, DocumentSymbol, DocumentSymbolParams, GotoDefinitionParams, Hover, HoverContents,

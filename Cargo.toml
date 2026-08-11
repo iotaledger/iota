@@ -288,7 +288,6 @@ http-body-util = "0.1.2"
 humantime = "2.1.0"
 hyper = "1"
 hyper-util = { version = "0.1.20", features = ["tokio", "server-auto", "service"] }
-im = "15"
 indexmap = { version = "2.11.0", features = ["serde"] }
 indicatif = "0.18.3"
 insta = { version = "1.21.1", features = ["redactions", "yaml", "json"] }

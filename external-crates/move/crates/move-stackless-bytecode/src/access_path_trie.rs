@@ -15,7 +15,7 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
-use im::ordmap::Entry;
+use imbl::{ordmap::Entry, shared_ptr::DefaultSharedPtr};
 use move_core_types::language_storage::TypeTag;
 use move_model::{
     ast::TempIndex,
@@ -102,7 +102,7 @@ impl<T: FootprintDomain> TrieNode<T> {
         &self.children
     }
 
-    pub fn entry(&mut self, o: Offset) -> Entry<'_, Offset, TrieNode<T>> {
+    pub fn entry(&mut self, o: Offset) -> Entry<'_, Offset, TrieNode<T>, DefaultSharedPtr> {
         self.children.entry(o)
     }
 
